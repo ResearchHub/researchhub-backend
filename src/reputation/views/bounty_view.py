@@ -3,6 +3,7 @@ import time
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.db.models import Sum
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -269,6 +270,8 @@ class BountyViewSet(viewsets.ModelViewSet):
         object_id = data.get("object_id", None)
         multi_approve = data.get("multi_approve", False)
         approval_metadata = request.data.get("multi_bounty_approval_metadata", {})
+        approver = request.user
+
         if amount:
             try:
                 amount = decimal.Decimal(str(amount))
@@ -287,9 +290,19 @@ class BountyViewSet(viewsets.ModelViewSet):
             escrow = bounty.escrow
 
             if multi_approve:
+                created_by = bounty.unified_document.created_by
+
+                if created_by != approver:
+                    return Response(
+                        {
+                            "detail": "The bounty was started by a different user. Have them award the bounty."
+                        },
+                        status=400,
+                    )
+
                 escrow.status = Escrow.PAID
-                bounty_amount = bounty.amount
                 total = 0
+                bounty_amount = bounty.amount
                 for item in approval_metadata:
                     if item.get("amount") < 0:
                         return Response(
@@ -304,7 +317,8 @@ class BountyViewSet(viewsets.ModelViewSet):
                             "detail": "The maximum amount you can award is {} RSC".format(
                                 bounty_amount
                             )
-                        }
+                        },
+                        status=400,
                     )
 
                 for item in approval_metadata:
