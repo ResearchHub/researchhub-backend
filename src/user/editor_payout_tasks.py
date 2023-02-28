@@ -89,7 +89,7 @@ def get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month):
     recent_coin_gecko_rate = RscExchangeRate.objects.filter(
         price_source=COIN_GECKO,
         # greater than "TODAY" 2:50PM PST. Coin gecko prices are recorded every hr.
-        # Current script should run at 3:10PM PST.
+        # Current script should run at 3:02PM PST.
         created_date__gte=datetime.datetime.now().replace(hour=14, minute=50),
     ).first()
 
