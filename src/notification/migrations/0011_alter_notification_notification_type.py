@@ -24,6 +24,7 @@ class Migration(migrations.Migration):
                     ("DIS_ON_BOUNTY", "DIS_ON_BOUNTY"),
                     ("COMMENT", "COMMENT"),
                     ("COMMENT_ON_COMMENT", "COMMENT_ON_COMMENT"),
+                    ("BOUNTY_PAYOUT", "BOUNTY_PAYOUT"),
                 ],
                 max_length=32,
                 null=True,

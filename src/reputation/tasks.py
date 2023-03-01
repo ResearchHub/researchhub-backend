@@ -156,8 +156,7 @@ def check_open_bounties():
 
     expired_bounties = open_bounties.filter(time_left__lte=timedelta(days=0))
     for bounty in expired_bounties.iterator():
-        bounty.set_expired_status()
-        refund_status = bounty.refund()
+        refund_status = bounty.close(Bounty.EXPIRED)
         bounty.unified_document.update_filters(
             (FILTER_BOUNTY_EXPIRED, FILTER_BOUNTY_OPEN)
         )
