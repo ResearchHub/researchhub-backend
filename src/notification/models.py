@@ -23,6 +23,7 @@ class Notification(models.Model):
     BOUNTY_EXPIRING_SOON = "BOUNTY_EXPIRING_SOON"
     BOUNTY_HUB_EXPIRING_SOON = "BOUNTY_HUB_EXPIRING_SOON"
     DIS_ON_BOUNTY = "DIS_ON_BOUNTY"
+    BOUNTY_PAYOUT = "BOUNTY_PAYOUT"
 
     NOTIFICATION_TYPE_CHOICES = (
         (DEPRECATED, DEPRECATED),
@@ -35,6 +36,7 @@ class Notification(models.Model):
         (FLAGGED_CONTENT_VERDICT, FLAGGED_CONTENT_VERDICT),
         (BOUNTY_EXPIRING_SOON, BOUNTY_EXPIRING_SOON),
         (DIS_ON_BOUNTY, DIS_ON_BOUNTY),
+        (BOUNTY_PAYOUT, BOUNTY_PAYOUT),
     )
 
     notification_type = models.CharField(
@@ -385,4 +387,39 @@ class Notification(models.Model):
             },
             {"type": "text", "value": "on your "},
             {"type": "link", "value": "bounty", "link": base_url, "extra": '["link"]'},
+        ], comments_url
+
+    def _format_bounty_payout(self):
+        unified_document = self.unified_document
+        action_user = self.action_user
+        action_user_name = action_user.first_name
+        document = unified_document.get_document()
+        doc_title = self._truncate_title(title=document.title)
+        base_url = unified_document.frontend_view_link()
+        comments_url = f"{base_url}#comments"
+
+        return [
+            {
+                "type": "link",
+                "value": f"{action_user_name}",
+                "extra": '["bold", "link"]',
+                "link": action_user.frontend_view_link(),
+            },
+            {
+                "type": "text",
+                "value": f"awarded you RSC for your ",
+            },
+            {
+                "type": "link",
+                "value": "thread ",
+                "link": comments_url,
+                "extra": '["link"]',
+            },
+            {"type": "text", "value": "in "},
+            {
+                "type": "link",
+                "value": doc_title,
+                "link": base_url,
+                "extra": '["link"]',
+            },
         ], comments_url

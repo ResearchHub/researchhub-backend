@@ -4,7 +4,7 @@ from decimal import Decimal
 import pytz
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Sum
 
 from utils.models import DefaultModel
@@ -12,7 +12,7 @@ from utils.models import DefaultModel
 
 def get_default_expiration_date():
     now = datetime.now(pytz.UTC)
-    date = now + timedelta(days=7)
+    date = now + timedelta(days=30)
     return date
 
 
@@ -29,7 +29,8 @@ class Bounty(DefaultModel):
     )
 
     expiration_date = models.DateTimeField(
-        null=True, default=get_default_expiration_date
+        null=True,
+        default=get_default_expiration_date,  # Can be null for author claim bounties
     )
     item_content_type = models.ForeignKey(
         ContentType, on_delete=models.CASCADE, related_name="item_bounty"
@@ -39,13 +40,15 @@ class Bounty(DefaultModel):
         "item_content_type",
         "item_object_id",
     )
-    effort_level = models.CharField(max_length=64, null=True, blank=True)
     amount = models.DecimalField(default=0, decimal_places=10, max_digits=19)
     created_by = models.ForeignKey(
         "user.User", on_delete=models.CASCADE, related_name="bounties"
     )
-    escrow = models.OneToOneField(
-        "reputation.escrow", on_delete=models.CASCADE, related_name="bounty"
+    escrow = models.ForeignKey(
+        "reputation.escrow", on_delete=models.CASCADE, related_name="bounties"
+    )
+    parent = models.ForeignKey(
+        "self", on_delete=models.CASCADE, related_name="children", null=True
     )
     status = models.CharField(choices=status_choices, default=OPEN, max_length=16)
     unified_document = models.ForeignKey(
@@ -91,68 +94,46 @@ class Bounty(DefaultModel):
     def set_closed_status(self, should_save=True):
         self.set_status(self.CLOSED, should_save=should_save)
 
-    def expiry_close(self):
-        from reputation.models import Escrow
-
-        document_type = self.unified_document.document_type
-
-        if document_type == "QUESTION" or document_type == "POST":
-            threads = self.unified_document.posts.first().threads
-        elif document_type == "PAPER":
-            threads = self.unified_document.paper.threads
-        elif document_type == "HYPOTHESIS":
-            threads = self.unified_document.hypothesis.first().threads
-        else:
-            return None
-
-        thread_count = threads.count()
-        thread_score_total = threads.aggregate(total_score=Sum("votes__vote_type"))
-        thread_score_dict = {}
-
-        self.escrow.status = Escrow.EXPIRY_CLOSED
-        self.escrow.save()
-
-        for thread in threads.all():
-            escrow_percent = thread.score / thread_score_total["total_score"]
-            cur_amount = self.escrow.amount * Decimal(escrow_percent)
-            cur_escrow = self.escrow
-
-            escrow = Escrow.objects.create(
-                hold_type=Escrow.BOUNTY,
-                amount=cur_amount,
-                amount_paid=cur_amount,
-                connected_bounty=self,
-                recipient=thread.created_by,
-                created_by=cur_escrow.created_by,
-                content_type=cur_escrow.content_type,
-                object_id=cur_escrow.object_id,
-                item=cur_escrow.item,
-                status=Escrow.EXPIRY_PAID,
-                bounty_fee=cur_escrow.bounty_fee,
+    def get_bounty_proportions(self):
+        children = self.children
+        has_children = children.exists()
+        values = [(self.created_by.id, self.amount)]
+        total_sum = self.amount
+        if has_children:
+            values.extend(children.values_list("created_by", "amount"))
+            children_amount = children.aggregate(children_sum=Sum("amount")).get(
+                "children_sum", 0
             )
-            escrow.payout(payout_amount=cur_amount)
-            escrow.status = Escrow.EXPIRY_PAID
-            escrow.save()
+            total_sum += children_amount
 
-        self.set_expired_status()
+        proportions = {value[0]: value[1] / total_sum for value in values}
+        return proportions
 
-    def approve(self, payout_amount=None):
-        if not payout_amount:
-            payout_amount = self.amount
-
-        if payout_amount > self.amount:
+    def approve(self, recipient=None, payout_amount=None):
+        if not recipient:
             return False
 
-        escrow_paid = self.escrow.payout(payout_amount=payout_amount)
-        self.set_closed_status(should_save=False)
+        escrow_paid = self.escrow.payout(
+            recipient=recipient, payout_amount=payout_amount
+        )
         return escrow_paid
 
-    def refund(self):
-        return self.escrow.refund()
+    def close(self, status):
+        from user.models import User
 
-    def cancel(self):
-        self.set_cancelled_status()
-        return self.refund()
+        proportions = self.get_bounty_proportions()
+        escrow_remaining_amout = self.escrow.amount_holding
+        for user_id, percentage in proportions.items():
+            refund_amount = escrow_remaining_amout * percentage
+            user = User.objects.get(id=user_id)
+            refunded = self.escrow.refund(user, refund_amount)
+            if not refunded:
+                return False
+
+        self.children.update(status=status)
+        status_func = getattr(self, f"set_{status.lower()}_status")
+        status_func()
+        return True
 
 
 class BountySolution(DefaultModel):

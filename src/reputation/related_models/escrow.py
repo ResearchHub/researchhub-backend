@@ -3,6 +3,7 @@ import time
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
+from django.db.models import F
 
 from discussion.models import Thread
 from reputation.distributions import (
@@ -37,28 +38,19 @@ class Escrow(DefaultModel):
     PARTIALLY_PAID = "PARTIALLY_PAID"
     PENDING = "PENDING"
     CANCELLED = "CANCELLED"
-    EXPIRY_CLOSED = "EXPIRY_CLOSED"
-    EXPIRY_PAID = "EXPIRY_PAID"
     status_choices = (
         (PAID, PAID),
         (PARTIALLY_PAID, PARTIALLY_PAID),
         (PENDING, PENDING),
         (CANCELLED, CANCELLED),
-        (EXPIRY_CLOSED, EXPIRY_CLOSED),
-        (EXPIRY_PAID, EXPIRY_PAID),
     )
 
     hold_type = models.CharField(choices=hold_type_choices, max_length=16)
-    amount = models.DecimalField(default=0, decimal_places=10, max_digits=19)
+    amount_holding = models.DecimalField(default=0, decimal_places=10, max_digits=19)
     amount_paid = models.DecimalField(default=0, decimal_places=10, max_digits=19)
-    connected_bounty = models.ForeignKey(
-        "reputation.bounty", on_delete=models.CASCADE, related_name="escrows", null=True
-    )  # This is only here to payout multiple bounties
-    recipient = models.ForeignKey(
+    recipients = models.ManyToManyField(
         "user.User",
-        null=True,
         blank=True,
-        on_delete=models.CASCADE,
         related_name="target_escrows",
     )
     created_by = models.ForeignKey(
@@ -104,17 +96,19 @@ class Escrow(DefaultModel):
         refund_amount = escrow_amount - net_payout
         return net_payout, refund_amount
 
-    def payout(self, payout_amount):
+    def payout(self, recipient, payout_amount):
+        from notification.models import Notification
         from reputation.distributor import Distributor
 
-        recipient = self.recipient
-        escrow_amount = self.amount
+        self.recipients.add(recipient)
+
+        escrow_amount = self.amount_holding
 
         if not recipient:
             return False
 
         status = self.PARTIALLY_PAID
-        if payout_amount == self.amount:
+        if payout_amount == self.amount_holding:
             status = self.PAID
 
         if payout_amount > escrow_amount:
@@ -129,92 +123,34 @@ class Escrow(DefaultModel):
         if record.distributed_status == "FAILED":
             return False
 
-        self.amount_paid = net_payout
+        self.amount_holding -= payout_amount
+        self.amount_paid += payout_amount
         if status == self.PARTIALLY_PAID:
-            self.refund(refund_amount)
+            self.set_partially_paid_status(should_save=True)
         else:
-            self.set_paid_status(should_save=False)
+            self.set_paid_status(should_save=True)
 
-        from notification.models import Notification
-        from researchhub_document.models import ResearchhubUnifiedDocument
-
-        action_user = self.created_by
-        action_user_name = action_user.first_name
-        document = (
-            ResearchhubUnifiedDocument.objects.get(id=self.object_id)
-            if self.content_type
-            == ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
-            else Thread.objects.get(id=self.object_id).unified_document
-        )
-        doc_title = None
-        comments_url = None
-        body = None
-
-        def _truncate_title(title):
-            if len(title) > 75:
-                title = f"{title[:75]}..."
-            return title
-
-        if document:
-            doc_title = _truncate_title(title=document.get_document().title)
-            base_url = document.frontend_view_link()
-            comments_url = f"{base_url}#comments"
-
-            body = [
-                {
-                    "type": "link",
-                    "value": f"{action_user_name}",
-                    "extra": '["bold", "link"]',
-                    "link": action_user.frontend_view_link(),
-                },
-                {
-                    "type": "text",
-                    "value": "awarded you {} RSC for your ".format(payout_amount),
-                },
-                {
-                    "type": "link",
-                    "value": "thread ",
-                    "link": comments_url,
-                    "extra": '["link"]',
-                },
-                {"type": "text", "value": "in "},
-                {
-                    "type": "link",
-                    "value": doc_title,
-                    "link": base_url,
-                    "extra": '["link"]',
-                },
-            ]
-
+        unified_document = self.item.unified_document
         notification = Notification.objects.create(
-            item=self,
-            unified_document_id=self.object_id
-            if self.content_type
-            == ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
-            else None,
-            notification_type="BOUNTY_PAYOUT",
-            recipient=self.recipient,
+            unified_document=unified_document,
+            recipient=recipient,
             action_user=self.created_by,
-            navigation_url=comments_url,
-            body=body,
+            item=self,
+            notification_type=Notification.BOUNTY_PAYOUT,
         )
-
         notification.send_notification()
-
         return True
 
-    def refund(self, amount=None):
+    def refund(self, recipient, amount):
         from reputation.distributor import Distributor
 
-        status = self.PARTIALLY_PAID
-        if amount is None:
-            amount = self.amount
-            status = self.CANCELLED
+        if amount == 0:
+            return True
 
         distribution = create_bounty_refund_distribution(amount)
         distributor = Distributor(
             distribution,
-            self.created_by,
+            recipient,
             self,
             time.time(),
         )
@@ -222,9 +158,7 @@ class Escrow(DefaultModel):
         if record.distributed_status == "FAILED":
             return False
 
-        if status == self.PARTIALLY_PAID:
-            self.set_partially_paid_status(should_save=False)
-        else:
-            self.set_cancelled_status()
-            self.save()
+        if self.status not in (self.PAID, self.PARTIALLY_PAID):
+            self.set_cancelled_status(should_save=True)
+
         return True

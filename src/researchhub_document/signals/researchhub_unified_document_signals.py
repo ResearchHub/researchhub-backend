@@ -26,24 +26,24 @@ def recalc_hot_score(instance, sender, **kwargs):
         sentry.log_error(error)
 
 
-@receiver(post_save, sender=Bounty, dispatch_uid="recalc_hot_score_on_bounty")
-def recalc_hot_score_on_bounty_save(instance, sender, **kwargs):
-    uni_doc = instance.unified_document
-    doc = uni_doc.get_document()
-    content_type = ContentType.objects.get_for_model(doc)
+# @receiver(post_save, sender=Bounty, dispatch_uid="recalc_hot_score_on_bounty")
+# def recalc_hot_score_on_bounty_save(instance, sender, **kwargs):
+#     uni_doc = instance.unified_document
+#     doc = uni_doc.get_document()
+#     content_type = ContentType.objects.get_for_model(doc)
 
-    try:
-        recalc_hot_score_task.apply_async(
-            (
-                content_type.id,
-                doc.id,
-            ),
-            priority=4,
-            countdown=5,
-        )
-    except Exception as error:
-        print("recalc_hot_score on bounty save error", error)
-        sentry.log_error(error)
+#     try:
+#         recalc_hot_score_task.apply_async(
+#             (
+#                 content_type.id,
+#                 doc.id,
+#             ),
+#             priority=4,
+#             countdown=5,
+#         )
+#     except Exception as error:
+#         print("recalc_hot_score on bounty save error", error)
+#         sentry.log_error(error)
 
 
 @receiver(
