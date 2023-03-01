@@ -176,7 +176,6 @@ def check_open_bounties():
 )
 def send_bounty_hub_notifications():
     action_user = User.objects.get_community_account()
-    action_user = get_rh_community_user()
     open_bounties = Bounty.objects.filter(status=Bounty.OPEN,).annotate(
         time_left=Cast(
             F("expiration_date") - datetime.now(pytz.UTC),

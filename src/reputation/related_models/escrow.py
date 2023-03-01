@@ -145,6 +145,8 @@ class Escrow(DefaultModel):
             recipient,
             self,
             time.time(),
+            # Giver is recipient because they originally created the bounty
+            giver=recipient,
         )
         record = distributor.distribute()
         if record.distributed_status == "FAILED":
