@@ -3,9 +3,7 @@ import time
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.db.models import F
 
-from discussion.models import Thread
 from reputation.distributions import (
     create_bounty_distriution,
     create_bounty_refund_distribution,

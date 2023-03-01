@@ -169,7 +169,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                 escrow_data = {
                     "created_by": user.id,
                     "hold_type": Escrow.BOUNTY,
-                    "amount": amount,
+                    "amount_holding": amount,
                     "object_id": item_object_id,
                     "content_type": content_type_id,
                 }
