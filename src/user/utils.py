@@ -4,19 +4,6 @@ from user.tasks import preload_latest_activity
 from utils.sentry import log_error
 
 
-def get_rh_community_user():
-    user = User.objects.filter(email="revenue@researchhub.com")
-    if user.exists():
-        return user.first()
-
-    user = User.objects.filter(email="bank@researchhub.com")
-    if user.exists():
-        return user.first()
-
-    # For some reason last is returning the first user
-    return User.objects.last()
-
-
 def move_paper_to_author(target_paper, target_author, source_author=None):
     target_paper.authors.add(target_author)
     if source_author is not None:

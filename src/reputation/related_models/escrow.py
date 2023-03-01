@@ -91,11 +91,6 @@ class Escrow(DefaultModel):
     def set_pending_status(self, should_save=True):
         self.set_status(self.PENDING, should_save=should_save)
 
-    def _get_net_payout(self, payout_amount, escrow_amount):
-        net_payout = payout_amount
-        refund_amount = escrow_amount - net_payout
-        return net_payout, refund_amount
-
     def payout(self, recipient, payout_amount):
         from notification.models import Notification
         from reputation.distributor import Distributor
@@ -114,8 +109,7 @@ class Escrow(DefaultModel):
         if payout_amount > escrow_amount:
             return False
 
-        net_payout, refund_amount = self._get_net_payout(payout_amount, escrow_amount)
-        distribution = create_bounty_distriution(net_payout)
+        distribution = create_bounty_distriution(payout_amount)
         distributor = Distributor(
             distribution, recipient, self, time.time(), giver=self.created_by
         )

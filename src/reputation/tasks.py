@@ -22,7 +22,7 @@ from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_OPEN,
 )
 from researchhub_document.utils import reset_unified_document_cache
-from user.utils import get_rh_community_user
+from user.models import User
 from utils.message import send_email_message
 from utils.sentry import log_info
 
@@ -107,7 +107,9 @@ def check_hotwallet_balance():
     queue=QUEUE_BOUNTIES,
 )
 def check_open_bounties():
-    open_bounties = Bounty.objects.filter(status=Bounty.OPEN,).annotate(
+    open_bounties = Bounty.objects.filter(
+        status=Bounty.OPEN, parent__isnull=True
+    ).annotate(
         time_left=Cast(
             F("expiration_date") - datetime.now(pytz.UTC),
             DurationField(),
@@ -177,6 +179,7 @@ def check_open_bounties():
     queue=QUEUE_BOUNTIES,
 )
 def send_bounty_hub_notifications():
+    action_user = User.objects.get_community_account()
     action_user = get_rh_community_user()
     open_bounties = Bounty.objects.filter(status=Bounty.OPEN,).annotate(
         time_left=Cast(
