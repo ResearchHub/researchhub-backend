@@ -1,3 +1,4 @@
+import math
 from datetime import datetime, timedelta
 
 import pytz
@@ -110,12 +111,13 @@ class Bounty(DefaultModel):
             bounty_created_by_id = value[0]
             bounty_amount = value[1]
             proportion = bounty_amount / total_sum
-            if bounty_created_by_id in proportions:
+            proportions[bounty_created_by_id] = {"bounty_amount": bounty_amount}
+            if "proportion" in proportions[bounty_created_by_id]:
                 # Adding the respective proportions
                 # if there are multiple bounties created by the same person
-                proportions[bounty_created_by_id] += proportion
+                proportions[bounty_created_by_id]["proportion"] += proportion
             else:
-                proportions[bounty_created_by_id] = proportion
+                proportions[bounty_created_by_id]["proportion"] = proportion
 
         return proportions
 
@@ -132,9 +134,14 @@ class Bounty(DefaultModel):
         from user.models import User
 
         proportions = self.get_bounty_proportions()
-        escrow_remaining_amout = self.escrow.amount_holding
-        for user_id, percentage in proportions.items():
-            refund_amount = escrow_remaining_amout * percentage
+        escrow_remaining_amount = self.escrow.amount_holding
+        for user_id, proportion_data in proportions.items():
+            percentage = proportion_data.get("proportion")
+            bounty_amount = proportion_data.get("bounty_amount")
+            # This ensures that people can't be refunded more than they initially put in
+            refund_amount = min(
+                math.ceil(escrow_remaining_amount) * percentage, bounty_amount
+            )
             user = User.objects.get(id=user_id)
             refunded = self.escrow.refund(user, refund_amount)
             if not refunded:
