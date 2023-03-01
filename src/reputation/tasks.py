@@ -125,11 +125,7 @@ def check_open_bounties():
             object_id=bounty.id, content_type=ContentType.objects.get_for_model(Bounty)
         ).exists():
             bounty_creator = bounty.created_by
-            bounty_item = bounty.item
-            if isinstance(bounty_item, ResearchhubUnifiedDocument):
-                unified_doc = bounty_item
-            else:
-                unified_doc = bounty_item.unified_document
+            unified_doc = bounty.unified_document
             notification = Notification.objects.create(
                 item=bounty,
                 action_user=bounty_creator,

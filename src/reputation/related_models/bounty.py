@@ -1,10 +1,9 @@
 from datetime import datetime, timedelta
-from decimal import Decimal
 
 import pytz
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
-from django.db import models, transaction
+from django.db import models
 from django.db.models import Sum
 
 from utils.models import DefaultModel
@@ -106,7 +105,18 @@ class Bounty(DefaultModel):
             )
             total_sum += children_amount
 
-        proportions = {value[0]: value[1] / total_sum for value in values}
+        proportions = {}
+        for value in values:
+            bounty_created_by_id = value[0]
+            bounty_amount = value[1]
+            proportion = bounty_amount / total_sum
+            if bounty_created_by_id in proportions:
+                # Adding the respective proportions
+                # if there are multiple bounties created by the same person
+                proportions[bounty_created_by_id] += proportion
+            else:
+                proportions[bounty_created_by_id] = proportion
+
         return proportions
 
     def approve(self, recipient=None, payout_amount=None):
