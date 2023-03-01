@@ -3,8 +3,8 @@ import time
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django_filters.rest_framework import DjangoFilterBackend
 from django.shortcuts import get_object_or_404
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -18,10 +18,7 @@ from reputation.distributions import (
 )
 from reputation.distributor import Distributor
 from reputation.models import Bounty, BountyFee, Contribution, Escrow
-from reputation.permissions import (
-    UserCanApproveBounty,
-    UserCanCancelBounty,
-)
+from reputation.permissions import UserCanApproveBounty, UserCanCancelBounty
 from reputation.serializers import (
     BountySerializer,
     BountySolutionSerializer,
@@ -53,26 +50,6 @@ class BountyViewSet(viewsets.ModelViewSet):
     ALLOWED_CREATE_CONTENT_TYPES = ("thread", "rhcommentmodel")
     ALLOWED_APPROVE_CONTENT_TYPES = ("thread", "comment", "reply", "rhcommentmodel")
 
-    def _get_rh_fee_recipient(self):
-        user = User.objects.filter(email="revenue@researchhub.com")
-        if user.exists():
-            return user.first()
-
-        user = User.objects.filter(email="bank@researchhub.com")
-        if user.exists():
-            return user.first()
-        return User.objects.get(id=1)
-
-    def _get_dao_fee_recipient(self):
-        user = User.objects.filter(email="community@researchhub.com")
-        if user.exists():
-            return user.first()
-
-        user = User.objects.filter(email="bank@researchhub.com")
-        if user.exists():
-            return user.first()
-        return User.objects.get(id=1)
-
     def _calculate_fees(self, gross_amount):
         current_bounty_fee = BountyFee.objects.last()
         rh_pct = current_bounty_fee.rh_pct
@@ -84,8 +61,8 @@ class BountyViewSet(viewsets.ModelViewSet):
         return fee, rh_fee, dao_fee, current_bounty_fee
 
     def _deduct_fees(self, user, fee, rh_fee, dao_fee, current_bounty_fee):
-        rh_recipient = self._get_rh_fee_recipient()
-        dao_recipient = self._get_dao_fee_recipient()
+        rh_recipient = User.objects.get_revenue_account()
+        dao_recipient = User.objects.get_community_account()
         rh_fee_distribution = create_bounty_rh_fee_distribution(rh_fee)
         dao_fee_distribution = create_bounty_dao_fee_distribution(dao_fee)
         rh_inc_distributor = Distributor(
@@ -176,7 +153,11 @@ class BountyViewSet(viewsets.ModelViewSet):
 
             # Check if there is an existing bounty open on the object
             parent_bounty_id = None
-            existing_bounties = Bounty.objects.filter(status=Bounty.OPEN, item_content_type=content_type, item_object_id=item_object_id)
+            existing_bounties = Bounty.objects.filter(
+                status=Bounty.OPEN,
+                item_content_type=content_type,
+                item_object_id=item_object_id,
+            )
             if existing_bounties.exists():
                 parent = existing_bounties.first()
                 parent_bounty_id = parent.id
@@ -306,7 +287,9 @@ class BountyViewSet(viewsets.ModelViewSet):
                 solution_serializer = BountySolutionSerializer(data=solution_data)
                 solution_serializer.is_valid(raise_exception=True)
                 solution_obj = solution_serializer.save()
-                bounty_paid = bounty.approve(recipient=solution_created_by, payout_amount=amount)
+                bounty_paid = bounty.approve(
+                    recipient=solution_created_by, payout_amount=amount
+                )
 
                 if not bounty_paid:
                     # Exception is raised to rollback database transaction
