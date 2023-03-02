@@ -307,9 +307,9 @@ def update_elastic_registry(user_id):
     registry.update(user_author)
 
 
-# Runs every Monday at 6am
+# Runs every Monday at 6am pst (2 utc)
 @periodic_task(
-    run_every=crontab(hour=6, minute=0, day_of_week=1),
+    run_every=crontab(hour=14, minute=0, day_of_week=1),
     priority=5,
     queue=QUEUE_NOTIFICATION,
 )
@@ -351,8 +351,9 @@ def notify_editor_inactivity():
     log_info(logging)
 
 
+# Runs at 3:05pm pst (11:05pm utc)
 @periodic_task(
-    run_every=crontab(hour=23, minute=5),  # 3:02 PM PST (pst is system time)
+    run_every=crontab(hour=23, minute=5),
     priority=2,
     queue=QUEUE_PURCHASES,
     name="execute_editor_daily_payout_task",
