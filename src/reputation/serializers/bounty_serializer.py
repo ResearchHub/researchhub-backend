@@ -13,21 +13,6 @@ from user.serializers import DynamicUserSerializer
 
 
 class BountySerializer(serializers.ModelSerializer):
-    bounty_slug = serializers.SerializerMethodField()
-
-    def get_bounty_slug(self, bounty):
-        if bounty.item_content_type.model == "researchhubunifieddocument":
-            if bounty.item.document_type == "DISCUSSION":
-                return "post"
-            elif bounty.item.document_type == "HYPOTHESIS":
-                return "hypothesis"
-            elif bounty.item.document_type == "PAPER":
-                return "paper"
-            elif bounty.item.document_type == "QUESTION":
-                return "question"
-
-        return None
-
     class Meta:
         model = Bounty
         fields = "__all__"

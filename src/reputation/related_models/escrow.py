@@ -36,11 +36,13 @@ class Escrow(DefaultModel):
     PARTIALLY_PAID = "PARTIALLY_PAID"
     PENDING = "PENDING"
     CANCELLED = "CANCELLED"
+    EXPIRED = "EXPIRED"
     status_choices = (
         (PAID, PAID),
         (PARTIALLY_PAID, PARTIALLY_PAID),
         (PENDING, PENDING),
         (CANCELLED, CANCELLED),
+        (EXPIRED, EXPIRED),
     )
 
     hold_type = models.CharField(choices=hold_type_choices, max_length=16)
@@ -86,6 +88,9 @@ class Escrow(DefaultModel):
     def set_cancelled_status(self, should_save=True):
         self.set_status(self.CANCELLED, should_save=should_save)
 
+    def set_expired_status(self, should_save=True):
+        self.set_status(self.EXPIRED, should_save=should_save)
+
     def set_pending_status(self, should_save=True):
         self.set_status(self.PENDING, should_save=should_save)
 
@@ -93,12 +98,12 @@ class Escrow(DefaultModel):
         from notification.models import Notification
         from reputation.distributor import Distributor
 
+        if not recipient:
+            return False
+
         self.recipients.add(recipient)
 
         escrow_amount = self.amount_holding
-
-        if not recipient:
-            return False
 
         status = self.PARTIALLY_PAID
         if payout_amount == self.amount_holding:
@@ -133,7 +138,7 @@ class Escrow(DefaultModel):
         notification.send_notification()
         return True
 
-    def refund(self, recipient, amount):
+    def refund(self, recipient, amount, status=None):
         from reputation.distributor import Distributor
 
         if amount == 0:
@@ -152,7 +157,10 @@ class Escrow(DefaultModel):
         if record.distributed_status == "FAILED":
             return False
 
-        if self.status not in (self.PAID, self.PARTIALLY_PAID):
+        if status and self.status not in (self.PAID, self.PARTIALLY_PAID):
             self.set_cancelled_status(should_save=True)
+
+        if status == self.EXPIRED:
+            self.set_expired_status(should_save=True)
 
         return True
