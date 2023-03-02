@@ -7,6 +7,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models import Sum
 
+from reputation.related_models.escrow import Escrow
 from utils.models import DefaultModel
 
 
@@ -135,15 +136,23 @@ class Bounty(DefaultModel):
 
         proportions = self.get_bounty_proportions()
         escrow_remaining_amount = self.escrow.amount_holding
+        escrow_status = None
+        if status == self.EXPIRED:
+            escrow_status = Escrow.EXPIRED
+
         for user_id, proportion_data in proportions.items():
             percentage = proportion_data.get("proportion")
             bounty_amount = proportion_data.get("bounty_amount")
             # This ensures that people can't be refunded more than they initially put in
+            # Because our distribution model only uses integers, we need to round
+            # how much a user gets refunded. The following code prevents them
+            # from receiving more than what they initially put in, but it is
+            # possible for them to receive slightly less because of rounding
             refund_amount = min(
                 math.ceil(escrow_remaining_amount) * percentage, bounty_amount
             )
             user = User.objects.get(id=user_id)
-            refunded = self.escrow.refund(user, refund_amount)
+            refunded = self.escrow.refund(user, refund_amount, status=escrow_status)
             if not refunded:
                 return False
 

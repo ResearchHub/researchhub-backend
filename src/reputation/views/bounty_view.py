@@ -327,6 +327,20 @@ class BountyViewSet(viewsets.ModelViewSet):
                 document_type=[ALL.lower(), BOUNTY.lower()],
                 with_default_hub=True,
             )
+            context = self._get_create_context()
+            serializer = DynamicBountySerializer(
+                bounty,
+                context=context,
+                _include_fields=(
+                    "amount",
+                    "created_date",
+                    "created_by",
+                    "expiration_date",
+                    "id",
+                    "parent",
+                    "status",
+                ),
+            )
             serializer = self.get_serializer(bounty)
             return Response(serializer.data, status=200)
 
@@ -366,6 +380,20 @@ class BountyViewSet(viewsets.ModelViewSet):
             )
 
             if bounty_cancelled:
+                context = self._get_create_context()
+                serializer = DynamicBountySerializer(
+                    bounty,
+                    context=context,
+                    _include_fields=(
+                        "amount",
+                        "created_date",
+                        "created_by",
+                        "expiration_date",
+                        "id",
+                        "parent",
+                        "status",
+                    ),
+                )
                 serializer = self.get_serializer(bounty)
                 return Response(serializer.data, status=200)
             else:
