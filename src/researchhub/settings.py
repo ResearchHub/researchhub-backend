@@ -230,7 +230,7 @@ INSTALLED_APPS = [
     "purchase",
     "reputation",
     "researchhub_case",
-    'researchhub_comment',
+    "researchhub_comment",
     "researchhub_document",
     "researchhub_access_group",
     "search",
@@ -638,7 +638,7 @@ CELERY_BROKER_URL = "redis://{}:{}/0".format(REDIS_HOST, REDIS_PORT)
 CELERY_RESULT_BACKEND = "db+postgresql://{}:{}@{}:{}/{}".format(
     DB_USER, DB_PASS, DB_HOST, DB_PORT, DB_NAME
 )
-CELERY_TIMEZONE = "US/Pacific"
+CELERY_TIMEZONE = "UTC"
 CELERY_RESULT_BACKEND = "django-db"
 CELERY_TASK_TRACK_STARTED = True
 CELERY_RESULT_EXTENDED = True

@@ -49,8 +49,9 @@ def notify_weekly():
     send_hub_digest(NotificationFrequencies.WEEKLY)
 
 
+# Runs 12am pst (8am utc)
 @periodic_task(
-    run_every=crontab(minute=0, hour=0, day_of_week="friday"),
+    run_every=crontab(minute=8, hour=0, day_of_week="friday"),
     priority=9,
     queue=QUEUE_NOTIFICATION,
 )

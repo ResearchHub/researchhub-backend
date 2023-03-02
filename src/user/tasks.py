@@ -36,9 +36,7 @@ from researchhub.celery import (
 from researchhub.settings import APP_ENV, PRODUCTION, STAGING
 from researchhub_document.utils import reset_unified_document_cache
 from user.editor_payout_tasks import editor_daily_payout_task
-from user.rsc_exchange_rate_record_tasks import (
-    rsc_exchange_rate_record_tasks,
-)
+from user.rsc_exchange_rate_record_tasks import rsc_exchange_rate_record_tasks
 from utils.sentry import log_info
 
 
@@ -309,9 +307,9 @@ def update_elastic_registry(user_id):
     registry.update(user_author)
 
 
-# Runs every Monday at 6am
+# Runs every Monday at 6am pst (2 utc)
 @periodic_task(
-    run_every=crontab(hour=6, minute=0, day_of_week=1),
+    run_every=crontab(hour=14, minute=0, day_of_week=1),
     priority=5,
     queue=QUEUE_NOTIFICATION,
 )
@@ -353,8 +351,9 @@ def notify_editor_inactivity():
     log_info(logging)
 
 
+# Runs at 3:05pm pst (11:05pm utc)
 @periodic_task(
-    run_every=crontab(hour=15, minute=2),  # 3:02 PM PST (pst is system time)
+    run_every=crontab(hour=23, minute=5),
     priority=2,
     queue=QUEUE_PURCHASES,
     name="execute_editor_daily_payout_task",
