@@ -31,7 +31,7 @@ class CreateOrReadOnly(BasePermission):
         )
 
 
-class CreateOnly(BasePermission):
+class PostOnly(BasePermission):
     def has_permission(self, request, view):
         return request.method == RequestMethods.POST
 
