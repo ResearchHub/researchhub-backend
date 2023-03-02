@@ -70,7 +70,7 @@ from researchhub_document.related_models.constants.filters import (
 )
 from researchhub_document.utils import reset_unified_document_cache
 from utils.http import GET, POST, check_url_contains_pdf
-from utils.permissions import CreateOnly, CreateOrUpdateIfAllowed, HasAPIKey
+from utils.permissions import CreateOrUpdateIfAllowed, HasAPIKey, PostOnly
 from utils.sentry import log_error
 from utils.siftscience import decisions_api, events_api
 from utils.throttles import THROTTLE_CLASSES
@@ -892,7 +892,7 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
     queryset = PaperSubmission.objects.all()
     serializer_class = PaperSubmissionSerializer
     throttle_classes = THROTTLE_CLASSES
-    permission_classes = [IsAuthenticated | HasAPIKey, CreateOnly]
+    permission_classes = [IsAuthenticated | HasAPIKey, PostOnly]
 
     @track_event
     def create(self, *args, **kwargs):

@@ -37,13 +37,13 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from researchhub_document.utils import reset_unified_document_cache
 from user.models import User
-from utils.permissions import CreateOnly
+from utils.permissions import PostOnly
 
 
 class BountyViewSet(viewsets.ModelViewSet):
     queryset = Bounty.objects.all()
     serializer_class = BountySerializer
-    permission_classes = [IsAuthenticated, CreateOnly]
+    permission_classes = [IsAuthenticated, PostOnly]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["item_object_id", "status"]
 

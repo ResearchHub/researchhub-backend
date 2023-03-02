@@ -23,11 +23,11 @@ from rh_scholarly.lambda_handler import SEARCH_FOR_AUTHORS
 from user.models import Action, User
 from user.permissions import IsModerator
 from utils.http import POST
-from utils.permissions import CreateOnly
+from utils.permissions import PostOnly
 
 
 class ExternalAuthorClaimCaseViewSet(ModelViewSet):
-    permission_classes = [IsAuthenticated & (CreateOnly | IsModerator)]
+    permission_classes = [IsAuthenticated & (PostOnly | IsModerator)]
     queryset = ExternalAuthorClaimCase.objects.all()
     serializer_class = ExternalAuthorClaimCaseSerializer
     filter_backends = [DjangoFilterBackend]

@@ -10,14 +10,14 @@ from referral.serializers.referral_invite_serializer import ReferralInviteSerial
 from researchhub.settings import TESTING
 from user.related_models.user_model import User
 from utils.http import POST
-from utils.permissions import CreateOnly
+from utils.permissions import PostOnly
 
 from .related_models.referral_invite import BOUNTY, JOIN_RH
 
 
 class ReferralInviteViewSet(viewsets.ModelViewSet):
     serializer_class = ReferralInviteSerializer
-    permission_classes = [IsAuthenticated, CreateOnly]
+    permission_classes = [IsAuthenticated, PostOnly]
     queryset = ReferralInvite.objects.all()
 
     def create(self, request):
