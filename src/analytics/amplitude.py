@@ -4,7 +4,7 @@ import json
 import requests
 from ipware import get_client_ip
 
-from researchhub.settings import AMPLITUDE_API_KEY
+from researchhub.settings import AMPLITUDE_API_KEY, DEVELOPMENT
 from utils.parsers import json_serial
 from utils.sentry import log_info
 
@@ -101,7 +101,7 @@ def track_event(func):
     def inner(*args, **kwargs):
         res = func(*args, **kwargs)
         try:
-            if res.status_code >= 200 and res.status_code <= 299:
+            if res.status_code >= 200 and res.status_code <= 299 and not DEVELOPMENT:
                 amp = Amplitude()
                 amp.build_hit(res, *args, **kwargs)
         except Exception as e:
