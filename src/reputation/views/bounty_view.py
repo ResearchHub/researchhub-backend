@@ -38,6 +38,7 @@ from researchhub_document.related_models.constants.document_type import (
 from researchhub_document.utils import reset_unified_document_cache
 from user.models import User
 from utils.permissions import PostOnly
+from utils.sentry import log_error
 
 
 class BountyViewSet(viewsets.ModelViewSet):
@@ -131,17 +132,18 @@ class BountyViewSet(viewsets.ModelViewSet):
         try:
             amount = decimal.Decimal(str(data.get("amount", "0")))
         except Exception as e:
-            return Response(str(e), status=400)
+            log_error(e)
+            return Response({"detail": "Invalid amount"}, status=400)
 
         user_balance = user.get_balance()
         fee_amount, rh_fee, dao_fee, current_bounty_fee = self._calculate_fees(amount)
         if amount <= 0 or user_balance - (amount + fee_amount) < 0:
-            return Response({"error": "Insufficient Funds"}, status=402)
+            return Response({"detail": "Insufficient Funds"}, status=402)
         elif amount <= 50 or amount > 1000000:
-            return Response({"error": "Invalid amount. Minimum of 50 RSC."}, status=400)
+            return Response({"detail": "Invalid amount. Minimum of 50 RSC"}, status=400)
 
         if item_content_type not in self.ALLOWED_CREATE_CONTENT_TYPES:
-            return Response({"error": "Invalid content type"}, status=400)
+            return Response({"detail": "Invalid content type"}, status=400)
 
         with transaction.atomic():
             self._deduct_fees(user, fee_amount, rh_fee, dao_fee, current_bounty_fee)
@@ -268,7 +270,8 @@ class BountyViewSet(viewsets.ModelViewSet):
                 try:
                     decimal_amount = decimal.Decimal(str(amount))
                 except Exception as e:
-                    return Response({"detail": str(e)}, status=400)
+                    log_error(e)
+                    return Response({"detail": "Invalid amount"}, status=400)
 
                 if decimal_amount <= 0 or not object_id:
                     return Response({"detail": "Bad request"}, status=400)
@@ -288,7 +291,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                 solution_serializer.is_valid(raise_exception=True)
                 solution_obj = solution_serializer.save()
                 bounty_paid = bounty.approve(
-                    recipient=solution_created_by, payout_amount=amount
+                    recipient=solution_created_by, payout_amount=decimal_amount
                 )
 
                 if not bounty_paid:
