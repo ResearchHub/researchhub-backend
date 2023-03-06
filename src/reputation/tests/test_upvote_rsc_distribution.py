@@ -46,7 +46,7 @@ class BaseTests(TestCase, TestHelper):
         create_upvote_distribution(1, self.original_paper, GrmVote.objects.first())
         self.assertEquals(Escrow.objects.filter(hold_type=Escrow.AUTHOR_RSC).count(), 1)
         self.assertEquals(
-            Escrow.objects.filter(hold_type=Escrow.AUTHOR_RSC).first().amount,
+            Escrow.objects.filter(hold_type=Escrow.AUTHOR_RSC).first().amount_holding,
             distribution_amount * 0.75,
         )
 
