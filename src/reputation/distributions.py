@@ -126,7 +126,7 @@ def create_upvote_distribution(vote_type, paper=None, vote=None):
         Escrow.objects.create(
             created_by=vote.created_by,
             item=paper,
-            amount=author_distribution_amount - distributed_amount,
+            amount_holding=author_distribution_amount - distributed_amount,
             hold_type=Escrow.AUTHOR_RSC,
         )
 
@@ -238,7 +238,7 @@ def create_purchase_distribution(user, amount, paper=None, purchaser=None):
         Escrow.objects.create(
             created_by=user,
             item=paper,
-            amount=author_distribution_amount - distributed_amount,
+            amount_holding=author_distribution_amount - distributed_amount,
             hold_type=Escrow.AUTHOR_RSC,
         )
     return Distribution("PURCHASE", distribution_amount, False)
@@ -298,7 +298,7 @@ DISTRIBUTION_TYPE_CHOICES = [
         "EDITOR_COMPENSATION",
     ),
     (
-        "EDITOR_PAYOUT", 
         "EDITOR_PAYOUT",
-    )
+        "EDITOR_PAYOUT",
+    ),
 ]
