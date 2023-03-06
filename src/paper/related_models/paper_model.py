@@ -85,7 +85,7 @@ class Paper(AbstractGenericReactionModel):
     )
     twitter_score_updated_date = models.DateTimeField(null=True, blank=True)
     is_public = models.BooleanField(default=True, help_text=HELP_TEXT_IS_PUBLIC)
-  
+
     # TODO clean this up to use SoftDeleteable mixin in utils
     is_removed = models.BooleanField(default=False, help_text=HELP_TEXT_IS_REMOVED)
 
@@ -255,8 +255,11 @@ class Paper(AbstractGenericReactionModel):
         content_type_field="content_type",
         related_query_name="papers",
     )
-    # Slug is automatically generated on a signal, so it is not needed in a form
-    slug = models.SlugField(max_length=1024, blank=True)
+    slug = models.SlugField(
+        max_length=1024,
+        blank=True,
+        help_text="Slug is automatically generated on a signal, so it is not needed in a form",
+    )
     unified_document = models.OneToOneField(
         "researchhub_document.ResearchhubUnifiedDocument",
         null=True,

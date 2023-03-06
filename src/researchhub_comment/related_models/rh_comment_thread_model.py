@@ -4,6 +4,14 @@ from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMEN
 from utils.models import AbstractGenericRelationModel, DefaultAuthenticatedModel
 
 
+"""
+    NOTE: RhCommentThreadModel's generic relation convention is to
+        - dealth with AbstractGenericRelationModel
+        - SHOULD add to target content_model an edge named `rh_threads` (see Paper Model for example)
+        - this allows ContentModel.rh_threads[...] queries and allows usage of _get_valid_thread_content_model 
+            (see _get_valid_thread_content_model in RhThreadSerializer)
+"""
+
 class RhCommentThreadModel(AbstractGenericRelationModel):
     thread_type = CharField(
         max_length=144,

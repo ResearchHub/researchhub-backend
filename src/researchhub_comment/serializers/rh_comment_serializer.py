@@ -1,13 +1,13 @@
 from requests import Response
 from rest_framework import status, viewsets
-
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
+from researchhub_comment.serializers.rh_thread_serializer import RhThreadSerializer
 
 
 class RhCommentSerializer(viewsets.ModelViewSet):
-    def __retrieve_or_create_thread_from_request(self):
+    def _retrieve_or_create_thread_from_request(self):
         try:
             request = self.context.get("request")
             request_data = request.data
@@ -15,22 +15,21 @@ class RhCommentSerializer(viewsets.ModelViewSet):
             if thread_id:
                 return RhCommentThreadModel.obejcts.get(thread_id)
             else:
-                thread_type = request_data.get("thread_type")
-                thread_reference = request_data.get("thread_reference")
-                thread_target_model = request_data.get("thread_target_model")
-                thread_target_model_instance_id = request_data.get("thread_target_model_instance_id")
-                if thread_type is None or thread_target_model is None or thread_target_model_instance_id is None:
-                    raise Exception(
-                        f"Failed to call __retrieve_or_create_thread_from_request. \
-                          thread_type: {thread_type} | thread_target_model: {thread_target_model} |\
-                          thread_target_model_instance_id: {thread_target_model_instance_id}"
-                    )
+                existing_thread = RhThreadSerializer._get_existing_thread_from_request(request)
+                if existing_thread is not None:
+                    return existing_thread
                 else:
-                    content_object = 123  # TODO: calvinhlee look up docs to retrive this
-                    retrieved_thread = RhCommentThreadModel.object.filter(
-                        thread_type=thread_type,
-                        thread_reference=thread_reference,
-                    ).first()
+                    thread_content_model_name = request_data.get("thread_content_model_name")
+                    valid_content_model = RhThreadSerializer._get_valid_thread_content_model(
+                        thread_content_model_name
+                    )
+                    thread_content_instance = valid_content_model.objects.get(
+                        id=request_data.get("thread_content_instance_id")
+                    )
+                    return thread_content_instance.rh_threads.create(
+                        thread_type=request_data.get("thread_type"),
+                        thread_reference=request_data.get("thread_reference")
+                    )
         except Exception as error:
             return Response(
                 f"Failed to create endorsement: {error}",
