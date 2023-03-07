@@ -12,7 +12,7 @@ from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import status, viewsets
+from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import (
@@ -57,6 +57,7 @@ from user.serializers import (
     UniversitySerializer,
     UserActions,
     UserEditableSerializer,
+    UserPopoverSerializer,
     UserSerializer,
     VerificationSerializer,
 )
@@ -801,6 +802,12 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response(serialized.data, status=200)
         else:
             raise Exception("Sift verification signature mismatch")
+
+
+class UserPopoverViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserPopoverSerializer
+    permission_classes = [AllowAny]
 
 
 class UniversityViewSet(viewsets.ReadOnlyModelViewSet):

@@ -253,6 +253,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             },
             "doc_dps_get_created_by": {
                 "_include_fields": [
+                    "id",
                     "author_profile",
                 ]
             },

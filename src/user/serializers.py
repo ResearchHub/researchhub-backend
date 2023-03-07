@@ -364,6 +364,62 @@ class UserSerializer(ModelSerializer):
         return time_rep
 
 
+class AuthorPopoverSerializer(ModelSerializer):
+    class Meta:
+        model = Author
+        fields = [
+            "first_name",
+            "last_name",
+            "id",
+            "university",
+            "facebook",
+            "linkedin",
+            "twitter",
+            "description",
+            "profile_image",
+            "headline",
+            "education",
+            "author_score",
+        ]
+
+
+class UserPopoverSerializer(ModelSerializer):
+    author_profile = SerializerMethodField()
+
+    def get_author_profile(self, obj):
+        return AuthorPopoverSerializer(obj.author_profile).data
+
+    class Meta:
+        model = User
+        exclude = [
+            "email",
+            "bookmarks",
+            "password",
+            "last_login",
+            "is_superuser",
+            "username",
+            "is_staff",
+            "is_active",
+            "date_joined",
+            "created_date",
+            "updated_date",
+            "upload_tutorial_complete",
+            "has_seen_first_coin_modal",
+            "has_seen_orcid_connect_modal",
+            "agreed_to_terms",
+            "referral_code",
+            "is_suspended",
+            "probable_spammer",
+            "invited_by",
+            "spam_updated_date",
+            "suspended_updated_date",
+            "country_code",
+            "sift_risk_score",
+            "should_display_rsc_balance_home",
+            "clicked_on_balance_date",
+        ]
+
+
 class MinimalUserSerializer(ModelSerializer):
     author_profile = SerializerMethodField()
 
@@ -789,7 +845,7 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
             serializer = DynamicPurchaseSerializer
         elif isinstance(item, Thread):
             from discussion.serializers import DynamicThreadSerializer
-            
+
             serializer = DynamicThreadSerializer
         elif isinstance(item, Comment):
             from discussion.serializers import DynamicCommentSerializer

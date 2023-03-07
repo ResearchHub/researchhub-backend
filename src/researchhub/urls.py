@@ -322,6 +322,8 @@ router.register(
     r"researchhub_unified_document/([0-9]+)/review", ReviewViewSet, basename="review"
 )
 
+router.register(r"popover/user", user.views.UserPopoverViewSet, basename="popover_user")
+
 urlpatterns = [
     path("admin/", admin.site.urls),
     re_path(r"^api/", include(router.urls)),
