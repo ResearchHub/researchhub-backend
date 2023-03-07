@@ -112,7 +112,8 @@ def reward_author_claim_case(requestor_author, paper, claim_case):
     )
 
     author_pot_amount = (
-        author_pot_query.aggregate(Sum("amount_holding")).get("amount__sum", 0) or 0
+        author_pot_query.aggregate(Sum("amount_holding")).get("amount_holding__sum", 0)
+        or 0
     )
 
     author_count = paper.true_author_count()
