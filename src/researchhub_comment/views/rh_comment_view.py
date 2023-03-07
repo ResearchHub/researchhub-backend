@@ -18,7 +18,7 @@ class RhCommentViewSet(ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         return Response(
-            "Creating RhComment with direct view is prohibited",
+            "Directly creating RhComment with view is prohibited. Use /rh_comment_thread/create_comment",
             status=status.HTTP_400_BAD_REQUEST,
         )
 

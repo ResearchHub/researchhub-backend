@@ -32,6 +32,8 @@ import purchase.views
 import reputation.views
 import researchhub.views
 import researchhub_case.views as researchhub_case_views
+from researchhub_comment.views.rh_comment_thread_view import RhCommentThreadViewSet
+from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 import researchhub_document.views as researchhub_document_views
 import search.urls
 import summary.views
@@ -317,11 +319,13 @@ router.register(
 router.register(
     r"peer_review_invites", PeerReviewInviteViewSet, basename="peer_review_invites"
 )
-
 router.register(
     r"researchhub_unified_document/([0-9]+)/review", ReviewViewSet, basename="review"
 )
-
+router.register(r"rh_comments", RhCommentViewSet, basename="rh_comments")
+router.register(
+    r"rh_comment_threads", RhCommentThreadViewSet, basename="rh_comment_threads"
+)
 urlpatterns = [
     path("admin/", admin.site.urls),
     re_path(r"^api/", include(router.urls)),
