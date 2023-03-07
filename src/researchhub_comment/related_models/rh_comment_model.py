@@ -1,5 +1,5 @@
+from django.core.files.base import ContentFile
 from django.db.models import (
-    BooleanField,
     CASCADE,
     CharField,
     FileField,
@@ -19,7 +19,7 @@ from utils.models import DefaultAuthenticatedModel
 
 
 class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
-    # comments
+    """ --- MODEL FIELDS --- """
     context_title = TextField(
         blank=True,
         null=True,
@@ -61,7 +61,39 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
         max_length=144,
     )
 
-    # properties
+    """ --- PROPERTIES --- """
     @property
     def is_root_comment(self):
         return self.parent is None
+
+    """ --- METHODS --- """
+    @classmethod
+    def create_from_request(request, rh_thread):
+        request_data = request.data
+        [
+            comment_content_src_file,
+            comment_content_type,
+        ] = RhCommentModel._get_comment_src_file_from_request(request)
+        rh_comment = RhCommentModel.object.create(
+            thread=rh_thread,
+            parent=request_data.get("parent_id"),
+            comment_content_type=comment_content_type,
+        )
+        rh_comment.comment_content_src.save(
+            f"RH-THREAD-{rh_thread.id}-COMMENT-{rh_comment.id}-user-{request.user.id}.txt",
+            comment_content_src_file,
+        )
+        rh_comment.refresh_from_db()
+        return rh_comment
+
+    @staticmethod
+    def _get_comment_src_file_from_request(request):
+        request_data = request.data
+        comment_content = request_data.get("comment_content")
+        if comment_content is None:
+            raise Exception(
+                "Failed to comment content should not be None when creating a comment"
+            )
+
+        comment_content_src_file = ContentFile(comment_content.encode())
+        return [comment_content_src_file, request_data.get("comment_content_type")]

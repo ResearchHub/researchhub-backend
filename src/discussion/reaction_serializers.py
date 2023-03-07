@@ -1,4 +1,4 @@
-import rest_framework.serializers as serializers
+from rest_framework.serializers import ModelSerializer, PrimaryKeyRelatedField, SerializerMethodField
 
 from discussion.reaction_models import Endorsement, Flag, Vote
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -6,8 +6,8 @@ from utils.http import get_user_from_request
 from utils.sentry import log_error
 
 
-class EndorsementSerializer(serializers.ModelSerializer):
-    item = serializers.PrimaryKeyRelatedField(many=False, read_only=True)
+class EndorsementSerializer(ModelSerializer):
+    item = PrimaryKeyRelatedField(many=False, read_only=True)
 
     class Meta:
         fields = [
@@ -19,8 +19,8 @@ class EndorsementSerializer(serializers.ModelSerializer):
         model = Endorsement
 
 
-class FlagSerializer(serializers.ModelSerializer):
-    item = serializers.PrimaryKeyRelatedField(many=False, read_only=True)
+class FlagSerializer(ModelSerializer):
+    item = PrimaryKeyRelatedField(many=False, read_only=True)
 
     class Meta:
         fields = [
@@ -35,8 +35,8 @@ class FlagSerializer(serializers.ModelSerializer):
         model = Flag
 
 
-class VoteSerializer(serializers.ModelSerializer):
-    item = serializers.PrimaryKeyRelatedField(many=False, read_only=True)
+class VoteSerializer(ModelSerializer):
+    item = PrimaryKeyRelatedField(many=False, read_only=True)
 
     class Meta:
         fields = [
@@ -71,7 +71,11 @@ class GenericReactionSerializerMixin:
         "user_flag",
         "user_vote",
     ]
-
+    promoted = SerializerMethodField()
+    score = SerializerMethodField()
+    user_endorsement = SerializerMethodField()
+    user_flag = SerializerMethodField()
+    
     def get_document_meta(self, obj):
         paper = obj.paper
         if paper:

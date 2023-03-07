@@ -1,7 +1,8 @@
-from django.db.models import CASCADE, CharField, DateTimeField, ForeignKey
+from django.db.models import CharField
 
+from paper.models import Paper
 from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT, RH_COMMENT_THREAD_TYPES
-from utils.models import AbstractGenericRelationModel, DefaultAuthenticatedModel
+from utils.models import AbstractGenericRelationModel
 
 
 """
@@ -13,6 +14,7 @@ from utils.models import AbstractGenericRelationModel, DefaultAuthenticatedModel
 """
 
 class RhCommentThreadModel(AbstractGenericRelationModel):
+    """ --- MODEL FIELDS --- """
     thread_type = CharField(
         max_length=144,
         choices=RH_COMMENT_THREAD_TYPES,
@@ -24,3 +26,14 @@ class RhCommentThreadModel(AbstractGenericRelationModel):
         max_length=144,
         null=True,
     )
+
+    """ --- METHODS --- """
+    @staticmethod
+    def get_valid_thread_content_model(thread_content_model_name):
+        if thread_content_model_name == "paper":
+            return Paper
+        else:
+            raise Exception(
+                f"Failed get_valid_thread_content_model:. \
+                  invalid thread_content_model_name: {thread_content_model_name}"
+            )

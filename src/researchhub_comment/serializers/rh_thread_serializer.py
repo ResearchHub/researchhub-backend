@@ -1,39 +1,25 @@
-from rest_framework import viewsets
-from paper.models import Paper
+from rest_framework.serializers import ModelSerializer, SerializerMethodField
+
+from discussion.reaction_serializers import GenericReactionSerializerMixin
+from researchhub_comment.models import RhCommentThreadModel
+from researchhub_comment.serializers.constants.rh_thread_serializer_constants import (
+    RH_THREAD_FIELDS,
+)
+from researchhub_comment.serializers.rh_comment_serializer import RhCommentSerializer
 
 
-class RhThreadSerializer(viewsets.ModelViewSet):
-    def _get_existing_thread_from_request(request):
-        request_data = request.data
-        thread_type = request_data.get("thread_type")
-        thread_reference = request_data.get("thread_reference")
-        thread_content_model_name = request_data.get("thread_content_model_name")
-        thread_content_instance_id = request_data.get("thread_content_instance_id")
-        if (
-            thread_type is None
-            or thread_content_model_name is None
-            or thread_content_instance_id is None
-        ):
-            raise Exception(
-                f"Failed to call __retrieve_or_create_thread_from_request. \
-                  thread_type: {thread_type} | thread_content_model_name: {thread_content_model_name} |\
-                  thread_content_instance_id: {thread_content_instance_id}"
-            )
-        else:
-            valid_content_model = RhThreadSerializer._get_valid_thread_content_model(
-                thread_content_model_name
-            )
-            return valid_content_model.object.get(
-                id=thread_content_instance_id
-            ).rh_threads.filter(
-                thread_reference=thread_reference, thread_type=thread_type
-            ).first()
+class RhThreadSerializer(ModelSerializer, GenericReactionSerializerMixin):
+    class Meta:
+        model = RhCommentThreadModel
+        fields = [
+            *GenericReactionSerializerMixin.EXPOSABLE_FIELDS,
+            *RH_THREAD_FIELDS,
+        ]
 
-    def _get_valid_thread_content_model(thread_content_model_name):
-        if thread_content_model_name == "paper":
-            return Paper
-        else:
-            raise Exception(
-                f"Failed _get_valid_thread_content_model:. \
-                  invalid thread_content_model_name: {thread_content_model_name}"
-            )
+    comments = SerializerMethodField()
+
+    def get_comments(self, thread):
+        return RhCommentSerializer(
+            thread.rh_comments,
+            many=True,
+        )
