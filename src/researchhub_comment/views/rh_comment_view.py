@@ -24,22 +24,3 @@ class RhCommentViewSet(ModelViewSet):
 
     def retrieve(self, request, *args, **kwargs):
         return super().retrieve(request, *args, **kwargs)
-
-    def create_from_request(self):
-        # TODO: calvinhlee - add validations on the payload
-        request = self.context.get("request")
-        request_data = request.data
-        rh_thread = self._retrieve_or_create_thread_from_request()
-        [
-            comment_content_src_file,
-            comment_content_type,
-        ] = self._get_comment_src_file_from_request()
-        rh_comment = RhCommentModel.object.create(
-            thread=rh_thread,
-            parent=request_data.get("parent_id"),
-            comment_content_type=comment_content_type,
-        )
-        rh_comment.comment_content_src.save(
-            f"RH-THREAD-{rh_thread.id}-COMMENT-{rh_comment.id}-user-{request.user.id}.txt",
-            comment_content_src_file,
-        )

@@ -1,6 +1,5 @@
 from django.db.models import CharField
 
-from paper.models import Paper
 from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT, RH_COMMENT_THREAD_TYPES
 from utils.models import AbstractGenericRelationModel
 
@@ -30,6 +29,8 @@ class RhCommentThreadModel(AbstractGenericRelationModel):
     """ --- METHODS --- """
     @staticmethod
     def get_valid_thread_content_model(thread_content_model_name):
+        from paper.models import Paper
+
         if thread_content_model_name == "paper":
             return Paper
         else:

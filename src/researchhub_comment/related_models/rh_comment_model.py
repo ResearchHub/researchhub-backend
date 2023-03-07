@@ -68,13 +68,13 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
 
     """ --- METHODS --- """
     @classmethod
-    def create_from_request(request, rh_thread):
+    def create_from_request(cls, request, rh_thread):
         request_data = request.data
         [
             comment_content_src_file,
             comment_content_type,
-        ] = RhCommentModel._get_comment_src_file_from_request(request)
-        rh_comment = RhCommentModel.object.create(
+        ] = cls.get_comment_src_file_from_request(request)
+        rh_comment = cls.objects.create(
             thread=rh_thread,
             parent=request_data.get("parent_id"),
             comment_content_type=comment_content_type,
@@ -87,7 +87,7 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
         return rh_comment
 
     @staticmethod
-    def _get_comment_src_file_from_request(request):
+    def get_comment_src_file_from_request(request):
         request_data = request.data
         comment_content = request_data.get("comment_content")
         if comment_content is None:
