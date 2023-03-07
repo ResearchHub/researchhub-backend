@@ -29,6 +29,7 @@ class RhCommentThreadViewSet(ModelViewSet):
         )
 
     def retrieve(self, request, *args, **kwargs):
+        # TODO - calvinhlee - update to reflect content id & thread types & sortable params
         return super().retrieve(request, *args, **kwargs)
 
     @action(detail=True, methods=["POST"], permission_classes=[IsAuthenticated])

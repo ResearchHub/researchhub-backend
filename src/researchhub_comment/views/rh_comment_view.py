@@ -21,6 +21,3 @@ class RhCommentViewSet(ModelViewSet):
             "Directly creating RhComment with view is prohibited. Use /rh_comment_thread/create_comment",
             status=status.HTTP_400_BAD_REQUEST,
         )
-
-    def retrieve(self, request, *args, **kwargs):
-        return super().retrieve(request, *args, **kwargs)
