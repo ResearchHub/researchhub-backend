@@ -54,8 +54,8 @@ class RhCommentThreadViewSet(ModelViewSet):
             if thread_id:
                 return RhCommentThreadModel.obejcts.get(thread_id)
             else:
-                existing_thread = (
-                    RhCommentThreadModel.get_existing_thread_from_request(request)
+                existing_thread = RhCommentThreadModel.get_existing_thread_from_request(
+                    request
                 )
                 if existing_thread is not None:
                     return existing_thread
