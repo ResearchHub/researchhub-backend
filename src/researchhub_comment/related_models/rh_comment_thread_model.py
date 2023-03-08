@@ -9,7 +9,8 @@ from utils.models import AbstractGenericRelationModel
 """
     NOTE: RhCommentThreadModel's generic relation convention is to
         - setup relations through AbstractGenericRelationModel
-        - add an edge named `rh_threads` for inverse reference (see Paper Model for example)
+        - add an edge named `rh_threads` for inverse reference on top of a target [content] model
+        - (see Hypothesis Model for reference)
 
     This allows queries such as [ContentModel].rh_threads[...]
     where [ContentModels] may be found in method "get_valid_target_content_model"
@@ -38,12 +39,10 @@ class RhCommentThreadModel(AbstractGenericRelationModel):
 
     @staticmethod
     def get_valid_thread_target_model(thread_target_model_name):
-        from hypothesis.related_models.citation import Citation
-        from hypothesis.related_models.hypothesis import Hypothesis
+        # importing within this method prevents cyclical import
+        from hypothesis.models import Citation, Hypothesis
         from paper.models import Paper
-        from researchhub_document.models import (
-            ResearchhubPost,
-        )
+        from researchhub_document.models import ResearchhubPost
 
         if thread_target_model_name == "citation":
             return Citation
