@@ -15,7 +15,6 @@ from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 
 
 class RhCommentThreadViewSet(ModelViewSet):
-    queryset = RhCommentThreadModel.objects.filter()
     serializer_class = RhCommentThreadSerializer
     permission_classes = [
         # IsAuthenticatedOrReadOnly,
@@ -31,7 +30,11 @@ class RhCommentThreadViewSet(ModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         # TODO - calvinhlee - update to reflect content id & thread types & sortable params
         return super().retrieve(request, *args, **kwargs)
+    
+    def get_queryset(self):
+        base_ueryset = RhCommentThreadModel.objects.filter()
 
+        return super().get_queryset()
     @action(detail=True, methods=["POST"], permission_classes=[IsAuthenticated])
     def create_comment(self, request, pk=None):
         try:
