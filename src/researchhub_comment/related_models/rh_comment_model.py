@@ -10,16 +10,23 @@ from django.db.models import (
 )
 
 from discussion.reaction_models import AbstractGenericReactionModel
-from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR, RH_COMMENT_CONTENT_TYPES
-from researchhub_comment.constants.rh_comment_migration_legacy_types import (
-    LEGACY_COMMENT, RH_COMMENT_MIGRATION_LEGACY_TYPES
+from researchhub_comment.constants.rh_comment_content_types import (
+    QUILL_EDITOR,
+    RH_COMMENT_CONTENT_TYPES,
 )
-from researchhub_comment.related_models.rh_comment_thread_model import RhCommentThreadModel
+from researchhub_comment.constants.rh_comment_migration_legacy_types import (
+    LEGACY_COMMENT,
+    RH_COMMENT_MIGRATION_LEGACY_TYPES,
+)
+from researchhub_comment.related_models.rh_comment_thread_model import (
+    RhCommentThreadModel,
+)
 from utils.models import DefaultAuthenticatedModel
 
 
 class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
-    """ --- MODEL FIELDS --- """
+    """--- MODEL FIELDS ---"""
+
     context_title = TextField(
         blank=True,
         null=True,
@@ -32,7 +39,7 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
         blank=True,
         max_length=1024,
         upload_to="uploads/rh_comment/%Y/%m/%d/",
-        help_text="""Src may be blank but never null upon saving."""
+        help_text="""Src may be blank but never null upon saving.""",
     )
     comment_content_type = CharField(
         choices=RH_COMMENT_CONTENT_TYPES,
@@ -62,11 +69,13 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
     )
 
     """ --- PROPERTIES --- """
+
     @property
     def is_root_comment(self):
         return self.parent is None
 
     """ --- METHODS --- """
+
     @classmethod
     def create_from_request(cls, request, rh_thread):
         request_data = request.data

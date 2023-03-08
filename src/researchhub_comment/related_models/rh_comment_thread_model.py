@@ -29,6 +29,11 @@ class RhCommentThreadModel(AbstractGenericRelationModel):
         null=True,
     )
 
+    """ --- PROPERTIES --- """
+    # TBD
+
+    """--- METHODS ---"""
+
     @staticmethod
     def get_valid_target_content_model(thread_content_model_name):
         from paper.models import Paper
