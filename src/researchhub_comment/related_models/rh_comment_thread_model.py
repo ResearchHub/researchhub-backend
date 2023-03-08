@@ -10,7 +10,8 @@ from utils.models import AbstractGenericRelationModel
     NOTE: RhCommentThreadModel's generic relation convention is to
         - setup relations through AbstractGenericRelationModel
         - an edge named `rh_threads` for inverse reference (see Paper Model for example)
-        - this allows queries such as [ContentModel].rh_threads[...] where [ContentModels] may be found in method "get_valid_target_content_model"
+        - this allows queries such as [ContentModel].rh_threads[...]
+            where [ContentModels] may be found in method "get_valid_target_content_model"
 """
 
 
