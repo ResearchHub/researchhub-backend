@@ -31,7 +31,7 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
         blank=True,
         null=True,
         help_text="""
-            Provides a sumamry / headline to give context to the comment. 
+            Provides a sumamry / headline to give context to the comment.
             A commont use-case for this is for inline comments & citation comments
         """,
     )

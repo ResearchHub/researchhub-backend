@@ -1,9 +1,9 @@
-from researchhub_comment.models import RhCommentModel
-from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
-from rest_framework.viewsets import ModelViewSet
-from requests import Response
 from rest_framework import status
+from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
+from rest_framework.response import Response
+from rest_framework.viewsets import ModelViewSet
 
+from researchhub_comment.models import RhCommentModel
 from researchhub_comment.serializers.rh_comment_serializer import RhCommentSerializer
 
 
