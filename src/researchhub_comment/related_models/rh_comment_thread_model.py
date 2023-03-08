@@ -37,7 +37,7 @@ class RhCommentThreadModel(AbstractGenericRelationModel):
     """--- METHODS ---"""
 
     @staticmethod
-    def get_valid_target_content_model(thread_content_model_name):
+    def get_valid_thread_target_model(thread_target_model_name):
         from hypothesis.related_models.citation import Citation
         from hypothesis.related_models.hypothesis import Hypothesis
         from paper.models import Paper
@@ -45,16 +45,16 @@ class RhCommentThreadModel(AbstractGenericRelationModel):
             ResearchhubPost,
         )
 
-        if thread_content_model_name == "citation":
+        if thread_target_model_name == "citation":
             return Citation
-        elif thread_content_model_name == "hypothesis":
+        elif thread_target_model_name == "hypothesis":
             return Hypothesis
-        elif thread_content_model_name == "paper":
+        elif thread_target_model_name == "paper":
             return Paper
-        elif thread_content_model_name == "researchhub_post":
+        elif thread_target_model_name == "researchhub_post":
             return ResearchhubPost
         else:
             raise Exception(
                 f"Failed get_valid_target_content_model:. \
-                  invalid thread_content_model_name: {thread_content_model_name}"
+                  invalid thread_target_model_name: {thread_target_model_name}"
             )
