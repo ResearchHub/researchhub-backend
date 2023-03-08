@@ -1,9 +1,10 @@
 from django.db.models import CharField
 
-from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT, RH_COMMENT_THREAD_TYPES
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_comment.constants.rh_comment_thread_types import (
+    GENERIC_COMMENT,
+    RH_COMMENT_THREAD_TYPES,
+)
 from utils.models import AbstractGenericRelationModel
-
 
 """
     NOTE: RhCommentThreadModel's generic relation convention is to
@@ -12,8 +13,10 @@ from utils.models import AbstractGenericRelationModel
         - this allows ContentModel.rh_threads[...] queries and allows usage of _get_valid_target_content_model
 """
 
+
 class RhCommentThreadModel(AbstractGenericRelationModel):
-    """ --- MODEL FIELDS --- """
+    """--- MODEL FIELDS ---"""
+
     thread_type = CharField(
         max_length=144,
         choices=RH_COMMENT_THREAD_TYPES,
@@ -29,6 +32,9 @@ class RhCommentThreadModel(AbstractGenericRelationModel):
     @staticmethod
     def get_valid_target_content_model(thread_content_model_name):
         from paper.models import Paper
+        from researchhub_document.models import (
+            ResearchhubPost,
+        )
 
         if thread_content_model_name == "paper":
             return Paper

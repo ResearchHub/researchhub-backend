@@ -5,7 +5,6 @@ from requests import Response
 from rest_framework import status
 
 from researchhub_comment.serializers.rh_comment_serializer import RhCommentSerializer
-from researchhub_comment.models import RhCommentThreadModel
 
 
 class RhCommentViewSet(ModelViewSet):
