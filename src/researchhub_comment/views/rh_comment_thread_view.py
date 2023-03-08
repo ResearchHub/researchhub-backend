@@ -35,7 +35,7 @@ class RhCommentThreadViewSet(ModelViewSet):
     @action(detail=True, methods=["POST"], permission_classes=[IsAuthenticated])
     def create_comment(self, request, pk=None):
         try:
-            rh_thread = self._retrieve_or_create_thread_from_request()
+            rh_thread = self._retrieve_or_create_thread_from_request_data(request.data)
             _rh_comment = RhCommentModel.create_from_request(request, rh_thread)
             rh_thread.refresh_from_db()  # object update from fresh db_values
 
@@ -46,15 +46,13 @@ class RhCommentThreadViewSet(ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    def _retrieve_or_create_thread_from_request(self):
+    def _retrieve_or_create_thread_from_request_data(self, request_data):
         try:
-            request = self.context.get("request")
-            request_data = request.data
             thread_id = request_data.get("thread_id")
             if thread_id:
                 return RhCommentThreadModel.obejcts.get(thread_id)
             else:
-                existing_thread = self._get_existing_thread_from_request()
+                existing_thread = self._get_existing_thread_from_request_data(request_data)
                 if existing_thread is not None:
                     return existing_thread
                 else:
@@ -71,12 +69,9 @@ class RhCommentThreadViewSet(ModelViewSet):
                         thread_reference=request_data.get("thread_reference"),
                     )
         except Exception as error:
-            raise Exception(
-                f"Failed to create / retrieve rh_thread: {error}"            )
+            raise Exception(f"Failed to create / retrieve rh_thread: {error}")
 
-    def _get_existing_thread_from_request(self):
-        request_data = self.context.get("request").data
-
+    def _get_existing_thread_from_request_data(self, request_data):
         thread_id = request_data.get("thread_id")
         if thread_id is not None:
             return RhCommentThreadModel.objects.get(id=thread_id)
@@ -93,13 +88,15 @@ class RhCommentThreadViewSet(ModelViewSet):
             or thread_target_model_instance_id is None
         ):
             raise Exception(
-                f"Failed to call __retrieve_or_create_thread_from_request. \
+                f"Failed to call __retrieve_or_create_thread_from_request_data. \
                 thread_type: {thread_type} | thread_target_model_name: {thread_target_model_name} |\
                 thread_target_model_instance_id: {thread_target_model_instance_id}"
             )
         else:
-            valid_thread_target_model = RhCommentThreadModel.get_valid_thread_target_model(
-                thread_target_model_name
+            valid_thread_target_model = (
+                RhCommentThreadModel.get_valid_thread_target_model(
+                    thread_target_model_name
+                )
             )
             return (
                 valid_thread_target_model.object.get(id=thread_target_model_instance_id)
