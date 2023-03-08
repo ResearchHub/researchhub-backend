@@ -71,10 +71,8 @@ class RhCommentThreadViewSet(ModelViewSet):
                         thread_reference=request_data.get("thread_reference"),
                     )
         except Exception as error:
-            return Response(
-                f"Failed to create / retrieve rh_thread: {error}",
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            raise Exception(
+                f"Failed to create / retrieve rh_thread: {error}"            )
 
     def _get_existing_thread_from_request(self):
         request_data = self.context.get("request").data
