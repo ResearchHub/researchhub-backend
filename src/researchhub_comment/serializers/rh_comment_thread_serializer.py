@@ -20,8 +20,8 @@ class RhCommentThreadSerializer(ModelSerializer):
         read_only_fields = RH_COMMENT_THREAD_READ_ONLY_FIELDS
 
     comments = SerializerMethodField()
-    target_model_name = CharField(source="content_type")
-    target_model_instance_id = IntegerField(source="object_id")
+    target_model_name = CharField(source="content_type", read_only=True)
+    target_model_instance_id = IntegerField(source="object_id", read_only=True)
 
     def get_comments(self, thread):
         return RhCommentSerializer(
