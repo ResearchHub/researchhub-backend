@@ -4,17 +4,16 @@ from discussion.reaction_serializers import GenericReactionSerializerMixin
 from researchhub_comment.models import RhCommentThreadModel
 from researchhub_comment.serializers.constants.rh_comment_thread_serializer_constants import (
     RH_COMMENT_THREAD_FIELDS,
+    RH_COMMENT_THREAD_READ_ONLY_FIELDS,
 )
 from researchhub_comment.serializers.rh_comment_serializer import RhCommentSerializer
 
 
-class RhCommentThreadSerializer(ModelSerializer, GenericReactionSerializerMixin):
+class RhCommentThreadSerializer(ModelSerializer):
     class Meta:
         model = RhCommentThreadModel
-        fields = [
-            *GenericReactionSerializerMixin.EXPOSABLE_FIELDS,
-            *RH_COMMENT_THREAD_FIELDS,
-        ]
+        fields = RH_COMMENT_THREAD_FIELDS
+        read_only_fields = RH_COMMENT_THREAD_READ_ONLY_FIELDS
 
     comments = SerializerMethodField()
 
@@ -22,4 +21,4 @@ class RhCommentThreadSerializer(ModelSerializer, GenericReactionSerializerMixin)
         return RhCommentSerializer(
             thread.rh_comments,
             many=True,
-        )
+        ).data

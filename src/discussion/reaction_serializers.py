@@ -1,4 +1,8 @@
-from rest_framework.serializers import ModelSerializer, PrimaryKeyRelatedField, SerializerMethodField
+from rest_framework.serializers import (
+    ModelSerializer,
+    PrimaryKeyRelatedField,
+    SerializerMethodField,
+)
 
 from discussion.reaction_models import Endorsement, Flag, Vote
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -71,11 +75,7 @@ class GenericReactionSerializerMixin:
         "user_flag",
         "user_vote",
     ]
-    promoted = SerializerMethodField()
-    score = SerializerMethodField()
-    user_endorsement = SerializerMethodField()
-    user_flag = SerializerMethodField()
-    
+
     def get_document_meta(self, obj):
         paper = obj.paper
         if paper:
@@ -155,3 +155,16 @@ class GenericReactionSerializerMixin:
         except Exception as e:
             log_error(e)
             return None
+
+
+class GenericReactionSerializer(ModelSerializer, GenericReactionSerializerMixin):
+    class Meta:
+        abstract = True
+        # fields = IMPLEMENT
+        # read_only_fields = IMPLEMENT
+
+    promoted = SerializerMethodField()
+    score = SerializerMethodField()
+    user_endorsement = SerializerMethodField()
+    user_flag = SerializerMethodField()
+    user_vote = SerializerMethodField()
