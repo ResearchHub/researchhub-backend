@@ -90,10 +90,11 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
     def get_comment_src_file_from_request(request):
         request_data = request.data
         comment_content = request_data.get("comment_content")
-        if comment_content is None:
+        comment_content_type = request_data.get("comment_content_type")
+        if comment_content is None or comment_content_type is None:
             raise Exception(
                 "Failed to comment content should not be None when creating a comment"
             )
 
         comment_content_src_file = ContentFile(comment_content.encode())
-        return [comment_content_src_file, request_data.get("comment_content_type")]
+        return [comment_content_src_file, comment_content_type]
