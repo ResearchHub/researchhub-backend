@@ -76,7 +76,7 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
         ] = cls.get_comment_src_file_from_request(request)
         rh_comment = cls.objects.create(
             thread=rh_thread,
-            parent=request_data.get("parent_id"),
+            parent=request_data.get("comment_parent_id"),
             comment_content_type=comment_content_type,
         )
         rh_comment.comment_content_src.save(
