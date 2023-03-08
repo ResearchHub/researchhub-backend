@@ -162,8 +162,8 @@ class GenericReactionSerializerMixin:
 class GenericReactionSerializer(ModelSerializer, GenericReactionSerializerMixin):
     class Meta:
         abstract = True
-        fields = raise_implement("GenericReactionSerializer", "fields")
-        read_only_fields = raise_implement("GenericReactionSerializer", "read_only_fields")
+        # NOTE: fields = [raise_implement("GenericReactionSerializer", "fields")]
+        # NOTE: read_only_fields = [raise_implement("GenericReactionSerializer", "read_only_fields")]
 
     promoted = SerializerMethodField()
     score = SerializerMethodField()
