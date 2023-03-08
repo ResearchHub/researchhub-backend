@@ -1,4 +1,9 @@
-from rest_framework.serializers import ModelSerializer, SerializerMethodField
+from rest_framework.serializers import (
+    CharField,
+    IntegerField,
+    ModelSerializer,
+    SerializerMethodField,
+)
 
 from researchhub_comment.models import RhCommentThreadModel
 from researchhub_comment.serializers.constants.rh_comment_thread_serializer_constants import (
@@ -15,6 +20,8 @@ class RhCommentThreadSerializer(ModelSerializer):
         read_only_fields = RH_COMMENT_THREAD_READ_ONLY_FIELDS
 
     comments = SerializerMethodField()
+    target_model_name = CharField(source="content_type")
+    target_model_instance_id = IntegerField(source="object_id")
 
     def get_comments(self, thread):
         return RhCommentSerializer(
