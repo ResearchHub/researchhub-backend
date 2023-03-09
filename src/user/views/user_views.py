@@ -820,7 +820,7 @@ def get_user_popover(request, pk=None):
                 "linkedin",
                 "twitter",
                 "description",
-                "education",
+                # "education",
                 "headline",
                 "profile_image",
             )
