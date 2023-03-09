@@ -77,23 +77,34 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
     """ --- METHODS --- """
 
     @classmethod
-    def create_from_request(cls, request, rh_thread):
-        request_data = request.data
+    def create_from_data(cls, data, rh_thread):
+        from researchhub_comment.serializers.rh_comment_serializer import (
+            RhCommentSerializer,
+        )
+
         [
             comment_content_src_file,
             comment_content_type,
-        ] = cls.get_comment_src_file_from_request(request)
-        rh_comment = cls.objects.create(
-            thread=rh_thread,
-            parent=request_data.get("comment_parent_id"),
-            comment_content_type=comment_content_type,
+        ] = cls.get_comment_src_file_from_request(data)
+        rh_comment_serializer = RhCommentSerializer(
+            {
+                "created_by": data.user.id,
+                "updated_by": data.user.id,
+                "parent": data.get("comment_parent_id"),
+                "comment_content_type": comment_content_type,
+                "thread": rh_thread,
+            }
         )
-        rh_comment.comment_content_src.save(
-            f"RH-THREAD-{rh_thread.id}-COMMENT-{rh_comment.id}-user-{request.user.id}.txt",
-            comment_content_src_file,
-        )
-        rh_comment.refresh_from_db()
-        return rh_comment
+        try:
+            rh_comment_serializer.is_valid(raise_exception=True)
+            rh_comment = rh_comment_serializer.save()
+            rh_comment.comment_content_src.save(
+                f"RH-THREAD-{rh_thread.id}-COMMENT-{rh_comment.id}-user-{data.user.id}.txt",
+                comment_content_src_file,
+            )
+            return rh_comment
+        except Exception as error:
+            raise Exception(f"Failed to RhCommentModel#create_from_data: {error}")
 
     @staticmethod
     def get_comment_src_file_from_request(request):
