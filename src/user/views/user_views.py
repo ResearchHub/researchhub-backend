@@ -826,7 +826,7 @@ def get_user_popover(request, pk=None):
             )
         },
         "usr_dus_get_editor_of": {"_include_fields": ("source",)},
-        "rag_dps_get_source": {"_include_fields": ("id", "name")},
+        "rag_dps_get_source": {"_include_fields": ("id", "name", "slug")},
     }
     serializer = DynamicUserSerializer(
         user,
