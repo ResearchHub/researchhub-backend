@@ -1,3 +1,4 @@
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import action
@@ -12,14 +13,20 @@ from researchhub_comment.serializers.rh_comment_thread_serializer import (
     RhCommentThreadSerializer,
 )
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
+from researchhub_comment.views.filters.rh_comment_thread_view_filters import (
+    RhCommentThreadViewFilter,
+)
 
 
 class RhCommentThreadViewSet(ModelViewSet):
-    serializer_class = RhCommentThreadSerializer
+    filter_backends = (DjangoFilterBackend,)
+    filter_class = RhCommentThreadViewFilter
     permission_classes = [
         # IsAuthenticatedOrReadOnly,
         AllowAny,  # TODO: calvinhlee replace with above permissions
     ]
+    queryset = RhCommentThreadModel.objects.filter()
+    serializer_class = RhCommentThreadSerializer
 
     def create(self, request, *args, **kwargs):
         return Response(
@@ -27,14 +34,9 @@ class RhCommentThreadViewSet(ModelViewSet):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    def retrieve(self, request, *args, **kwargs):
-        # TODO - calvinhlee - update to reflect content id & thread types & sortable params
-        return super().retrieve(request, *args, **kwargs)
-    
-    # def get_queryset(self):
-    #     base_ueryset = RhCommentThreadModel.objects.filter()
-
-    #     return super().get_queryset()
+    def get_filtered_queryset(self):
+        # NOTE: RhCommentThreadViewFilter has a qs limit of 10
+        return self.filter_queryset(self.get_queryset())
 
     @action(detail=True, methods=["POST"], permission_classes=[IsAuthenticated])
     def create_comment(self, request, pk=None):
@@ -56,7 +58,9 @@ class RhCommentThreadViewSet(ModelViewSet):
             if thread_id:
                 return RhCommentThreadModel.obejcts.get(thread_id)
             else:
-                existing_thread = self._get_existing_thread_from_request_data(request_data)
+                existing_thread = self._get_existing_thread_from_request_data(
+                    request_data
+                )
                 if existing_thread is not None:
                     return existing_thread
                 else:

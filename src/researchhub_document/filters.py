@@ -92,7 +92,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
     class Meta:
         model = ResearchhubUnifiedDocument
         fields = ["hub_id", "ordering", "subscribed_hubs", "type", "ignore_excluded"]
-
+    
     def _map_tag_to_document_filter(self, value):
         if value == "closed":
             return "bounty_closed", True
