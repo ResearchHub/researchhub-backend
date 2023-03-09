@@ -395,6 +395,7 @@ urlpatterns = [
         note_views.note_view.ckeditor_webhook_document_removed,
     ),
     path("api/ckeditor/token/", note_views.note_view.ckeditor_token),
+    re_path(r"api/(?P<pk>[^/.]+)/test_pops/", user.views.user_views.test_pop),
     path("email_notifications/", mailing_list.views.email_notifications),
     path("health/", researchhub.views.healthcheck),
     path("", researchhub.views.index, name="index"),

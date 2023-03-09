@@ -810,6 +810,44 @@ class UserPopoverViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
     permission_classes = [AllowAny]
 
 
+from rest_framework.decorators import action, api_view, permission_classes
+
+
+@api_view([RequestMethods.GET])
+@permission_classes([AllowAny])
+def test_pop(request, pk=None):
+    user = User.objects.get(id=pk)
+    context = {
+        "usr_dus_get_author_profile": {
+            "_include_fields": (
+                "id",
+                "first_name",
+                "last_name",
+                "university",
+                "facebook",
+                "linkedin",
+                "twitter",
+                "description",
+                "education",
+                "headline",
+                "profile_image",
+            )
+        }
+    }
+    serializer = DynamicUserSerializer(
+        user,
+        context=context,
+        _include_fields=(
+            "id",
+            "author_profile",
+            "first_name",
+            "last_name",
+            "reputation",
+        ),
+    )
+    return Response(serializer.data, status=200)
+
+
 class UniversityViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = University.objects.all()
     serializer_class = UniversitySerializer
