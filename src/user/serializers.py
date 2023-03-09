@@ -509,6 +509,7 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
     author_profile = SerializerMethodField()
     rsc_earned = SerializerMethodField()
     benefits_expire_on = SerializerMethodField()
+    editor_of = SerializerMethodField()
 
     class Meta:
         model = User
@@ -531,6 +532,20 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
 
     def get_benefits_expire_on(self, user):
         return getattr(user, "benefits_expire_on", None)
+
+    def get_editor_of(self, user):
+        context = self.context
+        _context_fields = context.get("usr_dus_get_editor_of", {})
+
+        hub_content_type = ContentType.objects.get_for_model(Hub)
+        permissions = user.permissions.filter(
+            access_type=EDITOR,
+            content_type=hub_content_type,
+        )
+        serializer = DynamicPermissionSerializer(
+            permissions, many=True, context=context, **_context_fields
+        )
+        return serializer.data
 
 
 class UserActions:

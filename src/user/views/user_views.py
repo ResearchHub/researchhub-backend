@@ -824,7 +824,9 @@ def get_user_popover(request, pk=None):
                 "headline",
                 "profile_image",
             )
-        }
+        },
+        "usr_dus_get_editor_of": {"_include_fields": ("source",)},
+        "rag_dps_get_source": {"_include_fields": ("id", "name")},
     }
     serializer = DynamicUserSerializer(
         user,
@@ -832,6 +834,7 @@ def get_user_popover(request, pk=None):
         _include_fields=(
             "id",
             "author_profile",
+            "editor_of",
             "first_name",
             "last_name",
             "reputation",
