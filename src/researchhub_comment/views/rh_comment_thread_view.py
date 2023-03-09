@@ -13,7 +13,7 @@ from researchhub_comment.serializers.rh_comment_thread_serializer import (
     RhCommentThreadSerializer,
 )
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
-from researchhub_comment.views.filters.rh_comment_thread_view_filters import (
+from researchhub_comment.views.filters.rh_comment_thread_filters import (
     RhCommentThreadFilter,
 )
 
