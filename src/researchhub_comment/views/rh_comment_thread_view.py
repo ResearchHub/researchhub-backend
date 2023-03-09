@@ -16,9 +16,10 @@ from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_comment.views.filters.rh_comment_thread_filters import (
     RhCommentThreadFilter,
 )
+from researchhub_comment.views.rh_comment_thread_view_mixin import RhCommentThreadViewMixin
 
 
-class RhCommentThreadViewSet(ModelViewSet):
+class RhCommentThreadViewSet(RhCommentThreadViewMixin, ModelViewSet):
     filter_backends = (DjangoFilterBackend,)
     filter_class = RhCommentThreadFilter
     permission_classes = [
@@ -38,6 +39,7 @@ class RhCommentThreadViewSet(ModelViewSet):
         # NOTE: RhCommentThreadFilter has a qs limit of 10
         return self.filter_queryset(self.get_queryset())
 
+    # NOTE: Overrides RhCommentThreadViewMixin
     @action(detail=True, methods=["POST"], permission_classes=[IsAuthenticated])
     def create_comment(self, request, pk=None):
         try:
@@ -50,66 +52,4 @@ class RhCommentThreadViewSet(ModelViewSet):
             return Response(
                 f"Failed - create_comment: {error}",
                 status=status.HTTP_400_BAD_REQUEST,
-            )
-
-    def _retrieve_or_create_thread_from_request_data(self, request_data):
-        try:
-            thread_id = request_data.get("thread_id")
-            if thread_id:
-                return RhCommentThreadModel.obejcts.get(thread_id)
-            else:
-                existing_thread = self._get_existing_thread_from_request_data(
-                    request_data
-                )
-                if existing_thread is not None:
-                    return existing_thread
-                else:
-                    valid_thread_target_model = (
-                        RhCommentThreadModel.get_valid_thread_target_model(
-                            request_data.get("thread_target_model_name")
-                        )
-                    )
-                    thread_target_instance = valid_thread_target_model.objects.get(
-                        id=request_data.get("thread_target_model_instance_id")
-                    )
-                    return thread_target_instance.rh_threads.create(
-                        thread_type=request_data.get("thread_type"),
-                        thread_reference=request_data.get("thread_reference"),
-                    )
-        except Exception as error:
-            raise Exception(f"Failed to create / retrieve rh_thread: {error}")
-
-    def _get_existing_thread_from_request_data(self, request_data):
-        thread_id = request_data.get("thread_id")
-        if thread_id is not None:
-            return RhCommentThreadModel.objects.get(id=thread_id)
-
-        thread_target_model_instance_id = request_data.get(
-            "thread_target_model_instance_id"
-        )
-        thread_target_model_name = request_data.get("thread_target_model_name")
-        thread_reference = request_data.get("thread_reference")
-        thread_type = request_data.get("thread_type")
-        if (
-            thread_type is None
-            or thread_target_model_name is None
-            or thread_target_model_instance_id is None
-        ):
-            raise Exception(
-                f"Failed to call __retrieve_or_create_thread_from_request_data. \
-                thread_type: {thread_type} | thread_target_model_name: {thread_target_model_name} |\
-                thread_target_model_instance_id: {thread_target_model_instance_id}"
-            )
-        else:
-            valid_thread_target_model = (
-                RhCommentThreadModel.get_valid_thread_target_model(
-                    thread_target_model_name
-                )
-            )
-            return (
-                valid_thread_target_model.object.get(id=thread_target_model_instance_id)
-                .rh_threads.filter(
-                    thread_reference=thread_reference, thread_type=thread_type
-                )
-                .first()
             )
