@@ -14,13 +14,13 @@ from researchhub_comment.serializers.rh_comment_thread_serializer import (
 )
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_comment.views.filters.rh_comment_thread_view_filters import (
-    RhCommentThreadViewFilter,
+    RhCommentThreadFilter,
 )
 
 
 class RhCommentThreadViewSet(ModelViewSet):
     filter_backends = (DjangoFilterBackend,)
-    filter_class = RhCommentThreadViewFilter
+    filter_class = RhCommentThreadFilter
     permission_classes = [
         # IsAuthenticatedOrReadOnly,
         AllowAny,  # TODO: calvinhlee replace with above permissions
@@ -35,7 +35,7 @@ class RhCommentThreadViewSet(ModelViewSet):
         )
 
     def get_filtered_queryset(self):
-        # NOTE: RhCommentThreadViewFilter has a qs limit of 10
+        # NOTE: RhCommentThreadFilter has a qs limit of 10
         return self.filter_queryset(self.get_queryset())
 
     @action(detail=True, methods=["POST"], permission_classes=[IsAuthenticated])

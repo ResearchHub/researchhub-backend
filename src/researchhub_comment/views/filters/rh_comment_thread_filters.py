@@ -27,7 +27,7 @@ FILTER_FIELDS = [
 ]
 
 
-class RhCommentThreadViewFilter(FilterSet):
+class RhCommentThreadFilter(FilterSet):
     class Meta:
         model = RhCommentThreadModel
         fields = FILTER_FIELDS
