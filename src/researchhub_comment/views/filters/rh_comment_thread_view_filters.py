@@ -1,19 +1,23 @@
+from django.contrib.admin.options import get_content_type_for_model
 from django_filters import (
+    CharFilter,
     ChoiceFilter,
+    DateTimeFilter,
     FilterSet,
     NumberFilter,
-    DateTimeFilter,
-    CharFilter,
 )
+
+from hypothesis.related_models.citation import Citation
+from hypothesis.related_models.hypothesis import Hypothesis
+from paper.related_models.paper_model import Paper
 from researchhub_comment.constants.rh_comment_thread_types import (
     GENERIC_COMMENT,
     RH_COMMENT_THREAD_TYPES,
 )
-
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
-from user.related_models.user_model import User
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 
 FILTER_FIELDS = [
     "created_by",
@@ -28,7 +32,6 @@ class RhCommentThreadViewFilter(FilterSet):
         model = RhCommentThreadModel
         fields = FILTER_FIELDS
 
-    thread_id = NumberFilter(field_name="id", label="thread_id")
     created_date__gte = DateTimeFilter(
         field_name="created_date",
         lookup_expr="gte",
@@ -37,6 +40,7 @@ class RhCommentThreadViewFilter(FilterSet):
         field_name="created_date",
         lookup_expr="lt",
     )
+    thread_id = NumberFilter(field_name="id", label="thread_id")
     thread_reference = CharFilter(lookup_expr="iexact")
     thread_type = ChoiceFilter(
         field_name="thread_type",
@@ -51,6 +55,49 @@ class RhCommentThreadViewFilter(FilterSet):
         field_name="updated_date",
         lookup_expr="lt",
     )
+
+    """ ---- Generic Reaction Filters ---"""
+    paper_id = NumberFilter(
+        field_name="object_id",
+        label="paper_id",
+        method="get_qs_by_paper_id",
+    )
+    researchhub_post_id = NumberFilter(
+        field_name="object_id",
+        label="paper_id",
+        method="get_qs_by_paper_id",
+    )
+    hypothesis_id = NumberFilter(
+        field_name="object_id",
+        label="paper_id",
+        method="get_qs_by_paper_id",
+    )
+    citation_id = NumberFilter(
+        field_name="object_id",
+        label="paper_id",
+        method="get_qs_by_paper_id",
+    )
+
+    def get_qs_by_paper_id(self, qs, name, value):
+        return qs.filter(
+            content_type=get_content_type_for_model(Paper), object_id=int(value)
+        )
+
+    def get_qs_by_researchhub_post_id(self, qs, name, value):
+        return qs.filter(
+            content_type=get_content_type_for_model(ResearchhubPost),
+            object_id=int(value),
+        )
+
+    def get_qs_by_hypothesis_id(self, qs, name, value):
+        return qs.filter(
+            content_type=get_content_type_for_model(Hypothesis), object_id=int(value)
+        )
+
+    def get_qs_by_citation_id(self, qs, name, value):
+        return qs.filter(
+            content_type=get_content_type_for_model(Citation), object_id=int(value)
+        )
 
     @property
     def qs(self):

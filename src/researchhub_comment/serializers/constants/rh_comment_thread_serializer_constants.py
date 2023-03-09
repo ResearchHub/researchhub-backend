@@ -3,12 +3,12 @@ RH_COMMENT_THREAD_FIELDS = [
     "id",
     "thread_type",
     "thread_reference",
-    "target_model_name",
-    "target_model_instance_id",
+    "thread_target_model_name",
+    "thread_target_model_instance_id",
 ]
 RH_COMMENT_THREAD_READ_ONLY_FIELDS = [
     "comments",
     "id",
-    "target_model_name",
-    "target_model_instance_id",
+    "thread_target_model_name",
+    "thread_target_model_instance_id",
 ]
