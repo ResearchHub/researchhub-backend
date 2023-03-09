@@ -4,7 +4,6 @@ from rest_framework.decorators import action
 from rest_framework.permissions import (
     AllowAny,
     IsAuthenticated,
-    IsAuthenticatedOrReadOnly,
 )
 
 from researchhub.lib import get_document_id_from_path
@@ -15,16 +14,16 @@ from researchhub_comment.related_models.rh_comment_thread_model import (
 
 
 class RhCommentThreadViewMixin:
-    @action(detail=True, methods=["POST"], permission_classes=[AllowAny])
-    def create_comment(self, request, pk=None):
+    @action(detail=True, methods=["POST"], permission_classes=[IsAuthenticated])
+    def create_rh_comment(self, request, pk=None):
         try:
-            rh_thread = self._retrieve_or_create_thread_from_request_data(request.data)
+            rh_thread = self._retrieve_or_create_thread_from_request_data(request)
             _rh_comment = RhCommentModel.create_from_data(request.data, rh_thread)
             rh_thread.refresh_from_db()  # object update from fresh db values
             return Response(self.get_serializer(instance=rh_thread).data, status=200)
         except Exception as error:
             return Response(
-                f"Failed - create_comment: {error}",
+                f"Failed - create_rh_comment: {error}",
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -32,18 +31,12 @@ class RhCommentThreadViewMixin:
     def get_comment_threads(self, request, pk=None):
         raise NotImplementedError("Needs to be implemented")
 
-    def _get_model_name_from_request(self, request):
-        return request.path.split("/")[2]
-
-    def _get_model_instance_id_from_request(self, request):
-        return int(request.path.split("/")[3])
-
     def _retrieve_or_create_thread_from_request_data(self, request):
         request_data = request.data
         try:
-            thread_id = request_data.get("thread_id")
-            if thread_id:
-                return RhCommentThreadModel.obejcts.get(thread_id)
+            thread_id = request_data.get("thread_id") or None
+            if thread_id is not None:
+                return RhCommentThreadModel.objects.get(id=int(thread_id))
             else:
                 existing_thread = self._get_existing_thread_from_request(request)
                 if existing_thread is not None:
@@ -51,11 +44,11 @@ class RhCommentThreadViewMixin:
                 else:
                     valid_thread_target_model = (
                         RhCommentThreadModel.get_valid_thread_target_model(
-                            request_data.get("thread_target_model_name")
+                            self._resolve_target_model_name(request)
                         )
                     )
                     thread_target_instance = valid_thread_target_model.objects.get(
-                        id=request_data.get("thread_target_model_instance_id")
+                        id=self._resolve_target_model_instance_id(request)
                     )
                     return thread_target_instance.rh_threads.create(
                         thread_type=request_data.get("thread_type"),
@@ -64,26 +57,20 @@ class RhCommentThreadViewMixin:
         except Exception as error:
             raise Exception(f"Failed to create / retrieve rh_thread: {error}")
 
-    def _get_existing_thread_from_request_data(self, request):
+    def _get_existing_thread_from_request(self, request):
         request_data = request.data
         """ NOTE: sanity checking if payload included thread_id """
-        thread_id = request_data.get("thread_id")
+        thread_id = request_data.get("thread_id") or None
         if thread_id is not None:
-            return RhCommentThreadModel.objects.get(id=thread_id)
+            return RhCommentThreadModel.objects.get(id=int(thread_id))
 
         """ ---- Attempting to resolve payload ---- """
         thread_reference = request_data.get("thread_reference")
-        thread_target_model_instance_id = (
-            request_data.get("thread_target_model_instance_id")
-            if request_data.get("thread_target_model_instance_id") is not None
-            else self._get_model_instance_id_from_request(request)
-        )
-        thread_target_model_name = (
-            request_data.get("thread_target_model_name")
-            if request_data.get("thread_target_model_name")
-            else self._get_model_name_from_request(request)
-        )
         thread_type = request_data.get("thread_type")
+        thread_target_model_instance_id = self._resolve_target_model_instance_id(
+            request
+        )
+        thread_target_model_name = self._resolve_target_model_name(request)
 
         if (
             thread_type is None
@@ -102,9 +89,37 @@ class RhCommentThreadViewMixin:
                 )
             )
             return (
-                valid_thread_target_model.object.get(id=thread_target_model_instance_id)
+                valid_thread_target_model.objects.get(
+                    id=thread_target_model_instance_id
+                )
                 .rh_threads.filter(
                     thread_reference=thread_reference, thread_type=thread_type
                 )
                 .first()
             )
+
+    def _resolve_target_model_instance_id(self, request):
+        thread_target_model_instance_id = (
+            request.data.get("thread_target_model_instance_id") or None
+        )
+        return (
+            thread_target_model_instance_id
+            if thread_target_model_instance_id is not None
+            else self._get_model_instance_id_from_request(request)
+        )
+
+    def _resolve_target_model_name(self, request):
+        thread_target_model_name = (
+            request.data.get("thread_target_model_instance_id") or None
+        )
+        return (
+            thread_target_model_name
+            if thread_target_model_name is not None
+            else self._get_model_name_from_request(request)
+        )
+
+    def _get_model_name_from_request(self, request):
+        return request.path.split("/")[2]
+
+    def _get_model_instance_id_from_request(self, request):
+        return int(request.path.split("/")[3])

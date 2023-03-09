@@ -3,6 +3,7 @@ from rest_framework.exceptions import ParseError
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
+from researchhub_comment.views.rh_comment_thread_view_mixin import RhCommentThreadViewMixin
 
 from utils import sentry
 
@@ -12,7 +13,7 @@ from hypothesis.serializers import CitationSerializer
 from discussion.reaction_models import Vote as GrmVote
 
 
-class CitationViewSet(ModelViewSet, ReactionViewActionMixin):
+class CitationViewSet(ModelViewSet, ReactionViewActionMixin, RhCommentThreadViewMixin):
     ordering = ('-created_date')
     queryset = Citation.objects.all()
     permission_classes = [IsAuthenticatedOrReadOnly]

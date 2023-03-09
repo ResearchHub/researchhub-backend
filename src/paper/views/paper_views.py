@@ -61,6 +61,7 @@ from paper.utils import (
 from purchase.models import Purchase
 from reputation.models import Contribution
 from researchhub.lib import get_document_id_from_path
+from researchhub_comment.views.rh_comment_thread_view_mixin import RhCommentThreadViewMixin
 from researchhub_document.permissions import HasDocumentCensorPermission
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
@@ -76,7 +77,7 @@ from utils.siftscience import decisions_api, events_api
 from utils.throttles import THROTTLE_CLASSES
 
 
-class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
+class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin, RhCommentThreadViewMixin):
     queryset = Paper.objects.filter()
     serializer_class = PaperSerializer
     dynamic_serializer_class = DynamicPaperSerializer

@@ -38,18 +38,3 @@ class RhCommentThreadViewSet(RhCommentThreadViewMixin, ModelViewSet):
     def get_filtered_queryset(self):
         # NOTE: RhCommentThreadFilter has a qs limit of 10
         return self.filter_queryset(self.get_queryset())
-
-    # NOTE: Overrides RhCommentThreadViewMixin
-    @action(detail=True, methods=["POST"], permission_classes=[IsAuthenticated])
-    def create_comment(self, request, pk=None):
-        try:
-            rh_thread = self._retrieve_or_create_thread_from_request_data(request.data)
-            _rh_comment = RhCommentModel.create_from_data(request.data, rh_thread)
-            rh_thread.refresh_from_db()  # object update from fresh db_values
-
-            return Response(self.get_serializer(instance=rh_thread).data, status=200)
-        except Exception as error:
-            return Response(
-                f"Failed - create_comment: {error}",
-                status=status.HTTP_400_BAD_REQUEST,
-            )
