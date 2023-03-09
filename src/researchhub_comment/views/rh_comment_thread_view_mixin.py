@@ -6,7 +6,6 @@ from rest_framework.permissions import (
     IsAuthenticated,
 )
 
-from researchhub.lib import get_document_id_from_path
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
