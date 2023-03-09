@@ -26,6 +26,7 @@ class RhCommentThreadViewSet(RhCommentThreadViewMixin, ModelViewSet):
         # IsAuthenticatedOrReadOnly,
         AllowAny,  # TODO: calvinhlee replace with above permissions
     ]
+    ordering = ('-updated_date')
     queryset = RhCommentThreadModel.objects.filter()
     serializer_class = RhCommentThreadSerializer
 
