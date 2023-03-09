@@ -65,17 +65,17 @@ class RhCommentThreadViewFilter(FilterSet):
     researchhub_post_id = NumberFilter(
         field_name="object_id",
         label="researchhub_post_id",
-        method="get_qs_by_paper_id",
+        method="get_qs_by_researchhub_post_id",
     )
     hypothesis_id = NumberFilter(
         field_name="object_id",
         label="hypothesis_id",
-        method="get_qs_by_paper_id",
+        method="get_qs_by_hypothesis_id",
     )
     citation_id = NumberFilter(
         field_name="object_id",
         label="citation_id",
-        method="get_qs_by_paper_id",
+        method="get_qs_by_citation_id",
     )
 
     def get_qs_by_paper_id(self, qs, name, value):
