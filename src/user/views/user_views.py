@@ -8,12 +8,13 @@ from django.core.cache import cache
 from django.db import IntegrityError, models
 from django.db.models import F, Q, Sum
 from django.db.models.functions import Coalesce
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import mixins, status, viewsets
-from rest_framework.decorators import action
+from rest_framework import status, viewsets
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import (
     AllowAny,
@@ -57,7 +58,6 @@ from user.serializers import (
     UniversitySerializer,
     UserActions,
     UserEditableSerializer,
-    UserPopoverSerializer,
     UserSerializer,
     VerificationSerializer,
 )
@@ -804,18 +804,10 @@ class UserViewSet(viewsets.ModelViewSet):
             raise Exception("Sift verification signature mismatch")
 
 
-class UserPopoverViewSet(mixins.RetrieveModelMixin, viewsets.GenericViewSet):
-    queryset = User.objects.all()
-    serializer_class = UserPopoverSerializer
-    permission_classes = [AllowAny]
-
-
-from rest_framework.decorators import action, api_view, permission_classes
-
-
 @api_view([RequestMethods.GET])
 @permission_classes([AllowAny])
-def test_pop(request, pk=None):
+def get_user_popover(request, pk=None):
+    user = get_object_or_404(User, pk=pk)
     user = User.objects.get(id=pk)
     context = {
         "usr_dus_get_author_profile": {
