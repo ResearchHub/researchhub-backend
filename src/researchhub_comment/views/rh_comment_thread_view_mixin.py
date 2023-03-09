@@ -15,13 +15,7 @@ from researchhub_comment.related_models.rh_comment_thread_model import (
 
 
 class RhCommentThreadViewMixin:
-    def get_model_name_from_request(self, request):
-        return request.path.split("/")[2]
-
-    def get_model_instance_id_from_request(self, request):
-        return int(request.path.split("/")[3])
-
-    @action(detail=True, methods=["POST"], permission_classes=[IsAuthenticated])
+    @action(detail=True, methods=["POST"], permission_classes=[AllowAny])
     def create_comment(self, request, pk=None):
         try:
             rh_thread = self._retrieve_or_create_thread_from_request_data(request.data)
@@ -33,6 +27,16 @@ class RhCommentThreadViewMixin:
                 f"Failed - create_comment: {error}",
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+    @action(detail=True, methods=["POST"], permission_classes=[AllowAny])
+    def get_comment_threads(self, request, pk=None):
+        raise NotImplementedError("Needs to be implemented")
+
+    def _get_model_name_from_request(self, request):
+        return request.path.split("/")[2]
+
+    def _get_model_instance_id_from_request(self, request):
+        return int(request.path.split("/")[3])
 
     def _retrieve_or_create_thread_from_request_data(self, request):
         request_data = request.data
@@ -72,12 +76,12 @@ class RhCommentThreadViewMixin:
         thread_target_model_instance_id = (
             request_data.get("thread_target_model_instance_id")
             if request_data.get("thread_target_model_instance_id") is not None
-            else self.get_model_instance_id_from_request(request)
+            else self._get_model_instance_id_from_request(request)
         )
         thread_target_model_name = (
             request_data.get("thread_target_model_name")
             if request_data.get("thread_target_model_name")
-            else self.get_model_name_from_request(request)
+            else self._get_model_name_from_request(request)
         )
         thread_type = request_data.get("thread_type")
 
