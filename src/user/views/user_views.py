@@ -834,7 +834,7 @@ def get_user_popover(request, pk=None):
         _include_fields=(
             "id",
             "author_profile",
-            "editor_of",
+            # "editor_of",
             "first_name",
             "last_name",
             "reputation",
