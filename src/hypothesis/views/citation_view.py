@@ -3,7 +3,9 @@ from rest_framework.exceptions import ParseError
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
-from researchhub_comment.views.rh_comment_thread_view_mixin import RhCommentThreadViewMixin
+from researchhub_comment.views.rh_comment_thread_view_mixin import (
+    RhCommentThreadViewMixin,
+)
 
 from utils import sentry
 
@@ -13,27 +15,29 @@ from hypothesis.serializers import CitationSerializer
 from discussion.reaction_models import Vote as GrmVote
 
 
-class CitationViewSet(ModelViewSet, ReactionViewActionMixin, RhCommentThreadViewMixin):
-    ordering = ('-created_date')
+class CitationViewSet(ReactionViewActionMixin, RhCommentThreadViewMixin, ModelViewSet):
+    ordering = "-created_date"
     queryset = Citation.objects.all()
     permission_classes = [IsAuthenticatedOrReadOnly]
     serializer_class = CitationSerializer
 
     def create(self, request, *args, **kwargs):
         request_data = request.data
-        hypothesis_id = request_data.get('hypothesis_id')
-        source_id = request_data.get('source_id') # source is equivalent to unifiedDocID
+        hypothesis_id = request_data.get("hypothesis_id")
+        source_id = request_data.get(
+            "source_id"
+        )  # source is equivalent to unifiedDocID
         try:
-            if (hypothesis_id is None or source_id is None):
+            if hypothesis_id is None or source_id is None:
                 raise ParseError(
-                    f'Invalid payload hypothesis_id: {hypothesis_id}, \
-                        source_id: ${source_id}'
+                    f"Invalid payload hypothesis_id: {hypothesis_id}, \
+                        source_id: ${source_id}"
                 )
 
             citation = Citation.objects.create(
                 created_by=request.user,
                 source_id=source_id,
-                citation_type=request_data.get('citation_type'),
+                citation_type=request_data.get("citation_type"),
             )
             # TODO: calvinhlee remove this after adding a model manager to AbstractGrmModel
             GrmVote.objects.create(
@@ -42,9 +46,7 @@ class CitationViewSet(ModelViewSet, ReactionViewActionMixin, RhCommentThreadView
                 object_id=citation.id,
                 vote_type=GrmVote.UPVOTE,
             )
-            citation.hypothesis.set([
-                Hypothesis.objects.get(id=hypothesis_id)
-            ])
+            citation.hypothesis.set([Hypothesis.objects.get(id=hypothesis_id)])
             citation.save()
             serializer = self.serializer_class(citation)
             return Response(serializer.data, status=200)

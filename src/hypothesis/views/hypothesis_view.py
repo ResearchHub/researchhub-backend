@@ -9,7 +9,9 @@ from discussion.reaction_views import ReactionViewActionMixin
 from hub.models import Hub
 from hypothesis.models import Hypothesis
 from hypothesis.serializers import DynamicCitationSerializer, HypothesisSerializer
-from researchhub_comment.views.rh_comment_thread_view_mixin import RhCommentThreadViewMixin
+from researchhub_comment.views.rh_comment_thread_view_mixin import (
+    RhCommentThreadViewMixin,
+)
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.permissions import HasDocumentEditingPermission
 from researchhub_document.related_models.constants.document_type import HYPOTHESIS
@@ -18,7 +20,11 @@ from researchhub_document.utils import reset_unified_document_cache
 from utils.throttles import THROTTLE_CLASSES
 
 
-class HypothesisViewSet(ModelViewSet, ReactionViewActionMixin, RhCommentThreadViewMixin):
+class HypothesisViewSet(
+    ReactionViewActionMixin,
+    RhCommentThreadViewMixin,
+    ModelViewSet,
+):
     ordering = "-created_date"
     queryset = Hypothesis.objects.all()
     permission_classes = [IsAuthenticatedOrReadOnly, HasDocumentEditingPermission]

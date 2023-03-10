@@ -52,7 +52,7 @@ from researchhub_document.utils import reset_unified_document_cache
 from utils.sentry import log_error
 
 
-class ResearchhubPostViewSet(ModelViewSet, ReactionViewActionMixin, RhCommentThreadViewMixin):
+class ResearchhubPostViewSet(ReactionViewActionMixin, RhCommentThreadViewMixin, ModelViewSet):
     ordering = "-created_date"
     queryset = ResearchhubUnifiedDocument.objects.all()
     permission_classes = [AllowAny, HasDocumentEditingPermission]

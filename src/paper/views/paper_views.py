@@ -77,7 +77,7 @@ from utils.siftscience import decisions_api, events_api
 from utils.throttles import THROTTLE_CLASSES
 
 
-class PaperViewSet(viewsets.ModelViewSet, ReactionViewActionMixin, RhCommentThreadViewMixin):
+class PaperViewSet( ReactionViewActionMixin, RhCommentThreadViewMixin, viewsets.ModelViewSet,):
     queryset = Paper.objects.filter()
     serializer_class = PaperSerializer
     dynamic_serializer_class = DynamicPaperSerializer
