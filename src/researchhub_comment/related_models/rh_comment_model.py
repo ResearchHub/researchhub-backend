@@ -85,11 +85,11 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
         [
             comment_content_src_file,
             comment_content_type,
-        ] = cls.get_comment_src_file_from_request(data)
+        ] = cls.get_comment_src_file_from_data(data)
         rh_comment_serializer = RhCommentSerializer(
             {
-                "created_by": data.user.id,
-                "updated_by": data.user.id,
+                "created_by": data.get("user"),
+                "updated_by": data.get("user"),
                 "parent": data.get("comment_parent_id"),
                 "comment_content_type": comment_content_type,
                 "thread": rh_thread,
@@ -107,10 +107,9 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
             raise Exception(f"Failed to RhCommentModel#create_from_data: {error}")
 
     @staticmethod
-    def get_comment_src_file_from_request(request):
-        request_data = request.data
-        comment_content = request_data.get("comment_content")
-        comment_content_type = request_data.get("comment_content_type")
+    def get_comment_src_file_from_data(data):
+        comment_content = data.get("comment_content")
+        comment_content_type = data.get("comment_content_type")
         if comment_content is None or comment_content_type is None:
             raise Exception(
                 "Failed to comment content should not be None when creating a comment"
