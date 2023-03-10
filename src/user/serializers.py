@@ -364,25 +364,6 @@ class UserSerializer(ModelSerializer):
         return time_rep
 
 
-class AuthorPopoverSerializer(ModelSerializer):
-    class Meta:
-        model = Author
-        fields = [
-            "first_name",
-            "last_name",
-            "id",
-            "university",
-            "facebook",
-            "linkedin",
-            "twitter",
-            "description",
-            "profile_image",
-            "headline",
-            "education",
-            "author_score",
-        ]
-
-
 class MinimalUserSerializer(ModelSerializer):
     author_profile = SerializerMethodField()
 
