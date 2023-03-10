@@ -53,7 +53,6 @@ class RhCommentThreadModel(AbstractGenericRelationModel):
         elif thread_target_model_name == "researchhub_post":
             return ResearchhubPost
         else:
-            import pdb; pdb.set_trace()
             raise Exception(
                 f"Failed get_valid_target_content_model: invalid thread_target_model_name: {thread_target_model_name}"
             )

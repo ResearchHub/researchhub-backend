@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import action
@@ -15,18 +16,19 @@ from researchhub_comment.related_models.rh_comment_thread_model import (
 class RhCommentThreadViewMixin:
     @action(detail=True, methods=["POST"], permission_classes=[IsAuthenticated])
     def create_rh_comment(self, request, pk=None):
-        try:
-            rh_thread = self._retrieve_or_create_thread_from_request_data(request)
-            _rh_comment = RhCommentModel.create_from_data(
-                {**request.data, "user": request.user}, rh_thread
-            )
-            rh_thread.refresh_from_db()  # object update from fresh db values
-            return Response(self.get_serializer(instance=rh_thread).data, status=200)
-        except Exception as error:
-            return Response(
-                f"Failed - create_rh_comment: {error}",
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        with transaction.atomic:
+            try:
+                rh_thread = self._retrieve_or_create_thread_from_request_data(request)
+                _rh_comment = RhCommentModel.create_from_data(
+                    {**request.data, "user": request.user}, rh_thread
+                )
+                rh_thread.refresh_from_db()  # object update from fresh db values
+                return Response(self.get_serializer(instance=rh_thread).data, status=200)
+            except Exception as error:
+                return Response(
+                    f"Failed - create_rh_comment: {error}",
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
     @action(detail=True, methods=["POST"], permission_classes=[AllowAny])
     def get_comment_threads(self, request, pk=None):
