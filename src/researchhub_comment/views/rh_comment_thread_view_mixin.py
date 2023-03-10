@@ -39,7 +39,7 @@ class RhCommentThreadViewMixin:
         try:
             thread_id = request_data.get("thread_id") or None
             if thread_id is not None:
-                return RhCommentThreadModel.objects.get(id=int(thread_id))
+                return RhCommentThreadModel.objects.get(id=thread_id)
             else:
                 existing_thread = self._get_existing_thread_from_request(request)
                 if existing_thread is not None:
@@ -65,7 +65,7 @@ class RhCommentThreadViewMixin:
         """ NOTE: sanity checking if payload included thread_id """
         thread_id = request_data.get("thread_id") or None
         if thread_id is not None:
-            return RhCommentThreadModel.objects.get(id=int(thread_id))
+            return RhCommentThreadModel.objects.get(id=thread_id)
 
         """ ---- Attempting to resolve payload ---- """
         thread_reference = request_data.get("thread_reference")
