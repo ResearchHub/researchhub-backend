@@ -467,7 +467,13 @@ class UserEditableSerializer(ModelSerializer):
     def get_subscribed(self, user):
         if self.context.get("get_subscribed"):
             subscribed_query = user.subscribed_hubs.filter(is_removed=False)
-            return HubSerializer(subscribed_query, many=True).data
+            context = {
+                "rag_dps_get_user": {
+                    "_include_fields": {"id", "first_name", "last_name"}
+                },
+                "hub_shs_get_editor_permission_groups": {"_exclude_fields": ["source"]},
+            }
+            return HubSerializer(subscribed_query, context=context, many=True).data
 
 
 class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
