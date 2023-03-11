@@ -1,7 +1,8 @@
 from django.test import TestCase
+from rest_framework.test import APITestCase
 
 from discussion.tests.helpers import create_comment
-from user.tests.helpers import create_random_authenticated_user
+from user.tests.helpers import create_random_authenticated_user, create_user
 from utils.test_helpers import (
     get_authenticated_get_response,
     get_authenticated_patch_response,
@@ -45,3 +46,22 @@ class UserViewsTests(TestCase):
     def get_actions_response(self, user):
         url = f"/api/user/{user.id}/actions/"
         return get_authenticated_get_response(user, url)
+
+
+class UserPopoverTests(APITestCase):
+    def setUp(self):
+        self.bank_user = create_user(
+            first_name="bank", last_name="bank", email="bank@researchhub.com"
+        )
+
+    def test_popover_for_existing_user(self):
+        res = self.client.get(f"/api/popover/{self.bank_user.id}/get_user/")
+        data = res.data
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(data["first_name"], "bank")
+        self.assertEqual(data["last_name"], "bank")
+
+    def test_popover_for_nonexistant_user(self):
+        res = self.client.get("/api/popover/1000/get_user/")
+        self.assertEqual(res.status_code, 404)
+        self.assertEqual(res.data["detail"], "Not found.")
