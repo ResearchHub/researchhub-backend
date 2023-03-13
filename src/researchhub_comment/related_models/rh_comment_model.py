@@ -39,6 +39,7 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
     )
     comment_content_src = FileField(
         blank=True,
+        null=True,
         max_length=1024,
         upload_to="uploads/rh_comment/%Y/%m/%d/",
         help_text="""Src may be blank but never null upon saving.""",
