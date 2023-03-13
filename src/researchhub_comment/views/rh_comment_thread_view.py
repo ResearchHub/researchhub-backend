@@ -16,7 +16,9 @@ from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_comment.views.filters.rh_comment_thread_filters import (
     RhCommentThreadFilter,
 )
-from researchhub_comment.views.rh_comment_thread_view_mixin import RhCommentThreadViewMixin
+from researchhub_comment.views.rh_comment_thread_view_mixin import (
+    RhCommentThreadViewMixin,
+)
 
 
 class RhCommentThreadViewSet(RhCommentThreadViewMixin, ModelViewSet):
@@ -26,7 +28,7 @@ class RhCommentThreadViewSet(RhCommentThreadViewMixin, ModelViewSet):
         # IsAuthenticatedOrReadOnly,
         AllowAny,  # TODO: calvinhlee replace with above permissions
     ]
-    ordering = ('-updated_date')
+    ordering = "-updated_date"
     queryset = RhCommentThreadModel.objects.filter()
     serializer_class = RhCommentThreadSerializer
 
@@ -37,5 +39,4 @@ class RhCommentThreadViewSet(RhCommentThreadViewMixin, ModelViewSet):
         )
 
     def get_filtered_queryset(self):
-        # NOTE: RhCommentThreadFilter has a qs limit of 10
         return self.filter_queryset(self.get_queryset())

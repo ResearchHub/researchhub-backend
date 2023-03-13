@@ -98,12 +98,3 @@ class RhCommentThreadFilter(FilterSet):
         return qs.filter(
             content_type=get_content_type_for_model(Citation), object_id=int(value)
         )
-
-    @property
-    def qs(self):
-        """
-        Intentionally hard limitting queryset to 10.
-        At current scale, it's hard to see that we need to fetch more than 10 threads all at once given a query.
-        This prevents malicious attempt to overload the server as well.
-        """
-        return super().qs[:10]
