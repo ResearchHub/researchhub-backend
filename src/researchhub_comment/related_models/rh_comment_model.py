@@ -5,6 +5,7 @@ from django.db.models import (
     CharField,
     FileField,
     ForeignKey,
+    JSONField,
     PositiveIntegerField,
     SET_NULL,
     TextField,
@@ -42,6 +43,7 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
         upload_to="uploads/rh_comment/%Y/%m/%d/",
         help_text="""Src may be blank but never null upon saving.""",
     )
+    comment_content_json = JSONField(blank=True, null=True)
     comment_content_type = CharField(
         choices=RH_COMMENT_CONTENT_TYPES,
         default=QUILL_EDITOR,
@@ -52,7 +54,7 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
         blank=True,
         null=True,
         on_delete=SET_NULL,
-        related_name="responses",
+        related_name="children",
     )
     thread = ForeignKey(
         RhCommentThreadModel,
@@ -72,6 +74,10 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
     """ --- PROPERTIES --- """
 
     @property
+    def is_edited(self):
+        return (self.updated_date - self.created_date).total_seconds() > 5
+
+    @property
     def is_root_comment(self):
         return self.parent is None
 
@@ -82,6 +88,7 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
         from researchhub_comment.serializers.rh_comment_serializer import (
             RhCommentSerializer,
         )
+
         with transaction.atomic():
             [
                 comment_content_src_file,

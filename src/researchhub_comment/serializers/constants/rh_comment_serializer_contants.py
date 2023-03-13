@@ -1,14 +1,19 @@
 RH_COMMENT_FIELDS = [
-    "comment_content_markdown",
+    "children",
+    "comment_content_json",
     "comment_content_type",
     "context_title",
+    "is_edited",
+    "created_date",
+    "updated_date",
     "parent_id",  # expose only the id. No need to display entire instance
-    "responses",
     "thread_id",
 ]
 RH_COMMENT_READ_ONLY_FIELDS = [
-    "comment_content_markdown",
+    "children",
+    "is_edited",
+    "created_date",
+    "updated_date",
     "parent_id",  # expose only the id. No need to display entire instance
-    "responses",
     "thread_id",
 ]

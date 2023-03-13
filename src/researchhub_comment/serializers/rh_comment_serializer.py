@@ -24,19 +24,12 @@ class RhCommentSerializer(GenericReactionSerializer):
             *RH_COMMENT_READ_ONLY_FIELDS,
         ]
 
-    comment_content_markdown = SerializerMethodField()
     parent_id = IntegerField(source="parent.id", default=None)
-    responses = SerializerMethodField()
+    children = SerializerMethodField()
     thread_id = IntegerField(source="thread.id", default=None)
 
-    def get_comment_content_markdown(self, rh_comment):
-        try:
-            return rh_comment.comment_content_src.read().decode("utf-8")
-        except Exception as e:
-            log_error(f"get_comment_content_markdown: {e}")
-        
-    def get_responses(self, rh_comment):
+    def get_children(self, rh_comment):
         return RhCommentSerializer(
-            instance=rh_comment.responses,
+            instance=rh_comment.children,
             many=True,
         ).data

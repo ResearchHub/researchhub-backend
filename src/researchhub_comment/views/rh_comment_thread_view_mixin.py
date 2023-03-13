@@ -7,9 +7,13 @@ from rest_framework.permissions import (
     IsAuthenticated,
 )
 
+from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
+)
+from researchhub_comment.serializers.rh_comment_thread_serializer import (
+    RhCommentThreadSerializer,
 )
 
 
@@ -18,23 +22,35 @@ class RhCommentThreadViewMixin:
     def create_rh_comment(self, request, pk=None):
         with transaction.atomic:
             try:
-                rh_thread = self._retrieve_or_create_thread_from_request_data(request)
+                rh_thread = self._retrieve_or_create_thread_from_request(request)
                 _rh_comment = RhCommentModel.create_from_data(
                     {**request.data, "user": request.user}, rh_thread
                 )
                 rh_thread.refresh_from_db()  # object update from fresh db values
-                return Response(self.get_serializer(instance=rh_thread).data, status=200)
+                return Response(
+                    RhCommentThreadSerializer(instance=rh_thread).data, status=200
+                )
             except Exception as error:
                 return Response(
                     f"Failed - create_rh_comment: {error}",
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-    @action(detail=True, methods=["POST"], permission_classes=[AllowAny])
-    def get_comment_threads(self, request, pk=None):
-        raise NotImplementedError("Needs to be implemented")
+    @action(detail=True, methods=["GET"], permission_classes=[AllowAny])
+    def get_rh_comments(self, request, pk=None):
+        try:
+            # TODO: add filtering & sorting mechanism here.
+            rh_thread = self._get_existing_thread_from_request(request)
+            return Response(
+                RhCommentThreadSerializer(instance=rh_thread).data, status=200
+            )
+        except Exception as error:
+            return Response(
+                f"Failed - get_comment_threads: {error}",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-    def _retrieve_or_create_thread_from_request_data(self, request):
+    def _retrieve_or_create_thread_from_request(self, request):
         request_data = request.data
         try:
             thread_id = request_data.get("thread_id") or None
@@ -69,7 +85,7 @@ class RhCommentThreadViewMixin:
 
         """ ---- Attempting to resolve payload ---- """
         thread_reference = request_data.get("thread_reference")
-        thread_type = request_data.get("thread_type")
+        thread_type = request_data.get("thread_type") or GENERIC_COMMENT
         thread_target_model_instance_id = self._resolve_target_model_instance_id(
             request
         )
@@ -81,7 +97,7 @@ class RhCommentThreadViewMixin:
             or thread_target_model_instance_id is None
         ):
             raise Exception(
-                f"Failed to call __retrieve_or_create_thread_from_request_data. \
+                f"Failed to call __retrieve_or_create_thread_from_request. \
                 thread_type: {thread_type} | thread_target_model_name: {thread_target_model_name} |\
                 thread_target_model_instance_id: {thread_target_model_instance_id}"
             )
