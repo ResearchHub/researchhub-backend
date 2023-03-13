@@ -90,29 +90,21 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
         )
 
         with transaction.atomic():
-            [
-                comment_content_src_file,
-                comment_content_type,
-            ] = cls.get_comment_src_file_from_data(data)
-            rh_comment_serializer = RhCommentSerializer(
-                {
-                    "created_by": data.get("user"),
-                    "updated_by": data.get("user"),
-                    "parent": data.get("comment_parent_id"),
-                    "comment_content_type": comment_content_type,
-                    "thread": rh_thread,
-                }
-            )
             try:
+                rh_comment_serializer = RhCommentSerializer(
+                    {
+                        "comment_content_json": data.get("comment_content_json"),
+                        "created_by": data.get("user"),
+                        "parent": data.get("comment_parent_id"),
+                        "thread": rh_thread,
+                        "updated_by": data.get("user"),
+                    }
+                )
                 rh_comment_serializer.is_valid(raise_exception=True)
                 rh_comment = rh_comment_serializer.save()
-                rh_comment.comment_content_src.save(
-                    f"RH-THREAD-{rh_thread.id}-COMMENT-{rh_comment.id}-user-{data.user.id}.txt",
-                    comment_content_src_file,
-                )
-                return rh_comment
             except Exception as error:
-                raise Exception(f"Failed to RhCommentModel#create_from_data: {error}")
+                raise Exception(f"Failed to RhCommentModel::create_from_data: {error}")
+            return rh_comment
 
     @staticmethod
     def get_comment_src_file_from_data(data):
