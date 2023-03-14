@@ -80,11 +80,9 @@ from utils.throttles import THROTTLE_CLASSES
 
 
 class PaperViewSet(
-    ReactionViewActionMixin,
-    RhCommentThreadViewMixin,
-    viewsets.ModelViewSet,
+    ReactionViewActionMixin, RhCommentThreadViewMixin, viewsets.ModelViewSet
 ):
-    queryset = Paper.objects.filter()
+    queryset = Paper.objects.all()
     serializer_class = PaperSerializer
     dynamic_serializer_class = DynamicPaperSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)

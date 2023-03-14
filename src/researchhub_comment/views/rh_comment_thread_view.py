@@ -1,5 +1,4 @@
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import (
@@ -7,12 +6,12 @@ from rest_framework.permissions import (
     IsAuthenticated,
     IsAuthenticatedOrReadOnly,
 )
+from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from researchhub_comment.serializers.rh_comment_thread_serializer import (
-    RhCommentThreadSerializer,
-)
+from discussion.reaction_views import ReactionViewActionMixin
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
+from researchhub_comment.serializers import RhCommentThreadSerializer
 from researchhub_comment.views.filters.rh_comment_thread_filters import (
     RhCommentThreadFilter,
 )
@@ -21,7 +20,9 @@ from researchhub_comment.views.rh_comment_thread_view_mixin import (
 )
 
 
-class RhCommentThreadViewSet(RhCommentThreadViewMixin, ModelViewSet):
+class RhCommentThreadViewSet(
+    ReactionViewActionMixin, RhCommentThreadViewMixin, ModelViewSet
+):
     filter_backends = (DjangoFilterBackend,)
     filter_class = RhCommentThreadFilter
     permission_classes = [

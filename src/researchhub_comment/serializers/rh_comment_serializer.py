@@ -1,15 +1,16 @@
-from rest_framework.serializers import SerializerMethodField, IntegerField
+from rest_framework.serializers import IntegerField, SerializerMethodField
+
 from discussion.reaction_serializers import (
     GenericReactionSerializer,
     GenericReactionSerializerMixin,
 )
+from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.serializers.constants.rh_comment_serializer_contants import (
     RH_COMMENT_FIELDS,
     RH_COMMENT_READ_ONLY_FIELDS,
 )
-
-from utils.sentry import log_error
+from user.serializers import DynamicUserSerializer
 
 
 class RhCommentSerializer(GenericReactionSerializer):
@@ -33,3 +34,30 @@ class RhCommentSerializer(GenericReactionSerializer):
             instance=rh_comment.children,
             many=True,
         ).data
+
+
+class DynamicRHCommentSerializer(DynamicModelFieldSerializer):
+    created_by = SerializerMethodField()
+    thread = SerializerMethodField()
+
+    class Meta:
+        fields = "__all__"
+        model = RhCommentModel
+
+    def get_created_by(self, comment):
+        context = self.context
+        _context_fields = context.get("rhc_dcs_get_created_by", {})
+        serializer = DynamicUserSerializer(
+            comment.created_by, context=context, **_context_fields
+        )
+        return serializer.data
+
+    def get_thread(self, comment):
+        from researchhub_comment.serializers import DynamicRHThreadSerializer
+
+        context = self.context
+        _context_fields = context.get("rhc_dcs_get_thread", {})
+        serializer = DynamicRHThreadSerializer(
+            comment.thread, context=context, **_context_fields
+        )
+        return serializer.data

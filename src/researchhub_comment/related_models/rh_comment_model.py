@@ -2,12 +2,12 @@ from django.core.files.base import ContentFile
 from django.db import transaction
 from django.db.models import (
     CASCADE,
+    SET_NULL,
     CharField,
     FileField,
     ForeignKey,
     JSONField,
     PositiveIntegerField,
-    SET_NULL,
     TextField,
 )
 
@@ -86,9 +86,7 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
 
     @classmethod
     def create_from_data(cls, data, rh_thread):
-        from researchhub_comment.serializers.rh_comment_serializer import (
-            RhCommentSerializer,
-        )
+        from researchhub_comment.serializers import RhCommentSerializer
 
         with transaction.atomic():
             try:

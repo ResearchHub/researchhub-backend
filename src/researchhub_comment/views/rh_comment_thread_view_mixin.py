@@ -1,23 +1,43 @@
 from django.db import transaction
-from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.decorators import action
-from rest_framework.permissions import (
-    AllowAny,
-    IsAuthenticated,
-)
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
 
 from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
-from researchhub_comment.serializers.rh_comment_thread_serializer import (
+from researchhub_comment.serializers import (
+    DynamicRHThreadSerializer,
     RhCommentThreadSerializer,
 )
 
 
 class RhCommentThreadViewMixin:
+    def _get_retrieve_context(self):
+        context = {
+            "rhc_dts_get_comments": {"_include_fields": ("id", "created_by")},
+            "rhc_dcs_get_created_by": {
+                "_include_fields": (
+                    "id",
+                    "author_profile",
+                )
+            },
+            "usr_dus_get_author_profile": {
+                "_include_fields": (
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "created_date",
+                    "updated_date",
+                    "profile_image",
+                )
+            },
+        }
+        return context
+
     @action(detail=True, methods=["POST"], permission_classes=[IsAuthenticated])
     def create_rh_comment(self, request, pk=None):
         try:
@@ -35,14 +55,21 @@ class RhCommentThreadViewMixin:
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    @action(detail=True, methods=["GET"], permission_classes=[AllowAny])
+    # @action(detail=True, methods=["GET"], permission_classes=[AllowAny], url_path=r"(?P<model>\w+)")
+    @action(
+        detail=True, methods=["GET"], permission_classes=[AllowAny], url_path=r"blah"
+    )
     def get_rh_comments(self, request, pk=None):
         try:
             # TODO: add filtering & sorting mechanism here.
+            context = self._get_retrieve_context()
             rh_thread = self._get_existing_thread_from_request(request)
-            return Response(
-                RhCommentThreadSerializer(instance=rh_thread).data, status=200
+            serializer = DynamicRHThreadSerializer(
+                rh_thread,
+                context=context,
+                _include_fields=("id", "comments"),
             )
+            return Response(serializer.data, status=200)
         except Exception as error:
             return Response(
                 f"Failed - get_comment_threads: {error}",

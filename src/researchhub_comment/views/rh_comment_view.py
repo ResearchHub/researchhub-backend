@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from researchhub_comment.models import RhCommentModel
-from researchhub_comment.serializers.rh_comment_serializer import RhCommentSerializer
+from researchhub_comment.serializers import RhCommentSerializer
 
 
 class RhCommentViewSet(ModelViewSet):
