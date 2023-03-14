@@ -58,9 +58,7 @@ class RhCommentThreadViewMixin:
             )
 
     # @action(detail=True, methods=["GET"], permission_classes=[AllowAny], url_path=r"(?P<model>\w+)")
-    @action(
-        detail=True, methods=["GET"], permission_classes=[AllowAny], url_path=r"blah"
-    )
+    @action(detail=True, methods=["GET"], permission_classes=[AllowAny])
     def get_rh_comments(self, request, pk=None):
         try:
             # TODO: add filtering & sorting mechanism here.
