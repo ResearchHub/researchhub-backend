@@ -264,6 +264,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             },
             "pap_dps_get_uploaded_by": {
                 "_include_fields": [
+                    "id",
                     "author_profile",
                 ]
             },
