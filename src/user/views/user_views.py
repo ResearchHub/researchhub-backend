@@ -838,6 +838,7 @@ def get_user_popover(request, pk=None):
             "first_name",
             "last_name",
             "reputation",
+            "created_date",
         ),
     )
     return Response(serializer.data, status=200)
