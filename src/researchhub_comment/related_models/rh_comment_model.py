@@ -1,9 +1,11 @@
 from django.core.files.base import ContentFile
+from django.db import transaction
 from django.db.models import (
     CASCADE,
     CharField,
     FileField,
     ForeignKey,
+    JSONField,
     PositiveIntegerField,
     SET_NULL,
     TextField,
@@ -31,16 +33,18 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
         blank=True,
         null=True,
         help_text="""
-            Provides a sumamry / headline to give context to the comment. 
+            Provides a sumamry / headline to give context to the comment.
             A commont use-case for this is for inline comments & citation comments
         """,
     )
     comment_content_src = FileField(
         blank=True,
+        null=True,
         max_length=1024,
         upload_to="uploads/rh_comment/%Y/%m/%d/",
         help_text="""Src may be blank but never null upon saving.""",
     )
+    comment_content_json = JSONField(blank=True, null=True)
     comment_content_type = CharField(
         choices=RH_COMMENT_CONTENT_TYPES,
         default=QUILL_EDITOR,
@@ -51,7 +55,7 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
         blank=True,
         null=True,
         on_delete=SET_NULL,
-        related_name="responses",
+        related_name="children",
     )
     thread = ForeignKey(
         RhCommentThreadModel,
@@ -71,35 +75,42 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
     """ --- PROPERTIES --- """
 
     @property
+    def is_edited(self):
+        return (self.updated_date - self.created_date).total_seconds() > 5
+
+    @property
     def is_root_comment(self):
         return self.parent is None
 
     """ --- METHODS --- """
 
     @classmethod
-    def create_from_request(cls, request, rh_thread):
-        request_data = request.data
-        [
-            comment_content_src_file,
-            comment_content_type,
-        ] = cls.get_comment_src_file_from_request(request)
-        rh_comment = cls.objects.create(
-            thread=rh_thread,
-            parent=request_data.get("comment_parent_id"),
-            comment_content_type=comment_content_type,
+    def create_from_data(cls, data, rh_thread):
+        from researchhub_comment.serializers.rh_comment_serializer import (
+            RhCommentSerializer,
         )
-        rh_comment.comment_content_src.save(
-            f"RH-THREAD-{rh_thread.id}-COMMENT-{rh_comment.id}-user-{request.user.id}.txt",
-            comment_content_src_file,
-        )
-        rh_comment.refresh_from_db()
-        return rh_comment
+
+        with transaction.atomic():
+            try:
+                rh_comment_serializer = RhCommentSerializer(
+                    {
+                        "comment_content_json": data.get("comment_content_json"),
+                        "created_by": data.get("user"),
+                        "parent": data.get("comment_parent_id"),
+                        "thread": rh_thread,
+                        "updated_by": data.get("user"),
+                    }
+                )
+                rh_comment_serializer.is_valid(raise_exception=True)
+                rh_comment = rh_comment_serializer.save()
+            except Exception as error:
+                raise Exception(f"Failed to RhCommentModel::create_from_data: {error}")
+            return rh_comment
 
     @staticmethod
-    def get_comment_src_file_from_request(request):
-        request_data = request.data
-        comment_content = request_data.get("comment_content")
-        comment_content_type = request_data.get("comment_content_type")
+    def get_comment_src_file_from_data(data):
+        comment_content = data.get("comment_content")
+        comment_content_type = data.get("comment_content_type")
         if comment_content is None or comment_content_type is None:
             raise Exception(
                 "Failed to comment content should not be None when creating a comment"

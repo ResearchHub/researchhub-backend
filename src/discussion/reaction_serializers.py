@@ -10,6 +10,9 @@ from utils.http import get_user_from_request
 from utils.sentry import log_error
 
 
+def raise_implement(class_name, method_name):
+    raise NotImplementedError(f"{class_name}: must implement {method_name}")
+
 class EndorsementSerializer(ModelSerializer):
     item = PrimaryKeyRelatedField(many=False, read_only=True)
 
@@ -156,12 +159,11 @@ class GenericReactionSerializerMixin:
             log_error(e)
             return None
 
-
 class GenericReactionSerializer(ModelSerializer, GenericReactionSerializerMixin):
     class Meta:
         abstract = True
-        # fields = IMPLEMENT
-        # read_only_fields = IMPLEMENT
+        # NOTE: fields = [raise_implement("GenericReactionSerializer", "fields")]
+        # NOTE: read_only_fields = [raise_implement("GenericReactionSerializer", "read_only_fields")]
 
     promoted = SerializerMethodField()
     score = SerializerMethodField()
