@@ -18,13 +18,14 @@ from researchhub_comment.serializers import (
 class RhCommentThreadViewMixin:
     def _get_retrieve_context(self):
         context = {
-            "rhc_dts_get_comments": {"_include_fields": ("id", "created_by")},
+            "rhc_dts_get_comments": {"_exclude_fields": ("thread",)},
             "rhc_dcs_get_created_by": {
                 "_include_fields": (
                     "id",
                     "author_profile",
                 )
             },
+            "usr_das_get_is_hub_editor_of": {"_include_fields": ("id", "name", "slug")},
             "usr_dus_get_author_profile": {
                 "_include_fields": (
                     "id",
@@ -33,6 +34,7 @@ class RhCommentThreadViewMixin:
                     "created_date",
                     "updated_date",
                     "profile_image",
+                    "is_hub_editor_of",
                 )
             },
         }
