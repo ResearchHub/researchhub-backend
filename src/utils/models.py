@@ -8,7 +8,7 @@ from utils.managers import SoftDeletableManager
 
 class DefaultModel(models.Model):
     created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)
+    updated_date = models.DateTimeField(auto_now=True,)
 
     class Meta:
         abstract = True
