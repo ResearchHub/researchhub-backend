@@ -1,15 +1,14 @@
 import json
+
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from discussion.models import (
-    Comment as LegacyComment,
-    Reply as LegacyReply,
-    Thread as LegacyThread,
-)
+from discussion.models import Comment as LegacyComment
+from discussion.models import Reply as LegacyReply
+from discussion.models import Thread as LegacyThread
 from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR
 from researchhub_comment.constants.rh_comment_migration_legacy_types import (
     LEGACY_COMMENT,
@@ -17,7 +16,7 @@ from researchhub_comment.constants.rh_comment_migration_legacy_types import (
     LEGACY_THREAD,
 )
 from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT
-from researchhub_comment.models import RhCommentThreadModel, RhCommentModel
+from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from utils import sentry
 
 
@@ -45,17 +44,13 @@ def from_legacy_thread_to_rh_comment(sender, instance, created, **kwargs):
             thread=belonging_thread,
             updated_by=upserter,
         )
-        migrated_thread_comment.context_title = instance.context_title or ""
-        migrated_thread_comment.comment_content_json = instance.text
-        migrated_thread_comment.save()
-        # NOTE: temporarily disabiling file update until we have optimal solution
-        # comment_content_file = ContentFile(
-        #     (json.dumps(instance.text) or instance.plain_text or "").encode()
-        # )
-        # migrated_thread_comment.comment_content_src.save(
-        #     f"rh-comment-user-{upserter.id}-thread-{belonging_thread.id}-comment-{migrated_thread_comment.id}.txt",
-        #     comment_content_file,
-        # )
+        comment_content_file = ContentFile(
+            (json.dumps(instance.text) or instance.plain_text or "").encode()
+        )
+        migrated_thread_comment.comment_content_src.save(
+            f"rh-comment-user-{upserter.id}-thread-{belonging_thread.id}-comment-{migrated_thread_comment.id}.txt",
+            comment_content_file,
+        )
         # intentionally querying DB to ensure that the instance was created properly
         return RhCommentModel.objects.get(
             legacy_id=legacy_thread_id,
@@ -74,10 +69,9 @@ def from_legacy_comment_to_rh_comment(sender, instance, created, **kwargs):
         upserter = instance.created_by
         belonging_document = get_belonging_doc(instance)
         belonging_thread = find_or_create_belonging_thread(belonging_document, upserter)
-        # NOTE: temporarily disabiling file update until we have optimal solution
-        # comment_content_file = ContentFile(
-        #     (json.dumps(instance.text) or instance.plain_text or "").encode()
-        # )
+        comment_content_file = ContentFile(
+            (json.dumps(instance.text) or instance.plain_text or "").encode()
+        )
         legacy_comment_id = instance.id
         legacy_thread = (
             instance.parent
@@ -89,10 +83,10 @@ def from_legacy_comment_to_rh_comment(sender, instance, created, **kwargs):
         ).first()
 
         if migrated_comment is not None:
-            # migrated_comment.comment_content_src.save(
-            #     f"rh-comment-user-{upserter.id}-thread-{belonging_thread.id}-comment-{migrated_comment.id}.txt",
-            #     comment_content_file,
-            # )
+            migrated_comment.comment_content_src.save(
+                f"rh-comment-user-{upserter.id}-thread-{belonging_thread.id}-comment-{migrated_comment.id}.txt",
+                comment_content_file,
+            )
             migrated_comment.comment_content_json = instance.text
             migrated_comment.save()
         else:
@@ -117,10 +111,10 @@ def from_legacy_comment_to_rh_comment(sender, instance, created, **kwargs):
                     sender, legacy_thread, created, **kwargs
                 )
                 migrated_comment.parent = migrated_legacy_thread_comment
-                # migrated_comment.comment_content_src.save(
-                #     f"rh-comment-user-{upserter.id}-thread-{belonging_thread.id}-comment-{migrated_comment.id}.txt",
-                #     comment_content_file,
-                # )
+                migrated_comment.comment_content_src.save(
+                    f"rh-comment-user-{upserter.id}-thread-{belonging_thread.id}-comment-{migrated_comment.id}.txt",
+                    comment_content_file,
+                )
 
         # intentionally querying DB to ensure that the instance was created properly
         return RhCommentModel.objects.get(
@@ -138,10 +132,9 @@ def from_legacy_reply_to_rh_comment(sender, instance, created, **kwargs):
         upserter = instance.created_by
         belonging_document = get_belonging_doc(instance)
         belonging_thread = find_or_create_belonging_thread(belonging_document, upserter)
-        # NOTE: temporarily disabiling file update until we have optimal solution
-        # comment_content_file = ContentFile(
-        #     (json.dumps(instance.text) or instance.plain_text or "").encode()
-        # )
+        comment_content_file = ContentFile(
+            (json.dumps(instance.text) or instance.plain_text or "").encode()
+        )
         # Legacy Reply HAS to have a parent. A parent can be a LegacyReply or LegacyComment
         # However, in FE nested LegacyReply was blocked at some point. Most likely it's LegacyComment
         legacy_parent = instance.parent
@@ -187,10 +180,10 @@ def from_legacy_reply_to_rh_comment(sender, instance, created, **kwargs):
                     )
                 )
                 migrated_reply.parent = migrated_legacy_parent
-                # migrated_reply.comment_content_src.save(
-                #     f"rh-comment-user-{upserter.id}-thread-{belonging_thread.id}-comment-{migrated_reply.id}.txt",
-                #     comment_content_file,
-                # )
+                migrated_reply.comment_content_src.save(
+                    f"rh-comment-user-{upserter.id}-thread-{belonging_thread.id}-comment-{migrated_reply.id}.txt",
+                    comment_content_file,
+                )
 
         return RhCommentModel.objects.get(
             legacy_id=legacy_reply_id,

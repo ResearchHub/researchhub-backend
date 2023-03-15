@@ -8,19 +8,20 @@ from utils.managers import SoftDeletableManager
 
 class DefaultModel(models.Model):
     created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True,)
+    updated_date = models.DateTimeField(
+        auto_now=True,
+    )
 
     class Meta:
         abstract = True
+
 
 class DefaultAuthenticatedModel(models.Model):
     class Meta:
         abstract = True
 
     created_by = models.ForeignKey(
-        "user.User",
-        on_delete=models.CASCADE,
-        related_name="created_%(class)s"
+        "user.User", on_delete=models.CASCADE, related_name="created_%(class)s"
     )
     created_date = models.DateTimeField(
         auto_now_add=True,
@@ -29,7 +30,7 @@ class DefaultAuthenticatedModel(models.Model):
         "user.User",
         help_text="Last user to update the instance",
         on_delete=models.CASCADE,
-        related_name="updated_%(class)s"
+        related_name="updated_%(class)s",
     )
     updated_date = models.DateTimeField(
         auto_now_add=True,
