@@ -8,12 +8,13 @@ from django.core.cache import cache
 from django.db import IntegrityError, models
 from django.db.models import F, Q, Sum
 from django.db.models.functions import Coalesce
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import (
     AllowAny,
@@ -804,6 +805,46 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response(serialized.data, status=200)
         else:
             raise Exception("Sift verification signature mismatch")
+
+
+@api_view([RequestMethods.GET])
+@permission_classes([AllowAny])
+def get_user_popover(request, pk=None):
+    user = get_object_or_404(User, pk=pk)
+    user = User.objects.get(id=pk)
+    context = {
+        "usr_dus_get_author_profile": {
+            "_include_fields": (
+                "id",
+                "first_name",
+                "last_name",
+                "university",
+                "facebook",
+                "linkedin",
+                "twitter",
+                "description",
+                "education",
+                "headline",
+                "profile_image",
+            )
+        },
+        "usr_dus_get_editor_of": {"_include_fields": ("source",)},
+        "rag_dps_get_source": {"_include_fields": ("id", "name", "slug")},
+    }
+    serializer = DynamicUserSerializer(
+        user,
+        context=context,
+        _include_fields=(
+            "id",
+            "author_profile",
+            "editor_of",
+            "first_name",
+            "last_name",
+            "reputation",
+            "created_date",
+        ),
+    )
+    return Response(serializer.data, status=200)
 
 
 class UniversityViewSet(viewsets.ReadOnlyModelViewSet):

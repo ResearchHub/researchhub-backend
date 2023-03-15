@@ -80,6 +80,7 @@ class HubViewSet(viewsets.ModelViewSet):
                     "id",
                 ]
             },
+            "hub_shs_get_editor_permission_groups": {"_exclude_fields": ("source",)},
         }
 
     def dispatch(self, request, *args, **kwargs):

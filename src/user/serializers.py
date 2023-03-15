@@ -448,7 +448,13 @@ class UserEditableSerializer(ModelSerializer):
     def get_subscribed(self, user):
         if self.context.get("get_subscribed"):
             subscribed_query = user.subscribed_hubs.filter(is_removed=False)
-            return HubSerializer(subscribed_query, many=True).data
+            context = {
+                "rag_dps_get_user": {
+                    "_include_fields": {"id", "first_name", "last_name"}
+                },
+                "hub_shs_get_editor_permission_groups": {"_exclude_fields": ["source"]},
+            }
+            return HubSerializer(subscribed_query, context=context, many=True).data
 
 
 class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
@@ -490,6 +496,7 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
     author_profile = SerializerMethodField()
     rsc_earned = SerializerMethodField()
     benefits_expire_on = SerializerMethodField()
+    editor_of = SerializerMethodField()
 
     class Meta:
         model = User
@@ -512,6 +519,20 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
 
     def get_benefits_expire_on(self, user):
         return getattr(user, "benefits_expire_on", None)
+
+    def get_editor_of(self, user):
+        context = self.context
+        _context_fields = context.get("usr_dus_get_editor_of", {})
+
+        hub_content_type = ContentType.objects.get_for_model(Hub)
+        permissions = user.permissions.filter(
+            access_type=EDITOR,
+            content_type=hub_content_type,
+        )
+        serializer = DynamicPermissionSerializer(
+            permissions, many=True, context=context, **_context_fields
+        )
+        return serializer.data
 
 
 class UserActions:
@@ -789,7 +810,7 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
             serializer = DynamicPurchaseSerializer
         elif isinstance(item, Thread):
             from discussion.serializers import DynamicThreadSerializer
-            
+
             serializer = DynamicThreadSerializer
         elif isinstance(item, Comment):
             from discussion.serializers import DynamicCommentSerializer
