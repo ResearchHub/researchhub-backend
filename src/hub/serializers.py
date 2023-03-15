@@ -37,6 +37,7 @@ class SimpleHubSerializer(ModelSerializer):
                 "id",
             ]
         }
+        context["usr_das_get_is_hub_editor_of"] = {"_exclude_fields": "__all__"}
 
         editor_groups = hub_instance.editor_permission_groups
         return DynamicPermissionSerializer(
