@@ -3,6 +3,7 @@ from django.db import transaction
 from django.db.models import (
     CASCADE,
     SET_NULL,
+    BooleanField,
     CharField,
     FileField,
     ForeignKey,
@@ -50,6 +51,7 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
         default=QUILL_EDITOR,
         max_length=144,
     )
+    # is_removed = BooleanField(default=False)
     parent = ForeignKey(
         "self",
         blank=True,

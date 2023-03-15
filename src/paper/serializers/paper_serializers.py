@@ -841,6 +841,8 @@ class DynamicPaperSerializer(
         return 0
 
     def get_bounties(self, paper):
+        # TODO: Remove temporary return
+        return None
         from reputation.serializers import DynamicBountySerializer
 
         context = {
