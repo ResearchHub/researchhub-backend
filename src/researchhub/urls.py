@@ -32,8 +32,6 @@ import purchase.views
 import reputation.views
 import researchhub.views
 import researchhub_case.views as researchhub_case_views
-from researchhub_comment.views.rh_comment_thread_view import RhCommentThreadViewSet
-from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 import researchhub_document.views as researchhub_document_views
 import search.urls
 import summary.views
@@ -45,6 +43,8 @@ from peer_review.views import (
 )
 from referral.referral_invite_view import ReferralInviteViewSet
 from researchhub.settings import INSTALLED_APPS, USE_DEBUG_TOOLBAR
+from researchhub_comment.views.rh_comment_thread_view import RhCommentThreadViewSet
+from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from review.views.review_view import ReviewViewSet
 from user.views import editor_views
 
@@ -325,6 +325,9 @@ router.register(
 router.register(r"rh_comments", RhCommentViewSet, basename="rh_comments")
 router.register(
     r"rh_comment_threads", RhCommentThreadViewSet, basename="rh_comment_threads"
+)
+router.register(
+    r"exchange_rate", purchase.views.RscExchangeRateViewSet, basename="exchange_rate"
 )
 urlpatterns = [
     path("admin/", admin.site.urls),

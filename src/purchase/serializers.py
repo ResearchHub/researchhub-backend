@@ -19,7 +19,14 @@ from discussion.serializers import (
     ThreadSerializer,
 )
 from paper.serializers import BasePaperSerializer, DynamicPaperSerializer
-from purchase.models import AggregatePurchase, Balance, Purchase, Support, Wallet
+from purchase.models import (
+    AggregatePurchase,
+    Balance,
+    Purchase,
+    RscExchangeRate,
+    Support,
+    Wallet,
+)
 from reputation.models import Bounty, Distribution, Withdrawal
 from reputation.serializers import (
     BountySerializer,
@@ -394,3 +401,14 @@ class AggregatePurchaseSerializer(serializers.ModelSerializer):
             "end_date": end_date,
         }
         return stats
+
+
+class RscExchangeRateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RscExchangeRate
+        fields = "__all__"
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data["created_date"] = instance.created_date.isoformat()
+        return data
