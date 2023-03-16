@@ -3,6 +3,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
+from discussion.reaction_views import ReactionViewActionMixin
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.serializers import RhCommentSerializer
 from researchhub_comment.views.rh_comment_thread_view_mixin import (
@@ -10,7 +11,7 @@ from researchhub_comment.views.rh_comment_thread_view_mixin import (
 )
 
 
-class RhCommentViewSet(RhCommentThreadViewMixin, ModelViewSet):
+class RhCommentViewSet(ReactionViewActionMixin, RhCommentThreadViewMixin, ModelViewSet):
     queryset = RhCommentModel.objects.filter()
     serializer_class = RhCommentSerializer
     permission_classes = [

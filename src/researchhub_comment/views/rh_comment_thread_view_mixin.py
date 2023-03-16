@@ -1,6 +1,9 @@
+from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.db.models.query import QuerySet
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.generics import get_object_or_404
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
@@ -10,12 +13,20 @@ from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
 from researchhub_comment.serializers import (
+    DynamicRHCommentSerializer,
     DynamicRHThreadSerializer,
     RhCommentThreadSerializer,
 )
 
 
 class RhCommentThreadViewMixin:
+    _ALLOWED_MODEL_NAMES = ("paper", "researchhub_post", "hypothesis", "citation")
+    _MODEL_NAME_MAPPINGS = {
+        "paper": ContentType.objects.get(model="paper"),
+        "researchhub_post": ContentType.objects.get(model="researchhubpost"),
+        "hypothesis": ContentType.objects.get(model="hypothesis"),
+        "citation": ContentType.objects.get(model="citation"),
+    }
     _THREAD_MIXIN_METHODS_ = (
         "create_rh_comment",
         "get_rh_comments",
@@ -24,8 +35,36 @@ class RhCommentThreadViewMixin:
     def _get_model_threads(self):
         return self.get_object().rh_threads.all()
 
-    # def _get_filtered_threads(self):
-    #     return self.filter_queryset(self._get_model_threads())
+    def get_queryset(self):
+        """
+        Taken from DRF source code
+        """
+        assert self.queryset is not None, (
+            "'%s' should either include a `queryset` attribute, "
+            "or override the `get_queryset()` method." % self.__class__.__name__
+        )
+
+        # Custom logic start
+        kwargs = self.kwargs
+        model_name = kwargs.get("model")
+        model_object_id = kwargs.get("model_object_id")
+
+        assert (
+            model_object_id is not None
+            and model_name is not None
+            and model_name in self._ALLOWED_MODEL_NAMES
+        ), f"{model_name} is not an accepted model"
+
+        model = self._MODEL_NAME_MAPPINGS[model_name].model_class()
+        model_object = model.objects.get(id=model_object_id)
+        thread_queryset = model_object.rh_threads.values_list("id")
+        queryset = RhCommentModel.objects.filter(thread__in=thread_queryset)
+        # Custom logic end
+
+        if isinstance(queryset, QuerySet):
+            # Ensure queryset is re-evaluated on each request.
+            queryset = queryset.all()
+        return queryset
 
     def _get_retrieve_context(self):
         context = {
@@ -51,8 +90,8 @@ class RhCommentThreadViewMixin:
         }
         return context
 
-    @action(detail=True, methods=["POST"], permission_classes=[IsAuthenticated])
-    def create_rh_comment(self, request, pk=None):
+    @action(detail=False, methods=["POST"], permission_classes=[IsAuthenticated])
+    def create_rh_comment(self, request, model=None, object_id=None):
         try:
             rh_thread = self._retrieve_or_create_thread_from_request(request)
             _rh_comment = RhCommentModel.create_from_data(
@@ -72,19 +111,18 @@ class RhCommentThreadViewMixin:
         detail=True,
         methods=["GET"],
         permission_classes=[AllowAny],
-        url_path=r"(?P<model>\w+)/blah",
     )
     # @action(detail=True, methods=["GET"], permission_classes=[AllowAny])
-    def get_rh_comments(self, request, pk=None):
+    def get_rh_comments(self, request, model=None, model_object_id=None, pk=None):
         # import pdb; pdb.set_trace()
         test = self._get_model_threads()
         # test = self._get_filtered_threads()
         try:
             # TODO: add filtering & sorting mechanism here.
             context = self._get_retrieve_context()
-            rh_thread = self._get_existing_thread_from_request(request)
-            serializer = DynamicRHThreadSerializer(
-                rh_thread,
+            comment = self._get_existing_thread_from_request(request)
+            serializer = DynamicRHCommentSerializer(
+                comment,
                 context=context,
                 _include_fields=("id", "comments"),
             )
@@ -95,95 +133,23 @@ class RhCommentThreadViewMixin:
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    def _retrieve_or_create_thread_from_request(self, request):
-        request_data = request.data
+    @action(
+        detail=True,
+        methods=["GET"],
+        permission_classes=[AllowAny],
+    )
+    def get_comment(self, request, model=None, model_object_id=None, pk=None):
         try:
-            thread_id = request_data.get("thread_id") or None
-            if thread_id is not None:
-                return RhCommentThreadModel.objects.get(id=thread_id)
-            else:
-                existing_thread = self._get_existing_thread_from_request(request)
-                if existing_thread is not None:
-                    return existing_thread
-                else:
-                    valid_thread_target_model = (
-                        RhCommentThreadModel.get_valid_thread_target_model(
-                            self._resolve_target_model_name(request)
-                        )
-                    )
-                    thread_target_instance = valid_thread_target_model.objects.get(
-                        id=self._resolve_target_model_instance_id(request)
-                    )
-                    return thread_target_instance.rh_threads.create(
-                        thread_type=request_data.get("thread_type"),
-                        thread_reference=request_data.get("thread_reference"),
-                    )
+            comment = self.get_object()
+            context = self._get_retrieve_context()
+            serializer = DynamicRHCommentSerializer(
+                comment,
+                context=context,
+                _exclude_fields=("thread", "comment_content_src"),
+            )
+            return Response(serializer.data, status=200)
         except Exception as error:
-            raise Exception(f"Failed to create / retrieve rh_thread: {error}")
-
-    def _get_existing_thread_from_request(self, request):
-        request_data = request.data
-        """ NOTE: sanity checking if payload included thread_id """
-        thread_id = request_data.get("thread_id") or None
-        if thread_id is not None:
-            return RhCommentThreadModel.objects.get(id=thread_id)
-
-        """ ---- Attempting to resolve payload ---- """
-        thread_reference = request_data.get("thread_reference")
-        thread_type = request_data.get("thread_type") or GENERIC_COMMENT
-        thread_target_model_instance_id = self._resolve_target_model_instance_id(
-            request
-        )
-        thread_target_model_name = self._resolve_target_model_name(request)
-
-        if (
-            thread_type is None
-            or thread_target_model_name is None
-            or thread_target_model_instance_id is None
-        ):
-            raise Exception(
-                f"Failed to call __retrieve_or_create_thread_from_request. \
-                thread_type: {thread_type} | thread_target_model_name: {thread_target_model_name} |\
-                thread_target_model_instance_id: {thread_target_model_instance_id}"
+            return Response(
+                f"Failed - get_comment_threads: {error}",
+                status=status.HTTP_400_BAD_REQUEST,
             )
-        else:
-            valid_thread_target_model = (
-                RhCommentThreadModel.get_valid_thread_target_model(
-                    thread_target_model_name
-                )
-            )
-            return (
-                valid_thread_target_model.objects.get(
-                    id=thread_target_model_instance_id
-                )
-                .rh_threads.filter(
-                    thread_reference=thread_reference, thread_type=thread_type
-                )
-                .first()
-            )
-
-    def _resolve_target_model_instance_id(self, request):
-        thread_target_model_instance_id = (
-            request.data.get("thread_target_model_instance_id") or None
-        )
-        return (
-            thread_target_model_instance_id
-            if thread_target_model_instance_id is not None
-            else self._get_model_instance_id_from_request(request)
-        )
-
-    def _resolve_target_model_name(self, request):
-        thread_target_model_name = (
-            request.data.get("thread_target_model_instance_id") or None
-        )
-        return (
-            thread_target_model_name
-            if thread_target_model_name is not None
-            else self._get_model_name_from_request(request)
-        )
-
-    def _get_model_name_from_request(self, request):
-        return request.path.split("/")[2]
-
-    def _get_model_instance_id_from_request(self, request):
-        return int(request.path.split("/")[3])

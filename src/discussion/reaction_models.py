@@ -115,6 +115,9 @@ class AbstractGenericReactionModel(DefaultModel):
     flags = GenericRelation(Flag)
     votes = GenericRelation(Vote)
 
+    class Meta:
+        abstract = True
+
     @property
     def score_indexing(self):
         return self.calculate_score()
@@ -132,6 +135,3 @@ class AbstractGenericReactionModel(DefaultModel):
             - Count("id", filter=Q(vote_type=Vote.DOWNVOTE))
         ).get("score", 0)
         return score
-
-    class Meta:
-        abstract = True

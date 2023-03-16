@@ -20,9 +20,7 @@ from researchhub_comment.views.rh_comment_thread_view_mixin import (
 )
 
 
-class RhCommentThreadViewSet(
-    ReactionViewActionMixin, RhCommentThreadViewMixin, ModelViewSet
-):
+class RhCommentThreadViewSet(RhCommentThreadViewMixin, ModelViewSet):
     filter_backends = (DjangoFilterBackend,)
     filter_class = RhCommentThreadFilter
     permission_classes = [
