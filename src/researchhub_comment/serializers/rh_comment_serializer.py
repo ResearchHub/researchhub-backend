@@ -25,9 +25,7 @@ class RhCommentSerializer(GenericReactionSerializer):
             *RH_COMMENT_READ_ONLY_FIELDS,
         ]
 
-    parent_id = IntegerField(source="parent.id", default=None)
     children = SerializerMethodField()
-    thread_id = IntegerField(source="thread.id", default=None)
 
     def get_children(self, rh_comment):
         return RhCommentSerializer(

@@ -1,9 +1,8 @@
 from django.contrib.contenttypes.models import ContentType
-from django.db import transaction
 from django.db.models.query import QuerySet
+from django.shortcuts import get_object_or_404
 from rest_framework import status
 from rest_framework.decorators import action
-from rest_framework.generics import get_object_or_404
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
@@ -14,12 +13,12 @@ from researchhub_comment.related_models.rh_comment_thread_model import (
 )
 from researchhub_comment.serializers import (
     DynamicRHCommentSerializer,
-    DynamicRHThreadSerializer,
+    RhCommentSerializer,
     RhCommentThreadSerializer,
 )
 
 
-class RhCommentThreadViewMixin:
+class RhCommentViewMixin:
     _ALLOWED_MODEL_NAMES = ("paper", "researchhub_post", "hypothesis", "citation")
     _MODEL_NAME_MAPPINGS = {
         "paper": ContentType.objects.get(model="paper"),
@@ -27,24 +26,8 @@ class RhCommentThreadViewMixin:
         "hypothesis": ContentType.objects.get(model="hypothesis"),
         "citation": ContentType.objects.get(model="citation"),
     }
-    _THREAD_MIXIN_METHODS_ = (
-        "create_rh_comment",
-        "get_rh_comments",
-    )
 
-    def _get_model_threads(self):
-        return self.get_object().rh_threads.all()
-
-    def get_queryset(self):
-        """
-        Taken from DRF source code
-        """
-        assert self.queryset is not None, (
-            "'%s' should either include a `queryset` attribute, "
-            "or override the `get_queryset()` method." % self.__class__.__name__
-        )
-
-        # Custom logic start
+    def _get_model_object(self):
         kwargs = self.kwargs
         model_name = kwargs.get("model")
         model_object_id = kwargs.get("model_object_id")
@@ -57,6 +40,19 @@ class RhCommentThreadViewMixin:
 
         model = self._MODEL_NAME_MAPPINGS[model_name].model_class()
         model_object = model.objects.get(id=model_object_id)
+        return model_object
+
+    def get_queryset(self):
+        """
+        Taken from DRF source code
+        """
+        assert self.queryset is not None, (
+            "'%s' should either include a `queryset` attribute, "
+            "or override the `get_queryset()` method." % self.__class__.__name__
+        )
+
+        # Custom logic start
+        model_object = self._get_model_object()
         thread_queryset = model_object.rh_threads.values_list("id")
         queryset = RhCommentModel.objects.filter(thread__in=thread_queryset)
         # Custom logic end
@@ -91,21 +87,18 @@ class RhCommentThreadViewMixin:
         return context
 
     @action(detail=False, methods=["POST"], permission_classes=[IsAuthenticated])
-    def create_rh_comment(self, request, model=None, object_id=None):
-        try:
-            rh_thread = self._retrieve_or_create_thread_from_request(request)
-            _rh_comment = RhCommentModel.create_from_data(
-                {**request.data, "user": request.user}, rh_thread
-            )
-            rh_thread.refresh_from_db()  # object update from fresh db values
-            return Response(
-                RhCommentThreadSerializer(instance=rh_thread).data, status=200
-            )
-        except Exception as error:
-            return Response(
-                f"Failed - create_rh_comment: {error}",
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+    def create_rh_comment(self, request, *args, **kwargs):
+        data = request.data
+        user = request.user
+        rh_thread = self._retrieve_or_create_thread_from_request(request)
+        comment_data = {
+            **data,
+            "created_by": user.id,
+            "updated_by": user.id,
+            "thread": rh_thread.id,
+        }
+        rh_comment, serializer_data = RhCommentModel.create_from_data(comment_data)
+        return Response(serializer_data, status=200)
 
     @action(
         detail=True,
@@ -120,7 +113,7 @@ class RhCommentThreadViewMixin:
         try:
             # TODO: add filtering & sorting mechanism here.
             context = self._get_retrieve_context()
-            comment = self._get_existing_thread_from_request(request)
+            comment = self._get_existing_thread_from_data(request.data)
             serializer = DynamicRHCommentSerializer(
                 comment,
                 context=context,
@@ -153,3 +146,46 @@ class RhCommentThreadViewMixin:
                 f"Failed - get_comment_threads: {error}",
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+    def _retrieve_or_create_thread_from_request(self, request):
+        data = request.data
+        user = request.user
+
+        try:
+            thread_id = data.get("thread_id", None)
+            if thread_id is not None:
+                return RhCommentThreadModel.objects.get(id=thread_id)
+            else:
+                existing_thread = self._get_existing_thread_from_request(request)
+                if existing_thread is not None:
+                    return existing_thread
+                else:
+                    thread_target_instance = self._get_model_object()
+                    serializer = RhCommentThreadSerializer(
+                        data={
+                            "thread_type": data.get("thread_type", GENERIC_COMMENT),
+                            "thread_reference": data.get("thread_reference", None),
+                            "created_by": user.id,
+                            "updated_by": user.id,
+                            "content_type": ContentType.objects.get_for_model(
+                                thread_target_instance
+                            ).id,
+                            "object_id": thread_target_instance.id,
+                        }
+                    )
+                    serializer.is_valid(raise_exception=True)
+                    instance = serializer.save()
+                    return instance
+
+        except Exception as error:
+            raise Exception(f"Failed to create / retrieve rh_thread: {error}")
+
+    def _get_existing_thread_from_request(self, request):
+        data = request.data
+        parent_id = data.get("parent_id", None)
+
+        if parent_id:
+            parent_comment = get_object_or_404(RhCommentModel, pk=parent_id)
+            thread = parent_comment.thread
+            return thread
+        return None

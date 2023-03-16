@@ -27,7 +27,6 @@ from researchhub.settings import (
     CROSSREF_LOGIN_PASSWORD,
     TESTING,
 )
-from researchhub_comment.views.rh_comment_thread_view_mixin import RhCommentThreadViewMixin
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.permissions import HasDocumentEditingPermission
 from researchhub_document.related_models.constants.document_type import (
@@ -52,7 +51,7 @@ from researchhub_document.utils import reset_unified_document_cache
 from utils.sentry import log_error
 
 
-class ResearchhubPostViewSet(ReactionViewActionMixin, RhCommentThreadViewMixin, ModelViewSet):
+class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
     ordering = "-created_date"
     queryset = ResearchhubUnifiedDocument.objects.all()
     permission_classes = [AllowAny, HasDocumentEditingPermission]

@@ -1,6 +1,22 @@
+from django.contrib.admin.options import get_content_type_for_model
+from django_filters import (
+    CharFilter,
+    ChoiceFilter,
+    DateTimeFilter,
+    FilterSet,
+    NumberFilter,
+)
 from django_filters import rest_framework as filters
 
+from hypothesis.related_models.citation import Citation
+from hypothesis.related_models.hypothesis import Hypothesis
+from paper.related_models.paper_model import Paper
+from researchhub_comment.constants.rh_comment_thread_types import (
+    GENERIC_COMMENT,
+    RH_COMMENT_THREAD_TYPES,
+)
 from researchhub_comment.models import RhCommentThreadModel
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 
 BEST = "BEST"
 TOP = "TOP"
@@ -26,45 +42,82 @@ class RHCommentFilter(filters.FilterSet):
         return qs
 
 
-class DjangoFilterBackendWithComments(filters.DjangoFilterBackend):
-    ordering_param = "ordering"
+FILTER_FIELDS = [
+    "created_by",
+    "updated_by",
+    "thread_type",
+    "thread_reference",
+]
 
-    def get_filterset_class(self, view, queryset=None):
-        """
-        Taken from django-filters source code
-        """
 
-        filterset_class = getattr(view, "filterset_class", None)
-        filterset_fields = getattr(view, "filterset_fields", None)
+class RhCommentThreadFilter(FilterSet):
+    class Meta:
+        model = RhCommentThreadModel
+        fields = FILTER_FIELDS
 
-        # Custom logic start
-        thread_mixin_methods = getattr(view, "_THREAD_MIXIN_METHODS_", None)
-        if thread_mixin_methods and view.action in thread_mixin_methods:
-            filterset_class = RHCommentFilter
-        # Custom logic end
+    created_date__gte = DateTimeFilter(
+        field_name="created_date",
+        lookup_expr="gte",
+    )
+    created_date__lt = DateTimeFilter(
+        field_name="created_date",
+        lookup_expr="lt",
+    )
+    thread_id = NumberFilter(field_name="id", label="thread_id")
+    thread_reference = CharFilter(lookup_expr="iexact")
+    thread_type = ChoiceFilter(
+        field_name="thread_type",
+        choices=RH_COMMENT_THREAD_TYPES,
+        null_value=GENERIC_COMMENT,
+    )
+    updated_date__gte = DateTimeFilter(
+        field_name="updated_date",
+        lookup_expr="gte",
+    )
+    updated_date__lt = DateTimeFilter(
+        field_name="updated_date",
+        lookup_expr="lt",
+    )
 
-        if filterset_class:
-            filterset_model = filterset_class._meta.model
+    """ ---- Generic Reaction Filters ---"""
+    paper_id = NumberFilter(
+        field_name="object_id",
+        label="paper_id",
+        method="get_qs_by_paper_id",
+    )
+    researchhub_post_id = NumberFilter(
+        field_name="object_id",
+        label="researchhub_post_id",
+        method="get_qs_by_researchhub_post_id",
+    )
+    hypothesis_id = NumberFilter(
+        field_name="object_id",
+        label="hypothesis_id",
+        method="get_qs_by_hypothesis_id",
+    )
+    citation_id = NumberFilter(
+        field_name="object_id",
+        label="citation_id",
+        method="get_qs_by_citation_id",
+    )
 
-            # FilterSets do not need to specify a Meta class
-            if filterset_model and queryset is not None:
-                assert issubclass(
-                    queryset.model, filterset_model
-                ), "FilterSet model %s does not match queryset model %s" % (
-                    filterset_model,
-                    queryset.model,
-                )
+    def get_qs_by_paper_id(self, qs, name, value):
+        return qs.filter(
+            content_type=get_content_type_for_model(Paper), object_id=int(value)
+        )
 
-            return filterset_class
+    def get_qs_by_researchhub_post_id(self, qs, name, value):
+        return qs.filter(
+            content_type=get_content_type_for_model(ResearchhubPost),
+            object_id=int(value),
+        )
 
-        if filterset_fields and queryset is not None:
-            MetaBase = getattr(self.filterset_base, "Meta", object)
+    def get_qs_by_hypothesis_id(self, qs, name, value):
+        return qs.filter(
+            content_type=get_content_type_for_model(Hypothesis), object_id=int(value)
+        )
 
-            class AutoFilterSet(self.filterset_base):
-                class Meta(MetaBase):
-                    model = queryset.model
-                    fields = filterset_fields
-
-            return AutoFilterSet
-
-        return None
+    def get_qs_by_citation_id(self, qs, name, value):
+        return qs.filter(
+            content_type=get_content_type_for_model(Citation), object_id=int(value)
+        )
