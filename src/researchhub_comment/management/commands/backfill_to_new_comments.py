@@ -63,6 +63,8 @@ class Command(BaseCommand):
                     legacy_model_type=LEGACY_THREAD,
                     thread=belonging_thread,
                     updated_by=created_by,
+                    is_removed=thread.is_removed,
+                    is_public=thread.is_public,
                 )
                 comment_content_file = ContentFile(
                     (json.dumps(thread.text) or thread.plain_text or "").encode()
@@ -112,6 +114,8 @@ class Command(BaseCommand):
                     thread=belonging_thread,
                     updated_by=created_by,
                     parent=parent,
+                    is_removed=comment.is_removed,
+                    is_public=comment.is_public,
                 )
                 comment_content_file = ContentFile(
                     (json.dumps(comment.text) or comment.plain_text or "").encode()
@@ -161,6 +165,8 @@ class Command(BaseCommand):
                     thread=belonging_thread,
                     updated_by=created_by,
                     parent=parent,
+                    is_removed=reply.is_removed,
+                    is_public=reply.is_public,
                 )
                 comment_content_file = ContentFile(
                     (json.dumps(reply.text) or reply.plain_text or "").encode()

@@ -53,7 +53,8 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
         default=QUILL_EDITOR,
         max_length=144,
     )
-    # is_removed = BooleanField(default=False)
+    is_removed = BooleanField(default=False)
+    is_public = BooleanField(default=False)
     parent = ForeignKey(
         "self",
         blank=True,
@@ -74,8 +75,8 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
         choices=RH_COMMENT_MIGRATION_LEGACY_TYPES,
         default=LEGACY_COMMENT,
         max_length=144,
-        # blank=True,
-        # null=True
+        blank=True,
+        null=True,
     )
 
     """ --- PROPERTIES --- """
