@@ -15,7 +15,7 @@ from researchhub_comment.constants.rh_comment_thread_types import (
     GENERIC_COMMENT,
     RH_COMMENT_THREAD_TYPES,
 )
-from researchhub_comment.models import RhCommentThreadModel
+from researchhub_comment.models import RhCommentModel
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 
 BEST = "BEST"
@@ -26,14 +26,31 @@ ORDER_CHOICES = ((BEST, "Best"), (TOP, "Top"), (CREATED_DATE, "Created Date"))
 
 
 class RHCommentFilter(filters.FilterSet):
+    created_date__gte = DateTimeFilter(
+        field_name="created_date",
+        lookup_expr="gte",
+    )
+    created_date__lt = DateTimeFilter(
+        field_name="created_date",
+        lookup_expr="lt",
+    )
+    updated_date__gte = DateTimeFilter(
+        field_name="updated_date",
+        lookup_expr="gte",
+    )
+    updated_date__lt = DateTimeFilter(
+        field_name="updated_date",
+        lookup_expr="lt",
+    )
     ordering = filters.ChoiceFilter(
         method="ordering_filter",
         choices=ORDER_CHOICES,
         null_value=BEST,
+        label="Ordering",
     )
 
     class Meta:
-        model = RhCommentThreadModel
+        model = RhCommentModel
         fields = ("ordering",)
 
     def ordering_filter(self, qs, name, value):
@@ -52,7 +69,7 @@ FILTER_FIELDS = [
 
 class RhCommentThreadFilter(FilterSet):
     class Meta:
-        model = RhCommentThreadModel
+        model = RhCommentModel
         fields = FILTER_FIELDS
 
     created_date__gte = DateTimeFilter(

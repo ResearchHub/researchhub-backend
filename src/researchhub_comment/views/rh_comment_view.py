@@ -5,14 +5,17 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from discussion.reaction_views import ReactionViewActionMixin
+from researchhub_comment.filters import RHCommentFilter
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.serializers import RhCommentSerializer
 from researchhub_comment.views.rh_comment_view_mixin import RhCommentViewMixin
 
 
 class RhCommentViewSet(ReactionViewActionMixin, RhCommentViewMixin, ModelViewSet):
-    queryset = RhCommentModel.objects.filter()
+    queryset = RhCommentModel.objects.all()
     serializer_class = RhCommentSerializer
+    filter_backends = (DjangoFilterBackend,)
+    filter_class = RHCommentFilter
     permission_classes = [
         # IsAuthenticatedOrReadOnly,
         AllowAny,  # TODO: calvinhlee replace with above permissions

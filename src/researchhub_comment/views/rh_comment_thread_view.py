@@ -12,20 +12,16 @@ from rest_framework.viewsets import ModelViewSet
 from discussion.reaction_views import ReactionViewActionMixin
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_comment.serializers import RhCommentThreadSerializer
-from researchhub_comment.views.filters.rh_comment_thread_filters import (
-    RhCommentThreadFilter,
-)
 
 
 class RhCommentThreadViewSet(ModelViewSet):
     filter_backends = (DjangoFilterBackend,)
-    filter_class = RhCommentThreadFilter
     permission_classes = [
         # IsAuthenticatedOrReadOnly,
         AllowAny,  # TODO: calvinhlee replace with above permissions
     ]
     ordering = "-updated_date"
-    queryset = RhCommentThreadModel.objects.filter()
+    queryset = RhCommentThreadModel.objects.all()
     serializer_class = RhCommentThreadSerializer
 
     def create(self, request, *args, **kwargs):
