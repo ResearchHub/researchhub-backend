@@ -52,7 +52,10 @@ class DynamicPermissionSerializer(DynamicModelFieldSerializer):
         from user.models import Organization
 
         context = self.context
-        _context_fields = context.get("rag_dps_get_source", {})
+        # Hardcoding exclude for now
+        _context_fields = context.get(
+            "rag_dps_get_source", {"_exclude_fields": "__all__"}
+        )
 
         source = permission.source
         if isinstance(source, Hub):
