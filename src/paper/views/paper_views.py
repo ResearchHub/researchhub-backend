@@ -61,7 +61,9 @@ from paper.utils import (
 from purchase.models import Purchase
 from reputation.models import Contribution
 from researchhub.lib import get_document_id_from_path
-from researchhub_comment.views.rh_comment_thread_view_mixin import RhCommentThreadViewMixin
+from researchhub_comment.views.rh_comment_thread_view_mixin import (
+    RhCommentThreadViewMixin,
+)
 from researchhub_document.permissions import HasDocumentCensorPermission
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
@@ -77,7 +79,11 @@ from utils.siftscience import decisions_api, events_api
 from utils.throttles import THROTTLE_CLASSES
 
 
-class PaperViewSet( ReactionViewActionMixin, RhCommentThreadViewMixin, viewsets.ModelViewSet,):
+class PaperViewSet(
+    ReactionViewActionMixin,
+    RhCommentThreadViewMixin,
+    viewsets.ModelViewSet,
+):
     queryset = Paper.objects.filter()
     serializer_class = PaperSerializer
     dynamic_serializer_class = DynamicPaperSerializer
@@ -224,6 +230,15 @@ class PaperViewSet( ReactionViewActionMixin, RhCommentThreadViewMixin, viewsets.
             },
             "doc_duds_get_concepts": {
                 "_include_fields": ["openalex_id", "display_name", "description"]
+            },
+            "pap_dps_get_hubs": {
+                "_exclude_fields": [
+                    "editor_permission_groups",
+                    "subscribers",
+                    "subscriber_count",
+                    "paper_count",
+                    "discussion_count",
+                ]
             },
         }
         return context
