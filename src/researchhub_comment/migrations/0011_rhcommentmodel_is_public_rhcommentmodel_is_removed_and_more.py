@@ -30,9 +30,9 @@ class Migration(migrations.Migration):
                     ("LEGACY_REPLY", "LEGACY_REPLY"),
                     ("LEGACY_THREAD", "LEGACY_THREAD"),
                 ],
-                default="LEGACY_COMMENT",
                 max_length=144,
                 null=True,
+
             ),
         ),
     ]

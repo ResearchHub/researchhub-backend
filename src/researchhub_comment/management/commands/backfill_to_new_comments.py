@@ -40,9 +40,19 @@ class Command(BaseCommand):
         for i, existing_thread in enumerate(existing_threads.iterator()):
             print(f"{i}/{existing_threads_count}")
             try:
-                content = existing_thread.comment_content_src.read().decode("utf8")
-                existing_thread.comment_content_json = content
-                existing_thread.save()
+                comment_content_json = existing_thread.comment_content_json
+                if not comment_content_json or not isinstance(
+                    comment_content_json, dict
+                ):
+                    content = existing_thread.comment_content_src.read().decode("utf8")
+                    try:
+                        existing_thread.comment_content_json = json.loads(content)
+                    except json.JSONDecodeError:
+                        existing_thread.comment_content_json = {
+                            "ops": [{"insert": content}]
+                        }
+                    finally:
+                        existing_thread.save()
             except Exception as e:
                 print(e)
 
@@ -66,9 +76,13 @@ class Command(BaseCommand):
                     is_removed=thread.is_removed,
                     is_public=thread.is_public,
                 )
-                comment_content_file = ContentFile(
-                    (json.dumps(thread.text) or thread.plain_text or "").encode()
-                )
+                text = thread.text
+                if text:
+                    content = json.dumps(text)
+                else:
+                    content = json.dumps({"ops": [{"insert": thread.plain_text or ""}]})
+
+                comment_content_file = ContentFile(content.encode("utf8"))
                 migrated_thread_comment.comment_content_src.save(
                     f"rh-comment-user-{created_by.id}-thread-{belonging_thread.id}-comment-{migrated_thread_comment.id}.txt",
                     comment_content_file,
@@ -87,9 +101,19 @@ class Command(BaseCommand):
         for i, existing_comment in enumerate(existing_comments.iterator()):
             print(f"{i}/{existing_comments_count}")
             try:
-                content = existing_comment.comment_content_src.read().decode("utf8")
-                existing_comment.comment_content_json = content
-                existing_comment.save()
+                comment_content_json = existing_comment.comment_content_json
+                if not comment_content_json or not isinstance(
+                    comment_content_json, dict
+                ):
+                    content = existing_comment.comment_content_src.read().decode("utf8")
+                    try:
+                        existing_comment.comment_content_json = json.loads(content)
+                    except json.JSONDecodeError:
+                        existing_comment.comment_content_json = {
+                            "ops": [{"insert": content}]
+                        }
+                    finally:
+                        existing_comment.save()
             except Exception as e:
                 print(e)
 
@@ -117,9 +141,15 @@ class Command(BaseCommand):
                     is_removed=comment.is_removed,
                     is_public=comment.is_public,
                 )
-                comment_content_file = ContentFile(
-                    (json.dumps(comment.text) or comment.plain_text or "").encode()
-                )
+                text = comment.text
+                if text:
+                    content = json.dumps(text)
+                else:
+                    content = json.dumps(
+                        {"ops": [{"insert": comment.plain_text or ""}]}
+                    )
+
+                comment_content_file = ContentFile(content.encode("utf8"))
                 migrated_comment.comment_content_src.save(
                     f"rh-comment-user-{created_by.id}-thread-{belonging_thread.id}-comment-{migrated_comment.id}.txt",
                     comment_content_file,
@@ -138,9 +168,19 @@ class Command(BaseCommand):
         for i, existing_reply in enumerate(existing_replies.iterator()):
             print(f"{i}/{existing_replies_count}")
             try:
-                content = existing_reply.comment_content_src.read().decode("utf8")
-                existing_reply.comment_content_json = content
-                existing_reply.save()
+                comment_content_json = existing_reply.comment_content_json
+                if not comment_content_json or not isinstance(
+                    comment_content_json, dict
+                ):
+                    content = existing_reply.comment_content_src.read().decode("utf8")
+                    try:
+                        existing_reply.comment_content_json = json.loads(content)
+                    except json.JSONDecodeError:
+                        existing_reply.comment_content_json = {
+                            "ops": [{"insert": content}]
+                        }
+                    finally:
+                        existing_reply.save()
             except Exception as e:
                 print(e)
 
@@ -168,9 +208,14 @@ class Command(BaseCommand):
                     is_removed=reply.is_removed,
                     is_public=reply.is_public,
                 )
-                comment_content_file = ContentFile(
-                    (json.dumps(reply.text) or reply.plain_text or "").encode()
-                )
+
+                text = reply.text
+                if text:
+                    content = json.dumps(text)
+                else:
+                    content = json.dumps({"ops": [{"insert": reply.plain_text or ""}]})
+
+                comment_content_file = ContentFile(content.encode("utf8"))
                 migrated_reply.comment_content_src.save(
                     f"rh-comment-user-{created_by.id}-thread-{belonging_thread.id}-comment-{migrated_reply.id}.txt",
                     comment_content_file,
