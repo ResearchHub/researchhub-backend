@@ -5,9 +5,12 @@ from rest_framework.viewsets import ModelViewSet
 
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.serializers import RhCommentSerializer
+from researchhub_comment.views.rh_comment_thread_view_mixin import (
+    RhCommentThreadViewMixin,
+)
 
 
-class RhCommentViewSet(ModelViewSet):
+class RhCommentViewSet(RhCommentThreadViewMixin, ModelViewSet):
     queryset = RhCommentModel.objects.filter()
     serializer_class = RhCommentSerializer
     permission_classes = [

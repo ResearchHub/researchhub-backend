@@ -13,7 +13,6 @@ from django.db import IntegrityError
 from django.db.models import Count, F, IntegerField, Q, Sum, Value
 from django.db.models.functions import Cast, Coalesce
 from django.shortcuts import get_object_or_404
-from django_filters.rest_framework import DjangoFilterBackend
 from elasticsearch.exceptions import ConnectionError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -61,9 +60,7 @@ from paper.utils import (
 from purchase.models import Purchase
 from reputation.models import Contribution
 from researchhub.lib import get_document_id_from_path
-from researchhub_comment.views.rh_comment_thread_view_mixin import (
-    RhCommentThreadViewMixin,
-)
+from researchhub_comment.filters import DjangoFilterBackendWithComments
 from researchhub_document.permissions import HasDocumentCensorPermission
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
@@ -79,13 +76,11 @@ from utils.siftscience import decisions_api, events_api
 from utils.throttles import THROTTLE_CLASSES
 
 
-class PaperViewSet(
-    ReactionViewActionMixin, RhCommentThreadViewMixin, viewsets.ModelViewSet
-):
+class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
     queryset = Paper.objects.all()
     serializer_class = PaperSerializer
     dynamic_serializer_class = DynamicPaperSerializer
-    filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
+    filter_backends = (SearchFilter, DjangoFilterBackendWithComments, OrderingFilter)
     search_fields = ("title", "doi", "paper_title")
     filter_class = PaperFilter
     throttle_classes = THROTTLE_CLASSES

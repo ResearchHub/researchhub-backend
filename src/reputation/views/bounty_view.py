@@ -482,8 +482,6 @@ class BountyViewSet(viewsets.ModelViewSet):
         permission_classes=[AllowAny],
     )
     def get_bounties(self, request):
-        # TODO: Remove temporary return
-        return Response([])
         status = self.request.GET.get("status")
         qs = (
             self.get_queryset()

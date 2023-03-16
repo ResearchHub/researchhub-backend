@@ -16,6 +16,17 @@ from researchhub_comment.serializers import (
 
 
 class RhCommentThreadViewMixin:
+    _THREAD_MIXIN_METHODS_ = (
+        "create_rh_comment",
+        "get_rh_comments",
+    )
+
+    def _get_model_threads(self):
+        return self.get_object().rh_threads.all()
+
+    # def _get_filtered_threads(self):
+    #     return self.filter_queryset(self._get_model_threads())
+
     def _get_retrieve_context(self):
         context = {
             "rhc_dts_get_comments": {"_exclude_fields": ("thread",)},
@@ -57,9 +68,17 @@ class RhCommentThreadViewMixin:
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    # @action(detail=True, methods=["GET"], permission_classes=[AllowAny], url_path=r"(?P<model>\w+)")
-    @action(detail=True, methods=["GET"], permission_classes=[AllowAny])
+    @action(
+        detail=True,
+        methods=["GET"],
+        permission_classes=[AllowAny],
+        url_path=r"(?P<model>\w+)/blah",
+    )
+    # @action(detail=True, methods=["GET"], permission_classes=[AllowAny])
     def get_rh_comments(self, request, pk=None):
+        # import pdb; pdb.set_trace()
+        test = self._get_model_threads()
+        # test = self._get_filtered_threads()
         try:
             # TODO: add filtering & sorting mechanism here.
             context = self._get_retrieve_context()
