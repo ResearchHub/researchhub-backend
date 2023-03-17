@@ -7,8 +7,10 @@ import stripe
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db import transaction
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.filters import OrderingFilter
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -563,8 +565,11 @@ class RscExchangeRateViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = RscExchangeRate.objects.all()
     serializer_class = RscExchangeRateSerializer
     permission_classes = [AllowAny]
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
     pagination_class = RscExchangeRatePagination
-    ordering = ["-created_date"]
+    filterset_fields = [
+        "price_source",
+    ]
 
 
 class StripeViewSet(viewsets.ModelViewSet):
