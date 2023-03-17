@@ -10,19 +10,27 @@ from django.db import transaction
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from analytics.amplitude import track_event
 from notification.models import Notification
 from paper.models import Paper
 from paper.utils import get_cache_key
-from purchase.models import AggregatePurchase, Balance, Purchase, Support, Wallet
+from purchase.models import (
+    AggregatePurchase,
+    Balance,
+    Purchase,
+    RscExchangeRate,
+    Support,
+    Wallet,
+)
 from purchase.permissions import CanSendRSC
 from purchase.serializers import (
     AggregatePurchaseSerializer,
     BalanceSerializer,
     PurchaseSerializer,
+    RscExchangeRateSerializer,
     SupportSerializer,
     WalletSerializer,
 )
@@ -544,6 +552,19 @@ class SupportViewSet(viewsets.ModelViewSet):
         sender_data = UserSerializer(sender).data
         response_data = {"user": sender_data, **data}
         return Response(response_data, status=200)
+
+
+class RscExchangeRatePagination(PageNumberPagination):
+    page_size_query_param = "page_size"
+    max_page_size = 10
+
+
+class RscExchangeRateViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = RscExchangeRate.objects.all()
+    serializer_class = RscExchangeRateSerializer
+    permission_classes = [AllowAny]
+    pagination_class = RscExchangeRatePagination
+    ordering = ["-created_date"]
 
 
 class StripeViewSet(viewsets.ModelViewSet):
