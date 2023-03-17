@@ -168,11 +168,27 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     "slug",
                 ]
             },
+            "doc_dps_get_hubs": {
+                "_include_fields": [
+                    "id",
+                    "name",
+                    "hub_image",
+                    "slug",
+                ]
+            },
             "hyp_dhs_get_unified_document": {
                 "_include_fields": [
                     "id",
                     "renderable_text",
                     "title",
+                    "slug",
+                ]
+            },
+            "hyp_dhs_get_hubs": {
+                "_include_fields": [
+                    "id",
+                    "name",
+                    "hub_image",
                     "slug",
                 ]
             },
