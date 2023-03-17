@@ -143,8 +143,6 @@ class DynamicThreadSerializer(
         return amount_awarded
 
     def get_bounties(self, obj):
-        # TODO: Remove temporary return
-        return None
         from reputation.serializers import DynamicBountySerializer
 
         context = self.context
@@ -688,8 +686,6 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
         return serializer.data
 
     def get_bounties(self, obj):
-        # TODO: Remove temporary return
-        return None
         from reputation.serializers import DynamicBountySerializer
 
         context = {
