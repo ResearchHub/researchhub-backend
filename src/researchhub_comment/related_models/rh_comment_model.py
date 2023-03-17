@@ -53,6 +53,7 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
         default=QUILL_EDITOR,
         max_length=144,
     )
+    is_accepted_answer = BooleanField(null=True)
     is_removed = BooleanField(default=False)
     is_public = BooleanField(default=False)
     parent = ForeignKey(

@@ -1,10 +1,12 @@
 import json
 
+from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
 
 from discussion.models import Comment, Reply, Thread
+from discussion.reaction_models import Vote
 from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR
 from researchhub_comment.constants.rh_comment_migration_legacy_types import (
     LEGACY_COMMENT,
@@ -16,7 +18,25 @@ from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 
 
 class Command(BaseCommand):
-    def _get_rh_thread(self, document, created_by):
+    def _create_votes_for_discussion(self, old_obj, new_obj):
+        if old_obj.votes.count() == new_obj.votes.count():
+            return
+
+        for old_vote in old_obj.votes.all().iterator():
+            vote_type = old_vote.vote_type
+            Vote.objects.create(
+                object_id=new_obj.id,
+                content_type=get_content_type_for_model(new_obj),
+                created_by=old_vote.created_by,
+                vote_type=vote_type,
+            )
+
+    def _get_rh_thread(
+        self, document, created_by, discussion_post_type=GENERIC_COMMENT
+    ):
+        if discussion_post_type == "DISCUSSION":
+            discussion_post_type = GENERIC_COMMENT
+
         return RhCommentThreadModel.objects.filter(
             content_type=ContentType.objects.get_for_model(document),
             object_id=document.id,
@@ -25,8 +45,8 @@ class Command(BaseCommand):
             content_type=ContentType.objects.get_for_model(document),
             created_by=created_by,
             object_id=document.id,
-            thread_type=GENERIC_COMMENT,
             updated_by=created_by,
+            thread_type=discussion_post_type,
         )
 
     def _handle_threads(self):
@@ -53,6 +73,9 @@ class Command(BaseCommand):
                         }
                     finally:
                         existing_thread.save()
+
+                connecting_thread = Thread.objects.get(id=existing_thread.legacy_id)
+                self._create_votes_for_discussion(connecting_thread, existing_thread)
             except Exception as e:
                 print(e)
 
@@ -62,7 +85,10 @@ class Command(BaseCommand):
             try:
                 created_by = thread.created_by
                 document = thread.unified_document.get_document()
-                belonging_thread = self._get_rh_thread(document, created_by)
+                discussion_post_type = thread.discussion_post_type
+                belonging_thread = self._get_rh_thread(
+                    document, created_by, discussion_post_type
+                )
                 migrated_thread_comment = RhCommentModel.objects.create(
                     comment_content_json=thread.text,
                     comment_content_type=QUILL_EDITOR,
@@ -75,6 +101,7 @@ class Command(BaseCommand):
                     updated_by=created_by,
                     is_removed=thread.is_removed,
                     is_public=thread.is_public,
+                    is_accepted_answer=thread.is_accepted_answer,
                 )
                 text = thread.text
                 if text:
@@ -87,6 +114,8 @@ class Command(BaseCommand):
                     f"rh-comment-user-{created_by.id}-thread-{belonging_thread.id}-comment-{migrated_thread_comment.id}.txt",
                     comment_content_file,
                 )
+
+                self._create_votes_for_discussion(thread, migrated_thread_comment)
             except Exception as e:
                 print(f"thread id: {thread.id}: {e}")
 
@@ -114,6 +143,9 @@ class Command(BaseCommand):
                         }
                     finally:
                         existing_comment.save()
+
+                connecting_comment = Comment.objects.get(id=existing_comment.legacy_id)
+                self._create_votes_for_discussion(connecting_comment, existing_comment)
             except Exception as e:
                 print(e)
 
@@ -140,6 +172,7 @@ class Command(BaseCommand):
                     parent=parent,
                     is_removed=comment.is_removed,
                     is_public=comment.is_public,
+                    is_accepted_answer=comment.is_accepted_answer,
                 )
                 text = comment.text
                 if text:
@@ -154,6 +187,8 @@ class Command(BaseCommand):
                     f"rh-comment-user-{created_by.id}-thread-{belonging_thread.id}-comment-{migrated_comment.id}.txt",
                     comment_content_file,
                 )
+
+                self._create_votes_for_discussion(comment, migrated_comment)
             except Exception as e:
                 print(f"comment id: {comment.id}: {e}")
 
@@ -181,6 +216,9 @@ class Command(BaseCommand):
                         }
                     finally:
                         existing_reply.save()
+
+                connecting_reply = Comment.objects.get(id=existing_reply.legacy_id)
+                self._create_votes_for_discussion(connecting_reply, existing_reply)
             except Exception as e:
                 print(e)
 
@@ -220,6 +258,8 @@ class Command(BaseCommand):
                     f"rh-comment-user-{created_by.id}-thread-{belonging_thread.id}-comment-{migrated_reply.id}.txt",
                     comment_content_file,
                 )
+
+                self._create_votes_for_discussion(reply, migrated_reply)
             except Exception as e:
                 print(f"reply id: {reply.id}: {e}")
 

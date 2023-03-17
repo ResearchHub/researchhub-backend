@@ -48,6 +48,11 @@ class RHCommentFilter(filters.FilterSet):
         null_value=BEST,
         label="Ordering",
     )
+    thread_type = filters.ChoiceFilter(
+        choices=RH_COMMENT_THREAD_TYPES,
+        field_name="thread__thread_type",
+        label="Thread Type",
+    )
     ascending = filters.ChoiceFilter(
         method="ascending_or_descending",
         choices=ASCENDING_CHOICES,
