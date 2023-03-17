@@ -62,9 +62,13 @@ class RhCommentViewMixin:
             queryset = queryset.all()
         return queryset
 
+    def get_serializer_class(self):
+        if self.action == "create_rh_comment":
+            return super().get_serializer_class()
+        return DynamicRHCommentSerializer
+
     def _get_retrieve_context(self):
         context = {
-            "rhc_dts_get_comments": {"_exclude_fields": ("thread",)},
             "rhc_dcs_get_created_by": {
                 "_include_fields": (
                     "id",
@@ -100,6 +104,28 @@ class RhCommentViewMixin:
         rh_comment, serializer_data = RhCommentModel.create_from_data(comment_data)
         return Response(serializer_data, status=200)
 
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        page = self.paginate_queryset(queryset)
+        context = self._get_retrieve_context()
+        if page is not None:
+            serializer = self.get_serializer(
+                page,
+                many=True,
+                context=context,
+                _exclude_fields=("thread", "comment_content_src"),
+            )
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(
+            page,
+            many=True,
+            context=context,
+            _exclude_fields=("thread", "comment_content_src"),
+        )
+        return Response(serializer.data)
+
     @action(
         detail=True,
         methods=["GET"],
@@ -108,15 +134,12 @@ class RhCommentViewMixin:
     # @action(detail=True, methods=["GET"], permission_classes=[AllowAny])
     def get_rh_comments(self, request, model=None, model_object_id=None, pk=None):
         # import pdb; pdb.set_trace()
-        test = self._get_model_threads()
         # test = self._get_filtered_threads()
         try:
             # TODO: add filtering & sorting mechanism here.
-            context = self._get_retrieve_context()
             comment = self._get_existing_thread_from_data(request.data)
-            serializer = DynamicRHCommentSerializer(
+            serializer = self.get_serializer(
                 comment,
-                context=context,
                 _include_fields=("id", "comments"),
             )
             return Response(serializer.data, status=200)
@@ -135,7 +158,7 @@ class RhCommentViewMixin:
         try:
             comment = self.get_object()
             context = self._get_retrieve_context()
-            serializer = DynamicRHCommentSerializer(
+            serializer = self.get_serializer(
                 comment,
                 context=context,
                 _exclude_fields=("thread", "comment_content_src"),

@@ -4,6 +4,7 @@ from discussion.reaction_serializers import (
     GenericReactionSerializer,
     GenericReactionSerializerMixin,
 )
+from discussion.serializers import GenericReactionSerializerMixin
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.serializers.constants.rh_comment_serializer_contants import (
@@ -34,7 +35,10 @@ class RhCommentSerializer(GenericReactionSerializer):
         ).data
 
 
-class DynamicRHCommentSerializer(DynamicModelFieldSerializer):
+# TODO: Does generic reaction serializer mixin work?
+class DynamicRHCommentSerializer(
+    GenericReactionSerializerMixin, DynamicModelFieldSerializer
+):
     created_by = SerializerMethodField()
     thread = SerializerMethodField()
 

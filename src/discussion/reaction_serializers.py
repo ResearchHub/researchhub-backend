@@ -13,6 +13,7 @@ from utils.sentry import log_error
 def raise_implement(class_name, method_name):
     raise NotImplementedError(f"{class_name}: must implement {method_name}")
 
+
 class EndorsementSerializer(ModelSerializer):
     item = PrimaryKeyRelatedField(many=False, read_only=True)
 
@@ -159,7 +160,8 @@ class GenericReactionSerializerMixin:
             log_error(e)
             return None
 
-class GenericReactionSerializer(ModelSerializer, GenericReactionSerializerMixin):
+
+class GenericReactionSerializer(GenericReactionSerializerMixin, ModelSerializer):
     class Meta:
         abstract = True
         # NOTE: fields = [raise_implement("GenericReactionSerializer", "fields")]

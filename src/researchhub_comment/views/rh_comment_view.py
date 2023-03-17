@@ -1,5 +1,6 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
+from rest_framework.pagination import CursorPagination
 from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -11,6 +12,12 @@ from researchhub_comment.serializers import RhCommentSerializer
 from researchhub_comment.views.rh_comment_view_mixin import RhCommentViewMixin
 
 
+class CursorSetPagination(CursorPagination):
+    page_size = 20
+    cursor_query_param = "page"
+    ordering = "-created_date"
+
+
 class RhCommentViewSet(ReactionViewActionMixin, RhCommentViewMixin, ModelViewSet):
     queryset = RhCommentModel.objects.all()
     serializer_class = RhCommentSerializer
@@ -20,6 +27,7 @@ class RhCommentViewSet(ReactionViewActionMixin, RhCommentViewMixin, ModelViewSet
         # IsAuthenticatedOrReadOnly,
         AllowAny,  # TODO: calvinhlee replace with above permissions
     ]
+    pagination_class = CursorSetPagination
 
     def create(self, request, *args, **kwargs):
         return Response(

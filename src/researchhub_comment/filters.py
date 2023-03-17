@@ -1,4 +1,4 @@
-from django.contrib.admin.options import get_content_type_for_model
+from django.db.models import Count, Q
 from django_filters import (
     CharFilter,
     ChoiceFilter,
@@ -8,21 +8,21 @@ from django_filters import (
 )
 from django_filters import rest_framework as filters
 
-from hypothesis.related_models.citation import Citation
-from hypothesis.related_models.hypothesis import Hypothesis
-from paper.related_models.paper_model import Paper
+from discussion.reaction_models import Vote
 from researchhub_comment.constants.rh_comment_thread_types import (
     GENERIC_COMMENT,
     RH_COMMENT_THREAD_TYPES,
 )
 from researchhub_comment.models import RhCommentModel
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 
 BEST = "BEST"
 TOP = "TOP"
 CREATED_DATE = "CREATED_DATE"
+ASCENDING_TRUE = "TRUE"
+ASCENDING_FALSE = "FALSE"
 
 ORDER_CHOICES = ((BEST, "Best"), (TOP, "Top"), (CREATED_DATE, "Created Date"))
+ASCENDING_CHOICES = ((ASCENDING_TRUE, "Ascending"), (ASCENDING_FALSE, "Descending"))
 
 
 class RHCommentFilter(filters.FilterSet):
@@ -48,93 +48,33 @@ class RHCommentFilter(filters.FilterSet):
         null_value=BEST,
         label="Ordering",
     )
+    ascending = filters.ChoiceFilter(
+        method="ascending_or_descending",
+        choices=ASCENDING_CHOICES,
+        null_value=ASCENDING_FALSE,
+        label="Ascending",
+    )
 
     class Meta:
         model = RhCommentModel
         fields = ("ordering",)
 
-    def ordering_filter(self, qs, name, value):
-        print(name, value)
-        pass
+    def ascending_or_descending(self, qs, name, value):
+        if value == ASCENDING_FALSE:
+            return qs.reverse()
         return qs
 
-
-FILTER_FIELDS = [
-    "created_by",
-    "updated_by",
-    "thread_type",
-    "thread_reference",
-]
-
-
-class RhCommentThreadFilter(FilterSet):
-    class Meta:
-        model = RhCommentModel
-        fields = FILTER_FIELDS
-
-    created_date__gte = DateTimeFilter(
-        field_name="created_date",
-        lookup_expr="gte",
-    )
-    created_date__lt = DateTimeFilter(
-        field_name="created_date",
-        lookup_expr="lt",
-    )
-    thread_id = NumberFilter(field_name="id", label="thread_id")
-    thread_reference = CharFilter(lookup_expr="iexact")
-    thread_type = ChoiceFilter(
-        field_name="thread_type",
-        choices=RH_COMMENT_THREAD_TYPES,
-        null_value=GENERIC_COMMENT,
-    )
-    updated_date__gte = DateTimeFilter(
-        field_name="updated_date",
-        lookup_expr="gte",
-    )
-    updated_date__lt = DateTimeFilter(
-        field_name="updated_date",
-        lookup_expr="lt",
-    )
-
-    """ ---- Generic Reaction Filters ---"""
-    paper_id = NumberFilter(
-        field_name="object_id",
-        label="paper_id",
-        method="get_qs_by_paper_id",
-    )
-    researchhub_post_id = NumberFilter(
-        field_name="object_id",
-        label="researchhub_post_id",
-        method="get_qs_by_researchhub_post_id",
-    )
-    hypothesis_id = NumberFilter(
-        field_name="object_id",
-        label="hypothesis_id",
-        method="get_qs_by_hypothesis_id",
-    )
-    citation_id = NumberFilter(
-        field_name="object_id",
-        label="citation_id",
-        method="get_qs_by_citation_id",
-    )
-
-    def get_qs_by_paper_id(self, qs, name, value):
-        return qs.filter(
-            content_type=get_content_type_for_model(Paper), object_id=int(value)
-        )
-
-    def get_qs_by_researchhub_post_id(self, qs, name, value):
-        return qs.filter(
-            content_type=get_content_type_for_model(ResearchhubPost),
-            object_id=int(value),
-        )
-
-    def get_qs_by_hypothesis_id(self, qs, name, value):
-        return qs.filter(
-            content_type=get_content_type_for_model(Hypothesis), object_id=int(value)
-        )
-
-    def get_qs_by_citation_id(self, qs, name, value):
-        return qs.filter(
-            content_type=get_content_type_for_model(Citation), object_id=int(value)
-        )
+    def ordering_filter(self, qs, name, value):
+        if value == BEST:
+            # TODO: Implement when bounty is merged in
+            pass
+        elif value == TOP:
+            qs = qs.annotate(
+                aggregate_score=(
+                    Count("votes__id", filter=Q(votes__vote_type=Vote.UPVOTE))
+                    - Count("votes__id", filter=Q(votes__vote_type=Vote.DOWNVOTE))
+                )
+            ).order_by("aggregate_score")
+        elif value == CREATED_DATE:
+            qs = qs.order_by("created_date")
+        return qs
