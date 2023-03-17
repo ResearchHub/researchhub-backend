@@ -227,3 +227,50 @@ class Command(BaseCommand):
         self._handle_threads()
         self._handle_comments()
         self._handle_replies()
+
+
+# from researchhub_comment.constants.rh_comment_migration_legacy_types import (
+#     LEGACY_COMMENT,
+#     LEGACY_REPLY,
+#     LEGACY_THREAD,
+# )
+
+# threads = Thread.objects.all()
+# comments = Comment.objects.all()
+# replies = Reply.objects.all()
+
+# for thread in threads.iterator():
+#     try:
+#         rh_comment = RhCommentModel.objects.get(
+#             legacy_id=thread.id,
+#             legacy_model_type=LEGACY_THREAD
+#         )
+#         rh_comment.is_removed = thread.is_removed
+#         rh_comment.is_public = thread.is_public
+#         rh_comment.save()
+#     except Exception as e:
+#         print(e)
+
+# for comment in comments.iterator():
+#     try:
+#         rh_comment = RhCommentModel.objects.get(
+#             legacy_id=comment.id,
+#             legacy_model_type=LEGACY_COMMENT
+#         )
+#         rh_comment.is_removed = comment.is_removed
+#         rh_comment.is_public = comment.is_public
+#         rh_comment.save()
+#     except Exception as e:
+#         print(e)
+
+# for reply in replies.iterator():
+#     try:
+#         rh_comment = RhCommentModel.objects.get(
+#             legacy_id=reply.id,
+#             legacy_model_type=LEGACY_REPLY
+#         )
+#         rh_comment.is_removed = reply.is_removed
+#         rh_comment.is_public = reply.is_public
+#         rh_comment.save()
+#     except Exception as e:
+#         print(e)
