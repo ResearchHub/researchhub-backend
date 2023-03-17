@@ -407,8 +407,3 @@ class RscExchangeRateSerializer(serializers.ModelSerializer):
     class Meta:
         model = RscExchangeRate
         fields = "__all__"
-
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        data["created_date"] = instance.created_date.isoformat()
-        return data
