@@ -41,7 +41,7 @@ class ReactionViewActionMixin:
         methods=["post"],
         permission_classes=[EndorsePermission & CreateOrUpdateIfAllowed],
     )
-    def endorse(self, request, pk=None):
+    def endorse(self, request, *args, pk=None, **kwargs):
         item = self.get_object()
         user = request.user
 
@@ -55,7 +55,7 @@ class ReactionViewActionMixin:
             )
 
     @endorse.mapping.delete
-    def delete_endorse(self, request, pk=None):
+    def delete_endorse(self, request, *args, pk=None, **kwargs):
         item = self.get_object()
         user = request.user
         try:
@@ -71,7 +71,7 @@ class ReactionViewActionMixin:
         methods=["post"],
         permission_classes=[IsAuthenticated],
     )
-    def flag(self, request, pk=None):
+    def flag(self, request, *args, pk=None, **kwargs):
         item = self.get_object()
         user = request.user
         reason = request.data.get("reason")
@@ -99,7 +99,7 @@ class ReactionViewActionMixin:
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    def delete_flag(self, request, pk=None):
+    def delete_flag(self, request, *args, pk=None, **kwargs):
         item = self.get_object()
         user = request.user
         try:
@@ -118,7 +118,7 @@ class ReactionViewActionMixin:
             (CensorDiscussionPermission | EditorCensorDiscussion),
         ],
     )
-    def censor(self, request, pk=None):
+    def censor(self, request, *args, pk=None, **kwargs):
         item = self.get_object()
 
         with transaction.atomic():
@@ -178,66 +178,69 @@ class ReactionViewActionMixin:
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[VotePermission & CreateOrUpdateIfAllowed],
+        permission_classes=[IsAuthenticated & VotePermission & CreateOrUpdateIfAllowed],
     )
-    def upvote(self, request, pk=None):
-        item = self.get_object()
-        user = request.user
-        vote_exists = find_vote(user, item, Vote.UPVOTE)
-        if vote_exists:
-            return Response(
-                "This vote already exists", status=status.HTTP_400_BAD_REQUEST
-            )
-        response = update_or_create_vote(request, user, item, Vote.UPVOTE)
-        item.unified_document.update_filter(SORT_UPVOTED)
-        return response
+    def upvote(self, request, *args, pk=None, **kwargs):
+        with transaction.atomic():
+            item = self.get_object()
+            user = request.user
+            vote_exists = find_vote(user, item, Vote.UPVOTE)
+            if vote_exists:
+                return Response(
+                    "This vote already exists", status=status.HTTP_400_BAD_REQUEST
+                )
+            response = update_or_create_vote(request, user, item, Vote.UPVOTE)
+            item.unified_document.update_filter(SORT_UPVOTED)
+            return response
 
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[VotePermission & CreateOrUpdateIfAllowed],
+        permission_classes=[IsAuthenticated & VotePermission & CreateOrUpdateIfAllowed],
     )
-    def neutralvote(self, request, pk=None):
-        item = self.get_object()
-        user = request.user
-        vote_exists = find_vote(user, item, Vote.NEUTRAL)
+    def neutralvote(self, request, *args, pk=None, **kwargs):
+        with transaction.atomic():
+            item = self.get_object()
+            user = request.user
+            vote_exists = find_vote(user, item, Vote.NEUTRAL)
 
-        if vote_exists:
-            return Response(
-                "This vote already exists", status=status.HTTP_400_BAD_REQUEST
-            )
-        response = update_or_create_vote(request, user, item, Vote.NEUTRAL)
-        return response
+            if vote_exists:
+                return Response(
+                    "This vote already exists", status=status.HTTP_400_BAD_REQUEST
+                )
+            response = update_or_create_vote(request, user, item, Vote.NEUTRAL)
+            return response
 
     @track_event
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[VotePermission & CreateOrUpdateIfAllowed],
+        permission_classes=[IsAuthenticated & VotePermission & CreateOrUpdateIfAllowed],
     )
-    def downvote(self, request, pk=None):
-        item = self.get_object()
-        user = request.user
+    def downvote(self, request, *args, pk=None, **kwargs):
+        with transaction.atomic():
+            item = self.get_object()
+            user = request.user
 
-        vote_exists = find_vote(user, item, Vote.DOWNVOTE)
+            vote_exists = find_vote(user, item, Vote.DOWNVOTE)
 
-        if vote_exists:
-            return Response(
-                "This vote already exists", status=status.HTTP_400_BAD_REQUEST
-            )
-        response = update_or_create_vote(request, user, item, Vote.DOWNVOTE)
-        item.unified_document.update_filter(SORT_UPVOTED)
-        return response
+            if vote_exists:
+                return Response(
+                    "This vote already exists", status=status.HTTP_400_BAD_REQUEST
+                )
+            response = update_or_create_vote(request, user, item, Vote.DOWNVOTE)
+            item.unified_document.update_filter(SORT_UPVOTED)
+            return response
 
     @action(detail=True, methods=["get"])
-    def user_vote(self, request, pk=None):
+    def user_vote(self, request, *args, pk=None, **kwargs):
         item = self.get_object()
         user = request.user
         vote = retrieve_vote(user, item)
         return get_vote_response(vote, 200)
 
     @user_vote.mapping.delete
-    def delete_user_vote(self, request, pk=None):
+    def delete_user_vote(self, request, *args, pk=None, **kwargs):
         try:
             item = self.get_object()
             user = request.user

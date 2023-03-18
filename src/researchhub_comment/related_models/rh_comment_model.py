@@ -89,6 +89,10 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
     def is_root_comment(self):
         return self.parent is None
 
+    @property
+    def unified_document(self):
+        return self.thread.unified_document
+
     """ --- METHODS --- """
 
     @classmethod

@@ -33,6 +33,9 @@ class RhCommentThreadModel(AbstractGenericRelationModel):
     )
 
     """ --- PROPERTIES --- """
-    # TBD
+
+    @property
+    def unified_document(self):
+        return self.content_object.unified_document
 
     """--- METHODS ---"""
