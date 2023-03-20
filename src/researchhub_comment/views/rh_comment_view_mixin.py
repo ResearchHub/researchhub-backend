@@ -6,6 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from analytics.amplitude import track_event
 from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
@@ -90,6 +91,7 @@ class RhCommentViewMixin:
         }
         return context
 
+    @track_event
     @action(detail=False, methods=["POST"], permission_classes=[IsAuthenticated])
     def create_rh_comment(self, request, *args, **kwargs):
         data = request.data
