@@ -93,6 +93,13 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
     def unified_document(self):
         return self.thread.unified_document
 
+    @property
+    def users_to_notify(self):
+        if self.parent:
+            return [self.parent.created_by]
+        else:
+            return [self.thread.content_object.created_by]
+
     """ --- METHODS --- """
 
     @classmethod

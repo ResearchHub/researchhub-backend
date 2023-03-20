@@ -78,12 +78,11 @@ class ReactionViewActionMixin:
         reason_choice = request.data.get("reason_choice")
 
         try:
-            flag = create_flag(user, item, reason, reason_choice)
-            serialized = FlagSerializer(flag)
+            flag, flag_data = create_flag(user, item, reason, reason_choice)
 
             content_id = f"{type(item).__name__}_{item.id}"
             events_api.track_flag_content(item.created_by, content_id, user.id)
-            return Response(serialized.data, status=201)
+            return Response(flag_data, status=201)
         except IntegrityError as e:
             return Response(
                 {
@@ -92,6 +91,7 @@ class ReactionViewActionMixin:
                 status=status.HTTP_409_CONFLICT,
             )
         except Exception as e:
+            log_error(e)
             return Response(
                 {
                     "msg": "Unexpected error",
@@ -122,9 +122,6 @@ class ReactionViewActionMixin:
         item = self.get_object()
 
         with transaction.atomic():
-            item.remove_nested()
-            item.update_discussion_count()
-
             content_id = f"{type(item).__name__}_{item.id}"
             user = request.user
             content_creator = item.created_by
@@ -143,31 +140,31 @@ class ReactionViewActionMixin:
                     item.review.is_removed = True
                     item.review.save()
 
-                    doc = item.unified_document
-                    if doc.bounties.exists():
-                        for bounty in doc.bounties.iterator():
-                            bounty.cancel()
-                            bounty.save()
+                doc = item.unified_document
+                if doc.bounties.exists():
+                    for bounty in doc.bounties.iterator():
+                        bounty.cancel()
+                        bounty.save()
 
-                    action = getattr(item, "actions", None)
-                    if action.exists():
-                        action = action.first()
-                        action.is_removed = True
-                        action.display = False
-                        action.save()
+                action = getattr(item, "actions", None)
+                if action.exists():
+                    action = action.first()
+                    action.is_removed = True
+                    action.display = False
+                    action.save()
 
-                    doc_type = get_doc_type_key(doc)
-                    hubs = list(doc.hubs.all().values_list("id", flat=True))
+                doc_type = get_doc_type_key(doc)
+                hubs = list(doc.hubs.all().values_list("id", flat=True))
 
-                    reset_unified_document_cache(
-                        hub_ids=hubs,
-                        document_type=[doc_type, "all"],
-                        filters=[DISCUSSED, HOT],
-                    )
+                reset_unified_document_cache(
+                    hub_ids=hubs,
+                    document_type=[doc_type, "all"],
+                    filters=[DISCUSSED, HOT],
+                )
 
-                    # Commenting out paper cache
-                    # if item.paper:
-                    #     item.paper.reset_cache()
+                # Commenting out paper cache
+                # if item.paper:
+                #     item.paper.reset_cache()
             except Exception as e:
                 print(e)
                 log_error(e)
@@ -305,15 +302,18 @@ def create_endorsement(user, item):
 
 
 def create_flag(user, item, reason, reason_choice):
-    flag = Flag(
-        created_by=user,
-        item=item,
-        reason=reason or reason_choice,
-        reason_choice=reason_choice,
-    )
-    flag.save()
+    data = {
+        "created_by": user.id,
+        "object_id": item.id,
+        "content_type": get_content_type_for_model(item).id,
+        "reason": reason or reason_choice,
+        "reason_choice": reason_choice,
+    }
+    serializer = FlagSerializer(data=data)
+    serializer.is_valid(raise_exception=True)
+    flag = serializer.save()
     flag.hubs.add(*item.unified_document.hubs.all())
-    return flag
+    return flag, serializer.data
 
 
 def find_vote(user, item, vote_type):
