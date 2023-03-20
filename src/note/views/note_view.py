@@ -490,6 +490,12 @@ def ckeditor_webhook_document_removed(request):
 def ckeditor_token(request):
     user = request.user
     author_profile = user.author_profile
+    profile_image = author_profile.profile_image
+
+    if profile_image.name:
+        avatar = profile_image.url
+    else:
+        avatar = "https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-blank-user.png"
 
     payload = {
         "aud": CKEDITOR_CLOUD_ENVIRONMENT_ID,
@@ -498,7 +504,7 @@ def ckeditor_token(request):
         "user": {
             "email": user.email,
             "name": f"{user.first_name} {user.last_name}",
-            "avatar": getattr(author_profile.profile_image, "url", ""),
+            "avatar": avatar,
         },
         "auth": {"collaboration": {"*": {"role": "writer"}}},
     }
