@@ -22,6 +22,10 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from summary.models import Summary
 from user.models import User
 
+"""
+All this is currently disabled via apps.py
+"""
+
 ga = GoogleAnalytics()
 
 

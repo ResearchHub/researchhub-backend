@@ -1,11 +1,6 @@
-# TODO: Fix the celery task on cloud deploys
-from time import time
-
 import requests
-from allauth.account.signals import user_logged_in
 from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
-from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.db import models
@@ -16,7 +11,6 @@ from django.utils.text import slugify
 
 from bullet_point.models import BulletPoint
 from bullet_point.models import Vote as BulletPointVote
-from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as GrmVote
 from hypothesis.models import Hypothesis
 from mailing_list.tasks import build_notification_context
@@ -26,6 +20,7 @@ from reputation.models import Bounty
 from researchhub.settings import NO_ELASTIC, TESTING
 from researchhub_access_group.constants import ADMIN
 from researchhub_access_group.models import Permission
+from researchhub_comment.models import RhCommentModel
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from summary.models import Summary
 from summary.models import Vote as SummaryVote
@@ -36,8 +31,6 @@ from user.tasks import (
     link_author_to_papers,
     link_paper_to_authors,
 )
-from user.utils import calculate_show_referral
-from utils import sentry
 from utils.message import send_email_message
 from utils.sentry import log_error
 from utils.siftscience import decisions_api, events_api
@@ -96,32 +89,9 @@ def doi_updated(update_fields):
     return False
 
 
-@receiver(pre_save, sender=BulletPoint, dispatch_uid="create_bullet_point_handle_spam")
-@receiver(pre_save, sender=Summary, dispatch_uid="create_summary_handle_spam")
-@receiver(pre_save, sender=Comment, dispatch_uid="create_comment_handle_spam")
-@receiver(pre_save, sender=Reply, dispatch_uid="create_reply_handle_spam")
-@receiver(pre_save, sender=Thread, dispatch_uid="create_thread_handle_spam")
-@receiver(pre_save, sender=Paper, dispatch_uid="paper_handle_spam")
-@receiver(pre_save, sender=GrmVote, dispatch_uid="paper_vote_action")
-def handle_spam(sender, instance, **kwargs):
-    # If user is a probable spammer, mark all of their content as is_removed
-
-    if sender == Paper:
-        user = instance.uploaded_by
-    elif sender in (Comment, Reply, Thread, BulletPoint, GrmVote):
-        user = instance.created_by
-    elif sender in (Summary,):
-        user = instance.proposed_by
-
-    if user and user.probable_spammer:
-        instance.is_removed = True
-
-
 @receiver(post_save, sender=BulletPoint, dispatch_uid="create_bullet_point_action")
 @receiver(post_save, sender=Summary, dispatch_uid="create_summary_action")
-@receiver(post_save, sender=Comment, dispatch_uid="create_comment_action")
-@receiver(post_save, sender=Reply, dispatch_uid="create_reply_action")
-@receiver(post_save, sender=Thread, dispatch_uid="create_thread_action")
+@receiver(post_save, sender=RhCommentModel, dispatch_uid="creation_rh_comment")
 @receiver(post_save, sender=Paper, dispatch_uid="paper_upload_action")
 @receiver(post_save, sender=GrmVote, dispatch_uid="discussion_vote_action")
 @receiver(post_save, sender=BulletPointVote, dispatch_uid="summary_vote_action")
@@ -137,7 +107,7 @@ def create_action(sender, instance, created, **kwargs):
         elif sender == Paper or sender == PaperSubmission:
             user = instance.uploaded_by
         else:
-            if sender == Thread:
+            if sender == RhCommentModel:
                 thread = instance
                 if thread.is_removed:
                     content_id = f"{type(thread).__name__}_{thread.id}"
@@ -174,7 +144,7 @@ def create_action(sender, instance, created, **kwargs):
 
 
 def send_discussion_email_notification(instance, sender, action):
-    if sender not in (Thread, Comment, Reply):
+    if sender != RhCommentModel:
         return
 
     for recipient in instance.users_to_notify:
@@ -187,16 +157,8 @@ def send_discussion_email_notification(instance, sender, action):
                 if not email_preference:
                     return
 
-                if sender == Thread:
-                    subscription = email_preference.thread_subscription
-                    subject = "ResearchHub | Someone commented on your paper"
-                elif sender == Comment:
-                    subscription = email_preference.comment_subscription
-                    subject = "ResearchHub | Someone commented on your thread"
-                elif sender == Reply:
-                    subscription = email_preference.reply_subscription
-                    subject = "ResearchHub | Someone replied to your comment"
-
+                subscription = email_preference.comment_subscription
+                subject = "ResearchHub | Someone created a discussion on your post"
                 if (
                     email_preference.receives_notifications
                     and subscription
@@ -225,7 +187,7 @@ def get_related_hubs(instance):
     try:
         if isinstance(
             instance,
-            (Paper, ResearchhubPost, Hypothesis, Thread, Comment, Reply, Bounty),
+            (Paper, ResearchhubPost, Hypothesis, RhCommentModel, Bounty),
         ):
             return instance.unified_document.hubs.all()
         elif isinstance(instance, PaperSubmission):
