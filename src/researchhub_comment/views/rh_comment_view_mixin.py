@@ -17,6 +17,7 @@ from researchhub_comment.serializers import (
     RhCommentSerializer,
     RhCommentThreadSerializer,
 )
+from user.serializers import DynamicUserSerializer
 
 
 class RhCommentViewMixin:
@@ -71,12 +72,8 @@ class RhCommentViewMixin:
     def _get_retrieve_context(self):
         context = {
             "rhc_dcs_get_created_by": {
-                "_include_fields": (
-                    "id",
-                    "author_profile",
-                )
+                "_include_fields": ("id", "author_profile", "editor_of")
             },
-            "usr_das_get_is_hub_editor_of": {"_include_fields": ("id", "name", "slug")},
             "usr_dus_get_author_profile": {
                 "_include_fields": (
                     "id",
@@ -85,8 +82,11 @@ class RhCommentViewMixin:
                     "created_date",
                     "updated_date",
                     "profile_image",
-                    "is_hub_editor_of",
                 )
+            },
+            "usr_dus_get_editor_of": {"_include_fields": ("source",)},
+            "rag_dps_get_source": {
+                "_include_fields": ("id", "name", "hub_image", "slug")
             },
         }
         return context
@@ -104,6 +104,11 @@ class RhCommentViewMixin:
             "thread": rh_thread.id,
         }
         rh_comment, serializer_data = RhCommentModel.create_from_data(comment_data)
+        context = self._get_retrieve_context()
+        user_serializer = DynamicUserSerializer(
+            user, _include_fields=("id", "author_profile"), context=context
+        )
+        serializer_data["created_by"] = user_serializer.data
         return Response(serializer_data, status=200)
 
     def list(self, request, *args, **kwargs):

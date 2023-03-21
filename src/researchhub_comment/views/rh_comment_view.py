@@ -27,7 +27,6 @@ class RhCommentViewSet(ReactionViewActionMixin, RhCommentViewMixin, ModelViewSet
         # IsAuthenticatedOrReadOnly,
         AllowAny,  # TODO: calvinhlee replace with above permissions
     ]
-    pagination_class = CursorSetPagination
 
     def create(self, request, *args, **kwargs):
         return Response(

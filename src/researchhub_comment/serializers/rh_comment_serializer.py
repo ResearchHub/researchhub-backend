@@ -48,9 +48,6 @@ class DynamicRhCommentSerializer(
         model = RhCommentModel
 
     def get_created_by(self, comment):
-        import pdb
-
-        pdb.set_trace()
         context = self.context
         _context_fields = context.get("rhc_dcs_get_created_by", {})
         serializer = DynamicUserSerializer(

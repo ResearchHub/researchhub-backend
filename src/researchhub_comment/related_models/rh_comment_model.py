@@ -26,6 +26,7 @@ from researchhub_comment.constants.rh_comment_migration_legacy_types import (
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
+from researchhub_comment.tasks import celery_create_comment_content_src
 from utils.models import DefaultAuthenticatedModel
 
 
@@ -107,16 +108,11 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
         from researchhub_comment.serializers import RhCommentSerializer
 
         with transaction.atomic():
-            thread_id = data.get("thread")
-            user_id = data.get("created_by")
-            comment_content_src_file = cls.get_comment_src_file_from_data(data)
-
             rh_comment_serializer = RhCommentSerializer(data=data)
             rh_comment_serializer.is_valid(raise_exception=True)
             rh_comment = rh_comment_serializer.save()
-            rh_comment.comment_content_src.save(
-                f"RH-THREAD-{thread_id}-COMMENT-{rh_comment.id}-user-{user_id}.txt",
-                comment_content_src_file,
+            celery_create_comment_content_src.apply_async(
+                (rh_comment.id, data.get("comment_content_json")), delay=5
             )
             return rh_comment, rh_comment_serializer.data
 
