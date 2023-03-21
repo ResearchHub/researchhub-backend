@@ -72,7 +72,13 @@ class RhCommentViewMixin:
     def _get_retrieve_context(self):
         context = {
             "rhc_dcs_get_created_by": {
-                "_include_fields": ("id", "author_profile", "editor_of")
+                "_include_fields": (
+                    "id",
+                    "author_profile",
+                    "first_name",
+                    "last_name",
+                    "editor_of",
+                )
             },
             "usr_dus_get_author_profile": {
                 "_include_fields": (

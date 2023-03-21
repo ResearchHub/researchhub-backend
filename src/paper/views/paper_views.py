@@ -211,6 +211,8 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 "_include_fields": [
                     "id",
                     "author_profile",
+                    "first_name",
+                    "last_name",
                 ]
             },
             "usr_dus_get_author_profile": {
