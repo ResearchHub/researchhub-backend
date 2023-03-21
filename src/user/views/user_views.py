@@ -992,9 +992,11 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     "file",
                 ]
             },
+            "pap_dps_get_hubs": {"_include_fields": ("id", "slug", "name", "")},
             "usr_dus_get_author_profile": {
                 "_include_fields": ["id", "first_name", "last_name", "profile_image"]
             },
+            "usr_dus_get_editor_of": {"_exclude_fields": "__all__"},
             "doc_duds_get_hubs": {
                 "_include_fields": [
                     "id",
