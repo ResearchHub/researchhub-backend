@@ -106,7 +106,7 @@ class RhCommentViewMixin:
         rh_comment, serializer_data = RhCommentModel.create_from_data(comment_data)
         context = self._get_retrieve_context()
         user_serializer = DynamicUserSerializer(
-            user, _include_fields=("id", "author_profile"), context=context
+            user, _include_fields=("id", "author_profile", "editor_of"), context=context
         )
         serializer_data["created_by"] = user_serializer.data
         return Response(serializer_data, status=200)
