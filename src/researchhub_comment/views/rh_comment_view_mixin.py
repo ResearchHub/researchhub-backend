@@ -13,7 +13,7 @@ from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
 from researchhub_comment.serializers import (
-    DynamicRHCommentSerializer,
+    DynamicRhCommentSerializer,
     RhCommentSerializer,
     RhCommentThreadSerializer,
 )
@@ -66,7 +66,7 @@ class RhCommentViewMixin:
     def get_serializer_class(self):
         if self.action == "create_rh_comment":
             return super().get_serializer_class()
-        return DynamicRHCommentSerializer
+        return DynamicRhCommentSerializer
 
     def _get_retrieve_context(self):
         context = {

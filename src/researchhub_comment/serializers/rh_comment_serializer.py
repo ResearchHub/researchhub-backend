@@ -36,17 +36,21 @@ class RhCommentSerializer(GenericReactionSerializer):
 
 
 # TODO: Does generic reaction serializer mixin work?
-class DynamicRHCommentSerializer(
+class DynamicRhCommentSerializer(
     GenericReactionSerializerMixin, DynamicModelFieldSerializer
 ):
     created_by = SerializerMethodField()
     thread = SerializerMethodField()
+    children = SerializerMethodField()
 
     class Meta:
         fields = "__all__"
         model = RhCommentModel
 
     def get_created_by(self, comment):
+        import pdb
+
+        pdb.set_trace()
         context = self.context
         _context_fields = context.get("rhc_dcs_get_created_by", {})
         serializer = DynamicUserSerializer(
@@ -55,11 +59,27 @@ class DynamicRHCommentSerializer(
         return serializer.data
 
     def get_thread(self, comment):
-        from researchhub_comment.serializers import DynamicRHThreadSerializer
+        from researchhub_comment.serializers import DynamicRhThreadSerializer
 
         context = self.context
         _context_fields = context.get("rhc_dcs_get_thread", {})
-        serializer = DynamicRHThreadSerializer(
+        serializer = DynamicRhThreadSerializer(
             comment.thread, context=context, **_context_fields
         )
         return serializer.data
+
+    def get_children(self, comment):
+        context = self.context
+        _context_fields = context.get("rhc_dcs_get_children", {})
+        serializer = DynamicRhCommentSerializer(
+            comment.children, many=True, context=context, **_context_fields
+        )
+        return serializer.data
+
+
+"""
+from researchhub_comment.serializers import DynamicRhCommentSerializer
+
+x = DynamicRhCommentSerializer(RhCommentModel.objects.last(), _include_fields=("id", "created_by"), context={"rhc_dcs_get_created_by": {"_include_fields":("id",)}})
+x.data
+"""

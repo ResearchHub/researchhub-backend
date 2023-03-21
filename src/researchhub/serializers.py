@@ -3,6 +3,10 @@ import rest_framework.serializers as serializers
 
 class DynamicModelFieldSerializer(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):
+        print("---------!!!!!!!!!!---------")
+        import pdb
+
+        pdb.set_trace()
         # Don't pass the '_include_fields' arg up to the superclass
         _include_fields = kwargs.pop("_include_fields", "__all__")
         # Don't pass the '_exclude_fields' arg up to the superclass
@@ -11,6 +15,11 @@ class DynamicModelFieldSerializer(serializers.ModelSerializer):
         _filter_fields = kwargs.pop("_filter_fields", None)
 
         super(DynamicModelFieldSerializer, self).__init__(*args, **kwargs)
+
+        # instance_class_name = self.instance.__class__.__name__
+        # if instance_class_name == "RelatedManager" or instance_class_name == "ManyRelatedManager":
+        #     if _include_fields == "__all__":
+        #         pass
 
         if _include_fields is not None and _include_fields != "__all__":
             # Drop any fields that are not specified in the

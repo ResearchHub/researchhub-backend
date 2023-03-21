@@ -26,7 +26,7 @@ class RhCommentThreadSerializer(ModelSerializer):
         ).data
 
 
-class DynamicRHThreadSerializer(DynamicModelFieldSerializer):
+class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
     comments = SerializerMethodField()
 
     class Meta:
@@ -34,12 +34,12 @@ class DynamicRHThreadSerializer(DynamicModelFieldSerializer):
         model = RhCommentThreadModel
 
     def get_comments(self, thread):
-        from researchhub_comment.serializers import DynamicRHCommentSerializer
+        from researchhub_comment.serializers import DynamicRhCommentSerializer
 
         context = self.context
         _context_fields = context.get("rhc_dts_get_comments", {})
         _filter_fields = _context_fields.get("_filter_fields", {})
-        serializer = DynamicRHCommentSerializer(
+        serializer = DynamicRhCommentSerializer(
             thread.rh_comments.filter(**_filter_fields),
             many=True,
             context=context,
