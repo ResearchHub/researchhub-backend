@@ -11,6 +11,7 @@ from user.serializers import DynamicOrganizationSerializer, DynamicUserSerialize
 class CitationSerializer(ModelSerializer):
     checksum = serializers.ReadOnlyField()
     fields = serializers.JSONField()
+    required_fields = SerializerMethodField(read_only=True)
 
     class Meta:
         model = CitationEntry
@@ -24,6 +25,14 @@ class CitationSerializer(ModelSerializer):
         schema = generate_schema_for_citation(citation_type)
         validate(data, schema=schema)
         return data
+
+    def get_required_fields(self, citation):
+        return (
+            generate_schema_for_citation(citation_type=citation.citation_type).get(
+                "required"
+            )
+            or []
+        )
 
 
 class DynamicCitationSerializer(DynamicModelFieldSerializer):
