@@ -16,9 +16,14 @@ class CitationViewSet(ModelViewSet):
 
     def create(self, request):
         data = request.data
-        user = request.user
-        data["created_by"] = user.id
+        data["created_by"] = request.user.id
         res = super().create(request)
+        return res
+
+    def update(self, request):
+        data = request.data
+        data["updated_by"] = request.user.id
+        res = super().update(request)
         return res
 
     def list(self, request):
