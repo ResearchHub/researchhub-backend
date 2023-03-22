@@ -41,6 +41,7 @@ class DynamicRhCommentSerializer(
 ):
     created_by = SerializerMethodField()
     thread = SerializerMethodField()
+    children_count = SerializerMethodField()
     children = SerializerMethodField()
 
     class Meta:
@@ -65,9 +66,22 @@ class DynamicRhCommentSerializer(
         )
         return serializer.data
 
+    def get_children_count(self, comment):
+        return comment.children.count()
+
     def get_children(self, comment):
         context = self.context
         _context_fields = context.get("rhc_dcs_get_children", {})
+        depth = context.get("rhc_dcs_get_children_depth", None)
+        max_depth = context.get("rhc_dcs_get_children_max_depth", 3)
+
+        if not depth:
+            depth = 0
+            context["rhc_dcs_get_children_depth"] = depth
+        if depth > max_depth:
+            return []
+
+        context["rhc_dcs_get_children_depth"] += 1
         serializer = DynamicRhCommentSerializer(
             comment.children, many=True, context=context, **_context_fields
         )

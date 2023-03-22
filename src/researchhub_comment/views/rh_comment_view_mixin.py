@@ -80,6 +80,12 @@ class RhCommentViewMixin:
                     "editor_of",
                 )
             },
+            "rhc_dcs_get_children": {
+                "_exclude_fields": (
+                    "thread",
+                    "comment_content_src",
+                )
+            },
             "usr_dus_get_author_profile": {
                 "_include_fields": (
                     "id",
@@ -102,14 +108,16 @@ class RhCommentViewMixin:
     def create_rh_comment(self, request, *args, **kwargs):
         data = request.data
         user = request.user
-        rh_thread = self._retrieve_or_create_thread_from_request(request)
-        comment_data = {
-            **data,
-            "created_by": user.id,
-            "updated_by": user.id,
-            "thread": rh_thread.id,
-        }
-        rh_comment, serializer_data = RhCommentModel.create_from_data(comment_data)
+        rh_thread, parent_id = self._retrieve_or_create_thread_from_request(request)
+        data.update(
+            {
+                "created_by": user.id,
+                "updated_by": user.id,
+                "thread": rh_thread.id,
+                "parent": parent_id,
+            }
+        )
+        rh_comment, serializer_data = RhCommentModel.create_from_data(data)
         context = self._get_retrieve_context()
         user_serializer = DynamicUserSerializer(
             user, _include_fields=("id", "author_profile", "editor_of"), context=context
@@ -134,6 +142,16 @@ class RhCommentViewMixin:
         serializer = self.get_serializer(
             page,
             many=True,
+            context=context,
+            _exclude_fields=("thread", "comment_content_src"),
+        )
+        return Response(serializer.data)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        context = self._get_retrieve_context()
+        serializer = self.get_serializer(
+            instance,
             context=context,
             _exclude_fields=("thread", "comment_content_src"),
         )
@@ -190,11 +208,15 @@ class RhCommentViewMixin:
         try:
             thread_id = data.get("thread_id", None)
             if thread_id is not None:
-                return RhCommentThreadModel.objects.get(id=thread_id)
+                thread = RhCommentThreadModel.objects.get(id=thread_id)
+                parent = thread.rh_comments.first()
+                return thread, parent.id
             else:
-                existing_thread = self._get_existing_thread_from_request(request)
+                existing_thread, parent_id = self._get_existing_thread_from_request(
+                    request
+                )
                 if existing_thread is not None:
-                    return existing_thread
+                    return existing_thread, parent_id
                 else:
                     thread_target_instance = self._get_model_object()
                     serializer = RhCommentThreadSerializer(
@@ -211,7 +233,7 @@ class RhCommentViewMixin:
                     )
                     serializer.is_valid(raise_exception=True)
                     instance = serializer.save()
-                    return instance
+                    return instance, None
 
         except Exception as error:
             raise Exception(f"Failed to create / retrieve rh_thread: {error}")
@@ -223,5 +245,5 @@ class RhCommentViewMixin:
         if parent_id:
             parent_comment = get_object_or_404(RhCommentModel, pk=parent_id)
             thread = parent_comment.thread
-            return thread
-        return None
+            return thread, parent_comment.id
+        return None, None
