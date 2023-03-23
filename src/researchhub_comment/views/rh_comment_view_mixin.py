@@ -44,6 +44,11 @@ class RhCommentViewMixin:
         model_object = model.objects.get(id=model_object_id)
         return model_object
 
+    def _get_model_object_threads(self):
+        model_object = self._get_model_object()
+        thread_queryset = model_object.rh_threads.all()
+        return thread_queryset
+
     def get_queryset(self):
         """
         Taken from DRF source code
@@ -54,8 +59,7 @@ class RhCommentViewMixin:
         )
 
         # Custom logic start
-        model_object = self._get_model_object()
-        thread_queryset = model_object.rh_threads.values_list("id")
+        thread_queryset = self._get_model_object_threads().values_list("id")
         queryset = RhCommentModel.objects.filter(thread__in=thread_queryset)
         # Custom logic end
 
@@ -208,7 +212,7 @@ class RhCommentViewMixin:
         try:
             thread_id = data.get("thread_id", None)
             if thread_id is not None:
-                thread = RhCommentThreadModel.objects.get(id=thread_id)
+                thread = self._get_model_object_threads().get(id=thread_id)
                 parent = thread.rh_comments.first()
                 return thread, parent.id
             else:
@@ -243,7 +247,7 @@ class RhCommentViewMixin:
         parent_id = data.get("parent_id", None)
 
         if parent_id:
-            parent_comment = get_object_or_404(RhCommentModel, pk=parent_id)
+            parent_comment = get_object_or_404(self.get_queryset(), pk=parent_id)
             thread = parent_comment.thread
             return thread, parent_comment.id
         return None, None
