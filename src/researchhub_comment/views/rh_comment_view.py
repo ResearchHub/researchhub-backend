@@ -1,6 +1,6 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
-from rest_framework.pagination import CursorPagination
+from rest_framework.pagination import CursorPagination, PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -18,11 +18,17 @@ class CursorSetPagination(CursorPagination):
     ordering = "-created_date"
 
 
+class CommentPagination(PageNumberPagination):
+    max_page_size = 20
+    page_size = 20
+
+
 class RhCommentViewSet(ReactionViewActionMixin, RhCommentViewMixin, ModelViewSet):
     queryset = RhCommentModel.objects.all()
     serializer_class = RhCommentSerializer
     filter_backends = (DjangoFilterBackend,)
     filter_class = RHCommentFilter
+    pagination_class = CommentPagination
     permission_classes = [
         # IsAuthenticatedOrReadOnly,
         AllowAny,  # TODO: calvinhlee replace with above permissions
