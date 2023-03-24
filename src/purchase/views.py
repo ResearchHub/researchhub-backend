@@ -7,6 +7,7 @@ import stripe
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db import transaction
+from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -109,7 +110,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, CreateOrReadOnly]
     pagination_class = PageNumberPagination
     throttle_classes = THROTTLE_CLASSES
-    ALLOWED_CONTENT_TYPES = ["comment", "reply", "thread", "paper", "researchhubpost"]
+    ALLOWED_CONTENT_TYPES = ("rhcommentmodel", "paper", "researchhubpost")
 
     @track_event
     def create(self, request):
@@ -136,11 +137,12 @@ class PurchaseViewSet(viewsets.ModelViewSet):
 
         content_type = ContentType.objects.get(model=content_type_str)
         with transaction.atomic():
+            model_class = content_type.model_class()
+            item = get_object_or_404(model_class, pk=object_id)
             if purchase_method == Purchase.ON_CHAIN:
                 purchase = Purchase.objects.create(
                     user=user,
-                    content_type=content_type,
-                    object_id=object_id,
+                    item=item,
                     purchase_method=purchase_method,
                     purchase_type=purchase_type,
                     amount=amount,
@@ -152,8 +154,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
 
                 purchase = Purchase.objects.create(
                     user=user,
-                    content_type=content_type,
-                    object_id=object_id,
+                    item=item,
                     purchase_method=purchase_method,
                     purchase_type=purchase_type,
                     amount=amount,
@@ -197,21 +198,11 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                     document_type=["all", "paper"],
                     filters=[HOT],
                 )
-            elif content_type_str == "thread":
+            elif content_type_str == "rhcommentmodel":
                 transfer_rsc = True
                 recipient = item.created_by
                 unified_doc = item.unified_document
                 notification_type = Notification.RSC_SUPPORT_ON_DIS
-            elif content_type_str == "comment":
-                transfer_rsc = True
-                unified_doc = item.unified_document
-                notification_type = Notification.RSC_SUPPORT_ON_DIS
-                recipient = item.created_by
-            elif content_type_str == "reply":
-                transfer_rsc = True
-                unified_doc = item.unified_document
-                notification_type = Notification.RSC_SUPPORT_ON_DIS
-                recipient = item.created_by
             elif content_type_str == "summary":
                 transfer_rsc = True
                 recipient = item.proposed_by

@@ -33,7 +33,7 @@ class SoftDeletableManagerMixin:
         if hasattr(self, "_hints"):
             kwargs["hints"] = self._hints
 
-        return self._queryset_class(**kwargs).filter(is_removed=False, is_public=True)
+        return self._queryset_class(**kwargs).filter(is_removed=False)
 
 
 class SoftDeletableManager(SoftDeletableManagerMixin, models.Manager):

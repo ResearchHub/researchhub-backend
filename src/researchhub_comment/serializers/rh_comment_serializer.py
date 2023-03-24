@@ -1,10 +1,10 @@
-from rest_framework.serializers import IntegerField, SerializerMethodField
+from rest_framework.serializers import SerializerMethodField
 
 from discussion.reaction_serializers import (
     GenericReactionSerializer,
     GenericReactionSerializerMixin,
 )
-from discussion.serializers import GenericReactionSerializerMixin
+from purchase.serializers import DynamicPurchaseSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.serializers.constants.rh_comment_serializer_contants import (
@@ -43,6 +43,7 @@ class DynamicRhCommentSerializer(
     thread = SerializerMethodField()
     children_count = SerializerMethodField()
     children = SerializerMethodField()
+    purchases = SerializerMethodField()
 
     class Meta:
         fields = "__all__"
@@ -90,6 +91,14 @@ class DynamicRhCommentSerializer(
             many=True,
             context=context,
             **_context_fields
+        )
+        return serializer.data
+
+    def get_purchases(self, comment):
+        context = self.context
+        _context_fields = context.get("rhc_dcs_get_purchases", {})
+        serializer = DynamicPurchaseSerializer(
+            comment.purchases, many=True, context=context, **_context_fields
         )
         return serializer.data
 

@@ -110,6 +110,7 @@ class RhCommentViewMixin:
                     "comment_content_src",
                 )
             },
+            "rhc_dcs_get_purchases": {"_include_fields": ("amount", "user")},
             "usr_dus_get_author_profile": {
                 "_include_fields": (
                     "id",
@@ -123,6 +124,9 @@ class RhCommentViewMixin:
             "usr_dus_get_editor_of": {"_include_fields": ("source",)},
             "rag_dps_get_source": {
                 "_include_fields": ("id", "name", "hub_image", "slug")
+            },
+            "pch_dps_get_user": {
+                "_include_fields": ("id", "author_profile", "first_name", "last_name")
             },
         }
         return context

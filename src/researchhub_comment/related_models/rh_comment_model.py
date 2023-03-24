@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.fields import GenericRelation
 from django.db import transaction
 from django.db.models import (
     CASCADE,
@@ -12,6 +13,7 @@ from django.db.models import (
 )
 
 from discussion.reaction_models import AbstractGenericReactionModel
+from purchase.models import Purchase
 from researchhub_comment.constants.rh_comment_content_types import (
     QUILL_EDITOR,
     RH_COMMENT_CONTENT_TYPES,
@@ -65,6 +67,12 @@ class RhCommentModel(
         db_index=True,
         on_delete=CASCADE,
         related_name="rh_comments",
+    )
+    purchases = GenericRelation(
+        Purchase,
+        object_id_field="object_id",
+        content_type_field="content_type",
+        related_query_name="rh_comments",
     )
 
     # legacy_migration
