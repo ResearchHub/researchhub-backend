@@ -71,6 +71,9 @@ class DynamicRhCommentSerializer(
 
     def get_children(self, comment):
         context = self.context
+        # If the view key does not exist, ensure VIEWSET.get_serializer_context()
+        # is called to properly to create the serializer context
+        view = context["view"]
         _context_fields = context.get("rhc_dcs_get_children", {})
         depth = context.get("rhc_dcs_get_children_depth", None)
         max_depth = context.get("rhc_dcs_get_children_max_depth", 3)
@@ -83,7 +86,10 @@ class DynamicRhCommentSerializer(
 
         context["rhc_dcs_get_children_depth"] += 1
         serializer = DynamicRhCommentSerializer(
-            comment.children, many=True, context=context, **_context_fields
+            view.paginate_queryset(view.filter_queryset(comment.children)),
+            many=True,
+            context=context,
+            **_context_fields
         )
         return serializer.data
 

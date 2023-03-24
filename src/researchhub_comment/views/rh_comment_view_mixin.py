@@ -22,6 +22,9 @@ from user.serializers import DynamicUserSerializer
 
 class RhCommentViewMixin:
     _ALLOWED_MODEL_NAMES = ("paper", "researchhub_post", "hypothesis", "citation")
+    _ALLOWED_UPDATE_FIELDS = set(
+        ["comment_content_type", "comment_content_json", "context_title"]
+    )
     _MODEL_NAME_MAPPINGS = {
         "paper": ContentType.objects.get(model="paper"),
         "researchhub_post": ContentType.objects.get(model="researchhubpost"),
@@ -68,13 +71,30 @@ class RhCommentViewMixin:
             queryset = queryset.all()
         return queryset
 
+    def get_serializer(self, *args, **kwargs):
+        """
+        Taken from DRF source code
+        """
+        serializer_class = self.get_serializer_class()
+        kwargs.setdefault("context", self.get_serializer_context())
+        # Custom logic start
+        is_dynamic = serializer_class == DynamicRhCommentSerializer
+        if is_dynamic and (
+            "_include_fields" not in kwargs and "_exclude_fields" not in kwargs
+        ):
+            kwargs.setdefault("_exclude_fields", "__all__")
+        # Custom logic end
+        return serializer_class(*args, **kwargs)
+
     def get_serializer_class(self):
-        if self.action == "create_rh_comment":
+        if self.action in ("create_rh_comment", "partial_update"):
             return super().get_serializer_class()
         return DynamicRhCommentSerializer
 
     def _get_retrieve_context(self):
+        context = self.get_serializer_context()
         context = {
+            **context,
             "rhc_dcs_get_created_by": {
                 "_include_fields": (
                     "id",
@@ -130,7 +150,7 @@ class RhCommentViewMixin:
         return Response(serializer_data, status=200)
 
     def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
+        queryset = self.filter_queryset(self.get_queryset().filter(parent__isnull=True))
 
         page = self.paginate_queryset(queryset)
         context = self._get_retrieve_context()

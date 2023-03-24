@@ -19,6 +19,7 @@ class CursorSetPagination(CursorPagination):
 
 
 class CommentPagination(PageNumberPagination):
+    page_size_query_param = "page_size"
     max_page_size = 20
     page_size = 20
 
@@ -37,5 +38,29 @@ class RhCommentViewSet(ReactionViewActionMixin, RhCommentViewMixin, ModelViewSet
     def create(self, request, *args, **kwargs):
         return Response(
             "Directly creating RhComment with view is prohibited. Use /rh_comment_thread/create_comment",
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    def update(self, request, *args, **kwargs):
+        if request.method == "PUT":
+            return Response(
+                "PUT is not allowed",
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        data = request.data
+
+        # This prevents users from changing important fields, e.g., parent or id
+        disallowed_keys = set(data.keys()) - self._ALLOWED_UPDATE_FIELDS
+        for key in disallowed_keys:
+            data.pop(key)
+        return super().update(request, *args, **kwargs)
+
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        instance.update_comment_content()
+
+    def destroy(self, request, *args, **kwargs):
+        return Response(
+            "Deletion is not allowed",
             status=status.HTTP_400_BAD_REQUEST,
         )

@@ -29,6 +29,3 @@ class RhCommentThreadViewSet(ModelViewSet):
             "Directly creating RhCommentThread with view is prohibited. Use /create_comment",
             status=status.HTTP_400_BAD_REQUEST,
         )
-
-    def get_filtered_queryset(self):
-        return self.filter_queryset(self.get_queryset())

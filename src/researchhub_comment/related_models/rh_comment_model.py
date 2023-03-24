@@ -103,6 +103,11 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
 
     """ --- METHODS --- """
 
+    def update_comment_content(self):
+        celery_create_comment_content_src.apply_async(
+            (self.id, self.comment_content_json), delay=5
+        )
+
     @classmethod
     def create_from_data(cls, data):
         from researchhub_comment.serializers import RhCommentSerializer
@@ -115,11 +120,3 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
                 (rh_comment.id, data.get("comment_content_json")), delay=5
             )
             return rh_comment, rh_comment_serializer.data
-
-    @staticmethod
-    def get_comment_src_file_from_data(data):
-        comment_content = data.get("comment_content_json")
-        comment_content_src_file = ContentFile(
-            json.dumps(comment_content).encode("utf8")
-        )
-        return comment_content_src_file
