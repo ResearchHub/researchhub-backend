@@ -13,7 +13,7 @@ class SoftDeletableQuerySetMixin:
         """Soft delete objects from queryset (set their `is_removed`
         field to True)
         """
-        self.update(is_removed=True)
+        self.update(is_removed=True, is_public=False)
 
 
 class SoftDeletableQuerySet(SoftDeletableQuerySetMixin, QuerySet):
@@ -24,15 +24,16 @@ class SoftDeletableManagerMixin:
     """Manager that limits the queryset by default to show only not removed
     instances of model.
     """
+
     _queryset_class = SoftDeletableQuerySet
 
     def get_queryset(self):
         """Return queryset limited to not deleted entries."""
-        kwargs = {'model': self.model, 'using': self._db}
-        if hasattr(self, '_hints'):
-            kwargs['hints'] = self._hints
+        kwargs = {"model": self.model, "using": self._db}
+        if hasattr(self, "_hints"):
+            kwargs["hints"] = self._hints
 
-        return self._queryset_class(**kwargs).filter(is_removed=False)
+        return self._queryset_class(**kwargs).filter(is_removed=False, is_public=True)
 
 
 class SoftDeletableManager(SoftDeletableManagerMixin, models.Manager):

@@ -26,6 +26,7 @@ from researchhub_document.related_models.constants.filters import (
     UPVOTED,
 )
 from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
+from utils.models import SoftDeletableModel
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.sentry import log_error
 from utils.siftscience import decisions_api, events_api, update_user_risk_score
@@ -130,10 +131,14 @@ class ReactionViewActionMixin:
                 content_creator, content_id, "MANUAL_REVIEW", user
             )
 
+            if isinstance(item, SoftDeletableModel):
+                item.delete(soft=True)
+            else:
+                item.unified_document.delete(soft=True)
+
             try:
-                if item.review:
-                    item.review.is_removed = True
-                    item.review.save()
+                if review := getattr(item, "review", None):
+                    review.delete(soft=True)
 
                 doc = item.unified_document
                 if doc.bounties.exists():

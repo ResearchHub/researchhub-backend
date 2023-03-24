@@ -1,6 +1,3 @@
-import json
-
-from django.core.files.base import ContentFile
 from django.db import transaction
 from django.db.models import (
     CASCADE,
@@ -20,17 +17,18 @@ from researchhub_comment.constants.rh_comment_content_types import (
     RH_COMMENT_CONTENT_TYPES,
 )
 from researchhub_comment.constants.rh_comment_migration_legacy_types import (
-    LEGACY_COMMENT,
     RH_COMMENT_MIGRATION_LEGACY_TYPES,
 )
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
 from researchhub_comment.tasks import celery_create_comment_content_src
-from utils.models import DefaultAuthenticatedModel
+from utils.models import DefaultAuthenticatedModel, SoftDeletableModel
 
 
-class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
+class RhCommentModel(
+    AbstractGenericReactionModel, SoftDeletableModel, DefaultAuthenticatedModel
+):
     """--- MODEL FIELDS ---"""
 
     context_title = TextField(
@@ -55,8 +53,6 @@ class RhCommentModel(AbstractGenericReactionModel, DefaultAuthenticatedModel):
         max_length=144,
     )
     is_accepted_answer = BooleanField(null=True)
-    is_removed = BooleanField(default=False)
-    is_public = BooleanField(default=False)
     parent = ForeignKey(
         "self",
         blank=True,
