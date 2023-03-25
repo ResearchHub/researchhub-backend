@@ -112,6 +112,18 @@ class RhCommentModel(
             (self.id, self.comment_content_json), delay=5
         )
 
+    def _update_related_discussion_count(self, amount):
+        related_document = self.unified_document.get_document()
+        if hasattr(related_document, "discussion_count"):
+            related_document.discussion_count += amount
+            related_document.save()
+
+    def increment_discussion_count(self):
+        self._update_related_discussion_count(1)
+
+    def decrement_discussion_count(self):
+        self._update_related_discussion_count(-1)
+
     @classmethod
     def create_from_data(cls, data):
         from researchhub_comment.serializers import RhCommentSerializer
@@ -123,4 +135,5 @@ class RhCommentModel(
             celery_create_comment_content_src.apply_async(
                 (rh_comment.id, data.get("comment_content_json")), delay=5
             )
+            rh_comment.increment_discussion_count()
             return rh_comment, rh_comment_serializer.data

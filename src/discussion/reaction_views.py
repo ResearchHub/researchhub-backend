@@ -140,6 +140,9 @@ class ReactionViewActionMixin:
                 if review := getattr(item, "review", None):
                     review.delete(soft=True)
 
+                if hasattr(item, "decrement_discussion_count"):
+                    item.decrement_discussion_count()
+
                 doc = item.unified_document
                 if doc.bounties.exists():
                     for bounty in doc.bounties.iterator():
