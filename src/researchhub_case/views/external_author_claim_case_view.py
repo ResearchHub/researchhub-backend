@@ -2,10 +2,12 @@ import json
 
 from boto3.session import Session
 from django_filters.rest_framework import DjangoFilterBackend
+from re import match
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
+from urllib.parse import urlparse, parse_qs
 
 from researchhub.settings import (
     AWS_ACCESS_KEY_ID,
@@ -20,11 +22,11 @@ from researchhub_case.serializers import (
     ExternalAuthorClaimCaseSerializer,
 )
 from rh_scholarly.lambda_handler import SEARCH_FOR_AUTHORS
+from rh_scholarly.lambda_handler import AUTHOR_PROFILE_LOOKUP
 from user.models import Action, User
 from user.permissions import IsModerator
 from utils.http import POST
 from utils.permissions import CreateOnly
-
 
 class ExternalAuthorClaimCaseViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated & (CreateOnly | IsModerator)]
@@ -74,27 +76,53 @@ class ExternalAuthorClaimCaseViewSet(ModelViewSet):
         detail=False,
         methods=[POST],
     )
-    def search_scholarly_by_name(self, request):
+    def search_scholarly_profiles(self, request):
+        """
+        This action requires one query arg called `query`, which is interpreted
+        based on its form, to determine what kind of search to run against
+        Scholarly. If `query` parses as a user ID or a Google Scholar URL
+        containing a user ID, try to retrieve a single profile. Otherwise,
+        do a text-based search using the contents of `query`. In all cases,
+        the result is a list of authors.
+        """
         data = request.data
-        lambda_body = {SEARCH_FOR_AUTHORS: [data.get("name", "")]}
-        data_bytes = json.dumps(lambda_body)
-        session = Session(
-            aws_access_key_id=AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-            region_name=AWS_S3_REGION_NAME,
-        )
-        lambda_client = session.client(
-            service_name="lambda", region_name=AWS_S3_REGION_NAME
-        )
-        response = lambda_client.invoke(
-            FunctionName=AWS_SCHOLARLY_LAMBDA,
-            InvocationType="RequestResponse",
-            Payload=data_bytes,
-        )
-        response_data = response.get("Payload", None)
-        if response_data:
-            response_data = json.loads(response_data.read())
-        return Response(response_data, status=200)
+        query = data.get("query", False)
+        lambda_body = None
+        if query:
+            # Looks like a profile id.
+            if match("^[a-zA-Z0-9]+$", query):
+                lambda_body = {AUTHOR_PROFILE_LOOKUP: [query]}
+            else:
+                parse_result = urlparse(query)
+                # Looks like a Google Scholar URL.
+                if parse_result.netloc == "scholar.google.com":
+                    query_args = parse_qs(parse_result.query)
+                    scholar_id = query_args.get('user', False)
+                    if scholar_id and match("^[a-zA-Z0-9]+$", scholar_id[0]):
+                        lambda_body = {AUTHOR_PROFILE_LOOKUP: [scholar_id[0]]}
+                # Otherwise, pass through to search.
+                else:
+                    lambda_body = {SEARCH_FOR_AUTHORS: [query]}
+        if lambda_body is not None:
+            data_bytes = json.dumps(lambda_body)
+            session = Session(
+                aws_access_key_id=AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+                region_name=AWS_S3_REGION_NAME,
+            )
+            lambda_client = session.client(
+                service_name="lambda", region_name=AWS_S3_REGION_NAME
+            )
+            response = lambda_client.invoke(
+                FunctionName=AWS_SCHOLARLY_LAMBDA,
+                InvocationType="RequestResponse",
+                Payload=data_bytes,
+            )
+            response_data = response.get("Payload", None)
+            if response_data:
+                response_data = json.loads(response_data.read())
+            return Response(response_data, status=200)
+        return Response("Missing param 'query'.", status=400)
 
     @action(
         detail=True, methods=[POST], permission_classes=[IsAuthenticated, IsModerator]

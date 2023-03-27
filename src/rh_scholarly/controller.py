@@ -19,8 +19,10 @@ def search_for_authors(name, start_index=0):
     return results
 
 
-def author_profile_lookup(scholarly_author_id):
+def author_profile_lookup(scholarly_author_id, fill="False"):
     setup_free_proxy()
     author = scholarly.search_author_id(scholarly_author_id)
-    results = scholarly.fill(author)
-    return results
+    if fill == "True":
+        return scholarly.fill(author)
+    else:
+        return author

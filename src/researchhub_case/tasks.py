@@ -75,7 +75,7 @@ def after_rejection_flow(
 
 @app.task(queue=QUEUE_AUTHOR_CLAIM)
 def celery_add_author_citations(author_profile_id, google_scholar_id):
-    lambda_body = {AUTHOR_PROFILE_LOOKUP: [google_scholar_id]}
+    lambda_body = {AUTHOR_PROFILE_LOOKUP: [google_scholar_id, "True"]}
     data_bytes = json.dumps(lambda_body)
     session = Session(
         aws_access_key_id=AWS_ACCESS_KEY_ID,
