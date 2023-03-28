@@ -1,5 +1,4 @@
 from django.contrib.contenttypes.fields import GenericRelation
-from django.db import transaction
 from django.db.models import (
     CASCADE,
     SET_NULL,
@@ -128,12 +127,11 @@ class RhCommentModel(
     def create_from_data(cls, data):
         from researchhub_comment.serializers import RhCommentSerializer
 
-        with transaction.atomic():
-            rh_comment_serializer = RhCommentSerializer(data=data)
-            rh_comment_serializer.is_valid(raise_exception=True)
-            rh_comment = rh_comment_serializer.save()
-            celery_create_comment_content_src.apply_async(
-                (rh_comment.id, data.get("comment_content_json")), delay=5
-            )
-            rh_comment.increment_discussion_count()
-            return rh_comment, rh_comment_serializer.data
+        rh_comment_serializer = RhCommentSerializer(data=data)
+        rh_comment_serializer.is_valid(raise_exception=True)
+        rh_comment = rh_comment_serializer.save()
+        celery_create_comment_content_src.apply_async(
+            (rh_comment.id, data.get("comment_content_json")), delay=5
+        )
+        rh_comment.increment_discussion_count()
+        return rh_comment, rh_comment_serializer.data

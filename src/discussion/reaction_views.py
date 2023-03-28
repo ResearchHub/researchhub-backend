@@ -141,6 +141,7 @@ class ReactionViewActionMixin:
                     review.delete(soft=True)
 
                 if hasattr(item, "decrement_discussion_count"):
+                    # TODO: Decrement if there are children?
                     item.decrement_discussion_count()
 
                 doc = item.unified_document
@@ -264,6 +265,11 @@ class ReactionViewActionMixin:
             "needs_score": True,
         }
 
+    def add_upvote(self, user, object):
+        vote = create_vote(user, object, Vote.UPVOTE)
+        return vote
+
+    # TODO: Delete
     def get_self_upvote_response(self, request, response, model):
         """Returns item in response data with upvote from creator and score."""
         item = model.objects.get(pk=response.data["id"])
@@ -362,8 +368,7 @@ def get_vote_response(vote, status_code):
 
 def create_vote(user, item, vote_type):
     """Returns a vote of `voted_type` on `item` `created_by` `user`."""
-    vote = Vote(created_by=user, item=item, vote_type=vote_type)
-    vote.save()
+    vote = Vote.objects.create(created_by=user, item=item, vote_type=vote_type)
     return vote
 
 

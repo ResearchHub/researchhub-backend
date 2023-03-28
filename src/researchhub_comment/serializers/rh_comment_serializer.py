@@ -26,7 +26,11 @@ class RhCommentSerializer(GenericReactionSerializer):
             *RH_COMMENT_READ_ONLY_FIELDS,
         ]
 
+    children_count = SerializerMethodField()
     children = SerializerMethodField()
+
+    def get_children_count(self, comment):
+        return comment.children.count()
 
     def get_children(self, rh_comment):
         return RhCommentSerializer(
@@ -37,7 +41,9 @@ class RhCommentSerializer(GenericReactionSerializer):
 
 # TODO: Does generic reaction serializer mixin work?
 class DynamicRhCommentSerializer(
-    GenericReactionSerializerMixin, DynamicModelFieldSerializer
+    GenericReactionSerializer,
+    GenericReactionSerializerMixin,
+    DynamicModelFieldSerializer,
 ):
     created_by = SerializerMethodField()
     thread = SerializerMethodField()

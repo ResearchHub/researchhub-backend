@@ -548,7 +548,7 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
         _context_fields = context.get("usr_dus_get_editor_of", {})
 
         hub_content_type = ContentType.objects.get_for_model(Hub)
-        permissions = user.permissions.filter(
+        permissions = user.permissions.prefetch_related("source").filter(
             access_type=EDITOR,
             content_type=hub_content_type,
         )

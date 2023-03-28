@@ -91,4 +91,4 @@ def sync_is_removed_from_paper(instance, **kwargs):
         #         unified_doc.score = score
         #         should_save = True
         #     if should_save:
-        unified_doc.save()
+        # unified_doc.save()
