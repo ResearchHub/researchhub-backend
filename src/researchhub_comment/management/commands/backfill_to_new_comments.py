@@ -102,6 +102,7 @@ class Command(BaseCommand):
                     created_date=thread.created_date,
                     legacy_id=thread.id,
                     legacy_model_type=LEGACY_THREAD,
+                    thread=belonging_thread,
                     updated_by=created_by,
                     is_removed=thread.is_removed,
                     is_public=thread.is_public,
