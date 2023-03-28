@@ -50,7 +50,7 @@ class Command(BaseCommand):
         )
 
     def _handle_threads(self):
-        existing_threads = RhCommentModel.objects.filter(
+        existing_threads = RhCommentModel.all_objects.filter(
             legacy_model_type=LEGACY_THREAD
         )
         existing_thread_ids = existing_threads.values_list("legacy_id")
@@ -89,7 +89,7 @@ class Command(BaseCommand):
                 belonging_thread = self._get_rh_thread(
                     document, created_by, discussion_post_type
                 )
-                migrated_thread_comment = RhCommentModel.objects.create(
+                migrated_thread_comment = RhCommentModel.all_objects.create(
                     comment_content_json=thread.text,
                     comment_content_type=QUILL_EDITOR,
                     context_title=thread.context_title,
@@ -120,7 +120,7 @@ class Command(BaseCommand):
                 print(f"thread id: {thread.id}: {e}")
 
     def _handle_comments(self):
-        existing_comments = RhCommentModel.objects.filter(
+        existing_comments = RhCommentModel.all_objects.filter(
             legacy_model_type=LEGACY_COMMENT
         )
         existing_comment_ids = existing_comments.values_list("legacy_id")
@@ -156,11 +156,11 @@ class Command(BaseCommand):
                 created_by = comment.created_by
                 document = comment.unified_document.get_document()
                 belonging_thread = self._get_rh_thread(document, created_by)
-                parent = RhCommentModel.objects.get(
+                parent = RhCommentModel.all_objects.get(
                     legacy_id=comment.thread.id,
                     legacy_model_type=LEGACY_THREAD,
                 )
-                migrated_comment = RhCommentModel.objects.create(
+                migrated_comment = RhCommentModel.all_objects.create(
                     comment_content_json=comment.text,
                     comment_content_type=QUILL_EDITOR,
                     created_by=created_by,
@@ -193,7 +193,7 @@ class Command(BaseCommand):
                 print(f"comment id: {comment.id}: {e}")
 
     def _handle_replies(self):
-        existing_replies = RhCommentModel.objects.filter(
+        existing_replies = RhCommentModel.all_objects.filter(
             legacy_model_type=LEGACY_COMMENT
         )
         existing_reply_ids = existing_replies.values_list("legacy_id")
@@ -229,11 +229,11 @@ class Command(BaseCommand):
                 created_by = reply.created_by
                 document = reply.unified_document.get_document()
                 belonging_thread = self._get_rh_thread(document, created_by)
-                parent = RhCommentModel.objects.get(
+                parent = RhCommentModel.all_objects.get(
                     legacy_id=reply.parent.id,
                     legacy_model_type=LEGACY_COMMENT,
                 )
-                migrated_reply = RhCommentModel.objects.create(
+                migrated_reply = RhCommentModel.all_objects.create(
                     comment_content_json=reply.text,
                     comment_content_type=QUILL_EDITOR,
                     created_by=created_by,
@@ -281,7 +281,7 @@ class Command(BaseCommand):
 
 # for thread in threads.iterator():
 #     try:
-#         rh_comment = RhCommentModel.objects.get(
+#         rh_comment = RhCommentModel.all_objects.get(
 #             legacy_id=thread.id,
 #             legacy_model_type=LEGACY_THREAD
 #         )
@@ -293,7 +293,7 @@ class Command(BaseCommand):
 
 # for comment in comments.iterator():
 #     try:
-#         rh_comment = RhCommentModel.objects.get(
+#         rh_comment = RhCommentModel.all_objects.get(
 #             legacy_id=comment.id,
 #             legacy_model_type=LEGACY_COMMENT
 #         )
@@ -305,7 +305,7 @@ class Command(BaseCommand):
 
 # for reply in replies.iterator():
 #     try:
-#         rh_comment = RhCommentModel.objects.get(
+#         rh_comment = RhCommentModel.all_objects.get(
 #             legacy_id=reply.id,
 #             legacy_model_type=LEGACY_REPLY
 #         )
