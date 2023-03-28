@@ -86,9 +86,14 @@ class Command(BaseCommand):
                 created_by = thread.created_by
                 document = thread.unified_document.get_document()
                 discussion_post_type = thread.discussion_post_type
-                belonging_thread = self._get_rh_thread(
-                    document, created_by, discussion_post_type
+                belonging_thread = RhCommentThreadModel.objects.create(
+                    content_type=ContentType.objects.get_for_model(document),
+                    created_by=created_by,
+                    object_id=document.id,
+                    updated_by=created_by,
+                    thread_type=discussion_post_type,
                 )
+
                 migrated_thread_comment = RhCommentModel.all_objects.create(
                     comment_content_json=thread.text,
                     comment_content_type=QUILL_EDITOR,
@@ -97,7 +102,6 @@ class Command(BaseCommand):
                     created_date=thread.created_date,
                     legacy_id=thread.id,
                     legacy_model_type=LEGACY_THREAD,
-                    thread=belonging_thread,
                     updated_by=created_by,
                     is_removed=thread.is_removed,
                     is_public=thread.is_public,
