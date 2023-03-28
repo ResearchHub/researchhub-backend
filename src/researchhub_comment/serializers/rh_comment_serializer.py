@@ -81,22 +81,23 @@ class DynamicRhCommentSerializer(
         # If the view key does not exist, ensure VIEWSET.get_serializer_context()
         # is called to properly to create the serializer context
         view = context["view"]
+        depth_key = f"rhc_dcs_get_children_{comment.thread.id}_depth"
         _context_fields = context.get("rhc_dcs_get_children", {})
-        depth = context.get("rhc_dcs_get_children_depth", None)
+        depth = context.get(depth_key, None)
         max_depth = context.get("rhc_dcs_get_children_max_depth", 3)
 
         if not depth:
-            depth = 0
-            context["rhc_dcs_get_children_depth"] = depth
-        if depth > max_depth:
+            depth = 1
+            context[depth_key] = depth
+        if depth >= max_depth:
             return []
 
-        context["rhc_dcs_get_children_depth"] += 1
+        context[depth_key] += 1
         serializer = DynamicRhCommentSerializer(
             view.paginate_queryset(view.filter_queryset(comment.children)),
             many=True,
             context=context,
-            **_context_fields
+            **_context_fields,
         )
         return serializer.data
 
