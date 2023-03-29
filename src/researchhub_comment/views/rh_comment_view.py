@@ -51,12 +51,13 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
     _ALLOWED_UPDATE_FIELDS = set(
         ["comment_content_type", "comment_content_json", "context_title"]
     )
-    _MODEL_NAME_MAPPINGS = {
-        "paper": ContentType.objects.get(model="paper"),
-        "researchhub_post": ContentType.objects.get(model="researchhubpost"),
-        "hypothesis": ContentType.objects.get(model="hypothesis"),
-        "citation": ContentType.objects.get(model="citation"),
-    }
+
+    def _get_content_type_model(self, model_name):
+        mappings = {
+            name: ContentType.objects.get(model=name)
+            for name in self._ALLOWED_MODEL_NAMES
+        }
+        return mappings[model_name]
 
     def _get_model_object(self):
         kwargs = self.kwargs
@@ -69,7 +70,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             and model_name in self._ALLOWED_MODEL_NAMES
         ), f"{model_name} is not an accepted model"
 
-        model = self._MODEL_NAME_MAPPINGS[model_name].model_class()
+        model = self._get_content_type_model(model_name).model_class()
         model_object = model.objects.get(id=model_object_id)
         return model_object
 
