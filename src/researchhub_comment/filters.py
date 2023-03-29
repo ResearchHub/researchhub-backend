@@ -47,6 +47,12 @@ class RHCommentFilter(filters.FilterSet):
         choices=ORDER_CHOICES,
         null_value=BEST,
         label="Ordering",
+        required=True,
+    )
+    child_count = filters.NumberFilter(
+        method="filter_child_count",
+        label="Child Comment Count",
+        required=True,
     )
     thread_type = filters.ChoiceFilter(
         choices=RH_COMMENT_THREAD_TYPES,
@@ -64,6 +70,14 @@ class RHCommentFilter(filters.FilterSet):
         model = RhCommentModel
         fields = ("ordering",)
 
+    def _is_on_child_queryset(self):
+        # This checks whether we are filtering on the comment's children
+        # because we don't want the related filters to be called
+        # on the base comments, only children
+        instance_class_name = self.queryset.__class__.__name__
+        if instance_class_name == "RelatedManager":
+            return True
+
     def ascending_or_descending(self, qs, name, value):
         if value == ASCENDING_FALSE:
             return qs.reverse()
@@ -77,7 +91,7 @@ class RHCommentFilter(filters.FilterSet):
                     Count("votes__id", filter=Q(votes__vote_type=Vote.UPVOTE))
                     - Count("votes__id", filter=Q(votes__vote_type=Vote.DOWNVOTE))
                 )
-            ).order_by("aggregate_score")
+            ).order_by("aggregate_score", "created_date")
         elif value == TOP:
             qs = qs.annotate(
                 aggregate_score=(
@@ -88,3 +102,10 @@ class RHCommentFilter(filters.FilterSet):
         elif value == CREATED_DATE:
             qs = qs.order_by("created_date")
         return qs
+
+    def filter_child_count(self, qs, name, value):
+        if not self._is_on_child_queryset():
+            return qs
+        offset = self.data.get("child_offset", 0)
+        count = offset + value
+        return qs[offset:count]
