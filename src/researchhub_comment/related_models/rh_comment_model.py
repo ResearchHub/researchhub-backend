@@ -6,6 +6,7 @@ from django.db.models import (
     CharField,
     FileField,
     ForeignKey,
+    IntegerField,
     JSONField,
     PositiveIntegerField,
     TextField,
@@ -67,6 +68,7 @@ class RhCommentModel(
         on_delete=CASCADE,
         related_name="rh_comments",
     )
+    score = IntegerField(default=0)
     purchases = GenericRelation(
         Purchase,
         object_id_field="object_id",

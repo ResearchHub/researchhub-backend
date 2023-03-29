@@ -86,19 +86,9 @@ class RHCommentFilter(filters.FilterSet):
     def ordering_filter(self, qs, name, value):
         if value == BEST:
             # TODO: Implement when bounty is merged in
-            qs = qs.annotate(
-                aggregate_score=(
-                    Count("votes__id", filter=Q(votes__vote_type=Vote.UPVOTE))
-                    - Count("votes__id", filter=Q(votes__vote_type=Vote.DOWNVOTE))
-                )
-            ).order_by("aggregate_score", "created_date")
+            qs = qs.order_by("score", "created_date")
         elif value == TOP:
-            qs = qs.annotate(
-                aggregate_score=(
-                    Count("votes__id", filter=Q(votes__vote_type=Vote.UPVOTE))
-                    - Count("votes__id", filter=Q(votes__vote_type=Vote.DOWNVOTE))
-                )
-            ).order_by("aggregate_score")
+            qs = qs.order_by("score")
         elif value == CREATED_DATE:
             qs = qs.order_by("created_date")
         return qs

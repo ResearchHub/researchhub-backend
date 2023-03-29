@@ -118,6 +118,8 @@ class GenericReactionSerializerMixin:
 
     def get_score(self, obj):
         try:
+            if hasattr(obj, "score"):
+                return obj.score
             return obj.calculate_score()
         except Exception as e:
             log_error(e)

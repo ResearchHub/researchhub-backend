@@ -76,6 +76,8 @@ class Command(BaseCommand):
 
                 connecting_thread = Thread.objects.get(id=existing_thread.legacy_id)
                 self._create_votes_for_discussion(connecting_thread, existing_thread)
+                existing_thread.score = existing_thread.calculate_score()
+                existing_thread.save()
             except Exception as e:
                 print(e)
 
@@ -121,6 +123,10 @@ class Command(BaseCommand):
                 )
 
                 self._create_votes_for_discussion(thread, migrated_thread_comment)
+                migrated_thread_comment.score = (
+                    migrated_thread_comment.calculate_score()
+                )
+                migrated_thread_comment.save()
             except Exception as e:
                 print(f"thread id: {thread.id}: {e}")
 
@@ -151,6 +157,8 @@ class Command(BaseCommand):
 
                 connecting_comment = Comment.objects.get(id=existing_comment.legacy_id)
                 self._create_votes_for_discussion(connecting_comment, existing_comment)
+                existing_comment.score = existing_comment.calculate_score()
+                existing_comment.save()
             except Exception as e:
                 print(e)
 
@@ -194,6 +202,8 @@ class Command(BaseCommand):
                 )
 
                 self._create_votes_for_discussion(comment, migrated_comment)
+                migrated_comment.score = migrated_comment.calculate_score()
+                migrated_comment.save()
             except Exception as e:
                 print(f"comment id: {comment.id}: {e}")
 
@@ -224,6 +234,8 @@ class Command(BaseCommand):
 
                 connecting_reply = Comment.objects.get(id=existing_reply.legacy_id)
                 self._create_votes_for_discussion(connecting_reply, existing_reply)
+                existing_reply.score = existing_reply.calculate_score()
+                existing_reply.save()
             except Exception as e:
                 print(e)
 
@@ -265,6 +277,8 @@ class Command(BaseCommand):
                 )
 
                 self._create_votes_for_discussion(reply, migrated_reply)
+                migrated_reply.score = migrated_reply.calculate_score()
+                migrated_reply.save()
             except Exception as e:
                 print(f"reply id: {reply.id}: {e}")
 
