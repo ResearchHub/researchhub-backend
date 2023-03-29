@@ -11,8 +11,8 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from analytics.amplitude import track_event
-from discussion.models import Vote
 from discussion.reaction_views import ReactionViewActionMixin
+from researchhub.pagination import FasterDjangoPaginator
 from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT
 from researchhub_comment.filters import RHCommentFilter
 from researchhub_comment.models import RhCommentModel
@@ -31,6 +31,7 @@ class CursorSetPagination(CursorPagination):
 
 
 class CommentPagination(PageNumberPagination):
+    django_paginator_class = FasterDjangoPaginator
     page_size_query_param = "page_size"
     max_page_size = 20
     page_size = 20
