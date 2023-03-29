@@ -106,6 +106,6 @@ class RHCommentFilter(filters.FilterSet):
     def filter_child_count(self, qs, name, value):
         if not self._is_on_child_queryset():
             return qs
-        offset = self.data.get("child_offset", 0)
+        offset = int(self.data.get("child_offset", 0))
         count = offset + value
         return qs[offset:count]
