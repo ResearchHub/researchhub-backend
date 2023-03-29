@@ -48,16 +48,20 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         AllowAny,  # TODO: calvinhlee replace with above permissions
     ]
     _ALLOWED_MODEL_NAMES = ("paper", "researchhub_post", "hypothesis", "citation")
+    _CONTENT_TYPE_MAPPINGS = {
+        "paper": "paper",
+        "researchhub_post": "researchhubpost",
+        "hypothesis": "hypothesis",
+        "citation": "citation",
+    }
     _ALLOWED_UPDATE_FIELDS = set(
         ["comment_content_type", "comment_content_json", "context_title"]
     )
 
     def _get_content_type_model(self, model_name):
-        mappings = {
-            name: ContentType.objects.get(model=name)
-            for name in self._ALLOWED_MODEL_NAMES
-        }
-        return mappings[model_name]
+        key = self._CONTENT_TYPE_MAPPINGS[model_name]
+        content_type = ContentType.objects.get(model=key)
+        return content_type
 
     def _get_model_object(self):
         kwargs = self.kwargs

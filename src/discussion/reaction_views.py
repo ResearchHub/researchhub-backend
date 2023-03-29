@@ -415,12 +415,11 @@ def update_or_create_vote(request, user, item, vote_type):
     # if isinstance(potential_paper, Paper):
     #     potential_paper.reset_cache()
 
-    if hasattr(item, "score"):
-        if vote_type == Vote.UPVOTE:
-            item.score += 1
-        elif vote_type == Vote.DOWNVOTE:
-            item.score -= 1
-        item.save()
+    if vote_type == Vote.UPVOTE:
+        item.score += 1
+    elif vote_type == Vote.DOWNVOTE:
+        item.score -= 1
+    item.save()
 
     app_label = item._meta.app_label
     model = item._meta.model.__name__.lower()

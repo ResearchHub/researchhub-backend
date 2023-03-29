@@ -114,16 +114,13 @@ class AbstractGenericReactionModel(DefaultModel):
     endorsements = GenericRelation(Endorsement)
     flags = GenericRelation(Flag)
     votes = GenericRelation(Vote)
+    score = IntegerField(default=0)
 
     class Meta:
         abstract = True
 
     @property
     def score_indexing(self):
-        return self.calculate_score()
-
-    @property
-    def score(self):
         return self.calculate_score()
 
     def calculate_score(self):

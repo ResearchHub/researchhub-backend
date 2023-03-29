@@ -144,6 +144,7 @@ def create_action(sender, instance, created, **kwargs):
 
 
 def send_discussion_email_notification(instance, sender, action):
+    return
     if sender != RhCommentModel:
         return
 

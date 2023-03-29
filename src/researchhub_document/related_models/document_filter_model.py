@@ -210,37 +210,35 @@ class DocumentFilter(DefaultModel):
         ).get("total", 0)
 
     def get_discussued(self, document, start_date, end_date):
-        threads = document.threads
-        thread_filter = Q(
-            created_date__gte=start_date,
-            created_date__lt=end_date,
-            is_removed=False,
-            created_by__isnull=False,
-        )
-        comment_filter = Q(
-            comments__created_date__gte=start_date,
-            comments__created_date__lt=end_date,
-            comments__is_removed=False,
-            comments__created_by__isnull=False,
-        )
-        reply_filter = Q(
-            comments__replies__created_date__gte=start_date,
-            comments__replies__created_date__lt=end_date,
-            comments__replies__is_removed=False,
-            comments__replies__created_by__isnull=False,
-        )
-        thread_ct = threads.filter(thread_filter).count()
-        comment_ct = (
-            threads.annotate(comments_ct=Count("comments", filter=comment_filter))
-            .aggregate(ct=Coalesce(Sum("comments_ct"), 0))
-            .get("ct", 0)
-        )
-        replies_ct = (
-            threads.annotate(replies_ct=Count("comments__replies", filter=reply_filter))
-            .aggregate(ct=Coalesce(Sum("replies_ct"), 0))
-            .get("ct", 0)
-        )
-        return thread_ct + comment_ct + replies_ct
+        # query = """
+        #     WITH RECURSIVE parents AS (
+        #         SELECT rh_comments.*, 0 AS relative_depth
+        #         FROM rh_comments
+        #         WHERE id = %s
+
+        #         UNION ALL
+
+        #         SELECT rh_comments.*, parents.relative_depth - 1
+        #         FROM rh_comments,parents
+        #         WHERE category.id = parents.parent_id
+        #     )
+        #     SELECT id, name, parent_id, relative_depth
+        #     FROM parents
+        #     ORDER BY relative_depth;
+        # """
+
+        threads = document.rh_threads
+        # This filter is technically incorrect, but it actually works as a solution.
+        # The ORM will generate a JOIN and the result will contain duplicate threads.
+        # This is due to table merging when querying on a one-to-many or many-to-many
+        # relationship. The duplicate results work in our favor because each "duplicate"
+        # thread is actually related to a comment, so we don't have to do any weird
+        # recursive querying to get the count of all comments.
+        count = threads.filter(
+            rh_comments__created_date__gte=start_date,
+            rh_comments__created_date__lt=end_date,
+        ).count()
+        return count
 
     def update_discussed_today(self, unified_document, document):
         # Same buffer as get_date_ranges_by_time_scope in researchhub_document/utils.py
