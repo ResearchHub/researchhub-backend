@@ -14,6 +14,7 @@ from django.db.models import (
 )
 
 from discussion.constants.flag_reasons import FLAG_REASON_CHOICES
+from purchase.models import Purchase
 from utils.models import DefaultModel
 
 
@@ -132,3 +133,12 @@ class AbstractGenericReactionModel(DefaultModel):
             - Count("id", filter=Q(vote_type=Vote.DOWNVOTE))
         ).get("score", 0)
         return score
+
+    def get_promoted_score(self):
+        purchases = self.purchases.filter(
+            paid_status=Purchase.PAID,
+        )
+        if purchases.exists():
+            boost_score = sum(map(int, purchases.values_list("amount", flat=True)))
+            return boost_score
+        return False

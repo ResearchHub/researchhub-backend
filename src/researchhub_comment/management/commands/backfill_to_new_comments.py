@@ -8,6 +8,7 @@ from django.core.management.base import BaseCommand
 
 from discussion.models import Comment, Reply, Thread
 from discussion.reaction_models import Vote
+from purchase.models import Purchase
 from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR
 from researchhub_comment.constants.rh_comment_migration_legacy_types import (
     LEGACY_COMMENT,
@@ -19,6 +20,16 @@ from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 
 
 class Command(BaseCommand):
+    def _create_purchases_for_discussion(self, old_obj, comment):
+        Purchase.objects.create(
+            user=old_obj.user,
+            item=comment,
+            purchase_method=old_obj.purchase_method,
+            purchase_type=old_obj.purchase_type,
+            amount=old_obj.amount,
+            paid_status=Purchase.PAID,
+        )
+
     def _create_votes_for_discussion(self, old_obj, new_obj):
         if old_obj.votes.count() == new_obj.votes.count():
             return old_obj.calculate_score()
@@ -106,6 +117,12 @@ class Command(BaseCommand):
                 score = self._create_votes_for_discussion(
                     thread, migrated_thread_comment
                 )
+
+                if thread.purchases.exists():
+                    for purchase in thread.purchases.iterator():
+                        self._create_purchases_for_discussion(
+                            purchase, migrated_thread_comment
+                        )
                 RhCommentModel.objects.filter(id=migrated_thread_comment.id).update(
                     score=score,
                     created_date=thread.created_date,
@@ -154,7 +171,7 @@ class Command(BaseCommand):
         if threads.count() == 0:
             return
 
-        CHUNK_SIZE = 5000
+        CHUNK_SIZE = 4000
         start = threads.first().id
         end = threads.last().id
 
@@ -217,6 +234,11 @@ class Command(BaseCommand):
                 )
 
                 score = self._create_votes_for_discussion(comment, migrated_comment)
+                if comment.purchases.exists():
+                    for purchase in comment.purchases.iterator():
+                        self._create_purchases_for_discussion(
+                            purchase, migrated_comment
+                        )
                 RhCommentModel.objects.filter(id=migrated_comment.id).update(
                     score=score,
                     created_date=comment.created_date,
@@ -265,7 +287,7 @@ class Command(BaseCommand):
         if comments.count() == 0:
             return
 
-        CHUNK_SIZE = 1000
+        CHUNK_SIZE = 2000
         start = comments.first().id
         end = comments.last().id
 
@@ -326,6 +348,9 @@ class Command(BaseCommand):
                 )
 
                 score = self._create_votes_for_discussion(reply, migrated_reply)
+                if reply.purchases.exists():
+                    for purchase in reply.purchases.iterator():
+                        self._create_purchases_for_discussion(purchase, migrated_reply)
                 RhCommentModel.objects.filter(id=migrated_reply.id).update(
                     score=score,
                     created_date=reply.created_date,
@@ -374,7 +399,7 @@ class Command(BaseCommand):
         if replies.count() == 0:
             return
 
-        CHUNK_SIZE = 1000
+        CHUNK_SIZE = 600
         start = replies.first().id
         end = replies.last().id
 

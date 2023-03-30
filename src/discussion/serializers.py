@@ -315,6 +315,9 @@ class DynamicReplySerializer(
             return False
         return False
 
+    def get_score(self, obj):
+        return obj.calculate_score()
+
 
 class DynamicCommentSerializer(
     DynamicModelFieldSerializer,
@@ -413,6 +416,9 @@ class DynamicCommentSerializer(
             comment.unified_document, context=context, **_context_fields
         )
         return serializer.data
+
+    def get_score(self, obj):
+        return obj.calculate_score()
 
 
 class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
