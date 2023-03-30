@@ -864,9 +864,7 @@ REFERRAL_PROGRAM = {
     "ELIGIBLE_TIME_PERIOD_IN_MONTHS": 6,
     # Only pay referrer earnings if invitee earns in one of these transactions
     "ELIGIBLE_TRANSACTIONS": [
-        "COMMENT_UPVOTED",
-        "REPLY_UPVOTED",
-        "THREAD_UPVOTED",
+        "RhCOMMENT_UPVOTED",
         "RESEARCHHUB_POST_UPVOTED",
         "HYPOTHESIS_UPVOTED",
         "PAPER_UPVOTED",

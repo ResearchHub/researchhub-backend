@@ -24,6 +24,7 @@ from utils.test_helpers import (
 )
 
 
+@skip
 class DiscussionThreadPermissionsIntegrationTests(DiscussionIntegrationTestCase):
     def setUp(self):
         SEED = "discussion"

@@ -79,7 +79,6 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
 
     # GenericReactionSerializerMixin
     promoted = SerializerMethodField()
-    score = SerializerMethodField()
     user_endorsement = SerializerMethodField()
     user_flag = SerializerMethodField()
     user_vote = SerializerMethodField()  # NOTE: calvinhlee - deprecate?

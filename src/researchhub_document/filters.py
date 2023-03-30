@@ -73,7 +73,6 @@ class UnifiedDocumentFilter(filters.FilterSet):
         method="document_type_filter",
         choices=DOC_CHOICES,
         null_value="all",
-        required=True,
     )
     tags = filters.CharFilter(method="tag_filter", label="Tags")
     ordering = filters.ChoiceFilter(

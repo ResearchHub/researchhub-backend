@@ -5,7 +5,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from discussion.tests.helpers import create_thread
+from discussion.tests.helpers import create_rh_comment
 from hub.tests.helpers import create_hub
 from paper.tests.helpers import create_paper
 from reputation.distributions import Distribution as Dist
@@ -75,7 +75,7 @@ class ReferralTests(APITestCase):
 
     def test_referrer_earns_commission_when_invited_receives_upvotes(self):
         # Invited user created a comment
-        thread = create_thread(
+        comment = create_rh_comment(
             created_by=self.invited_user,
             post=ResearchhubPost.objects.get(id=self.post["id"]),
         )
@@ -83,7 +83,7 @@ class ReferralTests(APITestCase):
         # Random user upvotes
         self.client.force_authenticate(self.random_user)
         upvote = self.client.post(
-            f'/api/researchhub_post/{self.post["id"]}/discussion/{thread.id}/upvote/'
+            f'/api/researchhub_post/{self.post["id"]}/comments/{comment.id}/upvote/'
         )
 
         res = Distribution.objects.filter(
@@ -104,7 +104,7 @@ class ReferralTests(APITestCase):
         invited_user.save()
 
         # Invited user created a comment
-        thread = create_thread(
+        comment = create_rh_comment(
             created_by=invited_user,
             post=ResearchhubPost.objects.get(id=self.post["id"]),
         )
@@ -112,7 +112,7 @@ class ReferralTests(APITestCase):
         # Random user upvotes
         self.client.force_authenticate(self.random_user)
         upvote = self.client.post(
-            f'/api/researchhub_post/{self.post["id"]}/discussion/{thread.id}/upvote/'
+            f'/api/researchhub_post/{self.post["id"]}/comments/{comment.id}/upvote/'
         )
 
         # Ensure no referral earnings to referrer
@@ -125,7 +125,7 @@ class ReferralTests(APITestCase):
 
     def test_referrer_earns_specific_commission(self):
         # Invited user created a comment
-        thread = create_thread(
+        comment = create_rh_comment(
             created_by=self.invited_user,
             post=ResearchhubPost.objects.get(id=self.post["id"]),
         )
@@ -133,7 +133,7 @@ class ReferralTests(APITestCase):
         # Random user upvotes
         self.client.force_authenticate(self.random_user)
         upvote = self.client.post(
-            f'/api/researchhub_post/{self.post["id"]}/discussion/{thread.id}/upvote/'
+            f'/api/researchhub_post/{self.post["id"]}/comments/{comment.id}/upvote/'
         )
 
         invited_earned = Distribution.objects.filter(recipient=self.invited_user).last()
@@ -149,7 +149,7 @@ class ReferralTests(APITestCase):
 
     def test_if_referrer_is_giver_no_commission_is_earned(self):
         # Invited user created a comment
-        thread = create_thread(
+        comment = create_rh_comment(
             created_by=self.invited_user,
             post=ResearchhubPost.objects.get(id=self.post["id"]),
         )
@@ -157,7 +157,7 @@ class ReferralTests(APITestCase):
         # Referrer upvotes
         self.client.force_authenticate(self.referrer_user)
         upvote = self.client.post(
-            f'/api/researchhub_post/{self.post["id"]}/discussion/{thread.id}/upvote/'
+            f'/api/researchhub_post/{self.post["id"]}/comments/{comment.id}/upvote/'
         )
 
         dist = Distribution.objects.filter(

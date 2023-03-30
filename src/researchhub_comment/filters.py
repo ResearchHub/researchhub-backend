@@ -47,12 +47,10 @@ class RHCommentFilter(filters.FilterSet):
         choices=ORDER_CHOICES,
         null_value=BEST,
         label="Ordering",
-        required=True,
     )
     child_count = filters.NumberFilter(
         method="filter_child_count",
         label="Child Comment Count",
-        required=True,
     )
     thread_type = filters.ChoiceFilter(
         choices=RH_COMMENT_THREAD_TYPES,

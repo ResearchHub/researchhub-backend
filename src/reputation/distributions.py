@@ -151,6 +151,13 @@ BulletPointDownvoted = Distribution(
     "BULLET_POINT_DOWNVOTED", -1, give_rep=True, reputation=-1
 )
 
+RhCommentCensored = Distribution("RhCOMMENT_CENSORED", -2, give_rep=True, reputation=-2)
+RhCommentFlagged = Distribution("RhCOMMENT_FLAGGED", -2, give_rep=True, reputation=-2)
+RhCommentUpvoted = Distribution("RhCOMMENT_UPVOTED", 1, give_rep=True, reputation=1)
+RhCommentDownvoted = Distribution(
+    "RhCOMMENT_DOWNVOTED", -1, give_rep=True, reputation=-1
+)
+
 CommentCensored = Distribution("COMMENT_CENSORED", -2, give_rep=True, reputation=-2)
 CommentFlagged = Distribution("COMMENT_FLAGGED", -2, give_rep=True, reputation=-2)
 CommentUpvoted = Distribution("COMMENT_UPVOTED", 1, give_rep=True, reputation=1)
@@ -298,7 +305,7 @@ DISTRIBUTION_TYPE_CHOICES = [
         "EDITOR_COMPENSATION",
     ),
     (
-        "EDITOR_PAYOUT", 
         "EDITOR_PAYOUT",
-    )
+        "EDITOR_PAYOUT",
+    ),
 ]

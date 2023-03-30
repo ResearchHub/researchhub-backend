@@ -116,15 +116,6 @@ class GenericReactionSerializerMixin:
             except Endorsement.DoesNotExist:
                 return None
 
-    def get_score(self, obj):
-        try:
-            if hasattr(obj, "score"):
-                return obj.score
-            return obj.calculate_score()
-        except Exception as e:
-            log_error(e)
-            return None
-
     def get_user_vote(self, obj):
         vote = None
         user = get_user_from_request(self.context)
@@ -170,7 +161,6 @@ class GenericReactionSerializer(GenericReactionSerializerMixin, ModelSerializer)
         # NOTE: read_only_fields = [raise_implement("GenericReactionSerializer", "read_only_fields")]
 
     promoted = SerializerMethodField()
-    score = SerializerMethodField()
     user_endorsement = SerializerMethodField()
     user_flag = SerializerMethodField()
     user_vote = SerializerMethodField()
