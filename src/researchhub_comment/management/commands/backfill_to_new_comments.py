@@ -1,4 +1,5 @@
 import json
+from threading import Thread as PyThread
 
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
@@ -20,7 +21,7 @@ from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 class Command(BaseCommand):
     def _create_votes_for_discussion(self, old_obj, new_obj):
         if old_obj.votes.count() == new_obj.votes.count():
-            return
+            return old_obj.calculate_score()
 
         score = 0
         for old_vote in old_obj.votes.all().iterator():
@@ -55,43 +56,15 @@ class Command(BaseCommand):
             thread_type=discussion_post_type,
         )
 
-    def _handle_threads(self):
-        existing_threads = RhCommentModel.all_objects.filter(
-            legacy_model_type=LEGACY_THREAD
+    def _handle_new_threads(self, start, end, exclude_ids):
+        threads = (
+            Thread.objects.exclude(id__in=exclude_ids)
+            .filter(id__gte=start, id__lt=end)
+            .order_by("id")
         )
-        existing_thread_ids = existing_threads.values_list("legacy_id")
-        threads = Thread.objects.exclude(id__in=existing_thread_ids)
-
-        existing_threads_count = existing_threads.count()
-        for i, existing_thread in enumerate(existing_threads.iterator()):
-            print(f"{i}/{existing_threads_count}")
-            try:
-                comment_content_json = existing_thread.comment_content_json
-                if not comment_content_json or not isinstance(
-                    comment_content_json, dict
-                ):
-                    content = existing_thread.comment_content_src.read().decode("utf8")
-                    try:
-                        existing_thread.comment_content_json = json.loads(content)
-                    except json.JSONDecodeError:
-                        existing_thread.comment_content_json = {
-                            "ops": [{"insert": content}]
-                        }
-                    finally:
-                        existing_thread.save()
-
-                connecting_thread = Thread.objects.get(id=existing_thread.legacy_id)
-                score = self._create_votes_for_discussion(
-                    connecting_thread, existing_thread
-                )
-                existing_thread.score = score
-                existing_thread.save()
-            except Exception as e:
-                print(e)
-
         thread_count = threads.count()
         for i, thread in enumerate(threads.iterator()):
-            print(f"{i}/{thread_count}")
+            print(f"THREAD: {i}/{thread_count}")
             try:
                 created_by = thread.created_by
                 document = thread.unified_document.get_document()
@@ -133,49 +106,81 @@ class Command(BaseCommand):
                 score = self._create_votes_for_discussion(
                     thread, migrated_thread_comment
                 )
-                migrated_thread_comment.score = score
-                migrated_thread_comment.save()
+                RhCommentModel.objects.filter(id=migrated_thread_comment.id).update(
+                    score=score,
+                    created_date=thread.created_date,
+                    updated_date=thread.updated_date,
+                )
             except Exception as e:
                 print(f"thread id: {thread.id}: {e}")
 
-    def _handle_comments(self):
-        existing_comments = RhCommentModel.all_objects.filter(
-            legacy_model_type=LEGACY_COMMENT
-        )
-        existing_comment_ids = existing_comments.values_list("legacy_id")
-        comments = Comment.objects.exclude(id__in=existing_comment_ids)
+    def _handle_threads(self):
+        existing_threads = RhCommentModel.all_objects.filter(
+            legacy_model_type=LEGACY_THREAD
+        ).order_by("id")
+        existing_thread_ids = existing_threads.values_list("legacy_id")
+        threads = Thread.objects.exclude(id__in=existing_thread_ids).order_by("id")
 
-        existing_comments_count = existing_comments.count()
-        for i, existing_comment in enumerate(existing_comments.iterator()):
-            print(f"{i}/{existing_comments_count}")
+        existing_threads_count = existing_threads.count()
+        for i, existing_thread in enumerate(existing_threads.iterator()):
+            print(f"EXISTING THREADS: {i}/{existing_threads_count}")
             try:
-                comment_content_json = existing_comment.comment_content_json
+                comment_content_json = existing_thread.comment_content_json
                 if not comment_content_json or not isinstance(
                     comment_content_json, dict
                 ):
-                    content = existing_comment.comment_content_src.read().decode("utf8")
+                    content = existing_thread.comment_content_src.read().decode("utf8")
                     try:
-                        existing_comment.comment_content_json = json.loads(content)
+                        existing_thread.comment_content_json = json.loads(content)
                     except json.JSONDecodeError:
-                        existing_comment.comment_content_json = {
+                        existing_thread.comment_content_json = {
                             "ops": [{"insert": content}]
                         }
                     finally:
-                        existing_comment.save()
+                        existing_thread.save()
 
-                connecting_comment = Comment.objects.get(id=existing_comment.legacy_id)
+                connecting_thread = Thread.objects.get(id=existing_thread.legacy_id)
                 score = self._create_votes_for_discussion(
-                    connecting_comment, existing_comment
+                    connecting_thread, existing_thread
                 )
-                existing_comment.score = score
-                existing_comment.save()
+                RhCommentModel.objects.filter(id=existing_thread.id).update(
+                    score=score,
+                    created_date=connecting_thread.created_date,
+                    updated_date=connecting_thread.updated_date,
+                )
             except Exception as e:
                 print(e)
 
+        if threads.count() == 0:
+            return
+
+        CHUNK_SIZE = 5000
+        start = threads.first().id
+        end = threads.last().id
+
+        py_threads = []
+        for i in range(start, end + CHUNK_SIZE, CHUNK_SIZE):
+            t = PyThread(
+                target=self._handle_new_threads,
+                args=(i, i + CHUNK_SIZE, existing_thread_ids),
+            )
+            t.daemon = True
+            t.start()
+            py_threads.append(t)
+
+        for t in py_threads:
+            t.join()
+
+    def _handle_new_comments(self, start, end, exclude_ids):
+        comments = (
+            Comment.objects.exclude(id__in=exclude_ids)
+            .filter(id__gte=start, id__lt=end)
+            .order_by("id")
+        )
         comment_count = comments.count()
         for i, comment in enumerate(comments.iterator()):
             try:
-                print(f"{i}/{comment_count}")
+                print(f"COMMENT: {i}/{comment_count}")
                 created_by = comment.created_by
                 document = comment.unified_document.get_document()
                 belonging_thread = self._get_rh_thread(document, created_by)
@@ -212,48 +217,80 @@ class Command(BaseCommand):
                 )
 
                 score = self._create_votes_for_discussion(comment, migrated_comment)
-                migrated_comment.score = score
-                migrated_comment.save()
+                RhCommentModel.objects.filter(id=migrated_comment.id).update(
+                    score=score,
+                    created_date=comment.created_date,
+                    updated_date=comment.updated_date,
+                )
             except Exception as e:
                 print(f"comment id: {comment.id}: {e}")
 
-    def _handle_replies(self):
-        existing_replies = RhCommentModel.all_objects.filter(
+    def _handle_comments(self):
+        existing_comments = RhCommentModel.all_objects.filter(
             legacy_model_type=LEGACY_COMMENT
-        )
-        existing_reply_ids = existing_replies.values_list("legacy_id")
-        replies = Reply.objects.exclude(id__in=existing_reply_ids)
+        ).order_by("id")
+        existing_comment_ids = existing_comments.values_list("legacy_id", flat=True)
+        comments = Comment.objects.exclude(id__in=existing_comment_ids).order_by("id")
 
-        existing_replies_count = existing_replies.count()
-        for i, existing_reply in enumerate(existing_replies.iterator()):
-            print(f"{i}/{existing_replies_count}")
+        existing_comments_count = existing_comments.count()
+        for i, existing_comment in enumerate(existing_comments.iterator()):
+            print(f"EXISTING COMMENTS: {i}/{existing_comments_count}")
             try:
-                comment_content_json = existing_reply.comment_content_json
+                comment_content_json = existing_comment.comment_content_json
                 if not comment_content_json or not isinstance(
                     comment_content_json, dict
                 ):
-                    content = existing_reply.comment_content_src.read().decode("utf8")
+                    content = existing_comment.comment_content_src.read().decode("utf8")
                     try:
-                        existing_reply.comment_content_json = json.loads(content)
+                        existing_comment.comment_content_json = json.loads(content)
                     except json.JSONDecodeError:
-                        existing_reply.comment_content_json = {
+                        existing_comment.comment_content_json = {
                             "ops": [{"insert": content}]
                         }
                     finally:
-                        existing_reply.save()
+                        existing_comment.save()
 
-                connecting_reply = Comment.objects.get(id=existing_reply.legacy_id)
+                connecting_comment = Comment.objects.get(id=existing_comment.legacy_id)
                 score = self._create_votes_for_discussion(
-                    connecting_reply, existing_reply
+                    connecting_comment, existing_comment
                 )
-                existing_reply.score = score
-                existing_reply.save()
+                RhCommentModel.objects.filter(id=existing_comment.id).update(
+                    score=score,
+                    created_date=connecting_comment.created_date,
+                    updated_date=connecting_comment.updated_date,
+                )
             except Exception as e:
                 print(e)
 
+        if comments.count() == 0:
+            return
+
+        CHUNK_SIZE = 1000
+        start = comments.first().id
+        end = comments.last().id
+
+        py_threads = []
+        for i in range(start, end + CHUNK_SIZE, CHUNK_SIZE):
+            t = PyThread(
+                target=self._handle_new_comments,
+                args=(i, i + CHUNK_SIZE, existing_comment_ids),
+            )
+            t.daemon = True
+            t.start()
+            py_threads.append(t)
+
+        for t in py_threads:
+            t.join()
+
+    def _handle_new_replies(self, start, end, exclude_ids):
+        replies = (
+            Reply.objects.exclude(id__in=exclude_ids)
+            .filter(id__gte=start, id__lt=end)
+            .order_by("id")
+        )
         reply_count = replies.count()
         for i, reply in enumerate(replies.iterator()):
-            print(f"{i}/{reply_count}")
+            print(f"REPLY: {i}/{reply_count}")
             try:
                 created_by = reply.created_by
                 document = reply.unified_document.get_document()
@@ -289,10 +326,70 @@ class Command(BaseCommand):
                 )
 
                 score = self._create_votes_for_discussion(reply, migrated_reply)
-                migrated_reply.score = score
-                migrated_reply.save()
+                RhCommentModel.objects.filter(id=migrated_reply.id).update(
+                    score=score,
+                    created_date=reply.created_date,
+                    updated_date=reply.updated_date,
+                )
             except Exception as e:
                 print(f"reply id: {reply.id}: {e}")
+
+    def _handle_replies(self):
+        existing_replies = RhCommentModel.all_objects.filter(
+            legacy_model_type=LEGACY_REPLY
+        ).order_by("id")
+        existing_reply_ids = existing_replies.values_list("legacy_id", flat=True)
+        replies = Reply.objects.exclude(id__in=existing_reply_ids).order_by("id")
+
+        existing_replies_count = existing_replies.count()
+        for i, existing_reply in enumerate(existing_replies.iterator()):
+            print(f"EXISTING REPLIES: {i}/{existing_replies_count}")
+            try:
+                comment_content_json = existing_reply.comment_content_json
+                if not comment_content_json or not isinstance(
+                    comment_content_json, dict
+                ):
+                    content = existing_reply.comment_content_src.read().decode("utf8")
+                    try:
+                        existing_reply.comment_content_json = json.loads(content)
+                    except json.JSONDecodeError:
+                        existing_reply.comment_content_json = {
+                            "ops": [{"insert": content}]
+                        }
+                    finally:
+                        existing_reply.save()
+
+                connecting_reply = Comment.objects.get(id=existing_reply.legacy_id)
+                score = self._create_votes_for_discussion(
+                    connecting_reply, existing_reply
+                )
+                RhCommentModel.objects.filter(id=existing_reply.id).update(
+                    score=score,
+                    created_date=connecting_reply.created_date,
+                    updated_date=connecting_reply.updated_date,
+                )
+            except Exception as e:
+                print(e)
+
+        if replies.count() == 0:
+            return
+
+        CHUNK_SIZE = 1000
+        start = replies.first().id
+        end = replies.last().id
+
+        py_threads = []
+        for i in range(start, end + CHUNK_SIZE, CHUNK_SIZE):
+            t = PyThread(
+                target=self._handle_new_replies,
+                args=(i, i + CHUNK_SIZE, existing_reply_ids),
+            )
+            t.daemon = True
+            t.start()
+            py_threads.append(t)
+
+        for t in py_threads:
+            t.join()
 
     def handle(self, *args, **options):
         self._handle_threads()
