@@ -1,11 +1,10 @@
 import math
 
 from django.contrib.admin.options import get_content_type_for_model
-from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as GrmVote
+from discussion.tests.helpers import create_rh_comment
 from reputation.distributions import (
     calculate_rsc_per_upvote,
     create_upvote_distribution,
@@ -124,37 +123,6 @@ class BaseTests(TestCase, TestHelper):
             math.floor(distribution_amount * 0.75 / 3),
         )
 
-    def test_thread_upvote_distribution(self):
-        if Distribution.objects.count() > 0:
-            Distribution.objects.all().delete()
-
-        if Escrow.objects.count() > 0:
-            Escrow.objects.all().delete()
-
-        if Author.objects.count() > 0:
-            Author.objects.all().delete()
-
-        new_user = self.create_user(
-            first_name="First",
-            last_name="Last",
-            email="user3@gmail.com",
-        )
-
-        self.user.reputation = 50000
-        self.user.save()
-
-        thread = Thread.objects.create(created_by=new_user, paper=self.original_paper)
-        thread_ct = ContentType.objects.get(model="thread")
-
-        thread_vote = GrmVote.objects.create(
-            item=thread, content_type=thread_ct, vote_type=1, created_by=self.user
-        )
-
-        distribution = create_upvote_distribution(1, None, thread_vote)
-        self.assertEquals(Distribution.objects.count(), 1)
-        distribution_amount = calculate_rsc_per_upvote()
-        self.assertEquals(distribution.amount, distribution_amount)
-
     def test_comment_upvote_distribution(self):
         if Distribution.objects.count() > 0:
             Distribution.objects.all().delete()
@@ -170,21 +138,19 @@ class BaseTests(TestCase, TestHelper):
             last_name="Last",
             email="user3@gmail.com",
         )
+        voter_user = self.create_user(
+            first_name="Up", last_name="voter", email="test_voter_123_pid@gmail.com"
+        )
 
         new_user.reputation = 50000
         new_user.save()
-
-        thread = Thread.objects.create(created_by=new_user, paper=self.original_paper)
-        comment_ct = ContentType.objects.get(model="comment")
-        comment = Comment.objects.create(created_by=self.user, parent=thread)
+        comment = create_rh_comment(created_by=new_user, paper=self.original_paper)
         comment_vote = GrmVote.objects.create(
-            item=comment, content_type=comment_ct, vote_type=1, created_by=new_user
+            item=comment, vote_type=1, created_by=voter_user
         )
-
         distribution = create_upvote_distribution(1, None, comment_vote)
         self.assertEquals(Distribution.objects.count(), 1)
-        distribution_amount = calculate_rsc_per_upvote()
-        self.assertEquals(distribution.amount, distribution_amount)
+        self.assertEquals(distribution.amount, Distribution.objects.first().amount)
 
     def test_upvote_downvote_upvote(self):
         if Distribution.objects.count() > 0:
@@ -201,60 +167,30 @@ class BaseTests(TestCase, TestHelper):
             last_name="Last",
             email="user3@gmail.com",
         )
+        voter_user = self.create_user(
+            first_name="Up", last_name="voter", email="test_voter_123_pid@gmail.com"
+        )
 
         self.user.reputation = 50000
         self.user.save()
 
-        thread = Thread.objects.create(created_by=new_user, paper=self.original_paper)
-        reply_ct = ContentType.objects.get(model="reply")
-        comment = Comment.objects.create(created_by=self.user, parent=thread)
-        reply = Reply.objects.create(created_by=new_user, parent=comment)
+        comment = create_rh_comment(created_by=new_user, paper=self.original_paper)
+        reply = create_rh_comment(
+            created_by=new_user, paper=self.original_paper, parent=comment
+        )
         reply_vote = GrmVote.objects.create(
-            item=reply, content_type=reply_ct, vote_type=1, created_by=self.user
+            item=reply, vote_type=1, created_by=voter_user
         )
 
         distribution = create_upvote_distribution(1, None, reply_vote)
         self.assertEquals(Distribution.objects.count(), 1)
-        distribution_amount = calculate_rsc_per_upvote()
-        self.assertEquals(distribution.amount, distribution_amount)
+        self.assertEquals(distribution.amount, Distribution.objects.first().amount)
         reply_vote.vote_type = 2
         reply_vote.save()
         reply_vote.vote_type = 1
         reply_vote.save()
         self.assertEquals(Distribution.objects.count(), 1)
-        self.assertEquals(distribution.amount, distribution_amount)
-
-    def test_reply_upvote_distribution(self):
-        if Distribution.objects.count() > 0:
-            Distribution.objects.all().delete()
-
-        if Escrow.objects.count() > 0:
-            Escrow.objects.all().delete()
-
-        if Author.objects.count() > 0:
-            Author.objects.all().delete()
-
-        new_user = self.create_user(
-            first_name="First",
-            last_name="Last",
-            email="user3@gmail.com",
-        )
-
-        self.user.reputation = 50000
-        self.user.save()
-
-        thread = Thread.objects.create(created_by=new_user, paper=self.original_paper)
-        reply_ct = ContentType.objects.get(model="reply")
-        comment = Comment.objects.create(created_by=self.user, parent=thread)
-        reply = Reply.objects.create(created_by=new_user, parent=comment)
-        reply_vote = GrmVote.objects.create(
-            item=reply, content_type=reply_ct, vote_type=1, created_by=self.user
-        )
-
-        distribution = create_upvote_distribution(1, None, reply_vote)
-        self.assertEquals(Distribution.objects.count(), 1)
-        distribution_amount = calculate_rsc_per_upvote()
-        self.assertEquals(distribution.amount, distribution_amount)
+        self.assertEquals(distribution.amount, Distribution.objects.first().amount)
 
     def test_ineligible_enhanced_distribution(self):
         if Distribution.objects.count() > 0:

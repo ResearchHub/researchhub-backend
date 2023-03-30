@@ -1,6 +1,6 @@
 from django.test import TestCase
 
-from discussion.tests.helpers import create_comment, create_thread
+from discussion.tests.helpers import create_rh_comment
 from hub.tests.helpers import create_hub
 from paper.tests.helpers import create_paper
 from summary.models import Summary
@@ -14,7 +14,7 @@ class UserSignalsTests(TestCase):
 
     def test_create_discussion_item_creates_action(self):
         user = create_random_default_user("rando")
-        create_comment(created_by=user)
+        create_rh_comment(created_by=user)
 
         user.refresh_from_db()
         actions = user.actions.all()
@@ -37,7 +37,7 @@ class UserSignalsTests(TestCase):
         hub = create_hub(name="Nacho Libre")
         paper = create_paper()
         paper.unified_document.hubs.add(hub)
-        create_thread(paper=paper, created_by=user)
+        create_rh_comment(paper=paper, created_by=user)
 
         action = user.actions.all()[0]
         self.assertIn(hub, action.hubs.all())
