@@ -146,6 +146,7 @@ def create_action(sender, instance, created, **kwargs):
 
 def send_discussion_email_notification(instance, sender, action):
     # TODO: Temporarily commenting out
+    return
     if sender != RhCommentModel:
         return
 

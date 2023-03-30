@@ -81,7 +81,7 @@ class DynamicThreadSerializer(
     post = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
     review = serializers.SerializerMethodField()
-    score = serializers.ReadOnlyField()  # @property
+    score = serializers.SerializerMethodField()  # @property
     unified_document = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
@@ -270,7 +270,7 @@ class DynamicReplySerializer(
     discussion_type = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
-    score = serializers.ReadOnlyField()  # @property
+    score = serializers.SerializerMethodField()  # @property
     created_by = serializers.SerializerMethodField()
     parent = serializers.PrimaryKeyRelatedField(
         queryset=Comment.objects.all(), many=False, read_only=False
@@ -327,7 +327,7 @@ class DynamicCommentSerializer(
     promoted = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
     reply_count = serializers.SerializerMethodField()
-    score = serializers.ReadOnlyField()  # @property
+    score = serializers.SerializerMethodField()  # @property
     thread_id = serializers.SerializerMethodField()
     is_created_by_editor = serializers.BooleanField(
         required=False,
@@ -425,7 +425,7 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
     promoted = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
     reply_count = serializers.SerializerMethodField()
-    score = serializers.ReadOnlyField()  # @property
+    score = serializers.SerializerMethodField()  # @property
     thread_id = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
@@ -533,6 +533,9 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
         else:
             return None
 
+    def get_score(self, obj):
+        return obj.calculate_score()
+
 
 class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
     # bounties = serializers.SerializerMethodField()
@@ -551,7 +554,7 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
     post_slug = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
     review = serializers.SerializerMethodField()
-    score = serializers.ReadOnlyField()  # @property
+    score = serializers.SerializerMethodField()  # @property
     unified_document = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
@@ -736,6 +739,9 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
 
         return amount_awarded
 
+    def get_score(self, obj):
+        return obj.calculate_score()
+
 
 class SimpleThreadSerializer(ThreadSerializer):
     class Meta:
@@ -761,6 +767,7 @@ class ReplySerializer(serializers.ModelSerializer, GenericReactionSerializerMixi
     thread_id = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
+    score = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -841,6 +848,9 @@ class ReplySerializer(serializers.ModelSerializer, GenericReactionSerializerMixi
     def get_reply_count(self, obj):
         replies = self._replies_query(obj)
         return replies.count()
+
+    def get_score(self, obj):
+        return obj.calculate_score()
 
 
 class DynamicFlagSerializer(DynamicModelFieldSerializer):

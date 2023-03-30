@@ -21,7 +21,6 @@ from researchhub_comment.serializers import (
     RhCommentSerializer,
     RhCommentThreadSerializer,
 )
-from user.serializers import DynamicUserSerializer
 
 
 class CursorSetPagination(CursorPagination):
@@ -181,18 +180,19 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "parent": parent_id,
                 }
             )
-            rh_comment, serializer_data = RhCommentModel.create_from_data(data)
+            rh_comment, _ = RhCommentModel.create_from_data(data)
             self.add_upvote(user, rh_comment)
             context = self._get_retrieve_context()
-            user_serializer = DynamicUserSerializer(
-                user,
-                _include_fields=("id", "author_profile", "editor_of"),
+            serializer_data = DynamicRhCommentSerializer(
+                rh_comment,
                 context=context,
-            )
-            serializer_data["created_by"] = user_serializer.data
-            # Setting the score manually, so we don't have to retrieve
-            # the obj from the database
-            serializer_data["score"] = 1
+                _exclude_fields=(
+                    "promoted",
+                    "user_endorsement",
+                    "user_flag",
+                    "comment_content_src",
+                ),
+            ).data
             return Response(serializer_data, status=200)
 
     def create(self, request, *args, **kwargs):
@@ -270,7 +270,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         data = request.data
-        user = request.user
 
         # This prevents users from changing important fields, e.g., parent or id
         disallowed_keys = set(data.keys()) - self._ALLOWED_UPDATE_FIELDS
@@ -278,10 +277,17 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             data.pop(key)
         res = super().update(request, *args, **kwargs)
         context = self._get_retrieve_context()
-        user_serializer = DynamicUserSerializer(
-            user, _include_fields=("id", "author_profile", "editor_of"), context=context
-        )
-        res.data["created_by"] = user_serializer.data
+        serializer_data = DynamicRhCommentSerializer(
+            self.get_object(),
+            context=context,
+            _exclude_fields=(
+                "promoted",
+                "user_endorsement",
+                "user_flag",
+                "comment_content_src",
+            ),
+        ).data
+        res.data = serializer_data
         return res
 
     def perform_update(self, serializer):

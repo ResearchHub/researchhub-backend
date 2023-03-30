@@ -19,6 +19,7 @@ from discussion.reaction_serializers import (
 )
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
+from researchhub_comment.models import RhCommentModel
 from researchhub_document.related_models.constants.document_type import SORT_UPVOTED
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
@@ -265,8 +266,16 @@ class ReactionViewActionMixin:
             "needs_score": True,
         }
 
-    def add_upvote(self, user, object):
-        vote = create_vote(user, object, Vote.UPVOTE)
+    def add_upvote(self, user, obj):
+        vote = create_vote(user, obj, Vote.UPVOTE)
+        obj.score += 1
+        obj.save()
+        return vote
+
+    def add_downvote(self, user, obj):
+        vote = create_vote(user, obj, Vote.DOWNVOTE)
+        obj.score -= 1
+        obj.save()
         return vote
 
     # TODO: Delete
@@ -374,7 +383,7 @@ def create_vote(user, item, vote_type):
 
 def update_or_create_vote(request, user, item, vote_type):
     cache_filters_to_reset = [UPVOTED, HOT]
-    if isinstance(item, (Thread, Comment, Reply)):
+    if isinstance(item, RhCommentModel):
         cache_filters_to_reset = [HOT]
 
     hub_ids = [0]
