@@ -74,6 +74,11 @@ class RhCommentModel(
         content_type_field="content_type",
         related_query_name="rh_comments",
     )
+    bounties = GenericRelation(
+        "reputation.Bounty",
+        content_type_field="item_content_type",
+        object_id_field="item_object_id",
+    )
 
     # legacy_migration
     legacy_id = PositiveIntegerField(null=True, blank=True)

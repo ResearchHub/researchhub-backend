@@ -4,7 +4,7 @@ from datetime import datetime
 
 from rest_framework.test import APITestCase
 
-from discussion.tests.helpers import create_comment, create_thread
+from discussion.tests.helpers import create_rh_comment
 from hub.tests.helpers import create_hub
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
@@ -22,10 +22,16 @@ class BountyViewTests(APITestCase):
         self.user_4 = create_random_default_user("bounty_user_4")
         self.recipient = create_random_default_user("bounty_recipient")
         self.moderator = create_moderator(first_name="moderator", last_name="moderator")
-        self.thread = create_thread(created_by=self.recipient)
-        self.thread_response_1 = create_comment(created_by=self.user_2)
-        self.thread_response_2 = create_comment(created_by=self.user_3)
-        self.thread_response_3 = create_comment(created_by=self.user_4)
+        self.thread = create_rh_comment(created_by=self.recipient)
+        self.thread_response_1 = create_rh_comment(
+            created_by=self.user_2, parent=self.thread
+        )
+        self.thread_response_2 = create_rh_comment(
+            created_by=self.user_3, parent=self.thread
+        )
+        self.thread_response_3 = create_rh_comment(
+            created_by=self.user_4, parent=self.thread
+        )
         self.hub = create_hub()
         self.bountyFee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
         self.client.force_authenticate(self.user)

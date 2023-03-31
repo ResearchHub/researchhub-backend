@@ -49,6 +49,7 @@ class DynamicRhCommentSerializer(
     children_count = SerializerMethodField()
     children = SerializerMethodField()
     purchases = SerializerMethodField()
+    bounties = SerializerMethodField()
 
     class Meta:
         fields = "__all__"
@@ -110,10 +111,12 @@ class DynamicRhCommentSerializer(
         )
         return serializer.data
 
+    def get_bounties(self, obj):
+        from reputation.serializers import DynamicBountySerializer
 
-"""
-from researchhub_comment.serializers import DynamicRhCommentSerializer
-
-x = DynamicRhCommentSerializer(RhCommentModel.objects.last(), _include_fields=("id", "created_by"), context={"rhc_dcs_get_created_by": {"_include_fields":("id",)}})
-x.data
-"""
+        context = self.context
+        _context_fields = context.get("rhc_dcs_get_bounties", {})
+        serializer = DynamicBountySerializer(
+            obj.bounties.all(), many=True, context=context, **_context_fields
+        )
+        return serializer.data

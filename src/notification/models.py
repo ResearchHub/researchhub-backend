@@ -465,7 +465,7 @@ class Notification(models.Model):
             },
             {
                 "type": "text",
-                "value": f"awarded you RSC for your ",
+                "value": "awarded you RSC for your ",
             },
             {
                 "type": "link",

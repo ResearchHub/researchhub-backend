@@ -48,8 +48,8 @@ class BountyViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["item_object_id", "status"]
 
-    ALLOWED_CREATE_CONTENT_TYPES = ("thread", "rhcommentmodel")
-    ALLOWED_APPROVE_CONTENT_TYPES = ("thread", "comment", "reply", "rhcommentmodel")
+    ALLOWED_CREATE_CONTENT_TYPES = ("rhcommentmodel",)
+    ALLOWED_APPROVE_CONTENT_TYPES = ("rhcommentmodel",)
 
     def _calculate_fees(self, gross_amount):
         current_bounty_fee = BountyFee.objects.last()

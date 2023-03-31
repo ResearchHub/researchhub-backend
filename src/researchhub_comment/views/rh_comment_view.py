@@ -143,6 +143,13 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 )
             },
             "rhc_dcs_get_purchases": {"_include_fields": ("amount", "user")},
+            "rhc_dcs_get_bounties": {
+                "_include_fields": [
+                    "amount",
+                    "created_by",
+                ]
+            },
+            "rep_dbs_get_created_by": {"_include_fields": ["author_profile", "id"]},
             "usr_dus_get_author_profile": {
                 "_include_fields": (
                     "id",
@@ -217,6 +224,9 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         queryset = queryset.prefetch_related(
             "children",
             "purchases",
+            "bounties",
+            "bounties__created_by",
+            "bounties__created_by__author_profile",
         )
 
         page = self.paginate_queryset(queryset)
