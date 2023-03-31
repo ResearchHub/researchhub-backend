@@ -6,4 +6,4 @@ class ResearchhubCommentConfig(AppConfig):
     name = "researchhub_comment"
 
     def ready(self):
-        pass
+        import researchhub_comment.signals

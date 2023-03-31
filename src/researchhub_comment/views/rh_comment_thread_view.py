@@ -17,8 +17,7 @@ from researchhub_comment.serializers import RhCommentThreadSerializer
 class RhCommentThreadViewSet(ModelViewSet):
     filter_backends = (DjangoFilterBackend,)
     permission_classes = [
-        # IsAuthenticatedOrReadOnly,
-        AllowAny,  # TODO: calvinhlee replace with above permissions
+        IsAuthenticatedOrReadOnly,
     ]
     ordering = "-updated_date"
     queryset = RhCommentThreadModel.objects.all()

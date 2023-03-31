@@ -39,7 +39,6 @@ class RhCommentSerializer(GenericReactionSerializer):
         ).data
 
 
-# TODO: Does generic reaction serializer mixin work?
 class DynamicRhCommentSerializer(
     GenericReactionSerializer,
     GenericReactionSerializerMixin,

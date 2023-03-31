@@ -109,17 +109,20 @@ def create_action(sender, instance, created, **kwargs):
         else:
             if sender == RhCommentModel:
                 thread = instance
-                # TODO: Temporarily commenting out
-                # if thread.is_removed:
-                #     content_id = f"{type(thread).__name__}_{thread.id}"
-                #     decisions_api.apply_bad_content_decision(
-                #         thread.created_by, content_id
-                #     )
-                #     events_api.track_flag_content(
-                #         thread.created_by,
-                #         content_id,
-                #         1,
-                #     )
+                # TODO: Temporarily if statement for new comment migration
+                from researchhub.settings import PRODUCTION
+
+                if PRODUCTION:
+                    if thread.is_removed:
+                        content_id = f"{type(thread).__name__}_{thread.id}"
+                        decisions_api.apply_bad_content_decision(
+                            thread.created_by, content_id
+                        )
+                        events_api.track_flag_content(
+                            thread.created_by,
+                            content_id,
+                            1,
+                        )
             user = instance.created_by
 
         vote_types = [GrmVote, BulletPointVote, SummaryVote]
@@ -145,8 +148,12 @@ def create_action(sender, instance, created, **kwargs):
 
 
 def send_discussion_email_notification(instance, sender, action):
-    # TODO: Temporarily commenting out
-    return
+    # TODO: Temporarily if statement for new comment migration
+    from researchhub.settings import PRODUCTION
+
+    if not PRODUCTION:
+        return
+
     if sender != RhCommentModel:
         return
 

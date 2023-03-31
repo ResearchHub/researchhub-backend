@@ -6,13 +6,14 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.pagination import CursorPagination, PageNumberPagination
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from analytics.amplitude import track_event
 from discussion.reaction_views import ReactionViewActionMixin
 from researchhub.pagination import FasterDjangoPaginator
+from researchhub.permissions import IsObjectOwner
 from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT
 from researchhub_comment.filters import RHCommentFilter
 from researchhub_comment.models import RhCommentModel
@@ -42,10 +43,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
     filter_backends = (DjangoFilterBackend,)
     filter_class = RHCommentFilter
     pagination_class = CommentPagination
-    permission_classes = [
-        # IsAuthenticatedOrReadOnly,
-        AllowAny,  # TODO: calvinhlee replace with above permissions
-    ]
+    permission_classes = [IsAuthenticatedOrReadOnly, IsObjectOwner]
     _ALLOWED_MODEL_NAMES = ("paper", "researchhub_post", "hypothesis", "citation")
     _CONTENT_TYPE_MAPPINGS = {
         "paper": "paper",
@@ -166,7 +164,9 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         return context
 
     @track_event
-    @action(detail=False, methods=["POST"], permission_classes=[IsAuthenticated])
+    @action(
+        detail=False, methods=["POST"], permission_classes=[IsAuthenticatedOrReadOnly]
+    )
     def create_rh_comment(self, request, *args, **kwargs):
         data = request.data
         user = request.user
