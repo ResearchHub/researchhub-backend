@@ -56,7 +56,7 @@ class RHCommentFilter(filters.FilterSet):
         return self.data.get("ascending", ASCENDING_FALSE) == ASCENDING_TRUE
 
     def _get_ordering_keys(self, keys):
-        if self._is_ascending():
+        if not self._is_ascending():
             return [f"-{key}" for key in keys]
         return keys
 
