@@ -339,9 +339,9 @@ def get_discussion_hubs(instance):
 @receiver(post_save, sender=GrmVote, dispatch_uid="discussion_vote")
 def distribute_for_discussion_vote(sender, instance, created, update_fields, **kwargs):
     # TODO: Temporarily if statement for new comment migration
-    from researchhub.settings import PRODUCTION
+    from researchhub.settings import PRODUCTION, TESTING
 
-    if not PRODUCTION:
+    if not PRODUCTION and not TESTING:
         return
 
     """Distributes reputation to the creator of the item voted on."""
