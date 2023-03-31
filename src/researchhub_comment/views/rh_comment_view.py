@@ -12,6 +12,13 @@ from rest_framework.viewsets import ModelViewSet
 
 from analytics.amplitude import track_event
 from discussion.reaction_views import ReactionViewActionMixin
+from reputation.models import Contribution
+from reputation.tasks import create_contribution
+from reputation.views.bounty_view import (
+    _create_bounty,
+    _create_bounty_checks,
+    _deduct_fees,
+)
 from researchhub.pagination import FasterDjangoPaginator
 from researchhub.permissions import IsObjectOwner
 from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT
@@ -22,6 +29,16 @@ from researchhub_comment.serializers import (
     RhCommentSerializer,
     RhCommentThreadSerializer,
 )
+from researchhub_document.related_models.constants.document_type import (
+    ALL,
+    BOUNTY,
+    FILTER_BOUNTY_OPEN,
+    FILTER_HAS_BOUNTY,
+    SORT_BOUNTY_EXPIRATION_DATE,
+    SORT_BOUNTY_TOTAL_AMOUNT,
+)
+from researchhub_document.related_models.constants.filters import DISCUSSED, HOT
+from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
 
 
 class CursorSetPagination(CursorPagination):
@@ -188,7 +205,30 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 }
             )
             rh_comment, _ = RhCommentModel.create_from_data(data)
+            unified_document = rh_comment.unified_document
             self.add_upvote(user, rh_comment)
+
+            create_contribution.apply_async(
+                (
+                    Contribution.COMMENTER,
+                    {"app_label": "researchhub_comment", "model": "rhcommentmodel"},
+                    request.user.id,
+                    unified_document.id,
+                    rh_comment.id,
+                ),
+                priority=1,
+                countdown=10,
+            )
+
+            hubs = list(unified_document.hubs.all().values_list("id", flat=True))
+            doc_type = get_doc_type_key(unified_document)
+            reset_unified_document_cache(
+                hub_ids=hubs,
+                document_type=[doc_type, "all"],
+                filters=[DISCUSSED, HOT],
+                with_default_hub=True,
+            )
+
             context = self._get_retrieve_context()
             serializer_data = DynamicRhCommentSerializer(
                 rh_comment,
@@ -201,6 +241,80 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 ),
             ).data
             return Response(serializer_data, status=200)
+
+    @track_event
+    @action(
+        detail=False, methods=["POST"], permission_classes=[IsAuthenticatedOrReadOnly]
+    )
+    def create_comment_with_bounty(self, request, *args, **kwargs):
+        data = request.data
+        user = request.user
+        amount = data.pop("amount", 0)
+        item_content_type = RhCommentModel.__name__.lower()
+
+        response = _create_bounty_checks(user, amount, item_content_type)
+        if not isinstance(response, tuple):
+            return response
+        else:
+            amount, fee_amount, rh_fee, dao_fee, current_bounty_fee = response
+
+        with transaction.atomic():
+            comment_response = self.create_rh_comment(request, *args, **kwargs)
+            item_object_id = comment_response.data["id"]
+            data["item_content_type"] = item_content_type
+            data["item_object_id"] = item_object_id
+
+            _deduct_fees(user, fee_amount, rh_fee, dao_fee, current_bounty_fee)
+            bounty = _create_bounty(
+                user,
+                data,
+                amount,
+                fee_amount,
+                current_bounty_fee,
+                item_content_type,
+                item_object_id,
+            )
+            unified_document = bounty.unified_document
+            create_contribution.apply_async(
+                (
+                    Contribution.BOUNTY_CREATED,
+                    {"app_label": "reputation", "model": "bounty"},
+                    user.id,
+                    unified_document.id,
+                    bounty.id,
+                ),
+                priority=1,
+                countdown=10,
+            )
+
+            unified_document.update_filters(
+                (
+                    FILTER_BOUNTY_OPEN,
+                    FILTER_HAS_BOUNTY,
+                    SORT_BOUNTY_EXPIRATION_DATE,
+                    SORT_BOUNTY_TOTAL_AMOUNT,
+                )
+            )
+            hubs = list(unified_document.hubs.all().values_list("id", flat=True))
+            reset_unified_document_cache(
+                hub_ids=hubs,
+                document_type=[ALL.lower(), BOUNTY.lower()],
+                with_default_hub=True,
+            )
+
+            rh_comment = self.get_queryset().get(id=item_object_id)
+            context = self._get_retrieve_context()
+            serializer_data = DynamicRhCommentSerializer(
+                rh_comment,
+                context=context,
+                _exclude_fields=(
+                    "promoted",
+                    "user_endorsement",
+                    "user_flag",
+                    "comment_content_src",
+                ),
+            ).data
+            return Response(serializer_data, status=201)
 
     def create(self, request, *args, **kwargs):
         return Response(

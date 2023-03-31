@@ -41,6 +41,134 @@ from utils.permissions import PostOnly
 from utils.sentry import log_error
 
 
+def _create_bounty_checks(user, amount, item_content_type):
+    try:
+        amount = decimal.Decimal(amount)
+    except Exception as e:
+        log_error(e)
+        return Response({"detail": "Invalid amount"}, status=400)
+
+    user_balance = user.get_balance()
+    fee_amount, rh_fee, dao_fee, current_bounty_fee = _calculate_fees(amount)
+    if amount <= 0 or user_balance - (amount + fee_amount) < 0:
+        return Response({"detail": "Insufficient Funds"}, status=402)
+    elif amount <= 50 or amount > 1000000:
+        return Response({"detail": "Invalid amount. Minimum of 50 RSC"}, status=400)
+
+    if item_content_type not in BountyViewSet.ALLOWED_CREATE_CONTENT_TYPES:
+        return Response({"detail": "Invalid content type"}, status=400)
+
+    return (amount, fee_amount, rh_fee, dao_fee, current_bounty_fee)
+
+
+def _calculate_fees(gross_amount):
+    current_bounty_fee = BountyFee.objects.last()
+    rh_pct = current_bounty_fee.rh_pct
+    dao_pct = current_bounty_fee.dao_pct
+    rh_fee = gross_amount * rh_pct
+    dao_fee = gross_amount * dao_pct
+    fee = rh_fee + dao_fee
+
+    return fee, rh_fee, dao_fee, current_bounty_fee
+
+
+def _deduct_fees(user, fee, rh_fee, dao_fee, current_bounty_fee):
+    rh_recipient = User.objects.get_revenue_account()
+    dao_recipient = User.objects.get_community_account()
+    rh_fee_distribution = create_bounty_rh_fee_distribution(rh_fee)
+    dao_fee_distribution = create_bounty_dao_fee_distribution(dao_fee)
+    rh_inc_distributor = Distributor(
+        rh_fee_distribution,
+        rh_recipient,
+        current_bounty_fee,
+        time.time(),
+        giver=user,
+    )
+    rh_inc_record = rh_inc_distributor.distribute()
+    rh_dao_distributor = Distributor(
+        dao_fee_distribution,
+        dao_recipient,
+        current_bounty_fee,
+        time.time(),
+        giver=user,
+    )
+    rh_dao_record = rh_dao_distributor.distribute()
+
+    if not (rh_inc_record and rh_dao_record):
+        raise Exception("Failed to deduct fee")
+    return True
+
+
+def _create_bounty(
+    user,
+    data,
+    amount,
+    fee_amount,
+    current_bounty_fee,
+    item_content_type,
+    item_object_id,
+):
+    content_type = ContentType.objects.get(model=item_content_type)
+    content_type_id = content_type.id
+    model_class = content_type.model_class()
+    obj = model_class.objects.get(id=item_object_id)
+    unified_document = obj.unified_document
+
+    # Check if there is an existing bounty open on the object
+    parent_bounty_id = None
+    existing_bounties = Bounty.objects.filter(
+        status=Bounty.OPEN,
+        item_content_type=content_type,
+        item_object_id=item_object_id,
+    )
+    if existing_bounties.exists():
+        parent = existing_bounties.first()
+        parent_bounty_id = parent.id
+        escrow = parent.escrow
+        escrow.amount_holding += amount
+        escrow.save()
+        data["expiration_date"] = parent.expiration_date
+    else:
+        escrow_data = {
+            "created_by": user.id,
+            "hold_type": Escrow.BOUNTY,
+            "amount_holding": amount,
+            "object_id": item_object_id,
+            "content_type": content_type_id,
+        }
+        escrow_serializer = EscrowSerializer(data=escrow_data)
+        escrow_serializer.is_valid(raise_exception=True)
+        escrow = escrow_serializer.save()
+
+    data["created_by"] = user.id
+    data["amount"] = amount
+    data["item_content_type"] = content_type_id
+    data["escrow"] = escrow.id
+    data["unified_document"] = unified_document.id
+    data["parent"] = parent_bounty_id
+    bounty_serializer = BountySerializer(data=data)
+    bounty_serializer.is_valid(raise_exception=True)
+    bounty = bounty_serializer.save()
+
+    amount_str = amount.to_eng_string()
+    fee_str = fee_amount.to_eng_string()
+
+    Balance.objects.create(
+        user=user,
+        content_type=ContentType.objects.get_for_model(BountyFee),
+        object_id=current_bounty_fee.id,
+        amount=f"-{fee_str}",
+    )
+
+    Balance.objects.create(
+        user=user,
+        content_type=ContentType.objects.get_for_model(Bounty),
+        object_id=bounty.id,
+        amount=f"-{amount_str}",
+    )
+    return bounty
+
+
 class BountyViewSet(viewsets.ModelViewSet):
     queryset = Bounty.objects.all()
     serializer_class = BountySerializer
@@ -50,42 +178,6 @@ class BountyViewSet(viewsets.ModelViewSet):
 
     ALLOWED_CREATE_CONTENT_TYPES = ("rhcommentmodel",)
     ALLOWED_APPROVE_CONTENT_TYPES = ("rhcommentmodel",)
-
-    def _calculate_fees(self, gross_amount):
-        current_bounty_fee = BountyFee.objects.last()
-        rh_pct = current_bounty_fee.rh_pct
-        dao_pct = current_bounty_fee.dao_pct
-        rh_fee = gross_amount * rh_pct
-        dao_fee = gross_amount * dao_pct
-        fee = rh_fee + dao_fee
-
-        return fee, rh_fee, dao_fee, current_bounty_fee
-
-    def _deduct_fees(self, user, fee, rh_fee, dao_fee, current_bounty_fee):
-        rh_recipient = User.objects.get_revenue_account()
-        dao_recipient = User.objects.get_community_account()
-        rh_fee_distribution = create_bounty_rh_fee_distribution(rh_fee)
-        dao_fee_distribution = create_bounty_dao_fee_distribution(dao_fee)
-        rh_inc_distributor = Distributor(
-            rh_fee_distribution,
-            rh_recipient,
-            current_bounty_fee,
-            time.time(),
-            giver=user,
-        )
-        rh_inc_record = rh_inc_distributor.distribute()
-        rh_dao_distributor = Distributor(
-            dao_fee_distribution,
-            dao_recipient,
-            current_bounty_fee,
-            time.time(),
-            giver=user,
-        )
-        rh_dao_record = rh_dao_distributor.distribute()
-
-        if not (rh_inc_record and rh_dao_record):
-            raise Exception("Failed to deduct fee")
-        return True
 
     def _get_create_context(self):
         context = {
@@ -128,83 +220,26 @@ class BountyViewSet(viewsets.ModelViewSet):
         user = request.user
         item_content_type = data.get("item_content_type", "")
         item_object_id = data.get("item_object_id", 0)
+        amount = str(data.get("amount", "0"))
 
-        try:
-            amount = decimal.Decimal(str(data.get("amount", "0")))
-        except Exception as e:
-            log_error(e)
-            return Response({"detail": "Invalid amount"}, status=400)
-
-        user_balance = user.get_balance()
-        fee_amount, rh_fee, dao_fee, current_bounty_fee = self._calculate_fees(amount)
-        if amount <= 0 or user_balance - (amount + fee_amount) < 0:
-            return Response({"detail": "Insufficient Funds"}, status=402)
-        elif amount <= 50 or amount > 1000000:
-            return Response({"detail": "Invalid amount. Minimum of 50 RSC"}, status=400)
-
-        if item_content_type not in self.ALLOWED_CREATE_CONTENT_TYPES:
-            return Response({"detail": "Invalid content type"}, status=400)
+        response = _create_bounty_checks(user, amount, item_content_type)
+        if not isinstance(response, tuple):
+            return response
+        else:
+            amount, fee_amount, rh_fee, dao_fee, current_bounty_fee = response
 
         with transaction.atomic():
-            self._deduct_fees(user, fee_amount, rh_fee, dao_fee, current_bounty_fee)
-            content_type = ContentType.objects.get(model=item_content_type)
-            content_type_id = content_type.id
-            model_class = content_type.model_class()
-            obj = model_class.objects.get(id=item_object_id)
-            unified_document = obj.unified_document
-
-            # Check if there is an existing bounty open on the object
-            parent_bounty_id = None
-            existing_bounties = Bounty.objects.filter(
-                status=Bounty.OPEN,
-                item_content_type=content_type,
-                item_object_id=item_object_id,
+            _deduct_fees(user, fee_amount, rh_fee, dao_fee, current_bounty_fee)
+            bounty = _create_bounty(
+                user,
+                data,
+                amount,
+                fee_amount,
+                current_bounty_fee,
+                item_content_type,
+                item_object_id,
             )
-            if existing_bounties.exists():
-                parent = existing_bounties.first()
-                parent_bounty_id = parent.id
-                escrow = parent.escrow
-                escrow.amount_holding += amount
-                escrow.save()
-                data["expiration_date"] = parent.expiration_date
-            else:
-                escrow_data = {
-                    "created_by": user.id,
-                    "hold_type": Escrow.BOUNTY,
-                    "amount_holding": amount,
-                    "object_id": item_object_id,
-                    "content_type": content_type_id,
-                }
-                escrow_serializer = EscrowSerializer(data=escrow_data)
-                escrow_serializer.is_valid(raise_exception=True)
-                escrow = escrow_serializer.save()
-
-            data["created_by"] = user.id
-            data["amount"] = amount
-            data["item_content_type"] = content_type_id
-            data["escrow"] = escrow.id
-            data["unified_document"] = unified_document.id
-            data["parent"] = parent_bounty_id
-            bounty_serializer = BountySerializer(data=data)
-            bounty_serializer.is_valid(raise_exception=True)
-            bounty = bounty_serializer.save()
-
-            amount_str = amount.to_eng_string()
-            fee_str = fee_amount.to_eng_string()
-
-            Balance.objects.create(
-                user=user,
-                content_type=ContentType.objects.get_for_model(BountyFee),
-                object_id=current_bounty_fee.id,
-                amount=f"-{fee_str}",
-            )
-
-            Balance.objects.create(
-                user=user,
-                content_type=ContentType.objects.get_for_model(Bounty),
-                object_id=bounty.id,
-                amount=f"-{amount_str}",
-            )
+            unified_document = bounty.unified_document
 
             context = self._get_create_context()
             serializer = DynamicBountySerializer(
