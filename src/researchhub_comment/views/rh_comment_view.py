@@ -164,6 +164,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 "_include_fields": [
                     "amount",
                     "created_by",
+                    "status",
                 ]
             },
             "rep_dbs_get_created_by": {"_include_fields": ["author_profile", "id"]},

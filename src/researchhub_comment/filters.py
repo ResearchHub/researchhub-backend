@@ -1,8 +1,11 @@
-from django.db.models import DecimalField, Sum
+from functools import reduce
+
+from django.db.models import DecimalField, Q, Sum
 from django.db.models.functions import Coalesce
 from django_filters import DateTimeFilter
 from django_filters import rest_framework as filters
 
+from reputation.models import Bounty
 from researchhub_comment.constants.rh_comment_thread_types import (
     RH_COMMENT_THREAD_TYPES,
 )
@@ -68,11 +71,19 @@ class RHCommentFilter(filters.FilterSet):
             return [f"-{key}" for key in keys]
         return keys
 
-    def _annotate_bounty_sum(self, qs):
-        qs = qs.annotate(
-            bounty_sum=Coalesce(Sum("bounties__amount"), 0, output_field=DecimalField())
+    def _annotate_bounty_sum(self, qs, annotation_filters=None):
+        annotation_filters = [] if annotation_filters is None else annotation_filters
+        annotation_filters_query = reduce(
+            lambda q, value: q | Q(**value), annotation_filters, Q()
         )
-        return qs
+        queryset = qs.annotate(
+            bounty_sum=Coalesce(
+                Sum("bounties__amount", filter=annotation_filters_query),
+                0,
+                output_field=DecimalField(),
+            )
+        )
+        return queryset
 
     def _is_on_child_queryset(self):
         # This checks whether we are filtering on the comment's children
@@ -84,14 +95,16 @@ class RHCommentFilter(filters.FilterSet):
 
     def ordering_filter(self, qs, name, value):
         if value == BEST:
-            qs = self._annotate_bounty_sum(qs)
+            qs = self._annotate_bounty_sum(
+                qs, annotation_filters=[{"bounties__status": Bounty.OPEN}]
+            )
             keys = self._get_ordering_keys(["bounty_sum", "created_date", "score"])
             qs = qs.order_by(*keys)
         elif value == TOP:
             keys = self._get_ordering_keys(["score"])
             qs = qs.order_by(*keys)
         elif value == BOUNTY:
-            qs = self._annotate_bounty_sum(qs)
+            qs = self._annotate_bounty_sum(qs).filter(bounty_sum__gt=0)
             keys = self._get_ordering_keys(["bounty_sum", "created_date", "score"])
         elif value == CREATED_DATE:
             keys = self._get_ordering_keys(["created_date"])
