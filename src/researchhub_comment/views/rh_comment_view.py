@@ -172,7 +172,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "parent",
                 ]
             },
-            "rep_dbs_get_parent": {"_include_fields": ("parent",)},
+            "rep_dbs_get_parent": {"_include_fields": ("id",)},
             "rep_dbs_get_created_by": {"_include_fields": ["author_profile", "id"]},
             "usr_dus_get_author_profile": {
                 "_include_fields": (
