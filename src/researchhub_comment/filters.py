@@ -22,8 +22,9 @@ ORDER_CHOICES = (
     (BEST, "Best"),
     (TOP, "Top"),
     (CREATED_DATE, "Created Date"),
-    (BOUNTY, "Has Bounty"),
 )
+
+FILTER_CHOICES = ((BOUNTY, "Has Bounty"),)
 
 
 class RHCommentFilter(filters.FilterSet):
@@ -48,6 +49,11 @@ class RHCommentFilter(filters.FilterSet):
         choices=ORDER_CHOICES,
         null_value=BEST,
         label="Ordering",
+    )
+    filtering = filters.ChoiceFilter(
+        method="filtering_filter",
+        choices=FILTER_CHOICES,
+        label="Filter by",
     )
     child_count = filters.NumberFilter(
         method="filter_child_count",
@@ -111,9 +117,19 @@ class RHCommentFilter(filters.FilterSet):
             qs = qs.order_by(*keys)
         return qs
 
+    def filtering_filter(self, qs, name, value):
+        if value == BOUNTY:
+            qs = self._annotate_bounty_sum(qs).filter(bounty_sum__gt=0)
+
+        return qs
+
     def filter_child_count(self, qs, name, value):
         if not self._is_on_child_queryset():
             return qs
         offset = int(self.data.get("child_offset", 0))
         count = offset + value
-        return qs[offset:count]
+
+        # Returning the slice qs[offset:count] will cause an error
+        # if the queryset has additional filtering
+        sliced_children_ids = qs[offset:count].values_list("id")
+        return qs.filter(id__in=sliced_children_ids)

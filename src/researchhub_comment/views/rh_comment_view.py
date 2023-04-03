@@ -168,10 +168,11 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "awarded_bounty_amount",
                     "created_by",
                     "status",
-                    "parent_id",
                     "id",
+                    "parent",
                 ]
             },
+            "rep_dbs_get_parent": {"_include_fields": ("parent",)},
             "rep_dbs_get_created_by": {"_include_fields": ["author_profile", "id"]},
             "usr_dus_get_author_profile": {
                 "_include_fields": (
@@ -348,6 +349,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             "children",
             "purchases",
             "bounties",
+            "bounties__parent",
             "bounties__created_by",
             "bounties__created_by__author_profile",
             "bounty_solution",

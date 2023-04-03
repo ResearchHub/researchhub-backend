@@ -182,6 +182,7 @@ class BountyViewSet(viewsets.ModelViewSet):
     def _get_create_context(self):
         context = {
             "rep_dbs_get_created_by": {"_include_fields": ("author_profile", "id")},
+            "rep_dbs_get_parent": {"_include_fields": ("id",)},
             "usr_dus_get_author_profile": {
                 "_include_fields": ("id", "first_name", "last_name", "profile_image")
             },

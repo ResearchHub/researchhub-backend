@@ -38,15 +38,11 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
     escrow = serializers.SerializerMethodField()
     item = serializers.SerializerMethodField()
     solutions = serializers.SerializerMethodField()
-    parent_id = serializers.SerializerMethodField()
+    parent = serializers.SerializerMethodField()
 
     class Meta:
         model = Bounty
         fields = "__all__"
-
-    def get_parent_id(self, bounty):
-        if bounty.parent:
-            return bounty.parent.id
 
     def get_created_by(self, bounty):
         context = self.context
@@ -98,6 +94,16 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
             bounty.solutions, context=context, many=True, **_context_fields
         )
         return serializer.data
+
+    def get_parent(self, bounty):
+        context = self.context
+        _context_fields = context.get("rep_dbs_get_parent", {})
+        if parent := bounty.parent:
+            serializer = DynamicBountySerializer(
+                parent, context=context, **_context_fields
+            )
+            return serializer.data
+        return None
 
 
 class DynamicBountySolutionSerializer(DynamicModelFieldSerializer):
