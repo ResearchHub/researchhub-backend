@@ -300,16 +300,16 @@ class BountyViewSet(viewsets.ModelViewSet):
                 object_id = solution.get("object_id")
 
                 if content_type not in self.ALLOWED_APPROVE_CONTENT_TYPES:
-                    return Response({"detail": "Invalid content type"}, status=400)
+                    raise Exception({"detail": "Invalid content type"})
 
                 try:
                     decimal_amount = decimal.Decimal(str(amount))
                 except Exception as e:
                     log_error(e)
-                    return Response({"detail": "Invalid amount"}, status=400)
+                    raise Exception({"detail": "Invalid amount"})
 
                 if decimal_amount <= 0 or not object_id:
-                    return Response({"detail": "Bad request"}, status=400)
+                    raise Exception({"detail": "Bad request"})
 
                 content_type_model = ContentType.objects.get(model=content_type)
                 model_class = content_type_model.model_class()
@@ -379,7 +379,6 @@ class BountyViewSet(viewsets.ModelViewSet):
                     "status",
                 ),
             )
-            serializer = self.get_serializer(bounty)
             return Response(serializer.data, status=200)
 
     @track_event

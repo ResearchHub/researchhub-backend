@@ -5,7 +5,7 @@ from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
-from rest_framework.pagination import CursorPagination, PageNumberPagination
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -24,6 +24,7 @@ from researchhub.permissions import IsObjectOwner
 from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT
 from researchhub_comment.filters import RHCommentFilter
 from researchhub_comment.models import RhCommentModel
+from researchhub_comment.permissions import CanSetAsAcceptedAnswer
 from researchhub_comment.serializers import (
     DynamicRhCommentSerializer,
     RhCommentSerializer,
@@ -32,19 +33,20 @@ from researchhub_comment.serializers import (
 from researchhub_document.related_models.constants.document_type import (
     ALL,
     BOUNTY,
+    FILTER_ANSWERED,
+    FILTER_BOUNTY_CLOSED,
     FILTER_BOUNTY_OPEN,
     FILTER_HAS_BOUNTY,
     SORT_BOUNTY_EXPIRATION_DATE,
     SORT_BOUNTY_TOTAL_AMOUNT,
 )
-from researchhub_document.related_models.constants.filters import DISCUSSED, HOT
+from researchhub_document.related_models.constants.filters import (
+    DISCUSSED,
+    EXPIRING_SOON,
+    HOT,
+    MOST_RSC,
+)
 from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
-
-
-class CursorSetPagination(CursorPagination):
-    page_size = 20
-    cursor_query_param = "page"
-    ordering = "-created_date"
 
 
 class CommentPagination(PageNumberPagination):
@@ -253,6 +255,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         data = request.data
         user = request.user
         amount = data.pop("amount", 0)
+        expiration_date = data.pop("expiration_date", None)
         item_content_type = RhCommentModel.__name__.lower()
 
         response = _create_bounty_checks(user, amount, item_content_type)
@@ -266,6 +269,8 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             item_object_id = comment_response.data["id"]
             data["item_content_type"] = item_content_type
             data["item_object_id"] = item_object_id
+            if expiration_date:
+                data["expiration_date"] = expiration_date
 
             _deduct_fees(user, fee_amount, rh_fee, dao_fee, current_bounty_fee)
             bounty = _create_bounty(
@@ -398,24 +403,25 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             )
         data = request.data
 
-        # This prevents users from changing important fields, e.g., parent or id
-        disallowed_keys = set(data.keys()) - self._ALLOWED_UPDATE_FIELDS
-        for key in disallowed_keys:
-            data.pop(key)
-        res = super().update(request, *args, **kwargs)
-        context = self._get_retrieve_context()
-        serializer_data = DynamicRhCommentSerializer(
-            self.get_object(),
-            context=context,
-            _exclude_fields=(
-                "promoted",
-                "user_endorsement",
-                "user_flag",
-                "comment_content_src",
-            ),
-        ).data
-        res.data = serializer_data
-        return res
+        with transaction.atomic():
+            # This prevents users from changing important fields, e.g., parent or id
+            disallowed_keys = set(data.keys()) - self._ALLOWED_UPDATE_FIELDS
+            for key in disallowed_keys:
+                data.pop(key)
+            res = super().update(request, *args, **kwargs)
+            context = self._get_retrieve_context()
+            serializer_data = DynamicRhCommentSerializer(
+                self.get_object(),
+                context=context,
+                _exclude_fields=(
+                    "promoted",
+                    "user_endorsement",
+                    "user_flag",
+                    "comment_content_src",
+                ),
+            ).data
+            res.data = serializer_data
+            return res
 
     def perform_update(self, serializer):
         instance = serializer.save()
@@ -469,6 +475,37 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 f"Failed - get_comment_threads: {error}",
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+    @action(
+        detail=True,
+        methods=["POST"],
+        permission_classes=[IsAuthenticatedOrReadOnly, CanSetAsAcceptedAnswer],
+    )
+    def mark_as_accepted_answer(self, *args, pk=None, **kwargs):
+        with transaction.atomic():
+            comment = self.get_object()
+            comment.is_accepted_answer = True
+            comment.save()
+
+            comment.unified_document.update_filters(
+                (
+                    FILTER_ANSWERED,
+                    SORT_BOUNTY_TOTAL_AMOUNT,
+                    SORT_BOUNTY_EXPIRATION_DATE,
+                    FILTER_BOUNTY_CLOSED,
+                    FILTER_BOUNTY_OPEN,
+                )
+            )
+            unified_document = comment.unified_document
+            hubs = list(unified_document.hubs.all().values_list("id", flat=True))
+            doc_type = get_doc_type_key(unified_document)
+            reset_unified_document_cache(
+                hub_ids=hubs,
+                document_type=[doc_type],
+                filters=[EXPIRING_SOON, MOST_RSC],
+                with_default_hub=True,
+            )
+            return Response({"comment_id": comment.id}, status=200)
 
     def _retrieve_or_create_thread_from_request(self, request):
         data = request.data

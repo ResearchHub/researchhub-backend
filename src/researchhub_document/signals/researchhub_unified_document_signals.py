@@ -60,35 +60,37 @@ def sync_is_removed_from_paper(instance, **kwargs):
     except Exception:
         return None
 
-        # @receiver(
-        #     post_save,
-        #     sender=GrmVote,
-        #     dispatch_uid="rh_unified_doc_sync_scores_vote",
-        # )
-        # def rh_unified_doc_sync_scores_on_related_docs(instance, sender, **kwargs):
-        #     if not isinstance(instance, (GrmVote)):
-        #         return
 
-        #     unified_document = instance.unified_document
-        #     if unified_document is None:
-        #         return
+@receiver(
+    post_save,
+    sender=GrmVote,
+    dispatch_uid="rh_unified_doc_sync_scores_vote",
+)
+def rh_unified_doc_sync_scores_on_related_docs(instance, sender, **kwargs):
+    if not isinstance(instance, (GrmVote)):
+        return
 
-        #     document_obj = instance.item
+    unified_document = instance.unified_document
+    if unified_document is None:
+        return
 
-        #     if isinstance(document_obj, (Comment, Reply, Thread)):
-        #         return
+    document_obj = instance.item
 
-        #     sync_scores(unified_document, document_obj)
+    if isinstance(document_obj, (Comment, Reply, Thread)):
+        return
 
-        # def sync_scores(unified_doc, document_obj):
-        #     should_save = False
-        #     score = document_obj.calculate_score()  # refer to AbstractGenericReactionModel
-        #     hot_score = document_obj.calculate_hot_score()  # AbstractGenericReactionModel
-        #     if unified_doc.hot_score != hot_score:
-        #         unified_doc.hot_score = hot_score
-        #         should_save = True
-        #     if unified_doc.score != score:
-        #         unified_doc.score = score
-        #         should_save = True
-        #     if should_save:
-        # unified_doc.save()
+    sync_scores(unified_document, document_obj)
+
+
+def sync_scores(unified_doc, document_obj):
+    should_save = False
+    score = document_obj.calculate_score()  # refer to AbstractGenericReactionModel
+    hot_score = document_obj.calculate_hot_score()  # AbstractGenericReactionModel
+    if unified_doc.hot_score != hot_score:
+        unified_doc.hot_score = hot_score
+        should_save = True
+    if unified_doc.score != score:
+        unified_doc.score = score
+        should_save = True
+    if should_save:
+        unified_doc.save()
