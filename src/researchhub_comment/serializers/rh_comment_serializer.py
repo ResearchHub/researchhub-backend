@@ -1,3 +1,5 @@
+from django.contrib.contenttypes.models import ContentType
+from django.db.models import Sum
 from rest_framework.serializers import SerializerMethodField
 
 from discussion.reaction_serializers import (
@@ -5,6 +7,7 @@ from discussion.reaction_serializers import (
     GenericReactionSerializerMixin,
 )
 from purchase.serializers import DynamicPurchaseSerializer
+from reputation.models import Escrow
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.serializers.constants.rh_comment_serializer_contants import (
@@ -50,6 +53,7 @@ class DynamicRhCommentSerializer(
     children = SerializerMethodField()
     purchases = SerializerMethodField()
     bounties = SerializerMethodField()
+    awarded_bounty_amount = SerializerMethodField()
 
     class Meta:
         fields = "__all__"
@@ -111,12 +115,31 @@ class DynamicRhCommentSerializer(
         )
         return serializer.data
 
-    def get_bounties(self, obj):
+    def get_bounties(self, comment):
         from reputation.serializers import DynamicBountySerializer
 
         context = self.context
         _context_fields = context.get("rhc_dcs_get_bounties", {})
         serializer = DynamicBountySerializer(
-            obj.bounties.all(), many=True, context=context, **_context_fields
+            comment.bounties.all(), many=True, context=context, **_context_fields
         )
         return serializer.data
+
+    def get_awarded_bounty_amount(self, comment):
+        amount_awarded = None
+        bounty_solution = comment.bounty_solution
+
+        if not bounty_solution.exists():
+            return None
+
+        if bounty_solution := bounty_solution.first():
+            bounty = bounty_solution.bounty
+            escrow = bounty.escrow
+            comment_creator = comment.created_by
+            amount_awarded = (
+                comment_creator.escrowrecipients_set.filter(escrow=escrow)
+                .aggregate(Sum("amount"))
+                .get("amount__sum", None)
+            )
+
+        return amount_awarded

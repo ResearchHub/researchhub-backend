@@ -52,6 +52,7 @@ class Escrow(DefaultModel):
         "user.User",
         blank=True,
         related_name="target_escrows",
+        through="EscrowRecipients",
     )
     created_by = models.ForeignKey(
         "user.User", on_delete=models.CASCADE, related_name="created_escrows"
@@ -101,8 +102,6 @@ class Escrow(DefaultModel):
         if not recipient:
             return False
 
-        self.recipients.add(recipient)
-
         escrow_amount = self.amount_holding
 
         status = self.PARTIALLY_PAID
@@ -117,6 +116,8 @@ class Escrow(DefaultModel):
             distribution, recipient, self, time.time(), giver=self.created_by
         )
         record = distributor.distribute()
+        self.recipients.add(recipient, through_defaults={"amount": payout_amount})
+
         if record.distributed_status == "FAILED":
             return False
 
@@ -164,3 +165,9 @@ class Escrow(DefaultModel):
             self.set_expired_status(should_save=True)
 
         return True
+
+
+class EscrowRecipients(DefaultModel):
+    escrow = models.ForeignKey(Escrow, on_delete=models.CASCADE)
+    amount = models.DecimalField(default=0, decimal_places=10, max_digits=19)
+    user = models.ForeignKey("user.User", on_delete=models.CASCADE)

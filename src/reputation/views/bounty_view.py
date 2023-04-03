@@ -293,6 +293,9 @@ class BountyViewSet(viewsets.ModelViewSet):
         data = request.data
         with transaction.atomic():
             bounty = self.get_object()
+            if bounty.parent:
+                bounty = bounty.parent
+
             unified_document = bounty.unified_document
             for solution in data:
                 amount = solution.get("amount", 0)

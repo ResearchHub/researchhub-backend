@@ -165,6 +165,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             "rhc_dcs_get_bounties": {
                 "_include_fields": [
                     "amount",
+                    "awarded_bounty_amount",
                     "created_by",
                     "status",
                     "parent_id",
@@ -349,6 +350,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             "bounties",
             "bounties__created_by",
             "bounties__created_by__author_profile",
+            "bounty_solution",
         )
 
         page = self.paginate_queryset(queryset)
