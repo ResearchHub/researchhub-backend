@@ -160,6 +160,7 @@ class Bounty(DefaultModel):
         self.children.update(status=status, expiration_date=expiration_date)
         self.expiration_date = expiration_date
         status_func = getattr(self, f"set_{status.lower()}_status")
+        # Status func will update the status and call save on the bounty
         status_func()
         return True
 

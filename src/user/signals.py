@@ -149,10 +149,10 @@ def create_action(sender, instance, created, **kwargs):
 
 def send_discussion_email_notification(instance, sender, action):
     # TODO: Temporarily if statement for new comment migration
-    from researchhub.settings import PRODUCTION
+    # from researchhub.settings import PRODUCTION
 
-    if not PRODUCTION:
-        return
+    # if not PRODUCTION:
+    #     return
 
     if sender != RhCommentModel:
         return
