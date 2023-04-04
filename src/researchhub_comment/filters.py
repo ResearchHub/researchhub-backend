@@ -14,6 +14,7 @@ from researchhub_comment.models import RhCommentModel
 BEST = "BEST"
 TOP = "TOP"
 BOUNTY = "BOUNTY"
+REVIEW = "REVIEW"
 CREATED_DATE = "CREATED_DATE"
 ASCENDING_TRUE = "TRUE"
 ASCENDING_FALSE = "FALSE"
@@ -24,7 +25,7 @@ ORDER_CHOICES = (
     (CREATED_DATE, "Created Date"),
 )
 
-FILTER_CHOICES = ((BOUNTY, "Has Bounty"),)
+FILTER_CHOICES = ((BOUNTY, "Has Bounty"), (REVIEW, REVIEW))
 
 
 class RHCommentFilter(filters.FilterSet):
@@ -128,8 +129,10 @@ class RHCommentFilter(filters.FilterSet):
             qs = self._annotate_bounty_sum(
                 qs, annotation_filters=[{"bounties__status": Bounty.OPEN}]
             )
-            keys = self._get_ordering_keys(["bounty_sum"])
-            qs = qs.order_by(*keys)
+            # keys = self._get_ordering_keys(["bounty_sum"])
+            # qs = qs.order_by(*keys)
+        elif value == REVIEW:
+            qs = qs.filter(thread__thread_type=REVIEW)
 
         return qs
 
