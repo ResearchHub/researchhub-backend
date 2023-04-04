@@ -1,9 +1,7 @@
 import logging
 
 import dj_rest_auth.registration.serializers as rest_auth_serializers
-from dj_rest_auth.serializers import UserDetailsSerializer
 from django.contrib.contenttypes.models import ContentType
-from django.db import models
 from rest_framework.serializers import (
     CharField,
     IntegerField,
@@ -26,6 +24,7 @@ from reputation.models import Bounty, Contribution, Withdrawal
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import EDITOR
 from researchhub_access_group.serializers import DynamicPermissionSerializer
+from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost
 from summary.models import Summary
 from summary.models import Vote as SummaryVote
@@ -831,6 +830,10 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
             from purchase.serializers import DynamicPurchaseSerializer
 
             serializer = DynamicPurchaseSerializer
+        elif isinstance(item, RhCommentModel):
+            from researchhub_comment.serializers import DynamicRhCommentSerializer
+
+            serializer = DynamicRhCommentSerializer
         elif isinstance(item, Thread):
             from discussion.serializers import DynamicThreadSerializer
 

@@ -31,7 +31,8 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
             "comment",
             "reply",
             "researchhubpost",
-            "rhcommentmodel" "paper",
+            "rhcommentmodel",
+            "paper",
             "hypothesis",
             "purchase",
             "bounty",
@@ -84,6 +85,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     "abstract",
                     "amount",
                     "content_type",
+                    "comment_content_json",
                     "discussion_post_type",
                     "hubs",
                     "id",
@@ -95,6 +97,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     "source",
                     "text",
                     "title",
+                    "thread",
                     "unified_document",
                     "user",
                 ]
@@ -206,6 +209,24 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     "id",
                     "documents",
                     "document_type",
+                    "unified_document",
+                ]
+            },
+            "rhc_dcs_get_created_by": {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                ]
+            },
+            "rhc_dcs_get_thread": {
+                "_include_fields": [
+                    "content_object",
+                ]
+            },
+            "rhc_dts_get_content_object": {
+                "_include_fields": [
+                    "id",
                     "unified_document",
                 ]
             },
