@@ -110,6 +110,17 @@ class RhCommentModel(
         return self.thread.unified_document
 
     @property
+    def plain_text(self):
+        plain_text = ""
+        comment_json = self.comment_content_json
+        ops = comment_json.get("ops", [])
+        for op in ops:
+            text = op.get("insert")
+            # Ensuring it is a string
+            plain_text += f"{text}"
+        return plain_text
+
+    @property
     def users_to_notify(self):
         if self.parent:
             return [self.parent.created_by]

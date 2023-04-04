@@ -421,7 +421,7 @@ class Notification(models.Model):
         action_user_name = action_user.first_name
         base_url = self._create_frontend_doc_link()
         comments_url = f"{base_url}#comments"
-        comment_plain_text = item.comment_content_json
+        comment_plain_text = item.plain_text
 
         return [
             {
