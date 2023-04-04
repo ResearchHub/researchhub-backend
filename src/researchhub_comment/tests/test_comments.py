@@ -21,6 +21,7 @@
 #         self.user_3 = create_random_default_user("comment_user_3")
 #         self.user_4 = create_random_default_user("comment_user_4")
 #         self.moderator = create_moderator(first_name="moderator", last_name="moderator")
+#         self.paper = create_paper()
 #         self.thread = create_rh_comment(created_by=self.recipient)
 #         self.thread_response_1 = create_rh_comment(
 #             created_by=self.user_2, parent=self.thread

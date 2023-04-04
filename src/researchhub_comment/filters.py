@@ -1,7 +1,7 @@
 from functools import reduce
 
-from django.db.models import Count, DecimalField, Q, Sum
-from django.db.models.functions import Coalesce
+from django.db.models import Count, DecimalField, IntegerField, Q, Sum
+from django.db.models.functions import Cast, Coalesce
 from django_filters import DateTimeFilter
 from django_filters import rest_framework as filters
 
@@ -104,7 +104,9 @@ class RHCommentFilter(filters.FilterSet):
             qs = self._annotate_bounty_sum(
                 qs, annotation_filters=[{"bounties__status": Bounty.OPEN}]
             )
-            qs = qs.annotate(accepted_answer=Count("is_accepted_answer"))
+            qs = qs.annotate(
+                accepted_answer=Cast("is_accepted_answer", output_field=IntegerField())
+            )
             keys = self._get_ordering_keys(
                 ["bounty_sum", "accepted_answer", "created_date", "score"]
             )

@@ -490,7 +490,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         with transaction.atomic():
             # This clears prior accepted answers
             comments = self.get_queryset()
-            comments.update(is_accepted_answer=False)
+            comments.filter(is_accepted_answer=True).update(is_accepted_answer=None)
 
             comment = self.get_object()
             comment.is_accepted_answer = True
