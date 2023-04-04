@@ -487,6 +487,10 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
     )
     def mark_as_accepted_answer(self, *args, pk=None, **kwargs):
         with transaction.atomic():
+            # This clears prior accepted answers
+            comments = self.get_queryset()
+            comments.update(is_accepted_answer=False)
+
             comment = self.get_object()
             comment.is_accepted_answer = True
             comment.save()

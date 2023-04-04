@@ -2,7 +2,7 @@ from rest_framework.permissions import BasePermission
 
 
 class CanSetAsAcceptedAnswer(BasePermission):
-    message = "Invalid base permission"
+    message = "User does not have permission to set answer"
 
     def has_object_permission(self, request, view, obj):
         user = request.user
