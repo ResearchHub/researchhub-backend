@@ -124,7 +124,9 @@ class RHCommentFilter(filters.FilterSet):
 
     def filtering_filter(self, qs, name, value):
         if value == BOUNTY:
-            qs = self._annotate_bounty_sum(qs).filter(bounty_sum__gt=0)
+            qs = self._annotate_bounty_sum(
+                qs, annotation_filters=[{"bounties__status": Bounty.OPEN}]
+            ).filter(bounty_sum__gt=0)
 
         return qs
 
