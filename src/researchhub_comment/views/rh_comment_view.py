@@ -170,6 +170,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "status",
                     "id",
                     "parent",
+                    "expiration_date",
                 ]
             },
             "rep_dbs_get_parent": {"_include_fields": ("id",)},
