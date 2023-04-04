@@ -58,6 +58,13 @@ def send_support_email(
         paper_data["paper_type"] = "".join(paper.paper_type.split("_")).capitalize()
         paper_data["url"] = url
         object_supported = "paper"
+    elif content_type == "rhcommentmodel":
+        paper = Paper.objects.get(id=paper_id)
+        url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments"
+        object_supported = f"""
+            <a href="{url}" class="header-link">thread</a>
+        """
+        object_supported = "thread"
     elif content_type == "thread":
         paper = Paper.objects.get(id=paper_id)
         url = f"{BASE_FRONTEND_URL}/paper/{paper.id}/{paper.slug}#comments"

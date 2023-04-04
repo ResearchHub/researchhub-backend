@@ -285,13 +285,12 @@ class Notification(models.Model):
         action_user_name = action_user.first_name
         base_url = self._create_frontend_doc_link()
         comments_url = f"{base_url}#comments"
-        dis = purchase.item
 
         return [
             {"type": "text", "value": "Congratulations! 🎉 Your "},
             {
                 "type": "link",
-                "value": f"{dis._meta.model_name} ",
+                "value": "comment ",
                 "link": comments_url,
                 "extra": '["link"]',
             },
