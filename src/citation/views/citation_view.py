@@ -13,6 +13,7 @@ class CitationViewSet(ModelViewSet):
     queryset = CitationEntry.objects.all()
     permission_classes = [IsAuthenticated]
     serializer_class = CitationSerializer
+    ordering = "-created_date"
 
     def create(self, request):
         data = request.data
@@ -20,8 +21,9 @@ class CitationViewSet(ModelViewSet):
         res = super().create(request)
         return res
 
-    def update(self, request):
+    def update(self, request, *args, **kwargs):
         data = request.data
+        data["created_by"] = request.user.id
         data["updated_by"] = request.user.id
         res = super().update(request)
         return res

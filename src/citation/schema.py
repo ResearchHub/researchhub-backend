@@ -18,16 +18,16 @@ def generate_schema_for_citation(citation_type):
         "type": "object",
         # "patternProperties": {
         #     f"{creators_schema_regex}": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "first_name": {"type": "string"},
-                        "last_name": {"type": "string"},
-                        "title": {"type": "string"},
-                    },
-                    "required": ["first_name", "last_name"],
-                },
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": {
+                "first_name": {"type": "string"},
+                "last_name": {"type": "string"},
+                "title": {"type": "string"},
+            },
+            "required": ["first_name", "last_name"],
+        },
         #     }
         # },
         "minProperties": 1,
