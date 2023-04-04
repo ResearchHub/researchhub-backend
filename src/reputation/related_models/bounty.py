@@ -156,7 +156,9 @@ class Bounty(DefaultModel):
             if not refunded:
                 return False
 
-        self.children.update(status=status)
+        expiration_date = datetime.now()
+        self.children.update(status=status, expiration_date=expiration_date)
+        self.expiration_date = expiration_date
         status_func = getattr(self, f"set_{status.lower()}_status")
         status_func()
         return True
