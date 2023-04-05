@@ -210,23 +210,6 @@ class DocumentFilter(DefaultModel):
         ).get("total", 0)
 
     def get_discussued(self, document, start_date, end_date):
-        # query = """
-        #     WITH RECURSIVE parents AS (
-        #         SELECT rh_comments.*, 0 AS relative_depth
-        #         FROM rh_comments
-        #         WHERE id = %s
-
-        #         UNION ALL
-
-        #         SELECT rh_comments.*, parents.relative_depth - 1
-        #         FROM rh_comments,parents
-        #         WHERE category.id = parents.parent_id
-        #     )
-        #     SELECT id, name, parent_id, relative_depth
-        #     FROM parents
-        #     ORDER BY relative_depth;
-        # """
-
         threads = document.rh_threads
         # This filter is technically incorrect, but it actually works as a solution.
         # The ORM will generate a JOIN and the result will contain duplicate threads.

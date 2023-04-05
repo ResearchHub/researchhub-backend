@@ -39,6 +39,7 @@ from researchhub_document.related_models.constants.document_type import (
     FILTER_HAS_BOUNTY,
     SORT_BOUNTY_EXPIRATION_DATE,
     SORT_BOUNTY_TOTAL_AMOUNT,
+    SORT_DISCUSSED,
 )
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
@@ -228,6 +229,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 countdown=10,
             )
 
+            unified_document.update_filter(SORT_DISCUSSED)
             hubs = list(unified_document.hubs.all().values_list("id", flat=True))
             doc_type = get_doc_type_key(unified_document)
             reset_unified_document_cache(
@@ -286,6 +288,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 item_object_id,
             )
             unified_document = bounty.unified_document
+            unified_document.update_filter(SORT_DISCUSSED)
             create_contribution.apply_async(
                 (
                     Contribution.BOUNTY_CREATED,
