@@ -33,19 +33,21 @@ class UserManager(UserManager):
             return user.first()
         return User.objects.get(id=1)
 
-    def get_revenue_account(self):
-        user = User.objects.filter(email="revenue@researchhub.com")
+    def _get_account(self, email):
+        user = User.objects.filter(email=email)
         if user.exists():
             return user.first()
 
         return self._get_default_account()
+
+    def get_revenue_account(self):
+        return self._get_account("revenue@researchhub.com")
 
     def get_community_account(self):
-        user = User.objects.filter(email="community@researchhub.com")
-        if user.exists():
-            return user.first()
+        return self._get_account("community@researchhub.com")
 
-        return self._get_default_account()
+    def get_bot_account(self):
+        return self._get_account("bot@researchhub.com")
 
 
 """

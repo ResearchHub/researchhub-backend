@@ -9,6 +9,9 @@ INFURA_PROJECT_ID = os.environ.get("INFURA_PROJECT_ID", "")
 INFURA_PROJECT_SECRET = os.environ.get("INFURA_PROJECT_SECRET", "")
 INFURA_RINKEBY_ENDPOINT = f"https://rinkeby.infura.io/v3/{INFURA_PROJECT_ID}"
 
+OPENAI_KEY = os.environ.get("OPENAI_KEY")
+OPENAI_ORG = os.environ.get("OPENAI_ORG")
+
 ORCID_CLIENT_ID = os.environ.get("ORCID_CLIENT_ID")
 ORCID_CLIENT_SECRET = os.environ.get("ORCID_CLIENT_SECRET")
 ORCID_ACCESS_TOKEN = os.environ.get("ORCID_ACCESS_TOKEN")

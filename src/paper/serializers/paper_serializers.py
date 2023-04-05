@@ -32,6 +32,7 @@ from paper.tasks import (  # celery_calculate_paper_twitter_score,
     add_orcid_authors,
     celery_extract_pdf_sections,
     download_pdf,
+    celery_generate_openai_summary
 )
 from paper.utils import (
     check_file_is_url,
@@ -616,7 +617,8 @@ class PaperSerializer(BasePaperSerializer):
             paper.save(update_fields=["file"])
             paper.extract_pdf_preview()
             celery_extract_pdf_sections.apply_async(
-                (paper_id,), priority=3, countdown=15
+                (paper_id,), priority=3, countdown=1,
+                link=celery_generate_openai_summary.s(paper_id=paper_id)
             )
             return
 

@@ -14,10 +14,12 @@ import feedparser
 import fitz
 import requests
 import twitter
+from PIL import Image
 from bs4 import BeautifulSoup
 from celery.decorators import periodic_task
 from celery.task.schedules import crontab
 from celery.utils.log import get_task_logger
+from discussion.models import Comment, Thread
 from django.apps import apps
 from django.core.cache import cache
 from django.core.files import File
@@ -25,11 +27,6 @@ from django.core.files.base import ContentFile
 from django.db import IntegrityError
 from django.utils.text import slugify
 from habanero import Crossref
-from PIL import Image
-from psycopg2.errors import UniqueViolation
-from pytz import timezone as pytz_tz
-
-from discussion.models import Comment, Thread
 from hub.utils import scopus_to_rh_map
 from paper.utils import (
     IGNORE_PAPER_TITLES,
@@ -48,7 +45,9 @@ from paper.utils import (
     merge_paper_votes,
     reset_paper_cache,
 )
+from psycopg2.errors import UniqueViolation
 from purchase.models import Wallet
+from pytz import timezone as pytz_tz
 from researchhub.celery import (
     QUEUE_CACHES,
     QUEUE_CERMINE,
@@ -59,7 +58,6 @@ from researchhub.celery import (
 )
 from researchhub.settings import APP_ENV, PRODUCTION
 from researchhub_document.utils import update_unified_document_to_paper
-from utils import sentry
 from utils.arxiv.categories import (
     ARXIV_CATEGORIES,
     get_category_name,
@@ -68,6 +66,8 @@ from utils.arxiv.categories import (
 from utils.crossref import get_crossref_issued_date
 from utils.http import check_url_contains_pdf
 from utils.twitter import get_twitter_results, get_twitter_url_results
+
+from utils import sentry
 
 logger = get_task_logger(__name__)
 
@@ -171,7 +171,8 @@ def download_pdf(paper_id, retry=0):
             # paper.reset_cache(use_celery=False)
             paper.set_paper_completeness()
             celery_extract_pdf_sections.apply_async(
-                (paper_id,), priority=5, countdown=15
+                (paper_id,), priority=5, countdown=1,
+                link=celery_generate_openai_summary.s(paper_id=paper_id)
             )
             return True
         except Exception as e:
@@ -295,7 +296,7 @@ def celery_extract_figures(paper_id):
                 with open(extracted_figure_path, "rb") as f:
                     extracted_figures = Figure.objects.filter(paper=paper)
                     if not extracted_figures.filter(
-                        file__contains=f.name, figure_type=Figure.FIGURE
+                            file__contains=f.name, figure_type=Figure.FIGURE
                     ):
                         Figure.objects.create(
                             file=File(f), paper=paper, figure_type=Figure.FIGURE
@@ -342,7 +343,7 @@ def celery_extract_pdf_preview(paper_id, retry=0):
             output_filename = f"{paper_id}-{page.number}.png"
 
             if not extracted_figures.filter(
-                file__contains=output_filename, figure_type=Figure.PREVIEW
+                    file__contains=output_filename, figure_type=Figure.PREVIEW
             ):
                 img_buffer = BytesIO()
                 img_buffer.write(pix.pil_tobytes(format="PNG"))
@@ -585,7 +586,7 @@ def celery_extract_pdf_sections(paper_id):
                 split_file_name = f.name.split("/")
                 file_name = split_file_name[-1]
                 if not extracted_figures.filter(
-                    file__contains=file_name, figure_type=Figure.FIGURE
+                        file__contains=file_name, figure_type=Figure.FIGURE
                 ):
                     Figure.objects.create(
                         file=File(f, name=file_name),
@@ -605,6 +606,63 @@ def celery_extract_pdf_sections(paper_id):
     finally:
         shutil.rmtree(path)
         return True, return_code
+
+
+@app.task(queue=QUEUE_PAPER_MISC)
+def celery_generate_openai_summary(extract_pdf_section_result, paper_id):
+    extract_pdf_section_success, extract_pdf_section_return_code = extract_pdf_section_result
+
+    if not extract_pdf_section_success:
+        logger.warn(f"PDF extraction was not successful, so we cannot generate the OpenAI summary for paper {paper_id}")
+        return None
+
+    from paper.summarizer import PaperSummarizer
+    from user.related_models.user_model import UserManager
+    Paper = apps.get_model("paper.Paper")
+    RhCommentModel = apps.get_model("researchhub_comment.RhCommentModel")
+    RhCommentThreadModel = apps.get_model("researchhub_comment.RhCommentThreadModel")
+
+    user_manager = UserManager()
+
+    try:
+        paper = Paper.objects.get(pk=paper_id)
+        if paper is None:
+            logger.warn(f"Could not find paper with id {paper_id}; summary cannot be extracted")
+
+        summarizer = PaperSummarizer(paper)
+
+        logger.info(f"Extracting summary for paper {paper.id}")
+        summary = summarizer.get_summary()
+
+        if summary is not None and summary != "":
+            logger.warn(f"OpenAI summary for paper {paper.id} was extracted successfully.")
+
+            creator = user_manager.get_bot_account()
+
+            thread = RhCommentThreadModel.objects.create(
+                content_object=paper,
+                created_by=creator,
+                updated_by=creator,
+                thread_type="SUMMARY",
+            )
+            thread.save()
+            comment = RhCommentModel.objects.create(
+                comment_content_json={"ops": [{"insert": summary}]},
+                context_title="Summary (generated using OpenAI)",
+                thread=thread,
+                created_by=creator,
+                updated_by=creator,
+                parent=None,
+            )
+            comment.save()
+            logger.info(f"OpenAI summary for paper {paper.id} was posted successfully.")
+
+            return thread.id, comment.id
+        else:
+            return None
+    except Exception as e:
+        logger.warn(e)
+        return None
 
 
 @app.task(queue=QUEUE_PAPER_MISC)
@@ -672,6 +730,7 @@ RETRY_MAX = 20  # It fails a lot so retry a bunch
 NUM_DUP_STOP = 30  # Number of dups to hit before determining we're done
 BASE_URL = "http://export.arxiv.org/api/query?"
 
+
 # Pull Daily (arxiv updates 20:00 EST)
 # @periodic_task(
 #     run_every=crontab(minute=0, hour='*/2'),
@@ -728,7 +787,7 @@ def pull_papers(start=0, force=False):
             # If failed to fetch and we're not at the end retry until the limit
             if url.getcode() != 200:
                 if num_retries < RETRY_MAX and i < int(
-                    feed.feed.opensearch_totalresults
+                        feed.feed.opensearch_totalresults
                 ):
                     num_retries += 1
                     time.sleep(RETRY_WAIT)
@@ -743,7 +802,7 @@ def pull_papers(start=0, force=False):
             # If no results and we're at the end or we've hit the retry limit give up
             if len(feed.entries) == 0:
                 if num_retries < RETRY_MAX and i < int(
-                    feed.feed.opensearch_totalresults
+                        feed.feed.opensearch_totalresults
                 ):
                     num_retries += 1
                     time.sleep(RETRY_WAIT)
@@ -832,7 +891,7 @@ def pull_papers(start=0, force=False):
 
                         # If not published in the past week we're done
                         if Paper.objects.get(
-                            pk=paper.id
+                                pk=paper.id
                         ).paper_publish_date < datetime.now().date() - timedelta(
                             days=7
                         ):
@@ -895,6 +954,7 @@ WAIT_TIME = 2
 RETRY_WAIT = 8
 RETRY_MAX = 20
 NUM_DUP_STOP = 30
+
 
 # Pull Daily
 # @periodic_task(

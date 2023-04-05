@@ -31,6 +31,7 @@ COPY keys.sample.py /usr/app/src/config_local/keys.py
 COPY twitter_config_sample.py /usr/app/src/config_local/twitter.py
 
 RUN mkdir -p /tmp/pdf_cermine/
+RUN chmod 777 /tmp/pdf_cermine
 RUN cp /usr/bin/python3 /usr/bin/python
 
 
