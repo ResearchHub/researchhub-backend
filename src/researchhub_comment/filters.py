@@ -124,6 +124,9 @@ class RHCommentFilter(filters.FilterSet):
         return qs
 
     def filtering_filter(self, qs, name, value):
+        if not self._is_on_child_queryset():
+            return qs
+
         if value == BOUNTY:
             qs = qs.filter(bounties__isnull=False)
             qs = self._annotate_bounty_sum(
