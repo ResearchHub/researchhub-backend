@@ -127,6 +127,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             file_name = f"RH-POST-{document_type}-USER-{created_by.id}.txt"
             full_src_file = ContentFile(data["full_src"].encode())
             rh_post.authors.set(authors)
+            self.add_upvote(created_by, rh_post)
 
             if not TESTING:
                 if document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
