@@ -212,6 +212,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     "documents",
                     "document_type",
                     "unified_document",
+                    "thread",
                 ]
             },
             "rhc_dcs_get_created_by": {

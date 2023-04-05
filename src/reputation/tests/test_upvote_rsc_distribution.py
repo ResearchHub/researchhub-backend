@@ -26,7 +26,7 @@ class BaseTests(TestCase, TestHelper):
             last_name="uploader",
             email="paperuploader_1239@gmail.com",
         )
-        original_paper = self.create_paper_without_authors(uploaded_by=self.uploaded_by)
+        original_paper = self.create_paper_without_authors(uploaded_by=uploaded_by)
         user = self.create_user()
         self.user = user
         self.original_paper = original_paper

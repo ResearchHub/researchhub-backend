@@ -1,4 +1,5 @@
 import json
+import random
 import threading
 import time
 
@@ -120,7 +121,9 @@ class TestHelper:
         self, title=test_data.paper_title, uploaded_by=None
     ):
         if uploaded_by is None:
-            uploaded_by = self.create_user()
+            uploaded_by = self.create_user(
+                f"{random.randint(0, 100)}_{random.randint(100, 200)}"
+            )
         return Paper.objects.create(
             title=title,
             paper_publish_date=self.test_data.paper_publish_date,
