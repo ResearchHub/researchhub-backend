@@ -1,11 +1,10 @@
-from django.contrib.contenttypes.models import ContentType
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from discussion.models import Comment, Reply, Thread
 from discussion.reaction_models import Vote as GrmVote
 from paper.models import Paper
-from reputation.related_models.bounty import Bounty
+from researchhub_comment.models import RhCommentModel
 from researchhub_document.tasks import recalc_hot_score_task
 from utils import sentry
 
@@ -76,7 +75,7 @@ def rh_unified_doc_sync_scores_on_related_docs(instance, sender, **kwargs):
 
     document_obj = instance.item
 
-    if isinstance(document_obj, (Comment, Reply, Thread)):
+    if isinstance(document_obj, (Comment, Reply, Thread, RhCommentModel)):
         return
 
     sync_scores(unified_document, document_obj)
