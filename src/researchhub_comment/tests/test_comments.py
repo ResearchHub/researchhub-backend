@@ -1,12 +1,7 @@
-import time
-from datetime import datetime
-
 from rest_framework.test import APITestCase
 
-from discussion.tests.helpers import create_rh_comment
 from paper.tests.helpers import create_paper
-from user.models import User
-from user.tests.helpers import create_moderator, create_random_default_user, create_user
+from user.tests.helpers import create_moderator, create_random_default_user
 
 
 class CommentViewTests(APITestCase):
@@ -18,16 +13,31 @@ class CommentViewTests(APITestCase):
         self.moderator = create_moderator(first_name="moderator", last_name="moderator")
         self.paper = create_paper()
 
-    def _create_comment(self, created_by, *args, **kwargs):
+    def _create_comment(self, obj_name, obj_id, created_by, data):
         self.client.force_authenticate(created_by)
-
-        self.client.post("/api/paper/123/comments/create_rh_comment/")
+        res = self.client.post(
+            f"/api/{obj_name}/{obj_id}/comments/create_rh_comment/", {**data}
+        )
+        return res
 
     def _create_paper_comment(self, paper_id, created_by, *args, **kwargs):
+        res = self.create_comment(
+            "paper",
+            paper_id,
+            created_by,
+            {
+                "comment_content_json": {"ops": [{"insert": "this is a test comment"}]},
+            },
+        )
+        return res
+
+    def _create_post_comment(self, post_id, created_by, *args, **kwargs):
         self.client.force_authenticate(created_by)
 
-        res = self.client.post(
-            f"/api/paper/{paper_id}/comments/create_rh_comment/",
+        res = self.create_comment(
+            "post",
+            post_id,
+            created_by,
             {
                 "comment_content_json": {"ops": [{"insert": "this is a test comment"}]},
             },
