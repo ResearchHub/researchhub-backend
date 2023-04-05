@@ -121,8 +121,9 @@ class TestHelper:
         self, title=test_data.paper_title, uploaded_by=None
     ):
         if uploaded_by is None:
+            name = f"{random.randint(0, 100)}_{random.randint(100, 200)}"
             uploaded_by = self.create_user(
-                f"{random.randint(0, 100)}_{random.randint(100, 200)}"
+                first_name=name, last_name=name, email=f"{name}@gmail.com"
             )
         return Paper.objects.create(
             title=title,
