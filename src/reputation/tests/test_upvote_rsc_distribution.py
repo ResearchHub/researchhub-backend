@@ -21,10 +21,15 @@ class BaseTests(TestCase, TestHelper):
     def setUp(self):
         NUM_VOTES = 1
         votes = []
+        uploaded_by = self.create_user(
+            first_name="paper_uploader",
+            last_name="uploader",
+            email="paperuploader_1239@gmail.com",
+        )
+        original_paper = self.create_paper_without_authors(uploaded_by=self.uploaded_by)
         user = self.create_user()
-        original_paper = self.create_paper_without_authors()
-        self.original_paper = original_paper
         self.user = user
+        self.original_paper = original_paper
         original_paper.raw_authors = [{"first_name": "First", "last_name": "Last"}]
 
         for x in range(NUM_VOTES):

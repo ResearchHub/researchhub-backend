@@ -116,9 +116,15 @@ class TestHelper:
             name=name, country=country, state=state, city=city
         )
 
-    def create_paper_without_authors(self, title=test_data.paper_title):
+    def create_paper_without_authors(
+        self, title=test_data.paper_title, uploaded_by=None
+    ):
+        if uploaded_by is None:
+            uploaded_by = self.create_user()
         return Paper.objects.create(
-            title=title, paper_publish_date=self.test_data.paper_publish_date
+            title=title,
+            paper_publish_date=self.test_data.paper_publish_date,
+            uploaded_by=uploaded_by,
         )
 
     def create_hub(self, name):

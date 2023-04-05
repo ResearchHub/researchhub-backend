@@ -73,6 +73,12 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
             serializer = DynamicThreadSerializer(
                 obj, context=context, **_context_fields
             )
+        elif model_name == "rhcommentmodel":
+            from researchhub_comment.serializers import DynamicRhCommentSerializer
+
+            serializer = DynamicRhCommentSerializer(
+                obj, context=context, **_context_fields
+            )
 
         if serializer is not None:
             return serializer.data

@@ -213,6 +213,7 @@ class BountyViewSet(viewsets.ModelViewSet):
         context["dis_dts_get_unified_document"] = {
             "_include_fields": ("documents", "document_type")
         }
+        context["rhc_dcs_get_created_by"] = {"_include_fields": ("author_profile",)}
         return context
 
     @track_event

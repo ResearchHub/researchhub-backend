@@ -265,6 +265,11 @@ class DynamicPurchaseSerializer(DynamicModelFieldSerializer):
         elif model_name == "reply":
             item = model_class.objects.get(id=object_id)
             serializer = DynamicReplySerializer
+        elif model_name == "rh comment model":
+            from researchhub_comment.serializers import DynamicRhCommentSerializer
+
+            item = model_class.objects.get(id=object_id)
+            serializer = DynamicRhCommentSerializer
         elif model_name == "summary":
             item = model_class.objects.get(id=object_id)
             serializer = None

@@ -126,6 +126,8 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     "title",
                     "unified_document",
                     "plain_text",
+                    "comment_content_json",
+                    "thread",
                 ]
             },
             "pch_dps_get_user": {
