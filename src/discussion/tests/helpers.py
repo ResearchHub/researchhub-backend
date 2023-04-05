@@ -151,10 +151,10 @@ def create_rh_comment(
     text=TestData.thread_text,
     parent=None,
 ):
-    if paper is None and post is None and hypothesis is None:
-        paper = create_paper()
     if created_by is None:
-        created_by = create_random_default_user("rh_comment")
+        created_by = create_random_default_user("default_rh_comment")
+    if paper is None and post is None and hypothesis is None:
+        paper = create_paper(uploaded_by=created_by)
 
     thread = RhCommentThreadModel.objects.create(
         content_object=paper or post or hypothesis,

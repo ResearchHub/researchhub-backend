@@ -59,6 +59,7 @@ class Vote(DefaultModel):
 
     @property
     def unified_document(self):
+        from discussion.models import Comment, Reply, Thread
         from hypothesis.models import Citation, Hypothesis
         from paper.models import Paper
         from researchhub_comment.models import RhCommentModel
@@ -67,7 +68,15 @@ class Vote(DefaultModel):
         item = self.item
         item_type = type(item)
 
-        if item_type in [Paper, ResearchhubPost, Hypothesis, RhCommentModel]:
+        if item_type in [
+            Paper,
+            ResearchhubPost,
+            Hypothesis,
+            RhCommentModel,
+            Thread,
+            Comment,
+            Reply,
+        ]:
             return item.unified_document
         elif item_type is Citation:
             # citation has 1:1 unifiedDoc edge named "source"

@@ -176,8 +176,8 @@ class BountyViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["item_object_id", "status"]
 
-    ALLOWED_CREATE_CONTENT_TYPES = ("rhcommentmodel",)
-    ALLOWED_APPROVE_CONTENT_TYPES = ("rhcommentmodel",)
+    ALLOWED_CREATE_CONTENT_TYPES = ("rhcommentmodel", "thread")
+    ALLOWED_APPROVE_CONTENT_TYPES = ("rhcommentmodel", "thread", "comment", "reply")
 
     def _get_create_context(self):
         context = {
