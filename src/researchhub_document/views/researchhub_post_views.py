@@ -7,6 +7,7 @@ import requests
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.template.loader import render_to_string
+from django.utils.text import slugify
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -111,10 +112,12 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 unified_document.access_groups = access_group
                 unified_document.save()
 
+            slug = slugify(title)
             rh_post = ResearchhubPost.objects.create(
                 created_by=created_by,
                 document_type=document_type,
                 doi=doi,
+                slug=slug,
                 editor_type=CK_EDITOR if editor_type is None else editor_type,
                 note_id=note_id,
                 prev_version=None,
