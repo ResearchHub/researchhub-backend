@@ -12,13 +12,7 @@ def init_zenrows():
     from urllib3.exceptions import InsecureRequestWarning
     requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
 
-def web_scrape(url: str, proxies: dict = None, verify: bool = True)-> str:
+def web_scrape(url: str, proxies: dict, verify: bool)-> requests.models.Response:
     '''wbb_scape scapes the given url (with optional proxy settings).
-
-    To use with zenrows service:
-        web_scrape(url, ZENROWS_PROXIES, False)
     '''
-    resp = requests.get(url, proxies=proxies, verify=verify)
-    return resp.text
-
-
+    return requests.get(url, proxies=proxies, verify=verify)
