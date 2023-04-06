@@ -874,3 +874,5 @@ REFERRAL_PROGRAM = {
         "BOUNTY_PAYOUT",
     ],
 }
+
+COMMENT_SIGNAL_OFF = os.environ.get("COMMENT_SIGNAL_OFF", False)

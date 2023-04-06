@@ -10,10 +10,10 @@ from researchhub_comment.models import RhCommentModel
 )
 def create_thread_notification(sender, instance, created, **kwargs):
     # TODO: Temporarily if statement for new comment migration
-    # from researchhub.settings import PRODUCTION
+    from researchhub.settings import COMMENT_SIGNAL_OFF
 
-    # if not PRODUCTION:
-    #     return
+    if COMMENT_SIGNAL_OFF:
+        return
 
     if created:
         creator = instance.created_by

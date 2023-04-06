@@ -395,6 +395,21 @@ def update_or_create_vote(request, user, item, vote_type):
 
     """UPDATE VOTE"""
     vote = retrieve_vote(user, item)
+    if vote_type == Vote.UPVOTE and vote.vote_type == vote.DOWNVOTE:
+        item.score += 2
+    elif vote_type == Vote.DOWNVOTE and vote.vote_type == vote.UPVOTE:
+        item.score -= 2
+    elif vote_type == Vote.UPVOTE:
+        item.score += 1
+    elif vote_type == Vote.DOWNVOTE:
+        item.score -= 1
+    elif vote_type == Vote.NEUTRAL and vote.vote_type == Vote.UPVOTE:
+        item.score -= 1
+    elif vote_type == Vote.NEUTRAL and vote.vote_type == Vote.DOWNVOTE:
+        item.score += 1
+
+    item.save()
+
     if vote is not None:
         vote.vote_type = vote_type
         vote.save(update_fields=["updated_date", "vote_type"])
@@ -423,12 +438,6 @@ def update_or_create_vote(request, user, item, vote_type):
     # Commenting out paper cache
     # if isinstance(potential_paper, Paper):
     #     potential_paper.reset_cache()
-
-    if vote_type == Vote.UPVOTE:
-        item.score += 1
-    elif vote_type == Vote.DOWNVOTE:
-        item.score -= 1
-    item.save()
 
     app_label = item._meta.app_label
     model = item._meta.model.__name__.lower()
