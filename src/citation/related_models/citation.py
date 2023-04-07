@@ -21,9 +21,7 @@ class CitationEntry(models.Model):
     )
     citation_type = models.CharField(max_length=32, choices=CITATION_TYPE_CHOICES)
     checksum = models.CharField(max_length=16)
-    doi = models.CharField(
-        max_length=255, default=None, null=True, blank=True, unique=True
-    )
+    doi = models.CharField(max_length=255, default=None, null=True, blank=True)
     organization = models.ForeignKey(
         Organization, related_name="created_citations", on_delete=models.CASCADE
     )
