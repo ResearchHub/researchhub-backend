@@ -14,6 +14,7 @@ CREATORS_SCHEMA_REGEX = f"({initial_creators_schema_regex})"
 def generate_schema_for_citation(citation_type):
     creator_fields = CREATOR_TYPES[citation_type]
     # creators_schema_regex = r"|".join(f"^{field}$" for field in creator_fields)
+    # attachment = {}
     creators_schema = {
         "type": "object",
         # "patternProperties": {
