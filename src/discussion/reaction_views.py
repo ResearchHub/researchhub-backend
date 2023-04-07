@@ -395,17 +395,17 @@ def update_or_create_vote(request, user, item, vote_type):
 
     """UPDATE VOTE"""
     vote = retrieve_vote(user, item)
-    if vote_type == Vote.UPVOTE and vote.vote_type == vote.DOWNVOTE:
+    if vote_type == Vote.UPVOTE and vote and vote.vote_type == vote.DOWNVOTE:
         item.score += 2
-    elif vote_type == Vote.DOWNVOTE and vote.vote_type == vote.UPVOTE:
+    elif vote_type == Vote.DOWNVOTE and vote and vote.vote_type == vote.UPVOTE:
         item.score -= 2
     elif vote_type == Vote.UPVOTE:
         item.score += 1
     elif vote_type == Vote.DOWNVOTE:
         item.score -= 1
-    elif vote_type == Vote.NEUTRAL and vote.vote_type == Vote.UPVOTE:
+    elif vote_type == Vote.NEUTRAL and vote and vote.vote_type == Vote.UPVOTE:
         item.score -= 1
-    elif vote_type == Vote.NEUTRAL and vote.vote_type == Vote.DOWNVOTE:
+    elif vote_type == Vote.NEUTRAL and vote and vote.vote_type == Vote.DOWNVOTE:
         item.score += 1
 
     item.save()
