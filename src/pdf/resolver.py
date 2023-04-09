@@ -163,12 +163,12 @@ def fetch(url: str, proxies: dict = None, verify: bool = True)-> dict:
 def fetch_pdf(pdf_url: str, proxies: dict = None, verify: bool = True)-> bytes:
     '''fetch_pdf returns the PDF contents, with the given downloading url.
 
-    Note this download url is DIFFERENT from the container url,
-    however, this information can be retrieved by first retrieve metadata from the container page
-    via calling 'fetch'.
+    Note this download url is NOT the container url.
+    Instead, we extract the download url from the scraped webpage, and issue another call to retrieve the PDF.
 
     To use with zenrows service:
         fetch_pdf(pdf_url, ZENROWS_PROXIES, False)
     '''
     resp = web_scrape(pdf_url, proxies=proxies, verify=verify)
-    print(resp)
+    # Return the binary content.
+    return resp.content
