@@ -87,9 +87,9 @@ class SciHubResolver(Resolver):
         soup = bs4.BeautifulSoup(resp.text, 'html.parser')
 
         try:
-            buttons = soup.body.find_next(id="minu").find_next(id="buttons")
+            buttons = soup.body.find(id="buttons")
         except AttributeError:
-            pass  # Ignore anything if any web elements are missing.
+            return meta # Don't have expected tag, do nothing.
 
         # The download url is located at: body-> #minu-> #buttons-> button['onclock']
         # One example for the 'onclick' attribute:
@@ -136,7 +136,7 @@ class ResearchGateResolver(Resolver):
                 doi_anchor = uls[1].find('a')
                 meta['doi'] = doi_anchor.string
         except AttributeError:
-            pass  # Ignore anything if any web elements are missing.
+            pass  # Ignore if the required web elements are missing.
 
         try:
             # Locate the Download button, and follow href.
@@ -145,7 +145,7 @@ class ResearchGateResolver(Resolver):
             parsed = parse.urlparse(href)
             meta['pdf_url'] = parse.urlunparse([parsed.scheme, parsed.netloc, parsed.path, '', '', ''])
         except AttributeError:
-            pass  # Ignore anything if any web elements are missing.
+            pass  # Ignore if the required web elements are missing.
 
         return meta
 
