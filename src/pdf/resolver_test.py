@@ -57,7 +57,21 @@ class ResolverTestCase(unittest.TestCase):
             m.get(f"mock://default", text=canned_resp)
 
             meta = fetch("mock://default")
-            self.assertEqual("10.1109/BioCAS.2015.7348414", meta['doi'])
+            self.assertEqual({
+                'doi': "10.1109/BioCAS.2015.7348414",
+                }, meta)
+
+    def test_failure_cases(self, m):
+        meta = {}
+        with open("testdata/wikipedia_california.html") as f:
+            canned_resp = f.read()
+            m.get(f"mock://wikipedia", text=canned_resp)
+
+            # Unfortunately we still get one doi from the reference section in the wikipedia document.
+            meta = fetch("mock://wikipedia")
+            self.assertEqual({
+                'doi': "10.2307/3107006",
+            }, meta)
 
 
 if __name__ == '__main__':

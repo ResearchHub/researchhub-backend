@@ -33,7 +33,7 @@ class Resolver(abc.ABC):
     def parse(cls, resp: requests.models.Response, meta: dict)-> dict:
         '''parse parses the given web page and returns the retrieved PDF metadata.
 
-        The default behavior is to get the text of the page and return anything that looks like a doi.
+        The default behavior is to get the text of the page and return the first match that looks like a doi.
 
         NOTE(kevinyang):
         Any parsing logic is inherely brittle as it's subject to the HTML structure, which is totally outside our control.
@@ -41,9 +41,11 @@ class Resolver(abc.ABC):
         '''
         if 'doi' not in meta:
             soup = bs4.BeautifulSoup(resp.text, 'html.parser')
-            matched = Resolver.doi_re.search(soup.get_text())
-            if matched:
-                meta['doi'] = matched.group()
+            for string in soup.stripped_strings:
+                matched = Resolver.doi_re.search(string)
+                if matched:
+                    meta['doi'] = matched.group()
+                    break
 
         return meta
 
@@ -86,21 +88,23 @@ class SciHubResolver(Resolver):
 
         try:
             buttons = soup.body.find_next(id="minu").find_next(id="buttons")
+        except AttributeError:
+            pass  # Ignore anything if any web elements are missing.
 
-            # The download url is located at: body-> #minu-> #buttons-> button['onclock']
-            # One example for the 'onclick' attribute:
-            # location.href='//moscow.sci-hub.se/4746/234245eed78d3448735c796a77f10f85/laiho2015.pdf?download=true'
-            button = buttons.find("button")
+        # The download url is located at: body-> #minu-> #buttons-> button['onclock']
+        # One example for the 'onclick' attribute:
+        # location.href='//moscow.sci-hub.se/4746/234245eed78d3448735c796a77f10f85/laiho2015.pdf?download=true'
+        button = buttons.find("button")
+        if button:
             matched = SciHubResolver.pdf_url_re.match(button.get('onclick'))
             if matched:
                 meta['pdf_url'] = f"https:{matched.group(1)}"
 
-            if 'doi' not in meta:
-                # Try to recover doi from the page as well, if it's still unknown.
-                doi = buttons.find(id="doi")
+        if 'doi' not in meta:
+            # Try to recover doi from the page as well, if it's still unknown.
+            doi = buttons.find(id="doi")
+            if doi:
                 meta['doi'] = doi.string
-        except AttributeError:
-            pass  # Ignore anything if any web elements are missing.
 
         return meta
 
@@ -126,16 +130,17 @@ class ResearchGateResolver(Resolver):
         soup = bs4.BeautifulSoup(resp.text, 'html.parser')
 
         try:
-            # The div tag with class of 'content-page-header', inside HTML body.
-            header = soup.body.find('div', class_='content-page-header')
             if 'doi' not in meta:
-                meta_div = header.find('div', class_="research-detail-meta")
+                meta_div = soup.body.find('div', class_="research-detail-meta")
                 uls = meta_div.find_all("ul")
                 doi_anchor = uls[1].find('a')
                 meta['doi'] = doi_anchor.string
+        except AttributeError:
+            pass  # Ignore anything if any web elements are missing.
 
+        try:
             # Locate the Download button, and follow href.
-            download_span = header.find('span', string='Download')
+            download_span = soup.body.find('span', string='Download')
             href = download_span.parent.get('href')
             parsed = parse.urlparse(href)
             meta['pdf_url'] = parse.urlunparse([parsed.scheme, parsed.netloc, parsed.path, '', '', ''])
