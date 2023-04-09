@@ -8,9 +8,9 @@ from web_scraping import *
 class ResolverTestCase(unittest.TestCase):
     def test_scihub(self, m):
         meta = {}
+        doi = "10.1109/BioCAS.2015.7348414"
         with open("testdata/resolver_scihub.html") as f:
             canned_resp = f.read()
-            doi = "10.1109/BioCAS.2015.7348414"
             self.assertEqual(f"https://sci-hub.se/{doi}", SciHubResolver.from_doi(doi))
             m.get(f"https://sci-hub.se/{doi}", text=canned_resp)
 
@@ -24,6 +24,7 @@ class ResolverTestCase(unittest.TestCase):
             m.get(meta['pdf_url'],
                   headers={'Content-Type': 'application/pdf'},
                   body=pdf)
+
             pdf_content = fetch_pdf(meta['pdf_url'])
             self.assertEqual(578565, len(pdf_content))
 
@@ -44,6 +45,7 @@ class ResolverTestCase(unittest.TestCase):
             m.get(meta['pdf_url'],
                   headers={'Content-Type': 'application/pdf'},
                   body=pdf)
+
             pdf_content = fetch_pdf(meta['pdf_url'])
             self.assertEqual(2199552, len(pdf_content))  # The byte size should match.
 
