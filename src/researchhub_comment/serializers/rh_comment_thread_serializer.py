@@ -64,7 +64,7 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
         elif isinstance(content_object, ResearchhubPost):
             serializer = DynamicPostSerializer
         elif isinstance(content_object, Hypothesis):
-            from hypothesis.models import DynamicHypothesisSerializer
+            from hypothesis.serializers import DynamicHypothesisSerializer
 
             serializer = DynamicHypothesisSerializer
 
