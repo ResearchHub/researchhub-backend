@@ -22,16 +22,10 @@ from researchhub_document.related_models.constants.document_type import (
 from researchhub_document.related_models.document_filter_model import DocumentFilter
 from researchhub_document.tasks import update_elastic_registry
 from user.models import Author
-from utils.models import DefaultModel
+from utils.models import DefaultModel, SoftDeletableModel
 
 
-class ResearchhubUnifiedDocument(DefaultModel, HotScoreMixin):
-    is_public = models.BooleanField(
-        default=True, help_text="Unified document is public"
-    )
-    is_removed = models.BooleanField(
-        default=False, db_index=True, help_text="Unified Document is removed (deleted)"
-    )
+class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel):
     document_type = models.CharField(
         choices=DOCUMENT_TYPES,
         default=PAPER,

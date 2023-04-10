@@ -76,7 +76,7 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
         self.assertContains(response, "id", status_code=201)
         self.assertTrue(Escrow.objects.filter(hold_type=Escrow.AUTHOR_RSC).count() == 1)
         author_pot = Escrow.objects.filter(hold_type=Escrow.AUTHOR_RSC).first()
-        self.assertTrue(author_pot.amount == amount * 0.75)
+        self.assertTrue(author_pot.amount_holding == amount * 0.75)
         self.assertTrue(Balance.objects.count() == 3)
 
     def post_support_response(self, user, paper_id, amount=10):

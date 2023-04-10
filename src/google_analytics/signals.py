@@ -22,6 +22,10 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from summary.models import Summary
 from user.models import User
 
+"""
+All this is currently disabled via apps.py
+"""
+
 ga = GoogleAnalytics()
 
 
@@ -165,8 +169,6 @@ def send_vote_event(sender, instance, created, update_fields, **kwargs):
             return
         if item_type is Paper:
             paper_id = instance.item.id
-        elif instance.item.paper is not None:
-            paper_id = instance.item.paper.id
     return get_event_hit_response(
         instance,
         created,

@@ -7,6 +7,7 @@ import requests
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.template.loader import render_to_string
+from django.utils.text import slugify
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -27,7 +28,6 @@ from researchhub.settings import (
     CROSSREF_LOGIN_PASSWORD,
     TESTING,
 )
-from researchhub_comment.views.rh_comment_thread_view_mixin import RhCommentThreadViewMixin
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.permissions import HasDocumentEditingPermission
 from researchhub_document.related_models.constants.document_type import (
@@ -52,7 +52,7 @@ from researchhub_document.utils import reset_unified_document_cache
 from utils.sentry import log_error
 
 
-class ResearchhubPostViewSet(ReactionViewActionMixin, RhCommentThreadViewMixin, ModelViewSet):
+class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
     ordering = "-created_date"
     queryset = ResearchhubUnifiedDocument.objects.all()
     permission_classes = [AllowAny, HasDocumentEditingPermission]
@@ -112,10 +112,12 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, RhCommentThreadViewMixin, 
                 unified_document.access_groups = access_group
                 unified_document.save()
 
+            slug = slugify(title)
             rh_post = ResearchhubPost.objects.create(
                 created_by=created_by,
                 document_type=document_type,
                 doi=doi,
+                slug=slug,
                 editor_type=CK_EDITOR if editor_type is None else editor_type,
                 note_id=note_id,
                 prev_version=None,
@@ -128,6 +130,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, RhCommentThreadViewMixin, 
             file_name = f"RH-POST-{document_type}-USER-{created_by.id}.txt"
             full_src_file = ContentFile(data["full_src"].encode())
             rh_post.authors.set(authors)
+            self.add_upvote(created_by, rh_post)
 
             if not TESTING:
                 if document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:

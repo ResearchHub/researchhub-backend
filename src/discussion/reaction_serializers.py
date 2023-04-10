@@ -13,6 +13,7 @@ from utils.sentry import log_error
 def raise_implement(class_name, method_name):
     raise NotImplementedError(f"{class_name}: must implement {method_name}")
 
+
 class EndorsementSerializer(ModelSerializer):
     item = PrimaryKeyRelatedField(many=False, read_only=True)
 
@@ -115,13 +116,6 @@ class GenericReactionSerializerMixin:
             except Endorsement.DoesNotExist:
                 return None
 
-    def get_score(self, obj):
-        try:
-            return obj.calculate_score()
-        except Exception as e:
-            log_error(e)
-            return None
-
     def get_user_vote(self, obj):
         vote = None
         user = get_user_from_request(self.context)
@@ -159,14 +153,14 @@ class GenericReactionSerializerMixin:
             log_error(e)
             return None
 
-class GenericReactionSerializer(ModelSerializer, GenericReactionSerializerMixin):
+
+class GenericReactionSerializer(GenericReactionSerializerMixin, ModelSerializer):
     class Meta:
         abstract = True
         # NOTE: fields = [raise_implement("GenericReactionSerializer", "fields")]
         # NOTE: read_only_fields = [raise_implement("GenericReactionSerializer", "read_only_fields")]
 
     promoted = SerializerMethodField()
-    score = SerializerMethodField()
     user_endorsement = SerializerMethodField()
     user_flag = SerializerMethodField()
     user_vote = SerializerMethodField()

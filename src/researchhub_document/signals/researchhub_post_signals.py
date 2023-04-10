@@ -23,21 +23,6 @@ def add_paper_slug(sender, instance, created, update_fields, **kwargs):
 @receiver(
     post_save,
     sender=ResearchhubPost,
-    dispatch_uid="rh_post_add_upvote_by_creator_on_create",
-)
-def rh_post_add_upvote_by_creator_on_create(
-    created, instance, sender, update_fields, **kwargs
-):
-    if created:
-        vote = Vote.objects.create(
-            item=instance, created_by=instance.created_by, vote_type=Vote.UPVOTE
-        )
-        vote.save()
-
-
-@receiver(
-    post_save,
-    sender=ResearchhubPost,
     dispatch_uid="rh_post_create_contribution",
 )
 def rh_post_create_contribution(created, instance, sender, update_fields, **kwargs):

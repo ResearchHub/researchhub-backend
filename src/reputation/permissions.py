@@ -74,17 +74,3 @@ class UserCanCancelBounty(BasePermission):
             self.message = "Bounty is closed."
             return False
         return obj.created_by == request.user
-
-
-class SingleBountyOpen(BasePermission):
-    message = "User already has open bounty on object"
-
-    def has_permission(self, request, view):
-        if view.action == "create":
-            data = request.data
-            object_id = data.get("item_object_id", None)
-            user_has_open_bounty = view.queryset.filter(
-                created_by=request.user, status=Bounty.OPEN, item_object_id=object_id
-            ).exists()
-            return not user_has_open_bounty
-        return True

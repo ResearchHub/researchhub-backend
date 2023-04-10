@@ -20,7 +20,7 @@ class EscrowSerializer(serializers.ModelSerializer):
 
 class DynamicEscrowSerializer(DynamicModelFieldSerializer):
     created_by = serializers.SerializerMethodField()
-    recipient = serializers.SerializerMethodField()
+    recipients = serializers.SerializerMethodField()
     item = serializers.SerializerMethodField()
     bounty_fee = serializers.SerializerMethodField()
 
@@ -36,11 +36,11 @@ class DynamicEscrowSerializer(DynamicModelFieldSerializer):
         )
         return serializer.data
 
-    def get_recipient(self, escrow):
+    def get_recipients(self, escrow):
         context = self.context
-        _context_fields = context.get("rep_des_get_recipient", {})
+        _context_fields = context.get("rep_des_get_recipients", {})
         serializer = DynamicUserSerializer(
-            escrow.recipient, context=context, **_context_fields
+            escrow.recipients, many=True, context=context, **_context_fields
         )
         return serializer.data
 
@@ -68,8 +68,8 @@ class DynamicEscrowSerializer(DynamicModelFieldSerializer):
 
     def get_bounty_fee(self, escrow):
         context = self.context
-        _context_fields = context.get("rep_des_get_term", {})
+        _context_fields = context.get("rep_des_get_bounty_fee", {})
         serializer = DynamicBountyFeeSerializer(
-            escrow.term, context=context, **_context_fields
+            escrow.bounty_fee, context=context, **_context_fields
         )
         return serializer.data

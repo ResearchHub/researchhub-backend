@@ -27,6 +27,26 @@ class UserManager(UserManager):
         ).distinct()
         return editors
 
+    def _get_default_account(self):
+        user = User.objects.filter(email="bank@researchhub.com")
+        if user.exists():
+            return user.first()
+        return User.objects.get(id=1)
+
+    def get_revenue_account(self):
+        user = User.objects.filter(email="revenue@researchhub.com")
+        if user.exists():
+            return user.first()
+
+        return self._get_default_account()
+
+    def get_community_account(self):
+        user = User.objects.filter(email="community@researchhub.com")
+        if user.exists():
+            return user.first()
+
+        return self._get_default_account()
+
 
 """
 User objects have the following fields by default:

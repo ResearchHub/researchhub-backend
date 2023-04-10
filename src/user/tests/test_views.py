@@ -1,7 +1,6 @@
 from django.test import TestCase
 from rest_framework.test import APITestCase
 
-from discussion.tests.helpers import create_comment
 from user.tests.helpers import create_random_authenticated_user, create_user
 from utils.test_helpers import (
     get_authenticated_get_response,
@@ -12,15 +11,6 @@ from utils.test_helpers import (
 class UserViewsTests(TestCase):
     def setUp(self):
         pass
-
-    def test_actions_route_responds_with_all_actions(self):
-        user = create_random_authenticated_user("action_oriented_user")
-        create_comment(created_by=user)
-        response = self.get_actions_response(user)
-        self.assertEqual(response.data["count"], 1)
-        self.assertEqual(
-            response.data["results"][0]["content_type"], "discussion | comment"
-        )
 
     def test_actions_route_responds_with_empty_results_without_actions(self):
         user = create_random_authenticated_user("inactive_user")

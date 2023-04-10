@@ -14,6 +14,7 @@ from django.db.models import (
 )
 
 from discussion.constants.flag_reasons import FLAG_REASON_CHOICES
+from purchase.models import Purchase
 from utils.models import DefaultModel
 
 
@@ -61,12 +62,21 @@ class Vote(DefaultModel):
         from discussion.models import Comment, Reply, Thread
         from hypothesis.models import Citation, Hypothesis
         from paper.models import Paper
+        from researchhub_comment.models import RhCommentModel
         from researchhub_document.models import ResearchhubPost
 
         item = self.item
         item_type = type(item)
 
-        if item_type in [Paper, ResearchhubPost, Hypothesis, Thread, Comment, Reply]:
+        if item_type in [
+            Paper,
+            ResearchhubPost,
+            Hypothesis,
+            RhCommentModel,
+            Thread,
+            Comment,
+            Reply,
+        ]:
             return item.unified_document
         elif item_type is Citation:
             # citation has 1:1 unifiedDoc edge named "source"
@@ -114,13 +124,13 @@ class AbstractGenericReactionModel(DefaultModel):
     endorsements = GenericRelation(Endorsement)
     flags = GenericRelation(Flag)
     votes = GenericRelation(Vote)
+    score = IntegerField(default=0)
+
+    class Meta:
+        abstract = True
 
     @property
     def score_indexing(self):
-        return self.calculate_score()
-
-    @property
-    def score(self):
         return self.calculate_score()
 
     def calculate_score(self):
@@ -133,5 +143,11 @@ class AbstractGenericReactionModel(DefaultModel):
         ).get("score", 0)
         return score
 
-    class Meta:
-        abstract = True
+    def get_promoted_score(self):
+        purchases = self.purchases.filter(
+            paid_status=Purchase.PAID,
+        )
+        if purchases.exists():
+            boost_score = sum(map(int, purchases.values_list("amount", flat=True)))
+            return boost_score
+        return False

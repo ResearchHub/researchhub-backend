@@ -19,6 +19,7 @@ from discussion.reaction_serializers import (
 )
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
+from researchhub_comment.models import RhCommentModel
 from researchhub_document.related_models.constants.document_type import SORT_UPVOTED
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
@@ -26,6 +27,7 @@ from researchhub_document.related_models.constants.filters import (
     UPVOTED,
 )
 from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
+from utils.models import SoftDeletableModel
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.sentry import log_error
 from utils.siftscience import decisions_api, events_api, update_user_risk_score
@@ -41,7 +43,7 @@ class ReactionViewActionMixin:
         methods=["post"],
         permission_classes=[EndorsePermission & CreateOrUpdateIfAllowed],
     )
-    def endorse(self, request, pk=None):
+    def endorse(self, request, *args, pk=None, **kwargs):
         item = self.get_object()
         user = request.user
 
@@ -55,7 +57,7 @@ class ReactionViewActionMixin:
             )
 
     @endorse.mapping.delete
-    def delete_endorse(self, request, pk=None):
+    def delete_endorse(self, request, *args, pk=None, **kwargs):
         item = self.get_object()
         user = request.user
         try:
@@ -71,19 +73,18 @@ class ReactionViewActionMixin:
         methods=["post"],
         permission_classes=[IsAuthenticated],
     )
-    def flag(self, request, pk=None):
+    def flag(self, request, *args, pk=None, **kwargs):
         item = self.get_object()
         user = request.user
         reason = request.data.get("reason")
         reason_choice = request.data.get("reason_choice")
 
         try:
-            flag = create_flag(user, item, reason, reason_choice)
-            serialized = FlagSerializer(flag)
+            flag, flag_data = create_flag(user, item, reason, reason_choice)
 
             content_id = f"{type(item).__name__}_{item.id}"
             events_api.track_flag_content(item.created_by, content_id, user.id)
-            return Response(serialized.data, status=201)
+            return Response(flag_data, status=201)
         except IntegrityError as e:
             return Response(
                 {
@@ -92,14 +93,15 @@ class ReactionViewActionMixin:
                 status=status.HTTP_409_CONFLICT,
             )
         except Exception as e:
+            log_error(e)
             return Response(
                 {
-                    "msg": "Unexpected error",
+                    "detail": e,
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    def delete_flag(self, request, pk=None):
+    def delete_flag(self, request, *args, pk=None, **kwargs):
         item = self.get_object()
         user = request.user
         try:
@@ -118,13 +120,10 @@ class ReactionViewActionMixin:
             (CensorDiscussionPermission | EditorCensorDiscussion),
         ],
     )
-    def censor(self, request, pk=None):
+    def censor(self, request, *args, pk=None, **kwargs):
         item = self.get_object()
 
         with transaction.atomic():
-            item.remove_nested()
-            item.update_discussion_count()
-
             content_id = f"{type(item).__name__}_{item.id}"
             user = request.user
             content_creator = item.created_by
@@ -133,111 +132,121 @@ class ReactionViewActionMixin:
                 content_creator, content_id, "MANUAL_REVIEW", user
             )
 
-            content_type = get_content_type_for_model(item)
-            Contribution.objects.filter(
-                content_type=content_type, object_id=item.id
-            ).delete()
+            if isinstance(item, SoftDeletableModel):
+                item.delete(soft=True)
+            else:
+                item.unified_document.delete(soft=True)
 
             try:
-                if item.review:
-                    item.review.is_removed = True
-                    item.review.save()
+                if review := getattr(item, "review", None):
+                    review.delete(soft=True)
 
-                    doc = item.unified_document
-                    if doc.bounties.exists():
-                        for bounty in doc.bounties.iterator():
-                            bounty.cancel()
-                            bounty.save()
+                if hasattr(item, "decrement_discussion_count"):
+                    # TODO: Decrement if there are children?
+                    item.decrement_discussion_count()
 
-                    action = getattr(item, "actions", None)
-                    if action.exists():
-                        action = action.first()
-                        action.is_removed = True
-                        action.display = False
-                        action.save()
+                doc = item.unified_document
+                if doc.bounties.exists():
+                    for bounty in doc.bounties.iterator():
+                        bounty.cancel()
+                        bounty.save()
 
-                    doc_type = get_doc_type_key(doc)
-                    hubs = list(doc.hubs.all().values_list("id", flat=True))
+                action = getattr(item, "actions", None)
+                if action.exists():
+                    action = action.first()
+                    action.is_removed = True
+                    action.display = False
+                    action.save()
 
-                    reset_unified_document_cache(
-                        hub_ids=hubs,
-                        document_type=[doc_type, "all"],
-                        filters=[DISCUSSED, HOT],
-                    )
+                doc_type = get_doc_type_key(doc)
+                hubs = list(doc.hubs.all().values_list("id", flat=True))
 
-                    # Commenting out paper cache
-                    # if item.paper:
-                    #     item.paper.reset_cache()
+                reset_unified_document_cache(
+                    hub_ids=hubs,
+                    document_type=[doc_type, "all"],
+                    filters=[DISCUSSED, HOT],
+                )
+
+                # Commenting out paper cache
+                # if item.paper:
+                #     item.paper.reset_cache()
             except Exception as e:
                 print(e)
                 log_error(e)
+                return Response({"detail": str(e)}, status=500)
 
-            return Response(self.get_serializer(instance=item).data, status=200)
+            return Response(
+                self.get_serializer(instance=item, _include_fields=("id",)).data,
+                status=200,
+            )
 
     @track_event
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[VotePermission & CreateOrUpdateIfAllowed],
+        permission_classes=[IsAuthenticated & VotePermission & CreateOrUpdateIfAllowed],
     )
-    def upvote(self, request, pk=None):
-        item = self.get_object()
-        user = request.user
-        vote_exists = find_vote(user, item, Vote.UPVOTE)
-        if vote_exists:
-            return Response(
-                "This vote already exists", status=status.HTTP_400_BAD_REQUEST
-            )
-        response = update_or_create_vote(request, user, item, Vote.UPVOTE)
-        item.unified_document.update_filter(SORT_UPVOTED)
-        return response
+    def upvote(self, request, *args, pk=None, **kwargs):
+        with transaction.atomic():
+            item = self.get_object()
+            user = request.user
+            vote_exists = find_vote(user, item, Vote.UPVOTE)
+            if vote_exists:
+                return Response(
+                    "This vote already exists", status=status.HTTP_400_BAD_REQUEST
+                )
+            response = update_or_create_vote(request, user, item, Vote.UPVOTE)
+            item.unified_document.update_filter(SORT_UPVOTED)
+            return response
 
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[VotePermission & CreateOrUpdateIfAllowed],
+        permission_classes=[IsAuthenticated & VotePermission & CreateOrUpdateIfAllowed],
     )
-    def neutralvote(self, request, pk=None):
-        item = self.get_object()
-        user = request.user
-        vote_exists = find_vote(user, item, Vote.NEUTRAL)
+    def neutralvote(self, request, *args, pk=None, **kwargs):
+        with transaction.atomic():
+            item = self.get_object()
+            user = request.user
+            vote_exists = find_vote(user, item, Vote.NEUTRAL)
 
-        if vote_exists:
-            return Response(
-                "This vote already exists", status=status.HTTP_400_BAD_REQUEST
-            )
-        response = update_or_create_vote(request, user, item, Vote.NEUTRAL)
-        return response
+            if vote_exists:
+                return Response(
+                    "This vote already exists", status=status.HTTP_400_BAD_REQUEST
+                )
+            response = update_or_create_vote(request, user, item, Vote.NEUTRAL)
+            return response
 
     @track_event
     @action(
         detail=True,
         methods=["post"],
-        permission_classes=[VotePermission & CreateOrUpdateIfAllowed],
+        permission_classes=[IsAuthenticated & VotePermission & CreateOrUpdateIfAllowed],
     )
-    def downvote(self, request, pk=None):
-        item = self.get_object()
-        user = request.user
+    def downvote(self, request, *args, pk=None, **kwargs):
+        with transaction.atomic():
+            item = self.get_object()
+            user = request.user
 
-        vote_exists = find_vote(user, item, Vote.DOWNVOTE)
+            vote_exists = find_vote(user, item, Vote.DOWNVOTE)
 
-        if vote_exists:
-            return Response(
-                "This vote already exists", status=status.HTTP_400_BAD_REQUEST
-            )
-        response = update_or_create_vote(request, user, item, Vote.DOWNVOTE)
-        item.unified_document.update_filter(SORT_UPVOTED)
-        return response
+            if vote_exists:
+                return Response(
+                    "This vote already exists", status=status.HTTP_400_BAD_REQUEST
+                )
+            response = update_or_create_vote(request, user, item, Vote.DOWNVOTE)
+            item.unified_document.update_filter(SORT_UPVOTED)
+            return response
 
     @action(detail=True, methods=["get"])
-    def user_vote(self, request, pk=None):
+    def user_vote(self, request, *args, pk=None, **kwargs):
         item = self.get_object()
         user = request.user
         vote = retrieve_vote(user, item)
         return get_vote_response(vote, 200)
 
     @user_vote.mapping.delete
-    def delete_user_vote(self, request, pk=None):
+    def delete_user_vote(self, request, *args, pk=None, **kwargs):
         try:
             item = self.get_object()
             user = request.user
@@ -257,6 +266,19 @@ class ReactionViewActionMixin:
             "needs_score": True,
         }
 
+    def add_upvote(self, user, obj):
+        vote = create_vote(user, obj, Vote.UPVOTE)
+        obj.score += 1
+        obj.save()
+        return vote
+
+    def add_downvote(self, user, obj):
+        vote = create_vote(user, obj, Vote.DOWNVOTE)
+        obj.score -= 1
+        obj.save()
+        return vote
+
+    # TODO: Delete
     def get_self_upvote_response(self, request, response, model):
         """Returns item in response data with upvote from creator and score."""
         item = model.objects.get(pk=response.data["id"])
@@ -302,15 +324,19 @@ def create_endorsement(user, item):
 
 
 def create_flag(user, item, reason, reason_choice):
-    flag = Flag(
-        created_by=user,
-        item=item,
-        reason=reason or reason_choice,
-        reason_choice=reason_choice,
-    )
-    flag.save()
-    flag.hubs.add(*item.unified_document.hubs.all())
-    return flag
+    with transaction.atomic():
+        data = {
+            "created_by": user.id,
+            "object_id": item.id,
+            "content_type": get_content_type_for_model(item).id,
+            "reason": reason or reason_choice,
+            "reason_choice": reason_choice,
+        }
+        serializer = FlagSerializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        flag = serializer.save()
+        flag.hubs.add(*item.unified_document.hubs.all())
+        return flag, serializer.data
 
 
 def find_vote(user, item, vote_type):
@@ -351,14 +377,13 @@ def get_vote_response(vote, status_code):
 
 def create_vote(user, item, vote_type):
     """Returns a vote of `voted_type` on `item` `created_by` `user`."""
-    vote = Vote(created_by=user, item=item, vote_type=vote_type)
-    vote.save()
+    vote = Vote.objects.create(created_by=user, item=item, vote_type=vote_type)
     return vote
 
 
 def update_or_create_vote(request, user, item, vote_type):
     cache_filters_to_reset = [UPVOTED, HOT]
-    if isinstance(item, (Thread, Comment, Reply)):
+    if isinstance(item, RhCommentModel):
         cache_filters_to_reset = [HOT]
 
     hub_ids = [0]
@@ -370,6 +395,21 @@ def update_or_create_vote(request, user, item, vote_type):
 
     """UPDATE VOTE"""
     vote = retrieve_vote(user, item)
+    if vote_type == Vote.UPVOTE and vote and vote.vote_type == vote.DOWNVOTE:
+        item.score += 2
+    elif vote_type == Vote.DOWNVOTE and vote and vote.vote_type == vote.UPVOTE:
+        item.score -= 2
+    elif vote_type == Vote.UPVOTE:
+        item.score += 1
+    elif vote_type == Vote.DOWNVOTE:
+        item.score -= 1
+    elif vote_type == Vote.NEUTRAL and vote and vote.vote_type == Vote.UPVOTE:
+        item.score -= 1
+    elif vote_type == Vote.NEUTRAL and vote and vote.vote_type == Vote.DOWNVOTE:
+        item.score += 1
+
+    item.save()
+
     if vote is not None:
         vote.vote_type = vote_type
         vote.save(update_fields=["updated_date", "vote_type"])

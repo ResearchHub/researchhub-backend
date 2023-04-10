@@ -17,7 +17,6 @@ from user.filters import AuditDashboardFilterBackend
 from user.models import Action, User
 from user.permissions import IsModerator, UserIsEditor
 from user.serializers import DynamicActionSerializer, VerdictSerializer
-from user.utils import get_rh_community_user
 from utils import sentry
 from utils.message import send_email_message
 
@@ -435,7 +434,7 @@ class AuditViewSet(viewsets.GenericViewSet):
         if content_creator is None:
             return
 
-        anon_remover = get_rh_community_user()
+        anon_remover = User.objects.get_community_account()
         notification = Notification.objects.create(
             action_user=anon_remover,
             item=verdict,

@@ -13,21 +13,6 @@ from user.serializers import DynamicUserSerializer
 
 
 class BountySerializer(serializers.ModelSerializer):
-    bounty_slug = serializers.SerializerMethodField()
-
-    def get_bounty_slug(self, bounty):
-        if bounty.item_content_type.model == "researchhubunifieddocument":
-            if bounty.item.document_type == "DISCUSSION":
-                return "post"
-            elif bounty.item.document_type == "HYPOTHESIS":
-                return "hypothesis"
-            elif bounty.item.document_type == "PAPER":
-                return "paper"
-            elif bounty.item.document_type == "QUESTION":
-                return "question"
-
-        return None
-
     class Meta:
         model = Bounty
         fields = "__all__"
@@ -53,6 +38,10 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
     escrow = serializers.SerializerMethodField()
     item = serializers.SerializerMethodField()
     solutions = serializers.SerializerMethodField()
+    parent = serializers.SerializerMethodField()
+    # Kobe: This is not great. This alias is used to disambiguate "parent" used in contribution_views because simply
+    # using parent, may lead to infinite recursive loop -_-
+    bounty_parent = serializers.SerializerMethodField(method_name="get_parent")
 
     class Meta:
         model = Bounty
@@ -87,6 +76,12 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
             serializer = DynamicThreadSerializer(
                 obj, context=context, **_context_fields
             )
+        elif model_name == "rhcommentmodel":
+            from researchhub_comment.serializers import DynamicRhCommentSerializer
+
+            serializer = DynamicRhCommentSerializer(
+                obj, context=context, **_context_fields
+            )
 
         if serializer is not None:
             return serializer.data
@@ -108,6 +103,16 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
             bounty.solutions, context=context, many=True, **_context_fields
         )
         return serializer.data
+
+    def get_parent(self, bounty):
+        context = self.context
+        _context_fields = context.get("rep_dbs_get_parent", {})
+        if parent := bounty.parent:
+            serializer = DynamicBountySerializer(
+                parent, context=context, **_context_fields
+            )
+            return serializer.data
+        return None
 
 
 class DynamicBountySolutionSerializer(DynamicModelFieldSerializer):

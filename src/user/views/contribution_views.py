@@ -31,6 +31,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
             "comment",
             "reply",
             "researchhubpost",
+            "rhcommentmodel",
             "paper",
             "hypothesis",
             "purchase",
@@ -84,6 +85,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     "abstract",
                     "amount",
                     "content_type",
+                    "comment_content_json",
                     "discussion_post_type",
                     "hubs",
                     "id",
@@ -95,8 +97,15 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     "source",
                     "text",
                     "title",
+                    "thread",
                     "unified_document",
                     "user",
+                    "bounty_parent",
+                ]
+            },
+            "rep_dbs_get_parent": {
+                "_include_fields": [
+                    "id",
                 ]
             },
             "usr_das_get_hubs": {
@@ -123,6 +132,8 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     "title",
                     "unified_document",
                     "plain_text",
+                    "comment_content_json",
+                    "thread",
                 ]
             },
             "pch_dps_get_user": {
@@ -206,6 +217,24 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     "id",
                     "documents",
                     "document_type",
+                    "unified_document",
+                    "thread",
+                    "comment_content_json",
+                ]
+            },
+            "rhc_dcs_get_created_by": {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                ]
+            },
+            "rhc_dcs_get_thread": {
+                "_include_fields": ["content_object", "thread_type"]
+            },
+            "rhc_dts_get_content_object": {
+                "_include_fields": [
+                    "id",
                     "unified_document",
                 ]
             },

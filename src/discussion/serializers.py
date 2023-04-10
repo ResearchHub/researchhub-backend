@@ -81,7 +81,7 @@ class DynamicThreadSerializer(
     post = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
     review = serializers.SerializerMethodField()
-    score = serializers.ReadOnlyField()  # @property
+    score = serializers.SerializerMethodField()  # @property
     unified_document = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
@@ -126,14 +126,12 @@ class DynamicThreadSerializer(
                 awarded_escrow = Escrow.objects.filter(
                     object_id=thread.unified_document.id,
                     content_type=uni_doc_content_type,
-                    recipient_id=thread.created_by.id,
                     connected_bounty__isnull=False,
                 )
             else:
                 awarded_escrow = Escrow.objects.filter(
                     object_id=thread.unified_document.id,
                     content_type=uni_doc_content_type,
-                    recipient_id=thread.created_by.id,
                     connected_bounty__isnull=True,
                 )
             amount_awarded = awarded_escrow.aggregate(Sum("amount_paid")).get(
@@ -270,7 +268,7 @@ class DynamicReplySerializer(
     discussion_type = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
-    score = serializers.ReadOnlyField()  # @property
+    score = serializers.SerializerMethodField()  # @property
     created_by = serializers.SerializerMethodField()
     parent = serializers.PrimaryKeyRelatedField(
         queryset=Comment.objects.all(), many=False, read_only=False
@@ -315,6 +313,9 @@ class DynamicReplySerializer(
             return False
         return False
 
+    def get_score(self, obj):
+        return obj.calculate_score()
+
 
 class DynamicCommentSerializer(
     DynamicModelFieldSerializer,
@@ -327,7 +328,7 @@ class DynamicCommentSerializer(
     promoted = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
     reply_count = serializers.SerializerMethodField()
-    score = serializers.ReadOnlyField()  # @property
+    score = serializers.SerializerMethodField()  # @property
     thread_id = serializers.SerializerMethodField()
     is_created_by_editor = serializers.BooleanField(
         required=False,
@@ -414,6 +415,9 @@ class DynamicCommentSerializer(
         )
         return serializer.data
 
+    def get_score(self, obj):
+        return obj.calculate_score()
+
 
 class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
     created_by = MinimalUserSerializer(
@@ -425,7 +429,7 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
     promoted = serializers.SerializerMethodField()
     replies = serializers.SerializerMethodField()
     reply_count = serializers.SerializerMethodField()
-    score = serializers.ReadOnlyField()  # @property
+    score = serializers.SerializerMethodField()  # @property
     thread_id = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
@@ -494,7 +498,6 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
                 Escrow.objects.filter(
                     object_id=obj.parent.id,
                     content_type=content_type,
-                    recipient_id=obj.created_by.id,
                 )
                 .aggregate(Sum("amount_paid"))
                 .get("amount_paid__sum", None)
@@ -533,6 +536,9 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
         else:
             return None
 
+    def get_score(self, obj):
+        return obj.calculate_score()
+
 
 class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
     # bounties = serializers.SerializerMethodField()
@@ -551,7 +557,7 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
     post_slug = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
     review = serializers.SerializerMethodField()
-    score = serializers.ReadOnlyField()  # @property
+    score = serializers.SerializerMethodField()  # @property
     unified_document = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
@@ -728,13 +734,15 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
                 Escrow.objects.filter(
                     object_id=obj.unified_document.id,
                     content_type=content_type,
-                    recipient_id=obj.created_by.id,
                 )
                 .aggregate(Sum("amount_paid"))
                 .get("amount_paid__sum", None)
             )
 
         return amount_awarded
+
+    def get_score(self, obj):
+        return obj.calculate_score()
 
 
 class SimpleThreadSerializer(ThreadSerializer):
@@ -761,6 +769,7 @@ class ReplySerializer(serializers.ModelSerializer, GenericReactionSerializerMixi
     thread_id = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
+    score = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -841,6 +850,9 @@ class ReplySerializer(serializers.ModelSerializer, GenericReactionSerializerMixi
     def get_reply_count(self, obj):
         replies = self._replies_query(obj)
         return replies.count()
+
+    def get_score(self, obj):
+        return obj.calculate_score()
 
 
 class DynamicFlagSerializer(DynamicModelFieldSerializer):

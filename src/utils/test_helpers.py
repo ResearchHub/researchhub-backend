@@ -1,4 +1,5 @@
 import json
+import random
 import threading
 import time
 
@@ -116,9 +117,18 @@ class TestHelper:
             name=name, country=country, state=state, city=city
         )
 
-    def create_paper_without_authors(self, title=test_data.paper_title):
+    def create_paper_without_authors(
+        self, title=test_data.paper_title, uploaded_by=None
+    ):
+        if uploaded_by is None:
+            name = f"{random.randint(0, 100)}_{random.randint(100, 200)}"
+            uploaded_by = self.create_user(
+                first_name=name, last_name=name, email=f"{name}@gmail.com"
+            )
         return Paper.objects.create(
-            title=title, paper_publish_date=self.test_data.paper_publish_date
+            title=title,
+            paper_publish_date=self.test_data.paper_publish_date,
+            uploaded_by=uploaded_by,
         )
 
     def create_hub(self, name):

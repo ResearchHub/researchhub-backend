@@ -19,14 +19,12 @@ from purchase.models import Purchase
 from reputation.distributor import Distributor
 from reputation.exceptions import ReputationSignalError
 from reputation.models import Contribution, Distribution
+from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost
 from summary.models import Summary
 from summary.models import Vote as SummaryVote
 from user.utils import reset_latest_acitvity_cache
 from utils import sentry
-
-# TODO: "Suspend" user if their reputation becomes negative
-# This could mean setting `is_active` to false
 
 NEW_USER_BONUS_REPUTATION_LIMIT = 200
 NEW_USER_BONUS_DAYS_LIMIT = 30
@@ -257,6 +255,7 @@ def check_reply_to_other_creator(reply):
 @receiver(post_save, sender=Comment, dispatch_uid="censor_comment")
 @receiver(post_save, sender=Reply, dispatch_uid="censor_reply")
 @receiver(post_save, sender=Thread, dispatch_uid="censor_thread")
+@receiver(post_save, sender=RhCommentModel, dispatch_uid="censor_rh_comment")
 def distribute_for_censor(sender, instance, created, update_fields, **kwargs):
     timestamp = time()
     distributor = None
@@ -339,6 +338,12 @@ def get_discussion_hubs(instance):
 
 @receiver(post_save, sender=GrmVote, dispatch_uid="discussion_vote")
 def distribute_for_discussion_vote(sender, instance, created, update_fields, **kwargs):
+    # TODO: Temporarily if statement for new comment migration
+    from researchhub.settings import COMMENT_SIGNAL_OFF
+
+    if COMMENT_SIGNAL_OFF:
+        return
+
     """Distributes reputation to the creator of the item voted on."""
     timestamp = time()
     distributor = None
@@ -360,30 +365,8 @@ def distribute_for_discussion_vote(sender, instance, created, update_fields, **k
 
         hubs = None
         item = instance.item
-        if isinstance(item, Comment):
-            if item.parent.paper is not None:
-                hubs = item.parent.paper.hubs
-            elif item.parent.post is not None:
-                hubs = item.parent.post.unified_document.hubs
-            elif item.parent.hypothesis is not None:
-                hubs = item.parent.hypothesis.unified_document.hubs
-        elif isinstance(item, Reply):
-            try:
-                if item.parent.parent.paper is not None:
-                    hubs = item.parent.parent.paper.hubs
-                elif item.parent.parent.post is not None:
-                    hubs = item.parent.parent.post.unified_document.hubs
-                elif item.parent.parent.hypothesis is not None:
-                    hubs = item.parent.parent.hypothesis.unified_document.hubs
-            except Exception as e:
-                sentry.log_error(e)
-        elif isinstance(item, Thread):
-            if item.paper is not None:
-                hubs = item.paper.hubs
-            elif item.post is not None:
-                hubs = item.post.unified_document.hubs
-            elif item.hypothesis is not None:
-                hubs = item.hypothesis.unified_document.hubs
+        if isinstance(item, RhCommentModel):
+            hubs = item.thread.content_object.unified_document.hubs
         elif isinstance(item, Paper):
             hubs = item.hubs
         elif isinstance(item, ResearchhubPost):
@@ -464,12 +447,8 @@ def get_discussion_vote_item_distribution(instance):
     error = TypeError(f"Instance of type {item_type} is not supported")
 
     if vote_type == GrmVote.UPVOTE:
-        if isinstance(item, Comment):
-            vote_type = distributions.CommentUpvoted.name
-        elif isinstance(item, Reply):
-            vote_type = distributions.ReplyUpvoted.name
-        elif isinstance(item, Thread):
-            vote_type = distributions.ThreadUpvoted.name
+        if isinstance(item, RhCommentModel):
+            vote_type = distributions.RhCommentUpvoted.name
         elif isinstance(item, ResearchhubPost):
             vote_type = distributions.ResearchhubPostUpvoted.name
         elif isinstance(item, Paper):
@@ -483,11 +462,8 @@ def get_discussion_vote_item_distribution(instance):
 
         return distributions.create_upvote_distribution(vote_type, None, instance)
     elif vote_type == GrmVote.DOWNVOTE:
-        if isinstance(item, Comment):
-            return distributions.CommentDownvoted
-        elif isinstance(item, Reply):
-            return distributions.ReplyDownvoted
-        elif isinstance(item, Thread):
+        if isinstance(item, RhCommentModel):
+            vote_type = distributions.RhCommentDownvoted
             return distributions.ThreadDownvoted
         elif isinstance(item, ResearchhubPost):
             return distributions.ResearchhubPostDownvoted

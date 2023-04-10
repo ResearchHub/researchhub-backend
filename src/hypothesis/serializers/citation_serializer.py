@@ -1,21 +1,19 @@
-from discussion.models import Thread
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
+
+from discussion.models import Thread
 from discussion.reaction_models import Vote
 from discussion.reaction_serializers import (
+    DynamicVoteSerializer,
     GenericReactionSerializerMixin,
-    DynamicVoteSerializer
 )
-
 from hypothesis.models import Citation
-from hypothesis.serializers import (
-    DynamicHypothesisSerializer
-)
+from hypothesis.serializers import DynamicHypothesisSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.serializers import (
+    DynamicUnifiedDocumentSerializer,
     ResearchhubUnifiedDocumentSerializer,
-    DynamicUnifiedDocumentSerializer
 )
-from user.serializers import UserSerializer, DynamicUserSerializer
+from user.serializers import DynamicUserSerializer, UserSerializer
 from utils.http import get_user_from_request
 
 
@@ -27,22 +25,21 @@ class CitationSerializer(ModelSerializer, GenericReactionSerializerMixin):
         model = Citation
         fields = [
             *GenericReactionSerializerMixin.EXPOSABLE_FIELDS,
-            'boost_amount',
-            'citation_type',
-            'created_by',
-            'id',
-            'source',
+            "boost_amount",
+            "citation_type",
+            "created_by",
+            "id",
+            "source",
         ]
         read_only_fields = [
             *GenericReactionSerializerMixin.READ_ONLY_FIELDS,
-            'id',
+            "id",
         ]
 
     boost_amount = SerializerMethodField()
 
     # GenericReactionSerializerMixin
     promoted = SerializerMethodField()
-    score = SerializerMethodField()
     user_endorsement = SerializerMethodField()
     user_flag = SerializerMethodField()
     user_vote = SerializerMethodField()
@@ -62,44 +59,38 @@ class DynamicCitationSerializer(DynamicModelFieldSerializer):
 
     class Meta(object):
         model = Citation
-        fields = '__all__'
+        fields = "__all__"
 
     def get_created_by(self, citation):
         context = self.context
-        _context_fields = context.get('hyp_dcs_get_created_by', {})
+        _context_fields = context.get("hyp_dcs_get_created_by", {})
         serializer = DynamicUserSerializer(
-            citation.created_by,
-            context=context,
-            **_context_fields
+            citation.created_by, context=context, **_context_fields
         )
         return serializer.data
 
     def get_hypothesis(self, citation):
         context = self.context
-        _context_fields = context.get('hyp_dcs_get_hypothesis', {})
+        _context_fields = context.get("hyp_dcs_get_hypothesis", {})
         serializer = DynamicHypothesisSerializer(
-            citation.hypothesis,
-            context=context,
-            **_context_fields
+            citation.hypothesis, context=context, **_context_fields
         )
         return serializer.data
-    
+
     def get_publish_date(self, citation):
         return citation.source.paper.paper_publish_date
 
     def get_source(self, citation):
         context = self.context
-        _context_fields = context.get('hyp_dcs_get_source', {})
+        _context_fields = context.get("hyp_dcs_get_source", {})
         serializer = DynamicUnifiedDocumentSerializer(
-            citation.source,
-            context=context,
-            **_context_fields
+            citation.source, context=context, **_context_fields
         )
         return serializer.data
 
     def get_consensus_meta(self, citation):
         context = self.context
-        _context_fields = context.get('hyp_dcs_get_consensus_meta', {})
+        _context_fields = context.get("hyp_dcs_get_consensus_meta", {})
 
         votes = citation.votes
         user = get_user_from_request(context)
@@ -108,25 +99,18 @@ class DynamicCitationSerializer(DynamicModelFieldSerializer):
             if user and not user.is_anonymous:
                 user_vote = votes.get(created_by=user)
                 serializer = DynamicVoteSerializer(
-                    user_vote,
-                    context=context,
-                    **_context_fields
+                    user_vote, context=context, **_context_fields
                 )
         except Vote.DoesNotExist:
             pass
 
-        return (
-            {
-                'down_count': votes.filter(vote_type=Vote.DOWNVOTE).count(),
-                'neutral_count': votes.filter(vote_type=Vote.NEUTRAL).count(),
-                'total_count': votes.count(),
-                'up_count': votes.filter(vote_type=Vote.UPVOTE).count(),
-                'user_vote': (
-                    serializer.data
-                    if user_vote is not None else None
-                )
-            }
-        )
+        return {
+            "down_count": votes.filter(vote_type=Vote.DOWNVOTE).count(),
+            "neutral_count": votes.filter(vote_type=Vote.NEUTRAL).count(),
+            "total_count": votes.count(),
+            "up_count": votes.filter(vote_type=Vote.UPVOTE).count(),
+            "user_vote": (serializer.data if user_vote is not None else None),
+        }
 
     def get_inline_comment_count(self, citation):
         return Thread.objects.filter(citation__id=citation.id).count() or 0

@@ -61,9 +61,6 @@ from paper.utils import (
 from purchase.models import Purchase
 from reputation.models import Contribution
 from researchhub.lib import get_document_id_from_path
-from researchhub_comment.views.rh_comment_thread_view_mixin import (
-    RhCommentThreadViewMixin,
-)
 from researchhub_document.permissions import HasDocumentCensorPermission
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
@@ -73,18 +70,14 @@ from researchhub_document.related_models.constants.filters import (
 )
 from researchhub_document.utils import reset_unified_document_cache
 from utils.http import GET, POST, check_url_contains_pdf
-from utils.permissions import CreateOnly, CreateOrUpdateIfAllowed, HasAPIKey
+from utils.permissions import CreateOrUpdateIfAllowed, HasAPIKey, PostOnly
 from utils.sentry import log_error
 from utils.siftscience import decisions_api, events_api
 from utils.throttles import THROTTLE_CLASSES
 
 
-class PaperViewSet(
-    ReactionViewActionMixin,
-    RhCommentThreadViewMixin,
-    viewsets.ModelViewSet,
-):
-    queryset = Paper.objects.filter()
+class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
+    queryset = Paper.objects.all()
     serializer_class = PaperSerializer
     dynamic_serializer_class = DynamicPaperSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
@@ -218,6 +211,8 @@ class PaperViewSet(
                 "_include_fields": [
                     "id",
                     "author_profile",
+                    "first_name",
+                    "last_name",
                 ]
             },
             "usr_dus_get_author_profile": {
@@ -897,7 +892,7 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
     queryset = PaperSubmission.objects.all()
     serializer_class = PaperSubmissionSerializer
     throttle_classes = THROTTLE_CLASSES
-    permission_classes = [IsAuthenticated | HasAPIKey, CreateOnly]
+    permission_classes = [IsAuthenticated | HasAPIKey, PostOnly]
 
     @track_event
     def create(self, *args, **kwargs):

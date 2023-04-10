@@ -3,19 +3,15 @@ from rest_framework.exceptions import ParseError
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
-from researchhub_comment.views.rh_comment_thread_view_mixin import (
-    RhCommentThreadViewMixin,
-)
 
-from utils import sentry
-
+from discussion.reaction_models import Vote as GrmVote
 from discussion.reaction_views import ReactionViewActionMixin
 from hypothesis.models import Citation, Hypothesis
 from hypothesis.serializers import CitationSerializer
-from discussion.reaction_models import Vote as GrmVote
+from utils import sentry
 
 
-class CitationViewSet(ReactionViewActionMixin, RhCommentThreadViewMixin, ModelViewSet):
+class CitationViewSet(ReactionViewActionMixin, ModelViewSet):
     ordering = "-created_date"
     queryset = Citation.objects.all()
     permission_classes = [IsAuthenticatedOrReadOnly]

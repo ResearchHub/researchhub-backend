@@ -4,7 +4,11 @@ from rest_framework.test import APITestCase
 from discussion.constants.flag_reasons import SPAM
 from paper.tests.helpers import create_paper
 from researchhub_document.helpers import create_hypothesis, create_post
-from user.tests.helpers import create_hub_editor, create_random_authenticated_user
+from user.tests.helpers import (
+    create_hub_editor,
+    create_random_authenticated_user,
+    create_user,
+)
 
 DISMISS_FLAGGED_CONTENT_URL = "/api/audit/dismiss_flagged_content/"
 FLAG_AND_REMOVE_URL = "/api/audit/flag_and_remove/"
@@ -13,6 +17,7 @@ REMOVE_FLAGGED_CONTENT = "api/audit/remove_flagged_content/"
 
 class AuditViewTests(APITestCase):
     def setUp(self):
+        self.community_user = create_user(email="community@researchhub.com")
         self.random_content_creator = create_random_authenticated_user(
             "content_creator"
         )

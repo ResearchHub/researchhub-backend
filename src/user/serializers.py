@@ -1,9 +1,7 @@
 import logging
 
 import dj_rest_auth.registration.serializers as rest_auth_serializers
-from dj_rest_auth.serializers import UserDetailsSerializer
 from django.contrib.contenttypes.models import ContentType
-from django.db import models
 from rest_framework.serializers import (
     CharField,
     IntegerField,
@@ -26,6 +24,7 @@ from reputation.models import Bounty, Contribution, Withdrawal
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import EDITOR
 from researchhub_access_group.serializers import DynamicPermissionSerializer
+from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost
 from summary.models import Summary
 from summary.models import Vote as SummaryVote
@@ -211,9 +210,31 @@ class AuthorSerializer(ModelSerializer):
 
 
 class DynamicAuthorSerializer(DynamicModelFieldSerializer):
+    # is_hub_editor_of = SerializerMethodField()
+
     class Meta:
         model = Author
         fields = "__all__"
+
+    # def get_is_hub_editor_of(self, author):
+    #     user = author.user
+    #     if user is None:
+    #         return None
+
+    #     context = self.context
+    #     _context_fields = context.get("usr_das_get_is_hub_editor_of", {})
+
+    #     hub_content_type = ContentType.objects.get_for_model(Hub)
+    #     target_permissions = user.permissions.filter(
+    #         access_type=EDITOR, content_type=hub_content_type
+    #     )
+    #     target_hub_ids = target_permissions.values_list("object_id", flat=True)
+    #     return DynamicHubSerializer(
+    #         Hub.objects.filter(id__in=target_hub_ids),
+    #         many=True,
+    #         context=context,
+    #         **_context_fields,
+    #     ).data
 
 
 class AuthorEditableSerializer(ModelSerializer):
@@ -511,6 +532,7 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
             )
             return serializer.data
         except Exception as e:
+            print(e)
             sentry.log_error(e)
             return {}
 
@@ -525,7 +547,7 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
         _context_fields = context.get("usr_dus_get_editor_of", {})
 
         hub_content_type = ContentType.objects.get_for_model(Hub)
-        permissions = user.permissions.filter(
+        permissions = user.permissions.prefetch_related("source").filter(
             access_type=EDITOR,
             content_type=hub_content_type,
         )
@@ -808,6 +830,10 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
             from purchase.serializers import DynamicPurchaseSerializer
 
             serializer = DynamicPurchaseSerializer
+        elif isinstance(item, RhCommentModel):
+            from researchhub_comment.serializers import DynamicRhCommentSerializer
+
+            serializer = DynamicRhCommentSerializer
         elif isinstance(item, Thread):
             from discussion.serializers import DynamicThreadSerializer
 
