@@ -250,36 +250,40 @@ class DynamicPurchaseSerializer(DynamicModelFieldSerializer):
         item = None
         object_id = purchase.object_id
         model_class = purchase.content_type.model_class()
-        if model_name == "paper":
-            item = model_class.objects.get(id=object_id)
-            serializer = DynamicPaperSerializer
-        elif model_name == "researchhub post":
-            item = model_class.objects.get(id=object_id)
-            serializer = DynamicPostSerializer
-        elif model_name == "thread":
-            item = model_class.objects.get(id=object_id)
-            serializer = DynamicThreadSerializer
-        elif model_name == "comment":
-            item = model_class.objects.get(id=object_id)
-            serializer = DynamicCommentSerializer
-        elif model_name == "reply":
-            item = model_class.objects.get(id=object_id)
-            serializer = DynamicReplySerializer
-        elif model_name == "rh comment model":
-            from researchhub_comment.serializers import DynamicRhCommentSerializer
+        try:
+            if model_name == "paper":
+                item = model_class.objects.get(id=object_id)
+                serializer = DynamicPaperSerializer
+            elif model_name == "researchhub post":
+                item = model_class.objects.get(id=object_id)
+                serializer = DynamicPostSerializer
+            elif model_name == "thread":
+                item = model_class.objects.get(id=object_id)
+                serializer = DynamicThreadSerializer
+            elif model_name == "comment":
+                item = model_class.objects.get(id=object_id)
+                serializer = DynamicCommentSerializer
+            elif model_name == "reply":
+                item = model_class.objects.get(id=object_id)
+                serializer = DynamicReplySerializer
+            elif model_name == "rh comment model":
+                from researchhub_comment.serializers import DynamicRhCommentSerializer
 
-            item = model_class.objects.get(id=object_id)
-            serializer = DynamicRhCommentSerializer
-        elif model_name == "summary":
-            item = model_class.objects.get(id=object_id)
-            serializer = None
-        elif model_name == "bullet_point":
-            item = model_class.objects.get(id=object_id)
-            serializer = None
+                item = model_class.objects.get(id=object_id)
+                serializer = DynamicRhCommentSerializer
+            elif model_name == "summary":
+                item = model_class.objects.get(id=object_id)
+                serializer = None
+            elif model_name == "bullet_point":
+                item = model_class.objects.get(id=object_id)
+                serializer = None
 
-        if serializer is not None:
-            data = serializer(item, context=context, **_context_fields).data
-            return data
+            if serializer is not None:
+                data = serializer(item, context=context, **_context_fields).data
+                return data
+        except Exception as e:
+            print(e)
+            sentry.log_error(e)
 
         return None
 
