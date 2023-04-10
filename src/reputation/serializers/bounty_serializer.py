@@ -10,6 +10,7 @@ from reputation.serializers.escrow_serializer import DynamicEscrowSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 from user.serializers import DynamicUserSerializer
+from utils import sentry
 
 
 class BountySerializer(serializers.ModelSerializer):
@@ -66,25 +67,30 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
         model_name = bounty.item_content_type.model
         object_id = bounty.item_object_id
         model_class = bounty.item_content_type.model_class()
-        obj = model_class.objects.get(id=object_id)
+        try:
+            obj = model_class.objects.get(id=object_id)
 
-        if model_name == "researchhubunifieddocument":
-            serializer = DynamicUnifiedDocumentSerializer(
-                obj, context=context, **_context_fields
-            )
-        elif model_name == "thread":
-            serializer = DynamicThreadSerializer(
-                obj, context=context, **_context_fields
-            )
-        elif model_name == "rhcommentmodel":
-            from researchhub_comment.serializers import DynamicRhCommentSerializer
+            if model_name == "researchhubunifieddocument":
+                serializer = DynamicUnifiedDocumentSerializer(
+                    obj, context=context, **_context_fields
+                )
+            elif model_name == "thread":
+                serializer = DynamicThreadSerializer(
+                    obj, context=context, **_context_fields
+                )
+            elif model_name == "rhcommentmodel":
+                from researchhub_comment.serializers import DynamicRhCommentSerializer
 
-            serializer = DynamicRhCommentSerializer(
-                obj, context=context, **_context_fields
-            )
+                serializer = DynamicRhCommentSerializer(
+                    obj, context=context, **_context_fields
+                )
 
-        if serializer is not None:
-            return serializer.data
+            if serializer is not None:
+                return serializer.data
+        except Exception as e:
+            print(e)
+            sentry.log_error(e)
+            return None
         return None
 
     def get_escrow(self, bounty):
