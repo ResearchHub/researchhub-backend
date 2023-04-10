@@ -100,6 +100,12 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     "thread",
                     "unified_document",
                     "user",
+                    "bounty_parent",
+                ]
+            },
+            "rep_dbs_get_parent": {
+                "_include_fields": [
+                    "id",
                 ]
             },
             "usr_das_get_hubs": {

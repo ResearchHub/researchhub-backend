@@ -39,6 +39,9 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
     item = serializers.SerializerMethodField()
     solutions = serializers.SerializerMethodField()
     parent = serializers.SerializerMethodField()
+    # Kobe: This is not great. This alias is used to disambiguate "parent" used in contribution_views because simply
+    # using parent, may lead to infinite recursive loop -_-
+    bounty_parent = serializers.SerializerMethodField(method_name="get_parent")
 
     class Meta:
         model = Bounty
