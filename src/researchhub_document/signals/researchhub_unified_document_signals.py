@@ -11,6 +11,11 @@ from utils import sentry
 
 @receiver(post_save, sender=GrmVote, dispatch_uid="recalc_hot_score_on_vote")
 def recalc_hot_score(instance, sender, **kwargs):
+    # TODO: Temporarily if statement for new comment migration
+    from researchhub.settings import COMMENT_SIGNAL_OFF
+
+    if COMMENT_SIGNAL_OFF:
+        return
     try:
         recalc_hot_score_task.apply_async(
             (
