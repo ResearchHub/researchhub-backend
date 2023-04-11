@@ -45,7 +45,7 @@ def generate_schema_for_citation(citation_type):
             **citation_field_properties,
         },
         "required": ["creators", *citation_fields],
-        "additionalProperties": False,
+        "additionalProperties": True,
     }
     return general_schema
 

@@ -30,6 +30,7 @@ class CitationEntrySerializer(ModelSerializer):
     def create(self, validated_data):
         with transaction.atomic():
             [attachment_name, cleaned_attachment] = self._get_cleaned_up_attachment()
+            import pdb; pdb.set_trace()
             citation_entry = super().create(validated_data)
             if cleaned_attachment is not None:
                 citation_entry.attachment.save(
@@ -52,10 +53,13 @@ class CitationEntrySerializer(ModelSerializer):
     """ ----- Serializer Methods -----"""
 
     def get_attachment_url(self, citation_entry):
-        attachment = citation_entry.attachment
-        if attachment is None:
+        try:
+            attachment = citation_entry.attachment
+            if attachment is None:
+                return None
+            return attachment.url
+        except Exception as error:
             return None
-        return attachment.url
 
     def get_required_fields(self, citation_entry):
         return (
@@ -71,7 +75,7 @@ class CitationEntrySerializer(ModelSerializer):
         initial_data = self.initial_data
         attachment_src = initial_data.get("attachment_src", None)
         if attachment_src is None:
-            return None
+            return [None, None]
         attachment_name = initial_data.get("attachment_name")
         return [
             attachment_name,
