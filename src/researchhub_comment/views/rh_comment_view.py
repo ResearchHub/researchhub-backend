@@ -6,11 +6,16 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
+from rest_framework.permissions import (
+    AllowAny,
+    IsAuthenticated,
+    IsAuthenticatedOrReadOnly,
+)
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from analytics.amplitude import track_event
+from discussion.permissions import CensorDiscussion, EditorCensorDiscussion
 from discussion.reaction_views import ReactionViewActionMixin
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
@@ -195,6 +200,20 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             },
         }
         return context
+
+    @track_event
+    @action(
+        detail=True,
+        methods=["POST"],
+        permission_classes=[
+            IsAuthenticated,
+            (CensorDiscussion | EditorCensorDiscussion),
+        ],
+    )
+    def delete_rh_comment(self, request, *args, **kwargs):
+        rh_comment = self.get_object()
+        rh_comment.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @track_event
     @action(

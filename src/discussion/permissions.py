@@ -32,7 +32,7 @@ class EditorCensorDiscussion(BasePermission):
 
 
 class CensorDiscussion(AuthorizationBasedPermission):
-    message = "Need to be a moderator to delete discussions."
+    message = "Need to be a moderator or owner of the post to delete discussions."
 
     def is_authorized(self, request, view, obj):
         return obj.created_by.id == request.user.id or request.user.moderator
