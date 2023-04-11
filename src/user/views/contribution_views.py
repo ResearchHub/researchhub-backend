@@ -12,7 +12,7 @@ from utils import sentry
 
 
 class CursorSetPagination(CursorPagination):
-    page_size = 10
+    page_size = 20
     cursor_query_param = "page"
     ordering = "-created_date"
 
