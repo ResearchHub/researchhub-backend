@@ -1,1 +1,1 @@
-from .related_models.citation import CitationEntry
+from .related_models.citation_entry import CitationEntry

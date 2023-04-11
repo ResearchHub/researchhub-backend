@@ -1,1 +1,1 @@
-from citation.views.citation_view import CitationViewSet
+from citation.views.citation_entry_view import CitationEntryViewSet
