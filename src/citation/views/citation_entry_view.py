@@ -15,7 +15,7 @@ class CitationEntryViewSet(ModelViewSet):
     queryset = CitationEntry.objects.all()
     permission_classes = [IsAuthenticated]
     serializer_class = CitationEntrySerializer
-    ordering = "-created_date"
+    ordering = ["-created_date"]
 
     def create(self, request, *args, **kwargs):
         data = request.data
@@ -39,7 +39,7 @@ class CitationEntryViewSet(ModelViewSet):
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def user_citations(self, request):
         user = request.user
-        citations = user.created_citation_citationentry.all()
+        citations = user.created_citation_citationentry.all().order_by("-created_date")
         page = self.paginate_queryset(citations)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
