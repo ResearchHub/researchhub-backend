@@ -16,6 +16,7 @@ from user.serializers import DynamicOrganizationSerializer, DynamicUserSerialize
 
 
 class CitationEntrySerializer(ModelSerializer):
+    attachment_url = SerializerMethodField(read_only=True)
     checksum = ReadOnlyField()
     fields = JSONField()
     required_fields = SerializerMethodField(read_only=True)
@@ -23,6 +24,8 @@ class CitationEntrySerializer(ModelSerializer):
     class Meta:
         model = CitationEntry
         fields = "__all__"
+
+    """ ----- Django Method Overrides -----"""
 
     def create(self, validated_data):
         with transaction.atomic():
@@ -46,7 +49,9 @@ class CitationEntrySerializer(ModelSerializer):
 
         return fields_data
 
-    def get_attachment(self, citation_entry):
+    """ ----- Serializer Methods -----"""
+
+    def get_attachment_url(self, citation_entry):
         attachment = citation_entry.attachment
         if attachment is None:
             return None
@@ -59,6 +64,8 @@ class CitationEntrySerializer(ModelSerializer):
             ).get("required")
             or []
         )
+
+    """ ----- Private Methods -----"""
 
     def _get_cleaned_up_attachment(self):
         initial_data = self.initial_data

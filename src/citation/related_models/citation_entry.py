@@ -4,10 +4,11 @@ from django.core.validators import FileExtensionValidator
 
 from citation.constants import CITATION_TYPE_CHOICES
 from citation.schema import generate_schema_for_citation
-from user.models import Organization, User
+from user.models import Organization
+from utils.models import DefaultAuthenticatedModel
 
 
-class CitationEntry(models.Model):
+class CitationEntry(DefaultAuthenticatedModel):
     attachment = models.FileField(
         blank=True,
         default=None,
@@ -15,9 +16,6 @@ class CitationEntry(models.Model):
         null=True,
         upload_to="uploads/citation_entry/attachment/%Y/%m/%d",
         validators=[FileExtensionValidator(["pdf"])],
-    )
-    created_by = models.ForeignKey(
-        User, related_name="created_citations", on_delete=models.CASCADE
     )
     citation_type = models.CharField(max_length=32, choices=CITATION_TYPE_CHOICES)
     checksum = models.CharField(max_length=16)
