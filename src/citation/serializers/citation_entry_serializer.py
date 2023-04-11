@@ -55,7 +55,7 @@ class CitationEntrySerializer(ModelSerializer):
         attachment = citation_entry.attachment
         if attachment is None:
             return None
-        attachment.url
+        return attachment.url
 
     def get_required_fields(self, citation_entry):
         return (

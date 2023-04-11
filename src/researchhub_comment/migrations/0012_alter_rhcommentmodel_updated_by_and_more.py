@@ -3,27 +3,18 @@
 from django.conf import settings
 from django.db import migrations, models
 import django.db.models.deletion
-import django.utils.timezone
 
 
 class Migration(migrations.Migration):
 
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-        ("citation", "0002_citationentry_attachment_citationentry_doi"),
+        ("researchhub_comment", "0011_alter_rhcommentmodel_created_by_and_more"),
     ]
 
     operations = [
-        migrations.AddField(
-            model_name="citationentry",
-            name="created_date",
-            field=models.DateTimeField(
-                auto_now_add=True, default=django.utils.timezone.now
-            ),
-            preserve_default=False,
-        ),
-        migrations.AddField(
-            model_name="citationentry",
+        migrations.AlterField(
+            model_name="rhcommentmodel",
             name="updated_by",
             field=models.ForeignKey(
                 blank=True,
@@ -34,20 +25,15 @@ class Migration(migrations.Migration):
                 to=settings.AUTH_USER_MODEL,
             ),
         ),
-        migrations.AddField(
-            model_name="citationentry",
-            name="updated_date",
-            field=models.DateTimeField(
-                auto_now_add=True, default=django.utils.timezone.now
-            ),
-            preserve_default=False,
-        ),
         migrations.AlterField(
-            model_name="citationentry",
-            name="created_by",
+            model_name="rhcommentthreadmodel",
+            name="updated_by",
             field=models.ForeignKey(
+                blank=True,
+                help_text="Last user to update the instance",
+                null=True,
                 on_delete=django.db.models.deletion.CASCADE,
-                related_name="created_%(app_label)s_%(class)s",
+                related_name="updated_%(app_label)s_%(class)s",
                 to=settings.AUTH_USER_MODEL,
             ),
         ),
