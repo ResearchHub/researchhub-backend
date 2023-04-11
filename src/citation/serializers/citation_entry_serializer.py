@@ -30,7 +30,6 @@ class CitationEntrySerializer(ModelSerializer):
     def create(self, validated_data):
         with transaction.atomic():
             [attachment_name, cleaned_attachment] = self._get_cleaned_up_attachment()
-            import pdb; pdb.set_trace()
             citation_entry = super().create(validated_data)
             if cleaned_attachment is not None:
                 citation_entry.attachment.save(
