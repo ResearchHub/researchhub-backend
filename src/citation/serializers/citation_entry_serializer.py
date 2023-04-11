@@ -75,7 +75,7 @@ class CitationEntrySerializer(ModelSerializer):
         attachment_name = initial_data.get("attachment_name")
         return [
             attachment_name,
-            ContentFile(attachment_src.encode(), name=f"{attachment_name}.pdf"),
+            ContentFile(attachment_src, name=f"{attachment_name}.pdf"),
         ]
 
 
