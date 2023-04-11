@@ -1,3 +1,4 @@
+from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models.query import QuerySet
@@ -53,6 +54,7 @@ from researchhub_document.related_models.constants.filters import (
     MOST_RSC,
 )
 from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
+from user.models import Action
 
 
 class CommentPagination(PageNumberPagination):
@@ -211,9 +213,20 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         ],
     )
     def delete_rh_comment(self, request, *args, **kwargs):
-        rh_comment = self.get_object()
-        rh_comment.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
+        with transaction.atomic():
+            rh_comment = self.get_object()
+            rh_comment.delete()
+            action = Action.objects.filter(
+                content_type=get_content_type_for_model(rh_comment),
+                object_id=rh_comment.id,
+            )
+
+            if action.exists():
+                action = action.first()
+                action.is_removed = True
+                action.display = False
+                action.save()
+            return Response(status=status.HTTP_204_NO_CONTENT)
 
     @track_event
     @action(
