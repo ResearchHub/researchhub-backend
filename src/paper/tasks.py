@@ -19,7 +19,6 @@ from bs4 import BeautifulSoup
 from celery.decorators import periodic_task
 from celery.task.schedules import crontab
 from celery.utils.log import get_task_logger
-from discussion.models import Comment, Thread
 from django.apps import apps
 from django.core.cache import cache
 from django.core.files import File
@@ -635,7 +634,7 @@ def celery_generate_openai_summary(extract_pdf_section_result, paper_id):
         summary = summarizer.get_summary()
 
         if summary is not None and summary != "":
-            logger.warn(f"OpenAI summary for paper {paper.id} was extracted successfully.")
+            logger.info(f"OpenAI summary for paper {paper.id} was extracted successfully.")
 
             creator = user_manager.get_bot_account()
 
@@ -661,7 +660,7 @@ def celery_generate_openai_summary(extract_pdf_section_result, paper_id):
         else:
             return None
     except Exception as e:
-        logger.warn(e)
+        logger.warn(f"There was an error posting the comment that summarizes the paper: {e}")
         return None
 
 

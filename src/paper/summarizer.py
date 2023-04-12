@@ -119,11 +119,13 @@ class PaperSummarizer:
             else:
                 summary = summary_parts[0]
 
+            logger.info(f"A summary of length {len(summary)} generated successfully.")
+
             # Remove non-alphanumeric characters from the beginning of the summary
             return re.sub(r"^\W+", "", summary)
 
         except Exception as e:
-            logger.warn(e)
+            logger.warn(f"There was an error generating the OpenAI summary: {e}")
         return None
 
     @staticmethod
