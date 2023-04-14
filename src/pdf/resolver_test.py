@@ -96,6 +96,9 @@ class ResolverTestCase(unittest.TestCase):
 #   The live test can be relatively slow (~10sec for each fetch), as the external service needs to do fair amount of work, be patient...
 #   The live test will cost credits: better use a paid production account.
 #
+# Even worse, zenrows is not the ultimate silver bullet for web scraping, and there do have times when you will be blocked by the target
+# web site with a 403 forbidden response. Python exception of WebScrapingError will be raise.
+#
 PERFORM_LIVE_TEST = False
 
 @unittest.skipIf(not PERFORM_LIVE_TEST, "Skipped live scraping...")
