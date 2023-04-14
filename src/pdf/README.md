@@ -1,39 +1,58 @@
-README
+# README
 
-A Resolver API is provided in this directory. A resolver can extract PDF metadata from a scraped web page (currently doi and pdf_url). In addition, the PDF content can be downloaded following the extracted pdf_url.
+A Resolver API is provided in this directory.
 
-Typically we define a custom Resolver for each literature aggregation website, such as ResearchGate, SciHub, etc.
+From a high level point of view, a resolver can extract PDF metadata from a scraped web page (currently `doi` and `pdf_url`). In addition, the PDF content can be downloaded following the extracted `pdf_url`.
+
+So it's obvious the work here will cover 2 parts:
+* reliably retrieve the content from a remote web page;
+* reliably extract the meta data from the page content.
+
+## Web scraping
+
+These are a few considerations for modern web design:
+1. A modern dynamic web page typically has Javascript code that will be executed after the page is loaded. Without a JS execution engine, the web page rendering won't be complete even if we get all the static content;
+2. the website can inspect the incoming `Agent` identifier and respond differently: a web scraping library can somehow fake this, but it's kind of unreliable, expecially when all requests come from the same IP in a short burst;
+3. A website can issue CAPTCHA challenge for suspecious users, and this is true especially for those serving valuable contents;
+4. More generally, a website can employ service such as Cloudflare to detect suspecious activities (DDoS attack), and will block access if, for example, too many requests from the same set of IP pools.
+
+If we use Python's `requests` package naively (even fake the `Agent`), to scrape `researchgate`, for example, we will see `error 1020 (Access Denied)` in the retrieved page content. It implies the target website (`researchgate`) is protected by Cloudflare, and it's Cloudflare who detected the scrapping efforts and returned error 1020.
+
+We can either try to solve these issues by ourselves (which can be quite tricky to get right), or use an external web-scrapping service. For this reason, I've researched:
+* zenrows: paid service (but have trial tier): seems to be working reasonably well (reference: https://app.zenrows.com/builder);
+* cloudscraper: won't working for Cloudflare v2 challenge CAPTCHA.
+* cfscrape: won't working for reCAPTCHA challengers, no maintenance.
+
+I've decided to use `zenrows` for now, with the following benefits:
+1. have its own JavaScript engine to ensure the target web content is fully rendered, after initial fetch;
+2. bypass CAPTCHA protection;
+3. reliability bypass Cloudflare (or similar services);
+
+At the end of the day, we will get the full content of the target web site, for a small fee.
+
+## Page extraction
+
+Once we have the full content of a web site, the next task is to extract proper metadata from the web page, which can be achieved by Resolver APIs. Typically we define a custom Resolver for each literature aggregation website, such as ResearchGate, SciHub, etc.
 
 A custom Resolver needs the following concrete methods:
 * `hosts`: returns the list of host variations for the aggregation website;
-* `from_doi`: returns the container url for the given literature doi at this site. Note this is NOT always possible;
+* `from_doi`: returns the container url for the given `doi` at this aggregation site: note this is NOT always possible, when there is no obvious mapping;
 * `parse`: custom logic to parse the retrieved web page for PDF metadata;
 
 The following global methods are available:
-* `<resolver>.fetch_by_doi`: returns the PDF metadata associated with the given doi;
+* `<resolver>.fetch_by_doi`: returns the PDF metadata associated with the given `doi`;
 * `fetch`: returns the PDF metadata associated with the given `url`: the first matched resolver will be chosen based on the host from the given `url`;
 * `fetch_pdf`: returns the PDF content. The `pdf_url` is included in the metadata by previous call of either `fetch` or `<resolver>.fetch_by_doi`.
 
-Internally we take advantage of an external web-scrapping service (zenrows for now) for the following features:
-1. reliability, to bypass Cloudflare;
-2. bypass CAPTCHA protection;
-3. bypass JavaScript detection and allow the JS in the destination website to be fully executed, mimic the typical browser behavior;
-
 Since the code from this directory is self-contained, feel free to move this package to a new suitable location.
+
+## Misc
 
 Extra Python packages needed:
 * requests-mock: for mocking HTTP requests;
 * beautifulsoup4: package for parsing HTML page contents;
 
------------------------------------ Earlier notes --------------------------------
-Research on anti-scraping protection in general:
-* Symptom: error 1020 (Access Denied), in the retrieved page content.
-* Reason: target website (in this case, researchgate) is protected by cloudflare, and it's cloudflare who detected the scrapping efforts and returned error 1020.
-
-Solution:
-* zenrows: paid service (but have trial tier). seems to be working reasonably well (reference: https://app.zenrows.com/builder);
-* cloudscraper: won't working for Cloudflare v2 challenge CAPTCHA.
-* cfscrape: won't working for reCAPTCHA challengers, no maintenance.
+## Previous research notes
 
 Research on Zotero's PDF content retrieval logic:
 Zotero has the concept of PDF resolvers, which defines web scrapping primitives / directives (such as url, HTTP method, HTML tags).
