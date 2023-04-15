@@ -63,6 +63,9 @@ class Resolver(abc.ABC):
         if not resp.ok:
             raise WebScrapingError
 
+        #with open("resp.html", "w") as f:
+        #    f.write(resp.text)
+
         return cls.parse(resp, {})
 
     @classmethod

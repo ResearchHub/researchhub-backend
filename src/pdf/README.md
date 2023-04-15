@@ -54,6 +54,20 @@ Extra Python packages needed:
 * requests-mock: for mocking HTTP requests;
 * beautifulsoup4: package for parsing HTML page contents;
 
+## Testing
+
+Currently `resolver_test.py` contains 2 sets of tests:
+* mocked test to ensure the overall features of the extraction logic;
+* live scraping test (disabled by default);
+
+When `PERFORM_LIVE_TEST` is turned on, the live scraping test will scrape live sites, and perform extraction (of metadata).
+
+**WARNING**:
+The code currently contains my trial account, and eventually the live scraping will fail due to account exhaustion and/or expiration.
+PLEASE:
+* Replace it with RH's production account;
+* examine the returned response, as I did in `resolver.py` code.
+
 ## Previous research notes
 
 Research on Zotero's PDF content retrieval logic:
