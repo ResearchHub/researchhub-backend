@@ -28,6 +28,8 @@ I've decided to use `zenrows` for now, with the following benefits:
 2. bypass CAPTCHA protection;
 3. reliability bypass Cloudflare (or similar services);
 
+Refer to (their latest blog)[https://www.zenrows.com/blog/web-scraping-without-getting-blocked].
+
 At the end of the day, we will get the full content of the target web site, for a small fee.
 
 ## Page extraction

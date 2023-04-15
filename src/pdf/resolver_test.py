@@ -43,6 +43,19 @@ EDGE_CASES = [
     )
 ]
 
+# Set this to true to enable live scraping during test.
+#
+# WARNING:
+#   The live test can be relatively slow (~10sec for each fetch), as the external service needs to do fair amount of work, be patient...
+#   The live test will cost credits: better use a paid production account.
+#
+# Even worse, zenrows is not the ultimate silver bullet for web scraping, and there do have times
+# when you CAN be blocked by the target web site with a 403 forbidden response:
+# Python will return WebScrapingError exception.
+#
+PERFORM_LIVE_TEST = False
+
+@unittest.skipIf(PERFORM_LIVE_TEST, "Tests skipped due to live scraping...")
 @requests_mock.Mocker()
 class ResolverTestCase(unittest.TestCase):
     def test_scihub_by_doi(self, m):
@@ -89,21 +102,18 @@ class ResolverTestCase(unittest.TestCase):
             meta = fetch(case.url)
             self.assertEqual(case.doi, meta['doi'])
 
-
-# Set this to true to enable live scraping during test.
-#
-# WARNING:
-#   The live test can be relatively slow (~10sec for each fetch), as the external service needs to do fair amount of work, be patient...
-#   The live test will cost credits: better use a paid production account.
-#
-# Even worse, zenrows is not the ultimate silver bullet for web scraping, and there do have times when you will be blocked by the target
-# web site with a 403 forbidden response. Python exception of WebScrapingError will be raise.
-#
-PERFORM_LIVE_TEST = False
-
-@unittest.skipIf(not PERFORM_LIVE_TEST, "Skipped live scraping...")
+@unittest.skipIf(not PERFORM_LIVE_TEST, "Live scraping skipped...")
 class ResolverLiveTestCase(unittest.TestCase):
-    # NOTE(kevin.yang): This is currently my personal account (testing only), replace it with paid production account.
+    # WARNING(kevin.yang):
+    # This is currently my personal account (testing only), replace it with paid production account,
+    # as eventually the live scraping will fail due to account exhaustion and/or expiration.
+    #
+    # UPDATE:
+    # It seems the additional anti-bot bypass feature was exhausted in my own trial acount,
+    # after examining the returned response from scraping:
+    # the live requests end up stuck on the error page (from zenrows).
+    #
+    # PLEASE use your own trial account.
     ZENROWS_PROXY = 'http://a41b950f3879ea357ef43260361127ca9e802c9c:js_render=true&antibot=true@proxy.zenrows.com:8001'
     ZENROWS_PROXIES = {"http": ZENROWS_PROXY, "https": ZENROWS_PROXY}
 
@@ -113,12 +123,14 @@ class ResolverLiveTestCase(unittest.TestCase):
     def test_scihub_live(self):
         # NOTE: we need to rotate website urls as otherwise it's possible to trigger DDoS protection.
         case = random.choice(SCIHUB_CASES)
+        print(f"Live: fetching: {case.url}")
         meta = fetch(case.url, self.ZENROWS_PROXIES, False)
         self.assertEqual(case.doi, meta['doi'])
         self.assertEqual(case.pdf_url, meta['pdf_url'])
 
     def test_researchgate_live(self):
         case = random.choice(RESEARCHGATE_CASES)
+        print(f"Live: fetching {case.url}...")
         meta = fetch(case.url, self.ZENROWS_PROXIES, False)
         self.assertEqual(case.doi, meta['doi'])
         self.assertEqual(case.pdf_url, meta['pdf_url'])

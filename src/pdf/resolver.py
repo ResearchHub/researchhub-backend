@@ -63,9 +63,6 @@ class Resolver(abc.ABC):
         if not resp.ok:
             raise WebScrapingError
 
-        #with open("resp.html", "w") as f:
-        #    f.write(resp.text)
-
         return cls.parse(resp, {})
 
     @classmethod
@@ -89,7 +86,7 @@ class SciHubResolver(Resolver):
     SITE = re.compile(r"//(.+)/")
 
     PDF_URL_SAME_SITE = re.compile(r"location.href='(/.*)\?download=true'")
-    PDF_URL_MIRROS_SITE = re.compile(r"location.href='//([^/]+)(/.+)\?download=true'")
+    PDF_URL_MIRROR_SITE = re.compile(r"location.href='//([^/]+)(/.+)\?download=true'")
 
     @classmethod
     def hosts(cls)-> list[str]:
@@ -129,7 +126,7 @@ class SciHubResolver(Resolver):
             return meta
 
         hint = button.get('onclick')
-        matched = SciHubResolver.PDF_URL_MIRROS_SITE.match(hint)
+        matched = SciHubResolver.PDF_URL_MIRROR_SITE.match(hint)
         if matched:
             meta['pdf_url'] = parse.urlunparse(['https', matched.group(1), matched.group(2), '', '', ''])
             return meta
