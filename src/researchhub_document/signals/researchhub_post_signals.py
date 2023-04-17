@@ -3,7 +3,6 @@ from django.dispatch import receiver
 from django.utils.crypto import get_random_string
 from django.utils.text import slugify
 
-from discussion.reaction_models import Vote
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from researchhub_document.models import ResearchhubPost
