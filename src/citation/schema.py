@@ -13,23 +13,23 @@ CREATORS_SCHEMA_REGEX = f"({initial_creators_schema_regex})"
 
 def generate_schema_for_citation(citation_type):
     creator_fields = CREATOR_TYPES[citation_type]
-    creators_schema_regex = r"|".join(f"^{field}$" for field in creator_fields)
+    # creators_schema_regex = r"|".join(f"^{field}$" for field in creator_fields)
     creators_schema = {
         "type": "object",
-        "patternProperties": {
-            f"{creators_schema_regex}": {
-                "type": "array",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "first_name": {"type": "string"},
-                        "last_name": {"type": "string"},
-                        "title": {"type": "string"},
-                    },
-                    "required": ["first_name", "last_name"],
-                },
-            }
+        # "patternProperties": {
+        #     f"{creators_schema_regex}": {
+        "type": "array",
+        "items": {
+            "type": "object",
+            "properties": {
+                "first_name": {"type": "string"},
+                "last_name": {"type": "string"},
+                "title": {"type": "string"},
+            },
+            "required": ["first_name", "last_name"],
         },
+        #     }
+        # },
         "minProperties": 1,
         "additionalProperties": False,
     }
@@ -40,9 +40,12 @@ def generate_schema_for_citation(citation_type):
     }
     general_schema = {
         "type": "object",
-        "properties": {"creators": creators_schema, **citation_field_properties},
+        "properties": {
+            "creators": creators_schema,
+            **citation_field_properties,
+        },
         "required": ["creators", *citation_fields],
-        "additionalProperties": False,
+        "additionalProperties": True,
     }
     return general_schema
 

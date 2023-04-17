@@ -6,22 +6,26 @@ from rest_framework.viewsets import ModelViewSet
 from citation.constants import CITATION_TYPE_FIELDS
 from citation.models import CitationEntry
 from citation.schema import generate_schema_for_citation
-from citation.serializers import CitationSerializer
+from citation.serializers import CitationEntrySerializer
+from paper.utils import clean_dois
+from utils.openalex import OpenAlex
 
 
-class CitationViewSet(ModelViewSet):
+class CitationEntryViewSet(ModelViewSet):
     queryset = CitationEntry.objects.all()
     permission_classes = [IsAuthenticated]
-    serializer_class = CitationSerializer
+    serializer_class = CitationEntrySerializer
+    ordering = ["-created_date"]
 
-    def create(self, request):
+    def create(self, request, *args, **kwargs):
         data = request.data
         data["created_by"] = request.user.id
-        res = super().create(request)
+        res = super().create(request, *args, **kwargs)
         return res
 
-    def update(self, request):
+    def update(self, request, *args, **kwargs):
         data = request.data
+        data["created_by"] = request.user.id
         data["updated_by"] = request.user.id
         res = super().update(request)
         return res
@@ -35,8 +39,7 @@ class CitationViewSet(ModelViewSet):
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def user_citations(self, request):
         user = request.user
-        citations = user.created_citations.all()
-
+        citations = user.created_citation_citationentry.all().order_by("-created_date")
         page = self.paginate_queryset(citations)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
@@ -60,3 +63,10 @@ class CitationViewSet(ModelViewSet):
     def get_citation_types(self, request):
         citation_types = CITATION_TYPE_FIELDS.keys()
         return Response(citation_types)
+
+    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
+    def doi_search(self, request):
+        doi_string = request.query_params.get("doi", None)
+        open_alex = OpenAlex()
+        result = open_alex.get_data_from_doi(doi_string)
+        return Response(result, status=200)
