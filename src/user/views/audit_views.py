@@ -264,49 +264,52 @@ class AuditViewSet(viewsets.GenericViewSet):
         flagger = request.user
         data = request.data
         flag_data = data.get("flag", [])
-        for f in flag_data:
-            f["created_by"] = flagger.id
 
-        flag_serializer = FlagSerializer(data=flag_data, many=True)
-        flag_serializer.is_valid(raise_exception=True)
-        flag_serializer.save()
+        with transaction.atomic():
+            for f in flag_data:
+                f["created_by"] = flagger.id
 
-        return Response({"flag": flag_serializer.data}, status=200)
+            flag_serializer = FlagSerializer(data=flag_data, many=True)
+            flag_serializer.is_valid(raise_exception=True)
+            flag_serializer.save()
+
+            return Response({"flag": flag_serializer.data}, status=200)
 
     @action(detail=False, methods=["post"])
     def flag_and_remove(self, request):
-        flagger = request.user
-        data = request.data
-        flag_data = data.get("flag", [])
-        verdict_data = data.get("verdict", {})
-        for f in flag_data:
-            f["created_by"] = flagger.id
-        verdict_data["created_by"] = flagger.id
+        with transaction.atomic():
+            flagger = request.user
+            data = request.data
+            flag_data = data.get("flag", [])
+            verdict_data = data.get("verdict", {})
+            for f in flag_data:
+                f["created_by"] = flagger.id
+            verdict_data["created_by"] = flagger.id
 
-        flag_serializer = FlagSerializer(data=flag_data, many=True)
-        flag_serializer.is_valid(raise_exception=True)
-        flags = flag_serializer.save()
+            flag_serializer = FlagSerializer(data=flag_data, many=True)
+            flag_serializer.is_valid(raise_exception=True)
+            flags = flag_serializer.save()
 
-        verdict_serializer = None
-        for flag in flags:
-            verdict_data["flag"] = flag.id
-            verdict_serializer = VerdictSerializer(data=verdict_data)
-            verdict_serializer.is_valid(raise_exception=True)
-            verdict = verdict_serializer.save()
+            verdict_serializer = None
+            for flag in flags:
+                verdict_data["flag"] = flag.id
+                verdict_serializer = VerdictSerializer(data=verdict_data)
+                verdict_serializer.is_valid(raise_exception=True)
+                verdict = verdict_serializer.save()
 
-            is_content_removed = verdict.is_content_removed
-            if is_content_removed:
-                self._remove_flagged_content(flag)
-                self._send_notification_to_content_creator(
-                    remover=flagger,
-                    send_email=data.get("send_email", True),
-                    verdict=verdict,
-                )
+                is_content_removed = verdict.is_content_removed
+                if is_content_removed:
+                    self._remove_flagged_content(flag)
+                    self._send_notification_to_content_creator(
+                        remover=flagger,
+                        send_email=data.get("send_email", True),
+                        verdict=verdict,
+                    )
 
-        return Response(
-            {"flag": flag_serializer.data, "verdict": verdict_serializer.data},
-            status=200,
-        )
+            return Response(
+                {"flag": flag_serializer.data, "verdict": verdict_serializer.data},
+                status=200,
+            )
 
     @action(detail=False, methods=["post"])
     def dismiss_flagged_content(self, request):
@@ -355,34 +358,35 @@ class AuditViewSet(viewsets.GenericViewSet):
         verdict_data["created_by"] = flagger.id
         verdict_data["is_content_removed"] = True
 
-        flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
-        for flag in flags.iterator():
-            available_reasons = list(map(lambda r: r[0], FLAG_REASON_CHOICES))
-            verdict_choice = NOT_SPECIFIED
-            if data.get("verdict_choice") in available_reasons:
-                verdict_choice = data.get("verdict_choice")
-            elif flag.reason_choice in available_reasons:
-                verdict_choice = flag.reason_choice
+        with transaction.atomic():
+            flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
+            for flag in flags.iterator():
+                available_reasons = list(map(lambda r: r[0], FLAG_REASON_CHOICES))
+                verdict_choice = NOT_SPECIFIED
+                if data.get("verdict_choice") in available_reasons:
+                    verdict_choice = data.get("verdict_choice")
+                elif flag.reason_choice in available_reasons:
+                    verdict_choice = flag.reason_choice
 
-            verdict_data["verdict_choice"] = verdict_choice
-            verdict_data["flag"] = flag.id
-            verdict_serializer = VerdictSerializer(data=verdict_data)
-            verdict_serializer.is_valid(raise_exception=True)
-            verdict = verdict_serializer.save()
-            flag.verdict_created_date = verdict.created_date
-            flag.save()
+                verdict_data["verdict_choice"] = verdict_choice
+                verdict_data["flag"] = flag.id
+                verdict_serializer = VerdictSerializer(data=verdict_data)
+                verdict_serializer.is_valid(raise_exception=True)
+                verdict = verdict_serializer.save()
+                flag.verdict_created_date = verdict.created_date
+                flag.save()
 
-            self._remove_flagged_content(flag)
-            self._send_notification_to_content_creator(
-                remover=flagger,
-                send_email=data.get("send_email", True),
-                verdict=verdict,
+                self._remove_flagged_content(flag)
+                self._send_notification_to_content_creator(
+                    remover=flagger,
+                    send_email=data.get("send_email", True),
+                    verdict=verdict,
+                )
+
+            return Response(
+                {},
+                status=200,
             )
-
-        return Response(
-            {},
-            status=200,
-        )
 
     def _remove_flagged_content(self, flag):
         with transaction.atomic():
@@ -392,7 +396,7 @@ class AuditViewSet(viewsets.GenericViewSet):
         flag = verdict.flag
         model_class = flag.content_type.model_class()
 
-        if isinstance(model_class, SoftDeletableModel):
+        if issubclass(model_class, SoftDeletableModel):
             flagged_content = model_class.all_objects.get(id=flag.object_id)
         else:
             flagged_content = model_class.objects.get(id=flag.object_id)
