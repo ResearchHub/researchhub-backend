@@ -311,7 +311,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         return qs
 
     def get_filtered_queryset(self):
-        qs = self.get_queryset().filter(is_removed=False)
+        qs = self.get_queryset()
         qs = self.filter_queryset(qs)
         return qs
 
@@ -448,9 +448,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
     def _cache_hit_with_latest_metadata(self, cache_hit):
         ids = [d["id"] for d in cache_hit["results"]]
-        docs_in_cache = ResearchhubUnifiedDocument.objects.filter(id__in=ids).values(
-            "id", "score"
-        )
+        docs_in_cache = ResearchhubUnifiedDocument.all_objects.filter(
+            id__in=ids
+        ).values("id", "score")
         docs_to_score_map = {d["id"]: d["score"] for d in docs_in_cache}
         for doc in cache_hit["results"]:
             doc.score = docs_to_score_map[doc["id"]]

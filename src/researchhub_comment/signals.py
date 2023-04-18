@@ -9,12 +9,6 @@ from researchhub_comment.models import RhCommentModel
     post_save, sender=RhCommentModel, dispatch_uid="create_rh_comment_notifiation"
 )
 def create_thread_notification(sender, instance, created, **kwargs):
-    # TODO: Temporarily if statement for new comment migration
-    from researchhub.settings import COMMENT_SIGNAL_OFF
-
-    if COMMENT_SIGNAL_OFF:
-        return
-
     if created:
         creator = instance.created_by
         if instance.parent:

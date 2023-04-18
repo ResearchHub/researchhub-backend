@@ -11,6 +11,7 @@ from hub.models import Hub
 from paper.models import Paper, PaperSubmission
 from reputation.models import Bounty, Withdrawal
 from researchhub.settings import BASE_FRONTEND_URL, TESTING
+from researchhub_comment.models import RhCommentModel
 from summary.models import Summary
 from user.related_models.user_model import User
 from utils.models import DefaultModel
@@ -224,10 +225,26 @@ class Action(DefaultModel):
             link += "/paper/{}/".format(item.paper.id)
         elif isinstance(item, Paper):
             link += "/paper/{}/".format(item.id)
+        elif isinstance(item, RhCommentModel):
+            uni_doc = self.item.unified_document
+            doc_type = uni_doc.document_type
+            doc = uni_doc.get_document()
+
+            if (
+                doc_type == "DISCUSSION"
+                or doc_type == "QUESTION"
+                or doc_type == "BOUNTY"
+            ):
+                link += "/post/{}/{}#comments".format(doc.id, doc.slug)
+            elif doc_type == "HYPOTHESIS":
+                link += "/hypothesis/{}/{}#comments".format(doc.id, doc.slug)
+            else:
+                link += "/paper/{}/{}#comments".format(doc.id, doc.slug)
         elif (
             isinstance(item, Thread)
             or isinstance(item, Comment)
             or isinstance(item, Reply)
+            or isinstance(item, RhCommentModel)
         ):
             doc_type = self.item.unified_document.document_type
             if (

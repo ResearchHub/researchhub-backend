@@ -1,3 +1,5 @@
+from django.db.models import DecimalField, Sum
+from django.db.models.functions import Coalesce
 from rest_framework import serializers
 
 from discussion.serializers import (
@@ -40,6 +42,8 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
     item = serializers.SerializerMethodField()
     solutions = serializers.SerializerMethodField()
     parent = serializers.SerializerMethodField()
+    total_amount = serializers.SerializerMethodField()
+    unified_document = serializers.SerializerMethodField()
     # Kobe: This is not great. This alias is used to disambiguate "parent" used in contribution_views because simply
     # using parent, may lead to infinite recursive loop -_-
     bounty_parent = serializers.SerializerMethodField(method_name="get_parent")
@@ -119,6 +123,24 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
             )
             return serializer.data
         return None
+
+    def get_unified_document(self, bounty):
+        context = self.context
+        _context_fields = context.get("rep_dbs_get_unified_document", {})
+        serializer = DynamicUnifiedDocumentSerializer(
+            bounty.unified_document, context=context, **_context_fields
+        )
+        return serializer.data
+
+    def get_total_amount(self, bounty):
+        children_sum = bounty.children.aggregate(
+            children_sum=Coalesce(
+                Sum("amount"),
+                0,
+                output_field=DecimalField(),
+            )
+        )["children_sum"]
+        return bounty.amount + children_sum
 
 
 class DynamicBountySolutionSerializer(DynamicModelFieldSerializer):

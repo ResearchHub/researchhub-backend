@@ -1,24 +1,26 @@
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
+from django.db.models import Q
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import CursorPagination
 from rest_framework.response import Response
 
 from discussion.constants.flag_reasons import FLAG_REASON_CHOICES, NOT_SPECIFIED
-from discussion.models import BaseComment
 from discussion.reaction_models import Flag
 from discussion.reaction_serializers import FlagSerializer
+from discussion.reaction_views import censor
 from discussion.serializers import DynamicFlagSerializer
 from mailing_list.lib import base_email_context
 from notification.models import Notification
-from paper.related_models.paper_model import Paper
 from user.filters import AuditDashboardFilterBackend
 from user.models import Action, User
 from user.permissions import IsModerator, UserIsEditor
 from user.serializers import DynamicActionSerializer, VerdictSerializer
 from utils import sentry
 from utils.message import send_email_message
+from utils.models import SoftDeletableModel
 
 
 class CursorSetPagination(CursorPagination):
@@ -35,9 +37,7 @@ class AuditViewSet(viewsets.GenericViewSet):
 
     def _get_allowed_models(self):
         return (
-            ContentType.objects.get(model="thread"),
-            ContentType.objects.get(model="comment"),
-            ContentType.objects.get(model="reply"),
+            ContentType.objects.get(model="rhcommentmodel"),
             ContentType.objects.get(model="researchhubpost"),
             ContentType.objects.get(model="paper"),
             ContentType.objects.get(model="hypothesis"),
@@ -46,7 +46,11 @@ class AuditViewSet(viewsets.GenericViewSet):
     def get_queryset(self):
         if self.action == "flagged":
             return (
-                Flag.objects.all()
+                Flag.objects.exclude(
+                    Q(content_type__model="thread")
+                    | Q(content_type__model="comment")
+                    | Q(content_type__model="reply")
+                )
                 .select_related("content_type")
                 .prefetch_related("verdict__created_by")
             )
@@ -89,13 +93,13 @@ class AuditViewSet(viewsets.GenericViewSet):
                     "id",
                     "created_by",
                     "created_date",
+                    "comment_content_json",
                     "uploaded_by",
                     "unified_document",
-                    "source",
                     "abstract",
                     "amount",
-                    "plain_text",
                     "title",
+                    "thread",
                     "slug",
                 ]
             },
@@ -190,6 +194,13 @@ class AuditViewSet(viewsets.GenericViewSet):
             "hyp_dhs_get_created_by": {
                 "_include_fields": ["author_profile", "first_name", "last_name"]
             },
+            "rhc_dcs_get_created_by": {
+                "_include_fields": ["author_profile", "first_name", "last_name"]
+            },
+            "rhc_dcs_get_thread": {"_include_fields": ["content_object"]},
+            "rhc_dts_get_content_object": {
+                "_include_fields": ["id", "unified_document", "thread_type"]
+            },
         }
         context["dis_dfs_get_item"] = context["usr_das_get_item"]
         context["dis_dfs_get_created_by"] = context["usr_das_get_created_by"]
@@ -256,31 +267,36 @@ class AuditViewSet(viewsets.GenericViewSet):
         flagger = request.user
         data = request.data
         flag_data = data.get("flag", [])
-        for f in flag_data:
-            f["created_by"] = flagger.id
 
-        flag_serializer = FlagSerializer(data=flag_data, many=True)
-        flag_serializer.is_valid(raise_exception=True)
-        flag_serializer.save()
+        with transaction.atomic():
+            for f in flag_data:
+                f["created_by"] = flagger.id
 
-        return Response({"flag": flag_serializer.data}, status=200)
+                if "reason_choice" not in f:
+                    f["reason_choice"] = f.get("reason", NOT_SPECIFIED)
+
+            flag_serializer = FlagSerializer(data=flag_data, many=True)
+            flag_serializer.is_valid(raise_exception=True)
+            flag_serializer.save()
+
+            return Response({"flag": flag_serializer.data}, status=200)
 
     @action(detail=False, methods=["post"])
     def flag_and_remove(self, request):
-        flagger = request.user
-        data = request.data
-        flag_data = data.get("flag", [])
-        verdict_data = data.get("verdict", {})
-        for f in flag_data:
-            f["created_by"] = flagger.id
-        verdict_data["created_by"] = flagger.id
+        with transaction.atomic():
+            flagger = request.user
+            data = request.data
+            flag_data = data.get("flag", [])
+            verdict_data = data.get("verdict", {})
+            for f in flag_data:
+                f["created_by"] = flagger.id
+            verdict_data["created_by"] = flagger.id
 
-        flag_serializer = FlagSerializer(data=flag_data, many=True)
-        flag_serializer.is_valid(raise_exception=True)
-        flags = flag_serializer.save()
+            flag_serializer = FlagSerializer(data=flag_data, many=True)
+            flag_serializer.is_valid(raise_exception=True)
+            flags = flag_serializer.save()
 
-        verdict_serializer = None
-        try:
+            verdict_serializer = None
             for flag in flags:
                 verdict_data["flag"] = flag.id
                 verdict_serializer = VerdictSerializer(data=verdict_data)
@@ -296,19 +312,10 @@ class AuditViewSet(viewsets.GenericViewSet):
                         verdict=verdict,
                     )
 
-        except Exception as e:
-            print("e", e)
-            sentry.log_error(e)
-
             return Response(
-                {},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                {"flag": flag_serializer.data, "verdict": verdict_serializer.data},
+                status=200,
             )
-
-        return Response(
-            {"flag": flag_serializer.data, "verdict": verdict_serializer.data},
-            status=200,
-        )
 
     @action(detail=False, methods=["post"])
     def dismiss_flagged_content(self, request):
@@ -357,9 +364,9 @@ class AuditViewSet(viewsets.GenericViewSet):
         verdict_data["created_by"] = flagger.id
         verdict_data["is_content_removed"] = True
 
-        try:
+        with transaction.atomic():
             flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
-            for flag in flags:
+            for flag in flags.iterator():
                 available_reasons = list(map(lambda r: r[0], FLAG_REASON_CHOICES))
                 verdict_choice = NOT_SPECIFIED
                 if data.get("verdict_choice") in available_reasons:
@@ -382,47 +389,24 @@ class AuditViewSet(viewsets.GenericViewSet):
                     verdict=verdict,
                 )
 
-        except Exception as e:
-            print("e", e)
-            sentry.log_error(e)
-
             return Response(
                 {},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                status=200,
             )
 
-        return Response(
-            {},
-            status=200,
-        )
-
     def _remove_flagged_content(self, flag):
-        item = flag.item
-        related_action = getattr(item, "actions", None)
-
-        if related_action:
-            related_action = related_action.first()
-            related_action.is_removed = True
-            related_action.display = False
-            related_action.save()
-
-        if isinstance(item, BaseComment):
-            item.is_removed = True
-            item.save()
-        else:
-            unified_document = item.unified_document
-            unified_document.is_removed = True
-            unified_document.save()
-            inner_doc = unified_document.get_document()
-            if isinstance(inner_doc, Paper):
-                inner_doc.is_removed = True
-                # Commenting out paper cache
-                # inner_doc.reset_cache()
-                inner_doc.save()
+        with transaction.atomic():
+            return censor(flag.verdict.created_by, flag.item)
 
     def _send_notification_to_content_creator(self, verdict, remover, send_email=True):
         flag = verdict.flag
-        flagged_content = flag.content_type.model_class().objects.get(id=flag.object_id)
+        model_class = flag.content_type.model_class()
+
+        if issubclass(model_class, SoftDeletableModel):
+            flagged_content = model_class.all_objects.get(id=flag.object_id)
+        else:
+            flagged_content = model_class.objects.get(id=flag.object_id)
+
         if flag.content_type.name == "paper":
             content_creator = flagged_content.uploaded_by
         else:

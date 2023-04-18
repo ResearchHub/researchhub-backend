@@ -14,3 +14,13 @@ class IsObjectOwner(BasePermission):
             return True
 
         return False
+
+
+class IsObjectOwnerOrModerator(IsObjectOwner):
+    message = "Invalid base permission"
+
+    def has_object_permission(self, request, view, obj):
+        object_owner_permission = super().has_object_permission(request, view, obj)
+        if request.user.moderator:
+            return True
+        return object_owner_permission

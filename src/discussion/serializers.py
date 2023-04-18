@@ -21,6 +21,7 @@ from paper.models import Paper
 from reputation.models import Escrow
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub.settings import PAGINATION_PAGE_SIZE
+from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from review.serializers.review_serializer import (
     DynamicReviewSerializer,
@@ -895,7 +896,10 @@ class DynamicFlagSerializer(DynamicModelFieldSerializer):
             from discussion.serializers import DynamicReplySerializer
 
             serializer = DynamicReplySerializer
+        elif isinstance(item, RhCommentModel):
+            from researchhub_comment.serializers import DynamicRhCommentSerializer
 
+            serializer = DynamicRhCommentSerializer
         else:
             return None
         data = serializer(item, context=context, **_context_fields).data

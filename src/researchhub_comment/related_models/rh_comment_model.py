@@ -6,7 +6,6 @@ from django.db.models import (
     CharField,
     FileField,
     ForeignKey,
-    IntegerField,
     JSONField,
     PositiveIntegerField,
     TextField,
@@ -81,6 +80,12 @@ class RhCommentModel(
     )
     bounty_solution = GenericRelation(
         "reputation.BountySolution",
+        object_id_field="object_id",
+        content_type_field="content_type",
+        related_query_name="rh_comment",
+    )
+    actions = GenericRelation(
+        "user.Action",
         object_id_field="object_id",
         content_type_field="content_type",
         related_query_name="rh_comment",

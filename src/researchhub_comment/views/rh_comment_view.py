@@ -1,8 +1,8 @@
-from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models.query import QuerySet
 from django.shortcuts import get_object_or_404
+from django.utils.functional import cached_property
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
@@ -16,7 +16,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from analytics.amplitude import track_event
-from discussion.permissions import CensorDiscussion, EditorCensorDiscussion
+from discussion.permissions import EditorCensorDiscussion
 from discussion.reaction_views import ReactionViewActionMixin
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
@@ -26,7 +26,7 @@ from reputation.views.bounty_view import (
     _deduct_fees,
 )
 from researchhub.pagination import FasterDjangoPaginator
-from researchhub.permissions import IsObjectOwner
+from researchhub.permissions import IsObjectOwner, IsObjectOwnerOrModerator
 from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT
 from researchhub_comment.filters import RHCommentFilter
 from researchhub_comment.models import RhCommentModel
@@ -202,31 +202,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             },
         }
         return context
-
-    @track_event
-    @action(
-        detail=True,
-        methods=["POST"],
-        permission_classes=[
-            IsAuthenticated,
-            (CensorDiscussion | EditorCensorDiscussion),
-        ],
-    )
-    def delete_rh_comment(self, request, *args, **kwargs):
-        with transaction.atomic():
-            rh_comment = self.get_object()
-            rh_comment.delete()
-            action = Action.objects.filter(
-                content_type=get_content_type_for_model(rh_comment),
-                object_id=rh_comment.id,
-            )
-
-            if action.exists():
-                action = action.first()
-                action.is_removed = True
-                action.display = False
-                action.save()
-            return Response(status=status.HTTP_204_NO_CONTENT)
 
     @track_event
     @action(
@@ -463,32 +438,45 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             res.data = serializer_data
             return res
 
+    @action(
+        detail=True,
+        methods=["put", "patch", "delete"],
+        permission_classes=[
+            IsAuthenticated,
+            (IsObjectOwnerOrModerator | EditorCensorDiscussion),
+        ],
+    )
+    def censor(self, request, *args, **kwargs):
+        query = """
+            WITH RECURSIVE comments AS (
+                SELECT id, parent_id, 0 AS relative_depth
+                FROM "researchhub_comment_rhcommentmodel"
+                WHERE id = %s
+
+                UNION ALL
+
+                SELECT child.id, child.parent_id, comments.relative_depth + 1
+                FROM "researchhub_comment_rhcommentmodel" child, comments
+                WHERE child.parent_id = comments.id AND child.is_removed = FALSE
+            )
+            SELECT id
+            FROM comments;
+        """
+
+        with transaction.atomic():
+            comment = self.get_object()
+            for bounty in comment.bounties.iterator():
+                cancelled = bounty.cancel()
+                if not cancelled:
+                    raise Exception("Failed to close bounties on comment")
+
+            comment_count = len(RhCommentModel.objects.raw(query, [comment.id]))
+            comment._update_related_discussion_count(-comment_count)
+            return super().censor(request, *args, **kwargs)
+
     def perform_update(self, serializer):
         instance = serializer.save()
         instance.update_comment_content()
-
-    @action(
-        detail=True,
-        methods=["GET"],
-        permission_classes=[AllowAny],
-    )
-    # @action(detail=True, methods=["GET"], permission_classes=[AllowAny])
-    def get_rh_comments(self, request, model=None, model_object_id=None, pk=None):
-        # import pdb; pdb.set_trace()
-        # test = self._get_filtered_threads()
-        try:
-            # TODO: add filtering & sorting mechanism here.
-            comment = self._get_existing_thread_from_data(request.data)
-            serializer = self.get_serializer(
-                comment,
-                _include_fields=("id", "comments"),
-            )
-            return Response(serializer.data, status=200)
-        except Exception as error:
-            return Response(
-                f"Failed - get_comment_threads: {error}",
-                status=status.HTTP_400_BAD_REQUEST,
-            )
 
     @action(
         detail=True,

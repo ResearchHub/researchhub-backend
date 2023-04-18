@@ -174,7 +174,7 @@ class BountyViewSet(viewsets.ModelViewSet):
     serializer_class = BountySerializer
     permission_classes = [IsAuthenticated, PostOnly]
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = ["item_object_id", "status"]
+    filterset_fields = ["item_content_type__model", "item_object_id", "status"]
 
     ALLOWED_CREATE_CONTENT_TYPES = ("rhcommentmodel", "thread")
     ALLOWED_APPROVE_CONTENT_TYPES = ("rhcommentmodel", "thread", "comment", "reply")
@@ -193,13 +193,12 @@ class BountyViewSet(viewsets.ModelViewSet):
         context = self._get_create_context()
         context["rep_dbs_get_item"] = {
             "_include_fields": (
-                "created_by",
-                "documents",
-                "document_type",
                 "id",
-                "plain_text",
-                "unified_document",
+                "comment_content_json",
             )
+        }
+        context["rep_dbs_get_unified_document"] = {
+            "_include_fields": ("documents", "id", "document_type")
         }
         context["doc_duds_get_created_by"] = {"_include_fields": ("author_profile",)}
         context["doc_duds_get_documents"] = {
@@ -448,29 +447,23 @@ class BountyViewSet(viewsets.ModelViewSet):
         permission_classes=[AllowAny],
     )
     def get_bounties(self, request):
-        status = self.request.GET.get("status")
-        qs = (
-            self.get_queryset()
-            .filter(status=status)
-            .distinct("unified_document")
-            .order_by("unified_document", "expiration_date")[:10]
-        )
-        not_removed_posts = []
-        for bounty in qs:
-            if not bounty.item.is_removed:
-                not_removed_posts.append(bounty)
+        qs = self.filter_queryset(self.get_queryset()).filter(
+            parent__isnull=True, unified_document__is_removed=False
+        )[:10]
+
         context = self._get_retrieve_context()
         serializer = DynamicBountySerializer(
-            not_removed_posts,
+            qs,
             many=True,
             _include_fields=(
-                "amount",
                 "created_by",
                 "content_type",
                 "id",
                 "item",
                 "expiration_date",
                 "status",
+                "total_amount",
+                "unified_document",
             ),
             context=context,
         )

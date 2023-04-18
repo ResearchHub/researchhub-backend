@@ -5,10 +5,8 @@ from rest_framework.decorators import action
 from rest_framework.pagination import CursorPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 
-from user.filters import ActionDashboardFilter, AuditDashboardFilterBackend
 from user.models import Action
 from user.serializers import DynamicActionSerializer
-from utils import sentry
 
 
 class CursorSetPagination(CursorPagination):
@@ -27,9 +25,6 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
 
     def _get_allowed_models(self):
         return (
-            "thread",
-            "comment",
-            "reply",
             "researchhubpost",
             "rhcommentmodel",
             "paper",
@@ -91,14 +86,10 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     "id",
                     "item",
                     "paper_title",
-                    "plain_text",
                     "renderable_text",
                     "slug",
-                    "source",
-                    "text",
                     "title",
                     "thread",
-                    "unified_document",
                     "user",
                     "bounty_parent",
                 ]
