@@ -420,6 +420,12 @@ class UserEditableSerializer(ModelSerializer):
             "is_staff",
             "user_permissions",
             "username",
+            "clicked_on_balance_date",
+            "probable_spammer",
+            "suspended_updated_date",
+            "sift_risk_score",
+            "last_login",
+            "date_joined",
         ]
         read_only_fields = [
             "moderator",

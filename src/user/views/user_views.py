@@ -76,9 +76,6 @@ class UserViewSet(viewsets.ModelViewSet):
     filter_backends = (DjangoFilterBackend,)
     filter_class = UserFilter
 
-    # def list(self, request, *args, **kwargs):
-    # return Response(status=200)
-
     def get_serializer_class(self):
         if self.request.GET.get("referral_code") or self.request.GET.get("invited_by"):
             return UserSerializer
