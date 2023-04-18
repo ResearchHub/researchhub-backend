@@ -1,5 +1,6 @@
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from django.db.models import Q
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -10,6 +11,7 @@ from discussion.constants.flag_reasons import FLAG_REASON_CHOICES, NOT_SPECIFIED
 from discussion.models import BaseComment
 from discussion.reaction_models import Flag
 from discussion.reaction_serializers import FlagSerializer
+from discussion.reaction_views import censor
 from discussion.serializers import DynamicFlagSerializer
 from mailing_list.lib import base_email_context
 from notification.models import Notification
@@ -404,28 +406,8 @@ class AuditViewSet(viewsets.GenericViewSet):
         )
 
     def _remove_flagged_content(self, flag):
-        item = flag.item
-        related_action = getattr(item, "actions", None)
-
-        if related_action:
-            related_action = related_action.first()
-            related_action.is_removed = True
-            related_action.display = False
-            related_action.save()
-
-        if isinstance(item, BaseComment):
-            item.is_removed = True
-            item.save()
-        else:
-            unified_document = item.unified_document
-            unified_document.is_removed = True
-            unified_document.save()
-            inner_doc = unified_document.get_document()
-            if isinstance(inner_doc, Paper):
-                inner_doc.is_removed = True
-                # Commenting out paper cache
-                # inner_doc.reset_cache()
-                inner_doc.save()
+        with transaction.atomic():
+            return censor(flag.verdict.created_by, flag.item)
 
     def _send_notification_to_content_creator(self, verdict, remover, send_email=True):
         flag = verdict.flag

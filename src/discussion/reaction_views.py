@@ -6,7 +6,6 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from analytics.amplitude import track_event
-from discussion.models import Comment, Reply, Thread
 from discussion.permissions import CensorDiscussion as CensorDiscussionPermission
 from discussion.permissions import EditorCensorDiscussion
 from discussion.permissions import Endorse as EndorsePermission
@@ -31,6 +30,46 @@ from utils.models import SoftDeletableModel
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.sentry import log_error
 from utils.siftscience import decisions_api, events_api, update_user_risk_score
+
+
+def censor(requestor, item):
+    content_id = f"{type(item).__name__}_{item.id}"
+    content_creator = item.created_by
+    if not requestor == content_creator:
+        events_api.track_flag_content(content_creator, content_id, requestor.id)
+        decisions_api.apply_bad_content_decision(
+            content_creator, content_id, "MANUAL_REVIEW", requestor
+        )
+
+    if isinstance(item, SoftDeletableModel):
+        item.delete(soft=True)
+    else:
+        item.unified_document.delete(soft=True)
+
+    if review := getattr(item, "review", None):
+        review.delete(soft=True)
+
+    if action := getattr(item, "actions", None):
+        if action.exists():
+            action = action.first()
+            action.is_removed = True
+            action.display = False
+            action.save()
+
+    doc = item.unified_document
+    doc_type = get_doc_type_key(doc)
+    hubs = list(doc.hubs.all().values_list("id", flat=True))
+
+    reset_unified_document_cache(
+        hub_ids=hubs,
+        document_type=[doc_type, "all"],
+        filters=[DISCUSSED, HOT],
+    )
+
+    # Commenting out paper cache
+    # if item.paper:
+    #     item.paper.reset_cache()
+    return True
 
 
 class ReactionViewActionMixin:
@@ -124,48 +163,7 @@ class ReactionViewActionMixin:
         item = self.get_object()
 
         with transaction.atomic():
-            content_id = f"{type(item).__name__}_{item.id}"
-            user = request.user
-            content_creator = item.created_by
-            if not user == content_creator:
-                events_api.track_flag_content(content_creator, content_id, user.id)
-                decisions_api.apply_bad_content_decision(
-                    content_creator, content_id, "MANUAL_REVIEW", user
-                )
-
-            if isinstance(item, SoftDeletableModel):
-                item.delete(soft=True)
-            else:
-                item.unified_document.delete(soft=True)
-
-            try:
-                if review := getattr(item, "review", None):
-                    review.delete(soft=True)
-
-                if action := getattr(item, "actions", None):
-                    if action.exists():
-                        action = action.first()
-                        action.is_removed = True
-                        action.display = False
-                        action.save()
-
-                doc = item.unified_document
-                doc_type = get_doc_type_key(doc)
-                hubs = list(doc.hubs.all().values_list("id", flat=True))
-
-                reset_unified_document_cache(
-                    hub_ids=hubs,
-                    document_type=[doc_type, "all"],
-                    filters=[DISCUSSED, HOT],
-                )
-
-                # Commenting out paper cache
-                # if item.paper:
-                #     item.paper.reset_cache()
-            except Exception as e:
-                log_error(e)
-                return Response({"detail": str(e)}, status=500)
-
+            censor(request.user, item)
             return Response(
                 self.get_serializer(instance=item, _include_fields=("id",)).data,
                 status=200,
