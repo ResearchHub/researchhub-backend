@@ -447,7 +447,7 @@ class BountyViewSet(viewsets.ModelViewSet):
     def get_bounties(self, request):
         qs = self.filter_queryset(self.get_queryset()).filter(
             parent__isnull=True, unified_document__is_removed=False
-        )[:10]
+        )
 
         context = self._get_retrieve_context()
         serializer = DynamicBountySerializer(
