@@ -127,10 +127,11 @@ class ReactionViewActionMixin:
             content_id = f"{type(item).__name__}_{item.id}"
             user = request.user
             content_creator = item.created_by
-            events_api.track_flag_content(content_creator, content_id, user.id)
-            decisions_api.apply_bad_content_decision(
-                content_creator, content_id, "MANUAL_REVIEW", user
-            )
+            if not user == content_creator:
+                events_api.track_flag_content(content_creator, content_id, user.id)
+                decisions_api.apply_bad_content_decision(
+                    content_creator, content_id, "MANUAL_REVIEW", user
+                )
 
             if isinstance(item, SoftDeletableModel):
                 item.delete(soft=True)
