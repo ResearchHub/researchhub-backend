@@ -48,26 +48,33 @@ class OpenAlex:
         all_concepts_stored = stored_concepts.count() == len(concept_id_urls)
         no_concept_needs_refresh = all(not c.needs_refresh() for c in stored_concepts)
         if all_concepts_stored and no_concept_needs_refresh:
-            concepts_by_id = {stored_concept.openalex_id: {
-                "openalex_id": stored_concept.openalex_id,
-                "display_name": stored_concept.display_name,
-                "description": stored_concept.description,
-                "openalex_created_date": stored_concept.openalex_created_date,
-                "openalex_updated_date": stored_concept.openalex_updated_date
-            } for stored_concept in stored_concepts}
+            concepts_by_id = {
+                stored_concept.openalex_id: {
+                    "openalex_id": stored_concept.openalex_id,
+                    "display_name": stored_concept.display_name,
+                    "description": stored_concept.description,
+                    "openalex_created_date": stored_concept.openalex_created_date,
+                    "openalex_updated_date": stored_concept.openalex_updated_date,
+                }
+                for stored_concept in stored_concepts
+            }
         else:
             # e.g. https://openalex.org/C126537357 -> C126537357
-            concept_ids = [concept_id_url.split("/")[-1] for concept_id_url in concept_id_urls]
+            concept_ids = [
+                concept_id_url.split("/")[-1] for concept_id_url in concept_id_urls
+            ]
             filters = {"filter": f"openalex_id:{'|'.join(concept_ids)}"}
             response = self._get("concepts", filters)
             api_concepts = response["results"]
-            concepts_by_id = {concept["id"]: {
-                "openalex_id": concept["id"],
-                "display_name": concept["display_name"],
-                "description": concept["description"] or "",
-                "openalex_created_date": concept["created_date"],
-                "openalex_updated_date": concept["updated_date"]
-            } for concept in api_concepts}
+            concepts_by_id = {
+                concept["id"]: {
+                    "openalex_id": concept["id"],
+                    "display_name": concept["display_name"],
+                    "description": concept["description"] or "",
+                    "openalex_created_date": concept["created_date"],
+                    "openalex_updated_date": concept["updated_date"],
+                }
+                for concept in api_concepts
+            }
         # preserve ordering from concept_id_urls
         return [concepts_by_id[concept_id_url] for concept_id_url in concept_id_urls]
-
