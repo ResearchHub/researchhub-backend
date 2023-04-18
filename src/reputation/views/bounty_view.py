@@ -449,6 +449,14 @@ class BountyViewSet(viewsets.ModelViewSet):
         qs = self.filter_queryset(self.get_queryset()).filter(
             parent__isnull=True, unified_document__is_removed=False
         )
+
+        only_specific_models = request.GET.getlist("model")
+        if len(only_specific_models) > 0:
+            content_types = [
+                ContentType.objects.get(model=name).id for name in only_specific_models
+            ]
+            qs = qs.filter(item_content_type_id__in=content_types)
+
         context = self._get_retrieve_context()
         serializer = DynamicBountySerializer(
             qs,
