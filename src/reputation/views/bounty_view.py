@@ -173,7 +173,6 @@ class BountyViewSet(viewsets.ModelViewSet):
     queryset = Bounty.objects.all()
     serializer_class = BountySerializer
     permission_classes = [IsAuthenticated, PostOnly]
-    permission_classes = [AllowAny]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["item_object_id", "status"]
 

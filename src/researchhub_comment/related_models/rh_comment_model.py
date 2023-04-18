@@ -6,7 +6,6 @@ from django.db.models import (
     CharField,
     FileField,
     ForeignKey,
-    IntegerField,
     JSONField,
     PositiveIntegerField,
     TextField,

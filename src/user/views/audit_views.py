@@ -35,9 +35,7 @@ class AuditViewSet(viewsets.GenericViewSet):
 
     def _get_allowed_models(self):
         return (
-            ContentType.objects.get(model="thread"),
-            ContentType.objects.get(model="comment"),
-            ContentType.objects.get(model="reply"),
+            ContentType.objects.get(model="rhcommentmodel"),
             ContentType.objects.get(model="researchhubpost"),
             ContentType.objects.get(model="paper"),
             ContentType.objects.get(model="hypothesis"),
@@ -89,13 +87,13 @@ class AuditViewSet(viewsets.GenericViewSet):
                     "id",
                     "created_by",
                     "created_date",
+                    "comment_content_json",
                     "uploaded_by",
                     "unified_document",
-                    "source",
                     "abstract",
                     "amount",
-                    "plain_text",
                     "title",
+                    "thread",
                     "slug",
                 ]
             },
@@ -189,6 +187,10 @@ class AuditViewSet(viewsets.GenericViewSet):
             },
             "hyp_dhs_get_created_by": {
                 "_include_fields": ["author_profile", "first_name", "last_name"]
+            },
+            "rhc_dcs_get_thread": {"_include_fields": ["content_object"]},
+            "rhc_dts_get_content_object": {
+                "_include_fields": ["id", "unified_document", "thread_type"]
             },
         }
         context["dis_dfs_get_item"] = context["usr_das_get_item"]
