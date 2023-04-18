@@ -6,6 +6,7 @@ from django.db.models import Count, DecimalField, Q, Sum
 from django.db.models.functions import Coalesce
 
 from reputation.models import Bounty
+from researchhub_comment.models import RhCommentModel
 from researchhub_document.related_models.constants.document_type import (
     FILTER_ALL,
     FILTER_ANSWERED,
@@ -251,40 +252,18 @@ class DocumentFilter(DefaultModel):
         self.discussed_all = self.get_discussued(document, start_date, now)
 
     def update_discussed_date(self, unified_document, document):
-        from discussion.models import Comment, Reply
-
-        threads = document.threads
-        comments = Comment.objects.filter(parent_id__in=threads.values("id"))
-        replies = Reply.objects.filter(object_id__in=comments.values("id"))
-
-        threads_latest_date = (
-            threads.order_by("-created_date")
-            .values_list("created_date", flat=True)
-            .first()
-        )
+        thread_ids = document.rh_threads.values_list("id")
         comments_latest_date = (
-            comments.order_by("-created_date")
-            .values_list("created_date", flat=True)
-            .first()
-        )
-        replies_latest_date = (
-            replies.order_by("-created_date")
+            RhCommentModel.objects.filter(thread__in=thread_ids)
+            .order_by("-created_date")
             .values_list("created_date", flat=True)
             .first()
         )
 
-        dates = []
-        if threads_latest_date:
-            dates.append(threads_latest_date)
-        if comments_latest_date:
-            dates.append(comments_latest_date)
-        if replies_latest_date:
-            dates.append(replies_latest_date)
-        latest_date = sorted(dates, reverse=True)
-        if latest_date:
-            self.discussed_date = latest_date[0]
-        else:
+        if not comments_latest_date:
             self.discussed_date = unified_document.created_date
+        else:
+            self.discussed_date = comments_latest_date
         self.discussed_date_ts = self.discussed_date.timestamp()
 
     def get_upvotes(self, document, start_date, end_date):

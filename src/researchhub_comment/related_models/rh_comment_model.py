@@ -85,6 +85,12 @@ class RhCommentModel(
         content_type_field="content_type",
         related_query_name="rh_comment",
     )
+    actions = GenericRelation(
+        "user.Action",
+        object_id_field="object_id",
+        content_type_field="content_type",
+        related_query_name="rh_comment",
+    )
 
     # legacy_migration
     legacy_id = PositiveIntegerField(null=True, blank=True)
