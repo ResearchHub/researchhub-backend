@@ -8,20 +8,19 @@ from rest_framework.pagination import CursorPagination
 from rest_framework.response import Response
 
 from discussion.constants.flag_reasons import FLAG_REASON_CHOICES, NOT_SPECIFIED
-from discussion.models import BaseComment
 from discussion.reaction_models import Flag
 from discussion.reaction_serializers import FlagSerializer
 from discussion.reaction_views import censor
 from discussion.serializers import DynamicFlagSerializer
 from mailing_list.lib import base_email_context
 from notification.models import Notification
-from paper.related_models.paper_model import Paper
 from user.filters import AuditDashboardFilterBackend
 from user.models import Action, User
 from user.permissions import IsModerator, UserIsEditor
 from user.serializers import DynamicActionSerializer, VerdictSerializer
 from utils import sentry
 from utils.message import send_email_message
+from utils.models import SoftDeletableModel
 
 
 class CursorSetPagination(CursorPagination):
@@ -289,30 +288,20 @@ class AuditViewSet(viewsets.GenericViewSet):
         flags = flag_serializer.save()
 
         verdict_serializer = None
-        try:
-            for flag in flags:
-                verdict_data["flag"] = flag.id
-                verdict_serializer = VerdictSerializer(data=verdict_data)
-                verdict_serializer.is_valid(raise_exception=True)
-                verdict = verdict_serializer.save()
+        for flag in flags:
+            verdict_data["flag"] = flag.id
+            verdict_serializer = VerdictSerializer(data=verdict_data)
+            verdict_serializer.is_valid(raise_exception=True)
+            verdict = verdict_serializer.save()
 
-                is_content_removed = verdict.is_content_removed
-                if is_content_removed:
-                    self._remove_flagged_content(flag)
-                    self._send_notification_to_content_creator(
-                        remover=flagger,
-                        send_email=data.get("send_email", True),
-                        verdict=verdict,
-                    )
-
-        except Exception as e:
-            print("e", e)
-            sentry.log_error(e)
-
-            return Response(
-                {},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
+            is_content_removed = verdict.is_content_removed
+            if is_content_removed:
+                self._remove_flagged_content(flag)
+                self._send_notification_to_content_creator(
+                    remover=flagger,
+                    send_email=data.get("send_email", True),
+                    verdict=verdict,
+                )
 
         return Response(
             {"flag": flag_serializer.data, "verdict": verdict_serializer.data},
@@ -366,38 +355,28 @@ class AuditViewSet(viewsets.GenericViewSet):
         verdict_data["created_by"] = flagger.id
         verdict_data["is_content_removed"] = True
 
-        try:
-            flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
-            for flag in flags:
-                available_reasons = list(map(lambda r: r[0], FLAG_REASON_CHOICES))
-                verdict_choice = NOT_SPECIFIED
-                if data.get("verdict_choice") in available_reasons:
-                    verdict_choice = data.get("verdict_choice")
-                elif flag.reason_choice in available_reasons:
-                    verdict_choice = flag.reason_choice
+        flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
+        for flag in flags.iterator():
+            available_reasons = list(map(lambda r: r[0], FLAG_REASON_CHOICES))
+            verdict_choice = NOT_SPECIFIED
+            if data.get("verdict_choice") in available_reasons:
+                verdict_choice = data.get("verdict_choice")
+            elif flag.reason_choice in available_reasons:
+                verdict_choice = flag.reason_choice
 
-                verdict_data["verdict_choice"] = verdict_choice
-                verdict_data["flag"] = flag.id
-                verdict_serializer = VerdictSerializer(data=verdict_data)
-                verdict_serializer.is_valid(raise_exception=True)
-                verdict = verdict_serializer.save()
-                flag.verdict_created_date = verdict.created_date
-                flag.save()
+            verdict_data["verdict_choice"] = verdict_choice
+            verdict_data["flag"] = flag.id
+            verdict_serializer = VerdictSerializer(data=verdict_data)
+            verdict_serializer.is_valid(raise_exception=True)
+            verdict = verdict_serializer.save()
+            flag.verdict_created_date = verdict.created_date
+            flag.save()
 
-                self._remove_flagged_content(flag)
-                self._send_notification_to_content_creator(
-                    remover=flagger,
-                    send_email=data.get("send_email", True),
-                    verdict=verdict,
-                )
-
-        except Exception as e:
-            print("e", e)
-            sentry.log_error(e)
-
-            return Response(
-                {},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            self._remove_flagged_content(flag)
+            self._send_notification_to_content_creator(
+                remover=flagger,
+                send_email=data.get("send_email", True),
+                verdict=verdict,
             )
 
         return Response(
@@ -411,7 +390,13 @@ class AuditViewSet(viewsets.GenericViewSet):
 
     def _send_notification_to_content_creator(self, verdict, remover, send_email=True):
         flag = verdict.flag
-        flagged_content = flag.content_type.model_class().objects.get(id=flag.object_id)
+        model_class = flag.content_type.model_class()
+
+        if isinstance(model_class, SoftDeletableModel):
+            flagged_content = model_class.all_objects.get(id=flag.object_id)
+        else:
+            flagged_content = model_class.objects.get(id=flag.object_id)
+
         if flag.content_type.name == "paper":
             content_creator = flagged_content.uploaded_by
         else:
