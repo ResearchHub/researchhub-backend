@@ -38,6 +38,7 @@ class FlagSerializer(ModelSerializer):
             "id",
             "item",
             "reason",
+            "reason_choice",
             "object_id",
         ]
         model = Flag

@@ -194,6 +194,9 @@ class AuditViewSet(viewsets.GenericViewSet):
             "hyp_dhs_get_created_by": {
                 "_include_fields": ["author_profile", "first_name", "last_name"]
             },
+            "rhc_dcs_get_created_by": {
+                "_include_fields": ["author_profile", "first_name", "last_name"]
+            },
             "rhc_dcs_get_thread": {"_include_fields": ["content_object"]},
             "rhc_dts_get_content_object": {
                 "_include_fields": ["id", "unified_document", "thread_type"]
@@ -268,6 +271,9 @@ class AuditViewSet(viewsets.GenericViewSet):
         with transaction.atomic():
             for f in flag_data:
                 f["created_by"] = flagger.id
+
+                if "reason_choice" not in f:
+                    f["reason_choice"] = f.get("reason", NOT_SPECIFIED)
 
             flag_serializer = FlagSerializer(data=flag_data, many=True)
             flag_serializer.is_valid(raise_exception=True)

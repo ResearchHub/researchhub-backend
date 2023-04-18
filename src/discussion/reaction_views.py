@@ -124,7 +124,7 @@ class ReactionViewActionMixin:
             content_id = f"{type(item).__name__}_{item.id}"
             events_api.track_flag_content(item.created_by, content_id, user.id)
             return Response(flag_data, status=201)
-        except IntegrityError as e:
+        except IntegrityError:
             return Response(
                 {
                     "msg": "Already flagged",
@@ -319,7 +319,7 @@ def create_flag(user, item, reason, reason_choice):
             "object_id": item.id,
             "content_type": get_content_type_for_model(item).id,
             "reason": reason or reason_choice,
-            "reason_choice": reason_choice,
+            "reason_choice": reason_choice or reason,
         }
         serializer = FlagSerializer(data=data)
         serializer.is_valid(raise_exception=True)
