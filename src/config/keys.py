@@ -55,3 +55,4 @@ WEB3_RSC_ADDRESS = os.environ.get(
 WEB3_KEYSTORE_ADDRESS = os.environ.get("WEB3_KEYSTORE_ADDRESS", "")
 
 TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", "")
+OPENALEX_KEY = os.environ.get("OPENALEX_KEY", "")

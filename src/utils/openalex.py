@@ -1,4 +1,5 @@
 from paper.exceptions import DOINotFoundError
+from researchhub.settings import OPENALEX_KEY
 from tag.models import Concept
 from utils.retryable_requests import retryable_requests_session
 
@@ -12,6 +13,9 @@ class OpenAlex:
             "From": "mailto:hello@researchhub.com",
         }
         self.timeout = timeout
+
+        if OPENALEX_KEY:
+            self.base_params["api_key"] = OPENALEX_KEY
 
     def _get(self, url, filters=None, headers=None):
         if not headers:
