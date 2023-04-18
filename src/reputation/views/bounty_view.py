@@ -174,7 +174,7 @@ class BountyViewSet(viewsets.ModelViewSet):
     serializer_class = BountySerializer
     permission_classes = [IsAuthenticated, PostOnly]
     filter_backends = [DjangoFilterBackend]
-    filterset_fields = ["item_object_id", "status"]
+    filterset_fields = ["item_content_type__model", "item_object_id", "status"]
 
     ALLOWED_CREATE_CONTENT_TYPES = ("rhcommentmodel", "thread")
     ALLOWED_APPROVE_CONTENT_TYPES = ("rhcommentmodel", "thread", "comment", "reply")
@@ -447,7 +447,8 @@ class BountyViewSet(viewsets.ModelViewSet):
     def get_bounties(self, request):
         qs = self.filter_queryset(self.get_queryset()).filter(
             parent__isnull=True, unified_document__is_removed=False
-        )
+        )[:10]
+
         context = self._get_retrieve_context()
         serializer = DynamicBountySerializer(
             qs,
