@@ -54,7 +54,32 @@ from researchhub_document.related_models.constants.filters import (
     MOST_RSC,
 )
 from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
-from user.models import Action
+
+
+def censor_comment(comment):
+    query = """
+        WITH RECURSIVE comments AS (
+            SELECT id, parent_id, 0 AS relative_depth
+            FROM "researchhub_comment_rhcommentmodel"
+            WHERE id = %s
+
+            UNION ALL
+
+            SELECT child.id, child.parent_id, comments.relative_depth + 1
+            FROM "researchhub_comment_rhcommentmodel" child, comments
+            WHERE child.parent_id = comments.id AND child.is_removed = FALSE
+        )
+        SELECT id
+        FROM comments;
+    """
+
+    for bounty in comment.bounties.iterator():
+        cancelled = bounty.cancel()
+        if not cancelled:
+            raise Exception("Failed to close bounties on comment")
+
+    comment_count = len(RhCommentModel.objects.raw(query, [comment.id]))
+    comment._update_related_discussion_count(-comment_count)
 
 
 class CommentPagination(PageNumberPagination):
@@ -447,31 +472,9 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         ],
     )
     def censor(self, request, *args, **kwargs):
-        query = """
-            WITH RECURSIVE comments AS (
-                SELECT id, parent_id, 0 AS relative_depth
-                FROM "researchhub_comment_rhcommentmodel"
-                WHERE id = %s
-
-                UNION ALL
-
-                SELECT child.id, child.parent_id, comments.relative_depth + 1
-                FROM "researchhub_comment_rhcommentmodel" child, comments
-                WHERE child.parent_id = comments.id AND child.is_removed = FALSE
-            )
-            SELECT id
-            FROM comments;
-        """
-
         with transaction.atomic():
             comment = self.get_object()
-            for bounty in comment.bounties.iterator():
-                cancelled = bounty.cancel()
-                if not cancelled:
-                    raise Exception("Failed to close bounties on comment")
-
-            comment_count = len(RhCommentModel.objects.raw(query, [comment.id]))
-            comment._update_related_discussion_count(-comment_count)
+            censor_comment(comment)
             return super().censor(request, *args, **kwargs)
 
     def perform_update(self, serializer):

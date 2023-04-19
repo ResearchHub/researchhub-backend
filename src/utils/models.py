@@ -23,7 +23,7 @@ class DefaultAuthenticatedModel(models.Model):
     created_by = models.ForeignKey(
         "user.User",
         on_delete=models.CASCADE,
-        related_name="created_%(app_label)s_%(class)s"
+        related_name="created_%(app_label)s_%(class)s",
     )
     created_date = models.DateTimeField(
         auto_now_add=True,
@@ -81,8 +81,9 @@ class SoftDeletableModel(models.Model):
         """
         if soft:
             self.is_removed = True
+            self.is_public = False
             self.is_removed_date = timezone.now()
-            self.save(update_fields=["is_removed", "is_removed_date"])
+            self.save(update_fields=["is_removed", "is_removed_date", "is_public"])
         else:
             return super().delete(*args, **kwargs)
 

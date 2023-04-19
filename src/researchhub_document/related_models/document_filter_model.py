@@ -221,6 +221,7 @@ class DocumentFilter(DefaultModel):
         count = threads.filter(
             rh_comments__created_date__gte=start_date,
             rh_comments__created_date__lt=end_date,
+            rh_comments__is_removed=False,
         ).count()
         return count
 
