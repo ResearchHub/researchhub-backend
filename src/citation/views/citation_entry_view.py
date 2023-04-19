@@ -25,7 +25,7 @@ class CitationEntryViewSet(ModelViewSet):
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def user_citations(self, request):
         user = request.user
-        citations = user.created_citation_citationentry.all().order_by("-created_date")
+        citations = user.created_citation_citationentry.all().order_by("-updated_date", "-created_date")
         page = self.paginate_queryset(citations)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
