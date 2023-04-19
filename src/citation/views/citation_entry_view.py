@@ -7,7 +7,6 @@ from citation.constants import CITATION_TYPE_FIELDS
 from citation.models import CitationEntry
 from citation.schema import generate_schema_for_citation
 from citation.serializers import CitationEntrySerializer
-from paper.utils import clean_dois
 from utils.openalex import OpenAlex
 
 
@@ -15,20 +14,7 @@ class CitationEntryViewSet(ModelViewSet):
     queryset = CitationEntry.objects.all()
     permission_classes = [IsAuthenticated]
     serializer_class = CitationEntrySerializer
-    ordering = ["-created_date"]
-
-    def create(self, request, *args, **kwargs):
-        data = request.data
-        data["created_by"] = request.user.id
-        res = super().create(request, *args, **kwargs)
-        return res
-
-    def update(self, request, *args, **kwargs):
-        data = request.data
-        data["created_by"] = request.user.id
-        data["updated_by"] = request.user.id
-        res = super().update(request)
-        return res
+    ordering = ["-updated_date"]
 
     def list(self, request):
         pass

@@ -1,4 +1,5 @@
-from django.core.files.base import ContentFile
+from datetime import datetime
+from django.utils.text import slugify
 from jsonschema import validate
 from rest_framework.serializers import (
     JSONField,
@@ -6,6 +7,8 @@ from rest_framework.serializers import (
     ReadOnlyField,
     SerializerMethodField,
     ValidationError,
+    HiddenField,
+    CurrentUserDefault,
 )
 from django.db import transaction
 
@@ -16,7 +19,9 @@ from user.serializers import DynamicOrganizationSerializer, DynamicUserSerialize
 
 
 class CitationEntrySerializer(ModelSerializer):
-    attachment_url = SerializerMethodField(read_only=True)
+    # HiddenField doesn't update instance if the field is not empty
+    created_by = HiddenField(default=CurrentUserDefault())
+    updated_by = HiddenField(default=CurrentUserDefault())
     checksum = ReadOnlyField()
     fields = JSONField()
     required_fields = SerializerMethodField(read_only=True)
@@ -29,13 +34,28 @@ class CitationEntrySerializer(ModelSerializer):
 
     def create(self, validated_data):
         with transaction.atomic():
-            [attachment_name, cleaned_attachment] = self._get_cleaned_up_attachment()
-            citation_entry = super().create(validated_data)
-            if cleaned_attachment is not None:
-                citation_entry.attachment.save(
-                    attachment_name,
-                    cleaned_attachment,
-                )
+            cleaned_attachment, attachment_name = self._get_cleaned_up_attachment(
+                validated_data
+            )
+            citation_entry = self._add_attachment(
+                citation_entry=super().create(validated_data),
+                attachment=cleaned_attachment,
+                attachment_name=attachment_name,
+            )
+            return citation_entry
+
+    def update(self, instance, validated_data):
+        with transaction.atomic():
+            cleaned_attachment, attachment_name = self._get_cleaned_up_attachment(
+                validated_data
+            )
+            citation_entry = self._add_attachment(
+                citation_entry=super().update(instance, validated_data),
+                attachment=cleaned_attachment,
+                attachment_name=attachment_name,
+            )
+            citation_entry.updated_date = datetime.now()
+            citation_entry.save()
             return citation_entry
 
     def validate_fields(self, fields_data):
@@ -44,8 +64,6 @@ class CitationEntrySerializer(ModelSerializer):
             raise ValidationError("No citation type provided")
         schema = generate_schema_for_citation(citation_type)
         validate(fields_data, schema=schema)
-        fields_data["attachment"] = self.initial_data.get("attachment")
-        fields_data["file"] = self.initial_data.get("attachment")
 
         return fields_data
 
@@ -70,16 +88,23 @@ class CitationEntrySerializer(ModelSerializer):
 
     """ ----- Private Methods -----"""
 
-    def _get_cleaned_up_attachment(self):
-        initial_data = self.initial_data
-        attachment_src = initial_data.get("attachment_src", None)
-        if attachment_src is None:
+    def _get_cleaned_up_attachment(self, validated_data):
+        if validated_data.get("attachment", None) is None:
             return [None, None]
-        attachment_name = initial_data.get("attachment_name")
+
+        attachment = validated_data.pop("attachment")
         return [
-            attachment_name,
-            ContentFile(attachment_src, name=f"{attachment_name}.pdf"),
+            attachment,
+            slugify(attachment.name),
         ]
+
+    def _add_attachment(self, citation_entry, attachment, attachment_name):
+        if attachment is not None:
+            citation_entry.attachment.save(
+                attachment_name,
+                attachment,
+            )
+        return citation_entry
 
 
 class DynamicCitationEntrySerializer(DynamicModelFieldSerializer):
