@@ -212,18 +212,17 @@ class DocumentFilter(DefaultModel):
 
     def get_discussued(self, document, start_date, end_date):
         threads = document.rh_threads
-        # This filter is technically incorrect, but it actually works as a solution.
-        # The ORM will generate a JOIN and the result will contain duplicate threads.
-        # This is due to table merging when querying on a one-to-many or many-to-many
-        # relationship. The duplicate results work in our favor because each "duplicate"
-        # thread is actually related to a comment, so we don't have to do any weird
-        # recursive querying to get the count of all comments.
-        count = threads.filter(
+        qs = threads.filter(
             rh_comments__created_date__gte=start_date,
             rh_comments__created_date__lt=end_date,
-            rh_comments__is_removed=False,
-        ).count()
-        return count
+        ).filter(
+            (Q(rh_comments__is_removed=False) & Q(rh_comments__parent__isnull=True))
+            | (
+                Q(rh_comments__parent__is_removed=False)
+                & Q(rh_comments__parent__isnull=False)
+            )
+        )
+        return qs.count()
 
     def update_discussed_today(self, unified_document, document):
         # Same buffer as get_date_ranges_by_time_scope in researchhub_document/utils.py

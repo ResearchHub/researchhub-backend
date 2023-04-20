@@ -1,6 +1,7 @@
 from threading import Thread
 
 from django.core.management.base import BaseCommand
+from django.db.models import Q
 
 from researchhub_document.models import ResearchhubUnifiedDocument
 
@@ -15,7 +16,14 @@ class Command(BaseCommand):
                 item = doc.get_document()
                 if hasattr(item, "rh_threads"):
                     count = item.rh_threads.filter(
-                        rh_comments__is_removed=False
+                        (
+                            Q(rh_comments__is_removed=False)
+                            & Q(rh_comments__parent__isnull=True)
+                        )
+                        | (
+                            Q(rh_comments__parent__is_removed=False)
+                            & Q(rh_comments__parent__isnull=False)
+                        )
                     ).count()
                     item.discussion_count = count
                     item.save(update_fields=["discussion_count"])
