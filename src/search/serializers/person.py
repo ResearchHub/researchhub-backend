@@ -6,7 +6,7 @@ from user.models import Author, User
 from user.serializers import AuthorSerializer, UserSerializer
 
 
-class PersonDocumentSerializer(DocumentSerializer):
+class PersonDocumentSerializer(serializers.ModelSerializer):
     profile_image = serializers.SerializerMethodField()
     headline = serializers.SerializerMethodField()
     user_reputation = serializers.SerializerMethodField()
@@ -15,7 +15,7 @@ class PersonDocumentSerializer(DocumentSerializer):
     user = serializers.SerializerMethodField()
 
     class Meta(object):
-        document = PersonDocument
+        model = Author
         fields = [
             "id",
             "first_name",
@@ -28,7 +28,6 @@ class PersonDocumentSerializer(DocumentSerializer):
             "user_reputation",
             "person_types",
             "user",
-            "name_suggest",
             "author_profile",
         ]
         read_only_fields = fields

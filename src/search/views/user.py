@@ -24,54 +24,7 @@ class UserDocumentView(DocumentViewSet):
             "field": "full_name_suggest",
             "suggesters": ["completion"],
             "options": {
-                "size": 10,
+                "size": 5,
             },
         },
     }
-
-    # search_fields = {
-    #     'full_name': {'boost': 2, 'fuzziness': 1},
-    #     'description': {'boost': 1, 'fuzziness': 1},
-    #     'headline.title': {'boost': 1, 'fuzziness': 1},
-    # }
-
-    # multi_match_search_fields = {
-    #     'full_name': {'boost': 2},
-    #     'description': {'boost': 1},
-    #     'headline.title': {'boost': 1},
-    # }
-
-    # multi_match_options = {
-    #     'operator': 'and',
-    #     'type': 'cross_fields',
-    #     'analyzer': 'content_analyzer',
-    # }
-
-    # faceted_search_fields = {
-    #     'person_types': 'person_types'
-    # }
-
-    # post_filter_fields = {
-    #     'person_types': 'person_types'
-    # }
-
-    # ordering_fields = {
-    #     'author_score': 'author_score',
-    #     'user_reputation': 'user_reputation',
-    # }
-
-    # def __init__(self, *args, **kwargs):
-    #     self.search = Search(index=['person'])
-    #     super(PersonDocumentView, self).__init__(*args, **kwargs)
-
-    # def _filter_queryset(self, request):
-    #     queryset = self.search
-
-    #     for backend in list(self.filter_backends):
-    #         queryset = backend().filter_queryset(
-    #         request,
-    #         queryset,
-    #         self,
-    #     )
-
-    #     return queryset
