@@ -14,6 +14,8 @@ from discussion.reaction_views import censor
 from discussion.serializers import DynamicFlagSerializer
 from mailing_list.lib import base_email_context
 from notification.models import Notification
+from researchhub_comment.models import RhCommentModel
+from researchhub_comment.views.rh_comment_view import censor_comment
 from user.filters import AuditDashboardFilterBackend
 from user.models import Action, User
 from user.permissions import IsModerator, UserIsEditor
@@ -396,7 +398,10 @@ class AuditViewSet(viewsets.GenericViewSet):
 
     def _remove_flagged_content(self, flag):
         with transaction.atomic():
-            return censor(flag.verdict.created_by, flag.item)
+            flag_item = flag.item
+            if isinstance(flag_item, RhCommentModel):
+                censor_comment(flag_item)
+            return censor(flag.verdict.created_by, flag_item)
 
     def _send_notification_to_content_creator(self, verdict, remover, send_email=True):
         flag = verdict.flag

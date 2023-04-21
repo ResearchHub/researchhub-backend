@@ -1,29 +1,25 @@
-import pytz
-
 from datetime import datetime
+
+import pytz
 from django.db.models import Q
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
 from note.models import Note, NoteContent
+from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import (
     ADMIN,
     EDITOR,
     MEMBER,
     PRIVATE,
+    SHARED,
     WORKSPACE,
-    SHARED
 )
-from researchhub.serializers import DynamicModelFieldSerializer
-from researchhub_document.serializers import (
-  DynamicUnifiedDocumentSerializer
-)
-from user.constants.organization_constants import (
-    PERSONAL
-)
+from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
+from user.constants.organization_constants import PERSONAL
 from user.serializers import (
-    OrganizationSerializer,
     DynamicOrganizationSerializer,
-    DynamicUserSerializer
+    DynamicUserSerializer,
+    OrganizationSerializer,
 )
 
 
@@ -32,13 +28,13 @@ class NoteContentSerializer(ModelSerializer):
 
     class Meta:
         model = NoteContent
-        fields = '__all__'
+        fields = "__all__"
 
     def get_src(self, note_content):
         src = note_content.src
         if src:
             byte_string = note_content.src.read()
-            data = byte_string.decode('utf-8')
+            data = byte_string.decode("utf-8")
             return data
         return None
 
@@ -46,7 +42,7 @@ class NoteContentSerializer(ModelSerializer):
 class DynamicNoteContentSerializer(DynamicModelFieldSerializer):
     class Meta:
         model = NoteContent
-        fields = '__all__'
+        fields = "__all__"
 
 
 class NoteSerializer(ModelSerializer):
@@ -59,25 +55,25 @@ class NoteSerializer(ModelSerializer):
 
     class Meta:
         model = Note
-        fields = '__all__'
-        read_only_fields = ['unified_document']
+        fields = "__all__"
+        read_only_fields = ["unified_document"]
 
     def get_access(self, note):
         permissions = note.permissions
 
         is_workspace = permissions.filter(
-            organization__isnull=False,
-            access_type=ADMIN
+            organization__isnull=False, access_type=ADMIN
         ).exists()
 
-        is_private = permissions.filter(
-            Q(access_type__in=[ADMIN, MEMBER, EDITOR]) &
-            Q(user__isnull=False)
-        ).count() <= 1
+        is_private = (
+            permissions.filter(
+                Q(access_type__in=[ADMIN, MEMBER, EDITOR]) & Q(user__isnull=False)
+            ).count()
+            <= 1
+        )
 
         has_invited_users = note.invited_users.filter(
-            accepted=False,
-            expiration_date__gt=datetime.now(pytz.utc)
+            accepted=False, expiration_date__gt=datetime.now(pytz.utc)
         ).exists()
 
         if is_workspace:
@@ -90,81 +86,75 @@ class NoteSerializer(ModelSerializer):
     def get_hypothesis(self, note):
         from hypothesis.serializers import DynamicHypothesisSerializer
 
-        if not hasattr(note, 'hypothesis'):
+        if not hasattr(note, "hypothesis"):
             return None
 
         context = {
-            'hyp_dhs_get_authors': {
-                '_include_fields': [
-                    'id',
-                    'first_name',
-                    'last_name',
-                    'user',
+            "hyp_dhs_get_authors": {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "user",
                 ]
             },
-            'hyp_dhs_get_hubs': {
-                '_include_fields': [
-                    'id',
-                    'name',
+            "hyp_dhs_get_hubs": {
+                "_include_fields": [
+                    "id",
+                    "name",
                 ]
-            }
+            },
         }
         serializer = DynamicHypothesisSerializer(
             note.hypothesis,
             context=context,
             _include_fields=[
-                'authors',
-                'hubs',
-                'id',
-                'slug',
-            ]
+                "authors",
+                "hubs",
+                "id",
+                "slug",
+            ],
         )
         return serializer.data
 
     def get_post(self, note):
-        from researchhub_document.serializers import (
-            DynamicPostSerializer
-        )
+        from researchhub_document.serializers import DynamicPostSerializer
 
-        if not hasattr(note, 'post'):
+        if not hasattr(note, "post"):
             return None
 
         context = {
-            'doc_dps_get_authors': {
-                '_include_fields': [
-                    'id',
-                    'first_name',
-                    'last_name',
-                    'user',
+            "doc_dps_get_authors": {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "user",
                 ]
             },
-            'doc_dps_get_hubs': {
-                '_include_fields': [
-                    'id',
-                    'name',
+            "doc_dps_get_hubs": {
+                "_include_fields": [
+                    "id",
+                    "name",
                 ]
-            }
+            },
         }
         serializer = DynamicPostSerializer(
             note.post,
             context=context,
             _include_fields=[
-                'authors',
-                'doi',
-                'hubs',
-                'id',
-                'slug',
-            ]
+                "authors",
+                "doi",
+                "hubs",
+                "id",
+                "slug",
+            ],
         )
         return serializer.data
 
     def get_unified_document(self, note):
         serializer = DynamicUnifiedDocumentSerializer(
-            note.unified_document,
-            _include_fields=[
-                'id',
-                'is_removed'
-            ]
+            note.unified_document, _include_fields=["id", "is_removed"]
         )
         return serializer.data
 
@@ -181,24 +171,24 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
 
     class Meta:
         model = Note
-        fields = '__all__'
+        fields = "__all__"
 
     def get_access(self, note):
         permissions = note.permissions
 
         is_workspace = permissions.filter(
-            organization__isnull=False,
-            access_type=ADMIN
+            organization__isnull=False, access_type=ADMIN
         ).exists()
 
-        is_private = permissions.filter(
-            Q(access_type__in=[ADMIN, MEMBER, EDITOR]) &
-            Q(user__isnull=False)
-        ).count() <= 1
+        is_private = (
+            permissions.filter(
+                Q(access_type__in=[ADMIN, MEMBER, EDITOR]) & Q(user__isnull=False)
+            ).count()
+            <= 1
+        )
 
         has_invited_users = note.invited_users.filter(
-            accepted=False,
-            expiration_date__gt=datetime.now(pytz.utc)
+            accepted=False, expiration_date__gt=datetime.now(pytz.utc)
         ).exists()
 
         if is_workspace:
@@ -210,11 +200,9 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
 
     def get_created_by(self, note):
         context = self.context
-        _context_fields = context.get('nte_dns_get_created_by', {})
+        _context_fields = context.get("nte_dns_get_created_by", {})
         serializer = DynamicUserSerializer(
-            note.created_by,
-            context=context,
-            **_context_fields
+            note.created_by, context=context, **_context_fields
         )
         return serializer.data
 
@@ -222,64 +210,50 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
         from hypothesis.serializers import DynamicHypothesisSerializer
 
         context = self.context
-        _context_fields = context.get('nte_dns_get_hypothesis', {})
+        _context_fields = context.get("nte_dns_get_hypothesis", {})
         serializer = DynamicHypothesisSerializer(
-            note.hypothesis,
-            context=context,
-            **_context_fields
+            note.hypothesis, context=context, **_context_fields
         )
         return serializer.data
 
     def get_latest_version(self, note):
         context = self.context
-        _context_fields = context.get('nte_dns_get_latest_version', {})
+        _context_fields = context.get("nte_dns_get_latest_version", {})
         serializer = DynamicNoteContentSerializer(
-            note.latest_version,
-            context=context,
-            **_context_fields
+            note.latest_version, context=context, **_context_fields
         )
         return serializer.data
 
     def get_notes(self, note):
         context = self.context
-        _context_fields = context.get('nte_dns_get_notes', {})
+        _context_fields = context.get("nte_dns_get_notes", {})
         serializer = DynamicNoteContentSerializer(
-            note.notes,
-            context=context,
-            **_context_fields
+            note.notes, context=context, **_context_fields
         )
         return serializer.data
 
     def get_organization(self, note):
         context = self.context
-        _context_fields = context.get('nte_dns_get_organization', {})
+        _context_fields = context.get("nte_dns_get_organization", {})
         serializer = DynamicOrganizationSerializer(
-            note.organization,
-            context=context,
-            **_context_fields
+            note.organization, context=context, **_context_fields
         )
         return serializer.data
 
     def get_post(self, note):
-        from researchhub_document.serializers import (
-            DynamicPostSerializer
-        )
+        from researchhub_document.serializers import DynamicPostSerializer
 
         context = self.context
-        _context_fields = context.get('nte_dns_get_post', {})
+        _context_fields = context.get("nte_dns_get_post", {})
         serializer = DynamicPostSerializer(
-            note.post,
-            context=context,
-            **_context_fields
+            note.post, context=context, **_context_fields
         )
         return serializer.data
 
     def get_unified_document(self, note):
         context = self.context
-        _context_fields = context.get('nte_dns_get_unified_document', {})
+        _context_fields = context.get("nte_dns_get_unified_document", {})
         serializer = DynamicUnifiedDocumentSerializer(
-            note.unified_document,
-            context=context,
-            **_context_fields
+            note.unified_document, context=context, **_context_fields
         )
         return serializer.data

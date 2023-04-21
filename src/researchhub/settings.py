@@ -563,6 +563,16 @@ if PRODUCTION or STAGING:
         environment=SENTRY_ENVIRONMENT,
     )
 
+# sentry_sdk.init(
+#     dsn=os.environ.get("SENTRY_DSN", keys.SENTRY_DSN),
+
+#     # To set a uniform sample rate
+#     # Set traces_sample_rate to 1.0 to capture 100%
+#     # of transactions for performance monitoring.
+#     # We recommend adjusting this value in production,
+#     traces_sample_rate=1.0,
+# )
+
 # Search (Elastic)
 
 ELASTICSEARCH_HOST = os.environ.get("ELASTICSEARCH_HOST", keys.ELASTICSEARCH_HOST)
