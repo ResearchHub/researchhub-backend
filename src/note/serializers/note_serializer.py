@@ -31,7 +31,6 @@ class NoteContentSerializer(ModelSerializer):
         fields = "__all__"
 
     def get_src(self, note_content):
-        return None
         src = note_content.src
         if src:
             byte_string = note_content.src.read()
