@@ -85,18 +85,32 @@ class DynamicRhCommentSerializer(
         # If the view key does not exist, ensure VIEWSET.get_serializer_context()
         # is called to properly to create the serializer context
         view = context["view"]
-        depth_key = f"rhc_dcs_get_children_{comment.thread.id}_depth"
+        thread = comment.thread
+        depth_key = f"rhc_dcs_get_children_{thread.id}_depth"
+        relative_depth_key = f"relative_depth_{comment.id}"
         _context_fields = context.get("rhc_dcs_get_children", {})
-        depth = context.get(depth_key, None)
         max_depth = context.get("rhc_dcs_get_children_max_depth", 3)
+        depth_context = context.get(depth_key, {})
+        thread_depth = depth_context.get("thread_depth", None)
 
-        if not depth:
-            depth = 1
-            context[depth_key] = depth
-        if depth >= max_depth:
+        print(comment.id, thread_depth)
+        if not thread_depth:
+            thread_depth = 1
+            context[depth_key] = {"thread_depth": 1, relative_depth_key: 1}
+        if thread_depth >= max_depth:
             return []
 
-        context[depth_key] += 1
+        if parent := comment.parent:
+            parent_key = f"relative_depth_{parent.id}"
+            if parent_key in depth_context:
+                depth_context[relative_depth_key] = depth_context[parent_key] + 1
+            else:
+                depth_context[parent_key] = 1
+                depth_context[relative_depth_key] = depth_context[parent_key]
+
+            if depth_context[relative_depth_key] >= max_depth:
+                return []
+
         # Passing comment.children as a related manager for filtering purposes
         # See filter class for more details
         serializer = DynamicRhCommentSerializer(
