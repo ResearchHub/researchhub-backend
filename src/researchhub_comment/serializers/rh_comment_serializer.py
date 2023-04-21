@@ -85,31 +85,25 @@ class DynamicRhCommentSerializer(
         # If the view key does not exist, ensure VIEWSET.get_serializer_context()
         # is called to properly to create the serializer context
         view = context["view"]
-        thread = comment.thread
-        depth_key = f"rhc_dcs_get_children_{thread.id}_depth"
-        relative_depth_key = f"relative_depth_{comment.id}"
         _context_fields = context.get("rhc_dcs_get_children", {})
         max_depth = context.get("rhc_dcs_get_children_max_depth", 3)
-        depth_context = context.get(depth_key, {})
-        thread_depth = depth_context.get("thread_depth", None)
+        depth_key = f"rhc_dcs_get_children_{comment.thread.id}_depth"
+        relative_depth_key = f"relative_depth_{comment.id}"
+        depth_context = context.get(depth_key, None)
 
-        print(comment.id, thread_depth)
-        if not thread_depth:
-            thread_depth = 1
-            context[depth_key] = {"thread_depth": 1, relative_depth_key: 1}
-        if thread_depth >= max_depth:
+        if not depth_context:
+            depth_context = {}
+            context[depth_key] = depth_context
+
+        parent = comment.parent
+        if relative_depth_key not in depth_context:
+            parent_key = f"relative_depth_{parent.id}" if parent else None
+            depth_context[relative_depth_key] = depth_context.get(parent_key, 0) + 1
+        else:
+            depth_context[relative_depth_key] += 1
+
+        if depth_context[relative_depth_key] >= max_depth:
             return []
-
-        if parent := comment.parent:
-            parent_key = f"relative_depth_{parent.id}"
-            if parent_key in depth_context:
-                depth_context[relative_depth_key] = depth_context[parent_key] + 1
-            else:
-                depth_context[parent_key] = 1
-                depth_context[relative_depth_key] = depth_context[parent_key]
-
-            if depth_context[relative_depth_key] >= max_depth:
-                return []
 
         # Passing comment.children as a related manager for filtering purposes
         # See filter class for more details
