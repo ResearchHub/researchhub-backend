@@ -2,7 +2,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models.query import QuerySet
 from django.shortcuts import get_object_or_404
-from django.utils.functional import cached_property
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
