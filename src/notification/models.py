@@ -15,6 +15,7 @@ class Notification(models.Model):
     DEPRECATED = "DEPRECATED"
     COMMENT = "COMMENT"
     COMMENT_ON_COMMENT = "COMMENT_ON_COMMENT"
+    COMMENT_USER_MENTION = "COMMENT_USER_MENTION"
     THREAD_ON_DOC = "THREAD_ON_DOC"
     COMMENT_ON_THREAD = "COMMENT_ON_THREAD"
     REPLY_ON_THREAD = "REPLY_ON_THREAD"
@@ -37,6 +38,7 @@ class Notification(models.Model):
         (DIS_ON_BOUNTY, DIS_ON_BOUNTY),
         (COMMENT, COMMENT),
         (COMMENT_ON_COMMENT, COMMENT_ON_COMMENT),
+        (COMMENT_USER_MENTION, COMMENT_USER_MENTION),
         (BOUNTY_PAYOUT, BOUNTY_PAYOUT),
     )
 
@@ -442,6 +444,28 @@ class Notification(models.Model):
                 "type": "link",
                 "value": comment_plain_text,
                 "link": base_url,
+                "extra": '["link"]',
+            },
+        ], comments_url
+
+    def _format_comment_user_mention(self):
+        action_user = self.action_user
+        action_user_name = action_user.first_name
+        base_url = self._create_frontend_doc_link()
+        comments_url = f"{base_url}#comments"
+
+        return [
+            {
+                "type": "link",
+                "value": f"{action_user_name}",
+                "extra": '["bold", "link"]',
+                "link": action_user.frontend_view_link(),
+            },
+            {"type": "text", "value": "has mentioned you in a "},
+            {
+                "type": "link",
+                "value": "comment ",
+                "link": comments_url,
                 "extra": '["link"]',
             },
         ], comments_url

@@ -35,6 +35,7 @@ from researchhub_comment.serializers import (
     RhCommentSerializer,
     RhCommentThreadSerializer,
 )
+from researchhub_comment.tasks import celery_create_mention_notification
 from researchhub_document.related_models.constants.document_type import (
     ALL,
     BOUNTY,
@@ -247,6 +248,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             rh_comment, _ = RhCommentModel.create_from_data(data)
             unified_document = rh_comment.unified_document
             self.add_upvote(user, rh_comment)
+            self._create_mention_notifications_from_request(request, rh_comment.id)
 
             create_contribution.apply_async(
                 (
@@ -303,6 +305,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         with transaction.atomic():
             comment_response = self.create_rh_comment(request, *args, **kwargs)
             item_object_id = comment_response.data["id"]
+            self._create_mention_notifications_from_request(request, item_object_id)
             data["item_content_type"] = item_content_type
             data["item_object_id"] = item_object_id
             if expiration_date:
@@ -448,9 +451,11 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             for key in disallowed_keys:
                 data.pop(key)
             res = super().update(request, *args, **kwargs)
+            comment = self.get_object()
+            self._create_mention_notifications_from_request(request, comment.id)
             context = self._get_retrieve_context()
             serializer_data = DynamicRhCommentSerializer(
-                self.get_object(),
+                comment,
                 context=context,
                 _exclude_fields=(
                     "promoted",
@@ -540,6 +545,19 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 with_default_hub=True,
             )
             return Response({"comment_id": comment.id}, status=200)
+
+    def _create_mention_notifications_from_request(self, request, comment_id):
+        data = request.data
+        mentions = data.get("mentions", [])
+
+        if not isinstance(mentions, list):
+            return
+
+        # Soft limit mentions to 10 users
+        mentions = mentions[:10]
+        celery_create_mention_notification.apply_async(
+            (comment_id, mentions), countdown=1
+        )
 
     def _retrieve_or_create_thread_from_request(self, request):
         data = request.data
