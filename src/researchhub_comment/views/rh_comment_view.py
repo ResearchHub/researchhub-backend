@@ -17,7 +17,7 @@ from rest_framework.viewsets import ModelViewSet
 from analytics.amplitude import track_event
 from discussion.permissions import EditorCensorDiscussion
 from discussion.reaction_views import ReactionViewActionMixin
-from reputation.models import Contribution
+from reputation.models import Bounty, Contribution
 from reputation.tasks import create_contribution
 from reputation.views.bounty_view import (
     _create_bounty,
@@ -73,7 +73,7 @@ def censor_comment(comment):
     """
 
     for bounty in comment.bounties.iterator():
-        cancelled = bounty.close()
+        cancelled = bounty.close(Bounty.CANCELLED)
         if not cancelled:
             raise Exception("Failed to close bounties on comment")
 
