@@ -118,23 +118,15 @@ class DynamicThreadSerializer(
         bounty_solution = thread.bounty_solution.first()
 
         if bounty_solution:
-            bounty = bounty_solution.bounty
             uni_doc_content_type = ContentType.objects.get_for_model(
                 ResearchhubUnifiedDocument
             )
 
-            if bounty.escrows.exists():
-                awarded_escrow = Escrow.objects.filter(
-                    object_id=thread.unified_document.id,
-                    content_type=uni_doc_content_type,
-                    connected_bounty__isnull=False,
-                )
-            else:
-                awarded_escrow = Escrow.objects.filter(
-                    object_id=thread.unified_document.id,
-                    content_type=uni_doc_content_type,
-                    connected_bounty__isnull=True,
-                )
+            awarded_escrow = Escrow.objects.filter(
+                object_id=thread.unified_document.id,
+                content_type=uni_doc_content_type,
+                connected_bounty__isnull=False,
+            )
             amount_awarded = awarded_escrow.aggregate(Sum("amount_paid")).get(
                 "amount_paid__sum", None
             )
