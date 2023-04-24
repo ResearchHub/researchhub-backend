@@ -136,7 +136,7 @@ class RhCommentModel(
 
     def update_comment_content(self):
         celery_create_comment_content_src.apply_async(
-            (self.id, self.comment_content_json), delay=5
+            (self.id, self.comment_content_json), countdown=2
         )
 
     def _update_related_discussion_count(self, amount):
@@ -159,7 +159,7 @@ class RhCommentModel(
         rh_comment_serializer.is_valid(raise_exception=True)
         rh_comment = rh_comment_serializer.save()
         celery_create_comment_content_src.apply_async(
-            (rh_comment.id, data.get("comment_content_json")), delay=5
+            (rh_comment.id, data.get("comment_content_json")), countdown=2
         )
         rh_comment.increment_discussion_count()
         return rh_comment, rh_comment_serializer.data

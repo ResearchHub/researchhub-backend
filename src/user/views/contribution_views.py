@@ -92,6 +92,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     "thread",
                     "user",
                     "bounty_parent",
+                    "unified_document",
                 ]
             },
             "rep_dbs_get_parent": {
@@ -99,6 +100,15 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     "id",
                 ]
             },
+            "rep_dbs_get_created_by": {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "author_profile",
+                ]
+            },
+            "rep_dbs_get_unified_document": {"_exclude_fields": "__all__"},
             "usr_das_get_hubs": {
                 "_include_fields": [
                     "id",

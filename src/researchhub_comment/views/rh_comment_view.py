@@ -2,7 +2,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models.query import QuerySet
 from django.shortcuts import get_object_or_404
-from django.utils.functional import cached_property
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
@@ -18,7 +17,7 @@ from rest_framework.viewsets import ModelViewSet
 from analytics.amplitude import track_event
 from discussion.permissions import EditorCensorDiscussion
 from discussion.reaction_views import ReactionViewActionMixin
-from reputation.models import Contribution
+from reputation.models import Bounty, Contribution
 from reputation.tasks import create_contribution
 from reputation.views.bounty_view import (
     _create_bounty,
@@ -74,7 +73,7 @@ def censor_comment(comment):
     """
 
     for bounty in comment.bounties.iterator():
-        cancelled = bounty.cancel()
+        cancelled = bounty.close(Bounty.CANCELLED)
         if not cancelled:
             raise Exception("Failed to close bounties on comment")
 
