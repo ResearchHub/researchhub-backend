@@ -12,6 +12,12 @@ class UserDocument(BaseDocument):
     full_name = es_fields.TextField(attr="full_name")
     profile_img = es_fields.TextField()
     full_name_suggest = es_fields.Completion()
+    author_profile = es_fields.ObjectField(
+        properties={
+            "profile_img": es_fields.TextField(),
+            "id": es_fields.IntegerField(),
+        },
+    )
 
     class Index:
         name = "user"
@@ -26,18 +32,25 @@ class UserDocument(BaseDocument):
             "last_name",
         ]
 
-    def prepare_full_name_suggest(self, instance):
-        full_name_suggest = f"{instance.first_name} {instance.last_name}"
-        return {"input": full_name_suggest.split()}
+    def prepare_author_profile(self, instance):
+        profile = None
 
-    def prepare_profile_img(self, instance):
-        img = None
         try:
-            img = instance.author_profile.profile_image.url
+            profile = {"id": instance.author_profile.id}
         except Exception as e:
             return False
 
-        return img
+        try:
+            profile["profile_img"] = instance.author_profile.profile_image.url
+        except Exception as e:
+            pass
+
+        return profile
+
+    # Used specifically for "autocomplete" style suggest feature
+    def prepare_full_name_suggest(self, instance):
+        full_name_suggest = f"{instance.first_name} {instance.last_name}"
+        return {"input": full_name_suggest.split()}
 
     def prepare_full_name(self, instance):
         return f"{instance.first_name} {instance.last_name}"
