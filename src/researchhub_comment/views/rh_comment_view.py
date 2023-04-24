@@ -73,7 +73,7 @@ def censor_comment(comment):
     """
 
     for bounty in comment.bounties.iterator():
-        cancelled = bounty.cancel()
+        cancelled = bounty.close()
         if not cancelled:
             raise Exception("Failed to close bounties on comment")
 
