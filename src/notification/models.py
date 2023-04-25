@@ -461,7 +461,7 @@ class Notification(models.Model):
                 "extra": '["bold", "link"]',
                 "link": action_user.frontend_view_link(),
             },
-            {"type": "text", "value": "has mentioned you in a "},
+            {"type": "text", "value": "mentioned you in a "},
             {
                 "type": "link",
                 "value": "comment ",
