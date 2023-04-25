@@ -26,6 +26,7 @@ from reputation.views.bounty_view import (
 )
 from researchhub.pagination import FasterDjangoPaginator
 from researchhub.permissions import IsObjectOwner, IsObjectOwnerOrModerator
+from researchhub.settings import TESTING
 from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT
 from researchhub_comment.filters import RHCommentFilter
 from researchhub_comment.models import RhCommentModel
@@ -555,9 +556,12 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
 
         # Soft limit mentions to 10 users
         mentions = mentions[:10]
-        celery_create_mention_notification.apply_async(
-            (comment_id, mentions), countdown=1
-        )
+        if TESTING:
+            celery_create_mention_notification(comment_id, mentions)
+        else:
+            celery_create_mention_notification.apply_async(
+                (comment_id, mentions), countdown=1
+            )
 
     def _retrieve_or_create_thread_from_request(self, request):
         data = request.data
