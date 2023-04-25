@@ -1,11 +1,9 @@
+from django_elasticsearch_dsl_drf.serializers import DocumentSerializer
 from rest_framework import serializers
 
-from user.models import Author
-from user.models import User
-from user.serializers import (
-    AuthorSerializer,
-    UserSerializer,
-)
+from search.documents import PersonDocument
+from user.models import Author, User
+from user.serializers import AuthorSerializer, UserSerializer
 
 
 class PersonDocumentSerializer(serializers.ModelSerializer):
@@ -19,24 +17,24 @@ class PersonDocumentSerializer(serializers.ModelSerializer):
     class Meta(object):
         model = Author
         fields = [
-            'id',
-            'first_name',
-            'last_name',
-            'full_name',
-            'profile_image',
-            'headline',
-            'description',
-            'author_score',
-            'user_reputation',
-            'person_types',
-            'user',
-            'author_profile',
+            "id",
+            "first_name",
+            "last_name",
+            "full_name",
+            "profile_image",
+            "headline",
+            "description",
+            "author_score",
+            "user_reputation",
+            "person_types",
+            "user",
+            "author_profile",
         ]
         read_only_fields = fields
 
     def get_user(self, document):
         try:
-            if 'user' in document.person_types:
+            if "user" in document.person_types:
                 user = Author.objects.get(id=document.id).user
                 return UserSerializer(user).data
         except:
@@ -47,13 +45,12 @@ class PersonDocumentSerializer(serializers.ModelSerializer):
         try:
             author = Author.objects.get(id=document.id)
             return AuthorSerializer(
-                author,    
+                author,
                 read_only=True,
             ).data
         except:
             # The object no longer exist in the DB
             pass
-
 
     def get_person_types(self, document):
         return list(document.person_types)

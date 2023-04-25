@@ -8,10 +8,12 @@ from search.views import (
     PersonDocumentView,
     PostDocumentView,
     ThreadDocumentView,
+    UserDocumentView,
 )
 
 router = DefaultRouter()
 person = router.register(r"person", PersonDocumentView, basename="person_document")
+user = router.register(r"user", UserDocumentView, basename="user_document")
 paper = router.register(r"paper", PaperDocumentView, basename="paper_document")
 post = router.register(r"post", PostDocumentView, basename="post_document")
 thread = router.register(r"thread", ThreadDocumentView, basename="thread_document")

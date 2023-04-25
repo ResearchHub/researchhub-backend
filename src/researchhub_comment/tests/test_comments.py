@@ -187,3 +187,14 @@ class CommentViewTests(APITestCase):
         self.assertEqual(bounty_res.data["count"], 2)
         self.assertEqual(regular_res.status_code, 200)
         self.assertEqual(regular_res.data["count"], 4)
+
+    def test_comment_mentions(self):
+        creator = self.user_1
+        recipient = self.user_2
+        self._create_paper_comment(self.paper.id, creator, mentions=[self.user_2.id])
+        self.client.force_authenticate(recipient)
+
+        notification_res = self.client.get("/api/notification/")
+
+        self.assertEqual(notification_res.status_code, 200)
+        self.assertEqual(notification_res.data["count"], 1)
