@@ -105,7 +105,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         "citation": "citation",
     }
     _ALLOWED_UPDATE_FIELDS = set(
-        ["comment_content_type", "comment_content_json", "context_title"]
+        ["comment_content_type", "comment_content_json", "context_title", "mentions"]
     )
 
     def _get_content_type_model(self, model_name):
@@ -385,6 +385,8 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             "thread",
         )
         queryset = queryset.prefetch_related(
+            # "created_by__permissions",
+            # "bounties__parent__created_by__permissions",
             "children",
             "purchases",
             "bounties",
