@@ -30,18 +30,22 @@ class UserDocument(BaseDocument):
             "id",
             "first_name",
             "last_name",
+            "reputation",
         ]
 
     def prepare_author_profile(self, instance):
         profile = None
 
         try:
-            profile = {"id": instance.author_profile.id}
+            profile = {
+                "id": instance.author_profile.id,
+                "headline": instance.author_profile.headline,
+            }
         except Exception as e:
             return False
 
         try:
-            profile["profile_img"] = instance.author_profile.profile_image.url
+            profile["profile_image"] = instance.author_profile.profile_image.url
         except Exception as e:
             pass
 
