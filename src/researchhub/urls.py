@@ -36,7 +36,7 @@ import researchhub_document.views as researchhub_document_views
 import search.urls
 import summary.views
 import user.views
-from citation.views import CitationEntryViewSet
+from citation.views import CitationEntryViewSet, CitationProjectViewSet
 from peer_review.views import (
     PeerReviewInviteViewSet,
     PeerReviewRequestViewSet,
@@ -328,12 +328,13 @@ router.register(
     r"exchange_rate", purchase.views.RscExchangeRateViewSet, basename="exchange_rate"
 )
 router.register(r"citation_entry", CitationEntryViewSet, basename="citation_entry")
-
+router.register(
+    r"citation_project", CitationProjectViewSet, basename="citation_project"
+)
 router.register(
     r"(?P<model>\w+)/(?P<model_object_id>[0-9]+)/comments",
     RhCommentViewSet,
     basename="rh_comments",
-
 )
 
 

@@ -80,15 +80,16 @@ if not (PRODUCTION or STAGING):
     DEBUG = True
 
 ALLOWED_HOSTS = [
-    ".quantfive.org",
     ".elasticbeanstalk.com",
-    ".researchhub.com",
-    "localhost",
-    ".researchhub-web-staging.vercel.app",
-    "researchhub-web-researchhub.vercel.app",
+    ".quantfive.org",
     ".researchhub-web-researchhub.vercel.app",
-    r"https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}",
+    ".researchhub-web-staging.vercel.app",
+    ".researchhub.com",
+    "127.0.0.1",  # localhost
+    "localhost",
+    "researchhub-web-researchhub.vercel.app",
     r"^https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}/",
+    r"https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}",
 ]
 
 if not (PRODUCTION or STAGING):

@@ -15,7 +15,7 @@ class CitationEntryViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = CitationEntrySerializer
     ordering = ["-updated_date"]
-
+    
     def list(self, request):
         pass
 
