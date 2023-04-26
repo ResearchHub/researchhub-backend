@@ -78,7 +78,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     def get_queryset(self):
         if self.action == "restore":
             return ResearchhubUnifiedDocument.all_objects.all()
-        return super().get_queryset(self)
+        return super().get_queryset()
 
     @action(
         detail=True,
