@@ -351,7 +351,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 with_default_hub=True,
             )
 
-            request.data["amount"] = amount  # Adding this here for Amplitude tracking
             rh_comment = self.get_queryset().get(id=item_object_id)
             context = self._get_retrieve_context()
             serializer_data = DynamicRhCommentSerializer(
@@ -364,7 +363,10 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "comment_content_src",
                 ),
             ).data
-            return Response(serializer_data, status=201)
+            res = Response(serializer_data, status=201)
+            request.data["amount"] = amount  # Adding this here for Amplitude tracking
+            res.data["amount"] = amount
+            return res
 
     def create(self, request, *args, **kwargs):
         return Response(

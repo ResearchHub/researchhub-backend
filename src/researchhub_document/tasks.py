@@ -97,6 +97,7 @@ def preload_trending_documents(
     query_dict = QueryDict(query_string=query_string)
 
     document_view = ResearchhubUnifiedDocumentViewSet()
+    document_view.action = "list"
     http_req = HttpRequest()
     http_req.META = http_meta
     http_req.path = request_path
