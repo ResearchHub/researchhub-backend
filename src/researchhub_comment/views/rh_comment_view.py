@@ -229,11 +229,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         }
         return context
 
-    @track_event
-    @action(
-        detail=False, methods=["POST"], permission_classes=[IsAuthenticatedOrReadOnly]
-    )
-    def create_rh_comment(self, request, *args, **kwargs):
+    def _create_rh_comment(self, request, *args, **kwargs):
         data = request.data
         user = request.user
         with transaction.atomic():
@@ -290,6 +286,13 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
     @action(
         detail=False, methods=["POST"], permission_classes=[IsAuthenticatedOrReadOnly]
     )
+    def create_rh_comment(self, request, *args, **kwargs):
+        return self._create_rh_comment(request, *args, **kwargs)
+
+    @track_event
+    @action(
+        detail=False, methods=["POST"], permission_classes=[IsAuthenticatedOrReadOnly]
+    )
     def create_comment_with_bounty(self, request, *args, **kwargs):
         data = request.data
         user = request.user
@@ -304,7 +307,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             amount, fee_amount, rh_fee, dao_fee, current_bounty_fee = response
 
         with transaction.atomic():
-            comment_response = self.create_rh_comment(request, *args, **kwargs)
+            comment_response = self._create_rh_comment(request, *args, **kwargs)
             item_object_id = comment_response.data["id"]
             self._create_mention_notifications_from_request(request, item_object_id)
             data["item_content_type"] = item_content_type
@@ -364,8 +367,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 ),
             ).data
             res = Response(serializer_data, status=201)
-            request.data["amount"] = amount  # Adding this here for Amplitude tracking
-            res.data["amount"] = amount
+            res.data["bounty_amount"] = amount  # This is here for Amplitude tracking
             return res
 
     def create(self, request, *args, **kwargs):

@@ -80,16 +80,20 @@ class Amplitude:
             "insert_id": f"{event_type}_{res.data['id']}",
             # **geo_properties,
         }
+
+        if extra_data := getattr(res, "amplitude_data", None):
+            data["event_properties"].update(extra_data)
+
         hit = {
             "api_key": self.api_key,
             "events": [data],
         }
-        self.hit = json.dumps(hit, default=json_serial)
-        self.forward_event()
+        hit = json.dumps(hit, default=json_serial)
+        self.forward_event(hit)
 
-    def forward_event(self):
+    def forward_event(self, hit):
         headers = {"Content-Type": "application/json", "Accept": "*/*"}
-        request = requests.post(self.api_url, data=self.hit, headers=headers)
+        request = requests.post(self.api_url, data=hit, headers=headers)
         res = request.json()
         if request.status_code != 200:
             log_info(res)
