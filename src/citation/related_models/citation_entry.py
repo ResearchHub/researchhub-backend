@@ -30,5 +30,6 @@ class CitationEntry(DefaultAuthenticatedModel):
         null=True,
         on_delete=models.CASCADE,
         related_name="citations",
+        related_query_name="citations"
     )
     fields = models.JSONField()

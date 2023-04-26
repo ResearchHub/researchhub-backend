@@ -5,8 +5,10 @@ from rest_framework.viewsets import ModelViewSet
 
 from citation.constants import CITATION_TYPE_FIELDS
 from citation.models import CitationEntry
+from citation.related_models.citation_project import CitationProject
 from citation.schema import generate_schema_for_citation
 from citation.serializers import CitationEntrySerializer
+from user.related_models.organization_model import Organization
 from utils.openalex import OpenAlex
 
 
@@ -14,8 +16,8 @@ class CitationEntryViewSet(ModelViewSet):
     queryset = CitationEntry.objects.all()
     permission_classes = [IsAuthenticated]
     serializer_class = CitationEntrySerializer
-    ordering = ["-updated_date"]
-    
+    ordering = ["-updated_date", "-created_date"]
+
     def list(self, request):
         pass
 
@@ -26,17 +28,22 @@ class CitationEntryViewSet(ModelViewSet):
     def user_citations(self, request):
         user = request.user
         organization_id = request.GET.get("organization_id", None)
-        citations = user.created_citation_citationentry.all().order_by(
-            "-updated_date", "-created_date"
-        )
-        if organization_id:
-            citations = citations.filter(organization_id=organization_id)
-        page = self.paginate_queryset(citations)
+        project_id = request.GET.get("project_id")
+        if project_id:
+            citations_query = CitationProject.objects.get(id=project_id).citations.all()
+        elif organization_id:
+            citations_query = Organization.objects.get(
+                id=organization_id
+            ).created_citations.all()
+        else:
+            citations_query = user.created_citation_citationentry.all()
+        citations_query = citations_query.order_by(*self.ordering)
+        page = self.paginate_queryset(citations_query)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             return self.get_paginated_response(serializer.data)
 
-        serializer = self.get_serializer(citations, many=True)
+        serializer = self.get_serializer(citations_query, many=True)
         return Response(serializer.data)
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
