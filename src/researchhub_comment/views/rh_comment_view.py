@@ -351,6 +351,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 with_default_hub=True,
             )
 
+            data["amount"] = amount  # Adding this here for Amplitude tracking
             rh_comment = self.get_queryset().get(id=item_object_id)
             context = self._get_retrieve_context()
             serializer_data = DynamicRhCommentSerializer(

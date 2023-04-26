@@ -75,6 +75,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     def destroy(self, *args, **kwargs):
         return Response(status=403)
 
+    def get_queryset(self):
+        if self.action == "restore":
+            return ResearchhubUnifiedDocument.all_objects.all()
+        return super().get_queryset(self)
+
     @action(
         detail=True,
         methods=["put", "patch", "delete"],
