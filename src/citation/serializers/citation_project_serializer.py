@@ -18,17 +18,6 @@ class CitationProjectSerializer(ModelSerializer):
 
     """ ----- Django Method Overrides -----"""
 
-    # def create(self, validated_data):
-    #     import pdb
-
-    #     pdb.set_trace()
-    #     print("?????")
-
-    # def update(self, project_instance, validated_data):
-    #     import pdb
-
-    #     pdb.set_trace()
-
     """ ----- Serializer Methods -----"""
 
     """ ----- Private Methods -----"""
