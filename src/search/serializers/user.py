@@ -9,4 +9,11 @@ from user.serializers import AuthorSerializer, UserSerializer
 class UserDocumentSerializer(DocumentSerializer):
     class Meta:
         document = UserDocument
-        fields = ("full_name", "full_name_suggest", "profile_img")
+        fields = (
+            "id",
+            "full_name",
+            "first_name",
+            "last_name",
+            "reputation",
+            "author_profile",
+        )
