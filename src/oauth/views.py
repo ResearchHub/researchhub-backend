@@ -251,6 +251,5 @@ def track_user_signup(request, user, **kwargs):
         view = temp_view()
         amp = Amplitude()
         amp.build_hit(res, view, request, **kwargs)
-        amp.forward_event()
     except Exception as e:
         sentry.log_error(e)
