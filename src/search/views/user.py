@@ -1,5 +1,8 @@
 from django_elasticsearch_dsl_drf.constants import SUGGESTER_COMPLETION
-from django_elasticsearch_dsl_drf.filter_backends import SuggesterFilterBackend
+from django_elasticsearch_dsl_drf.filter_backends import (
+    FilteringFilterBackend,
+    SuggesterFilterBackend,
+)
 from django_elasticsearch_dsl_drf.pagination import LimitOffsetPagination
 from django_elasticsearch_dsl_drf.viewsets import DocumentViewSet
 from elasticsearch_dsl import Search
@@ -17,8 +20,15 @@ class UserDocumentView(DocumentViewSet):
     pagination_class = LimitOffsetPagination
     lookup_field = "id"
     filter_backends = [
+        MultiMatchSearchFilterBackend,
         SuggesterFilterBackend,
     ]
+    filter_fields = {
+        "full_name": {"field": "full_name", "lookups": ["match"]},
+    }
+    multi_match_search_fields = {
+        "full_name": {"field": "full_name", "boost": 1},
+    }
     suggester_fields = {
         "full_name_suggest": {
             "field": "full_name_suggest",
