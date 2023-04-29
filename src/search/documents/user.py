@@ -72,7 +72,7 @@ class UserDocument(BaseDocument):
     # Used specifically for "autocomplete" style suggest feature
     def prepare_full_name_suggest(self, instance):
         full_name_suggest = f"{instance.first_name} {instance.last_name}"
-        return {"input": full_name_suggest.split()}
+        return {"input": full_name_suggest.split() + [full_name_suggest]}
 
     def prepare_full_name(self, instance):
         return f"{instance.first_name} {instance.last_name}"
