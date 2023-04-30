@@ -1,6 +1,7 @@
 from django_elasticsearch_dsl_drf.constants import SUGGESTER_COMPLETION
 from django_elasticsearch_dsl_drf.filter_backends import (
     FilteringFilterBackend,
+    OrderingFilterBackend,
     SuggesterFilterBackend,
 )
 from django_elasticsearch_dsl_drf.pagination import LimitOffsetPagination
@@ -22,7 +23,12 @@ class UserDocumentView(DocumentViewSet):
     filter_backends = [
         MultiMatchSearchFilterBackend,
         SuggesterFilterBackend,
+        OrderingFilterBackend,
     ]
+    ordering = ("-reputation",)
+    ordering_fields = {
+        "reputation": "reputation",
+    }
     filter_fields = {
         "full_name": {"field": "full_name", "lookups": ["match"]},
     }

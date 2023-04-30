@@ -30,6 +30,7 @@ class UserDocument(BaseDocument):
         analyzer=edge_ngram_analyzer,
         search_analyzer="standard",
     )
+
     author_profile = es_fields.ObjectField(
         properties={
             "profile_img": es_fields.TextField(),
@@ -72,7 +73,10 @@ class UserDocument(BaseDocument):
     # Used specifically for "autocomplete" style suggest feature
     def prepare_full_name_suggest(self, instance):
         full_name_suggest = f"{instance.first_name} {instance.last_name}"
-        return {"input": full_name_suggest.split() + [full_name_suggest]}
+        return {
+            "input": full_name_suggest.split() + [full_name_suggest],
+            "weight": instance.reputation,
+        }
 
     def prepare_full_name(self, instance):
         return f"{instance.first_name} {instance.last_name}"
