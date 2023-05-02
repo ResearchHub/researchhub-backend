@@ -191,7 +191,6 @@ class DynamicBountySolutionSerializer(DynamicModelFieldSerializer):
             serializer = DynamicRhCommentSerializer(
                 obj, context=context, **_context_fields
             )
-
         if serializer is not None:
             return serializer.data
         return None
