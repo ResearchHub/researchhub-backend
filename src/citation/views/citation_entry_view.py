@@ -1,14 +1,17 @@
+from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
+import pdf2doi
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from citation.constants import CITATION_TYPE_FIELDS
+from citation.constants import CITATION_TYPE_FIELDS, JOURNAL_ARTICLE
 from citation.filters import CitationEntryFilter
 from citation.models import CitationEntry
-from citation.schema import generate_schema_for_citation
+from citation.related_models.citation_project import CitationProject
+from citation.schema import generate_schema_for_citation, generate_json_for_journal
 from citation.serializers import CitationEntrySerializer
 from utils.openalex import OpenAlex
 
@@ -27,6 +30,29 @@ class CitationEntryViewSet(ModelViewSet):
 
     def retrieve(self, request):
         pass
+    
+    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
+    def pdf_uploads(self, request):
+        pdfs = request.FILES.getlist('pdfs[]')
+        schema = generate_schema_for_citation(JOURNAL_ARTICLE)
+        entry_json = {}
+        created = []
+        for pdf in pdfs:
+            conversion = pdf2doi.pdf2doi_singlefile(pdf)
+            import pdb; pdb.set_trace()
+            json = generate_json_for_journal(conversion)
+            entry = CitationEntry.objects.create(
+                citation_type=JOURNAL_ARTICLE,
+                fields=json,
+                created_by=request.user,
+                organization_id=request.data.get('organization_id'),
+                attachment=pdf,
+                doi=json['DOI'],
+                project_id=request.data.get('project_id')
+            )
+            created.append(self.serializer_class(entry).data)
+
+        return Response({'created': created}, 200)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def user_citations(self, request):
