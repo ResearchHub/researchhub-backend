@@ -1,4 +1,5 @@
 from .constants import CITATION_TYPE_FIELDS, CREATOR_TYPES, JOURNAL_ARTICLE
+from utils.openalex import OpenAlex
 
 # https://www.zotero.org/support/kb/item_types_and_fields
 
@@ -13,15 +14,30 @@ CREATORS_SCHEMA_REGEX = f"({initial_creators_schema_regex})"
 def generate_json_for_journal(pdf2doi):
     schema = generate_schema_for_citation(JOURNAL_ARTICLE)
     json = {}
+    doi_string = pdf2doi['identifier']
+    open_alex = OpenAlex()
+    result = open_alex.get_data_from_doi(doi_string)
     for field in schema['required']:
-        mapping_field = PDF2DOI_JOURNAL_MAPPING.get(field, '')
+        mapping_field = OPENALEX_JOURNAL_MAPPING.get(field, '')
         if mapping_field:
-            pdf_value = mapping_field.split('.')
-            print(pdf_value)
-            cur_pdf2doi = pdf2doi
-            for val in pdf_value:
-                cur_pdf2doi = cur_pdf2doi[val]
-            json[field] = cur_pdf2doi
+            if field == 'creators':
+                authors = result[mapping_field]
+                author_array = []
+                for author in authors:
+                    name = author['author']['display_name']
+                    if ',' in name:
+                        names = name.split(', ')
+                        author_array.append({'first_name': names[1], 'last_name': names[0]})
+                    else:
+                        names = name.split(' ')
+                        author_array.append({'first_name': names[0], 'last_name': names[len(names) - 1]})
+                json[field] = author_array
+            else:
+                pdf_value = mapping_field.split('.')
+                cur_json = result
+                for val in pdf_value:
+                    cur_json = result[val]
+                json[field] = cur_json
     return json
 
 def generate_schema_for_citation(citation_type):
@@ -341,6 +357,14 @@ PDF2DOI_JOURNAL_MAPPING = {
     'creators': 'validation_info.authors',
     'title': 'validation_info.title',
     'date': 'validation_info.published',
+    'publication_title': '',
+    'journal_abbreviation': '',
+}
+OPENALEX_JOURNAL_MAPPING = {
+    'DOI': 'doi',
+    'creators': 'authorships',
+    'title': 'title',
+    'date': 'publication_date',
     'publication_title': '',
     'journal_abbreviation': '',
 }

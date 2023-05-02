@@ -34,12 +34,12 @@ class CitationEntryViewSet(ModelViewSet):
     @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
     def pdf_uploads(self, request):
         pdfs = request.FILES.getlist('pdfs[]')
+        # pdf2doi.config.set('webvalidation', False)
         schema = generate_schema_for_citation(JOURNAL_ARTICLE)
         entry_json = {}
         created = []
         for pdf in pdfs:
             conversion = pdf2doi.pdf2doi_singlefile(pdf)
-            import pdb; pdb.set_trace()
             json = generate_json_for_journal(conversion)
             entry = CitationEntry.objects.create(
                 citation_type=JOURNAL_ARTICLE,
