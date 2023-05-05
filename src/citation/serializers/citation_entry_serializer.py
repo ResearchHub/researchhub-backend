@@ -19,7 +19,7 @@ from user.serializers import DynamicOrganizationSerializer, DynamicUserSerialize
 
 
 class CitationEntrySerializer(ModelSerializer):
-    # HiddenField doesn't update instance if the field is not empty
+    # HiddenField doesn't update instance if the field is empty
     created_by = HiddenField(default=CurrentUserDefault())
     updated_by = HiddenField(default=CurrentUserDefault())
     checksum = ReadOnlyField()
