@@ -13,6 +13,7 @@ class CitationProjectSerializer(ModelSerializer):
     created_by = HiddenField(default=CurrentUserDefault())
     updated_by = HiddenField(default=CurrentUserDefault())
     get_current_user_has_access = SerializerMethodField(read_only=True)
+    children = SerializerMethodField()
 
     class Meta:
         model = CitationProject
@@ -28,5 +29,11 @@ class CitationProjectSerializer(ModelSerializer):
             return project_instance.get_current_user_has_access(current_user)
         except Exception as error:
             pass
+    
+    def get_children(self, rh_comment):
+        return CitationProjectSerializer(
+            instance=rh_comment.children,
+            many=True,
+        ).data
 
     """ ----- Private Methods -----"""

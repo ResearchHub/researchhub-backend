@@ -19,7 +19,7 @@ class CitationProjectViewSet(ModelViewSet):
     def list(self, request):
         try:
             current_user = request.user
-            org_id = request.query_params.get("organization", "")
+            org_id = request.query_params.get("organization", None)
             if org_id.endswith("/"):
                 org_id = org_id[:-1]
             org = Organization.objects.get(id=int(org_id))
@@ -28,13 +28,15 @@ class CitationProjectViewSet(ModelViewSet):
                 raise PermissionError("Current user not allowed")
 
             public_project_ids = list(
-                org.citation_projects.filter(is_public=True).values_list(
-                    "id", flat=True
+                org.citation_projects.filter(is_public=True, parent=None).values_list(
+                    "id",
+                    flat=True,
                 )
             )
             non_public_accessible_projs_qs = Q(
-                organization=org,
                 is_public=False,
+                organization=org,
+                parent=None,
                 permissions__user=current_user,
             )
             final_citation_proj_qs = CitationProject.objects.filter(
