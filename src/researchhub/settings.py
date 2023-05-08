@@ -426,10 +426,10 @@ DATABASES = {
         "PASSWORD": DB_PASS,
         "TEST": {
             "NAME": "test_researchhub",
+            "SERIALIZE": False,
         },
     }
 }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/2.2/ref/settings/#auth-password-validators
@@ -503,6 +503,17 @@ if PRODUCTION:
     AWS_STORAGE_BUCKET_NAME = "researchhub-paper-prod"
 AWS_S3_REGION_NAME = "us-west-2"
 
+# config for local S3 (MinIO)
+if DEVELOPMENT:
+    AWS_S3_ENDPOINT_URL = "http://localhost:9000"
+    AWS_S3_ACCESS_KEY_ID = "minio"
+    AWS_S3_SECRET_ACCESS_KEY = "qwerty123"
+
+# config for local version of pdf2html lambda
+if DEVELOPMENT:
+    PDF2HTML_LAMBDA_ENDPOINT_URL = "http://localhost:3001"
+    PDF2HTML_LAMBDA_FUNCTION_NAME = "Pdf2HtmlFunction"
+
 AWS_S3_FILE_OVERWRITE = False
 AWS_DEFAULT_ACL = None
 
@@ -512,7 +523,7 @@ AWS_SES_REGION_NAME = "us-west-2"
 AWS_SES_REGION_ENDPOINT = "email.us-west-2.amazonaws.com"
 
 EMAIL_BACKEND = "django_ses.SESBackend"
-if TESTING:
+if DEVELOPMENT or TESTING:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 EMAIL_WHITELIST = [
