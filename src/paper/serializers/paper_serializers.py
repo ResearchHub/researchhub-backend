@@ -5,6 +5,7 @@ import requests
 import rest_framework.serializers as serializers
 from django.contrib.admin.options import get_content_type_for_model
 from django.core.files.base import ContentFile
+from django.core.files.storage import get_storage_class
 from django.db import IntegrityError, transaction
 from django.http import QueryDict
 
@@ -31,6 +32,7 @@ from paper.models import (
 from paper.tasks import (  # celery_calculate_paper_twitter_score,
     add_orcid_authors,
     celery_extract_pdf_sections,
+    celery_pdf2html,
     download_pdf,
 )
 from paper.utils import (
@@ -66,6 +68,8 @@ from user.serializers import (
 from utils.http import check_url_contains_pdf, get_user_from_request
 from utils.siftscience import events_api, update_user_risk_score
 
+media_storage = get_storage_class()()
+
 
 class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
     authors = serializers.SerializerMethodField()
@@ -85,6 +89,8 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
     uploaded_by = UserSerializer(read_only=True)
     user_flag = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
+    html_file_url = serializers.SerializerMethodField()
+    html_generation_status = serializers.SerializerMethodField()
 
     class Meta:
         abstract = True
@@ -306,7 +312,18 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
         file = paper.file
         if file:
             return paper.file.url
-        return None
+        return
+
+    def get_html_file_url(self, paper):
+        if paper.html_file_key:
+            url = media_storage.url(name=paper.html_file_key)
+            return url
+        return
+
+    def get_html_generation_status(self, paper):
+        if paper.html_generation_status:
+            return paper.html_generation_status
+        return "PENDING"
 
 
 class ContributionPaperSerializer(BasePaperSerializer):
@@ -504,7 +521,6 @@ class PaperSerializer(BasePaperSerializer):
 
         try:
             with transaction.atomic():
-
                 # Temporary fix for updating read only fields
                 # Not including file, pdf_url, and url because
                 # those fields are processed
@@ -585,6 +601,7 @@ class PaperSerializer(BasePaperSerializer):
                     )
                     update_user_risk_score(request.user, tracked_paper)
                 return paper
+
         except Exception as e:
             error = PaperSerializerError(e, "Failed to update paper")
             sentry.log_error(e, base_error=error.trigger)
@@ -618,6 +635,8 @@ class PaperSerializer(BasePaperSerializer):
             celery_extract_pdf_sections.apply_async(
                 (paper_id,), priority=3, countdown=15
             )
+
+            celery_pdf2html.apply_async((paper_id,), priority=3, countdown=15)
             return
 
         if paper.url is not None:
@@ -795,6 +814,8 @@ class DynamicPaperSerializer(
     unified_document = serializers.SerializerMethodField()
     uploaded_by = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
+    html_file_url = serializers.SerializerMethodField()
+    html_generation_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Paper
@@ -921,6 +942,16 @@ class DynamicPaperSerializer(
             uploaded_by, context=context, **_context_fields
         )
         return serializer.data
+
+    def get_html_file_url(self, paper):
+        if paper.html_file_key:
+            return media_storage.url(name=paper.html_file_key)
+        return
+
+    def get_html_generation_status(self, paper):
+        if paper.html_generation_status:
+            return paper.html_generation_status
+        return "PENDING"
 
 
 class AdditionalFileSerializer(serializers.ModelSerializer):

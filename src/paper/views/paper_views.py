@@ -241,7 +241,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         context = self._get_paper_context(request)
-
         # Commenting out paper cache
         # cache_key = get_cache_key("paper", instance.id)
         # cache_hit = cache.get(cache_key)
@@ -285,6 +284,8 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 "uploaded_date",
                 "uploaded_date",
                 "url",
+                "html_file_url",
+                "html_generation_status",
             ],
         )
         serializer_data = serializer.data
