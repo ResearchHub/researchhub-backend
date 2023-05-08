@@ -20,6 +20,7 @@ from celery.task.schedules import crontab
 from celery.utils.log import get_task_logger
 from django.apps import apps
 from django.core.cache import cache
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.files import File
 from django.core.files.base import ContentFile
 from django.db import IntegrityError
@@ -47,6 +48,7 @@ from paper.utils import (
     merge_paper_threads,
     merge_paper_votes,
     reset_paper_cache,
+    call_pdf2html_lambda,
 )
 from purchase.models import Wallet
 from researchhub.celery import (
@@ -431,7 +433,6 @@ def celery_extract_twitter_comments(paper_id):
 
     source = "twitter"
     try:
-
         results = get_twitter_url_results(url)
         for res in results:
             source_id = res.id_str
@@ -662,6 +663,46 @@ def log_daily_uploads():
     return request.status_code, paper_count
 
 
+@app.task(queue=QUEUE_PAPER_MISC)
+def celery_pdf2html(paper_id):
+    if paper_id is None:
+        return False, "paper_id is required"
+
+    paper = None
+
+    try:
+        Paper = apps.get_model("paper.Paper")
+        paper = Paper.objects.get(id=paper_id)
+    except ObjectDoesNotExist:
+        return False, "paper does not exist"
+
+    input_bucket_name = "researchhub-paper-dev1"
+    input_object_key = paper.file.name
+    output_bucket_name = input_bucket_name
+    output_object_key = input_object_key + ".html"
+
+    # HTML has already been generated for this paper, skip
+    if paper.has_generated_html():
+        return True, output_object_key
+
+    try:
+        paper.set_html_generation_pending()
+
+        # Call lambda function to convert PDF to HTML. This call is synchronous.
+        call_pdf2html_lambda(
+            input_bucket_name, input_object_key, output_bucket_name, output_object_key
+        )
+
+        paper.set_html_generation_success(output_object_key)
+    except Exception as e:
+        sentry.log_error(e, message="failed to generate html for pdf")
+
+        paper.set_html_generation_failed()
+        return False, "failed to generate html for pdf"
+
+    return True, output_object_key
+
+
 # ARXIV Download Constants
 RESULTS_PER_ITERATION = (
     50  # default is 10, if this goes too high like >=100 it seems to fail too often
@@ -671,6 +712,7 @@ RETRY_WAIT = 8
 RETRY_MAX = 20  # It fails a lot so retry a bunch
 NUM_DUP_STOP = 30  # Number of dups to hit before determining we're done
 BASE_URL = "http://export.arxiv.org/api/query?"
+
 
 # Pull Daily (arxiv updates 20:00 EST)
 # @periodic_task(
@@ -895,6 +937,7 @@ WAIT_TIME = 2
 RETRY_WAIT = 8
 RETRY_MAX = 20
 NUM_DUP_STOP = 30
+
 
 # Pull Daily
 # @periodic_task(
