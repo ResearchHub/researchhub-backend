@@ -1,6 +1,8 @@
 import io
 import math
 from datetime import datetime
+import boto3
+import json
 
 import cloudscraper
 import fitz
@@ -9,6 +11,7 @@ import nltk
 import regex as re
 import requests
 from bs4 import BeautifulSoup
+from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
@@ -17,6 +20,7 @@ from django.db import models
 from django.db.models import Count, Q
 from habanero import Crossref
 from manubot.cite.csl_item import CSL_Item
+from pathlib import Path
 
 from discussion.reaction_models import Vote as GrmVote
 from paper.exceptions import ManubotProcessingError
@@ -301,7 +305,6 @@ def get_csl_item(url) -> dict:
     from manubot.cite.citekey import citekey_to_csl_item, url_to_citekey
 
     try:
-
         citekey = url_to_citekey(url)
         citekey = RHCiteKey(citekey)
         csl_item = citekey_to_csl_item(citekey)
@@ -717,3 +720,27 @@ def clean_dois(parsed_url, dois):
         version_regex = r"v[0-9]+$"
         dois = list(map(lambda doi: re.sub(version_regex, "", doi), dois))
     return dois
+
+
+def call_pdf2html_lambda(
+    input_bucket_name, input_object_key, output_bucket_name, output_object_key
+):
+    lambda_endpoint = settings.PDF2HTML_LAMBDA_ENDPOINT_URL
+    lambda_function_name = settings.PDF2HTML_LAMBDA_FUNCTION_NAME
+    lambda_client = boto3.client("lambda", endpoint_url=lambda_endpoint)
+
+    lambda_payload = {
+        "s3_input": {"bucket_name": input_bucket_name, "object_key": input_object_key},
+        "s3_output": {
+            "bucket_name": output_bucket_name,
+            "object_key": output_object_key,
+        },
+    }
+
+    response = lambda_client.invoke(
+        FunctionName=lambda_function_name,
+        InvocationType="RequestResponse",
+        Payload=json.dumps(lambda_payload),
+    )
+
+    return response
