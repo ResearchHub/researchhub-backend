@@ -77,6 +77,15 @@ class Paper(AbstractGenericReactionModel):
 
     CREATED_LOCATION_PROGRESS = CREATED_LOCATIONS["PROGRESS"]
     CREATED_LOCATION_CHOICES = [(CREATED_LOCATION_PROGRESS, "Progress")]
+    
+    HTML_GENERATION_STATUS_PENDING = "PENDING"
+    HTML_GENERATION_STATUS_SUCCESS = "SUCCESS"
+    HTML_GENERATION_STATUS_FAILED = "FAILED"
+    HTML_GENERATION_STATUS_CHOICES = [
+        (HTML_GENERATION_STATUS_PENDING, HTML_GENERATION_STATUS_PENDING),
+        (HTML_GENERATION_STATUS_SUCCESS, HTML_GENERATION_STATUS_SUCCESS),
+        (HTML_GENERATION_STATUS_FAILED, HTML_GENERATION_STATUS_FAILED),
+    ]
 
     rh_threads = GenericRelation(
         RhCommentThreadModel,
@@ -156,6 +165,12 @@ class Paper(AbstractGenericReactionModel):
     )
     completeness = models.CharField(
         choices=PAPER_COMPLETENESS, max_length=16, default=INCOMPLETE
+    )
+
+    # html generation fields
+    html_file_key = models.CharField(max_length=2048, null=True, blank=True)
+    html_generation_status = models.CharField(
+        choices=HTML_GENERATION_STATUS_CHOICES, max_length=16, default=HTML_GENERATION_STATUS_PENDING
     )
 
     # User generated
@@ -845,6 +860,26 @@ class Paper(AbstractGenericReactionModel):
             self.completeness = self.PARTIAL
         else:
             self.completeness = self.INCOMPLETE
+        self.save()
+
+    def has_generated_html(self): 
+        if (self.html_file_key is None) or (len(self.html_file_key) is 0):
+            return False
+        
+        return self.html_generation_status is self.HTML_GENERATION_STATUS_SUCCESS
+
+    def set_html_generation_pending(self):
+        self.html_generation_status = self.HTML_GENERATION_STATUS_PENDING
+        self.save()
+
+    def set_html_generation_success(self, html_file_key):
+        if (html_file_key is not None) and (len(html_file_key) > 0):
+            self.html_file_key = html_file_key
+            self.html_generation_status = self.HTML_GENERATION_STATUS_SUCCESS
+            self.save()
+    
+    def set_html_generation_failed(self):
+        self.html_generation_status = self.HTML_GENERATION_STATUS_FAILED
         self.save()
 
     def get_abstract_backup(self, should_save=False):
