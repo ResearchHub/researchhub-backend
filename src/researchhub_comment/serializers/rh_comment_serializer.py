@@ -84,7 +84,7 @@ class DynamicRhCommentSerializer(
         context = self.context
         # If the view key does not exist, ensure VIEWSET.get_serializer_context()
         # is called to properly to create the serializer context
-        view = context.get("view", None)
+        view = context["view"]
         _context_fields = context.get("rhc_dcs_get_children", {})
         max_depth = context.get("rhc_dcs_get_children_max_depth", 3)
         depth_key = f"rhc_dcs_get_children_{comment.thread.id}_depth"
