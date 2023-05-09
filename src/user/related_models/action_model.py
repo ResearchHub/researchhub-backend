@@ -82,7 +82,9 @@ class Action(DefaultModel):
 
         doc_type_icon = ""
         verb = "done a noteworthy action on"
-        if act.content_type_name == "reply":
+        if act.content_type_name == "rh comment model":
+            verb = "commented on"
+        elif act.content_type_name == "reply":
             verb = "replied to"
         elif act.content_type_name == "comment":
             verb = "commented on"

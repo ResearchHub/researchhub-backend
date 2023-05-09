@@ -125,7 +125,6 @@ class DynamicThreadSerializer(
             awarded_escrow = Escrow.objects.filter(
                 object_id=thread.unified_document.id,
                 content_type=uni_doc_content_type,
-                connected_bounty__isnull=False,
             )
             amount_awarded = awarded_escrow.aggregate(Sum("amount_paid")).get(
                 "amount_paid__sum", None

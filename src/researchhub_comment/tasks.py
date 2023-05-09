@@ -31,13 +31,16 @@ def celery_create_mention_notification(comment_id, recipients):
     comment = RhCommentModel.objects.get(id=comment_id)
     unified_document = comment.unified_document
     for recipient in recipients:
-        if not Notification.objects.filter(
-            object_id=comment.id,
-            content_type=ContentType.objects.get_for_model(RhCommentModel),
-            recipient_id=recipient,
-            action_user=comment.created_by,
-            notification_type=Notification.COMMENT_USER_MENTION,
-        ).exists():
+        if (
+            recipient
+            and not Notification.objects.filter(
+                object_id=comment.id,
+                content_type=ContentType.objects.get_for_model(RhCommentModel),
+                recipient_id=recipient,
+                action_user=comment.created_by,
+                notification_type=Notification.COMMENT_USER_MENTION,
+            ).exists()
+        ):
             comment_created_by = comment.created_by
             notification = Notification.objects.create(
                 item=comment,
