@@ -29,13 +29,13 @@ from utils.http import GET, POST
 from utils.sentry import log_error
 
 EXCLUDED_TOKEN_ADDRS = (
-    Web3.toChecksumAddress("0xb518536b67720d9d61f5250caf5c0494fc087d3d"),
-    Web3.toChecksumAddress("0x4df3043c103a1dc0a80a408f04a2a37f5b0eb662"),
-    Web3.toChecksumAddress("0x8b2864a6c0ac9ef7d6c5cc9adbd613407ec671b3"),
-    Web3.toChecksumAddress("0x95cccfee95039fb5dfe00839dc6930a07c74877c"),
-    Web3.toChecksumAddress("0x5222ff25f4dfc02d173c2cbd2055ee1d35f291f1"),
-    Web3.toChecksumAddress("0xe3648e99b6e68a09e28428790d12b357f081dbe0"),
-    Web3.toChecksumAddress("0xc4cfa2bdae08416312faa0b72758e1f3750f81e3"),
+    Web3.to_checksum_address("0xb518536b67720d9d61f5250caf5c0494fc087d3d"),
+    Web3.to_checksum_address("0x4df3043c103a1dc0a80a408f04a2a37f5b0eb662"),
+    Web3.to_checksum_address("0x8b2864a6c0ac9ef7d6c5cc9adbd613407ec671b3"),
+    Web3.to_checksum_address("0x95cccfee95039fb5dfe00839dc6930a07c74877c"),
+    Web3.to_checksum_address("0x5222ff25f4dfc02d173c2cbd2055ee1d35f291f1"),
+    Web3.to_checksum_address("0xe3648e99b6e68a09e28428790d12b357f081dbe0"),
+    Web3.to_checksum_address("0xc4cfa2bdae08416312faa0b72758e1f3750f81e3"),
 )
 
 

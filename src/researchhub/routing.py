@@ -1,6 +1,9 @@
+# THIS FILE IS DEPRECATED, USE asgi.py INSTEAD
+
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.security.websocket import AllowedHostsOriginValidator
 
+import citation.routing
 import note.routing
 import notification.routing
 import user.routing
