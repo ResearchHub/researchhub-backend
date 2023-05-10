@@ -84,7 +84,7 @@ class Action(DefaultModel):
         verb = "done a noteworthy action on"
         if act.content_type_name == "rh comment model":
             if action_item.parent:
-                "replied to"
+                verb = "replied to"
             else:
                 verb = "commented on"
         elif act.content_type_name == "reply":
