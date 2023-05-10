@@ -107,12 +107,11 @@ class Action(DefaultModel):
             )
 
         noun = ""
-        if act.content_type_name == "comment":
-            noun = "the thread"
-        elif act.content_type_name == "reply":
-            noun = "comment on"
-        elif act.content_type_name == "thread":
-            noun = self.doc_type
+        if act.content_type_name == "rh comment model":
+            if action_item.parent:
+                noun = "your discussion"
+            else:
+                noun = self.doc_type
 
         act.label = "has {} {}".format(verb, noun)
 
