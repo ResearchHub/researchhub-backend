@@ -18,6 +18,8 @@ def handle_creating_citation_entry(path, user_id, organization_id, project_id):
 
     room = f"citation_entry_{user_id}"
     channel_layer = get_channel_layer()
+    print(room)
+    print(channel_layer)
     async_to_sync(channel_layer.group_send)(
         room,
         {

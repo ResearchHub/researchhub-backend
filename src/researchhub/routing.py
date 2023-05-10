@@ -16,6 +16,7 @@ application = ProtocolTypeRouter(
                         *note.routing.websocket_urlpatterns,
                         *notification.routing.websocket_urlpatterns,
                         *user.routing.websocket_urlpatterns,
+                        *citation.routing.websocket_urlpatterns,
                     ]
                 )
             )
