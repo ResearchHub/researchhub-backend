@@ -34,6 +34,7 @@ from discussion.models import Comment, Thread
 from hub.utils import scopus_to_rh_map
 from paper.utils import (
     IGNORE_PAPER_TITLES,
+    call_pdf2html_lambda,
     check_crossref_title,
     check_pdf_title,
     clean_abstract,
@@ -48,7 +49,6 @@ from paper.utils import (
     merge_paper_threads,
     merge_paper_votes,
     reset_paper_cache,
-    call_pdf2html_lambda,
 )
 from purchase.models import Wallet
 from researchhub.celery import (
@@ -59,7 +59,7 @@ from researchhub.celery import (
     QUEUE_PAPER_MISC,
     app,
 )
-from researchhub.settings import APP_ENV, PRODUCTION
+from researchhub.settings import APP_ENV, AWS_STORAGE_BUCKET_NAME, PRODUCTION
 from researchhub_document.utils import update_unified_document_to_paper
 from utils import sentry
 from utils.arxiv.categories import (
@@ -676,7 +676,7 @@ def celery_pdf2html(paper_id):
     except ObjectDoesNotExist:
         return False, "paper does not exist"
 
-    input_bucket_name = "researchhub-paper-dev1"
+    input_bucket_name = AWS_STORAGE_BUCKET_NAME
     input_object_key = paper.file.name
     output_bucket_name = input_bucket_name
     output_object_key = input_object_key + ".html"
