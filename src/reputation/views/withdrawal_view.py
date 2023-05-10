@@ -76,9 +76,9 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                     transfer = True
                     break
 
-            if transfer and Web3.toChecksumAddress(from_addr) == Web3.toChecksumAddress(
-                WEB3_KEYSTORE_ADDRESS
-            ):
+            if transfer and Web3.to_checksum_address(
+                from_addr
+            ) == Web3.to_checksum_address(WEB3_KEYSTORE_ADDRESS):
                 withdrawal = Withdrawal.objects.get(transaction_hash=transaction_hash)
                 withdrawal.paid_status = PaidStatusModelMixin.PAID
                 withdrawal.save()
@@ -136,7 +136,6 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             )
         if valid:
             try:
-
                 withdrawal = Withdrawal.objects.create(
                     user=user,
                     token_address=WEB3_RSC_ADDRESS,
