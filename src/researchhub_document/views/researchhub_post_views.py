@@ -196,8 +196,8 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         full_src_file = ContentFile(request.data["full_src"].encode())
         post.discussion_src.save(file_name, full_src_file)
 
-        if type(authors) is list:
-            rh_post.authors.set(authors)
+        if not rh_post.authors.filter(id=request.user.author_profile.id).exists():
+            rh_post.authors.add(request.user.author_profile)
 
         if type(hubs) is list:
             unified_doc = post.unified_document
