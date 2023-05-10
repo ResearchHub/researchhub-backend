@@ -93,6 +93,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     "user",
                     "bounty_parent",
                     "unified_document",
+                    "source",
                 ]
             },
             "rep_dbs_get_parent": {

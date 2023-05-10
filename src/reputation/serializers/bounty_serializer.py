@@ -168,6 +168,7 @@ class DynamicBountySolutionSerializer(DynamicModelFieldSerializer):
         context = self.context
         _context_fields = context.get("rep_dbss_get_item", {})
 
+        serializer = None
         solution_content_type = solution.content_type
         model_name = solution_content_type.model
         object_id = solution.object_id
@@ -184,6 +185,12 @@ class DynamicBountySolutionSerializer(DynamicModelFieldSerializer):
             )
         elif model_name == "reply":
             serializer = DynamicReplySerializer(obj, context=context, **_context_fields)
+        elif model_name == "rhcommentmodel":
+            from researchhub_comment.serializers import DynamicRhCommentSerializer
+
+            serializer = DynamicRhCommentSerializer(
+                obj, context=context, **_context_fields
+            )
 
         if serializer is not None:
             return serializer.data

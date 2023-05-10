@@ -112,6 +112,7 @@ class DynamicContributionSerializer(DynamicModelFieldSerializer):
         from hypothesis.serializers import DynamicHypothesisSerializer
         from paper.serializers import DynamicPaperSerializer
         from purchase.serializers import DynamicPurchaseSerializer
+        from researchhub_comment.serializers import DynamicRhCommentSerializer
         from researchhub_document.serializers import DynamicPostSerializer
 
         serializer = None
@@ -135,6 +136,10 @@ class DynamicContributionSerializer(DynamicModelFieldSerializer):
             )
         elif model_name == "reply":
             serializer = DynamicReplySerializer(obj, context=context, **_context_fields)
+        elif model_name == "rh comment model":
+            serializer = DynamicRhCommentSerializer(
+                obj, context=context, **_context_fields
+            )
         elif model_name == "purchase":
             serializer = DynamicPurchaseSerializer(
                 obj, context=context, **_context_fields
