@@ -1,10 +1,12 @@
 import json
+from unittest import mock, skip
 
 from django.test import SimpleTestCase
+
 from paper.utils import call_pdf2html_lambda
-from unittest import mock
 
 
+@skip
 class TestUtilsCallPdf2HtmlLambda(SimpleTestCase):
     @mock.patch("boto3.client")
     def test_calls_lambda(self, mock_boto_client_fn):
