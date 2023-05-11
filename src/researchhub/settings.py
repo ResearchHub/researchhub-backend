@@ -487,11 +487,13 @@ AWS_SECRET_ACCESS_KEY = os.environ.get(
 AWS_SCHOLARLY_LAMBDA = (
     "arn:aws:lambda:us-west-2:794128250202:function:ResearchHub-Scholarly"
 )
+AWS_PDF2HTML_LAMDA = "arn:aws:lambda:us-west-2:794128250202:function:pdf2html-Pdf2HtmlFunction-srkZll49MSAo"
 
 ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 7
 ACCOUNT_EMAIL_SUBJECT_PREFIX = "ResearchHub | "
 ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
 DEFAULT_FROM_EMAIL = "noreply@researchhub.com"
+
 # Storage
 
 DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
@@ -503,16 +505,12 @@ if PRODUCTION:
     AWS_STORAGE_BUCKET_NAME = "researchhub-paper-prod"
 AWS_S3_REGION_NAME = "us-west-2"
 
-# config for local S3 (MinIO)
-if DEVELOPMENT:
-    AWS_S3_ENDPOINT_URL = "http://localhost:9000"
-    AWS_S3_ACCESS_KEY_ID = "minio"
-    AWS_S3_SECRET_ACCESS_KEY = "qwerty123"
-
-# config for local version of pdf2html lambda
-if DEVELOPMENT:
-    PDF2HTML_LAMBDA_ENDPOINT_URL = "http://localhost:3001"
-    PDF2HTML_LAMBDA_FUNCTION_NAME = "Pdf2HtmlFunction"
+# Uncomment if want to use MinIO for local S3 development
+# # config for local S3 (MinIO)
+# if DEVELOPMENT:
+#     AWS_S3_ENDPOINT_URL = "http://localhost:9000"
+#     AWS_S3_ACCESS_KEY_ID = "minio"
+#     AWS_S3_SECRET_ACCESS_KEY = "qwerty123"
 
 AWS_S3_FILE_OVERWRITE = False
 AWS_DEFAULT_ACL = None

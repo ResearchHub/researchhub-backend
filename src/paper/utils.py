@@ -1,8 +1,7 @@
 import io
+import json
 import math
 from datetime import datetime
-import boto3
-import json
 
 import cloudscraper
 import fitz
@@ -10,6 +9,7 @@ import jellyfish
 import nltk
 import regex as re
 import requests
+from boto3 import Session
 from bs4 import BeautifulSoup
 from django.conf import settings
 from django.core.cache import cache
@@ -20,7 +20,6 @@ from django.db import models
 from django.db.models import Count, Q
 from habanero import Crossref
 from manubot.cite.csl_item import CSL_Item
-from pathlib import Path
 
 from discussion.reaction_models import Vote as GrmVote
 from paper.exceptions import ManubotProcessingError
@@ -725,10 +724,15 @@ def clean_dois(parsed_url, dois):
 def call_pdf2html_lambda(
     input_bucket_name, input_object_key, output_bucket_name, output_object_key
 ):
-    lambda_endpoint = settings.PDF2HTML_LAMBDA_ENDPOINT_URL
-    lambda_function_name = settings.PDF2HTML_LAMBDA_FUNCTION_NAME
-    lambda_client = boto3.client("lambda", endpoint_url=lambda_endpoint)
-
+    lambda_function_name = settings.AWS_PDF2HTML_LAMDA
+    session = Session(
+        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+        region_name=settings.AWS_S3_REGION_NAME,
+    )
+    lambda_client = session.client(
+        service_name="lambda", region_name=settings.AWS_S3_REGION_NAME
+    )
     lambda_payload = {
         "s3_input": {"bucket_name": input_bucket_name, "object_key": input_object_key},
         "s3_output": {

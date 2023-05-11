@@ -633,10 +633,10 @@ class PaperSerializer(BasePaperSerializer):
             paper.save(update_fields=["file"])
             paper.extract_pdf_preview()
             celery_extract_pdf_sections.apply_async(
-                (paper_id,), priority=3, countdown=15
+                (paper_id,), priority=3, countdown=5
             )
 
-            celery_pdf2html.apply_async((paper_id,), priority=3, countdown=15)
+            celery_pdf2html.apply_async((paper_id,), priority=3, countdown=7)
             return
 
         if paper.url is not None:

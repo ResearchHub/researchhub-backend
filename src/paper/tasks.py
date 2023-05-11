@@ -173,8 +173,9 @@ def download_pdf(paper_id, retry=0):
             # paper.reset_cache(use_celery=False)
             paper.set_paper_completeness()
             celery_extract_pdf_sections.apply_async(
-                (paper_id,), priority=5, countdown=15
+                (paper_id,), priority=5, countdown=5
             )
+            celery_pdf2html.apply_async((paper_id,), priority=3, countdown=7)
             return True
         except Exception as e:
             sentry.log_info(e)
@@ -689,11 +690,16 @@ def celery_pdf2html(paper_id):
         paper.set_html_generation_pending()
 
         # Call lambda function to convert PDF to HTML. This call is synchronous.
-        call_pdf2html_lambda(
+        payload = call_pdf2html_lambda(
             input_bucket_name, input_object_key, output_bucket_name, output_object_key
-        )
+        )["Payload"]
 
-        paper.set_html_generation_success(output_object_key)
+        res = payload.decode("utf8")
+        if res == "true":
+            paper.set_html_generation_success(output_object_key)
+        else:
+            paper.set_html_generation_failed()
+
     except Exception as e:
         sentry.log_error(e, message="failed to generate html for pdf")
 
