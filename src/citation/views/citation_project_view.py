@@ -1,12 +1,14 @@
+from django.db import transaction
+from django.db.models import Q
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
-from django.db.models import Q
 
 from citation.models import CitationProject
 from citation.serializers import CitationProjectSerializer
+from researchhub_access_group.constants import EDITOR
 from user.related_models.organization_model import Organization
 
 
@@ -14,7 +16,15 @@ class CitationProjectViewSet(ModelViewSet):
     queryset = CitationProject.objects.all()
     permission_classes = [IsAuthenticated]
     serializer_class = CitationProjectSerializer
-    ordering = ["-updated_date"]
+    ordering = ["-created_date"]
+
+    # NOTE: use upsert instead
+    def create(self, _request):
+        pass
+
+    # NOTE: use upsert instead
+    def update(self, _request):
+        pass
 
     def list(self, request):
         try:
@@ -49,3 +59,28 @@ class CitationProjectViewSet(ModelViewSet):
                 error,
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+    @action(detail=True, methods=["POST"], permission_classes=[IsAuthenticated])
+    def upsert(self, request, pk=None, *args, **kwargs):
+        # with transaction.atomic:
+        is_create = int(pk) == 0
+        respective_model_method = super().create if is_create else super().update
+        response = respective_model_method(request, *args, **kwargs)
+        upserted_citation = CitationProject.objects.get(id=response.data.get("id"))
+
+        upserted_collaborators = request.data.get("collaborators")
+        if is_create:
+            upserted_citation.set_creator_as_admin()
+            upserted_citation.add_editors(upserted_collaborators)
+        else:
+            removed_editors = upserted_citation.permissions.filter(
+                Q(access_type=EDITOR) & ~Q(id__in=upserted_collaborators)
+            ).values_list("id", flat=True)
+            upserted_citation.add_editors(upserted_collaborators)
+            upserted_citation.remove_editors(removed_editors)
+
+        upserted_citation.refresh_from_db()
+
+        return Response(
+            self.get_serializer(upserted_citation).data, status=status.HTTP_200_OK
+        )
