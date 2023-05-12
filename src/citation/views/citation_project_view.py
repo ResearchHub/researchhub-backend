@@ -49,9 +49,13 @@ class CitationProjectViewSet(ModelViewSet):
                 parent=None,
                 permissions__user=current_user,
             )
-            final_citation_proj_qs = CitationProject.objects.filter(
-                Q(id__in=public_project_ids) | non_public_accessible_projs_qs
-            ).order_by(*self.ordering)
+            final_citation_proj_qs = (
+                CitationProject.objects.filter(
+                    Q(id__in=public_project_ids) | non_public_accessible_projs_qs
+                )
+                .order_by(*self.ordering)
+                .distinct()
+            )
             return Response(self.get_serializer(final_citation_proj_qs, many=True).data)
 
         except Exception as error:
