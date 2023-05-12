@@ -16,7 +16,7 @@ class CitationProjectViewSet(ModelViewSet):
     queryset = CitationProject.objects.all()
     permission_classes = [IsAuthenticated]
     serializer_class = CitationProjectSerializer
-    ordering = ["-created_date"]
+    ordering = ["created_date"]
 
     # NOTE: use upsert instead
     def create(self, _request):
@@ -51,7 +51,7 @@ class CitationProjectViewSet(ModelViewSet):
             )
             final_citation_proj_qs = CitationProject.objects.filter(
                 Q(id__in=public_project_ids) | non_public_accessible_projs_qs
-            )
+            ).order_by(*self.ordering)
             return Response(self.get_serializer(final_citation_proj_qs, many=True).data)
 
         except Exception as error:
