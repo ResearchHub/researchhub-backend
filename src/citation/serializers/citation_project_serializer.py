@@ -4,11 +4,11 @@ from rest_framework.serializers import (
     ModelSerializer,
     SerializerMethodField,
 )
-
+from django.db.models import Q
 from citation.models import CitationProject
 from researchhub_access_group.constants import ADMIN, EDITOR
 from user.related_models.user_model import User
-from user.serializers import DynamicUserSerializer
+from user.serializers import MinimalUserSerializer
 
 
 class CitationProjectSerializer(ModelSerializer):
@@ -32,7 +32,7 @@ class CitationProjectSerializer(ModelSerializer):
         admin_ids = project_instance.permissions.filter(access_type=ADMIN).values_list(
             "user"
         )
-        return DynamicUserSerializer(
+        return MinimalUserSerializer(
             User.objects.filter(id__in=admin_ids), many=True
         ).data
 
@@ -40,7 +40,7 @@ class CitationProjectSerializer(ModelSerializer):
         editor_ids = project_instance.permissions.filter(
             access_type=EDITOR
         ).values_list("user")
-        return DynamicUserSerializer(
+        return MinimalUserSerializer(
             User.objects.filter(id__in=editor_ids), many=True
         ).data
 
@@ -54,7 +54,13 @@ class CitationProjectSerializer(ModelSerializer):
     def get_children(self, rh_comment):
         return CitationProjectSerializer(
             context=self.context,
-            instance=rh_comment.children,
+            instance=rh_comment.children.filter(
+                Q(is_public=True)
+                | Q(
+                    is_public=False,
+                    permissions__user=self.context.get("request").user,
+                )
+            ).distinct(),
             many=True,
         ).data
 

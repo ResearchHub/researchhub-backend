@@ -393,6 +393,9 @@ class MinimalUserSerializer(ModelSerializer):
         fields = [
             "id",
             "author_profile",
+            "first_name",
+            "last_name",
+            "reputation",
         ]
 
     def get_author_profile(self, obj):
