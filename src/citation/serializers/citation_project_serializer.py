@@ -8,7 +8,7 @@ from rest_framework.serializers import (
 from citation.models import CitationProject
 from researchhub_access_group.constants import ADMIN, EDITOR
 from user.related_models.user_model import User
-from user.serializers import UserSerializer
+from user.serializers import DynamicUserSerializer
 
 
 class CitationProjectSerializer(ModelSerializer):
@@ -32,13 +32,17 @@ class CitationProjectSerializer(ModelSerializer):
         admin_ids = project_instance.permissions.filter(access_type=ADMIN).values_list(
             "user"
         )
-        return UserSerializer(User.objects.filter(id__in=admin_ids), many=True).data
+        return DynamicUserSerializer(
+            User.objects.filter(id__in=admin_ids), many=True
+        ).data
 
     def get_editors(self, project_instance):
         editor_ids = project_instance.permissions.filter(
             access_type=EDITOR
         ).values_list("user")
-        return UserSerializer(User.objects.filter(id__in=editor_ids), many=True).data
+        return DynamicUserSerializer(
+            User.objects.filter(id__in=editor_ids), many=True
+        ).data
 
     def get_current_user_has_access(self, project_instance):
         try:
