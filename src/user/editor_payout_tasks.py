@@ -12,7 +12,7 @@ from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO, 
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import Distribution  # this is NOT the model
 from reputation.related_models.distribution import Distribution as DistributionModel
-from researchhub.settings import MORALIS_API_KEY, WEB3_RSC_ADDRESS
+from researchhub.settings import APP_ENV, MORALIS_API_KEY, WEB3_RSC_ADDRESS
 from researchhub_access_group.constants import EDITOR
 from user.constants.gatekeeper_constants import (
     EDITOR_PAYOUT_ADMIN,
@@ -40,14 +40,21 @@ def editor_daily_payout_task():
             distribution_type="EDITOR_PAYOUT",
             created_date__gte=datetime.datetime.now().replace(hour=0, minute=0),
         ).exists()
-        if (is_payment_made_today):
+        if is_payment_made_today:
             return {"msg": "Editor payout already made today"}
 
         User = apps.get_model("user.User")
         today = datetime.date.today()
         num_days_this_month = monthrange(today.year, today.month)[1]
         gecko_result = get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month)
-        moralis_result = get_daily_rsc_payout_amount_from_deep_index(num_days_this_month)
+        try:
+            moralis_result = get_daily_rsc_payout_amount_from_deep_index(
+                num_days_this_month
+            )
+        except Exception as error:
+            # NOTE: moralis is a back up. Backup failing should not hard kill payout process.
+            sentry.log_info(f"{APP_ENV}-running payout moralis Fail: {error}")
+            pass
         result = gecko_result or moralis_result
 
         excluded_user_email = Gatekeeper.objects.filter(
@@ -65,6 +72,7 @@ def editor_daily_payout_task():
         )
 
         from reputation.distributor import Distributor
+
         for editor in editors.iterator():
             try:
                 pay_amount = result["pay_amount"]
@@ -94,7 +102,7 @@ def get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month):
         created_date__gte=datetime.datetime.now().replace(hour=14, minute=50),
     ).first()
 
-    if (recent_coin_gecko_rate is None):
+    if recent_coin_gecko_rate is None:
         return None
 
     gecko_payout_usd_per_rsc = (
@@ -112,6 +120,7 @@ def get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month):
             / num_days_this_month
         ),
     }
+
 
 def get_daily_rsc_payout_amount_from_deep_index(num_days_this_month):
     headers = requests.utils.default_headers()
@@ -143,6 +152,7 @@ def get_daily_rsc_payout_amount_from_deep_index(num_days_this_month):
     )
 
     return result
+
 
 def get_daily_rsc_payout_amount_from_uniswap(num_days_this_month):
     today = datetime.date.today()
