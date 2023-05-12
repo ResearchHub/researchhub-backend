@@ -75,9 +75,9 @@ class CitationProjectViewSet(ModelViewSet):
         else:
             removed_editors = upserted_citation.permissions.filter(
                 Q(access_type=EDITOR) & ~Q(id__in=upserted_collaborators)
-            ).values_list("id", flat=True)
-            upserted_citation.add_editors(upserted_collaborators)
+            ).values_list("user", flat=True)
             upserted_citation.remove_editors(removed_editors)
+            upserted_citation.add_editors(upserted_collaborators)
 
         upserted_citation.refresh_from_db()
 

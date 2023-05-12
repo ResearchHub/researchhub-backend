@@ -4,6 +4,7 @@ from researchhub_access_group.constants import ADMIN, EDITOR
 from researchhub_access_group.related_models.permission_model import Permission
 
 from user.models import Organization
+from user.related_models.user_model import User
 from utils.models import DefaultAuthenticatedModel
 
 
@@ -40,15 +41,15 @@ class CitationProject(DefaultAuthenticatedModel):
     """--- METHODS ---"""
 
     def add_editors(self, editor_ids=[]):
-        print("################")
-        print("editor_ids: ", editor_ids)
         try:
             for editor_id in editor_ids:
                 editor_exists = self.permissions.filter(
                     access_type=EDITOR, user=editor_id
                 ).exists()
                 if not editor_exists:
-                    self.permissions.create(access_type=EDITOR, user=editor_id)
+                    self.permissions.create(
+                        access_type=EDITOR, user=User.objects.get(id=editor_id)
+                    )
             return True
         except Exception as error:
             return False
@@ -56,7 +57,9 @@ class CitationProject(DefaultAuthenticatedModel):
     def remove_editors(self, editor_ids):
         try:
             for editor_id in editor_ids:
-                self.permissions.create(access_type=EDITOR, user=editor_id)
+                self.permissions.filter(
+                    access_type=EDITOR, user=User.objects.get(id=editor_id)
+                ).all().delete()
             return True
         except Exception as error:
             return False
