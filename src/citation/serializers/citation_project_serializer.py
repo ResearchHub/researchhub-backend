@@ -32,17 +32,13 @@ class CitationProjectSerializer(ModelSerializer):
         admin_ids = project_instance.permissions.filter(access_type=ADMIN).values_list(
             "user"
         )
-        return UserSerializer(
-            User.objects.filter(id__in=admin_ids), many=True
-        ).data
+        return UserSerializer(User.objects.filter(id__in=admin_ids), many=True).data
 
     def get_editors(self, project_instance):
         editor_ids = project_instance.permissions.filter(
             access_type=EDITOR
         ).values_list("user")
-        return UserSerializer(
-            User.objects.filter(id__in=editor_ids), many=True
-        ).data
+        return UserSerializer(User.objects.filter(id__in=editor_ids), many=True).data
 
     def get_current_user_has_access(self, project_instance):
         try:
