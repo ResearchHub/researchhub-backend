@@ -11,12 +11,12 @@ from citation.constants import CITATION_TYPE_FIELDS, JOURNAL_ARTICLE
 from citation.filters import CitationEntryFilter
 from citation.models import CitationEntry
 from citation.related_models.citation_project import CitationProject
-from citation.schema import generate_schema_for_citation, generate_json_for_journal
+from citation.schema import generate_json_for_journal, generate_schema_for_citation
 from citation.serializers import CitationEntrySerializer
 from citation.tasks import handle_creating_citation_entry
 from user.related_models.organization_model import Organization
-from utils.openalex import OpenAlex
 from utils.aws import upload_to_s3
+from utils.openalex import OpenAlex
 
 
 class CitationEntryViewSet(ModelViewSet):
@@ -33,40 +33,27 @@ class CitationEntryViewSet(ModelViewSet):
 
     def retrieve(self, request):
         pass
-    
+
     @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
     def pdf_uploads(self, request):
-        pdfs = request.FILES.getlist('pdfs[]')
+        pdfs = request.FILES.getlist("pdfs[]")
         schema = generate_schema_for_citation(JOURNAL_ARTICLE)
         entry_json = {}
         created = []
         for pdf in pdfs:
-            url = upload_to_s3(pdf, 'citation_pdfs')
-            path = url.split('.com/')[1]
+            url = upload_to_s3(pdf, "citation_pdfs")
+            path = url.split(".com/")[1]
             handle_creating_citation_entry.apply_async(
                 (
                     path,
                     request.user.id,
-                    request.data.get('organization_id'),
-                    request.data.get('project_id')
+                    request.data.get("organization_id"),
+                    request.data.get("project_id"),
                 ),
                 priority=5,
             )
-            print(url)
-            # conversion = pdf2doi.pdf2doi_singlefile(pdf)
-            # json = generate_json_for_journal(conversion)
-            # entry = CitationEntry.objects.create(
-            #     citation_type=JOURNAL_ARTICLE,
-            #     fields=json,
-            #     created_by=request.user,
-            #     organization_id=request.data.get('organization_id'),
-            #     attachment=pdf,
-            #     doi=json['DOI'],
-            #     project_id=request.data.get('project_id')
-            # )
-            # created.append(self.serializer_class(entry).data)
 
-        return Response({'created': created}, 200)
+        return Response({"created": created}, 200)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def user_citations(self, request):
