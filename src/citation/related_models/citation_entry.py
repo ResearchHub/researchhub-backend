@@ -4,12 +4,14 @@ from django.core.validators import FileExtensionValidator
 
 from citation.constants import CITATION_TYPE_CHOICES
 from citation.related_models.citation_project import CitationProject
-from citation.schema import generate_schema_for_citation
 from user.models import Organization
 from utils.models import DefaultAuthenticatedModel
 
 
 class CitationEntry(DefaultAuthenticatedModel):
+
+    """--- MODEL FIELDS ---"""
+
     attachment = models.FileField(
         blank=True,
         default=None,

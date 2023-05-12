@@ -46,7 +46,6 @@ class Organization(DefaultModel):
     def org_has_user(self, user, content_user=True, **filters):
         permissions = self.permissions
         org_permission = permissions.filter(user=user, **filters).exists()
-
         if content_user:
             has_perm = org_permission or self.org_content_has_user(user, **filters)
         else:
