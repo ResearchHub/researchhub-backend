@@ -30,6 +30,7 @@ class CitationProjectViewSet(ModelViewSet):
         try:
             current_user = request.user
             org_id = request.query_params.get("organization", None)
+            
             if org_id.endswith("/"):
                 org_id = org_id[:-1]
             org = Organization.objects.get(id=int(org_id))
