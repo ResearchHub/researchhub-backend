@@ -41,7 +41,7 @@ from paper.utils import (
     convert_journal_url_to_pdf_url,
     convert_pdf_url_to_journal_url,
 )
-from reputation.models import Bounty, Contribution
+from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from researchhub.lib import get_document_id_from_path
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -792,6 +792,7 @@ class DynamicPaperSerializer(
     first_preview = serializers.SerializerMethodField()
     hubs = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
+    purchases = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
     uploaded_by = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
@@ -841,31 +842,16 @@ class DynamicPaperSerializer(
         return 0
 
     def get_bounties(self, paper):
-        # TODO: Remove temporary return
-        return None
         from reputation.serializers import DynamicBountySerializer
 
-        context = {
-            "rep_dbs_get_created_by": {"_include_fields": ("author_profile", "id")},
-            "usr_dus_get_author_profile": {
-                "_include_fields": (
-                    "id",
-                    "profile_image",
-                    "first_name",
-                    "last_name",
-                )
-            },
-        }
-        thread_ids = paper.threads.values_list("id", flat=True)
-        bounties = Bounty.objects.filter(
-            item_content_type__model="researchhubunifieddocument",
-            item_object_id__in=thread_ids,
-        )
+        context = self.context
+        _context_fields = context.get("pap_dbs_get_bounties", {})
+        bounties = paper.unified_document.bounties.all()
         serializer = DynamicBountySerializer(
             bounties,
             many=True,
             context=context,
-            _include_fields=("amount", "created_by", "expiration_date", "id", "status"),
+            **_context_fields,
         )
         return serializer.data
 
@@ -888,6 +874,16 @@ class DynamicPaperSerializer(
                 )
                 return serializer.data
         return None
+
+    def get_purchases(self, paper):
+        from purchase.serializers import DynamicPurchaseSerializer
+
+        context = self.context
+        _context_fields = context.get("pap_dps_get_purchases", {})
+        serializer = DynamicPurchaseSerializer(
+            paper.purchases, many=True, context=context, **_context_fields
+        )
+        return serializer.data
 
     def get_score(self, paper):
         return paper.calculate_score()

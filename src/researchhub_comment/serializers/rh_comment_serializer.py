@@ -1,4 +1,3 @@
-from django.contrib.contenttypes.models import ContentType
 from django.db.models import Sum
 from rest_framework.serializers import SerializerMethodField
 
@@ -7,7 +6,6 @@ from discussion.reaction_serializers import (
     GenericReactionSerializerMixin,
 )
 from purchase.serializers import DynamicPurchaseSerializer
-from reputation.models import Escrow
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.serializers.constants.rh_comment_serializer_contants import (
@@ -118,9 +116,7 @@ class DynamicRhCommentSerializer(
     def get_purchases(self, comment):
         context = self.context
         _context_fields = context.get("rhc_dcs_get_purchases", {})
-        serializer = DynamicPurchaseSerializer(
-            comment.purchases, many=True, context=context, **_context_fields
-        )
+        serializer = DynamicPurchaseSerializer(ext=context, **_context_fields)
         return serializer.data
 
     def get_bounties(self, comment):
