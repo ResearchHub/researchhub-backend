@@ -1,3 +1,4 @@
+from django.db.models import Q
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -29,14 +30,18 @@ class CitationEntryViewSet(ModelViewSet):
         user = request.user
         organization_id = request.GET.get("organization_id", None)
         project_id = request.GET.get("project_id")
+        citations_query = None
         if project_id:
             citations_query = CitationProject.objects.get(id=project_id).citations.all()
         elif organization_id:
             citations_query = Organization.objects.get(
                 id=organization_id
             ).created_citations.all()
+            if request.query_params.get("get_current_user_citations", None):
+                citations_query = citations_query.filter(created_by=user.id)
         else:
-            citations_query = user.created_citation_citationentry.all()
+            raise PermissionError("Fetch not allowed without org_id or project_id")
+
         citations_query = citations_query.order_by(*self.ordering)
         page = self.paginate_queryset(citations_query)
         if page is not None:
