@@ -1,7 +1,6 @@
 import pdf2doi
 
 from citation.constants import CITATION_TYPE_FIELDS, JOURNAL_ARTICLE
-from citation.models import CitationEntry
 from citation.schema import generate_json_for_journal
 from citation.serializers import CitationEntrySerializer
 
