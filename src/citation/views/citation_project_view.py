@@ -8,6 +8,9 @@ from rest_framework.viewsets import ModelViewSet
 
 from citation.models import CitationProject
 from citation.serializers import CitationProjectSerializer
+from citation.views.permissions.citation_project_view_permissions import (
+    UserIsAdminOfProject,
+)
 from researchhub_access_group.constants import EDITOR
 from user.related_models.organization_model import Organization
 
@@ -73,3 +76,9 @@ class CitationProjectViewSet(ModelViewSet):
             )
         )
         return Response(self.get_serializer(final_citation_proj_qs, many=True).data)
+
+    @action(detail=True, methods=["POST"], permission_classes=[UserIsAdminOfProject])
+    def remove(self, request, pk=None, *args, **kwargs):
+        target_project = CitationProject.objects.filter(id=int(pk)).first()
+        target_project.delete()
+        return Response("removed", status=status.HTTP_200_OK)

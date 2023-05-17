@@ -20,7 +20,7 @@ class CitationProject(DefaultAuthenticatedModel):
         "self",
         blank=True,
         null=True,
-        on_delete=models.SET_NULL,
+        on_delete=models.CASCADE,
         related_name="children",
     )
     permissions = GenericRelation(
@@ -51,7 +51,7 @@ class CitationProject(DefaultAuthenticatedModel):
             self.permissions.filter(access_type=EDITOR, user=editor_id).all().delete()
         return True
 
-    def get_current_user_has_access(self, user):
+    def get_user_has_access(self, user):
         org_has_user = self.organization.org_has_user(user)
         if not org_has_user:
             return False
@@ -60,6 +60,10 @@ class CitationProject(DefaultAuthenticatedModel):
             return True
         else:
             return self.permissions.has_user(user)
+
+    def get_is_user_admin(self, user):
+        if self.get_user_has_access(user):
+            return self.permissions.filter(access_type=ADMIN, user=user).exists()
 
     def set_creator_as_admin(self):
         self.permissions.create(access_type=ADMIN, user=self.created_by)
