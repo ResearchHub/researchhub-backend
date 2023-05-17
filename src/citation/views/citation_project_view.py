@@ -18,19 +18,40 @@ class CitationProjectViewSet(ModelViewSet):
     serializer_class = CitationProjectSerializer
     ordering = ["created_date"]
 
-    # NOTE: use upsert instead
-    def create(self, _request):
-        pass
+    def create(self, request, *args, **kwargs):
+        upserted_collaborators = request.data.get("collaborators")
+        with transaction.atomic():
+            response = self.super().create(request, *args, **kwargs)
+            citation = self.get_queryset().get(id=response.data.get("id"))
+            citation.set_creator_as_admin()
+            citation.add_editors(upserted_collaborators)
 
-    # NOTE: use upsert instead
-    def update(self, _request):
-        pass
+            citation.refresh_from_db()
+            return Response(
+                self.get_serializer(citation).data, status=status.HTTP_200_OK
+            )
+
+    def update(self, request, *args, **kwargs):
+        upserted_collaborators = request.data.get("collaborators")
+        with transaction.atomic():
+            response = self.super().update(request, *args, **kwargs)
+            citation = CitationProject.objects.get(id=response.data.get("id"))
+            removed_editors = citation.permissions.filter(
+                Q(access_type=EDITOR) & ~Q(id__in=upserted_collaborators)
+            ).values_list("user", flat=True)
+            citation.remove_editors(removed_editors)
+            citation.add_editors(upserted_collaborators)
+
+            citation.refresh_from_db()
+            return Response(
+                self.get_serializer(citation).data, status=status.HTTP_200_OK
+            )
 
     def list(self, request):
         try:
             current_user = request.user
             org_id = request.query_params.get("organization", None)
-            
+
             if org_id.endswith("/"):
                 org_id = org_id[:-1]
             org = Organization.objects.get(id=int(org_id))
@@ -65,27 +86,27 @@ class CitationProjectViewSet(ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    @action(detail=True, methods=["POST"], permission_classes=[IsAuthenticated])
-    def upsert(self, request, pk=None, *args, **kwargs):
-        # with transaction.atomic:
-        is_create = int(pk) == 0
-        respective_model_method = super().create if is_create else super().update
-        response = respective_model_method(request, *args, **kwargs)
-        upserted_citation = CitationProject.objects.get(id=response.data.get("id"))
+    # @action(detail=True, methods=["POST"], permission_classes=[IsAuthenticated])
+    # def upsert(self, request, pk=None, *args, **kwargs):
+    #     # with transaction.atomic:
+    #     is_create = int(pk) == 0
+    #     respective_model_method = super().create if is_create else super().update
+    #     response = respective_model_method(request, *args, **kwargs)
+    #     upserted_citation = CitationProject.objects.get(id=response.data.get("id"))
 
-        upserted_collaborators = request.data.get("collaborators")
-        if is_create:
-            upserted_citation.set_creator_as_admin()
-            upserted_citation.add_editors(upserted_collaborators)
-        else:
-            removed_editors = upserted_citation.permissions.filter(
-                Q(access_type=EDITOR) & ~Q(id__in=upserted_collaborators)
-            ).values_list("user", flat=True)
-            upserted_citation.remove_editors(removed_editors)
-            upserted_citation.add_editors(upserted_collaborators)
+    #     upserted_collaborators = request.data.get("collaborators")
+    #     if is_create:
+    #         upserted_citation.set_creator_as_admin()
+    #         upserted_citation.add_editors(upserted_collaborators)
+    #     else:
+    #         removed_editors = upserted_citation.permissions.filter(
+    #             Q(access_type=EDITOR) & ~Q(id__in=upserted_collaborators)
+    #         ).values_list("user", flat=True)
+    #         upserted_citation.remove_editors(removed_editors)
+    #         upserted_citation.add_editors(upserted_collaborators)
 
-        upserted_citation.refresh_from_db()
+    #     upserted_citation.refresh_from_db()
 
-        return Response(
-            self.get_serializer(upserted_citation).data, status=status.HTTP_200_OK
-        )
+    #     return Response(
+    #         self.get_serializer(upserted_citation).data, status=status.HTTP_200_OK
+    #     )

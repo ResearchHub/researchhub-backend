@@ -1,21 +1,26 @@
-from django.db import models
-from django.db.models import Q
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.db import models
+from django.db.models import Q
 
 from researchhub_access_group.constants import (
     ACCESS_TYPE_CHOICES,
     ADMIN,
     EDITOR,
-    VIEWER,
     MEMBER,
     NO_ACCESS,
+    VIEWER,
 )
 from utils.models import DefaultModel
 
 
 class PermissionManager(models.Manager):
-    def has_user(self, user, perm_filters=list(), org_filters=list()):
+    def has_user(self, user, perm_filters=None, org_filters=None):
+        if perm_filters is None:
+            perm_filters = []
+        if org_filters is None:
+            org_filters = []
+
         # Checks if the user exists within the permission or organization
         main_perm_filter = Q(user=user) & ~Q(access_type=NO_ACCESS)
         main_org_filter = Q(organization__permissions__user=user) & ~Q(
