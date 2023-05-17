@@ -8,7 +8,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.template.loader import render_to_string
 from django.utils.text import slugify
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
@@ -55,7 +55,7 @@ from utils.sentry import log_error
 class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
     ordering = "-created_date"
     queryset = ResearchhubUnifiedDocument.objects.all()
-    permission_classes = [AllowAny, HasDocumentEditingPermission]
+    permission_classes = [IsAuthenticatedOrReadOnly, HasDocumentEditingPermission]
     serializer_class = ResearchhubPostSerializer
 
     @track_event

@@ -1,4 +1,3 @@
-from django.contrib.contenttypes.models import ContentType
 from rest_framework.serializers import (
     ModelSerializer,
     ReadOnlyField,
@@ -12,9 +11,8 @@ from discussion.reaction_serializers import (
 from discussion.reaction_serializers import GenericReactionSerializerMixin
 from discussion.serializers import DynamicThreadSerializer
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
-from reputation.models import Bounty
 from researchhub.serializers import DynamicModelFieldSerializer
-from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
+from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
     RESEARCHHUB_POST_DOCUMENT_TYPES,
 )
@@ -52,6 +50,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             "note",
             "post_src",
             "preview_img",
+            "purchases",
             "renderable_text",
             "slug",
             "title",
@@ -97,6 +96,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
     is_removed = SerializerMethodField()
     note = SerializerMethodField()
     post_src = SerializerMethodField(method_name="get_post_src")
+    purchases = SerializerMethodField()
     unified_document = SerializerMethodField()
     unified_document_id = SerializerMethodField(method_name="get_unified_document_id")
 
@@ -130,14 +130,10 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             },
         }
 
-        doc_bounties = Bounty.objects.filter(
-            item_content_type__model="researchhubunifieddocument",
-            item_object_id=post.unified_document.id,
-            status=Bounty.OPEN,
-        )
+        bounties = post.unified_document.related_bounties.all()
 
         serializer = DynamicBountySerializer(
-            doc_bounties,
+            bounties,
             many=True,
             context=context,
             _include_fields=(
@@ -244,14 +240,45 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
     def get_boost_amount(self, instance):
         return instance.get_boost_amount()
 
+    def get_purchases(self, instance):
+        from purchase.serializers import DynamicPurchaseSerializer
+
+        context = {
+            "pch_dps_get_user": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
+                    "first_name",
+                    "last_name",
+                ]
+            },
+            "usr_dus_get_author_profile": {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "profile_image",
+                ]
+            },
+        }
+        serializer = DynamicPurchaseSerializer(
+            instance.purchases,
+            many=True,
+            context=context,
+            _include_fields=("amount", "user"),
+        )
+        return serializer.data
+
 
 class DynamicPostSerializer(DynamicModelFieldSerializer):
     authors = SerializerMethodField()
     boost_amount = SerializerMethodField()
+    bounties = SerializerMethodField()
     created_by = SerializerMethodField()
     has_accepted_answer = ReadOnlyField()  # @property
     hubs = SerializerMethodField()
     note = SerializerMethodField()
+    purchases = SerializerMethodField()
     score = SerializerMethodField()
     threads = SerializerMethodField()
     unified_document = SerializerMethodField()
@@ -266,6 +293,20 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
         _context_fields = context.get("doc_dps_get_authors", {})
         serializer = DynamicAuthorSerializer(
             post.authors, context=context, many=True, **_context_fields
+        )
+        return serializer.data
+
+    def get_bounties(self, post):
+        from reputation.serializers import DynamicBountySerializer
+
+        context = self.context
+        _context_fields = context.get("doc_dps_get_bounties", {})
+        bounties = post.unified_document.related_bounties.all()
+        serializer = DynamicBountySerializer(
+            bounties,
+            many=True,
+            context=context,
+            **_context_fields,
         )
         return serializer.data
 
@@ -326,6 +367,16 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
         _context_fields = context.get("doc_dps_get_created_by", {})
         serializer = DynamicUserSerializer(
             post.created_by, context=context, **_context_fields
+        )
+        return serializer.data
+
+    def get_purchases(self, post):
+        from purchase.serializers import DynamicPurchaseSerializer
+
+        context = self.context
+        _context_fields = context.get("doc_dps_get_get_purchases", {})
+        serializer = DynamicPurchaseSerializer(
+            post.purchases, many=True, context=context, **_context_fields
         )
         return serializer.data
 

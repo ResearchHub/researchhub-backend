@@ -846,7 +846,7 @@ class DynamicPaperSerializer(
 
         context = self.context
         _context_fields = context.get("pap_dbs_get_bounties", {})
-        bounties = paper.unified_document.bounties.all()
+        bounties = paper.unified_document.related_bounties.all()
         serializer = DynamicBountySerializer(
             bounties,
             many=True,

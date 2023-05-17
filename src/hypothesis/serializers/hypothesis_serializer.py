@@ -8,7 +8,6 @@ from discussion.reaction_serializers import (
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from hypothesis.models import Hypothesis
 from note.serializers import DynamicNoteSerializer, NoteSerializer
-from reputation.models import Bounty
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 from user.serializers import (
@@ -39,6 +38,7 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
             "from_post",
             "is_removed",
             "note",
+            "purchases",
             "renderable_text",
             "slug",
             "src",
@@ -76,6 +76,7 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
     vote_meta = SerializerMethodField()
     note = NoteSerializer()
     from_post = SerializerMethodField()
+    purchases = SerializerMethodField()
 
     # GenericReactionSerializerMixin
     promoted = SerializerMethodField()
@@ -111,16 +112,21 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
                 )
             },
         }
-        thread_ids = hypothesis.threads.values("id")
-        bounties = Bounty.objects.filter(
-            item_content_type__model="researchhubunifieddocument",
-            item_object_id__in=thread_ids,
-        )
+
+        bounties = hypothesis.unified_document.related_bounties.all()
+
         serializer = DynamicBountySerializer(
             bounties,
             many=True,
             context=context,
-            _include_fields=("amount", "created_by", "expiration_date", "status"),
+            _include_fields=(
+                "amount",
+                "created_by",
+                "expiration_date",
+                "id",
+                "status",
+                "content_type",
+            ),
         )
         return serializer.data
 
@@ -138,6 +144,35 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
 
     def get_boost_amount(self, hypothesis):
         return hypothesis.get_boost_amount()
+
+    def get_purchases(self, instance):
+        from purchase.serializers import DynamicPurchaseSerializer
+
+        context = {
+            "pch_dps_get_user": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
+                    "first_name",
+                    "last_name",
+                ]
+            },
+            "usr_dus_get_author_profile": {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "profile_image",
+                ]
+            },
+        }
+        serializer = DynamicPurchaseSerializer(
+            instance.purchases,
+            many=True,
+            context=context,
+            _include_fields=("amount", "user"),
+        )
+        return serializer.data
 
     def get_vote_meta(self, hypothesis):
         context = self.context
