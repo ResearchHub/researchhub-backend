@@ -4,7 +4,6 @@ from django.db import models
 from researchhub_access_group.constants import ADMIN, EDITOR
 from researchhub_access_group.related_models.permission_model import Permission
 from user.models import Organization
-from user.related_models.user_model import User
 from utils.models import DefaultAuthenticatedModel
 
 
