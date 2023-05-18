@@ -56,10 +56,6 @@ class CitationProjectViewSet(ModelViewSet):
     )
     def get_projects(self, request, organization_id=None):
         user = request.user
-        from user.models import User
-
-        user = User.objects.get(id=1)
-        self.request.user = user
         org = Organization.objects.get(id=organization_id)
 
         if not org.org_has_user(user=user):
