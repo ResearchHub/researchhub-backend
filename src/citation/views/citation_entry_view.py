@@ -19,7 +19,8 @@ class CitationEntryViewSet(ModelViewSet):
     filter_backends = (DjangoFilterBackend, OrderingFilter)
     permission_classes = [IsAuthenticated]
     serializer_class = CitationEntrySerializer
-    ordering = ["-updated_date", "-created_date"]
+    ordering = ("-updated_date", "-created_date")
+    ordering_fields = ("updated_date", "created_date")
 
     def list(self, request):
         pass
