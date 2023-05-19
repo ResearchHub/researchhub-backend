@@ -1,20 +1,16 @@
-from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
-import pdf2doi
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from citation.constants import CITATION_TYPE_FIELDS, JOURNAL_ARTICLE
+from citation.constants import CITATION_TYPE_FIELDS
 from citation.filters import CitationEntryFilter
 from citation.models import CitationEntry
-from citation.related_models.citation_project import CitationProject
-from citation.schema import generate_json_for_journal, generate_schema_for_citation
+from citation.schema import generate_schema_for_citation
 from citation.serializers import CitationEntrySerializer
 from citation.tasks import handle_creating_citation_entry
-from user.related_models.organization_model import Organization
 from utils.aws import upload_to_s3
 from utils.openalex import OpenAlex
 
@@ -37,8 +33,6 @@ class CitationEntryViewSet(ModelViewSet):
     @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
     def pdf_uploads(self, request):
         pdfs = request.FILES.getlist("pdfs[]")
-        schema = generate_schema_for_citation(JOURNAL_ARTICLE)
-        entry_json = {}
         created = []
         for pdf in pdfs:
             url = upload_to_s3(pdf, "citation_pdfs")
