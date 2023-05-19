@@ -7,7 +7,7 @@ from rest_framework.serializers import (
 )
 
 from citation.models import CitationProject
-from researchhub_access_group.constants import ADMIN, EDITOR
+from researchhub_access_group.constants import EDITOR
 from user.related_models.user_model import User
 from user.serializers import MinimalUserSerializer
 

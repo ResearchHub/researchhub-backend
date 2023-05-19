@@ -15,6 +15,7 @@ from utils.aws import upload_to_s3
 from utils.openalex import OpenAlex
 
 
+# TODO: Permissions
 class CitationEntryViewSet(ModelViewSet):
     queryset = CitationEntry.objects.all()
     filter_class = CitationEntryFilter
@@ -45,6 +46,7 @@ class CitationEntryViewSet(ModelViewSet):
                     request.data.get("project_id"),
                 ),
                 priority=5,
+                countdown=1,
             )
 
         return Response({"created": created}, 200)

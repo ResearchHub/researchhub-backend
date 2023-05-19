@@ -63,7 +63,7 @@ class CitationProject(DefaultAuthenticatedModel):
 
     def get_is_user_admin(self, user):
         if self.get_user_has_access(user):
-            return self.permissions.filter(access_type=ADMIN, user=user).exists()
+            return self.permissions.has_admin_user(user)
 
     def set_creator_as_admin(self):
         self.permissions.create(access_type=ADMIN, user=self.created_by)
