@@ -10,6 +10,8 @@ from citation.filters import CitationEntryFilter
 from citation.models import CitationEntry
 from citation.schema import generate_schema_for_citation
 from citation.serializers import CitationEntrySerializer
+from citation.tasks import handle_creating_citation_entry
+from utils.aws import upload_to_s3
 from utils.openalex import OpenAlex
 
 
@@ -27,6 +29,25 @@ class CitationEntryViewSet(ModelViewSet):
 
     def retrieve(self, request):
         pass
+
+    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
+    def pdf_uploads(self, request):
+        pdfs = request.FILES.getlist("pdfs[]")
+        created = []
+        for pdf in pdfs:
+            url = upload_to_s3(pdf, "citation_pdfs")
+            path = url.split(".com/")[1]
+            handle_creating_citation_entry.apply_async(
+                (
+                    path,
+                    request.user.id,
+                    request.data.get("organization_id"),
+                    request.data.get("project_id"),
+                ),
+                priority=5,
+            )
+
+        return Response({"created": created}, 200)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def user_citations(self, request):
