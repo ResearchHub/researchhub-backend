@@ -8,7 +8,7 @@ class UserIsAdminOfProject(BasePermission):
 
     def has_permission(self, request, view):
         method = request.method
-        if method == RequestMethods.DELETE:
+        if method == RequestMethods.DELETE or method == RequestMethods.POST:
             return True
         return False
 

@@ -78,7 +78,7 @@ class CitationProjectViewSet(ModelViewSet):
 
     @action(
         detail=True,
-        methods=["POST"],
+        methods=["POST", "DELETE"],
         permission_classes=[IsAuthenticated, UserIsAdminOfProject],
     )
     def remove(self, request, pk=None, *args, **kwargs):
