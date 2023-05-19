@@ -381,7 +381,7 @@ class PendingWithdrawal:
         }
 
         contract = w3.eth.contract(
-            abi=contract_abi, address=Web3.toChecksumAddress(RSC_CONTRACT_ADDRESS)
+            abi=contract_abi, address=Web3.to_checksum_address(RSC_CONTRACT_ADDRESS)
         )
         amount = int(self.amount)
         paid = False
@@ -435,7 +435,7 @@ def check_hotwallet():
     """
 
     contract = w3.eth.contract(
-        abi=contract_abi, address=Web3.toChecksumAddress(RSC_CONTRACT_ADDRESS)
+        abi=contract_abi, address=Web3.to_checksum_address(RSC_CONTRACT_ADDRESS)
     )
     rsc_balance_wei = contract.functions.balanceOf(WEB3_KEYSTORE_ADDRESS).call()
     decimals = contract.functions.decimals().call()
