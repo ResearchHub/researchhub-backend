@@ -12,7 +12,7 @@ from rest_framework.serializers import (
 )
 from django.db import transaction
 
-from citation.related_models.citation_entry import CitationEntry
+from citation.related_models.citation_entry_model import CitationEntry
 from citation.schema import generate_schema_for_citation
 from researchhub.serializers import DynamicModelFieldSerializer
 from user.serializers import DynamicOrganizationSerializer, DynamicUserSerializer

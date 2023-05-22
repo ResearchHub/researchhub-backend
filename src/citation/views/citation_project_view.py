@@ -9,6 +9,7 @@ from rest_framework.viewsets import ModelViewSet
 
 from citation.models import CitationProject
 from citation.serializers import CitationProjectSerializer
+from citation.views.permissions import UserIsAdminOfProject
 from researchhub_access_group.constants import EDITOR
 from user.related_models.organization_model import Organization
 
@@ -35,6 +36,8 @@ class CitationProjectViewSet(ModelViewSet):
                 self.get_serializer(citation).data, status=status.HTTP_200_OK
             )
 
+    def list(self, request):
+        print("")
     def update(self, request, *args, **kwargs):
         upserted_collaborators = request.data.get("collaborators")
         with transaction.atomic():
@@ -68,9 +71,23 @@ class CitationProjectViewSet(ModelViewSet):
             parent=None,
             permissions__user=user,
         )
-        final_citation_proj_qs = self.filter_queryset(
-            self.get_queryset().filter(
-                public_projects_query | non_public_accessible_projs_query
+        final_citation_proj_qs = (
+            self.filter_queryset(
+                self.get_queryset().filter(
+                    public_projects_query | non_public_accessible_projs_query
+                )
             )
+            .order_by(*self.ordering)
+            .distinct()
         )
         return Response(self.get_serializer(final_citation_proj_qs, many=True).data)
+
+    @action(
+        detail=True,
+        methods=["POST", "DELETE"],
+        permission_classes=[UserIsAdminOfProject],
+    )
+    def remove(self, request, pk=None, *args, **kwargs):
+        target_project = self.get_object()
+        target_project.delete()
+        return Response("removed", status=status.HTTP_200_OK)
