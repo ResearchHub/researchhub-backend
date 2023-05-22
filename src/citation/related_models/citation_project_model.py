@@ -46,12 +46,11 @@ class CitationProject(DefaultAuthenticatedModel):
                 self.permissions.create(access_type=EDITOR, user=editor_id)
         return True
 
-    def remove_editors(self, editor_ids):
-        for editor_id in editor_ids:
-            self.permissions.filter(access_type=EDITOR, user=editor_id).all().delete()
-        return True
+    def get_is_user_admin(self, user):
+        if self.get_user_has_access(user):
+            return self.permissions.has_admin_user(user)
 
-    def get_current_user_has_access(self, user):
+    def get_user_has_access(self, user):
         org_has_user = self.organization.org_has_user(user)
         if not org_has_user:
             return False
@@ -60,6 +59,11 @@ class CitationProject(DefaultAuthenticatedModel):
             return True
         else:
             return self.permissions.has_user(user)
+
+    def remove_editors(self, editor_ids):
+        for editor_id in editor_ids:
+            self.permissions.filter(access_type=EDITOR, user=editor_id).all().delete()
+        return True
 
     def set_creator_as_admin(self):
         self.permissions.create(access_type=ADMIN, user=self.created_by)
