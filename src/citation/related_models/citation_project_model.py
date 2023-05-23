@@ -4,6 +4,7 @@ from django.db import models
 from researchhub_access_group.constants import ADMIN, EDITOR
 from researchhub_access_group.related_models.permission_model import Permission
 from user.models import Organization
+from user.related_models.user_model import User
 from utils.models import DefaultAuthenticatedModel
 
 
@@ -43,7 +44,9 @@ class CitationProject(DefaultAuthenticatedModel):
         for editor_id in editor_ids:
             editor_exists = self.permissions.has_editor_user(editor_id)
             if not editor_exists:
-                self.permissions.create(access_type=EDITOR, user=editor_id)
+                self.permissions.create(
+                    access_type=EDITOR, user=User.objects.get(id=editor_id)
+                )
         return True
 
     def get_is_user_admin(self, user):
@@ -62,7 +65,7 @@ class CitationProject(DefaultAuthenticatedModel):
 
     def remove_editors(self, editor_ids):
         for editor_id in editor_ids:
-            self.permissions.filter(access_type=EDITOR, user=editor_id).all().delete()
+            self.permissions.filter(access_type=EDITOR, user=User.objects.get(id=editor_id)).all().delete()
         return True
 
     def set_creator_as_admin(self):

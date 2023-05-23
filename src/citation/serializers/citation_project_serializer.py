@@ -10,15 +10,13 @@ from citation.models import CitationProject
 from researchhub_access_group.constants import ADMIN, EDITOR
 from user.related_models.user_model import User
 from user.serializers import MinimalUserSerializer
+from utils.serializers import DefaultAuthenticatedSerializer
 
 
-class CitationProjectSerializer(ModelSerializer):
-    # HiddenField doesn't update instance if the field is not empty
+class CitationProjectSerializer(DefaultAuthenticatedSerializer):
     children = SerializerMethodField()
-    created_by = HiddenField(default=CurrentUserDefault())
     current_user_is_admin = SerializerMethodField(read_only=True)
     editors = SerializerMethodField(read_only=True)
-    updated_by = HiddenField(default=CurrentUserDefault())
 
     class Meta:
         model = CitationProject

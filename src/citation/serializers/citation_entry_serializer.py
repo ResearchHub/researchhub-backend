@@ -7,8 +7,6 @@ from rest_framework.serializers import (
     ReadOnlyField,
     SerializerMethodField,
     ValidationError,
-    HiddenField,
-    CurrentUserDefault,
 )
 from django.db import transaction
 
@@ -16,12 +14,11 @@ from citation.related_models.citation_entry_model import CitationEntry
 from citation.schema import generate_schema_for_citation
 from researchhub.serializers import DynamicModelFieldSerializer
 from user.serializers import DynamicOrganizationSerializer, DynamicUserSerializer
+from utils.serializers import DefaultAuthenticatedSerializer
 
 
-class CitationEntrySerializer(ModelSerializer):
-    # HiddenField doesn't update instance if the field is empty
-    created_by = HiddenField(default=CurrentUserDefault())
-    updated_by = HiddenField(default=CurrentUserDefault())
+class CitationEntrySerializer(DefaultAuthenticatedSerializer):
+
     checksum = ReadOnlyField()
     fields = JSONField()
     required_fields = SerializerMethodField(read_only=True)
