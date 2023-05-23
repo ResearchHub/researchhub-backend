@@ -66,7 +66,7 @@ def get_gas_estimate(method_call):
 
 
 def get_eth_balance(w3, account):
-    return w3.eth.getBalance(account)
+    return w3.eth.get_balance(account)
 
 
 def get_fee_estimate(w3, method_call):

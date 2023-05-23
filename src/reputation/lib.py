@@ -440,7 +440,7 @@ def check_hotwallet():
     rsc_balance_wei = contract.functions.balanceOf(WEB3_KEYSTORE_ADDRESS).call()
     decimals = contract.functions.decimals().call()
     rsc_balance_eth = rsc_balance_wei / (10**decimals)
-    eth_balance_wei = w3.eth.getBalance(WEB3_KEYSTORE_ADDRESS)
+    eth_balance_wei = w3.eth.get_balance(WEB3_KEYSTORE_ADDRESS)
     eth_balanace_eth = eth_balance_wei / (10**18)
     send_email = False
     outer_subject = "RSC is running low in the hotwallet"
