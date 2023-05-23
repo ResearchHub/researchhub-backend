@@ -3,7 +3,6 @@ from django.utils.text import slugify
 from jsonschema import validate
 from rest_framework.serializers import (
     JSONField,
-    ModelSerializer,
     ReadOnlyField,
     SerializerMethodField,
     ValidationError,
