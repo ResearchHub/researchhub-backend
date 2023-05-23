@@ -201,9 +201,11 @@ class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
     aggregate_citation_consensus = SerializerMethodField()
     authors = SerializerMethodField()
     created_by = SerializerMethodField()
+    discussions = SerializerMethodField()
     discussion_count = SerializerMethodField()
     hubs = SerializerMethodField()
     note = SerializerMethodField()
+    purchases = SerializerMethodField()
     score = SerializerMethodField()
     unified_document = SerializerMethodField()
 
@@ -230,6 +232,23 @@ class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
         )
         return serializer.data
 
+    def get_discussions(self, hypothesis):
+        from researchhub_comment.serializers import DynamicRhThreadSerializer
+
+        context = self.context
+        _context_fields = context.get("hyp_dhs_get_discussions", {})
+        _select_related_fields = context.get("hyp_dhs_get_discussions_select", [])
+        _prefetch_related_fields = context.get("hyp_dhs_get_discussions_prefetch", [])
+        serializer = DynamicRhThreadSerializer(
+            hypothesis.rh_threads.select_related(
+                *_select_related_fields
+            ).prefetch_related(*_prefetch_related_fields),
+            many=True,
+            context=context,
+            **_context_fields,
+        )
+        return serializer.data
+
     def get_discussion_count(self, hypotheis):
         return hypotheis.get_discussion_count()
 
@@ -240,7 +259,7 @@ class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
             hypothesis.unified_document.hubs,
             many=True,
             context=context,
-            **_context_fields
+            **_context_fields,
         )
         return serializer.data
 
@@ -249,6 +268,23 @@ class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
         _context_fields = context.get("hyp_dhs_get_note", {})
         serializer = DynamicNoteSerializer(
             hypothesis.note, many=True, context=context, **_context_fields
+        )
+        return serializer.data
+
+    def get_purchases(self, instance):
+        from purchase.serializers import DynamicPurchaseSerializer
+
+        context = self.context
+        _context_fields = context.get("hyp_dhs_get_purchases", {})
+        _select_related_fields = context.get("hyp_dhs_get_purchases_select", [])
+        _prefetch_related_fields = context.get("hyp_dhs_get_purchases_prefetch", [])
+        serializer = DynamicPurchaseSerializer(
+            instance.purchases.select_related(*_select_related_fields).prefetch_related(
+                *_prefetch_related_fields
+            ),
+            many=True,
+            context=context,
+            **_context_fields,
         )
         return serializer.data
 

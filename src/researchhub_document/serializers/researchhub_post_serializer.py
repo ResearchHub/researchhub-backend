@@ -275,6 +275,7 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
     boost_amount = SerializerMethodField()
     bounties = SerializerMethodField()
     created_by = SerializerMethodField()
+    discussions = SerializerMethodField()
     has_accepted_answer = ReadOnlyField()  # @property
     hubs = SerializerMethodField()
     note = SerializerMethodField()
@@ -301,9 +302,34 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
 
         context = self.context
         _context_fields = context.get("doc_dps_get_bounties", {})
-        bounties = post.unified_document.related_bounties.all()
+        _select_related_fields = context.get("doc_dps_get_bounties_select", [])
+        _prefetch_related_fields = context.get("doc_dps_get_bounties_prefetch", [])
+        bounties = (
+            post.unified_document.related_bounties.select_related(
+                *_select_related_fields
+            )
+            .prefetch_related(*_prefetch_related_fields)
+            .all()
+        )
         serializer = DynamicBountySerializer(
             bounties,
+            many=True,
+            context=context,
+            **_context_fields,
+        )
+        return serializer.data
+
+    def get_discussions(self, post):
+        from researchhub_comment.serializers import DynamicRhThreadSerializer
+
+        context = self.context
+        _context_fields = context.get("doc_dps_get_discussions", {})
+        _select_related_fields = context.get("doc_dps_get_discussions_select", [])
+        _prefetch_related_fields = context.get("doc_dps_get_discussions_prefetch", [])
+        serializer = DynamicRhThreadSerializer(
+            post.rh_threads.select_related(*_select_related_fields).prefetch_related(
+                *_prefetch_related_fields
+            ),
             many=True,
             context=context,
             **_context_fields,
@@ -374,9 +400,16 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
         from purchase.serializers import DynamicPurchaseSerializer
 
         context = self.context
-        _context_fields = context.get("doc_dps_get_get_purchases", {})
+        _context_fields = context.get("doc_dps_get_purchases", {})
+        _select_related_fields = context.get("doc_dps_get_purchases_select", [])
+        _prefetch_related_fields = context.get("doc_dps_get_purchases_prefetch", [])
         serializer = DynamicPurchaseSerializer(
-            post.purchases, many=True, context=context, **_context_fields
+            post.purchases.select_related(*_select_related_fields).prefetch_related(
+                *_prefetch_related_fields
+            ),
+            many=True,
+            context=context,
+            **_context_fields,
         )
         return serializer.data
 

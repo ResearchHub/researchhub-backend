@@ -504,7 +504,6 @@ class PaperSerializer(BasePaperSerializer):
 
         try:
             with transaction.atomic():
-
                 # Temporary fix for updating read only fields
                 # Not including file, pdf_url, and url because
                 # those fields are processed
@@ -789,6 +788,7 @@ class DynamicPaperSerializer(
     abstract_src_markdown = serializers.SerializerMethodField()
     boost_amount = serializers.SerializerMethodField()
     bounties = serializers.SerializerMethodField()
+    discussions = serializers.SerializerMethodField()
     first_preview = serializers.SerializerMethodField()
     hubs = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
@@ -845,10 +845,35 @@ class DynamicPaperSerializer(
         from reputation.serializers import DynamicBountySerializer
 
         context = self.context
-        _context_fields = context.get("pap_dbs_get_bounties", {})
-        bounties = paper.unified_document.related_bounties.all()
+        _context_fields = context.get("pap_dps_get_bounties", {})
+        _select_related_fields = context.get("pap_dps_get_bounties_select", [])
+        _prefetch_related_fields = context.get("pap_dps_get_bounties_prefetch", [])
+        bounties = (
+            paper.unified_document.related_bounties.select_related(
+                *_select_related_fields
+            )
+            .prefetch_related(*_prefetch_related_fields)
+            .all()
+        )
         serializer = DynamicBountySerializer(
             bounties,
+            many=True,
+            context=context,
+            **_context_fields,
+        )
+        return serializer.data
+
+    def get_discussions(self, paper):
+        from researchhub_comment.serializers import DynamicRhThreadSerializer
+
+        context = self.context
+        _context_fields = context.get("pap_dps_get_discussions", {})
+        _select_related_fields = context.get("pap_dps_get_discussions_select", [])
+        _prefetch_related_fields = context.get("pap_dps_get_discussions_prefetch", [])
+        serializer = DynamicRhThreadSerializer(
+            paper.rh_threads.select_related(*_select_related_fields).prefetch_related(
+                *_prefetch_related_fields
+            ),
             many=True,
             context=context,
             **_context_fields,
@@ -880,8 +905,15 @@ class DynamicPaperSerializer(
 
         context = self.context
         _context_fields = context.get("pap_dps_get_purchases", {})
+        _select_related_fields = context.get("pap_dps_get_purchases_select", [])
+        _prefetch_related_fields = context.get("pap_dps_get_purchases_prefetch", [])
         serializer = DynamicPurchaseSerializer(
-            paper.purchases, many=True, context=context, **_context_fields
+            paper.purchases.select_related(*_select_related_fields).prefetch_related(
+                *_prefetch_related_fields
+            ),
+            many=True,
+            context=context,
+            **_context_fields,
         )
         return serializer.data
 
