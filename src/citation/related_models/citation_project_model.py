@@ -65,7 +65,9 @@ class CitationProject(DefaultAuthenticatedModel):
 
     def remove_editors(self, editor_ids):
         for editor_id in editor_ids:
-            self.permissions.filter(access_type=EDITOR, user=User.objects.get(id=editor_id)).all().delete()
+            self.permissions.filter(
+                access_type=EDITOR, user=User.objects.get(id=editor_id)
+            ).all().delete()
         return True
 
     def set_creator_as_admin(self):
