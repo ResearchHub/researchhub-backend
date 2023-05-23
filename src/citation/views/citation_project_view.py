@@ -9,6 +9,7 @@ from rest_framework.viewsets import ModelViewSet
 
 from citation.models import CitationProject
 from citation.serializers import CitationProjectSerializer
+from citation.views.permissions import UserIsAdminOfProject
 from researchhub_access_group.constants import EDITOR
 from user.related_models.organization_model import Organization
 
@@ -19,13 +20,12 @@ class CitationProjectViewSet(ModelViewSet):
     filter_backends = (OrderingFilter,)
     permission_classes = [IsAuthenticated]
     serializer_class = CitationProjectSerializer
-    ordering = ("created_date",)
-    ordering_fields = ("updated_date", "created_date")
+    ordering_fields = ("created_date", "created_date")
 
     def create(self, request, *args, **kwargs):
         upserted_collaborators = request.data.get("collaborators")
         with transaction.atomic():
-            response = self.super().create(request, *args, **kwargs)
+            response = super().create(request, *args, **kwargs)
             citation = self.get_queryset().get(id=response.data.get("id"))
             citation.set_creator_as_admin()
             citation.add_editors(upserted_collaborators)
@@ -35,10 +35,16 @@ class CitationProjectViewSet(ModelViewSet):
                 self.get_serializer(citation).data, status=status.HTTP_200_OK
             )
 
+    def list(self, request):
+        return Response(
+            "Method not allowed. Use remove instead",
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
+
     def update(self, request, *args, **kwargs):
         upserted_collaborators = request.data.get("collaborators")
         with transaction.atomic():
-            response = self.super().update(request, *args, **kwargs)
+            response = super().update(request, *args, **kwargs)
             citation = self.get_queryset().get(id=response.data.get("id"))
             removed_editors = citation.permissions.filter(
                 Q(access_type=EDITOR) & ~Q(id__in=upserted_collaborators)
@@ -68,9 +74,23 @@ class CitationProjectViewSet(ModelViewSet):
             parent=None,
             permissions__user=user,
         )
-        final_citation_proj_qs = self.filter_queryset(
-            self.get_queryset().filter(
-                public_projects_query | non_public_accessible_projs_query
+        final_citation_proj_qs = (
+            self.filter_queryset(
+                self.get_queryset().filter(
+                    public_projects_query | non_public_accessible_projs_query
+                )
             )
+            .order_by(*self.ordering_fields)
+            .distinct()
         )
         return Response(self.get_serializer(final_citation_proj_qs, many=True).data)
+
+    @action(
+        detail=True,
+        methods=["POST", "DELETE"],
+        permission_classes=[UserIsAdminOfProject],
+    )
+    def remove(self, request, pk=None, *args, **kwargs):
+        target_project = self.get_object()
+        target_project.delete()
+        return Response("removed", status=status.HTTP_200_OK)

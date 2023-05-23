@@ -3,7 +3,7 @@ from jsonschema import validate
 from django.core.validators import FileExtensionValidator
 
 from citation.constants import CITATION_TYPE_CHOICES
-from citation.related_models.citation_project import CitationProject
+from citation.related_models.citation_project_model import CitationProject
 from user.models import Organization
 from utils.models import DefaultAuthenticatedModel
 
