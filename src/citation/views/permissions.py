@@ -4,7 +4,7 @@ from utils.http import RequestMethods
 
 
 class UserIsAdminOfProject(BasePermission):
-    message = "Permission Denied: Not requestor is not admin of the project"
+    message = "Permission Denied: requestor is not admin of the project"
 
     def has_permission(self, request, view):
         method = request.method
