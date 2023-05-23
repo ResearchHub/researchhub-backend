@@ -1,4 +1,8 @@
+from urllib.parse import urlparse
+
 import pdf2doi
+from django.contrib.postgres.search import SearchQuery
+from django.db.models import Q
 
 from citation.constants import CITATION_TYPE_FIELDS, JOURNAL_ARTICLE
 from citation.models import CitationEntry
@@ -40,9 +44,12 @@ def create_paper_from_citation(citation):
     process_id = None
 
     if not duplicate_papers:
-        submission = PaperSubmissionSerializer.create(
-            uploaded_by=citation.created_by, url=url
-        )
-        process_id = celery_process_paper(submission.id)
+        data = {"uploaded_by": citation.created_by.id, "url": url}
+        submission = PaperSubmissionSerializer(data=data)
+        if submission.is_valid():
+            submission = submission.save()
+            process_id = celery_process_paper(submission.id)
+    else:
+        print("duplicate paper with doi {}".format(citation.doi))
 
     return {"duplicate": duplicate_papers.exists(), "process_id": process_id}
