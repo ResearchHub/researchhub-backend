@@ -2,7 +2,7 @@ from statistics import mean
 
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
-from django.db.models import Q
+from django.db.models import Avg, Count, Q
 from django.utils.functional import cached_property
 
 from hub.models import Hub
@@ -169,10 +169,9 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
 
     def get_review_details(self):
         details = {"avg": 0, "count": 0}
-        reviews = self.reviews.filter(is_removed=False).values_list("score", flat=True)
-        if reviews:
-            details["avg"] = round(mean(reviews), 1)
-            details["count"] = reviews.count()
+        reviews = self.reviews.filter(is_removed=False)
+        if reviews.exists():
+            details = reviews.aggregate(avg=Avg("score"), count=Count("id"))
         return details
 
     def frontend_view_link(self):

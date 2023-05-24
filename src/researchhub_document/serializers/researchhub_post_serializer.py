@@ -1,3 +1,4 @@
+from django.db.models import Count, Q
 from rest_framework.serializers import (
     ModelSerializer,
     ReadOnlyField,
@@ -12,6 +13,11 @@ from discussion.reaction_serializers import GenericReactionSerializerMixin
 from discussion.serializers import DynamicThreadSerializer
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
+from researchhub_comment.constants.rh_comment_thread_types import (
+    GENERIC_COMMENT,
+    PEER_REVIEW,
+    SUMMARY,
+)
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
     RESEARCHHUB_POST_DOCUMENT_TYPES,
@@ -84,7 +90,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
     boost_amount = SerializerMethodField()
     user_endorsement = SerializerMethodField()
     user_flag = SerializerMethodField()
-    user_vote = SerializerMethodField()
+    # user_vote = SerializerMethodField()
 
     # local
     authors = SerializerMethodField()
@@ -276,6 +282,7 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
     bounties = SerializerMethodField()
     created_by = SerializerMethodField()
     discussions = SerializerMethodField()
+    discussion_aggregates = SerializerMethodField()
     has_accepted_answer = ReadOnlyField()  # @property
     hubs = SerializerMethodField()
     note = SerializerMethodField()
@@ -335,6 +342,23 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
             **_context_fields,
         )
         return serializer.data
+
+    def get_discussion_aggregates(self, hypothesis):
+        aggregates = hypothesis.rh_threads.aggregate(
+            discussion_count=Count(
+                "rh_comments",
+                filter=Q(thread_type=GENERIC_COMMENT, rh_comments__is_removed=False),
+            ),
+            review_count=Count(
+                "rh_comments",
+                filter=Q(thread_type=PEER_REVIEW, rh_comments__is_removed=False),
+            ),
+            summary_count=Count(
+                "rh_comments",
+                filter=Q(thread_type=SUMMARY, rh_comments__is_removed=False),
+            ),
+        )
+        return aggregates
 
     def get_note(self, post):
         from note.serializers import DynamicNoteSerializer

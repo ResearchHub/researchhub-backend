@@ -116,7 +116,9 @@ class DynamicRhCommentSerializer(
     def get_purchases(self, comment):
         context = self.context
         _context_fields = context.get("rhc_dcs_get_purchases", {})
-        serializer = DynamicPurchaseSerializer(context=context, **_context_fields)
+        serializer = DynamicPurchaseSerializer(
+            comment.purchases, many=True, context=context, **_context_fields
+        )
         return serializer.data
 
     def get_bounties(self, comment):

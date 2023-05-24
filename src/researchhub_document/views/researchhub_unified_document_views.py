@@ -658,15 +658,18 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     @action(detail=True, methods=["get"], permission_classes=[AllowAny])
     def get_document_metadata(self, request, pk=None):
         unified_document = self.get_object()
+        context = self.get_serializer_context()
         bounties_context_fields = ("id", "amount", "created_by")
         discussion_context_fields = ("id", "comment_count", "thread_type")
         purchase_context_fields = ("id", "amount", "user")
         metadata_context = {
+            **context,
             "doc_duds_get_documents": {
                 "_include_fields": (
                     "bounties",
-                    "discussions",
+                    "discussion_aggregates",
                     "purchases",
+                    "user_vote",
                 )
             },
             "doc_dps_get_bounties": {"_include_fields": bounties_context_fields},
@@ -705,7 +708,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         }
         serializer = self.dynamic_serializer_class(
             unified_document,
-            _include_fields=("id", "documents"),
+            _include_fields=("id", "documents", "reviews"),
             context=metadata_context,
         )
         serializer_data = serializer.data

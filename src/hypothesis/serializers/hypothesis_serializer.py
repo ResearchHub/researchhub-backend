@@ -1,3 +1,4 @@
+from django.db.models import Count, Q
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
 from discussion.reaction_models import Vote
@@ -9,6 +10,11 @@ from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from hypothesis.models import Hypothesis
 from note.serializers import DynamicNoteSerializer, NoteSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
+from researchhub_comment.constants.rh_comment_thread_types import (
+    GENERIC_COMMENT,
+    PEER_REVIEW,
+    SUMMARY,
+)
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 from user.serializers import (
     AuthorSerializer,
@@ -82,7 +88,7 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
     promoted = SerializerMethodField()
     user_endorsement = SerializerMethodField()
     user_flag = SerializerMethodField()
-    user_vote = SerializerMethodField()  # NOTE: calvinhlee - deprecate?
+    # user_vote = SerializerMethodField()  # NOTE: calvinhlee - deprecate?
 
     def get_from_post(self, hypothesis):
         if hypothesis.from_bounty:
@@ -130,8 +136,8 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
         )
         return serializer.data
 
-    def get_discussion_count(self, hypotheis):
-        return hypotheis.get_discussion_count()
+    def get_discussion_count(self, hypothesis):
+        return hypothesis.get_discussion_count()
 
     def get_full_markdown(self, hypothesis):
         byte_string = hypothesis.src.read()
@@ -202,6 +208,7 @@ class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
     authors = SerializerMethodField()
     created_by = SerializerMethodField()
     discussions = SerializerMethodField()
+    discussion_aggregates = SerializerMethodField()
     discussion_count = SerializerMethodField()
     hubs = SerializerMethodField()
     note = SerializerMethodField()
@@ -249,8 +256,25 @@ class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
         )
         return serializer.data
 
-    def get_discussion_count(self, hypotheis):
-        return hypotheis.get_discussion_count()
+    def get_discussion_aggregates(self, hypothesis):
+        aggregates = hypothesis.rh_threads.aggregate(
+            discussion_count=Count(
+                "rh_comments",
+                filter=Q(thread_type=GENERIC_COMMENT, rh_comments__is_removed=False),
+            ),
+            review_count=Count(
+                "rh_comments",
+                filter=Q(thread_type=PEER_REVIEW, rh_comments__is_removed=False),
+            ),
+            summary_count=Count(
+                "rh_comments",
+                filter=Q(thread_type=SUMMARY, rh_comments__is_removed=False),
+            ),
+        )
+        return aggregates
+
+    def get_discussion_count(self, hypothesis):
+        return hypothesis.get_discussion_count()
 
     def get_hubs(self, hypothesis):
         context = self.context

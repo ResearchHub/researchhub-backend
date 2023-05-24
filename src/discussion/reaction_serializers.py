@@ -71,14 +71,14 @@ class GenericReactionSerializerMixin:
         "score",
         "user_endorsement",
         "user_flag",
-        "user_vote",
+        # "user_vote",
     ]
     READ_ONLY_FIELDS = [
         "promoted",
         "score",
         "user_endorsement",
         "user_flag",
-        "user_vote",
+        # "user_vote",
     ]
 
     def get_document_meta(self, obj):
