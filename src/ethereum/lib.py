@@ -58,7 +58,7 @@ def convert_reputation_amount_to_token_amount(token, reputation_amount):
 
 
 def get_nonce(w3, account):
-    return w3.eth.getTransactionCount(account)
+    return w3.eth.get_transaction_count(account)
 
 
 def get_gas_estimate(method_call):
@@ -74,7 +74,7 @@ def get_fee_estimate(w3, method_call):
     generateGasPrice.
     """
     gas_estimate = get_gas_estimate(method_call)
-    gas_price = w3.eth.generateGasPrice()  # wei
+    gas_price = w3.eth.generate_gas_price()  # wei
     return gas_estimate * gas_price
 
 
@@ -111,7 +111,7 @@ def transact(w3, method_call, sender, sender_signing_key, gas=None):
     """
     gas_estimate = get_gas_estimate(method_call)
     checksum_sender = Web3.to_checksum_address(sender)
-    tx = method_call.buildTransaction(
+    tx = method_call.build_transaction(
         {
             "from": checksum_sender,
             "nonce": get_nonce(w3, checksum_sender),
@@ -119,8 +119,8 @@ def transact(w3, method_call, sender, sender_signing_key, gas=None):
         }
     )
     signing_key = sender_signing_key
-    signed = w3.eth.account.signTransaction(tx, signing_key)
-    tx_hash = w3.eth.sendRawTransaction(signed.rawTransaction)
+    signed = w3.eth.account.sign_transaction(tx, signing_key)
+    tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
     return tx_hash.hex()
 
 
