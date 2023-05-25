@@ -237,7 +237,7 @@ class Notification(models.Model):
         withdrawal = self.item
         rsc_amount = withdrawal.amount
         transaction_hash = withdrawal.transaction_hash
-        url = f"https://rinkeby.etherscan.io/tx/{transaction_hash}"
+        url = f"https://goerli.etherscan.io/tx/{transaction_hash}"
 
         return [
             {
