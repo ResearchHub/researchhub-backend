@@ -5,10 +5,6 @@ from rest_framework.serializers import (
     SerializerMethodField,
 )
 
-from discussion.reaction_models import Vote
-from discussion.reaction_serializers import (
-    DynamicVoteSerializer,  # Import is needed for discussion serializer imports
-)
 from discussion.reaction_serializers import GenericReactionSerializerMixin
 from discussion.serializers import DynamicThreadSerializer
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
@@ -28,7 +24,6 @@ from user.serializers import (
     DynamicUserSerializer,
     UserSerializer,
 )
-from utils.http import get_user_from_request
 
 
 class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin):
@@ -38,7 +33,6 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             *GenericReactionSerializerMixin.EXPOSABLE_FIELDS,
             "authors",
             "boost_amount",
-            "bounties",
             "id",
             "created_by",
             "created_date",
@@ -56,7 +50,6 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             "note",
             "post_src",
             "preview_img",
-            "purchases",
             "renderable_text",
             "slug",
             "title",
@@ -69,7 +62,6 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
         read_only_fields = [
             *GenericReactionSerializerMixin.READ_ONLY_FIELDS,
             "authors",
-            "bounties",
             "id",
             "created_by",
             "created_date",
@@ -90,11 +82,9 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
     boost_amount = SerializerMethodField()
     user_endorsement = SerializerMethodField()
     user_flag = SerializerMethodField()
-    # user_vote = SerializerMethodField()
 
     # local
     authors = SerializerMethodField()
-    bounties = SerializerMethodField()
     created_by = SerializerMethodField(method_name="get_created_by")
     full_markdown = SerializerMethodField(method_name="get_full_markdown")
     has_accepted_answer = ReadOnlyField()  # @property
@@ -102,7 +92,6 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
     is_removed = SerializerMethodField()
     note = SerializerMethodField()
     post_src = SerializerMethodField(method_name="get_post_src")
-    purchases = SerializerMethodField()
     unified_document = SerializerMethodField()
     unified_document_id = SerializerMethodField(method_name="get_unified_document_id")
 
@@ -118,38 +107,6 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             authors,
             context=self.context,
             many=True,
-        )
-        return serializer.data
-
-    def get_bounties(self, post):
-        from reputation.serializers import DynamicBountySerializer
-
-        context = {
-            "rep_dbs_get_created_by": {"_include_fields": ("author_profile", "id")},
-            "usr_dus_get_author_profile": {
-                "_include_fields": (
-                    "id",
-                    "profile_image",
-                    "first_name",
-                    "last_name",
-                )
-            },
-        }
-
-        bounties = post.unified_document.related_bounties.all()
-
-        serializer = DynamicBountySerializer(
-            bounties,
-            many=True,
-            context=context,
-            _include_fields=(
-                "amount",
-                "created_by",
-                "expiration_date",
-                "id",
-                "status",
-                "content_type",
-            ),
         )
         return serializer.data
 
@@ -246,35 +203,6 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
     def get_boost_amount(self, instance):
         return instance.get_boost_amount()
 
-    def get_purchases(self, instance):
-        from purchase.serializers import DynamicPurchaseSerializer
-
-        context = {
-            "pch_dps_get_user": {
-                "_include_fields": [
-                    "id",
-                    "author_profile",
-                    "first_name",
-                    "last_name",
-                ]
-            },
-            "usr_dus_get_author_profile": {
-                "_include_fields": [
-                    "id",
-                    "first_name",
-                    "last_name",
-                    "profile_image",
-                ]
-            },
-        }
-        serializer = DynamicPurchaseSerializer(
-            instance.purchases,
-            many=True,
-            context=context,
-            _include_fields=("amount", "user"),
-        )
-        return serializer.data
-
 
 class DynamicPostSerializer(DynamicModelFieldSerializer):
     authors = SerializerMethodField()
@@ -290,7 +218,6 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
     score = SerializerMethodField()
     threads = SerializerMethodField()
     unified_document = SerializerMethodField()
-    user_vote = SerializerMethodField()
 
     class Meta:
         model = ResearchhubPost
@@ -373,22 +300,6 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
             post.note, context=context, **_context_fields
         )
         return serializer.data
-
-    def get_user_vote(self, post):
-        vote = None
-        user = get_user_from_request(self.context)
-        _context_fields = self.context.get("doc_dps_get_user_vote", {})
-        try:
-            if user and not user.is_anonymous:
-                vote = post.votes.get(created_by=user)
-                vote = DynamicVoteSerializer(
-                    vote,
-                    context=self.context,
-                    **_context_fields,
-                ).data
-            return vote
-        except Vote.DoesNotExist:
-            return None
 
     def get_threads(self, post):
         context = self.context

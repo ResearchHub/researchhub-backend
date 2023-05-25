@@ -655,13 +655,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     ).data
         return Response(response, status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=["get"], permission_classes=[AllowAny])
-    def get_document_metadata(self, request, pk=None):
-        unified_document = self.get_object()
+    def _get_document_metadata_context(self):
         context = self.get_serializer_context()
-        bounties_context_fields = ("id", "amount", "created_by")
+        bounties_context_fields = ("id", "amount", "created_by", "status")
+        bounties_select_related_fields = ("created_by", "created_by__author_profile")
         discussion_context_fields = ("id", "comment_count", "thread_type")
         purchase_context_fields = ("id", "amount", "user")
+        purchase_select_related_fields = ("user", "user__author_profile")
         metadata_context = {
             **context,
             "doc_duds_get_documents": {
@@ -673,21 +673,21 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 )
             },
             "doc_dps_get_bounties": {"_include_fields": bounties_context_fields},
-            "doc_dps_get_bounties_select": ("created_by", "created_by__author_profile"),
+            "doc_dps_get_bounties_select": bounties_select_related_fields,
             "doc_dps_get_discussions": {"_include_fields": discussion_context_fields},
             "doc_dps_get_discussions_prefetch": ("rh_comments",),
             "doc_dps_get_purchases": {"_include_fields": purchase_context_fields},
-            "doc_dps_get_purchases_select": ("user", "user__author_profile"),
+            "doc_dps_get_purchases_select": purchase_select_related_fields,
             "hyp_dhs_get_discussions": {"_include_fields": discussion_context_fields},
             "hyp_dhs_get_discussions_prefetch": ("rh_comments",),
             "hyp_dhs_get_purchases": {"_include_fields": purchase_context_fields},
-            "hyp_dhs_get_purchases_select": ("user", "user__author_profile"),
+            "hyp_dhs_get_purchases_select": purchase_select_related_fields,
             "pap_dps_get_bounties": {"_include_fields": bounties_context_fields},
-            "pap_dps_get_bounties_select": ("created_by", "created_by__author_profile"),
+            "pap_dps_get_bounties_select": bounties_select_related_fields,
             "pap_dps_get_discussions": {"_include_fields": discussion_context_fields},
             "pap_dps_get_discussions_prefetch": ("rh_comments",),
             "pap_dps_get_purchases": {"_include_fields": purchase_context_fields},
-            "pap_dps_get_purchases_select": ("user", "user__author_profile"),
+            "pap_dps_get_purchases_select": purchase_select_related_fields,
             "pch_dps_get_user": {
                 "_include_fields": [
                     "id",
@@ -706,6 +706,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 ]
             },
         }
+        return metadata_context
+
+    @action(detail=True, methods=["get"], permission_classes=[AllowAny])
+    def get_document_metadata(self, request, pk=None):
+        unified_document = self.get_object()
+        metadata_context = self._get_document_metadata_context()
+
         serializer = self.dynamic_serializer_class(
             unified_document,
             _include_fields=("id", "documents", "reviews"),

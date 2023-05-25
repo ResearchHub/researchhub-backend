@@ -71,14 +71,12 @@ class GenericReactionSerializerMixin:
         "score",
         "user_endorsement",
         "user_flag",
-        # "user_vote",
     ]
     READ_ONLY_FIELDS = [
         "promoted",
         "score",
         "user_endorsement",
         "user_flag",
-        # "user_vote",
     ]
 
     def get_document_meta(self, obj):
@@ -116,17 +114,6 @@ class GenericReactionSerializerMixin:
                 ).data
             except Endorsement.DoesNotExist:
                 return None
-
-    def get_user_vote(self, obj):
-        vote = None
-        user = get_user_from_request(self.context)
-        try:
-            if user and not user.is_anonymous:
-                vote = obj.votes.get(created_by=user)
-                vote = VoteSerializer(vote).data
-            return vote
-        except Vote.DoesNotExist:
-            return None
 
     def get_user_flag(self, obj):
         flag = None

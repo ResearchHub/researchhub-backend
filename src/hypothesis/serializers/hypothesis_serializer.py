@@ -33,7 +33,6 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
             "aggregate_citation_consensus",
             "authors",
             "boost_amount",
-            "bounties",
             "created_by",
             "created_date",
             "discussion_count",
@@ -44,7 +43,6 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
             "from_post",
             "is_removed",
             "note",
-            "purchases",
             "renderable_text",
             "slug",
             "src",
@@ -74,7 +72,6 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
     aggregate_citation_consensus = SerializerMethodField()
     authors = AuthorSerializer(many=True)
     boost_amount = SerializerMethodField()
-    bounties = SerializerMethodField()
     created_by = UserSerializer()
     discussion_count = SerializerMethodField()
     full_markdown = SerializerMethodField()
@@ -82,7 +79,6 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
     vote_meta = SerializerMethodField()
     note = NoteSerializer()
     from_post = SerializerMethodField()
-    purchases = SerializerMethodField()
 
     # GenericReactionSerializerMixin
     promoted = SerializerMethodField()
@@ -104,38 +100,6 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
     def get_aggregate_citation_consensus(self, hypothesis):
         return hypothesis.get_aggregate_citation_consensus()
 
-    def get_bounties(self, hypothesis):
-        from reputation.serializers import DynamicBountySerializer
-
-        context = {
-            "rep_dbs_get_created_by": {"_include_fields": ("author_profile", "id")},
-            "usr_dus_get_author_profile": {
-                "_include_fields": (
-                    "id",
-                    "profile_image",
-                    "first_name",
-                    "last_name",
-                )
-            },
-        }
-
-        bounties = hypothesis.unified_document.related_bounties.all()
-
-        serializer = DynamicBountySerializer(
-            bounties,
-            many=True,
-            context=context,
-            _include_fields=(
-                "amount",
-                "created_by",
-                "expiration_date",
-                "id",
-                "status",
-                "content_type",
-            ),
-        )
-        return serializer.data
-
     def get_discussion_count(self, hypothesis):
         return hypothesis.get_discussion_count()
 
@@ -150,35 +114,6 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
 
     def get_boost_amount(self, hypothesis):
         return hypothesis.get_boost_amount()
-
-    def get_purchases(self, instance):
-        from purchase.serializers import DynamicPurchaseSerializer
-
-        context = {
-            "pch_dps_get_user": {
-                "_include_fields": [
-                    "id",
-                    "author_profile",
-                    "first_name",
-                    "last_name",
-                ]
-            },
-            "usr_dus_get_author_profile": {
-                "_include_fields": [
-                    "id",
-                    "first_name",
-                    "last_name",
-                    "profile_image",
-                ]
-            },
-        }
-        serializer = DynamicPurchaseSerializer(
-            instance.purchases,
-            many=True,
-            context=context,
-            _include_fields=("amount", "user"),
-        )
-        return serializer.data
 
     def get_vote_meta(self, hypothesis):
         context = self.context
