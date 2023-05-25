@@ -279,7 +279,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 "abstract_src_markdown",
                 "authors",
                 "boost_amount",
-                "bounties",
                 "created_date",
                 "discussion_count",
                 "doi",

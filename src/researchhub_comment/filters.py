@@ -9,6 +9,7 @@ from reputation.models import Bounty
 from researchhub_comment.constants.rh_comment_thread_types import (
     GENERIC_COMMENT,
     RH_COMMENT_THREAD_TYPES,
+    SUMMARY,
 )
 from researchhub_comment.models import RhCommentModel
 
@@ -137,7 +138,9 @@ class RHCommentFilter(filters.FilterSet):
         elif value == REVIEW:
             qs = qs.filter(thread__thread_type=REVIEW)
         elif value == DISCUSSION:
-            qs = qs.filter(thread__thread_type=GENERIC_COMMENT)
+            qs = qs.filter(
+                Q(thread__thread_type=GENERIC_COMMENT) | Q(thread__thread_type=SUMMARY)
+            )
 
         return qs
 
