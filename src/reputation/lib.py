@@ -400,7 +400,7 @@ def evaluate_transaction_hash(
     paid_status = "FAILED"
     try:
         timeout = 5 * 1  # 5 second timeout
-        transaction_receipt = w3.eth.waitForTransactionReceipt(
+        transaction_receipt = w3.eth.wait_for_transaction_receipt(
             transaction_hash, timeout=timeout
         )
         if transaction_receipt["status"] == 0:
