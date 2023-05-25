@@ -891,7 +891,11 @@ class DynamicPaperSerializer(
         aggregates = hypothesis.rh_threads.aggregate(
             discussion_count=Count(
                 "rh_comments",
-                filter=Q(thread_type=GENERIC_COMMENT, rh_comments__is_removed=False),
+                filter=Q(
+                    thread_type=GENERIC_COMMENT,
+                    rh_comments__is_removed=False,
+                    rh_comments__bounties__isnull=True,
+                ),
             ),
             review_count=Count(
                 "rh_comments",
