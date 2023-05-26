@@ -10,7 +10,7 @@ from researchhub.celery import QUEUE_CERMINE, app
 @app.task(queue=QUEUE_CERMINE)
 def handle_creating_citation_entry(path, user_id, organization_id, project_id):
     pdf = default_storage.open(path)
-    entry = get_citation_entry_from_pdf(pdf, user_id, organization_id, project_id)
+    entry, dupe = get_citation_entry_from_pdf(pdf, user_id, organization_id, project_id)
     created = CitationEntrySerializer(entry).data
 
     room = f"citation_entry_{user_id}"
@@ -18,6 +18,7 @@ def handle_creating_citation_entry(path, user_id, organization_id, project_id):
     async_to_sync(channel_layer.group_send)(
         room,
         {
+            "dupe_citation": dupe,
             "created_citation": created,
             "type": "send_upload_complete",
         },

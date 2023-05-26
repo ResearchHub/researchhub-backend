@@ -34,5 +34,6 @@ class CitationEntryConsumer(AsyncWebsocketConsumer):
 
     async def send_upload_complete(self, event):
         created_citation = event["created_citation"]
-        data = {"created_citation": created_citation}
+        dupe_citation = event["dupe_citation"]
+        data = {"created_citation": created_citation, "dupe_citation": dupe_citation}
         await self.send(text_data=json.dumps(data, default=json_serial))
