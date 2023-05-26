@@ -139,7 +139,8 @@ class RHCommentFilter(filters.FilterSet):
             qs = qs.filter(thread__thread_type=REVIEW)
         elif value == DISCUSSION:
             qs = qs.filter(
-                Q(thread__thread_type=GENERIC_COMMENT) | Q(thread__thread_type=SUMMARY)
+                (Q(thread__thread_type=GENERIC_COMMENT) & Q(bounties__isnull=True))
+                | Q(thread__thread_type=SUMMARY)
             )
 
         return qs
