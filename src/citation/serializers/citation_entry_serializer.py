@@ -29,7 +29,6 @@ class CitationEntrySerializer(DefaultAuthenticatedSerializer):
     """ ----- Django Method Overrides -----"""
 
     def create(self, validated_data):
-        CitationEntry.objects.filter(doi=validated_data.get("doi")).exists()
         with transaction.atomic():
             cleaned_attachment, attachment_name = self._get_cleaned_up_attachment(
                 validated_data
