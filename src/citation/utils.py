@@ -1,8 +1,15 @@
+from urllib.parse import urlparse
+
 import pdf2doi
+from django.contrib.postgres.search import SearchQuery
+from django.db.models import Q
 
 from citation.constants import CITATION_TYPE_FIELDS, JOURNAL_ARTICLE
 from citation.models import CitationEntry
 from citation.schema import generate_json_for_journal
+from paper.models import Paper
+from paper.paper_upload_tasks import celery_process_paper
+from paper.serializers import PaperSubmissionSerializer
 
 
 def get_citation_entry_from_pdf(pdf, user_id, organization_id, project_id):
@@ -24,3 +31,30 @@ def get_citation_entry_from_pdf(pdf, user_id, organization_id, project_id):
         return entry, False
     else:
         return citation_entry.first(), True
+
+
+def create_paper_from_citation(citation):
+    url = citation.doi
+
+    # Appends http if protocol does not exist
+    parsed_url = urlparse(url)
+    if not parsed_url.scheme:
+        url = f"http://{parsed_url.geturl()}"
+        data["url"] = url
+
+    duplicate_papers = Paper.objects.filter(
+        Q(url_svf=SearchQuery(url)) | Q(pdf_url_svf=SearchQuery(url))
+    )
+
+    process_id = None
+
+    if not duplicate_papers:
+        data = {"uploaded_by": citation.created_by.id, "url": url}
+        submission = PaperSubmissionSerializer(data=data)
+        if submission.is_valid():
+            submission = submission.save()
+            process_id = celery_process_paper(submission.id)
+    else:
+        print("duplicate paper with doi {}".format(citation.doi))
+
+    return {"duplicate": duplicate_papers.exists(), "process_id": process_id}
