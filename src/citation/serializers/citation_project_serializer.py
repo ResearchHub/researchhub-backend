@@ -4,7 +4,7 @@ from rest_framework.serializers import (
 )
 
 from citation.models import CitationProject
-from researchhub_access_group.constants import EDITOR
+from researchhub_access_group.constants import EDITOR, VIEWER
 from user.related_models.user_model import User
 from user.serializers import MinimalUserSerializer
 from utils.serializers import DefaultAuthenticatedSerializer
@@ -12,8 +12,8 @@ from utils.serializers import DefaultAuthenticatedSerializer
 
 class CitationProjectSerializer(DefaultAuthenticatedSerializer):
     children = SerializerMethodField()
+    collaborators = SerializerMethodField(read_only=True)
     current_user_is_admin = SerializerMethodField(read_only=True)
-    editors = SerializerMethodField(read_only=True)
 
     class Meta:
         model = CitationProject
@@ -27,11 +27,21 @@ class CitationProjectSerializer(DefaultAuthenticatedSerializer):
         current_user = self.context.get("request").user
         return project_instance.get_is_user_admin(current_user)
 
-    def get_editors(self, project):
-        editor_ids = project.permissions.filter(access_type=EDITOR).values_list("user")
-        return MinimalUserSerializer(
-            User.objects.filter(id__in=editor_ids), many=True
-        ).data
+    def get_collaborators(self, project):
+        editor_ids = project.permissions.filter(access_type__in=[EDITOR]).values_list(
+            "user"
+        )
+        viwer_ids = project.permissions.filter(access_type__in=[VIEWER]).values_list(
+            "user"
+        )
+        return {
+            "editors": MinimalUserSerializer(
+                User.objects.filter(id__in=editor_ids), many=True
+            ).data,
+            "viewers": MinimalUserSerializer(
+                User.objects.filter(id__in=viwer_ids), many=True
+            ).data,
+        }
 
     def get_current_user_has_access(self, project_instance):
         current_user = self.context.get("request").user
