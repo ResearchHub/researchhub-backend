@@ -1,4 +1,6 @@
 from datetime import datetime
+
+from django.db import transaction
 from django.utils.text import slugify
 from jsonschema import validate
 from rest_framework.serializers import (
@@ -7,7 +9,6 @@ from rest_framework.serializers import (
     SerializerMethodField,
     ValidationError,
 )
-from django.db import transaction
 
 from citation.related_models.citation_entry_model import CitationEntry
 from citation.schema import generate_schema_for_citation
@@ -17,7 +18,6 @@ from utils.serializers import DefaultAuthenticatedSerializer
 
 
 class CitationEntrySerializer(DefaultAuthenticatedSerializer):
-
     checksum = ReadOnlyField()
     fields = JSONField()
     required_fields = SerializerMethodField(read_only=True)
