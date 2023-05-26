@@ -37,7 +37,7 @@ class CitationProjectViewSet(ModelViewSet):
 
     def list(self, request):
         return Response(
-            "Method not allowed. Use remove instead",
+            "Method not allowed. Use get_projects instead",
             status=status.HTTP_405_METHOD_NOT_ALLOWED,
         )
 
