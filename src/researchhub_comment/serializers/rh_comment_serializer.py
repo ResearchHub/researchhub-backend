@@ -54,6 +54,7 @@ class DynamicRhCommentSerializer(
     purchases = SerializerMethodField()
     bounties = SerializerMethodField()
     awarded_bounty_amount = SerializerMethodField()
+    anonymous = SerializerMethodField()
 
     class Meta:
         fields = "__all__"
@@ -122,6 +123,9 @@ class DynamicRhCommentSerializer(
             comment.purchases, many=True, context=context, **_context_fields
         )
         return serializer.data
+    
+    def get_anonymous(self, comment):
+        return comment.anonymous
 
     def get_bounties(self, comment):
         from reputation.serializers import DynamicBountySerializer
@@ -149,5 +153,6 @@ class DynamicRhCommentSerializer(
                 .aggregate(Sum("amount"))
                 .get("amount__sum", None)
             )
+
 
         return amount_awarded

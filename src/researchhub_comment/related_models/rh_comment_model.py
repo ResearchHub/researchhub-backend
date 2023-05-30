@@ -23,12 +23,16 @@ from researchhub_comment.constants.rh_comment_migration_legacy_types import (
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
+from researchhub_comment.related_models.rh_encrypt_comment_model import (
+    EncryptComment
+)
 from researchhub_comment.tasks import celery_create_comment_content_src
 from utils.models import DefaultAuthenticatedModel, SoftDeletableModel
 
 
 class RhCommentModel(
-    AbstractGenericReactionModel, SoftDeletableModel, DefaultAuthenticatedModel
+    AbstractGenericReactionModel, SoftDeletableModel, 
+    DefaultAuthenticatedModel, EncryptComment
 ):
     """--- MODEL FIELDS ---"""
 
@@ -100,6 +104,8 @@ class RhCommentModel(
         null=True,
     )
 
+    anonymous  = BooleanField(default=False)
+
     """ --- PROPERTIES --- """
 
     @property
@@ -131,6 +137,15 @@ class RhCommentModel(
             return [self.parent.created_by]
         else:
             return [self.thread.content_object.created_by]
+        
+    @property
+    def anonymity_toggle(self):
+        if self.anonymous:
+            return [self.encrypt(self.parent.created_by_id)]
+        else:
+            return [self.encrypt(self.thread.content_object.created_by)]
+
+            
 
     """ --- METHODS --- """
 

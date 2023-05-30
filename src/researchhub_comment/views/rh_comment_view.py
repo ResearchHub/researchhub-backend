@@ -234,10 +234,12 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         user = request.user
         with transaction.atomic():
             rh_thread, parent_id = self._retrieve_or_create_thread_from_request(request)
+            rh_comment, _ = RhCommentModel.create_from_data(data)
+            anonymity_toggle = rh_comment.anonymity_toggle
             data.update(
                 {
-                    "created_by": user.id,
-                    "updated_by": user.id,
+                    "created_by": anonymity_toggle[0],
+                    "updated_by": anonymity_toggle[0],
                     "thread": rh_thread.id,
                     "parent": parent_id,
                 }
@@ -281,6 +283,19 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 ),
             ).data
             return Response(serializer_data, status=200)
+        
+    @action(detail=True, methods=["PUT"])
+    def toggle_annonymous(self, request):
+        comment_id = request.data.get("id")
+        anonymous = request.data.get("anonymous")
+        with transaction.atomic():
+            comment = self.get_queryset().get(id=comment_id)
+
+            comment.anonymous = anonymous
+            comment.save()
+
+        serializer_data = self.get_serializer(comment)
+        return Response(serializer_data, status=200)
 
     @track_event
     @action(

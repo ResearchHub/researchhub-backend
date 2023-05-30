@@ -417,6 +417,11 @@ urlpatterns = [
     path("email_notifications/", mailing_list.views.email_notifications),
     path("health/", researchhub.views.healthcheck),
     path("", researchhub.views.index, name="index"),
+    path(
+    r"(?P<model>\w+)/(?P<model_object_id>[0-9]+)/comments/(?P<comment_id>[0-9]+)/anonymous",
+    RhCommentViewSet.as_view({"put": "toggle_anonymous"}),
+    name="toggle_anonymous"
+),
 ]
 
 if "silk" in INSTALLED_APPS:
