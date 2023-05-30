@@ -28,6 +28,7 @@ def get_citation_entry_from_pdf(pdf, user_id, organization_id, project_id):
             doi=json["DOI"],
             project_id=project_id,
         )
+        create_paper_from_citation(entry)
         return entry, False
     else:
         return citation_entry.first(), True
