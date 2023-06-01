@@ -107,7 +107,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
     _ALLOWED_UPDATE_FIELDS = set(
         ["comment_content_type", "comment_content_json", "context_title", "mentions"]
     )
-
+    breakpoint()
     def _get_content_type_model(self, model_name):
         key = self._CONTENT_TYPE_MAPPINGS[model_name]
         content_type = ContentType.objects.get(model=key)
@@ -287,11 +287,11 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
     @action(detail=True, methods=["PUT"])
     def toggle_annonymous(self, request):
         comment_id = request.data.get("id")
-        anonymous = request.data.get("anonymous")
+        anonymous = request.data.get("is_anonymous")
         with transaction.atomic():
             comment = self.get_queryset().get(id=comment_id)
 
-            comment.anonymous = anonymous
+            comment.is_anonymous = anonymous
             comment.save()
 
         serializer_data = self.get_serializer(comment)

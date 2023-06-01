@@ -10,7 +10,9 @@ from django.db.models import (
     PositiveIntegerField,
     TextField,
 )
-
+from django.db import models
+from cryptography.fernet import Fernet
+import base64
 from discussion.reaction_models import AbstractGenericReactionModel
 from purchase.models import Purchase
 from researchhub_comment.constants.rh_comment_content_types import (
@@ -23,16 +25,14 @@ from researchhub_comment.constants.rh_comment_migration_legacy_types import (
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
-from researchhub_comment.related_models.rh_encrypt_comment_model import (
-    EncryptComment
-)
+
 from researchhub_comment.tasks import celery_create_comment_content_src
 from utils.models import DefaultAuthenticatedModel, SoftDeletableModel
 
 
 class RhCommentModel(
     AbstractGenericReactionModel, SoftDeletableModel, 
-    DefaultAuthenticatedModel, EncryptComment
+    DefaultAuthenticatedModel
 ):
     """--- MODEL FIELDS ---"""
 
@@ -58,6 +58,7 @@ class RhCommentModel(
         max_length=144,
     )
     is_accepted_answer = BooleanField(null=True)
+    is_anonymous = models.BooleanField(default=False)
     parent = ForeignKey(
         "self",
         blank=True,
@@ -103,9 +104,6 @@ class RhCommentModel(
         blank=True,
         null=True,
     )
-
-    anonymous  = BooleanField(default=False)
-
     """ --- PROPERTIES --- """
 
     @property
@@ -139,8 +137,13 @@ class RhCommentModel(
             return [self.thread.content_object.created_by]
         
     @property
+    def cipher_suite(self):
+        key = self.parent.created_by
+        return Fernet(base64.urlsafe_b64encode(key.encode('utf-8')))
+    
+    @property
     def anonymity_toggle(self):
-        if self.anonymous:
+        if self.is_anonymous:
             return [self.encrypt(self.parent.created_by_id)]
         else:
             return [self.encrypt(self.thread.content_object.created_by)]
@@ -166,9 +169,18 @@ class RhCommentModel(
     def decrement_discussion_count(self):
         self._update_related_discussion_count(-1)
 
+    def encrypt(self, data):
+        encrypted_data = self.cipher_suite.encrypt(data.encode('utf-8'))
+        return encrypted_data.decode('utf-8')
+
+    def decrypt(self, encrypted_data):
+        decrypted_data = self.cipher_suite.decrypt(encrypted_data.encode('utf-8'))
+        return decrypted_data.decode('utf-8')
+
     @classmethod
     def create_from_data(cls, data):
         from researchhub_comment.serializers import RhCommentSerializer
+
 
         rh_comment_serializer = RhCommentSerializer(data=data)
         rh_comment_serializer.is_valid(raise_exception=True)
