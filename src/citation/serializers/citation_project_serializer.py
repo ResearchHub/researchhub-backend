@@ -28,12 +28,8 @@ class CitationProjectSerializer(DefaultAuthenticatedSerializer):
         return project_instance.get_is_user_admin(current_user)
 
     def get_collaborators(self, project):
-        editor_ids = project.permissions.filter(access_type__in=[EDITOR]).values_list(
-            "user"
-        )
-        viwer_ids = project.permissions.filter(access_type__in=[VIEWER]).values_list(
-            "user"
-        )
+        editor_ids = project.permissions.filter(access_type=EDITOR).values_list("user")
+        viwer_ids = project.permissions.filter(access_type=VIEWER).values_list("user")
         return {
             "editors": MinimalUserSerializer(
                 User.objects.filter(id__in=editor_ids), many=True
