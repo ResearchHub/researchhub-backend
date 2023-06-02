@@ -404,7 +404,6 @@ class MinimalUserSerializer(ModelSerializer):
         )
         return serializer.data
 
-
 class UserEditableSerializer(ModelSerializer):
     author_profile = AuthorSerializer()
     balance = SerializerMethodField()

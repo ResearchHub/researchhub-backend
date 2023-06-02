@@ -35,3 +35,18 @@ class CitationEntry(DefaultAuthenticatedModel):
         related_query_name="citations",
     )
     fields = models.JSONField()
+
+    """--- METHODS ---"""
+
+    def is_user_allowed_to_edit(self, user):
+        belonging_project = self.project
+        if belonging_project is None:
+            org_permissions = self.organization.permissions
+            return org_permissions.has_editor_user(
+                user
+            ) or org_permissions.has_admin_user(user)
+        else:
+            project_permissions = belonging_project.permissions
+            return project_permissions.has_editor_user(
+                user
+            ) or project_permissions.has_admin_user(user)

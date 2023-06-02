@@ -16,7 +16,7 @@ def get_citation_entry_from_pdf(pdf, user_id, organization_id, project_id):
     conversion = pdf2doi.pdf2doi_singlefile(pdf)
     json = generate_json_for_journal(conversion)
     citation_entry = CitationEntry.objects.filter(
-        doi=json["DOI"], created_by_id=user_id
+        doi=json["DOI"], created_by_id=user_id, project_id=project_id
     )
     if not citation_entry.exists():
         entry = CitationEntry.objects.create(
@@ -28,6 +28,7 @@ def get_citation_entry_from_pdf(pdf, user_id, organization_id, project_id):
             doi=json["DOI"],
             project_id=project_id,
         )
+        create_paper_from_citation(entry)
         return entry, False
     else:
         return citation_entry.first(), True

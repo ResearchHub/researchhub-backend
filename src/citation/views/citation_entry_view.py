@@ -1,4 +1,6 @@
+from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -27,10 +29,16 @@ class CitationEntryViewSet(ModelViewSet):
     ordering_fields = ("updated_date", "created_date")
 
     def list(self, request):
-        pass
+        return Response(
+            "Method not allowed. Use user_citations instead",
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
 
     def retrieve(self, request):
-        pass
+        return Response(
+            "Method not allowed. Use user_citations instead",
+            status=status.HTTP_405_METHOD_NOT_ALLOWED,
+        )
 
     @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
     def pdf_uploads(self, request):
@@ -98,3 +106,22 @@ class CitationEntryViewSet(ModelViewSet):
         open_alex = OpenAlex()
         result = open_alex.get_data_from_doi(doi_string)
         return Response(result, status=200)
+
+    @action(
+        detail=False,
+        methods=["POST", "DELETE"],
+        permission_classes=[IsAuthenticated],
+    )
+    def remove(self, request, *args, **kwargs):
+        with transaction.atomic():
+            try:
+                target_citation_ids = request.data.get("citation_entry_ids", [])
+                current_user = request.user
+                for citation_id in target_citation_ids:
+                    target_ref = CitationEntry.objects.get(id=citation_id)
+                    if target_ref.is_user_allowed_to_edit(current_user):
+                        target_ref.delete()
+                return Response(target_citation_ids, status=status.HTTP_200_OK)
+
+            except Exception as error:
+                return Response(error, status=status.HTTP_400_BAD_REQUEST)

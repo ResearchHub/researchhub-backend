@@ -10,7 +10,7 @@ from rest_framework.viewsets import ModelViewSet
 from citation.models import CitationProject
 from citation.serializers import CitationProjectSerializer
 from citation.views.permissions import UserIsAdminOfProject
-from researchhub_access_group.constants import EDITOR
+from researchhub_access_group.constants import EDITOR, VIEWER
 from user.related_models.organization_model import Organization
 
 
@@ -26,35 +26,45 @@ class CitationProjectViewSet(ModelViewSet):
         upserted_collaborators = request.data.get("collaborators")
         with transaction.atomic():
             response = super().create(request, *args, **kwargs)
-            citation = self.get_queryset().get(id=response.data.get("id"))
-            citation.set_creator_as_admin()
-            citation.add_editors(upserted_collaborators)
+            project = self.get_queryset().get(id=response.data.get("id"))
+            project.set_creator_as_admin()
+            project.add_editors(upserted_collaborators.get("editors", []))
+            project.add_viewers(upserted_collaborators.get("viewers", []))
 
-            citation.refresh_from_db()
+            project.refresh_from_db()
             return Response(
-                self.get_serializer(citation).data, status=status.HTTP_200_OK
+                self.get_serializer(project).data, status=status.HTTP_200_OK
             )
 
     def list(self, request):
         return Response(
-            "Method not allowed. Use remove instead",
+            "Method not allowed. Use get_projects instead",
             status=status.HTTP_405_METHOD_NOT_ALLOWED,
         )
 
     def update(self, request, *args, **kwargs):
         upserted_collaborators = request.data.get("collaborators")
+        upserted_editors = upserted_collaborators.get("editors", [])
+        upserted_viewers = upserted_collaborators.get("viewers", [])
         with transaction.atomic():
             response = super().update(request, *args, **kwargs)
-            citation = self.get_queryset().get(id=response.data.get("id"))
-            removed_editors = citation.permissions.filter(
-                Q(access_type=EDITOR) & ~Q(id__in=upserted_collaborators)
-            ).values_list("user", flat=True)
-            citation.remove_editors(removed_editors)
-            citation.add_editors(upserted_collaborators)
+            project = self.get_queryset().get(id=response.data.get("id"))
 
-            citation.refresh_from_db()
+            removed_editors = project.permissions.filter(
+                Q(access_type=EDITOR) & ~Q(id__in=upserted_editors)
+            ).values_list("user", flat=True)
+            removed_viewers = project.permissions.filter(
+                Q(access_type=VIEWER) & ~Q(id__in=upserted_viewers)
+            ).values_list("user", flat=True)
+
+            project.remove_editors(removed_editors)
+            project.remove_viewers(removed_viewers)
+            project.add_editors(upserted_editors)
+            project.add_viewers(upserted_viewers)
+
+            project.refresh_from_db()
             return Response(
-                self.get_serializer(citation).data, status=status.HTTP_200_OK
+                self.get_serializer(project).data, status=status.HTTP_200_OK
             )
 
     @action(
