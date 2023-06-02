@@ -1228,14 +1228,12 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     "id",
                     "is_public",
                     "is_removed",
-                    "item",
                     "paper_slug",
                     "paper_title",
                     "paper",
                     "plain_text",
                     "post_slug",
                     "post",
-                    "promoted",
                     "promoted",
                     "replies",
                     "review",
@@ -1245,7 +1243,6 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     "text",
                     "text",
                     "title",
-                    "unified_document",
                     "user_flag",
                     "user_vote",
                     "was_edited",
@@ -1337,6 +1334,12 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 "_include_fields": [
                     "name",
                     "slug",
+                ]
+            },
+            "hyp_dhs_get_created_by": {
+                "_include_fields": [
+                    "author_profile",
+                    "id",
                 ]
             },
         }
