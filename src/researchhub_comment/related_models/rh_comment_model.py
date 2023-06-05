@@ -135,22 +135,18 @@ class RhCommentModel(
             return [self.parent.created_by]
         else:
             return [self.thread.content_object.created_by]
-        
-    @property
-    def cipher_suite(self):
-        key = self.parent.created_by
-        return Fernet(base64.urlsafe_b64encode(key.encode('utf-8')))
-    
-    @property
-    def anonymity_toggle(self):
-        if self.is_anonymous:
-            return [self.encrypt(self.parent.created_by_id)]
-        else:
-            return [self.encrypt(self.thread.content_object.created_by)]
 
-            
+    @property
+    def anonymity_toggle(self, user_id):
+        if self.is_anonymous:
+            encrypted_id = self._encrypt(user_id)
+            return [encrypted_id]
+        else:
+            return [user_id]
+
 
     """ --- METHODS --- """
+
 
     def update_comment_content(self):
         celery_create_comment_content_src.apply_async(
@@ -169,19 +165,22 @@ class RhCommentModel(
     def decrement_discussion_count(self):
         self._update_related_discussion_count(-1)
 
-    def encrypt(self, data):
-        encrypted_data = self.cipher_suite.encrypt(data.encode('utf-8'))
+    def _cipher_suite(self, key):
+        return Fernet(base64.urlsafe_b64encode(key.encode('utf-8')))
+
+    def _encrypt(self, data):
+        cipher_suite = self._cipher_suite(self.parent.created_by)
+        encrypted_data = cipher_suite.encrypt(data.encode('utf-8'))
         return encrypted_data.decode('utf-8')
 
-    def decrypt(self, encrypted_data):
-        decrypted_data = self.cipher_suite.decrypt(encrypted_data.encode('utf-8'))
+    def _decrypt(self, encrypted_data):
+        cipher_suite = self._cipher_suite(self.parent.created_by)
+        decrypted_data = cipher_suite.decrypt(encrypted_data.encode('utf-8'))
         return decrypted_data.decode('utf-8')
 
     @classmethod
     def create_from_data(cls, data):
         from researchhub_comment.serializers import RhCommentSerializer
-
-
         rh_comment_serializer = RhCommentSerializer(data=data)
         rh_comment_serializer.is_valid(raise_exception=True)
         rh_comment = rh_comment_serializer.save()

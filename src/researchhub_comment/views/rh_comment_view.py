@@ -107,7 +107,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
     _ALLOWED_UPDATE_FIELDS = set(
         ["comment_content_type", "comment_content_json", "context_title", "mentions"]
     )
-    breakpoint()
+    
     def _get_content_type_model(self, model_name):
         key = self._CONTENT_TYPE_MAPPINGS[model_name]
         content_type = ContentType.objects.get(model=key)
@@ -235,11 +235,10 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         with transaction.atomic():
             rh_thread, parent_id = self._retrieve_or_create_thread_from_request(request)
             rh_comment, _ = RhCommentModel.create_from_data(data)
-            anonymity_toggle = rh_comment.anonymity_toggle
             data.update(
                 {
-                    "created_by": anonymity_toggle[0],
-                    "updated_by": anonymity_toggle[0],
+                    "created_by": RhCommentModel.anonymity_toggle(user.id),
+                    "updated_by": RhCommentModel.anonymity_toggle(user.id),
                     "thread": rh_thread.id,
                     "parent": parent_id,
                 }
