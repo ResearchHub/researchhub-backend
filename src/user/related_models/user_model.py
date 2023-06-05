@@ -34,7 +34,7 @@ class UserManager(UserManager):
         return User.objects.get(id=1)
 
     def get_revenue_account(self):
-        user = User.objects.filter(email="revenue@researchhub.com")
+        user = User.objects.filter(email="main@researchhub.foundation")
         if user.exists():
             return user.first()
 
