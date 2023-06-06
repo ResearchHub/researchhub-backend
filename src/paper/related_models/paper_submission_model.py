@@ -53,6 +53,13 @@ class PaperSubmission(DefaultModel):
     )
     status_read = models.BooleanField(default=False)
     url = models.URLField(blank=True, null=True, max_length=1024)
+    citation = models.ForeignKey(
+        "citation.CitationEntry",
+        null=True,
+        blank=True,
+        related_name="paper_submissions",
+        on_delete=models.CASCADE,
+    )
     uploaded_by = models.ForeignKey(
         "user.User",
         related_name="paper_submissions",

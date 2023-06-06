@@ -50,7 +50,11 @@ def create_paper_from_citation(citation):
     process_id = None
 
     if not duplicate_papers:
-        data = {"uploaded_by": citation.created_by.id, "url": url}
+        data = {
+            "uploaded_by": citation.created_by.id,
+            "url": url,
+            "citation_id": citation.id,
+        }
         submission = PaperSubmissionSerializer(data=data)
         if submission.is_valid():
             submission = submission.save()

@@ -19,6 +19,7 @@ from django.db.models import Q
 from habanero import Crossref
 from requests.exceptions import HTTPError
 
+from citation.models import CitationEntry
 from paper.exceptions import (
     DOINotFoundError,
     DuplicatePaperError,
@@ -60,6 +61,7 @@ def celery_process_paper(self, submission_id):
         "url": url,
         "uploaded_by_id": uploaded_by.id,
         "submission_id": submission_id,
+        "citation_id": paper_submission.citation.id,
     }
     args = (celery_data, submission_id)
 
@@ -417,7 +419,6 @@ def celery_openalex(self, celery_data):
     Paper = apps.get_model("paper.Paper")
 
     try:
-
         doi = paper_data.get("doi")
         open_alex = OpenAlex()
         result = open_alex.get_data_from_doi(doi)
@@ -622,6 +623,13 @@ def celery_create_paper(self, celery_data):
         paper_submission.set_complete_status(save=False)
         paper_submission.paper = paper
         paper_submission.save()
+
+        citation_id = celeray_data.get("citation_id")
+
+        if citation_id:
+            citation = CitationEntry.objects.get(id=citation_id)
+            citation.paper = paper
+            citation.save()
 
         logger.info(f"concepts in celery_create_paper: {concepts}")
         if concepts is not None:
