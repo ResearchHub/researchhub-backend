@@ -584,14 +584,14 @@ def celery_combine_paper_data(self, celery_data):
         self.request.args = (celery_data, submission_id)
         raise DOINotFoundError("Unable to find article")
 
-    return (data, submission_id)
+    return (data, submission_id, combined_data.get("citation_id"))
 
 
 @app.task(bind=True, queue=QUEUE_PAPER_METADATA, ignore_result=False)
 def celery_create_paper(self, celery_data):
     from reputation.tasks import create_contribution
 
-    paper_data, submission_id = celery_data
+    paper_data, submission_id, citation_id = celery_data
 
     Paper = apps.get_model("paper.Paper")
     PaperSubmission = apps.get_model("paper.PaperSubmission")
@@ -623,8 +623,6 @@ def celery_create_paper(self, celery_data):
         paper_submission.set_complete_status(save=False)
         paper_submission.paper = paper
         paper_submission.save()
-
-        citation_id = celeray_data.get("citation_id")
 
         if citation_id:
             citation = CitationEntry.objects.get(id=citation_id)
