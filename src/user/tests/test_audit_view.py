@@ -17,7 +17,7 @@ REMOVE_FLAGGED_CONTENT = "api/audit/remove_flagged_content/"
 
 class AuditViewTests(APITestCase):
     def setUp(self):
-        self.community_user = create_user(email="community@researchhub.com")
+        self.community_user = create_user(email="main@researchhub.foundation")
         self.random_content_creator = create_random_authenticated_user(
             "content_creator"
         )

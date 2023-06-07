@@ -44,7 +44,8 @@ def generate_json_for_journal(pdf2doi):
                 for val in pdf_value:
                     cur_json = result[val]
                 json[field] = cur_json
-    json["raw_oa_json"] = result
+        else:
+            json[field] = ""
     return json
 
 

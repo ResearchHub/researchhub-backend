@@ -888,3 +888,7 @@ REFERRAL_PROGRAM = {
         "BOUNTY_PAYOUT",
     ],
 }
+
+
+# Grobid service
+GROBID_SERVER = "http://34.216.57.131:8000"
