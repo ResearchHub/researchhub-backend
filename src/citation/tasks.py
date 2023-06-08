@@ -4,7 +4,9 @@ from channels.layers import get_channel_layer
 from citation.exceptions import GrobidProcessingError
 from citation.serializers import CitationEntrySerializer
 from citation.utils import get_citation_entry_from_pdf
+from paper.exceptions import DOINotFoundError
 from researchhub.celery import QUEUE_CERMINE, app
+from utils.sentry import log_info
 
 
 @app.task(queue=QUEUE_CERMINE)
@@ -19,14 +21,20 @@ def handle_creating_citation_entry(path, user_id, organization_id, project_id, r
         # The Grobid server is probably busy
         # Resend the request after a short delay
         handle_creating_citation_entry.apply_async(
-            path,
-            user_id,
-            organization_id,
-            project_id,
-            retry + 1,
+            (
+                path,
+                user_id,
+                organization_id,
+                project_id,
+                retry + 1,
+            ),
             priority=5,
             countdown=2 * (retry + 1),
         )
+        return False
+    except DOINotFoundError as e:
+        log_info(e)
+        return False
 
     created = CitationEntrySerializer(entry).data
 

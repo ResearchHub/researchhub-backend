@@ -13,12 +13,11 @@ initial_creators_schema_regex = r"|".join(f"^{field}$" for field in CREATOR_TYPE
 CREATORS_SCHEMA_REGEX = f"({initial_creators_schema_regex})"
 
 
-def generate_json_for_journal(pdf2doi):
+def generate_json_for_journal(doi):
     schema = generate_schema_for_citation(JOURNAL_ARTICLE)
     json = {}
-    doi_string = pdf2doi["identifier"]
     open_alex = OpenAlex()
-    result = open_alex.get_data_from_doi(doi_string)
+    result = open_alex.get_data_from_doi(doi)
     for field in schema["required"]:
         mapping_field = OPENALEX_JOURNAL_MAPPING.get(field, "")
         if mapping_field:
@@ -360,14 +359,6 @@ PATENTS_SCHEMA = {
     "priority_numbers": {"type": "string"},
     "references": {"type": "string"},
     "legal_status": {"type": "string"},
-}
-PDF2DOI_JOURNAL_MAPPING = {
-    "DOI": "identifier",
-    "creators": "validation_info.authors",
-    "title": "validation_info.title",
-    "date": "validation_info.published",
-    "publication_title": "",
-    "journal_abbreviation": "",
 }
 OPENALEX_JOURNAL_MAPPING = {
     "DOI": "doi",

@@ -2,7 +2,7 @@ from utils.exceptions import Error
 
 
 class GrobidProcessingError(Error):
-    """Raised for errors related to the `email_notifications` view.
+    """Raised for errors related to using the Grobid Service.
 
     Attributes:
         trigger -- error that triggered this one

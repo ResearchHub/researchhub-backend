@@ -2,17 +2,22 @@ from urllib.parse import urlparse
 
 import requests
 from django.contrib.postgres.search import SearchQuery
+from django.core.files.storage import default_storage
 from django.db.models import Q
+from django.http.request import HttpRequest
+from rest_framework.request import Request
 
 from citation.constants import JOURNAL_ARTICLE
 from citation.exceptions import GrobidProcessingError
 from citation.models import CitationEntry
 from citation.schema import generate_json_for_journal
 from citation.serializers import CitationEntrySerializer
+from paper.exceptions import DOINotFoundError
 from paper.models import Paper
 from paper.paper_upload_tasks import celery_process_paper
 from paper.serializers import PaperSubmissionSerializer
 from researchhub.settings import AWS_STORAGE_BUCKET_NAME, GROBID_SERVER
+from user.models import User
 from utils.sentry import log_error
 
 
@@ -23,14 +28,15 @@ def get_pdf_header_data(path):
         "bucket_name": f"{AWS_STORAGE_BUCKET_NAME}",
     }
     try:
-        response = request_data.post(url, data=request_data, timeout=10)
+        response = requests.post(url, data=request_data, timeout=10)
+        # from celery.contrib import rdb; rdb.set_trace()
         data = response.json()
         status = data.get("status")
         if status == 200:
-            return response.json()
+            return data.get("data", {})
     except requests.ConnectionError as e:
         log_error(e)
-        raise GrobidProcessingError(e, "Grobid server timed out")
+        raise GrobidProcessingError(e, "Request to Grobid server timed out")
 
     raise GrobidProcessingError(
         "Could not extract data", "Grobid queue is most likely full"
@@ -39,22 +45,33 @@ def get_pdf_header_data(path):
 
 def get_citation_entry_from_pdf(path, user_id, organization_id, project_id):
     header_data = get_pdf_header_data(path)
-    doi = header_data.get("doi")
+    doi = header_data.get("doi", None)
+
+    if not doi:
+        raise DOINotFoundError(f"No DOI found for {path}")
+
     json = generate_json_for_journal(doi)
     citation_entry = CitationEntry.objects.filter(
-        doi=json["DOI"], created_by_id=user_id, project_id=project_id
+        doi=doi, created_by=user_id, project_id=project_id
     )
     if not citation_entry.exists():
+        # CitationEntrySerializer inherits from DefaultAuthenticatedSerializer,
+        # which requires a request object with a user attached
+        request = Request(HttpRequest())
+        request.user = User.objects.get(id=user_id)
+        pdf = default_storage.open(path)
+
         citation_entry_data = {
             "citation_type": JOURNAL_ARTICLE,
             "fields": json,
             "created_by": user_id,
             "organization": organization_id,
-            "attachment": path,
+            "attachment": pdf,
             "doi": doi,
             "project": project_id,
         }
-        serializer = CitationEntrySerializer(data=citation_entry_data)
+        context = {"request": request}
+        serializer = CitationEntrySerializer(data=citation_entry_data, context=context)
         serializer.is_valid(raise_exception=True)
         entry = serializer.save()
         create_paper_from_citation(entry)
