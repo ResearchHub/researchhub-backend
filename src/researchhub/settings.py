@@ -892,3 +892,5 @@ REFERRAL_PROGRAM = {
 
 # Grobid service
 GROBID_SERVER = "http://34.216.57.131:8000"
+if not DEVELOPMENT:
+    GROBID_SERVER = "http://172.31.7.56:8000"
