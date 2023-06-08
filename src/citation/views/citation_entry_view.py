@@ -57,6 +57,7 @@ class CitationEntryViewSet(ModelViewSet):
                     request.data.get("project_id"),
                 ),
                 priority=5,
+                countdown=0.5,
             )
 
         return Response({"created": created}, 200)
