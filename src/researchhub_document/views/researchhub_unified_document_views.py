@@ -715,7 +715,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         serializer = self.dynamic_serializer_class(
             unified_document,
-            _include_fields=("id", "documents", "reviews"),
+            _include_fields=("id", "documents", "reviews", "score"),
             context=metadata_context,
         )
         serializer_data = serializer.data
