@@ -278,15 +278,24 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
                     thread_type=GENERIC_COMMENT,
                     rh_comments__is_removed=False,
                     rh_comments__bounties__isnull=True,
+                    rh_comments__parent__isnull=False,
                 ),
             ),
             review_count=Count(
                 "rh_comments",
-                filter=Q(thread_type=PEER_REVIEW, rh_comments__is_removed=False),
+                filter=Q(
+                    thread_type=PEER_REVIEW,
+                    rh_comments__is_removed=False,
+                    rh_comments__parent__isnull=False,
+                ),
             ),
             summary_count=Count(
                 "rh_comments",
-                filter=Q(thread_type=SUMMARY, rh_comments__is_removed=False),
+                filter=Q(
+                    thread_type=SUMMARY,
+                    rh_comments__is_removed=False,
+                    rh_comments__parent__isnull=False,
+                ),
             ),
         )
         return aggregates
