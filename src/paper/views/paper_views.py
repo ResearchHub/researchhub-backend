@@ -235,6 +235,25 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                     "discussion_count",
                 ]
             },
+            "pap_dbs_get_bounties": {
+                "_include_fields": [
+                    "amount",
+                    "created_by",
+                    "expiration_date",
+                    "id",
+                    "status",
+                ]
+            },
+            "pap_dps_get_purchases": {"_include_fields": ["amount", "user"]},
+            "rep_dbs_get_created_by": {"_include_fields": ["author_profile", "id"]},
+            "pch_dps_get_user": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
+                    "first_name",
+                    "last_name",
+                ]
+            },
         }
         return context
 
@@ -260,7 +279,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 "abstract_src_markdown",
                 "authors",
                 "boost_amount",
-                "bounties",
                 "created_date",
                 "discussion_count",
                 "doi",
@@ -276,6 +294,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 "pdf_file_extract",
                 "pdf_license",
                 "pdf_url",
+                "purchases",
                 "raw_authors",
                 "score",
                 "slug",

@@ -313,7 +313,6 @@ class DynamicCommentSerializer(
     DynamicModelFieldSerializer,
     GenericReactionSerializerMixin,
 ):
-
     created_by = serializers.SerializerMethodField()
     discussion_type = serializers.SerializerMethodField()
     paper_id = serializers.SerializerMethodField()
@@ -424,7 +423,6 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
     score = serializers.SerializerMethodField()  # @property
     thread_id = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
-    user_vote = serializers.SerializerMethodField()
     awarded_bounty_amount = serializers.SerializerMethodField()
 
     class Meta:
@@ -452,7 +450,6 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
             "thread_id",
             "updated_date",
             "user_flag",
-            "user_vote",
             "was_edited",
             "awarded_bounty_amount",
         ]
@@ -467,7 +464,6 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
             "score",
             "user_flag",
             "is_accepted_answer",
-            "user_vote",
             "awarded_bounty_amount",
         ]
         model = Comment
@@ -552,7 +548,6 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
     score = serializers.SerializerMethodField()  # @property
     unified_document = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
-    user_vote = serializers.SerializerMethodField()
 
     class Meta:
         fields = [
@@ -591,7 +586,6 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
             "title",
             "unified_document",
             "user_flag",
-            "user_vote",
             "was_edited",
         ]
         read_only_fields = [
@@ -604,7 +598,6 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
             "is_removed",
             "score",
             "user_flag",
-            "user_vote",
         ]
         model = Thread
 
@@ -760,7 +753,6 @@ class ReplySerializer(serializers.ModelSerializer, GenericReactionSerializerMixi
     reply_count = serializers.SerializerMethodField()
     thread_id = serializers.SerializerMethodField()
     user_flag = serializers.SerializerMethodField()
-    user_vote = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
 
     class Meta:
@@ -784,7 +776,6 @@ class ReplySerializer(serializers.ModelSerializer, GenericReactionSerializerMixi
             "thread_id",
             "updated_date",
             "user_flag",
-            "user_vote",
             "was_edited",
             "created_date",
             "updated_date",
@@ -800,7 +791,6 @@ class ReplySerializer(serializers.ModelSerializer, GenericReactionSerializerMixi
             "score",
             "thread_id",
             "user_flag",
-            "user_vote",
         ]
         model = Reply
 

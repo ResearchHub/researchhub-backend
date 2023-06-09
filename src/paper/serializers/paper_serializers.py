@@ -6,6 +6,7 @@ import rest_framework.serializers as serializers
 from django.contrib.admin.options import get_content_type_for_model
 from django.core.files.base import ContentFile
 from django.db import IntegrityError, transaction
+from django.db.models import Count, Q
 from django.http import QueryDict
 
 import utils.sentry as sentry
@@ -41,11 +42,16 @@ from paper.utils import (
     convert_journal_url_to_pdf_url,
     convert_pdf_url_to_journal_url,
 )
-from reputation.models import Bounty, Contribution
+from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from researchhub.lib import get_document_id_from_path
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
+from researchhub_comment.constants.rh_comment_thread_types import (
+    GENERIC_COMMENT,
+    PEER_REVIEW,
+    SUMMARY,
+)
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
     HOT,
@@ -84,7 +90,7 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
     unified_document_id = serializers.SerializerMethodField()
     uploaded_by = UserSerializer(read_only=True)
     user_flag = serializers.SerializerMethodField()
-    user_vote = serializers.SerializerMethodField()
+    # user_vote = serializers.SerializerMethodField()
 
     class Meta:
         abstract = True
@@ -504,7 +510,6 @@ class PaperSerializer(BasePaperSerializer):
 
         try:
             with transaction.atomic():
-
                 # Temporary fix for updating read only fields
                 # Not including file, pdf_url, and url because
                 # those fields are processed
@@ -789,9 +794,12 @@ class DynamicPaperSerializer(
     abstract_src_markdown = serializers.SerializerMethodField()
     boost_amount = serializers.SerializerMethodField()
     bounties = serializers.SerializerMethodField()
+    discussions = serializers.SerializerMethodField()
+    discussion_aggregates = serializers.SerializerMethodField()
     first_preview = serializers.SerializerMethodField()
     hubs = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
+    purchases = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
     uploaded_by = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
@@ -841,33 +849,64 @@ class DynamicPaperSerializer(
         return 0
 
     def get_bounties(self, paper):
-        # TODO: Remove temporary return
-        return None
         from reputation.serializers import DynamicBountySerializer
 
-        context = {
-            "rep_dbs_get_created_by": {"_include_fields": ("author_profile", "id")},
-            "usr_dus_get_author_profile": {
-                "_include_fields": (
-                    "id",
-                    "profile_image",
-                    "first_name",
-                    "last_name",
-                )
-            },
-        }
-        thread_ids = paper.threads.values_list("id", flat=True)
-        bounties = Bounty.objects.filter(
-            item_content_type__model="researchhubunifieddocument",
-            item_object_id__in=thread_ids,
+        context = self.context
+        _context_fields = context.get("pap_dps_get_bounties", {})
+        _select_related_fields = context.get("pap_dps_get_bounties_select", [])
+        _prefetch_related_fields = context.get("pap_dps_get_bounties_prefetch", [])
+        bounties = (
+            paper.unified_document.related_bounties.select_related(
+                *_select_related_fields
+            )
+            .prefetch_related(*_prefetch_related_fields)
+            .all()
         )
         serializer = DynamicBountySerializer(
             bounties,
             many=True,
             context=context,
-            _include_fields=("amount", "created_by", "expiration_date", "id", "status"),
+            **_context_fields,
         )
         return serializer.data
+
+    def get_discussions(self, paper):
+        from researchhub_comment.serializers import DynamicRhThreadSerializer
+
+        context = self.context
+        _context_fields = context.get("pap_dps_get_discussions", {})
+        _select_related_fields = context.get("pap_dps_get_discussions_select", [])
+        _prefetch_related_fields = context.get("pap_dps_get_discussions_prefetch", [])
+        serializer = DynamicRhThreadSerializer(
+            paper.rh_threads.select_related(*_select_related_fields).prefetch_related(
+                *_prefetch_related_fields
+            ),
+            many=True,
+            context=context,
+            **_context_fields,
+        )
+        return serializer.data
+
+    def get_discussion_aggregates(self, hypothesis):
+        aggregates = hypothesis.rh_threads.aggregate(
+            discussion_count=Count(
+                "rh_comments",
+                filter=Q(
+                    thread_type=GENERIC_COMMENT,
+                    rh_comments__is_removed=False,
+                    rh_comments__bounties__isnull=True,
+                ),
+            ),
+            review_count=Count(
+                "rh_comments",
+                filter=Q(thread_type=PEER_REVIEW, rh_comments__is_removed=False),
+            ),
+            summary_count=Count(
+                "rh_comments",
+                filter=Q(thread_type=SUMMARY, rh_comments__is_removed=False),
+            ),
+        )
+        return aggregates
 
     def get_hubs(self, paper):
         context = self.context
@@ -888,6 +927,23 @@ class DynamicPaperSerializer(
                 )
                 return serializer.data
         return None
+
+    def get_purchases(self, paper):
+        from purchase.serializers import DynamicPurchaseSerializer
+
+        context = self.context
+        _context_fields = context.get("pap_dps_get_purchases", {})
+        _select_related_fields = context.get("pap_dps_get_purchases_select", [])
+        _prefetch_related_fields = context.get("pap_dps_get_purchases_prefetch", [])
+        serializer = DynamicPurchaseSerializer(
+            paper.purchases.select_related(*_select_related_fields).prefetch_related(
+                *_prefetch_related_fields
+            ),
+            many=True,
+            context=context,
+            **_context_fields,
+        )
+        return serializer.data
 
     def get_score(self, paper):
         return paper.calculate_score()

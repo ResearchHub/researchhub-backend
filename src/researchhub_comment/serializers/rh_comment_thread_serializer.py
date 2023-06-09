@@ -33,6 +33,7 @@ class RhCommentThreadSerializer(ModelSerializer):
 
 class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
     comments = SerializerMethodField()
+    comment_count = SerializerMethodField()
     content_object = SerializerMethodField()
 
     class Meta:
@@ -52,6 +53,9 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
             **_context_fields,
         )
         return serializer.data
+
+    def get_comment_count(self, thread):
+        return thread.rh_comments.count()
 
     def get_content_object(self, thread):
         context = self.context

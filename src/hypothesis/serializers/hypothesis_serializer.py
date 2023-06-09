@@ -1,3 +1,4 @@
+from django.db.models import Count, Q
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
 from discussion.reaction_models import Vote
@@ -8,8 +9,12 @@ from discussion.reaction_serializers import (
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from hypothesis.models import Hypothesis
 from note.serializers import DynamicNoteSerializer, NoteSerializer
-from reputation.models import Bounty
 from researchhub.serializers import DynamicModelFieldSerializer
+from researchhub_comment.constants.rh_comment_thread_types import (
+    GENERIC_COMMENT,
+    PEER_REVIEW,
+    SUMMARY,
+)
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 from user.serializers import (
     AuthorSerializer,
@@ -28,7 +33,6 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
             "aggregate_citation_consensus",
             "authors",
             "boost_amount",
-            "bounties",
             "created_by",
             "created_date",
             "discussion_count",
@@ -68,7 +72,6 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
     aggregate_citation_consensus = SerializerMethodField()
     authors = AuthorSerializer(many=True)
     boost_amount = SerializerMethodField()
-    bounties = SerializerMethodField()
     created_by = UserSerializer()
     discussion_count = SerializerMethodField()
     full_markdown = SerializerMethodField()
@@ -81,7 +84,7 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
     promoted = SerializerMethodField()
     user_endorsement = SerializerMethodField()
     user_flag = SerializerMethodField()
-    user_vote = SerializerMethodField()  # NOTE: calvinhlee - deprecate?
+    # user_vote = SerializerMethodField()  # NOTE: calvinhlee - deprecate?
 
     def get_from_post(self, hypothesis):
         if hypothesis.from_bounty:
@@ -97,35 +100,8 @@ class HypothesisSerializer(ModelSerializer, GenericReactionSerializerMixin):
     def get_aggregate_citation_consensus(self, hypothesis):
         return hypothesis.get_aggregate_citation_consensus()
 
-    def get_bounties(self, hypothesis):
-        from reputation.serializers import DynamicBountySerializer
-
-        context = {
-            "rep_dbs_get_created_by": {"_include_fields": ("author_profile", "id")},
-            "usr_dus_get_author_profile": {
-                "_include_fields": (
-                    "id",
-                    "profile_image",
-                    "first_name",
-                    "last_name",
-                )
-            },
-        }
-        thread_ids = hypothesis.threads.values("id")
-        bounties = Bounty.objects.filter(
-            item_content_type__model="researchhubunifieddocument",
-            item_object_id__in=thread_ids,
-        )
-        serializer = DynamicBountySerializer(
-            bounties,
-            many=True,
-            context=context,
-            _include_fields=("amount", "created_by", "expiration_date", "status"),
-        )
-        return serializer.data
-
-    def get_discussion_count(self, hypotheis):
-        return hypotheis.get_discussion_count()
+    def get_discussion_count(self, hypothesis):
+        return hypothesis.get_discussion_count()
 
     def get_full_markdown(self, hypothesis):
         byte_string = hypothesis.src.read()
@@ -166,9 +142,12 @@ class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
     aggregate_citation_consensus = SerializerMethodField()
     authors = SerializerMethodField()
     created_by = SerializerMethodField()
+    discussions = SerializerMethodField()
+    discussion_aggregates = SerializerMethodField()
     discussion_count = SerializerMethodField()
     hubs = SerializerMethodField()
     note = SerializerMethodField()
+    purchases = SerializerMethodField()
     score = SerializerMethodField()
     unified_document = SerializerMethodField()
 
@@ -195,8 +174,46 @@ class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
         )
         return serializer.data
 
-    def get_discussion_count(self, hypotheis):
-        return hypotheis.get_discussion_count()
+    def get_discussions(self, hypothesis):
+        from researchhub_comment.serializers import DynamicRhThreadSerializer
+
+        context = self.context
+        _context_fields = context.get("hyp_dhs_get_discussions", {})
+        _select_related_fields = context.get("hyp_dhs_get_discussions_select", [])
+        _prefetch_related_fields = context.get("hyp_dhs_get_discussions_prefetch", [])
+        serializer = DynamicRhThreadSerializer(
+            hypothesis.rh_threads.select_related(
+                *_select_related_fields
+            ).prefetch_related(*_prefetch_related_fields),
+            many=True,
+            context=context,
+            **_context_fields,
+        )
+        return serializer.data
+
+    def get_discussion_aggregates(self, hypothesis):
+        aggregates = hypothesis.rh_threads.aggregate(
+            discussion_count=Count(
+                "rh_comments",
+                filter=Q(
+                    thread_type=GENERIC_COMMENT,
+                    rh_comments__is_removed=False,
+                    rh_comments__bounties__isnull=True,
+                ),
+            ),
+            review_count=Count(
+                "rh_comments",
+                filter=Q(thread_type=PEER_REVIEW, rh_comments__is_removed=False),
+            ),
+            summary_count=Count(
+                "rh_comments",
+                filter=Q(thread_type=SUMMARY, rh_comments__is_removed=False),
+            ),
+        )
+        return aggregates
+
+    def get_discussion_count(self, hypothesis):
+        return hypothesis.get_discussion_count()
 
     def get_hubs(self, hypothesis):
         context = self.context
@@ -205,7 +222,7 @@ class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
             hypothesis.unified_document.hubs,
             many=True,
             context=context,
-            **_context_fields
+            **_context_fields,
         )
         return serializer.data
 
@@ -214,6 +231,23 @@ class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
         _context_fields = context.get("hyp_dhs_get_note", {})
         serializer = DynamicNoteSerializer(
             hypothesis.note, many=True, context=context, **_context_fields
+        )
+        return serializer.data
+
+    def get_purchases(self, instance):
+        from purchase.serializers import DynamicPurchaseSerializer
+
+        context = self.context
+        _context_fields = context.get("hyp_dhs_get_purchases", {})
+        _select_related_fields = context.get("hyp_dhs_get_purchases_select", [])
+        _prefetch_related_fields = context.get("hyp_dhs_get_purchases_prefetch", [])
+        serializer = DynamicPurchaseSerializer(
+            instance.purchases.select_related(*_select_related_fields).prefetch_related(
+                *_prefetch_related_fields
+            ),
+            many=True,
+            context=context,
+            **_context_fields,
         )
         return serializer.data
 

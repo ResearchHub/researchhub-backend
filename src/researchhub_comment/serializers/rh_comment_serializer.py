@@ -1,13 +1,13 @@
-from django.contrib.contenttypes.models import ContentType
 from django.db.models import Sum
 from rest_framework.serializers import SerializerMethodField
 
+from discussion.models import Vote
 from discussion.reaction_serializers import (
     GenericReactionSerializer,
     GenericReactionSerializerMixin,
+    VoteSerializer,
 )
 from purchase.serializers import DynamicPurchaseSerializer
-from reputation.models import Escrow
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.serializers.constants.rh_comment_serializer_contants import (
@@ -15,6 +15,7 @@ from researchhub_comment.serializers.constants.rh_comment_serializer_contants im
     RH_COMMENT_READ_ONLY_FIELDS,
 )
 from user.serializers import DynamicUserSerializer
+from utils.http import get_user_from_request
 
 
 class RhCommentSerializer(GenericReactionSerializer):
@@ -47,13 +48,14 @@ class DynamicRhCommentSerializer(
     GenericReactionSerializerMixin,
     DynamicModelFieldSerializer,
 ):
+    awarded_bounty_amount = SerializerMethodField()
     created_by = SerializerMethodField()
     thread = SerializerMethodField()
     children_count = SerializerMethodField()
     children = SerializerMethodField()
     purchases = SerializerMethodField()
     bounties = SerializerMethodField()
-    awarded_bounty_amount = SerializerMethodField()
+    user_vote = SerializerMethodField()
 
     class Meta:
         fields = "__all__"
@@ -151,3 +153,14 @@ class DynamicRhCommentSerializer(
             )
 
         return amount_awarded
+
+    def get_user_vote(self, comment):
+        vote = None
+        user = get_user_from_request(self.context)
+        try:
+            if user and not user.is_anonymous:
+                vote = comment.votes.get(created_by=user)
+                vote = VoteSerializer(vote).data
+            return vote
+        except Vote.DoesNotExist:
+            return None

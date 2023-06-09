@@ -655,6 +655,73 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     ).data
         return Response(response, status=status.HTTP_200_OK)
 
+    def _get_document_metadata_context(self):
+        context = self.get_serializer_context()
+        bounties_context_fields = ("id", "amount", "created_by", "status")
+        bounties_select_related_fields = ("created_by", "created_by__author_profile")
+        discussion_context_fields = ("id", "comment_count", "thread_type")
+        purchase_context_fields = ("id", "amount", "user")
+        purchase_select_related_fields = ("user", "user__author_profile")
+        metadata_context = {
+            **context,
+            "doc_duds_get_documents": {
+                "_include_fields": (
+                    "bounties",
+                    "discussion_aggregates",
+                    "purchases",
+                    "user_vote",
+                )
+            },
+            "doc_dps_get_bounties": {"_include_fields": bounties_context_fields},
+            "doc_dps_get_bounties_select": bounties_select_related_fields,
+            "doc_dps_get_discussions": {"_include_fields": discussion_context_fields},
+            "doc_dps_get_discussions_prefetch": ("rh_comments",),
+            "doc_dps_get_purchases": {"_include_fields": purchase_context_fields},
+            "doc_dps_get_purchases_select": purchase_select_related_fields,
+            "hyp_dhs_get_discussions": {"_include_fields": discussion_context_fields},
+            "hyp_dhs_get_discussions_prefetch": ("rh_comments",),
+            "hyp_dhs_get_purchases": {"_include_fields": purchase_context_fields},
+            "hyp_dhs_get_purchases_select": purchase_select_related_fields,
+            "pap_dps_get_bounties": {"_include_fields": bounties_context_fields},
+            "pap_dps_get_bounties_select": bounties_select_related_fields,
+            "pap_dps_get_discussions": {"_include_fields": discussion_context_fields},
+            "pap_dps_get_discussions_prefetch": ("rh_comments",),
+            "pap_dps_get_purchases": {"_include_fields": purchase_context_fields},
+            "pap_dps_get_purchases_select": purchase_select_related_fields,
+            "pch_dps_get_user": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
+                    "first_name",
+                    "last_name",
+                ]
+            },
+            "rep_dbs_get_created_by": {"_include_fields": ("author_profile", "id")},
+            "usr_dus_get_author_profile": {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "profile_image",
+                ]
+            },
+        }
+        return metadata_context
+
+    @action(detail=True, methods=["get"], permission_classes=[AllowAny])
+    def get_document_metadata(self, request, pk=None):
+        unified_document = self.get_object()
+        metadata_context = self._get_document_metadata_context()
+
+        serializer = self.dynamic_serializer_class(
+            unified_document,
+            _include_fields=("id", "documents", "reviews", "score"),
+            context=metadata_context,
+        )
+        serializer_data = serializer.data
+
+        return Response(serializer_data, status=status.HTTP_200_OK)
+
 
 def get_user_votes(created_by, doc_ids, reaction_content_type):
     return GrmVote.objects.filter(
