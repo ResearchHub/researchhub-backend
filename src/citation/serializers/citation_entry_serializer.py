@@ -12,6 +12,7 @@ from rest_framework.serializers import (
 
 from citation.related_models.citation_entry_model import CitationEntry
 from citation.schema import generate_schema_for_citation
+from paper.serializers import PaperSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from user.serializers import DynamicOrganizationSerializer, DynamicUserSerializer
 from utils.serializers import DefaultAuthenticatedSerializer
@@ -21,6 +22,7 @@ class CitationEntrySerializer(DefaultAuthenticatedSerializer):
     checksum = ReadOnlyField()
     fields = JSONField()
     required_fields = SerializerMethodField(read_only=True)
+    paper = PaperSerializer()
 
     class Meta:
         model = CitationEntry

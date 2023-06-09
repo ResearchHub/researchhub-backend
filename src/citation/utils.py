@@ -53,7 +53,8 @@ def create_paper_from_citation(citation):
 
     if not duplicate_papers:
         data = {
-            "uploaded_by": citation.created_by.id,
+            # "uploaded_by": citation.created_by.id,
+            "uploaded_by": None,
             "citation": citation.id,
             "doi": pure_doi,
         }
