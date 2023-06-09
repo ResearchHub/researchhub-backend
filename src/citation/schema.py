@@ -13,9 +13,9 @@ initial_creators_schema_regex = r"|".join(f"^{field}$" for field in CREATOR_TYPE
 CREATORS_SCHEMA_REGEX = f"({initial_creators_schema_regex})"
 
 
-def generate_json_for_journal(doi):
-    schema = generate_schema_for_citation(JOURNAL_ARTICLE)
+def generate_json_for_doi(doi):
     json = {}
+    schema = generate_schema_for_citation(JOURNAL_ARTICLE)
     open_alex = OpenAlex()
     result = open_alex.get_data_from_doi(doi)
     for field in schema["required"]:
@@ -45,6 +45,25 @@ def generate_json_for_journal(doi):
                 json[field] = cur_json
         else:
             json[field] = ""
+    return json
+
+
+def generate_json_for_pdf(filename):
+    json = {}
+    schema = generate_schema_for_citation(JOURNAL_ARTICLE)
+    for key, value in schema["properties"].items():
+        value_type = value["type"]
+        if value_type == "string":
+            json[key] = ""
+        elif value_type == "array":
+            json[key] = []
+        elif value_type == "object":
+            json[key] = {}
+        else:
+            raise Exception("Unknown value type for schema")
+
+    filename = filename.split("/")[-1]
+    json["title"] = filename
     return json
 
 

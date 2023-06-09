@@ -10,9 +10,8 @@ from rest_framework.request import Request
 from citation.constants import JOURNAL_ARTICLE
 from citation.exceptions import GrobidProcessingError
 from citation.models import CitationEntry
-from citation.schema import generate_json_for_journal
+from citation.schema import generate_json_for_doi, generate_json_for_pdf
 from citation.serializers import CitationEntrySerializer
-from paper.exceptions import DOINotFoundError
 from paper.models import Paper
 from paper.paper_upload_tasks import celery_process_paper
 from paper.serializers import PaperSubmissionSerializer
@@ -29,7 +28,6 @@ def get_pdf_header_data(path):
     }
     try:
         response = requests.post(url, data=request_data, timeout=10)
-        # from celery.contrib import rdb; rdb.set_trace()
         data = response.json()
         status = data.get("status")
         if status == 200:
@@ -47,19 +45,27 @@ def get_citation_entry_from_pdf(path, user_id, organization_id, project_id):
     header_data = get_pdf_header_data(path)
     doi = header_data.get("doi", None)
 
-    if not doi:
-        raise DOINotFoundError(f"No DOI found for {path}")
-
-    json = generate_json_for_journal(doi)
     citation_entry = CitationEntry.objects.filter(
         doi=doi, created_by=user_id, project_id=project_id
     )
+
     if not citation_entry.exists():
         # CitationEntrySerializer inherits from DefaultAuthenticatedSerializer,
         # which requires a request object with a user attached
         request = Request(HttpRequest())
         request.user = User.objects.get(id=user_id)
         pdf = default_storage.open(path)
+
+        if not doi:
+            pdf.name = pdf.name.split("/")[-1]
+            json = generate_json_for_pdf(pdf.name)
+        else:
+            try:
+                json = generate_json_for_doi(doi)
+            except Exception as e:
+                log_error(e)
+                pdf.name = pdf.name.split("/")[-1]
+                json = generate_json_for_pdf(pdf.name)
 
         citation_entry_data = {
             "citation_type": JOURNAL_ARTICLE,
