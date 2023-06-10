@@ -1,8 +1,11 @@
-from django.db.models import CharField
+from django.db import models
+from django.db.models import CharField, Count, Q
 
 from researchhub_comment.constants.rh_comment_thread_types import (
     GENERIC_COMMENT,
+    PEER_REVIEW,
     RH_COMMENT_THREAD_TYPES,
+    SUMMARY,
 )
 from utils.models import AbstractGenericRelationModel
 
@@ -15,6 +18,39 @@ from utils.models import AbstractGenericRelationModel
     This allows queries such as [ContentModel].rh_threads[...]
     where [ContentModels] may be found in method "get_valid_target_content_model"
 """
+
+
+class RhCommentThreadManager(models.Manager):
+    def get_discussion_aggregates(self):
+        return self.aggregate(
+            discussion_count=Count(
+                "rh_comments",
+                filter=Q(
+                    thread_type=GENERIC_COMMENT,
+                    rh_comments__is_removed=False,
+                    rh_comments__bounties__isnull=True,
+                    rh_comments__parent__bounties__isnull=True,
+                ),
+            ),
+            review_count=Count(
+                "rh_comments",
+                filter=Q(
+                    thread_type=PEER_REVIEW,
+                    rh_comments__is_removed=False,
+                    rh_comments__parent__isnull=False,
+                    rh_comments__parent__bounties__isnull=True,
+                ),
+            ),
+            summary_count=Count(
+                "rh_comments",
+                filter=Q(
+                    thread_type=SUMMARY,
+                    rh_comments__is_removed=False,
+                    rh_comments__parent__isnull=False,
+                    rh_comments__parent__bounties__isnull=True,
+                ),
+            ),
+        )
 
 
 class RhCommentThreadModel(AbstractGenericRelationModel):
@@ -31,6 +67,9 @@ class RhCommentThreadModel(AbstractGenericRelationModel):
         max_length=144,
         null=True,
     )
+
+    """--- OBJECT MANAGER ---"""
+    objects = RhCommentThreadManager()
 
     """ --- PROPERTIES --- """
 

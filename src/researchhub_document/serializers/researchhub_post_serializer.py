@@ -270,35 +270,8 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
         )
         return serializer.data
 
-    def get_discussion_aggregates(self, hypothesis):
-        aggregates = hypothesis.rh_threads.aggregate(
-            discussion_count=Count(
-                "rh_comments",
-                filter=Q(
-                    thread_type=GENERIC_COMMENT,
-                    rh_comments__is_removed=False,
-                    rh_comments__bounties__isnull=True,
-                    rh_comments__parent__isnull=False,
-                ),
-            ),
-            review_count=Count(
-                "rh_comments",
-                filter=Q(
-                    thread_type=PEER_REVIEW,
-                    rh_comments__is_removed=False,
-                    rh_comments__parent__isnull=False,
-                ),
-            ),
-            summary_count=Count(
-                "rh_comments",
-                filter=Q(
-                    thread_type=SUMMARY,
-                    rh_comments__is_removed=False,
-                    rh_comments__parent__isnull=False,
-                ),
-            ),
-        )
-        return aggregates
+    def get_discussion_aggregates(self, post):
+        return post.rh_threads.get_discussion_aggregates()
 
     def get_note(self, post):
         from note.serializers import DynamicNoteSerializer

@@ -1,4 +1,3 @@
-from django.db.models import Count, Q
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
 from discussion.reaction_models import Vote
@@ -10,11 +9,6 @@ from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from hypothesis.models import Hypothesis
 from note.serializers import DynamicNoteSerializer, NoteSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
-from researchhub_comment.constants.rh_comment_thread_types import (
-    GENERIC_COMMENT,
-    PEER_REVIEW,
-    SUMMARY,
-)
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 from user.serializers import (
     AuthorSerializer,
@@ -192,34 +186,7 @@ class DynamicHypothesisSerializer(DynamicModelFieldSerializer):
         return serializer.data
 
     def get_discussion_aggregates(self, hypothesis):
-        aggregates = hypothesis.rh_threads.aggregate(
-            discussion_count=Count(
-                "rh_comments",
-                filter=Q(
-                    thread_type=GENERIC_COMMENT,
-                    rh_comments__is_removed=False,
-                    rh_comments__bounties__isnull=True,
-                    rh_comments__parent__isnull=False,
-                ),
-            ),
-            review_count=Count(
-                "rh_comments",
-                filter=Q(
-                    thread_type=PEER_REVIEW,
-                    rh_comments__is_removed=False,
-                    rh_comments__parent__isnull=False,
-                ),
-            ),
-            summary_count=Count(
-                "rh_comments",
-                filter=Q(
-                    thread_type=SUMMARY,
-                    rh_comments__is_removed=False,
-                    rh_comments__parent__isnull=False,
-                ),
-            ),
-        )
-        return aggregates
+        return hypothesis.rh_threads.get_discussion_aggregates()
 
     def get_discussion_count(self, hypothesis):
         return hypothesis.get_discussion_count()

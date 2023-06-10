@@ -6,7 +6,6 @@ import rest_framework.serializers as serializers
 from django.contrib.admin.options import get_content_type_for_model
 from django.core.files.base import ContentFile
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Q
 from django.http import QueryDict
 
 import utils.sentry as sentry
@@ -47,11 +46,6 @@ from reputation.tasks import create_contribution
 from researchhub.lib import get_document_id_from_path
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
-from researchhub_comment.constants.rh_comment_thread_types import (
-    GENERIC_COMMENT,
-    PEER_REVIEW,
-    SUMMARY,
-)
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
     HOT,
@@ -887,35 +881,8 @@ class DynamicPaperSerializer(
         )
         return serializer.data
 
-    def get_discussion_aggregates(self, hypothesis):
-        aggregates = hypothesis.rh_threads.aggregate(
-            discussion_count=Count(
-                "rh_comments",
-                filter=Q(
-                    thread_type=GENERIC_COMMENT,
-                    rh_comments__is_removed=False,
-                    rh_comments__bounties__isnull=True,
-                    rh_comments__parent__isnull=False,
-                ),
-            ),
-            review_count=Count(
-                "rh_comments",
-                filter=Q(
-                    thread_type=PEER_REVIEW,
-                    rh_comments__is_removed=False,
-                    rh_comments__parent__isnull=False,
-                ),
-            ),
-            summary_count=Count(
-                "rh_comments",
-                filter=Q(
-                    thread_type=SUMMARY,
-                    rh_comments__is_removed=False,
-                    rh_comments__parent__isnull=False,
-                ),
-            ),
-        )
-        return aggregates
+    def get_discussion_aggregates(self, paper):
+        return paper.rh_threads.get_discussion_aggregates()
 
     def get_hubs(self, paper):
         context = self.context
