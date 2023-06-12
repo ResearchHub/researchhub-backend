@@ -1,4 +1,3 @@
-from django.db.models import Count, Q
 from rest_framework.serializers import (
     ModelSerializer,
     ReadOnlyField,
@@ -9,11 +8,6 @@ from discussion.reaction_serializers import GenericReactionSerializerMixin
 from discussion.serializers import DynamicThreadSerializer
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
-from researchhub_comment.constants.rh_comment_thread_types import (
-    GENERIC_COMMENT,
-    PEER_REVIEW,
-    SUMMARY,
-)
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
     RESEARCHHUB_POST_DOCUMENT_TYPES,

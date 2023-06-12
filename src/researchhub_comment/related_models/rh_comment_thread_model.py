@@ -22,7 +22,7 @@ from utils.models import AbstractGenericRelationModel
 
 class RhCommentThreadManager(models.Manager):
     def get_discussion_aggregates(self):
-        return self.aggregate(
+        return self.exclude(rh_comments__bounties__isnull=False).aggregate(
             discussion_count=Count(
                 "rh_comments",
                 filter=Q(
