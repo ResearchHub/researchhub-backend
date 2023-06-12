@@ -1,4 +1,3 @@
-from django.db.models import Count, Q
 from rest_framework.serializers import (
     ModelSerializer,
     ReadOnlyField,
@@ -9,11 +8,6 @@ from discussion.reaction_serializers import GenericReactionSerializerMixin
 from discussion.serializers import DynamicThreadSerializer
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
-from researchhub_comment.constants.rh_comment_thread_types import (
-    GENERIC_COMMENT,
-    PEER_REVIEW,
-    SUMMARY,
-)
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
     RESEARCHHUB_POST_DOCUMENT_TYPES,
@@ -270,26 +264,8 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
         )
         return serializer.data
 
-    def get_discussion_aggregates(self, hypothesis):
-        aggregates = hypothesis.rh_threads.aggregate(
-            discussion_count=Count(
-                "rh_comments",
-                filter=Q(
-                    thread_type=GENERIC_COMMENT,
-                    rh_comments__is_removed=False,
-                    rh_comments__bounties__isnull=True,
-                ),
-            ),
-            review_count=Count(
-                "rh_comments",
-                filter=Q(thread_type=PEER_REVIEW, rh_comments__is_removed=False),
-            ),
-            summary_count=Count(
-                "rh_comments",
-                filter=Q(thread_type=SUMMARY, rh_comments__is_removed=False),
-            ),
-        )
-        return aggregates
+    def get_discussion_aggregates(self, post):
+        return post.rh_threads.get_discussion_aggregates()
 
     def get_note(self, post):
         from note.serializers import DynamicNoteSerializer
