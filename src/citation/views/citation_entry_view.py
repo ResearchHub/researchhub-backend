@@ -76,11 +76,12 @@ class CitationEntryViewSet(ModelViewSet):
         else:
             raise PermissionError("Fetch not allowed without org_id or project_id")
 
-        page = self.paginate_queryset(citations_query)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
+        # TODO: calvinhlee look into pagination after everything finishes & project structure in FE is done
+        # page = self.paginate_queryset(citations_query)
+        # if page is not None:
+        #     serializer = self.get_serializer(page, many=True)
+        #     return self.get_paginated_response(serializer.data)
+        citations_query = citations_query.order_by(*self.ordering)
         serializer = self.get_serializer(citations_query, many=True)
         return Response(serializer.data)
 
