@@ -1,11 +1,13 @@
-from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
+from django.db import transaction
+from django.db.models import Q
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
+
 
 from citation.constants import CITATION_TYPE_FIELDS
 from citation.filters import CitationEntryFilter
@@ -68,11 +70,14 @@ class CitationEntryViewSet(ModelViewSet):
         if project_id:
             citations_query = CitationProject.objects.get(id=project_id).citations.all()
         elif organization_id:
-            citations_query = Organization.objects.get(
-                id=organization_id
-            ).created_citations.all()
             if request.query_params.get("get_current_user_citations", None):
-                citations_query = citations_query.filter(created_by=user.id)
+                citations_query = citations_query.filter(
+                    organization=organization_id, created_by=user.id
+                )
+            else:
+                citations_query = Organization.objects.get(
+                    id=organization_id
+                ).created_citations.filter(Q(project__is_public=True) | Q(project=None))
         else:
             raise PermissionError("Fetch not allowed without org_id or project_id")
 
