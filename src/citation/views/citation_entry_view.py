@@ -63,7 +63,6 @@ class CitationEntryViewSet(ModelViewSet):
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def user_citations(self, request):
-        # Using .none() to return an empty queryset if org/proj id is not passed in
         citations_query = self.filter_queryset(self.get_queryset().none()).order_by(
             *self.ordering
         )
