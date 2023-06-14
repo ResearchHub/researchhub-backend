@@ -81,6 +81,7 @@ def get_citation_entry_from_pdf(path, filename, user_id, organization_id, projec
         serializer.is_valid(raise_exception=True)
         entry = serializer.save()
         create_paper_from_citation(entry)
+        default_storage.delete(path)
         return entry, False
     else:
         return citation_entry.first(), True

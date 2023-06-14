@@ -1,4 +1,4 @@
-from boto3 import client
+from boto3 import session
 from django.db import transaction
 from django.utils.crypto import get_random_string
 from django_filters.rest_framework import DjangoFilterBackend
@@ -51,7 +51,8 @@ class CitationEntryViewSet(ModelViewSet):
 
         cleaned_filename = clean_filename(f"{get_random_string(8)}_{filename}")
         user_key = f"user_{request.user.id}"
-        s3_client = client("s3")
+        boto3_session = session.Session()
+        s3_client = boto3_session.client("s3")
         res = s3_client.generate_presigned_url(
             "put_object",
             Params={
