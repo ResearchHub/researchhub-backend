@@ -1,5 +1,6 @@
 from boto3 import client
 from django.db import transaction
+from django.utils.crypto import get_random_string
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
@@ -8,18 +9,16 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-
 from citation.constants import CITATION_TYPE_FIELDS
 from citation.filters import CitationEntryFilter
 from citation.models import CitationEntry
-from citation.related_models.citation_project_model import CitationProject
+from citation.permissions import PDFUploadsS3CallBack
 from citation.schema import generate_schema_for_citation
 from citation.serializers import CitationEntrySerializer
 from citation.tasks import handle_creating_citation_entry
 from researchhub.settings import AWS_STORAGE_BUCKET_NAME
-from user.related_models.organization_model import Organization
-from utils.aws import upload_to_s3
 from utils.openalex import OpenAlex
+from utils.parsers import clean_filename
 
 
 class CitationEntryViewSet(ModelViewSet):
@@ -43,19 +42,21 @@ class CitationEntryViewSet(ModelViewSet):
             status=status.HTTP_405_METHOD_NOT_ALLOWED,
         )
 
-    @action(detail=False, methods=["post"], permission_classes=[AllowAny])
+    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
     def pdf_uploads(self, request):
         data = request.data
         organization_id = data.get("organization_id")
         project_id = data.get("project_id")
-        presigned_urls = []
         filename = data.get("filename")
+
+        cleaned_filename = clean_filename(f"{get_random_string(8)}_{filename}")
+        user_key = f"user_{request.user.id}"
         s3_client = client("s3")
         res = s3_client.generate_presigned_url(
             "put_object",
             Params={
                 "Bucket": AWS_STORAGE_BUCKET_NAME,
-                "Key": f"uploads/citation_pdfs/{filename}",
+                "Key": f"uploads/citation_pdfs/{user_key}_{cleaned_filename}",
                 "ContentType": "application/pdf",
                 "Metadata": {
                     "x-amz-meta-created-by-id": f"{request.user.id}",
@@ -68,37 +69,24 @@ class CitationEntryViewSet(ModelViewSet):
         )
         return Response(res, status=200)
 
-        for filename in data.get("filenames", []):
-            s3_client = client("s3")
-            res = s3_client.generate_presigned_url(
-                "put_object",
-                Params={
-                    "Bucket": AWS_STORAGE_BUCKET_NAME,
-                    "Key": f"uploads/citation_pdfs/{filename}",
-                    "ContentType": "application/pdf",
-                },
-                ExpiresIn=60 * 5,
-            )
-            presigned_urls.append({filename: res})
-        return Response(presigned_urls)
+    @action(detail=False, methods=["post"], permission_classes=[PDFUploadsS3CallBack])
+    def pdf_uploads_callback(self, request):
+        data = request.data
+        path = data.get("path")
+        filename = data.get("filename")
+        organization_id = data.get("organization_id")
+        project_id = data.get("project_id")
+        creator_id = data.get("creator_id")
 
-        pdfs = request.FILES.getlist("pdfs[]")
-        created = []
-        for pdf in pdfs:
-            url = upload_to_s3(pdf, "citation_pdfs")
-            path = url.split(".com/")[1]
-            handle_creating_citation_entry.apply_async(
-                (
-                    path,
-                    request.user.id,
-                    request.data.get("organization_id"),
-                    request.data.get("project_id"),
-                ),
-                priority=5,
-                countdown=0.5,
-            )
+        if project_id == "None":
+            project_id = None
 
-        return Response({"created": created}, 200)
+        handle_creating_citation_entry.apply_async(
+            (path, filename, creator_id, organization_id, project_id),
+            priority=5,
+            countdown=0.1,
+        )
+        return Response(status=200)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def user_citations(self, request):

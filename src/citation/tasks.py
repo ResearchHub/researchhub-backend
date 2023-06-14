@@ -8,12 +8,14 @@ from researchhub.celery import QUEUE_CERMINE, app
 
 
 @app.task(queue=QUEUE_CERMINE)
-def handle_creating_citation_entry(path, user_id, organization_id, project_id, retry=0):
+def handle_creating_citation_entry(
+    path, filename, user_id, organization_id, project_id, retry=0
+):
     if retry > 3:
         return
     try:
         entry, dupe = get_citation_entry_from_pdf(
-            path, user_id, organization_id, project_id
+            path, filename, user_id, organization_id, project_id
         )
     except GrobidProcessingError:
         # The Grobid server is probably busy
@@ -21,6 +23,7 @@ def handle_creating_citation_entry(path, user_id, organization_id, project_id, r
         handle_creating_citation_entry.apply_async(
             (
                 path,
+                filename,
                 user_id,
                 organization_id,
                 project_id,

@@ -2,6 +2,7 @@ import decimal
 from datetime import date, datetime
 
 from django.utils import timezone
+from django.utils.text import slugify
 from rest_framework.parsers import BaseParser
 
 ISO_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
@@ -59,3 +60,12 @@ def json_serial(obj):
     if isinstance(obj, decimal.Decimal):
         return str(obj)
     raise TypeError("Type %s not serializable" % type(obj))
+
+
+def clean_filename(filename):
+    filename_parts = filename.split(".")
+    if len(filename_parts) > 1:
+        extension = slugify(filename_parts[-1])
+        return f"{slugify(filename_parts[0])}.{extension}"
+    else:
+        return slugify(filename)

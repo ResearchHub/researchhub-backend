@@ -90,6 +90,7 @@ ALLOWED_HOSTS = [
     "researchhub-web-researchhub.vercel.app",
     r"^https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}/",
     r"https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}",
+    "d054f7b0c515.ngrok.app",
 ]
 
 if not (PRODUCTION or STAGING):
@@ -484,6 +485,8 @@ AWS_SECRET_ACCESS_KEY = os.environ.get(
 )
 
 # AWS Lambda
+LAMBDA_IP = "35.82.37.191"
+
 AWS_SCHOLARLY_LAMBDA = (
     "arn:aws:lambda:us-west-2:794128250202:function:ResearchHub-Scholarly"
 )

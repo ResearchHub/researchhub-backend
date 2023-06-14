@@ -41,7 +41,7 @@ def get_pdf_header_data(path):
     )
 
 
-def get_citation_entry_from_pdf(path, user_id, organization_id, project_id):
+def get_citation_entry_from_pdf(path, filename, user_id, organization_id, project_id):
     header_data = get_pdf_header_data(path)
     doi = header_data.get("doi", None)
 
@@ -57,15 +57,15 @@ def get_citation_entry_from_pdf(path, user_id, organization_id, project_id):
         pdf = default_storage.open(path)
 
         if not doi:
-            pdf.name = pdf.name.split("/")[-1]
-            json = generate_json_for_pdf(pdf.name)
+            pdf.name = filename
+            json = generate_json_for_pdf(filename)
         else:
             try:
                 json = generate_json_for_doi(doi)
             except Exception as e:
                 log_error(e)
-                pdf.name = pdf.name.split("/")[-1]
-                json = generate_json_for_pdf(pdf.name)
+                pdf.name = filename
+                json = generate_json_for_pdf(filename)
 
         citation_entry_data = {
             "citation_type": JOURNAL_ARTICLE,

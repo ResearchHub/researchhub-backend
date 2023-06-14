@@ -62,7 +62,6 @@ def generate_json_for_pdf(filename):
         else:
             raise Exception("Unknown value type for schema")
 
-    filename = filename.split("/")[-1]
     json["title"] = filename
     return json
 
