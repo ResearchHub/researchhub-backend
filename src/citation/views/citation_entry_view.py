@@ -16,7 +16,7 @@ from citation.permissions import PDFUploadsS3CallBack
 from citation.schema import generate_schema_for_citation
 from citation.serializers import CitationEntrySerializer
 from citation.tasks import handle_creating_citation_entry
-from researchhub.settings import AWS_STORAGE_BUCKET_NAME
+from researchhub.settings import AWS_STORAGE_BUCKET_NAME, DEVELOPMENT
 from utils.openalex import OpenAlex
 from utils.parsers import clean_filename
 
@@ -44,6 +44,16 @@ class CitationEntryViewSet(ModelViewSet):
 
     @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
     def pdf_uploads(self, request):
+        """
+        To enable in development:
+        1. Use Ngrok to create a tunnel on your backend port (usually 8000)
+        2. Go to staging-pdf-uploads-s3-trigger in AWS Lambda and look at code comments
+        """
+        if DEVELOPMENT:
+            raise Exception(
+                "See code comments to enable pdf uploads in dev environment"
+            )
+
         data = request.data
         organization_id = data.get("organization_id")
         project_id = data.get("project_id")

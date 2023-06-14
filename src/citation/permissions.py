@@ -19,7 +19,7 @@ class UserIsAdminOfProject(BasePermission):
 
 
 class PDFUploadsS3CallBack(BasePermission):
-    message = "Permission Denied: endpoint restricted to S3 lambda trigger"
+    message = "Permission Denied: Endpoint restricted to S3 Lambda trigger"
 
     def has_permission(self, request, view):
         client_ip = get_client_ip(request)
