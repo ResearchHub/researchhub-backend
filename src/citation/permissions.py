@@ -1,6 +1,6 @@
 from rest_framework.permissions import BasePermission
 
-from researchhub.settings import LAMBDA_IP
+from researchhub.settings import LAMBDA_IPS
 from utils.http import RequestMethods, get_client_ip
 
 
@@ -23,6 +23,6 @@ class PDFUploadsS3CallBack(BasePermission):
 
     def has_permission(self, request, view):
         client_ip = get_client_ip(request)
-        if client_ip != LAMBDA_IP:
+        if client_ip not in LAMBDA_IPS:
             return False
         return True
