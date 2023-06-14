@@ -1,4 +1,5 @@
 from django_filters import rest_framework as filters
+from django.db.models import Q
 from rest_framework.exceptions import ValidationError
 
 from citation.models import CitationEntry, CitationProject
@@ -25,14 +26,19 @@ class CitationEntryFilter(filters.FilterSet):
     def filter_by_org(self, qs, name, value):
         org = Organization.objects.filter(id=value)
         if org.exists():
-            return org.first().created_citations.all()
+            return org.first().created_citations.filter(
+                Q(project__is_public=True) | Q(project=None)
+            )
         raise ValidationError("Organization does not exist")
 
     def filter_by_proj(self, qs, name, value):
-        citation_project = CitationProject.objects.filter(id=value)
-        if citation_project.exists():
-            return citation_project.first().citations.all()
-        raise ValidationError("Citation Project does not exist")
+        citation_project = CitationProject.objects.filter(id=value).first()
+        current_user = self.request.user
+        if citation_project is not None and citation_project.get_user_has_access(
+            current_user
+        ):
+            return citation_project.citations.all()
+        raise ValidationError("Citation Project does not exist or permission denied")
 
     def filter_by_user_citations(self, qs, name, value):
         if value:

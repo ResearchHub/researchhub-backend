@@ -1,11 +1,13 @@
-from django.db import transaction
 from django_filters.rest_framework import DjangoFilterBackend
+from django.db import transaction
+from django.db.models import Q
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
+
 
 from citation.constants import CITATION_TYPE_FIELDS
 from citation.filters import CitationEntryFilter
@@ -61,27 +63,15 @@ class CitationEntryViewSet(ModelViewSet):
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def user_citations(self, request):
-        user = request.user
-        organization_id = request.GET.get("organization_id", None)
-        project_id = request.GET.get("project_id")
-        citations_query = self.filter_queryset(self.get_queryset().none())
-        if project_id:
-            citations_query = CitationProject.objects.get(id=project_id).citations.all()
-        elif organization_id:
-            citations_query = Organization.objects.get(
-                id=organization_id
-            ).created_citations.all()
-            if request.query_params.get("get_current_user_citations", None):
-                citations_query = citations_query.filter(created_by=user.id)
-        else:
-            raise PermissionError("Fetch not allowed without org_id or project_id")
+        citations_query = self.filter_queryset(self.get_queryset().none()).order_by(
+            *self.ordering
+        )
 
-        # TODO: calvinhlee look into pagination after everything finishes & project structure in FE is done
-        # page = self.paginate_queryset(citations_query)
+        # page = self.paginate_queryset(qs)
         # if page is not None:
         #     serializer = self.get_serializer(page, many=True)
         #     return self.get_paginated_response(serializer.data)
-        citations_query = citations_query.order_by(*self.ordering)
+
         serializer = self.get_serializer(citations_query, many=True)
         return Response(serializer.data)
 
