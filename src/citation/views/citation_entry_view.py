@@ -1,6 +1,6 @@
-from django_filters.rest_framework import DjangoFilterBackend
+from boto3 import client
 from django.db import transaction
-from django.db.models import Q
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
@@ -16,6 +16,7 @@ from citation.related_models.citation_project_model import CitationProject
 from citation.schema import generate_schema_for_citation
 from citation.serializers import CitationEntrySerializer
 from citation.tasks import handle_creating_citation_entry
+from researchhub.settings import AWS_STORAGE_BUCKET_NAME
 from user.related_models.organization_model import Organization
 from utils.aws import upload_to_s3
 from utils.openalex import OpenAlex
@@ -42,8 +43,45 @@ class CitationEntryViewSet(ModelViewSet):
             status=status.HTTP_405_METHOD_NOT_ALLOWED,
         )
 
-    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
+    @action(detail=False, methods=["post"], permission_classes=[AllowAny])
     def pdf_uploads(self, request):
+        data = request.data
+        organization_id = data.get("organization_id")
+        project_id = data.get("project_id")
+        presigned_urls = []
+        filename = data.get("filename")
+        s3_client = client("s3")
+        res = s3_client.generate_presigned_url(
+            "put_object",
+            Params={
+                "Bucket": AWS_STORAGE_BUCKET_NAME,
+                "Key": f"uploads/citation_pdfs/{filename}",
+                "ContentType": "application/pdf",
+                "Metadata": {
+                    "x-amz-meta-created-by-id": f"{request.user.id}",
+                    "x-amz-meta-organization-id": f"{organization_id}",
+                    "x-amz-meta-project-id": f"{project_id}",
+                    "x-amz-meta-file-name": filename,
+                },
+            },
+            ExpiresIn=60 * 5,
+        )
+        return Response(res, status=200)
+
+        for filename in data.get("filenames", []):
+            s3_client = client("s3")
+            res = s3_client.generate_presigned_url(
+                "put_object",
+                Params={
+                    "Bucket": AWS_STORAGE_BUCKET_NAME,
+                    "Key": f"uploads/citation_pdfs/{filename}",
+                    "ContentType": "application/pdf",
+                },
+                ExpiresIn=60 * 5,
+            )
+            presigned_urls.append({filename: res})
+        return Response(presigned_urls)
+
         pdfs = request.FILES.getlist("pdfs[]")
         created = []
         for pdf in pdfs:
