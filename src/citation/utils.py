@@ -34,10 +34,10 @@ def get_pdf_header_data(path):
             return data.get("data", {})
     except requests.ConnectionError as e:
         log_error(e)
-        raise GrobidProcessingError(e, "Request to Grobid server timed out")
+        raise GrobidProcessingError(e, "GROBID - Request to Grobid server timed out")
 
     raise GrobidProcessingError(
-        "Could not extract data", "Grobid queue is most likely full"
+        "GROBID - Could not extract data", "Grobid queue is most likely full"
     )
 
 
