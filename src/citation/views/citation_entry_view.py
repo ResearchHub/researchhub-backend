@@ -43,7 +43,7 @@ class CitationEntryViewSet(ModelViewSet):
         )
 
     @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
-    def pdf_uploads(self, request):
+    def upload_pdfs(self, request):
         """
         To enable in development:
         1. Use Ngrok to create a tunnel on your backend port (usually 8000)
@@ -81,7 +81,7 @@ class CitationEntryViewSet(ModelViewSet):
         return Response(res, status=200)
 
     @action(detail=False, methods=["post"], permission_classes=[PDFUploadsS3CallBack])
-    def pdf_uploads_callback(self, request):
+    def upload_pdfs_callback(self, request):
         data = request.data
         path = data.get("path")
         filename = data.get("filename")
