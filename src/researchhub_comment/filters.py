@@ -112,7 +112,12 @@ class RHCommentFilter(filters.FilterSet):
                 accepted_answer=Cast("is_accepted_answer", output_field=IntegerField())
             )
             keys = self._get_ordering_keys(
-                ["bounty_sum", "accepted_answer", "created_date", "score"]
+                [
+                    "bounty_sum",
+                    "accepted_answer",
+                    "score",
+                    "created_date",
+                ]
             )
             qs = qs.order_by(*keys)
         elif value == TOP:
@@ -120,7 +125,13 @@ class RHCommentFilter(filters.FilterSet):
             qs = qs.order_by(*keys)
         elif value == BOUNTY:
             qs = self._annotate_bounty_sum(qs).filter(bounty_sum__gt=0)
-            keys = self._get_ordering_keys(["bounty_sum", "created_date", "score"])
+            keys = self._get_ordering_keys(
+                [
+                    "bounty_sum",
+                    "score",
+                    "created_date",
+                ]
+            )
         elif value == CREATED_DATE:
             keys = self._get_ordering_keys(["created_date"])
             qs = qs.order_by(*keys)

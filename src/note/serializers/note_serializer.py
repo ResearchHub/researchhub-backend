@@ -15,7 +15,6 @@ from researchhub_access_group.constants import (
     WORKSPACE,
 )
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
-from user.constants.organization_constants import PERSONAL
 from user.serializers import (
     DynamicOrganizationSerializer,
     DynamicUserSerializer,
