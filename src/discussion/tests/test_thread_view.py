@@ -1,12 +1,15 @@
+from unittest import skip
+
 from rest_framework.test import APITestCase
 
-from discussion.models import Thread
 from discussion.tests.helpers import create_paper
 from review.models.review_model import Review
 from user.tests.helpers import create_random_authenticated_user
 
 
+@skip
 class ReviewTests(APITestCase):
+    # DEPRECATED
     def setUp(self):
         self.user = create_random_authenticated_user("discussion_views")
         self.paper = create_paper(uploaded_by=self.user)

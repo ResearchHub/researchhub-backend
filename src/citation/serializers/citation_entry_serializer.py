@@ -89,9 +89,10 @@ class CitationEntrySerializer(DefaultAuthenticatedSerializer):
             return [None, None]
 
         attachment = validated_data.pop("attachment")
+        content_type = attachment.name.split(".")[-1]
         return [
             attachment,
-            slugify(attachment.name),
+            f"{slugify(attachment.name)}.{content_type}",
         ]
 
     def _add_attachment(self, citation_entry, attachment, attachment_name):

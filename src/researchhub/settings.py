@@ -484,6 +484,8 @@ AWS_SECRET_ACCESS_KEY = os.environ.get(
 )
 
 # AWS Lambda
+LAMBDA_IPS = ["35.82.37.191", "35.83.152.234"]
+
 AWS_SCHOLARLY_LAMBDA = (
     "arn:aws:lambda:us-west-2:794128250202:function:ResearchHub-Scholarly"
 )
@@ -888,3 +890,9 @@ REFERRAL_PROGRAM = {
         "BOUNTY_PAYOUT",
     ],
 }
+
+
+# Grobid service
+GROBID_SERVER = "http://34.216.57.131:8000"
+if not DEVELOPMENT:
+    GROBID_SERVER = "http://172.31.7.56:8000"
