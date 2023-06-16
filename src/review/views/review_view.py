@@ -38,7 +38,7 @@ class ReviewViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         request.data["created_by"] = request.user.id
         request.data["unified_document"] = unified_document.id
 
-        if request.data.get("content_type") not in ReviewViewSet.ALLOWED_CONTENT_TYPES:
+        if request.data.get("content_type") not in self.ALLOWED_CONTENT_TYPES:
             return Response({"detail": "Invalid content type"}, status=400)
 
         request.data["content_type"] = ContentType.objects.get(
