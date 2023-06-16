@@ -14,6 +14,7 @@ from researchhub_comment.serializers.constants.rh_comment_serializer_contants im
     RH_COMMENT_FIELDS,
     RH_COMMENT_READ_ONLY_FIELDS,
 )
+from review.serializers.review_serializer import DynamicReviewSerializer
 from user.serializers import DynamicUserSerializer
 from utils.http import get_user_from_request
 
@@ -56,6 +57,7 @@ class DynamicRhCommentSerializer(
     purchases = SerializerMethodField()
     bounties = SerializerMethodField()
     user_vote = SerializerMethodField()
+    review = SerializerMethodField()
 
     class Meta:
         fields = "__all__"
@@ -164,3 +166,15 @@ class DynamicRhCommentSerializer(
             return vote
         except Vote.DoesNotExist:
             return None
+
+        return None
+
+    def get_review(self, comment):
+        context = self.context
+        _context_fields = context.get("rhc_dcs_get_review", {})
+        review = comment.unified_document.reviews.filter(object_id=comment.id).first()
+        if review:
+            serializer = DynamicReviewSerializer(
+                review, many=False, context=context, **_context_fields
+            )
+            return serializer.data
