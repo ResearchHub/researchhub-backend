@@ -31,7 +31,9 @@ class ReviewViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
     order_fields = "__all__"
     queryset = Review.objects.all()
     ordering = ("-created_date",)
-    ALLOWED_CONTENT_TYPES = "rhcommentmodel"
+    ALLOWED_CONTENT_TYPES = [
+        "rhcommentmodel",
+    ]
 
     def create(self, request, *args, **kwargs):
         unified_document = ResearchhubUnifiedDocument.objects.get(id=args[0])
@@ -44,6 +46,7 @@ class ReviewViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         request.data["content_type"] = ContentType.objects.get(
             model=request.data.get("content_type", None)
         ).id
+
         response = super().create(request, *args, **kwargs)
         unified_document.update_filter(FILTER_PEER_REVIEWED)
 
