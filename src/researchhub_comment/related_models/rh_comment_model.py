@@ -90,6 +90,7 @@ class RhCommentModel(
         content_type_field="content_type",
         related_query_name="rh_comment",
     )
+    reviews = GenericRelation("review.Review")
 
     # legacy_migration
     legacy_id = PositiveIntegerField(null=True, blank=True)

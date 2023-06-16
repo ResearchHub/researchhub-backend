@@ -172,7 +172,7 @@ class DynamicRhCommentSerializer(
     def get_review(self, comment):
         context = self.context
         _context_fields = context.get("rhc_dcs_get_review", {})
-        review = comment.unified_document.reviews.filter(object_id=comment.id).first()
+        review = comment.reviews.first()
         if review:
             serializer = DynamicReviewSerializer(
                 review, many=False, context=context, **_context_fields
