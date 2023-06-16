@@ -207,6 +207,13 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "expiration_date",
                 ]
             },
+            "rhc_dcs_get_review": {
+                "_include_fields": [
+                    "score",
+                    "id",
+                    "object_id",
+                ]
+            },
             "rep_dbs_get_parent": {"_include_fields": ("id",)},
             "rep_dbs_get_created_by": {"_include_fields": ["author_profile", "id"]},
             "usr_dus_get_author_profile": {
@@ -425,6 +432,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 "promoted",
                 "user_endorsement",
                 "user_flag",
+                "reviews",
                 "comment_content_src",
             ),
         )

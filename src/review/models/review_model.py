@@ -1,3 +1,5 @@
+from django.contrib.contenttypes.fields import GenericForeignKey
+from django.contrib.contenttypes.models import ContentType
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
@@ -17,6 +19,17 @@ class Review(SoftDeletableModel, DefaultModel):
         blank=False,
         null=True,
         on_delete=models.SET_NULL,
+    )
+    content_type = models.ForeignKey(
+        ContentType, null=True, blank=False, on_delete=models.SET_NULL
+    )
+    object_id = models.PositiveIntegerField(
+        null=True,
+        blank=False,
+    )
+    item = GenericForeignKey(
+        "content_type",
+        "object_id",
     )
     unified_document = models.ForeignKey(
         "researchhub_document.ResearchhubUnifiedDocument",
