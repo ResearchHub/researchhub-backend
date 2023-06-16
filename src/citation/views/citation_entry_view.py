@@ -48,6 +48,7 @@ class CitationEntryViewSet(ModelViewSet):
         To enable in development:
         1. Use Ngrok to create a tunnel on your backend port (usually 8000)
         2. Go to staging-pdf-uploads-s3-trigger in AWS Lambda and look at code comments
+        3. Uncomment the if statement
         """
         if DEVELOPMENT:
             raise Exception(
