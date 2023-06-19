@@ -1355,6 +1355,12 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     "user_flag",
                 ]
             },
+            "rev_drs_get_created_by": {
+                "_include_fields": [
+                    "author_profile",
+                    "id",
+                ]
+            },
         }
         return context
 
