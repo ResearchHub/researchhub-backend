@@ -44,6 +44,7 @@ from researchhub.settings import (
     SIFT_MODERATION_WHITELIST,
     SIFT_WEBHOOK_SECRET_KEY,
 )
+from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.serializers import DynamicPostSerializer
 from review.models.review_model import Review
@@ -525,7 +526,7 @@ class UserViewSet(viewsets.ModelViewSet):
             Contribution.SUPPORTER,
         ]
 
-        thread_content_type = ContentType.objects.get_for_model(Thread)
+        rh_comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
         comment_content_type = ContentType.objects.get_for_model(Comment)
         reply_content_type = ContentType.objects.get_for_model(Reply)
         removed_threads = Thread.objects.filter(is_removed=True)
@@ -549,7 +550,7 @@ class UserViewSet(viewsets.ModelViewSet):
             .exclude(
                 (
                     (
-                        Q(content_type=thread_content_type)
+                        Q(content_type=rh_comment_content_type)
                         & Q(object_id__in=removed_threads)
                     )
                     | (
@@ -1211,18 +1212,16 @@ class AuthorViewSet(viewsets.ModelViewSet):
             "rep_dcs_get_source": {
                 "_include_fields": [
                     "amount",
-                    "block_key",
                     "citation",
                     "comment_count",
-                    "comments",
+                    "comment_content_json",
+                    "children",
                     "content_type",
-                    "context_title",
                     "created_by",
                     "created_date",
                     "created_location",
                     "discussion_type",
                     "document_meta",
-                    "entity_key",
                     "external_metadata",
                     "hypothesis",
                     "id",
@@ -1241,11 +1240,9 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     "slug",
                     "source",
                     "text",
-                    "text",
                     "title",
                     "user_flag",
                     "user_vote",
-                    "was_edited",
                 ]
             },
             "rep_dbs_get_item": {
@@ -1342,6 +1339,22 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     "id",
                 ]
             },
+            "rhc_dcs_get_created_by": {
+                "_include_fields": [
+                    "first_name",
+                    "last_name",
+                    "author_profile",
+                ]
+            },
+            "rhc_dcs_get_children": {
+                "_exclude_fields": [
+                    "thread",
+                    "comment_content_src",
+                    "promoted",
+                    "user_endorsement",
+                    "user_flag",
+                ]
+            },
         }
         return context
 
@@ -1392,28 +1405,15 @@ class AuthorViewSet(viewsets.ModelViewSet):
         user = author.user
 
         if user:
-            user_replies = Reply.objects.filter(created_by_id=user.id, is_removed=False)
-            user_comments = Comment.objects.filter(
-                Q(is_removed=False)
-                & (
-                    Q(created_by_id=user.id)
-                    | Q(id__in=[r.object_id for r in user_replies])
-                )
+            user_threads = RhCommentModel.objects.filter(
+                Q(children__created_by=user) | Q(created_by=user)
             )
-            user_threads = Thread.objects.filter(
-                Q(is_removed=False)
-                & (
-                    Q(created_by_id=user.id)
-                    | Q(id__in=[c.parent_id for c in user_comments])
-                )
-            )
-
             return user_threads
         return []
 
     def _get_author_contribution_queryset(self, author_id, ordering, asset_type):
         author_threads = self._get_author_threads_participated(author_id)
-        thread_content_type = ContentType.objects.get_for_model(Thread)
+        rh_comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
         post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
         paper_content_type = ContentType.objects.get_for_model(Paper)
         hypothesis_content_type = ContentType.objects.get_for_model(Hypothesis)
@@ -1429,7 +1429,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 query |= Q(
                     Q(
                         unified_document__is_removed=False,
-                        content_type=thread_content_type,
+                        content_type=rh_comment_content_type,
                         object_id__in=author_threads,
                         contribution_type__in=[
                             Contribution.COMMENTER,
@@ -1467,7 +1467,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
             elif asset_type == "comment":
                 query |= Q(
                     unified_document__is_removed=False,
-                    content_type=thread_content_type,
+                    content_type=rh_comment_content_type,
                     object_id__in=author_threads,
                     contribution_type__in=[Contribution.COMMENTER],
                 )
