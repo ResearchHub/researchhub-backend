@@ -626,7 +626,7 @@ def celery_create_paper(self, celery_data):
 
         if citation_id:
             citation = CitationEntry.objects.get(id=citation_id)
-            citation.paper = paper
+            citation.unified_doc = paper.unified_document
             citation.save()
 
         logger.info(f"concepts in celery_create_paper: {concepts}")

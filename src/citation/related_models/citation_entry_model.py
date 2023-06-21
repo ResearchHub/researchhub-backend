@@ -4,7 +4,7 @@ from jsonschema import validate
 
 from citation.constants import CITATION_TYPE_CHOICES
 from citation.related_models.citation_project_model import CitationProject
-from paper.models import Paper
+from researchhub_document.models import ResearchhubUnifiedDocument
 from user.models import Organization
 from utils.models import DefaultAuthenticatedModel
 
@@ -27,8 +27,8 @@ class CitationEntry(DefaultAuthenticatedModel):
     organization = models.ForeignKey(
         Organization, related_name="created_citations", on_delete=models.CASCADE
     )
-    paper = models.ForeignKey(
-        Paper,
+    unified_doc = models.ForeignKey(
+        ResearchhubUnifiedDocument,
         blank=True,
         null=True,
         on_delete=models.CASCADE,
