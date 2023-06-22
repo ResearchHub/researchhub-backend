@@ -1,6 +1,7 @@
-from django_filters.rest_framework import DjangoFilterBackend
+from boto3 import session
 from django.db import transaction
-from django.db.models import Q
+from django.utils.crypto import get_random_string
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
@@ -9,18 +10,20 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-
 from citation.constants import CITATION_TYPE_FIELDS
 from citation.filters import CitationEntryFilter
 from citation.models import CitationEntry
-from citation.related_models.citation_project_model import CitationProject
+from citation.permissions import PDFUploadsS3CallBack
 from citation.schema import generate_schema_for_citation
 from citation.serializers import CitationEntrySerializer
 from citation.tasks import handle_creating_citation_entry
 from researchhub.pagination import FasterDjangoPaginator
 from user.related_models.organization_model import Organization
 from utils.aws import upload_to_s3
+
+from researchhub.settings import AWS_STORAGE_BUCKET_NAME, DEVELOPMENT
 from utils.openalex import OpenAlex
+from utils.parsers import clean_filename
 
 
 class CitationEntryPagination(PageNumberPagination):
@@ -53,23 +56,62 @@ class CitationEntryViewSet(ModelViewSet):
         )
 
     @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
-    def pdf_uploads(self, request):
-        pdfs = request.FILES.getlist("pdfs[]")
-        created = []
-        for pdf in pdfs:
-            url = upload_to_s3(pdf, "citation_pdfs")
-            path = url.split(".com/")[1]
-            handle_creating_citation_entry.apply_async(
-                (
-                    path,
-                    request.user.id,
-                    request.data.get("organization_id"),
-                    request.data.get("project_id"),
-                ),
-                priority=5,
+    def upload_pdfs(self, request):
+        """
+        To enable in development:
+        1. Use Ngrok to create a tunnel on your backend port (usually 8000)
+        2. Go to staging-pdf-uploads-s3-trigger in AWS Lambda and look at code comments
+        3. Uncomment the if statement
+        """
+        if DEVELOPMENT:
+            raise Exception(
+                "See code comments to enable pdf uploads in dev environment"
             )
 
-        return Response({"created": created}, 200)
+        data = request.data
+        organization_id = data.get("organization_id")
+        project_id = data.get("project_id")
+        filename = data.get("filename")
+
+        cleaned_filename = clean_filename(f"{get_random_string(8)}_{filename}")
+        user_key = f"user_{request.user.id}"
+        boto3_session = session.Session()
+        s3_client = boto3_session.client("s3")
+        res = s3_client.generate_presigned_url(
+            "put_object",
+            Params={
+                "Bucket": AWS_STORAGE_BUCKET_NAME,
+                "Key": f"uploads/citation_pdfs/{user_key}_{cleaned_filename}",
+                "ContentType": "application/pdf",
+                "Metadata": {
+                    "x-amz-meta-created-by-id": f"{request.user.id}",
+                    "x-amz-meta-organization-id": f"{organization_id}",
+                    "x-amz-meta-project-id": f"{project_id}",
+                    "x-amz-meta-file-name": filename,
+                },
+            },
+            ExpiresIn=60 * 5,
+        )
+        return Response(res, status=200)
+
+    @action(detail=False, methods=["post"], permission_classes=[PDFUploadsS3CallBack])
+    def upload_pdfs_callback(self, request):
+        data = request.data
+        path = data.get("path")
+        filename = data.get("filename")
+        organization_id = data.get("organization_id")
+        project_id = data.get("project_id")
+        creator_id = data.get("creator_id")
+
+        if project_id == "None":
+            project_id = None
+
+        handle_creating_citation_entry.apply_async(
+            (path, filename, creator_id, organization_id, project_id),
+            priority=5,
+            countdown=0.1,
+        )
+        return Response(status=200)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def user_citations(self, request):

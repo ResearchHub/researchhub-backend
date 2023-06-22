@@ -13,12 +13,11 @@ initial_creators_schema_regex = r"|".join(f"^{field}$" for field in CREATOR_TYPE
 CREATORS_SCHEMA_REGEX = f"({initial_creators_schema_regex})"
 
 
-def generate_json_for_journal(pdf2doi):
-    schema = generate_schema_for_citation(JOURNAL_ARTICLE)
+def generate_json_for_doi(doi):
     json = {}
-    doi_string = pdf2doi["identifier"]
+    schema = generate_schema_for_citation(JOURNAL_ARTICLE)
     open_alex = OpenAlex()
-    result = open_alex.get_data_from_doi(doi_string)
+    result = open_alex.get_data_from_doi(doi)
     for field in schema["required"]:
         mapping_field = OPENALEX_JOURNAL_MAPPING.get(field, "")
         if mapping_field:
@@ -44,7 +43,26 @@ def generate_json_for_journal(pdf2doi):
                 for val in pdf_value:
                     cur_json = result[val]
                 json[field] = cur_json
-    json["raw_oa_json"] = result
+        else:
+            json[field] = ""
+    return json
+
+
+def generate_json_for_pdf(filename):
+    json = {}
+    schema = generate_schema_for_citation(JOURNAL_ARTICLE)
+    for key, value in schema["properties"].items():
+        value_type = value["type"]
+        if value_type == "string":
+            json[key] = ""
+        elif value_type == "array":
+            json[key] = []
+        elif value_type == "object":
+            json[key] = {}
+        else:
+            raise Exception("Unknown value type for schema")
+
+    json["title"] = filename
     return json
 
 
@@ -359,14 +377,6 @@ PATENTS_SCHEMA = {
     "priority_numbers": {"type": "string"},
     "references": {"type": "string"},
     "legal_status": {"type": "string"},
-}
-PDF2DOI_JOURNAL_MAPPING = {
-    "DOI": "identifier",
-    "creators": "validation_info.authors",
-    "title": "validation_info.title",
-    "date": "validation_info.published",
-    "publication_title": "",
-    "journal_abbreviation": "",
 }
 OPENALEX_JOURNAL_MAPPING = {
     "DOI": "doi",

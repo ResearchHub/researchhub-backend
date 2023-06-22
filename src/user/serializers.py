@@ -429,9 +429,7 @@ class UserEditableSerializer(ModelSerializer):
             "last_login",
             "date_joined",
         ]
-        read_only_fields = [
-            "moderator",
-        ]
+        read_only_fields = ["moderator", "referral_code"]
 
     def get_auth_provider(self, obj):
         social_account = obj.socialaccount_set.first()

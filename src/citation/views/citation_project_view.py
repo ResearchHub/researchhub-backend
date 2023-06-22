@@ -8,8 +8,8 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from citation.models import CitationProject
+from citation.permissions import UserIsAdminOfProject
 from citation.serializers import CitationProjectSerializer
-from citation.views.permissions import UserIsAdminOfProject
 from researchhub_access_group.constants import EDITOR, VIEWER
 from user.related_models.organization_model import Organization
 

@@ -17,6 +17,8 @@ class ReviewViewTests(APITestCase):
             f"/api/researchhub_unified_document/{self.paper.unified_document.id}/review/",
             {
                 "score": 7,
+                "content_type": "rhcommentmodel",
+                "object_id": 1111,
             },
         )
 
@@ -29,6 +31,8 @@ class ReviewViewTests(APITestCase):
             f"/api/researchhub_unified_document/{self.paper.unified_document.id}/review/",
             {
                 "score": 7,
+                "content_type": "rhcommentmodel",
+                "object_id": 1111,
             },
         )
 
