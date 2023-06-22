@@ -1,5 +1,6 @@
 RH_COMMENT_THREAD_FIELDS = [
     "comments",
+    "anchor",
     "id",
     "thread_type",
     "thread_reference",
