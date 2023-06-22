@@ -48,8 +48,7 @@ def get_citation_entry_from_pdf(path, filename, user_id, organization_id, projec
     citation_entry = CitationEntry.objects.filter(
         doi=doi, created_by=user_id, project_id=project_id
     )
-
-    if not citation_entry.exists():
+    if doi is None or not citation_entry.exists():
         # CitationEntrySerializer inherits from DefaultAuthenticatedSerializer,
         # which requires a request object with a user attached
         request = Request(HttpRequest())
