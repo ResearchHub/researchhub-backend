@@ -7,7 +7,6 @@ import stripe
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db import transaction
-from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -40,7 +39,7 @@ from purchase.serializers import (
 from purchase.tasks import send_support_email
 from reputation.distributions import Distribution, create_purchase_distribution
 from reputation.distributor import Distributor
-from reputation.models import Contribution
+from reputation.models import Contribution, Escrow
 from reputation.tasks import create_contribution
 from researchhub.settings import ASYNC_SERVICE_HOST, BASE_FRONTEND_URL
 from researchhub_document.models import ResearchhubPost
@@ -137,35 +136,32 @@ class PurchaseViewSet(viewsets.ModelViewSet):
 
         content_type = ContentType.objects.get(model=content_type_str)
         with transaction.atomic():
-            model_class = content_type.model_class()
-            item = get_object_or_404(model_class, pk=object_id)
+            purchase_data = {
+                "amount": amount,
+                "user": user.id,
+                "content_type": content_type.id,
+                "object_id": object_id,
+                "purchase_type": purchase_type,
+            }
+
             if purchase_method == Purchase.ON_CHAIN:
-                purchase = Purchase.objects.create(
-                    user=user,
-                    item=item,
-                    purchase_method=purchase_method,
-                    purchase_type=purchase_type,
-                    amount=amount,
-                )
+                purchase_data["purchase_method"] = Purchase.ON_CHAIN
             else:
                 user_balance = user.get_balance()
                 if user_balance - decimal_amount < 0:
                     return Response("Insufficient Funds", status=402)
 
-                purchase = Purchase.objects.create(
-                    user=user,
-                    item=item,
-                    purchase_method=purchase_method,
-                    purchase_type=purchase_type,
-                    amount=amount,
-                    paid_status=Purchase.PAID,
-                )
-
+                purchase_data["purchase_method"] = Purchase.OFF_CHAIN
+                purchase_data["paid_status"] = Purchase.PAID
+                request._full_data = purchase_data
+                create_response = super().create(request)
+                purchase_id = create_response.data["id"]
+                purchase = self.get_queryset().get(id=purchase_id)
                 source_type = ContentType.objects.get_for_model(purchase)
                 Balance.objects.create(
                     user=user,
                     content_type=source_type,
-                    object_id=purchase.id,
+                    object_id=purchase_id,
                     amount=f"-{amount}",
                 )
 
@@ -190,7 +186,14 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 recipient = paper.uploaded_by
                 cache_key = get_cache_key("paper", object_id)
                 cache.delete(cache_key)
-                transfer_rsc = True
+                transfer_rsc = False
+
+                Escrow.objects.create(
+                    created_by=user,
+                    amount_holding=amount,
+                    item=paper,
+                    hold_type=Escrow.AUTHOR_RSC,
+                )
 
                 hub_ids = paper.hubs.values_list("id", flat=True)
                 reset_unified_document_cache(
@@ -203,14 +206,6 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 recipient = item.created_by
                 unified_doc = item.unified_document
                 notification_type = Notification.RSC_SUPPORT_ON_DIS
-            elif content_type_str == "summary":
-                transfer_rsc = True
-                recipient = item.proposed_by
-                unified_doc = item.paper.unified_document
-            elif content_type_str == "bulletpoint":
-                transfer_rsc = True
-                recipient = item.created_by
-                unified_doc = item.paper.unified_document
             elif content_type_str == "researchhubpost":
                 transfer_rsc = True
                 recipient = item.created_by
@@ -223,13 +218,8 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                     filters=[HOT],
                 )
 
-            if unified_doc.is_removed:
-                return Response("Content is removed", status=403)
-
             if transfer_rsc and recipient and recipient != user:
-                distribution = create_purchase_distribution(
-                    user, amount, paper=paper, purchaser=user
-                )
+                distribution = create_purchase_distribution(user, amount)
                 distributor = Distributor(
                     distribution, recipient, purchase, time.time(), user
                 )
