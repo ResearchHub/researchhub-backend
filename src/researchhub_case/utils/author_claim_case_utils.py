@@ -6,6 +6,7 @@ from django.db.models import Sum
 
 from mailing_list.lib import base_email_context
 from reputation.distributions import Distribution as dist
+from reputation.distributions import create_stored_paper_pot
 from reputation.distributor import Distributor
 from reputation.models import Escrow
 from researchhub.settings import BASE_FRONTEND_URL
@@ -60,11 +61,11 @@ def send_validation_email(case):
     )
 
 
-def send_approval_email(case):
+def send_approval_email(case, context):
     requestor = case.requestor
     requestor_author = requestor.author_profile
     requestor_name = f"{requestor.first_name} {requestor.last_name}"
-    vote_reward = requestor_author.calculate_score()
+    vote_reward = context.get("total_amount_paid", 0)
     email_context = {
         **base_email_context,
         "paper_title": case.target_paper.title,
@@ -108,36 +109,30 @@ def reward_author_claim_case(requestor_author, paper, claim_case):
     vote_reward = requestor_author.calculate_score()
 
     author_pot_query = Escrow.objects.filter(
-        object_id=paper.id, content_type=get_content_type_for_model(paper)
-    )
+        object_id=paper.id,
+        content_type=get_content_type_for_model(paper),
+    ).exclude(status=Escrow.PAID)
 
-    author_pot_amount = (
-        author_pot_query.aggregate(Sum("amount_holding")).get("amount_holding__sum", 0)
-        or 0
-    )
-
-    author_count = paper.true_author_count()
-    author_pot_amount /= author_count
-
-    if author_pot_amount:
-        distributor = Distributor(
-            dist("UPVOTE_RSC_POT", author_pot_amount, False),
-            requestor_author.user,
-            requestor_author,
-            time.time(),
-        )
-        record = distributor.distribute()
-        claim_case.claimed_rsc.add(*author_pot_query)
+    # Adding one because that is the requestor user
+    total_amount_paid = 0
+    author_count = paper.raw_author_count() + 1
+    for escrow in author_pot_query.iterator():
+        author_pot_amount = (escrow.amount_holding + escrow.amount_paid) / author_count
+        escrow.payout(requestor_author.user, author_pot_amount)
+        total_amount_paid += author_pot_amount
 
     try:
-        distributor = Distributor(
-            dist("REWARD", vote_reward, False),
-            requestor_author.user,
-            requestor_author,
-            time.time(),
-        )
-        distribution = distributor.distribute()
-        return distribution
+        if vote_reward > 0:
+            distributor = Distributor(
+                dist("REWARD", vote_reward, False),
+                requestor_author.user,
+                requestor_author,
+                time.time(),
+            )
+            distributor.distribute()
+            total_amount_paid += vote_reward
+        return total_amount_paid
     except Exception as exception:
         print("reward_author_claim_case: ", exception)
         sentry.log_error(exception)
+        return total_amount_paid

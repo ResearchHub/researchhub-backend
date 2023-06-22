@@ -7,6 +7,7 @@ from django.db import models
 from reputation.distributions import (
     create_bounty_distriution,
     create_bounty_refund_distribution,
+    create_stored_paper_pot,
 )
 from utils.models import DefaultModel
 
@@ -111,7 +112,11 @@ class Escrow(DefaultModel):
         if payout_amount > escrow_amount:
             return False
 
-        distribution = create_bounty_distriution(payout_amount)
+        if self.hold_type == self.BOUNTY:
+            distribution = create_bounty_distriution(payout_amount)
+        else:
+            distribution = create_stored_paper_pot(payout_amount)
+
         distributor = Distributor(
             distribution, recipient, self, time.time(), giver=self.created_by
         )
@@ -128,15 +133,16 @@ class Escrow(DefaultModel):
         else:
             self.set_paid_status(should_save=True)
 
-        unified_document = self.item.unified_document
-        notification = Notification.objects.create(
-            unified_document=unified_document,
-            recipient=recipient,
-            action_user=self.created_by,
-            item=self,
-            notification_type=Notification.BOUNTY_PAYOUT,
-        )
-        notification.send_notification()
+        if self.hold_type == self.BOUNTY:
+            unified_document = self.item.unified_document
+            notification = Notification.objects.create(
+                unified_document=unified_document,
+                recipient=recipient,
+                action_user=self.created_by,
+                item=self,
+                notification_type=Notification.BOUNTY_PAYOUT,
+            )
+            notification.send_notification()
         return True
 
     def refund(self, recipient, amount, status=None):

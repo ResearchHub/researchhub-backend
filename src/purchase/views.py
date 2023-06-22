@@ -37,6 +37,7 @@ from purchase.serializers import (
     WalletSerializer,
 )
 from purchase.tasks import send_support_email
+from purchase.utils import distribute_support_to_authors
 from reputation.distributions import Distribution, create_purchase_distribution
 from reputation.distributor import Distributor
 from reputation.models import Contribution, Escrow
@@ -188,12 +189,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 cache.delete(cache_key)
                 transfer_rsc = False
 
-                Escrow.objects.create(
-                    created_by=user,
-                    amount_holding=amount,
-                    item=paper,
-                    hold_type=Escrow.AUTHOR_RSC,
-                )
+                distribute_support_to_authors(paper, purchase, amount)
 
                 hub_ids = paper.hubs.values_list("id", flat=True)
                 reset_unified_document_cache(

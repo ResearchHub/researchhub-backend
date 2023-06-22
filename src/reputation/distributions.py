@@ -232,6 +232,11 @@ def create_bounty_refund_distribution(amount):
     return distribution
 
 
+def create_stored_paper_pot(amount):
+    distribution = Distribution("STORED_PAPER_POT", amount, give_rep=False)
+    return distribution
+
+
 DISTRIBUTION_TYPE_CHOICES = [
     (FlagPaper.name, FlagPaper.name),
     (PaperUpvoted.name, PaperUpvoted.name),
@@ -259,6 +264,7 @@ DISTRIBUTION_TYPE_CHOICES = [
     (HypothesisDownvoted.name, HypothesisDownvoted.name),
     (ReferralInvitedBonus.name, ReferralInvitedBonus.name),
     ("UPVOTE_RSC_POT", "UPVOTE_RSC_POT"),
+    ("STORED_PAPER_POT", "STORED_PAPER_POT"),
     ("REWARD", "REWARD"),
     ("PURCHASE", "PURCHASE"),
     (
