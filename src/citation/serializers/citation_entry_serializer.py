@@ -22,7 +22,7 @@ class CitationEntrySerializer(DefaultAuthenticatedSerializer):
     checksum = ReadOnlyField()
     fields = JSONField()
     required_fields = SerializerMethodField(read_only=True)
-    paper = PaperSerializer()
+    paper = SerializerMethodField(read_only=True)
 
     class Meta:
         model = CitationEntry
@@ -66,6 +66,10 @@ class CitationEntrySerializer(DefaultAuthenticatedSerializer):
         return fields_data
 
     """ ----- Serializer Methods -----"""
+
+    def get_paper(self, citation_entry):
+        if citation_entry.unified_doc:
+            return PaperSerializer(citation_entry.unified_doc.paper)
 
     def get_attachment_url(self, citation_entry):
         try:
