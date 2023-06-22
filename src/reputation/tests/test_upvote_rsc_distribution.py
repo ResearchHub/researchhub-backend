@@ -271,7 +271,7 @@ class BaseTests(TestCase, TestHelper):
 
         self.assertEquals(Distribution.objects.count(), 2)
         self.assertEquals(
-            Distribution.objects.filter(distribution_type="UPVOTE_RSC_POT")
+            Distribution.objects.filter(distribution_type="STORED_PAPER_POT")
             .first()
             .amount,
             math.floor(distribution_amount * 0.75 / 3),
