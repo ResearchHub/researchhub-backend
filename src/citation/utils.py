@@ -89,6 +89,8 @@ def get_citation_entry_from_pdf(path, filename, user_id, organization_id, projec
 def create_paper_from_citation(citation):
     url = citation.doi
 
+    pure_doi = citation.doi.split("https://doi.org/")[1]
+
     # Appends http if protocol does not exist
     parsed_url = urlparse(url)
     if not parsed_url.scheme:
@@ -101,7 +103,12 @@ def create_paper_from_citation(citation):
     process_id = None
 
     if not duplicate_papers:
-        data = {"uploaded_by": citation.created_by.id, "url": url}
+        data = {
+            # "uploaded_by": citation.created_by.id,
+            "uploaded_by": None,
+            "citation": citation.id,
+            "doi": pure_doi,
+        }
         submission = PaperSubmissionSerializer(data=data)
         if submission.is_valid():
             submission = submission.save()

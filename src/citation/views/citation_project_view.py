@@ -43,7 +43,7 @@ class CitationProjectViewSet(ModelViewSet):
         )
 
     def update(self, request, *args, **kwargs):
-        upserted_collaborators = request.data.get("collaborators")
+        upserted_collaborators = request.data.get("collaborators", {})
         upserted_editors = upserted_collaborators.get("editors", [])
         upserted_viewers = upserted_collaborators.get("viewers", [])
         with transaction.atomic():

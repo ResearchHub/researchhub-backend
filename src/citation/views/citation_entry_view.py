@@ -5,6 +5,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -16,9 +17,20 @@ from citation.permissions import PDFUploadsS3CallBack
 from citation.schema import generate_schema_for_citation
 from citation.serializers import CitationEntrySerializer
 from citation.tasks import handle_creating_citation_entry
+from researchhub.pagination import FasterDjangoPaginator
+from user.related_models.organization_model import Organization
+from utils.aws import upload_to_s3
+
 from researchhub.settings import AWS_STORAGE_BUCKET_NAME, DEVELOPMENT
 from utils.openalex import OpenAlex
 from utils.parsers import clean_filename
+
+
+class CitationEntryPagination(PageNumberPagination):
+    django_paginator_class = FasterDjangoPaginator
+    page_size_query_param = "page_size"
+    max_page_size = 10000
+    page_size = 1000
 
 
 class CitationEntryViewSet(ModelViewSet):
@@ -27,6 +39,7 @@ class CitationEntryViewSet(ModelViewSet):
     filter_backends = (DjangoFilterBackend, OrderingFilter)
     permission_classes = [IsAuthenticated]
     serializer_class = CitationEntrySerializer
+    pagination_class = CitationEntryPagination
     ordering = ("-updated_date", "-created_date")
     ordering_fields = ("updated_date", "created_date")
 

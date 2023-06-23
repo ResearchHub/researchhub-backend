@@ -12,6 +12,7 @@ from rest_framework.serializers import (
 
 from citation.related_models.citation_entry_model import CitationEntry
 from citation.schema import generate_schema_for_citation
+from paper.serializers import PaperSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from user.serializers import DynamicOrganizationSerializer, DynamicUserSerializer
 from utils.serializers import DefaultAuthenticatedSerializer
@@ -21,6 +22,7 @@ class CitationEntrySerializer(DefaultAuthenticatedSerializer):
     checksum = ReadOnlyField()
     fields = JSONField()
     required_fields = SerializerMethodField(read_only=True)
+    paper = SerializerMethodField(read_only=True)
 
     class Meta:
         model = CitationEntry
@@ -64,6 +66,10 @@ class CitationEntrySerializer(DefaultAuthenticatedSerializer):
         return fields_data
 
     """ ----- Serializer Methods -----"""
+
+    def get_paper(self, citation_entry):
+        if citation_entry.unified_doc:
+            return PaperSerializer(citation_entry.unified_doc.paper)
 
     def get_attachment_url(self, citation_entry):
         try:
