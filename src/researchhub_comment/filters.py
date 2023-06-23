@@ -8,6 +8,7 @@ from django_filters import rest_framework as filters
 from reputation.models import Bounty
 from researchhub_comment.constants.rh_comment_thread_types import (
     GENERIC_COMMENT,
+    INNER_CONTENT_COMMENT,
     RH_COMMENT_THREAD_TYPES,
     SUMMARY,
 )
@@ -28,7 +29,12 @@ ORDER_CHOICES = (
     (CREATED_DATE, "Created Date"),
 )
 
-FILTER_CHOICES = ((BOUNTY, "Has Bounty"), (REVIEW, REVIEW), (DISCUSSION, DISCUSSION))
+FILTER_CHOICES = (
+    (BOUNTY, "Has Bounty"),
+    (REVIEW, REVIEW),
+    (DISCUSSION, DISCUSSION),
+    (INNER_CONTENT_COMMENT, INNER_CONTENT_COMMENT),
+)
 
 
 class RHCommentFilter(filters.FilterSet):
@@ -148,6 +154,8 @@ class RHCommentFilter(filters.FilterSet):
             )
         elif value == REVIEW:
             qs = qs.filter(thread__thread_type=REVIEW)
+        elif value == INNER_CONTENT_COMMENT:
+            qs = qs.filter(thread__thread_type=INNER_CONTENT_COMMENT)
         elif value == DISCUSSION:
             qs = qs.filter(
                 (Q(thread__thread_type=GENERIC_COMMENT) & Q(bounties__isnull=True))

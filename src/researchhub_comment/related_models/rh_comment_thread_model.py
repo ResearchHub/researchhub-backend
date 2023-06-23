@@ -1,5 +1,5 @@
 from django.db import models
-from django.db.models import CharField, Count, Q
+from django.db.models import CharField, Count, JSONField, Q
 
 from researchhub_comment.constants.rh_comment_thread_types import (
     GENERIC_COMMENT,
@@ -67,6 +67,7 @@ class RhCommentThreadModel(AbstractGenericRelationModel):
         max_length=144,
         null=True,
     )
+    anchor = JSONField(blank=True, null=True)
 
     """--- OBJECT MANAGER ---"""
     objects = RhCommentThreadManager()

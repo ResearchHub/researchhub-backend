@@ -176,7 +176,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         context = self.get_serializer_context()
         context = {
             **context,
-            "rhc_dcs_get_thread": {"_include_fields": ("thread_type",)},
+            "rhc_dcs_get_thread": {"_include_fields": ("thread_type", "id", "anchor")},
             "rhc_dcs_get_created_by": {
                 "_include_fields": (
                     "id",
@@ -600,6 +600,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                         data={
                             "thread_type": data.get("thread_type", GENERIC_COMMENT),
                             "thread_reference": data.get("thread_reference", None),
+                            "anchor": data.get("anchor", None),
                             "created_by": user.id,
                             "updated_by": user.id,
                             "content_type": ContentType.objects.get_for_model(
