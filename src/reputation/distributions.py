@@ -208,47 +208,8 @@ ReferralInvitedBonus = Distribution(
 )
 
 
-def create_purchase_distribution(user, amount, paper=None, purchaser=None):
-
-    distribution_amount = amount
-
-    if paper:
-        from reputation.distributor import Distributor
-        from reputation.models import Escrow
-        from researchhub_case.models import AuthorClaimCase
-
-        author_distribution_amount = distribution_amount * 0.75
-        distribution_amount *= 0.25  # authors get 75% of the upvote score
-        distributed_amount = 0
-        author_count = paper.true_author_count()
-
-        for author in paper.authors.all():
-            if (
-                author.user
-                and AuthorClaimCase.objects.filter(
-                    target_paper=paper, requestor=author.user, status=APPROVED
-                ).exists()
-            ):
-                timestamp = time()
-                amt = author_distribution_amount / author_count
-                distributor = Distributor(
-                    Distribution("PURCHASE", amt),
-                    author.user,
-                    paper,
-                    timestamp,
-                    purchaser,
-                    paper.hubs.all(),
-                )
-                record = distributor.distribute()
-                distributed_amount += amt
-
-        Escrow.objects.create(
-            created_by=user,
-            item=paper,
-            amount_holding=author_distribution_amount - distributed_amount,
-            hold_type=Escrow.AUTHOR_RSC,
-        )
-    return Distribution("PURCHASE", distribution_amount, False)
+def create_purchase_distribution(user, amount):
+    return Distribution("PURCHASE", amount, False)
 
 
 def create_bounty_rh_fee_distribution(amount):
@@ -268,6 +229,11 @@ def create_bounty_distriution(amount):
 
 def create_bounty_refund_distribution(amount):
     distribution = Distribution("BOUNTY_REFUND", amount, give_rep=False)
+    return distribution
+
+
+def create_stored_paper_pot(amount):
+    distribution = Distribution("STORED_PAPER_POT", amount, give_rep=False)
     return distribution
 
 
@@ -298,6 +264,7 @@ DISTRIBUTION_TYPE_CHOICES = [
     (HypothesisDownvoted.name, HypothesisDownvoted.name),
     (ReferralInvitedBonus.name, ReferralInvitedBonus.name),
     ("UPVOTE_RSC_POT", "UPVOTE_RSC_POT"),
+    ("STORED_PAPER_POT", "STORED_PAPER_POT"),
     ("REWARD", "REWARD"),
     ("PURCHASE", "PURCHASE"),
     (

@@ -37,9 +37,9 @@ from paper.utils import (
     populate_pdf_url_from_journal_url,
 )
 from purchase.models import Purchase
-from researchhub_comment.models import RhCommentThreadModel
 from researchhub.lib import CREATED_LOCATIONS
 from researchhub.settings import TESTING
+from researchhub_comment.models import RhCommentThreadModel
 from researchhub_document.related_models.constants.editor_type import (
     EDITOR_TYPES,
     TEXT_FIELD,
@@ -431,6 +431,10 @@ class Paper(AbstractGenericReactionModel):
 
     def true_author_count(self):
         registered_author_count = self.authors.count()
+        raw_author_count = self.raw_author_count()
+        return raw_author_count + registered_author_count
+
+    def raw_author_count(self):
         raw_author_count = 0
 
         if isinstance(self.raw_authors, list):
@@ -441,8 +445,7 @@ class Paper(AbstractGenericReactionModel):
                     last_name=author.get("last_name"),
                 ).exists():
                     raw_author_count -= 1
-
-        return raw_author_count + registered_author_count
+        return raw_author_count
 
     def get_hub_names(self):
         return ",".join(self.hubs.values_list("name", flat=True))

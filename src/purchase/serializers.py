@@ -123,12 +123,19 @@ class SupportSerializer(serializers.ModelSerializer):
 class PurchaseSerializer(serializers.ModelSerializer):
     source = serializers.SerializerMethodField()
     end_date = serializers.SerializerMethodField()
-    stats = serializers.SerializerMethodField()
-    content_type = serializers.SerializerMethodField()
 
     class Meta:
         model = Purchase
         fields = "__all__"
+        read_only_fields = [
+            "id",
+            "purchase_hash",
+            "created_date",
+            "transaction_hash",
+            "boost_time",
+            "group",
+            "updated_date",
+        ]
 
     def get_source(self, purchase):
         model_name = purchase.content_type.name
@@ -176,60 +183,6 @@ class PurchaseSerializer(serializers.ModelSerializer):
         timedelta = datetime.timedelta(days=int(purchase.amount))
         end_date = created_date + timedelta
         return end_date.isoformat()
-
-    def get_stats(self, purchase):
-        if self.context.get("exclude_stats", False):
-            return None
-
-        views = []
-        clicks = []
-        total_views = 0
-        total_clicks = 0
-        Paper = purchase.content_type.model_class()
-        paper = Paper.objects.get(id=purchase.object_id)
-        events = paper.events.filter(user=purchase.user).order_by("-created_date")
-
-        serializer = PaperEventSerializer(events, many=True)
-        data = serializer.data
-
-        if data:
-            event_df = pd.DataFrame(data)
-            event_df["created_date"] = pd.to_datetime(event_df["created_date"])
-
-            grouped_data = (
-                event_df.groupby(pd.Grouper(key="created_date", freq="D"))
-                .apply(
-                    self._aggregate_stats,
-                )
-                .reset_index()
-            )
-
-            trunc_date = grouped_data["created_date"].dt.strftime("%Y-%m-%d")
-            grouped_data["created_date"] = trunc_date
-            views_index = ["created_date", "views"]
-            clicks_index = ["created_date", "clicks"]
-            views = grouped_data[views_index].to_dict("records")
-            clicks = grouped_data[clicks_index].to_dict("records")
-            total_views = grouped_data.views.sum()
-            total_clicks = grouped_data.clicks.sum()
-
-        stats = {
-            "views": views,
-            "clicks": clicks,
-            "total_views": total_views,
-            "total_clicks": total_clicks,
-        }
-        return stats
-
-    def _aggregate_stats(self, row):
-        index = ("views", "clicks")
-        views = len(row[row["interaction"] == "VIEW"])
-        clicks = len(row[row["interaction"] == "CLICK"])
-        return pd.Series((views, clicks), index=index)
-
-    def get_content_type(self, purchase):
-        content = purchase.content_type
-        return {"app_label": content.app_label, "model": content.model}
 
 
 class DynamicPurchaseSerializer(DynamicModelFieldSerializer):

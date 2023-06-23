@@ -1,12 +1,10 @@
-from django.contrib.contenttypes.models import ContentType
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
 from paper.models import Paper
-from researchhub_case.constants.case_constants import APPROVED
 from researchhub_case.models import AuthorClaimCase
 from researchhub_case.tasks import trigger_email_validation_flow
-from user.models import Author, User
-from user.serializers import AuthorSerializer, UserSerializer
+from user.models import User
+from user.serializers import UserSerializer
 
 from .researchhub_case_abstract_serializer import EXPOSABLE_FIELDS
 

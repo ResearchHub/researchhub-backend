@@ -53,11 +53,15 @@ def after_approval_flow(case_id):
         try:
             requestor_author = instance.requestor.author_profile
 
-            reward_author_claim_case(requestor_author, instance.target_paper, instance)
+            total_amount_paid = reward_author_claim_case(
+                requestor_author, instance.target_paper, instance
+            )
             if instance.target_paper is None:
                 raise Exception("Cannot approve claim because paper was not found")
 
-            send_approval_email(instance)
+            send_approval_email(
+                instance, context={"total_amount_paid": total_amount_paid}
+            )
             instance.target_paper.unified_document.update_filter(FILTER_AUTHOR_CLAIMED)
         except Exception as exception:
             sentry.log_error(exception)
