@@ -1431,6 +1431,17 @@ files = [
 ]
 
 [[package]]
+name = "easygui"
+version = "0.98.3"
+description = "EasyGUI is a module for very simple, very easy GUI programming in Python.  EasyGUI is different from other GUI generators in that EasyGUI is NOT event-driven.  Instead, all GUI interactions are invoked by simple function calls."
+optional = false
+python-versions = "*"
+files = [
+    {file = "easygui-0.98.3-py2.py3-none-any.whl", hash = "sha256:33498710c68b5376b459cd3fc48d1d1f33822139eb3ed01defbc0528326da3ba"},
+    {file = "easygui-0.98.3.tar.gz", hash = "sha256:d653ff79ee1f42f63b5a090f2f98ce02335d86ad8963b3ce2661805cafe99a04"},
+]
+
+[[package]]
 name = "elastic-apm"
 version = "6.13.2"
 description = "The official Python module for Elastic APM"
@@ -1889,6 +1900,20 @@ aiohttp = ">=3.6.2,<4.0.0"
 maxminddb = ">=2.2.0,<3.0.0"
 requests = ">=2.24.0,<3.0.0"
 urllib3 = ">=1.25.2,<2.0.0"
+
+[[package]]
+name = "google"
+version = "3.0.0"
+description = "Python bindings to the Google search engine."
+optional = false
+python-versions = "*"
+files = [
+    {file = "google-3.0.0-py2.py3-none-any.whl", hash = "sha256:889cf695f84e4ae2c55fbc0cfdaf4c1e729417fa52ab1db0485202ba173e4935"},
+    {file = "google-3.0.0.tar.gz", hash = "sha256:143530122ee5130509ad5e989f0512f7cb218b2d4eddbafbad40fd10e8d8ccbe"},
+]
+
+[package.dependencies]
+beautifulsoup4 = "*"
 
 [[package]]
 name = "google-api-core"
@@ -3095,6 +3120,61 @@ files = [
 ]
 
 [[package]]
+name = "pdf2doi"
+version = "1.5"
+description = "A  python library/command-line tool to extract the DOI or other identifiers of a scientific paper from a pdf file."
+optional = false
+python-versions = "*"
+files = [
+    {file = "pdf2doi-1.5-py3-none-any.whl", hash = "sha256:3567be5c2deeb8184ddaf2ef060efbb4c188baef6dabf317a316f0e65cc954da"},
+    {file = "pdf2doi-1.5.tar.gz", hash = "sha256:bbcb057b83c8b64f7a3cb7c95770190f7ed89ed9c3f5a89d96d6fc6d1683da05"},
+]
+
+[package.dependencies]
+easygui = "*"
+feedparser = ">=6.0.2"
+google = ">=3.0.0"
+"pdfminer.six" = "20221105"
+pdftitle = ">=0.3"
+pymupdf = "1.21.0"
+pypdf2 = "2.0.0"
+pyperclip = "*"
+requests = ">=2.25.1"
+
+[[package]]
+name = "pdfminer-six"
+version = "20221105"
+description = "PDF parser and analyzer"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "pdfminer.six-20221105-py3-none-any.whl", hash = "sha256:1eaddd712d5b2732f8ac8486824533514f8ba12a0787b3d5fe1e686cd826532d"},
+    {file = "pdfminer.six-20221105.tar.gz", hash = "sha256:8448ab7b939d18b64820478ecac5394f482d7a79f5f7eaa7703c6c959c175e1d"},
+]
+
+[package.dependencies]
+charset-normalizer = ">=2.0.0"
+cryptography = ">=36.0.0"
+
+[package.extras]
+dev = ["black", "mypy (==0.931)", "nox", "pytest"]
+docs = ["sphinx", "sphinx-argparse"]
+image = ["Pillow"]
+
+[[package]]
+name = "pdftitle"
+version = "0.11"
+description = "pdftitle is a small utility to extract the title of a PDF article."
+optional = false
+python-versions = "*"
+files = [
+    {file = "pdftitle-0.11.tar.gz", hash = "sha256:81ec9d427d9c759be6fb9bc6e074f642f6615747e35f2e260e14b2e8aa0127d0"},
+]
+
+[package.dependencies]
+"pdfminer.six" = ">=20201018"
+
+[[package]]
 name = "pexpect"
 version = "4.8.0"
 description = "Pexpect allows easy control of interactive console applications."
@@ -3585,6 +3665,30 @@ files = [
 
 [package.extras]
 diagrams = ["jinja2", "railroad-diagrams"]
+
+[[package]]
+name = "pypdf2"
+version = "2.0.0"
+description = "A pure-python PDF library capable of splitting, merging, cropping, and transforming PDF files"
+optional = false
+python-versions = ">=3.6"
+files = [
+    {file = "PyPDF2-2.0.0-py3-none-any.whl", hash = "sha256:eb9eb675d91c0d167abd63fa5f5037486d5b9ef9715c5c8b55b99c3627619402"},
+    {file = "PyPDF2-2.0.0.tar.gz", hash = "sha256:6c2c686cbdad1fa6d42a8cafb5d2f033d1798dd00e13e8d7691b510c567efa34"},
+]
+
+[package.dependencies]
+typing-extensions = {version = "*", markers = "python_version < \"3.10\""}
+
+[[package]]
+name = "pyperclip"
+version = "1.8.2"
+description = "A cross-platform clipboard module for Python. (Only handles plain text for now.)"
+optional = false
+python-versions = "*"
+files = [
+    {file = "pyperclip-1.8.2.tar.gz", hash = "sha256:105254a8b04934f0bc84e9c24eb360a591aaf6535c9def5f29d92af107a9bf57"},
+]
 
 [[package]]
 name = "pyrsistent"
@@ -4962,4 +5066,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "1194f23f57de6b7650d294e204062d6d82795fbb5d901b9a28963706a1f37f25"
+content-hash = "abadfd4bff38fa28772a801435255e9dbaf1b81997cad6be412a9771113e85f2"

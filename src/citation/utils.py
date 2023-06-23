@@ -1,5 +1,6 @@
 from urllib.parse import urlparse
 
+import pdf2doi
 import requests
 from django.contrib.postgres.search import SearchQuery
 from django.core.files.storage import default_storage
@@ -41,9 +42,18 @@ def get_pdf_header_data(path):
     )
 
 
-def get_citation_entry_from_pdf(path, filename, user_id, organization_id, project_id):
-    header_data = get_pdf_header_data(path)
-    doi = header_data.get("doi", None)
+def get_citation_entry_from_pdf(
+    path, filename, user_id, organization_id, project_id, use_grobid
+):
+    pdf = None
+
+    if use_grobid:
+        header_data = get_pdf_header_data(path)
+        doi = header_data.get("doi", None)
+    else:
+        pdf = default_storage.open(path)
+        header_data = pdf2doi.pdf2doi_singlefile(pdf)
+        doi = header_data.get("identifier")
 
     citation_entry = CitationEntry.objects.filter(
         doi=doi, created_by=user_id, project_id=project_id
@@ -53,7 +63,9 @@ def get_citation_entry_from_pdf(path, filename, user_id, organization_id, projec
         # which requires a request object with a user attached
         request = Request(HttpRequest())
         request.user = User.objects.get(id=user_id)
-        pdf = default_storage.open(path)
+
+        if pdf is None:
+            pdf = default_storage.open(path)
 
         if not doi:
             pdf.name = filename
@@ -87,14 +99,19 @@ def get_citation_entry_from_pdf(path, filename, user_id, organization_id, projec
 
 
 def create_paper_from_citation(citation):
-    url = citation.doi
+    doi = citation.doi
 
-    pure_doi = citation.doi.split("https://doi.org/")[1]
+    if doi is None:
+        return
+
+    pure_doi = doi.split("doi.org/")[-1]
 
     # Appends http if protocol does not exist
-    parsed_url = urlparse(url)
+    parsed_url = urlparse(doi)
     if not parsed_url.scheme:
         url = f"http://{parsed_url.geturl()}"
+    else:
+        url = doi
 
     duplicate_papers = Paper.objects.filter(
         Q(url_svf=SearchQuery(url)) | Q(pdf_url_svf=SearchQuery(url))
