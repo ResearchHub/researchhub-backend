@@ -18,9 +18,6 @@ from citation.schema import generate_schema_for_citation
 from citation.serializers import CitationEntrySerializer
 from citation.tasks import handle_creating_citation_entry
 from researchhub.pagination import FasterDjangoPaginator
-from user.related_models.organization_model import Organization
-from utils.aws import upload_to_s3
-
 from researchhub.settings import AWS_STORAGE_BUCKET_NAME, DEVELOPMENT
 from utils.openalex import OpenAlex
 from utils.parsers import clean_filename
@@ -103,11 +100,14 @@ class CitationEntryViewSet(ModelViewSet):
         project_id = data.get("project_id")
         creator_id = data.get("creator_id")
 
+        # Temporary condition to use Grobid or pdf2doi
+        use_grobid = data.get("use_grobid", "False") == "True"
+
         if project_id == "None":
             project_id = None
 
         handle_creating_citation_entry.apply_async(
-            (path, filename, creator_id, organization_id, project_id),
+            (path, filename, creator_id, organization_id, project_id, use_grobid),
             priority=5,
             countdown=0.1,
         )
