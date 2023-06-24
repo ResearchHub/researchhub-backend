@@ -57,12 +57,15 @@ def celery_process_paper(self, submission_id):
     uploaded_by = paper_submission.uploaded_by
     url = paper_submission.url
     doi = paper_submission.doi
+    citation = paper_submission.citation
+
     celery_data = {
         "url": url,
         "uploaded_by_id": uploaded_by.id,
         "submission_id": submission_id,
-        "citation_id": paper_submission.citation.id,
     }
+    if citation is not None:
+        celery_data["citation_id"] = citation.id
     args = (celery_data, submission_id)
 
     apis = []
@@ -584,7 +587,7 @@ def celery_combine_paper_data(self, celery_data):
         self.request.args = (celery_data, submission_id)
         raise DOINotFoundError("Unable to find article")
 
-    return (data, submission_id, combined_data.get("citation_id"))
+    return (data, submission_id, combined_data.get("citation_id", None))
 
 
 @app.task(bind=True, queue=QUEUE_PAPER_METADATA, ignore_result=False)
