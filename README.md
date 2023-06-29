@@ -12,13 +12,13 @@
 </p>
 <p align="left">&nbsp;</p>
 
-## Our Mission
+# Our Mission
 ```
 Our mission is to accelerate the pace of scientific research 🚀
 ```
 We believe that by empowering scientists to independently fund, create, and publish academic content we can revolutionize the speed at which new knowledge is created and transformed into life-changing products.
 
-## Important Links  👀
+# Important Links  👀
 💡 Got an idea or request? [Open issue on Github](https://github.com/ResearchHub/researchhub-web/issues).  
 🐛 Found a bug? [Report it here](https://github.com/ResearchHub/researchhub-web/issues).   
 ➕ Want to contribute to this project? [Introduce yourself in our Discord community](https://discord.gg/ZcCYgcnUp5)    
@@ -26,9 +26,9 @@ We believe that by empowering scientists to independently fund, create, and publ
 📰 Read the [ResearchCoin White Paper](https://www.researchhub.com/paper/819400/the-researchcoin-whitepaper)  
 
 
-## Installation
+# Installation
 
-### 1. Quick install using Docker (Recommended)
+## 1. Quick install using Docker (Recommended)
 
 1. Download or clone this repository.
 2. Copy local config files. From inside the dir root, run
@@ -49,105 +49,212 @@ docker-compose up
 The backend will now run at localhost:8000  
 4. Setup and run the [web app](https://github.com/ResearchHub/researchhub-web) at localhost:3000
 
-### 2. Native install (Slower, not recommended)
+## 2. Native install (Slower, recommended for development)
 
-#### General
+### Prerequisites
+1. Docker
+2. pyenv
+3. redis
+4. Install the `flake8` linter in your IDE:
+   - [vscode](https://code.visualstudio.com/docs/python/linting#_specific-linters)
+   - [Sublime](https://github.com/SublimeLinter/SublimeLinter-flake8)
+   - [flake8](http://flake8.pycqa.org/en/latest/index.html)
 
-Install the `flake8` linter in your IDE
+### General setup 
 
-- [vscode](https://code.visualstudio.com/docs/python/linting#_specific-linters)
-- [Sublime](https://github.com/SublimeLinter/SublimeLinter-flake8)
-- [flake8](http://flake8.pycqa.org/en/latest/index.html)
+* Create a fork of the repository in your GitHub account, and clone it.
 
-Create a keys file in config
+* Prepare the database:
 
+    Create a db file in config
+
+    ```shell
+    touch src/config/db.py
+    ```
+
+    Add the following:
+
+    ```python
+    NAME = 'researchhub'
+    HOST = 'localhost'
+    PORT = 5432
+    USER = 'rh_developer'  # replace as needed
+    PASS = 'not_secure'  # replace as needed
+    ```
+
+    Create a local postgres db called `researchhub`. Alternatively, to use docker for local development (recommended), run the following:
+
+    ```shell
+    # https://docs.docker.com/samples/library/postgres/
+    docker run \
+    --rm \
+    --name researchhub_db \
+    --env POSTGRES_DB=researchhub \
+    --env POSTGRES_USER=rh_developer \
+    --env POSTGRES_PASSWORD=not_secure \
+    --volume "$(pwd)"/database:/var/lib/postgresql/data \
+    --publish 5432:5432 \
+    --detach \
+    postgres:12
+    ```
+
+  > Good UI tool for interacting with PostgreSQ: [Postico](https://eggerapps.at/postico2/)
+
+* The project virtual environment is managed using [Poetry](https://python-poetry.org/docs/).
+  ```shell
+  pip3 install poetry
+  ```
+
+* Go to the [`src`](src) directory and run the following commands in order to activate the virtual environment:
+    ```shell
+    cd src
+
+    # installs the project virtual environment and packages
+    poetry install
+
+    # activates a Python virtual environment and enters shell
+    poetry shell
+    ```
+
+> The following commands should all be run in the virtual environment (`poetry shell`), in the [`src`](src) folder:
+
+* Install python dependencies stored in `requirements.txt`:
+  ```shell
+  pip3 install -r requirements.txt --no-deps
+  ```
+
+* Create the database schema:
+
+  ```shell
+  python manage.py makemigrations
+  python manage.py migrate
+  ```
+
+* The backend worker queue is managed using `redis`. Before you start the backend, in a separate terminal, run `redis-server`:
+  ```shell
+  brew install redis
+  redis-server
+  ```
+
+* Start `celery`, the tool that runs the worker via `redis`. In a separate terminal:
+
+  ```shell
+  # celery: in poetry shell, run:
+  cd src
+  ./start-celery.sh
+  ```
+
+### Seed the database
+
+* In order for the UI to work properly, some data needs to be seeded into the database. Seed category data:
+
+    ```shell
+    python manage.py create-categories
+    ```
+
+* Seed hub data. There's a CSV file in `/misc/hub_hub.csv` with hub data that you can use to seed hubs data. This can be done in two ways:
+
+    * in `Postico`: right-click on the `hub_hub` table, and select `Import CSV...`. You will encounter problems importing the CSV due to the tool thinking that empty fields are nulls for `acronym` and `description` columns. Temporarily update `hub_hub` table to allow null values for those columns:
+   ```postgresql
+   ALTER TABLE hub_hub ALTER COLUMN description DROP NOT NULL;
+   ALTER TABLE hub_hub ALTER COLUMN acronym DROP NOT NULL;
+   ```
+   Import CSV, then change all nulls to empty in the two columns, and revert the columns to not null:
+
+   ```postgresql
+   UPDATE hub_hub set acronym='', description='';
+   ALTER TABLE hub_hub ALTER COLUMN description SET NOT NULL;
+   ALTER TABLE hub_hub ALTER COLUMN acronym SET NOT NULL;
+   ```
+   **OR**
+   * in Python: run `python manage.py shell_plus` to open a Python terminal in the virtual environment. Then, paste the following code:
+
+   ```python
+   import pandas as pd        
+
+   hub_df = pd.read_csv("../misc/hub_hub.csv")
+   hub_df = hub_df.drop("slug_index", axis=1)
+   hub_df = hub_df.drop("acronym", axis=1)
+   hub_df = hub_df.drop("hub_image", axis=1)
+   hubs = [Hub(**row.to_dict()) for _, row in hub_df.iterrows()]
+   Hub.objects.bulk_create(hubs)
+   ```
+
+### Run the development server:
+
+```shell
+python manage.py runserver
 ```
-touch src/config/keys.py
+
+### Useful stuff
+
+#### Create a superuser in order to get data from the API
+
+```shell
+# create a superuser and retrieve an authentication token
+python manage.py createsuperuser --username=florin --email=florin@researchhub.com
+# p: not_secure
+python manage.py drf_create_token florin@researchhub.com
 ```
 
-Add the following to `keys.py` (fill in the blanks)
+#### Query the API using the Auth token 
+
+> Note that for paths under `/api`, e.g. `/api/hub/`, you don't need a token.
+
+```shell
+curl --silent \
+--header 'Authorization: Token <token>' \
+http://localhost:8000/api/
+```
+
+#### Sending API requests via vscode
+
+* Install the [REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client) extension.
+
+* Create a file called `api.rest` with the following contents (insert token):
+
+   ```
+   GET http://localhost:8000/api/ HTTP/1.1
+   content-type: application/json
+   Authorization: Token <token>
+   ```
+
+   Then press `Send Request` in vscode, above the text.
+
+#### Seed paper data. 
+
+> For this to work, the celery worker needs to be running (see above). This calls two methods that are temporarily disabled, in [`src/paper/tasks.py`](src/paper/tasks.py): `pull_crossref_papers()` and `pull_papers()`. First, comment the first line of the methods, that cause the methods to be disabled. Then, change the `while` loops to finish after pulling a small number of papers (enough to populate local environment):
 
 ```python
-SECRET_KEY = ''
-AWS_ACCESS_KEY_ID = ''
-AWS_SECRET_ACCESS_KEY = ''
-INFURA_PROJECT_ID = ''
-INFURA_PROJECT_SECRET = ''
-INFURA_RINKEBY_ENDPOINT = f'https://rinkeby.infura.io/v3/{INFURA_PROJECT_ID}'
+def pull_papers(start=0, force=False):
+    # Temporarily disabling autopull
+    return  # <-- this line needs to be commented out
+    ...
+    while True:  # <-- change this to while i < 100:
+
+...
+
+def pull_crossref_papers(start=0, force=False):
+    # Temporarily disabling autopull
+    return  # <-- this line needs to be commented out
+    ...
+    while True:  # <-- change this to while offset < 100:
 ```
 
-Add local config files by copying files from `src/config` to `src/config_local`. Ask somebody to provide all the keys.
-
-Set executable permissions on scripts
-
-```
-chmod -R u+x scripts/
-```
-
-Install git hooks
-
-```
-./scripts/install-hooks
-```
-
-#### DATABASE
-
-Create a db file in config
-
+Then, run:
 ```shell
-touch src/config/db.py
+python manage.py shell_plus # enters Python shell within poetry shell
 ```
-
-Add the following
 
 ```python
-NAME = 'researchhub'
-HOST = 'localhost'
-PORT = 5432
-USER = 'rh_developer' # replace as needed
-PASS = 'not_secure'   # replace as needed
+from paper.tasks import pull_crossref_papers, pull_papers
+pull_crossref_papers(force=True)
+pull_papers(force=True)
 ```
 
-Create a local postgres db called `researchhub`.
-Alternatively, to use docker for local development, run the following:
+> **Make sure to revert that file once you're done seeding the local environment.**
 
-```shell
-# https://docs.docker.com/samples/library/postgres/
-docker run \
-  --rm \
-  --name researchhub_db \
-  --env POSTGRES_DB=researchhub \
-  --env POSTGRES_USER=rh_developer \
-  --env POSTGRES_PASSWORD=not_secure \
-  --volume "$(pwd)"/database:/var/lib/postgresql/data \
-  --publish 5432:5432 \
-  --detach \
-  postgres:12
-```
-
-#### ENVIRONMENT
-
-The project environment is managed using [Poetry](https://python-poetry.org/docs/).
-
-The project uses Python version 3.8, so you will need to install it (use pyenv e.g.)
-
-If you're installing on macOS 11.x, additional step is required for which the explanation can be found [here](https://stackoverflow.com/questions/66482346/problems-installing-python-3-6-with-pyenv-on-mac-os-big-sur) or [here](https://docs.google.com/document/d/1tObZtc_GLf1h2OY9Ig6LjYub5zNMARG_ge3pUXKV3HI/edit?usp=sharing), that basically installs the right version of Python with extra flags (notice Python version within the script):
-
-```
-CFLAGS="-I$(brew --prefix openssl)/include -I$(brew --prefix bzip2)/include -I$(brew --prefix readline)/include -I$(xcrun --show-sdk-path)/usr/include" LDFLAGS="-L$(brew --prefix openssl)/lib -L$(brew --prefix readline)/lib -L$(brew --prefix zlib)/lib -L$(brew --prefix bzip2)/lib" pyenv install --patch 3.8.12 < <(curl -sSL https://github.com/python/cpython/commit/8ea6353.patch\?full_index\=1)
-```
-
-After installing Python, run the following commands from the [`src`](src) directory:
-
-```shell
-# installs the project environment and packages
-poetry install
-
-# activates the environment and enters shell
-poetry shell
-```
-
-In general, when adding new packages, follow these steps:
+#### Adding new packages
 
 ```shell
 # add a package to the project environment
@@ -156,10 +263,6 @@ poetry add package_name
 # update requirements.txt which is used by elastic beanstalk
 poetry export -f requirements.txt --output requirements.txt
 ```
-
-#### REDIS (Required)
-
-Make sure to run `redis-server` in a separate terminal.
 
 ### ELASTICSEARCH (Optional)
 
@@ -206,34 +309,7 @@ Add the keystore file to the config directory
 
 Make sure you have added the Infura keys (see above^)
 
-### DEVELOPMENT
-
-This sections contains some helpful commands for development.
-
-> Run these from within `poetry shell` from `src`, like it was previously mentioned.
-
-Update the database schema:
-
-```shell
-python manage.py makemigrations
-python manage.py migrate
-```
-
-Run a development server and make the API available at <http://localhost:8000/api/>:
-
-```shell
-# create a superuser and retrieve an authentication token
-python manage.py createsuperuser --username=<username> --email=<email>
-python manage.py drf_create_token <email>
-
-# run the development server
-python manage.py runserver
-
-# query the API
-curl --silent \
-  --header 'Authorization: Token <token>' \
-  http://localhost:8000/api/
-```
+### Testing
 
 Run the test suite:
 
@@ -267,8 +343,6 @@ Both celery commands in one (for development only)
 celery -A researchhub worker -l info -B
 ```
 
----
-
 #### Google Auth
 
 Ask somebody to provide you with `CLIENT_ID` and `SECRET` config, and run this SQL query (with updated configs) to seed the right data for Google login to work:
@@ -283,31 +357,3 @@ insert into socialaccount_socialapp_sites (socialapp_id, site_id) values (1, 1);
 ```
 
 (make sure that IDs are the right one in the last query)
-
-#### Seeding hub data
-
-There's a CSV file in `/misc/hub_hub.csv` with hub data that you can use to seed hubs data.
-
-> If you encounter problems importing CSV due to DB tool thinking that empty fields are nulls for `acronym` and `description` columns, temporarily update `hub_hub` table to allow null values for those columns, import CSV, then execute `update hub_hub set acronym='', description='';` to populate with non-null yet empty values, then update table to disallow nulls again.
-
-Then run this from `poetry shell`:
-
-```shell
-python manage.py create-categories
-python manage.py migrate-hubs
-python manage.py categorize-hubs
-```
-
-#### Seeding paper data
-
-From your terminal, follow these steps:
-
-```shell
-cd src
-poetry shell
-python manage.py shell_plus # enters Python shell within poetry shell
-
-from paper.tasks import pull_crossref_papers, pull_papers
-pull_crossref_papers()
-pull_papers()
-```
