@@ -3,7 +3,7 @@ from django.db import models
 
 from researchhub_access_group.constants import ADMIN, EDITOR, VIEWER
 from researchhub_access_group.related_models.permission_model import Permission
-from user.models import Organization
+from user.models import Organization, User
 from utils.models import DefaultAuthenticatedModel
 
 
