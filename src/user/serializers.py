@@ -371,8 +371,11 @@ class UserSerializer(ModelSerializer):
 
     def get_subscribed(self, obj):
         if self.context.get("get_subscribed"):
+            hub_context = {
+                "hub_shs_get_editor_permission_groups": {"_exclude_fields": "__all__"}
+            }
             subscribed_query = obj.subscribed_hubs.all()
-            return HubSerializer(subscribed_query, many=True).data
+            return HubSerializer(subscribed_query, many=True, context=hub_context).data
 
     def get_hub_rep(self, obj):
         try:
@@ -403,6 +406,7 @@ class MinimalUserSerializer(ModelSerializer):
             obj.author_profile, read_only=True, context=self.context
         )
         return serializer.data
+
 
 class UserEditableSerializer(ModelSerializer):
     author_profile = AuthorSerializer()
