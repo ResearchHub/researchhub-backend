@@ -18,7 +18,7 @@ from citation.schema import generate_schema_for_citation
 from citation.serializers import CitationEntrySerializer
 from citation.tasks import handle_creating_citation_entry
 from researchhub.pagination import FasterDjangoPaginator
-from researchhub.settings import AWS_STORAGE_BUCKET_NAME, DEVELOPMENT
+from researchhub.settings import AWS_STORAGE_BUCKET_NAME
 from utils.openalex import OpenAlex
 from utils.parsers import clean_filename
 
@@ -54,17 +54,6 @@ class CitationEntryViewSet(ModelViewSet):
 
     @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
     def upload_pdfs(self, request):
-        """
-        To enable in development:
-        1. Use Ngrok to create a tunnel on your backend port (usually 8000)
-        2. Go to staging-pdf-uploads-s3-trigger in AWS Lambda and look at code comments
-        3. Uncomment the if statement
-        """
-        if DEVELOPMENT:
-            raise Exception(
-                "See code comments to enable pdf uploads in dev environment"
-            )
-
         data = request.data
         organization_id = data.get("organization_id")
         project_id = data.get("project_id")
@@ -74,6 +63,8 @@ class CitationEntryViewSet(ModelViewSet):
         user_key = f"user_{request.user.id}"
         boto3_session = session.Session()
         s3_client = boto3_session.client("s3")
+        ascii_cleaned_filename = filename.encode("ascii", "ignore").decode()
+
         res = s3_client.generate_presigned_url(
             "put_object",
             Params={
@@ -84,10 +75,10 @@ class CitationEntryViewSet(ModelViewSet):
                     "x-amz-meta-created-by-id": f"{request.user.id}",
                     "x-amz-meta-organization-id": f"{organization_id}",
                     "x-amz-meta-project-id": f"{project_id}",
-                    "x-amz-meta-file-name": filename,
+                    "x-amz-meta-file-name": ascii_cleaned_filename,
                 },
             },
-            ExpiresIn=60 * 5,
+            ExpiresIn=60 * 2,
         )
         return Response(res, status=200)
 
@@ -103,7 +94,7 @@ class CitationEntryViewSet(ModelViewSet):
         # Temporary condition to use Grobid or pdf2doi
         use_grobid = data.get("use_grobid", "False") == "True"
 
-        if project_id == "None":
+        if project_id == "None" or project_id is None:
             project_id = None
 
         handle_creating_citation_entry.apply_async(
