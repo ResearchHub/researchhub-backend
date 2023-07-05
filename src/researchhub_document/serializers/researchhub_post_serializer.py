@@ -7,6 +7,7 @@ from rest_framework.serializers import (
 from discussion.reaction_serializers import GenericReactionSerializerMixin
 from discussion.serializers import DynamicThreadSerializer
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
+from purchase.models import Purchase
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
@@ -319,9 +320,9 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
         _select_related_fields = context.get("doc_dps_get_purchases_select", [])
         _prefetch_related_fields = context.get("doc_dps_get_purchases_prefetch", [])
         serializer = DynamicPurchaseSerializer(
-            post.purchases.select_related(*_select_related_fields).prefetch_related(
-                *_prefetch_related_fields
-            ),
+            post.purchases.filter(purchase_type=Purchase.BOOST)
+            .select_related(*_select_related_fields)
+            .prefetch_related(*_prefetch_related_fields),
             many=True,
             context=context,
             **_context_fields,
