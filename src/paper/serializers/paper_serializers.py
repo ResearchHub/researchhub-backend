@@ -41,6 +41,7 @@ from paper.utils import (
     convert_journal_url_to_pdf_url,
     convert_pdf_url_to_journal_url,
 )
+from purchase.models import Purchase
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from researchhub.lib import get_document_id_from_path
@@ -912,9 +913,9 @@ class DynamicPaperSerializer(
         _select_related_fields = context.get("pap_dps_get_purchases_select", [])
         _prefetch_related_fields = context.get("pap_dps_get_purchases_prefetch", [])
         serializer = DynamicPurchaseSerializer(
-            paper.purchases.select_related(*_select_related_fields).prefetch_related(
-                *_prefetch_related_fields
-            ),
+            paper.purchases.filter(purchase_type=Purchase.BOOST)
+            .select_related(*_select_related_fields)
+            .prefetch_related(*_prefetch_related_fields),
             many=True,
             context=context,
             **_context_fields,
