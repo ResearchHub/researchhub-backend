@@ -22,6 +22,7 @@ from citation.models import CitationEntry
 from citation.permissions import PDFUploadsS3CallBack
 from citation.schema import generate_schema_for_citation
 from citation.serializers import CitationEntrySerializer
+from paper.exceptions import DOINotFoundError
 from paper.utils import clean_dois
 from citation.tasks import handle_creating_citation_entry
 from researchhub.pagination import FasterDjangoPaginator
@@ -163,14 +164,15 @@ class CitationEntryViewSet(ModelViewSet):
                 )
                 parsed_url = urlparse(url_string)
                 cleaned_dois = clean_dois(parsed_url, list(map(str.strip, dois)))
-                doi_counter = Counter(dois)
-                dois = [doi for doi, _ in doi_counter.most_common(1)]
+                doi_counter = Counter(cleaned_dois)
+                formmated_dois = [doi for doi, _ in doi_counter.most_common(1)]
 
                 open_alex = OpenAlex()
-                open_alex_result = open_alex.get_data_from_doi(doi_string)
+                open_alex_result = open_alex.get_data_from_doi(formmated_dois[0])
+
                 return Response(open_alex_result, status=200)
         except Exception as error:
-            return Response(error, status=400)
+            return Response({"result": "DOI / URL not found"}, status=400)
 
     @action(
         detail=False,
