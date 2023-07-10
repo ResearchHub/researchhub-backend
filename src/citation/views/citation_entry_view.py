@@ -22,8 +22,7 @@ from citation.models import CitationEntry
 from citation.permissions import PDFUploadsS3CallBack
 from citation.schema import generate_schema_for_citation
 from citation.serializers import CitationEntrySerializer
-from paper.exceptions import DOINotFoundError
-from paper.utils import clean_dois
+from paper.utils import DOI_REGEX, clean_dois
 from citation.tasks import handle_creating_citation_entry
 from researchhub.pagination import FasterDjangoPaginator
 from researchhub.settings import AWS_STORAGE_BUCKET_NAME
@@ -153,15 +152,13 @@ class CitationEntryViewSet(ModelViewSet):
     def url_search(self, request):
         try:
             url_string = request.query_params.get("url", None)
-            scraper_result = cloudscraper.create_scraper().get(url_string)
+            scraper_result = cloudscraper.create_scraper().get(url_string, timeout=15)
             status_code = scraper_result.status_code
             dois = []
 
             if status_code >= 200 and status_code < 400:
                 content = BeautifulSoup(scraper_result.content, "lxml")
-                dois = re.findall(
-                    r"10.\d{4,9}\/[-._;()\/:a-zA-Z0-9]+?(?=[\";%<>\?#&])", str(content)
-                )
+                dois = re.findall(DOI_REGEX, str(content))
                 parsed_url = urlparse(url_string)
                 cleaned_dois = clean_dois(parsed_url, list(map(str.strip, dois)))
                 doi_counter = Counter(cleaned_dois)
