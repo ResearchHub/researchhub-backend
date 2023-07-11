@@ -1,3 +1,4 @@
+import decimal
 import math
 
 from django.contrib.admin.options import get_content_type_for_model
@@ -51,7 +52,7 @@ class BaseTests(TestCase, TestHelper):
         self.assertEquals(Escrow.objects.filter(hold_type=Escrow.AUTHOR_RSC).count(), 1)
         self.assertEquals(
             Escrow.objects.filter(hold_type=Escrow.AUTHOR_RSC).first().amount_holding,
-            distribution_amount * 0.95,
+            decimal.Decimal(distribution_amount * 0.95),
         )
 
     def test_no_verified_author_distribution(
