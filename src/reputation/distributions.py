@@ -1,4 +1,5 @@
 import datetime
+import decimal
 from time import time
 
 import pytz
@@ -98,9 +99,13 @@ def create_upvote_distribution(vote_type, paper=None, vote=None):
         from reputation.distributor import Distributor
         from researchhub_case.models import AuthorClaimCase
 
-        author_distribution_amount = distribution_amount * 0.95
-        distribution_amount *= 0.05  # authors get 95% of the upvote score
-        distributed_amount = 0
+        author_distribution_amount = round(
+            decimal.Decimal(distribution_amount * 0.95), 10
+        )
+        distribution_amount *= round(
+            decimal.Decimal(0.05), 10
+        )  # authors get 95% of the upvote score
+        distributed_amount = decimal.Decimal(0)
         author_count = paper.true_author_count()
 
         for author in paper.authors.all():
