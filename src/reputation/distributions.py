@@ -98,8 +98,8 @@ def create_upvote_distribution(vote_type, paper=None, vote=None):
         from reputation.distributor import Distributor
         from researchhub_case.models import AuthorClaimCase
 
-        author_distribution_amount = distribution_amount * 0.75
-        distribution_amount *= 0.25  # authors get 75% of the upvote score
+        author_distribution_amount = distribution_amount * 0.95
+        distribution_amount *= 0.05  # authors get 95% of the upvote score
         distributed_amount = 0
         author_count = paper.true_author_count()
 
