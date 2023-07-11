@@ -87,7 +87,9 @@ class BaseTests(TestCase, TestHelper):
         )
         distribution_amount = calculate_rsc_per_upvote()
         self.assertEquals(Distribution.objects.count(), 0)
-        self.assertEquals(distribution.amount, distribution_amount * 0.05)
+        self.assertEquals(
+            distribution.amount, round(decimal.Decimal(distribution_amount * 0.05), 10)
+        )
 
     def test_author_claim_distribution(
         self,
