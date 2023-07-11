@@ -160,6 +160,7 @@ class RHCommentFilter(filters.FilterSet):
             qs = qs.filter(
                 (Q(thread__thread_type=GENERIC_COMMENT) & Q(bounties__isnull=True))
                 | Q(thread__thread_type=SUMMARY)
+                | Q(thread__thread_type=INNER_CONTENT_COMMENT)
             )
 
         return qs
