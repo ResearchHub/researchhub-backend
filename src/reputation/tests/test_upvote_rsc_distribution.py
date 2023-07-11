@@ -51,7 +51,7 @@ class BaseTests(TestCase, TestHelper):
         self.assertEquals(Escrow.objects.filter(hold_type=Escrow.AUTHOR_RSC).count(), 1)
         self.assertEquals(
             Escrow.objects.filter(hold_type=Escrow.AUTHOR_RSC).first().amount_holding,
-            distribution_amount * 0.75,
+            distribution_amount * 0.95,
         )
 
     def test_no_verified_author_distribution(
@@ -86,7 +86,7 @@ class BaseTests(TestCase, TestHelper):
         )
         distribution_amount = calculate_rsc_per_upvote()
         self.assertEquals(Distribution.objects.count(), 0)
-        self.assertEquals(distribution.amount, distribution_amount * 0.25)
+        self.assertEquals(distribution.amount, distribution_amount * 0.05)
 
     def test_author_claim_distribution(
         self,
@@ -125,7 +125,7 @@ class BaseTests(TestCase, TestHelper):
         self.assertEquals(Distribution.objects.count(), 1)
         self.assertEquals(
             Distribution.objects.first().amount,
-            math.floor(distribution_amount * 0.75 / 3),
+            math.floor(distribution_amount * 0.95 / 3),
         )
 
     def test_comment_upvote_distribution(self):
@@ -274,5 +274,5 @@ class BaseTests(TestCase, TestHelper):
             Distribution.objects.filter(distribution_type="STORED_PAPER_POT")
             .first()
             .amount,
-            math.floor(distribution_amount * 0.75 / 3),
+            math.floor(distribution_amount * 0.95 / 3),
         )
