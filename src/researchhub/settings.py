@@ -154,6 +154,7 @@ if ELASTIC_BEANSTALK:
 CORS_ORIGIN_WHITELIST = [
     "http://localhost:3000",
     "http://localhost:3003",
+    "https://localhost:3000",
     "https://dev.researchhub.com",
     "https://researchnow.researchhub.com",
     "https://www.researchhub.com",
