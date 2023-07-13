@@ -16,7 +16,6 @@ from django.urls import include, path, re_path
 from rest_framework import routers
 
 import analytics.views
-import discussion.views
 import google_analytics.views
 import hub.views
 import hypothesis.views as hypothesis_views
@@ -44,7 +43,6 @@ from peer_review.views import (
 )
 from referral.referral_invite_view import ReferralInviteViewSet
 from researchhub.settings import INSTALLED_APPS, USE_DEBUG_TOOLBAR
-from researchhub_comment.views.rh_comment_thread_view import RhCommentThreadViewSet
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from review.views.review_view import ReviewViewSet
 from user.views import editor_views
@@ -55,106 +53,6 @@ router.register(
     r"new_feature_release",
     new_feature_release.views.NewFeatureViewSet,
     basename="new_feature_release",
-)
-
-# NOTE: calvinhlee - the way coments are handled is very inefficient. We need to refactor this
-
-router.register(r"discussion", discussion.views.ThreadViewSet, basename="discussion")
-router.register(
-    r"paper/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply",
-    discussion.views.ReplyViewSet,
-    basename="discussion_thread_comment_replies",
-)
-
-router.register(
-    r"paper/([0-9]+)/discussion/([0-9]+)/comment",
-    discussion.views.CommentViewSet,
-    basename="discussion_thread_comments",
-)
-
-router.register(
-    r"paper/([0-9]+)/discussion",
-    discussion.views.ThreadViewSet,
-    basename="discussion_threads",
-)
-
-router.register(
-    r"researchhub_post/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply",
-    discussion.views.ReplyViewSet,
-    basename="post_discussion_thread_comment_replies",
-)
-
-router.register(
-    r"researchhub_post/([0-9]+)/discussion/([0-9]+)/comment",
-    discussion.views.CommentViewSet,
-    basename="post_discussion_thread_comments",
-)
-
-router.register(
-    r"researchhub_post/([0-9]+)/discussion",
-    discussion.views.ThreadViewSet,
-    basename="post_discussion_threads",
-)
-
-router.register(
-    r"hypothesis/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply",
-    discussion.views.ReplyViewSet,
-    basename="hypothesis_discussion_thread_comment_replies",
-)
-
-router.register(
-    r"hypothesis/([0-9]+)/discussion/([0-9]+)/comment",
-    discussion.views.CommentViewSet,
-    basename="hypothesis_discussion_thread_comments",
-)
-
-router.register(
-    r"hypothesis/([0-9]+)/discussion",
-    discussion.views.ThreadViewSet,
-    basename="hypothesis_discussion_threads",
-)
-
-router.register(
-    r"citation/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply",
-    discussion.views.ReplyViewSet,
-    basename="citation_discussion_thread_comment_replies",
-)
-
-router.register(
-    r"citation/([0-9]+)/discussion/([0-9]+)/comment",
-    discussion.views.CommentViewSet,
-    basename="citation_discussion_thread_comments",
-)
-
-router.register(
-    r"citation/([0-9]+)/discussion",
-    discussion.views.ThreadViewSet,
-    basename="citation_discussion_threads",
-)
-
-router.register(
-    r"peer_review/([0-9]+)/discussion/([0-9]+)/comment/([0-9]+)/reply",
-    discussion.views.ReplyViewSet,
-    basename="post_discussion_thread_comment_replies",
-)
-
-router.register(
-    r"peer_review/([0-9]+)/discussion/([0-9]+)/comment",
-    discussion.views.CommentViewSet,
-    basename="post_discussion_thread_comments",
-)
-
-router.register(
-    r"peer_review/([0-9]+)/discussion",
-    discussion.views.ThreadViewSet,
-    basename="post_discussion_threads",
-)
-
-
-router.register(
-    r"paper/discussion/file",
-    discussion.views.CommentFileUpload,
-    basename="discussion_file_upload",
 )
 
 router.register(
@@ -178,8 +76,6 @@ router.register(
 )
 
 router.register(r"author", user.views.AuthorViewSet, basename="author")
-
-router.register(r"summary", summary.views.SummaryViewSet, basename="summary")
 
 router.register(r"hub", hub.views.HubViewSet, basename="hub")
 
@@ -228,21 +124,6 @@ router.register(
 )
 
 router.register(r"purchase", purchase.views.PurchaseViewSet, basename="purchase")
-
-
-# Deprecated endpoints
-
-# router.register(
-#     r'support',
-#     purchase.views.SupportViewSet,
-#     basename='support'
-# )
-
-# router.register(
-#     r'stripe',
-#     purchase.views.StripeViewSet,
-#     basename='stripe'
-# )
 
 router.register(r"transactions", purchase.views.BalanceViewSet, basename="transactions")
 

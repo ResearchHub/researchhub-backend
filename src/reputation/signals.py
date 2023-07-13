@@ -356,7 +356,6 @@ def distribute_for_discussion_vote(sender, instance, created, update_fields, **k
     if (
         created or vote_type_updated(update_fields)
     ) and is_eligible_for_discussion_vote(recipient, voter):
-
         hubs = None
         item = instance.item
         if isinstance(item, RhCommentModel):
@@ -439,13 +438,14 @@ def get_discussion_vote_item_distribution(instance):
     item_type = type(item)
 
     error = TypeError(f"Instance of type {item_type} is not supported")
-
+    paper = None
     if vote_type == GrmVote.UPVOTE:
         if isinstance(item, RhCommentModel):
             vote_type = distributions.RhCommentUpvoted.name
         elif isinstance(item, ResearchhubPost):
             vote_type = distributions.ResearchhubPostUpvoted.name
         elif isinstance(item, Paper):
+            paper = item
             vote_type = distributions.PaperUpvoted.name
         elif isinstance(item, Hypothesis):
             vote_type = distributions.HypothesisUpvoted.name
@@ -454,7 +454,7 @@ def get_discussion_vote_item_distribution(instance):
         else:
             raise error
 
-        return distributions.create_upvote_distribution(vote_type, None, instance)
+        return distributions.create_upvote_distribution(vote_type, paper, instance)
     elif vote_type == GrmVote.DOWNVOTE:
         if isinstance(item, RhCommentModel):
             vote_type = distributions.RhCommentDownvoted
