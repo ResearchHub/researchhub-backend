@@ -24,15 +24,9 @@ class CitationEntry(DefaultAuthenticatedModel):
     citation_type = models.CharField(max_length=32, choices=CITATION_TYPE_CHOICES)
     checksum = models.CharField(max_length=16)
     doi = models.CharField(max_length=255, default=None, null=True, blank=True)
+    fields = models.JSONField()
     organization = models.ForeignKey(
         Organization, related_name="created_citations", on_delete=models.CASCADE
-    )
-    unified_doc = models.ForeignKey(
-        ResearchhubUnifiedDocument,
-        blank=True,
-        null=True,
-        on_delete=models.CASCADE,
-        related_name="citation_entries",
     )
     project = models.ForeignKey(
         CitationProject,
@@ -42,7 +36,13 @@ class CitationEntry(DefaultAuthenticatedModel):
         related_name="citations",
         related_query_name="citations",
     )
-    fields = models.JSONField()
+    unified_doc = models.ForeignKey(
+        ResearchhubUnifiedDocument,
+        blank=True,
+        null=True,
+        on_delete=models.CASCADE,
+        related_name="citation_entries",
+    )
 
     """--- METHODS ---"""
 

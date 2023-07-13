@@ -31,6 +31,7 @@ from utils import sentry
 from utils.http import RequestMethods as methods
 from utils.http import check_url_contains_pdf, http_request
 
+DOI_REGEX = r"10.\d{4,9}\/[-._;()\/:a-zA-Z0-9]+?(?=[\";%<>\?#&])"
 PAPER_SCORE_Q_ANNOTATION = Count(
     "id", filter=Q(votes__vote_type=GrmVote.UPVOTE)
 ) - Count("id", filter=Q(votes__vote_type=GrmVote.DOWNVOTE))

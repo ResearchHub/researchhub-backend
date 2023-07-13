@@ -27,6 +27,7 @@ from paper.exceptions import (
 )
 from paper.tasks import add_orcid_authors, download_pdf
 from paper.utils import (
+    DOI_REGEX,
     clean_abstract,
     clean_dois,
     format_raw_authors,
@@ -121,7 +122,7 @@ def celery_get_doi(self, celery_data):
         if status_code >= 200 and status_code < 400:
             content = BeautifulSoup(res.content, "lxml")
             dois = re.findall(
-                r"10.\d{4,9}\/[-._;()\/:a-zA-Z0-9]+?(?=[\";%<>\?#&])", str(content)
+                DOI_REGEX, str(content)
             )
             dois = list(map(str.strip, dois))
             dois = clean_dois(parsed_url, dois)
