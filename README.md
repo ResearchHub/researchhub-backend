@@ -109,11 +109,11 @@ The backend will now run at localhost:8000
     ```shell
     cd src
 
-    # installs the project virtual environment and packages
-    poetry install
-
     # activates a Python virtual environment and enters shell
     poetry shell
+
+    # installs the project virtual environment and packages
+    poetry install
     ```
 
 > The following commands should all be run in the virtual environment (`poetry shell`), in the [`src`](src) folder:
