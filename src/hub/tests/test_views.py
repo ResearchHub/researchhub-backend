@@ -1,20 +1,19 @@
-from rest_framework.test import APITestCase
-
-from django.core.cache import cache
-from discussion.tests.helpers import create_thread
-from hub.tests.helpers import create_hub
-from paper.tests.helpers import create_paper
-from user.tests.helpers import (
-    create_random_default_user,
-    create_random_authenticated_user,
-    create_actions
-)
-from utils.test_helpers import (
-    get_authenticated_post_response,
-    get_get_response
-)
+from math import ceil
 from unittest import skip
-from hub.models import Hub
+
+from discussion.tests.helpers import create_thread
+from django.core.cache import cache
+from hub.models import Hub, HubV2
+from hub.tests.helpers import create_hub, create_hub_v2
+from paper.tests.helpers import create_paper
+from rest_framework import status
+from rest_framework.test import APITestCase
+from user.tests.helpers import (create_actions,
+                                create_random_authenticated_user,
+                                create_random_default_user)
+from utils.test_helpers import (get_authenticated_post_response,
+                                get_get_response)
+
 
 class HubViewsTests(APITestCase):
 
@@ -208,3 +207,186 @@ class HubViewsTests(APITestCase):
             data,
             headers={'HTTP_ORIGIN': 'researchhub.com'}
         )
+
+
+class HubV2ViewsTests(APITestCase):
+    def test_cannot_create_hub(self):
+        hub_id = "some-hub"
+        path = "/api/hubs/"
+        data = {
+            "id": hub_id,
+            "display_name": "updated name",
+            "description": "description",
+        }
+
+        # Unauthenticated
+        response = self.client.post(path, data)
+        self.assertEqual(response.status_code,
+                         status.HTTP_401_UNAUTHORIZED)
+
+        # Basic user
+        basic_user = create_random_authenticated_user('basic_user')
+        self.client.force_authenticate(basic_user)
+
+        response = self.client.post(path, data)
+        self.assertEqual(response.status_code,
+                         status.HTTP_405_METHOD_NOT_ALLOWED)
+
+        # Moderator
+        mod = create_random_authenticated_user('mod', moderator=True)
+        self.client.force_authenticate(mod)
+        response = self.client.post(path, data)
+        self.assertEqual(response.status_code,
+                         status.HTTP_405_METHOD_NOT_ALLOWED)
+
+        with self.assertRaises(HubV2.DoesNotExist):
+            HubV2.objects.get(id=hub_id)
+
+    def test_cannot_edit_hub(self):
+        hub = create_hub_v2(name="some hub")
+        path = f"/api/hubs/{hub.id}/"
+        data = {
+            "id": hub.id,
+            "display_name": "updated name",
+            "description": "description",
+        }
+
+        # Unauthenticated
+        response = self.client.put(path, data)
+        self.assertEqual(response.status_code,
+                         status.HTTP_401_UNAUTHORIZED)
+
+        # Basic user
+        basic_user = create_random_authenticated_user('basic_user')
+        self.client.force_authenticate(basic_user)
+
+        response = self.client.put(path, data)
+        self.assertEqual(response.status_code,
+                         status.HTTP_405_METHOD_NOT_ALLOWED)
+
+        # Moderator
+        mod = create_random_authenticated_user('mod', moderator=True)
+        self.client.force_authenticate(mod)
+        response = self.client.put(path, data)
+        self.assertEqual(response.status_code,
+                         status.HTTP_405_METHOD_NOT_ALLOWED)
+
+        actual = HubV2.objects.get(id=hub.id)
+        self.assertEqual(actual, hub)
+
+    def test_cannot_partially_edit_hub(self):
+        hub = create_hub_v2(name="some hub")
+        path = f"/api/hubs/{hub.id}/"
+        data = {
+            "display_name": "updated name",
+        }
+
+        # Unauthenticated
+        response = self.client.patch(path, data)
+        self.assertEqual(response.status_code,
+                         status.HTTP_401_UNAUTHORIZED)
+
+        # Basic user
+        basic_user = create_random_authenticated_user('basic_user')
+        self.client.force_authenticate(basic_user)
+
+        response = self.client.patch(path, data)
+        self.assertEqual(response.status_code,
+                         status.HTTP_405_METHOD_NOT_ALLOWED)
+
+        # Moderator
+        mod = create_random_authenticated_user('mod', moderator=True)
+        self.client.force_authenticate(mod)
+        response = self.client.patch(path, data)
+        self.assertEqual(response.status_code,
+                         status.HTTP_405_METHOD_NOT_ALLOWED)
+
+        actual = HubV2.objects.get(id=hub.id)
+        self.assertEqual(actual, hub)
+
+    def test_cannot_delete_hub(self):
+        hub = create_hub_v2(name="some hub")
+        path = f"/api/hubs/{hub.id}/"
+
+        # Unauthenticated
+        response = self.client.delete(path)
+        self.assertEqual(response.status_code,
+                         status.HTTP_401_UNAUTHORIZED)
+
+        # Basic user
+        basic_user = create_random_authenticated_user('basic_user')
+        self.client.force_authenticate(basic_user)
+
+        response = self.client.delete(path)
+        self.assertEqual(response.status_code,
+                         status.HTTP_405_METHOD_NOT_ALLOWED)
+
+        # Moderator
+        mod = create_random_authenticated_user('mod', moderator=True)
+        self.client.force_authenticate(mod)
+        response = self.client.delete(path)
+        self.assertEqual(response.status_code,
+                         status.HTTP_405_METHOD_NOT_ALLOWED)
+
+        actual = HubV2.objects.get(id=hub.id)
+        self.assertEqual(actual, hub)
+
+    def test_get_existing_hub_succeeds(self):
+        hub = create_hub_v2(name="some hub")
+        path = f"/api/hubs/{hub.id}/"
+
+        response = self.client.get(path)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        expected = {
+            "id": hub.id,
+            "display_name": hub.display_name,
+            "description": hub.description
+        }
+        self.assertEqual(response.data, expected)
+
+    def test_get_non_existing_hub_not_found(self):
+        response = self.client.get("/api/hubs/some-hub/")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_list_hubs_succeeds(self):
+        hubs = [create_hub_v2(name=f"hub {i}") for i in range(10)]
+
+        response = self.client.get("/api/hubs/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        expected = {
+            "count": len(hubs),
+            "next": None,
+            "previous": None,
+            "results": [
+                {"id": hub.id, "display_name": hub.display_name,
+                    "description": hub.description}
+                for hub in hubs
+            ]
+        }
+        self.assertEqual(response.json(), expected)
+
+    def test_list_paginated_hubs_succeeds(self):
+        nhubs = 10
+        hubs = [create_hub_v2(name=f"hub {i}") for i in range(nhubs)]
+
+        page_size = 3
+        npages = ceil(nhubs / page_size)
+        for p in range(npages):
+            response = self.client.get(
+                f"/api/hubs/?page={p+1}&page_size={page_size}")
+            self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+            previous_page = '' if p <= 1 else f"page={p}&"
+            expected = {
+                "count": len(hubs),
+                "next": None if p >= npages - 1 else f"http://testserver/api/hubs/?page={p+2}&page_size={page_size}",
+                "previous": None if p < 1 else f"http://testserver/api/hubs/?{previous_page}page_size={page_size}",
+                "results": [
+                    {"id": hub.id, "display_name": hub.display_name,
+                        "description": hub.description}
+                    for hub in hubs[p*page_size:(p+1)*page_size]
+                ]
+            }
+            self.assertEqual(response.json(), expected)

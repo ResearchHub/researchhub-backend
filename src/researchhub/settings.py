@@ -87,6 +87,7 @@ ALLOWED_HOSTS = [
     ".researchhub.com",
     "127.0.0.1",  # localhost
     "localhost",
+    "testserver",
     "researchhub-web-researchhub.vercel.app",
     r"^https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}/",
     r"https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}",
@@ -99,7 +100,8 @@ if not (PRODUCTION or STAGING):
 if ELASTIC_BEANSTALK:
     # This is for health checks
     try:
-        EC2_METADATA_HEADERS = {"X-aws-ec2-metadata-token-ttl-seconds": "21600"}
+        EC2_METADATA_HEADERS = {
+            "X-aws-ec2-metadata-token-ttl-seconds": "21600"}
 
         EC2_METADATA_TOKEN = requests.put(
             "http://169.254.169.254/latest/api/token",
@@ -107,7 +109,8 @@ if ELASTIC_BEANSTALK:
             headers=EC2_METADATA_HEADERS,
         ).text
 
-        EC2_METADATA_TOKEN_HEADER = {"X-aws-ec2-metadata-token": EC2_METADATA_TOKEN}
+        EC2_METADATA_TOKEN_HEADER = {
+            "X-aws-ec2-metadata-token": EC2_METADATA_TOKEN}
 
         ALLOWED_HOSTS.append(
             requests.get(
@@ -174,6 +177,7 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
 INSTALLED_APPS = [
     # Daphne needs to be first
     "daphne",
+    "clearcache",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -425,10 +429,10 @@ DATABASES = {
         "PORT": DB_PORT,
         "USER": DB_USER,
         "PASSWORD": DB_PASS,
-        "TEST": {
-            "NAME": "test_researchhub",
-        },
-    }
+    },
+    "TEST": {
+        "NAME": "test_researchhub",
+    },
 }
 
 
@@ -582,7 +586,8 @@ if PRODUCTION or STAGING:
 
 # Search (Elastic)
 
-ELASTICSEARCH_HOST = os.environ.get("ELASTICSEARCH_HOST", keys.ELASTICSEARCH_HOST)
+ELASTICSEARCH_HOST = os.environ.get(
+    "ELASTICSEARCH_HOST", keys.ELASTICSEARCH_HOST)
 
 ELASTICSEARCH_DSL = {
     "default": {
@@ -687,7 +692,8 @@ if PRODUCTION:
 elif STAGING:
     ASYNC_SERVICE_HOST = "http://ec2-52-38-164-185.us-west-2.compute.amazonaws.com"
 else:
-    ASYNC_SERVICE_HOST = os.environ.get("ASYNC_SERVICE_HOST", "http://localhost:8080")
+    ASYNC_SERVICE_HOST = os.environ.get(
+        "ASYNC_SERVICE_HOST", "http://localhost:8080")
 
 
 # APM
@@ -735,7 +741,8 @@ TWITTER_CONSUMER_KEY = os.environ.get(
 TWITTER_CONSUMER_SECRET = os.environ.get(
     "TWITTER_CONSUMER_SECRET", twitter.TWITTER_CONSUMER_SECRET
 )
-TWITER_ACCESS_TOKEN = os.environ.get("TWITER_ACCESS_TOKEN", twitter.TWITER_ACCESS_TOKEN)
+TWITER_ACCESS_TOKEN = os.environ.get(
+    "TWITER_ACCESS_TOKEN", twitter.TWITER_ACCESS_TOKEN)
 TWITTER_ACCESS_TOKEN_SECRET = os.environ.get(
     "TWITTER_ACCESS_TOKEN_SECRET", twitter.TWITTER_ACCESS_TOKEN_SECRET
 )
@@ -760,7 +767,8 @@ MORALIS_API_KEY = os.environ.get("MORALIS_API_KEY", keys.MORALIS_API_KEY)
 
 # Recaptcha
 RECAPTCHA_VERIFY_URL = "https://www.google.com/recaptcha/api/siteverify"
-RECAPTCHA_SECRET_KEY = os.environ.get("RECAPTCHA_SECRET_KEY", keys.RECAPTCHA_SECRET_KEY)
+RECAPTCHA_SECRET_KEY = os.environ.get(
+    "RECAPTCHA_SECRET_KEY", keys.RECAPTCHA_SECRET_KEY)
 
 # Sift Science
 SIFT_ACCOUNT_ID = os.environ.get("SIFT_ACCOUNT_ID", keys.SIFT_ACCOUNT_ID)
@@ -832,8 +840,10 @@ ASYNC_SERVICE_API_KEY = os.environ.get(
 
 WEB3_NETWORK = os.environ.get("WEB3_NETWORK", "rinkeby")
 PROVIDER_URL = os.environ.get("PROVIDER_URL", keys.PROVIDER_URL)
-WEB3_KEYSTORE_BUCKET = os.environ.get("WEB3_KEYSTORE_BUCKET", keys.WEB3_KEYSTORE_BUCKET)
-WEB3_KEYSTORE_FILE = os.environ.get("WEB3_KEYSTORE_FILE", keys.WEB3_KEYSTORE_FILE)
+WEB3_KEYSTORE_BUCKET = os.environ.get(
+    "WEB3_KEYSTORE_BUCKET", keys.WEB3_KEYSTORE_BUCKET)
+WEB3_KEYSTORE_FILE = os.environ.get(
+    "WEB3_KEYSTORE_FILE", keys.WEB3_KEYSTORE_FILE)
 WEB3_KEYSTORE_PASSWORD = os.environ.get(
     "WEB3_KEYSTORE_PASSWORD", keys.WEB3_KEYSTORE_PASSWORD
 )

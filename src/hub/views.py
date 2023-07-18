@@ -1,52 +1,39 @@
 from datetime import timedelta
 
+from discussion.reaction_models import Vote
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.core.paginator import Paginator
 from django.db.models import Count, F, Q
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import viewsets
-from rest_framework.decorators import action
-from rest_framework.exceptions import ValidationError
-from rest_framework.filters import OrderingFilter, SearchFilter
-from rest_framework.pagination import PageNumberPagination
-from rest_framework.permissions import (
-    AllowAny,
-    IsAuthenticated,
-    IsAuthenticatedOrReadOnly,
-)
-from rest_framework.response import Response
-
-from discussion.reaction_models import Vote
 from mailing_list.models import EmailRecipient, HubSubscription
 from paper.models import Paper
 from paper.utils import get_cache_key
 from reputation.models import Contribution
-from researchhub.settings import SERIALIZER_SWITCH
 from researchhub_access_group.constants import EDITOR
 from researchhub_access_group.models import Permission
 from researchhub_document.utils import reset_unified_document_cache
-from user.models import Action, User
-from user.serializers import DynamicActionSerializer, UserActions
-from user.views.editor_views import resolve_timeframe_for_contribution
+from rest_framework import viewsets, status, pagination
+from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
+from rest_framework.filters import OrderingFilter, SearchFilter
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.permissions import (AllowAny, IsAuthenticated,
+                                        IsAuthenticatedOrReadOnly)
+from rest_framework.response import Response
+from user.models import User
 from utils.http import DELETE, GET, PATCH, POST, PUT
 from utils.message import send_email_message
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 
 from .filters import HubFilter
-from .models import Hub, HubCategory
-from .permissions import (
-    CensorHub,
-    CreateHub,
-    IsModerator,
-    IsModeratorOrSuperEditor,
-    IsNotSubscribed,
-    IsSubscribed,
-    UpdateHub,
-)
-from .serializers import HubCategorySerializer, HubContributionSerializer, HubSerializer
+from .models import Hub, HubCategory, HubV2
+from .permissions import (CensorHub, CreateHub, IsModeratorOrSuperEditor, IsNotSubscribed,
+                          IsSubscribed, UpdateHub)
+from .serializers import (HubCategorySerializer, HubContributionSerializer,
+                          HubSerializer, HubV2Serializer)
 
 
 class CustomPageLimitPagination(PageNumberPagination):
@@ -152,7 +139,8 @@ class HubViewSet(viewsets.ModelViewSet):
         hub.paper_count = hub.get_paper_count()
         hub.discussion_count = hub.get_discussion_count()
 
-        hub.save(update_fields=["is_removed", "paper_count", "discussion_count"])
+        hub.save(update_fields=["is_removed",
+                 "paper_count", "discussion_count"])
         reset_unified_document_cache(with_default_hub=True)
 
         return Response(self.get_serializer(instance=hub).data, status=200)
@@ -239,7 +227,8 @@ class HubViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=[POST], permission_classes=[IsModeratorOrSuperEditor])
     def create_new_editor(self, request, pk=None):
         try:
-            target_user = User.objects.get(email=request.data.get("editor_email"))
+            target_user = User.objects.get(
+                email=request.data.get("editor_email"))
             Permission.objects.create(
                 access_type=EDITOR,
                 content_type=ContentType.objects.get_for_model(Hub),
@@ -247,7 +236,8 @@ class HubViewSet(viewsets.ModelViewSet):
                 user=target_user,
             )
 
-            email_recipient = EmailRecipient.objects.filter(email=target_user.email)
+            email_recipient = EmailRecipient.objects.filter(
+                email=target_user.email)
             if email_recipient.exists():
                 email_recipient = email_recipient.first()
                 subscription = HubSubscription.objects.create(
@@ -262,7 +252,8 @@ class HubViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=[POST], permission_classes=[IsModeratorOrSuperEditor])
     def delete_editor(self, request, pk=None):
         try:
-            target_user = User.objects.get(email=request.data.get("editor_email"))
+            target_user = User.objects.get(
+                email=request.data.get("editor_email"))
 
             target_editors_permissions = Permission.objects.filter(
                 access_type=EDITOR,
@@ -274,7 +265,8 @@ class HubViewSet(viewsets.ModelViewSet):
             for permission in target_editors_permissions:
                 permission.delete()
 
-            email_recipient = EmailRecipient.objects.filter(email=target_user.email)
+            email_recipient = EmailRecipient.objects.filter(
+                email=target_user.email)
             if email_recipient.exists():
                 email_recipient = email_recipient.first()
                 hub_subscription = email_recipient.hub_subscription
@@ -466,3 +458,30 @@ class HubCategoryViewSet(viewsets.ModelViewSet):
     queryset = HubCategory.objects.all()
     serializer_class = HubCategorySerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
+
+
+class HubV2Pagination(pagination.PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 10000
+
+
+class HubV2ViewSet(viewsets.ModelViewSet):
+    queryset = HubV2.objects.filter(is_removed=False)
+    serializer_class = HubV2Serializer
+    pagination_class = HubV2Pagination
+    permission_classes = [
+        IsAuthenticatedOrReadOnly
+    ]
+
+    def create(self, request, *args, **kwargs):
+        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def partial_update(self, request, *args, **kwargs):
+        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def destroy(self, request, *args, **kwargs):
+        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def update(self, request, *args, **kwargs):
+        return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)

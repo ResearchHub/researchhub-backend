@@ -1,4 +1,5 @@
-from hub.models import Hub
+from hub.models import Hub, HubV2
+from slugify import slugify
 
 
 class TestData:
@@ -21,3 +22,11 @@ def subscribe(hub, user):
     hub.subscribers.add(user)
     hub.save()
     return hub
+
+
+def create_hub_v2(name=TestData.hub_name):
+    return HubV2.objects.create(
+        id=slugify(name),
+        display_name=name,
+        description=name
+    )

@@ -1157,6 +1157,20 @@ files = [
 celery = ">=4.4,<6.0"
 
 [[package]]
+name = "django-clearcache"
+version = "1.2.1"
+description = "Allows you to clear Django cache via admin UI or manage.py command"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "django-clearcache-1.2.1.tar.gz", hash = "sha256:76ac5d7aebbc79e4f7064c591be1ca3fbb3d00c6b30c873f24f8330d9a7b5026"},
+    {file = "django_clearcache-1.2.1-py3-none-any.whl", hash = "sha256:0891a8171b8ec761983a077a945692407bbb6e00a09c50e0668b466339b779e4"},
+]
+
+[package.dependencies]
+django = ">=2.2"
+
+[[package]]
 name = "django-contrib-comments"
 version = "1.9.2"
 description = "The code formerly known as django.contrib.comments."
@@ -5066,4 +5080,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "abadfd4bff38fa28772a801435255e9dbaf1b81997cad6be412a9771113e85f2"
+content-hash = "95d3dd5f4122409d3d7844f81239945ff8204f0d89ca14a2b4fbe3a02aebefad"

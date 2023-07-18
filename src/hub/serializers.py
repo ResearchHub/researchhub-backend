@@ -1,15 +1,11 @@
-from rest_framework.serializers import (
-    IntegerField,
-    ModelSerializer,
-    SerializerMethodField,
-)
-
 from reputation.models import Contribution
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.serializers import DynamicPermissionSerializer
+from rest_framework.serializers import (IntegerField, ModelSerializer,
+                                        SerializerMethodField)
 from utils.sentry import log_error
 
-from .models import Hub, HubCategory
+from .models import Hub, HubCategory, HubV2
 
 
 class SimpleHubSerializer(ModelSerializer):
@@ -30,7 +26,8 @@ class SimpleHubSerializer(ModelSerializer):
 
     def get_editor_permission_groups(self, hub_instance):
         context = self.context
-        __context_fields = context.get("hub_shs_get_editor_permission_groups", {})
+        __context_fields = context.get(
+            "hub_shs_get_editor_permission_groups", {})
         context["rag_dps_get_user"] = {
             "_include_fields": [
                 "author_profile",
@@ -71,7 +68,8 @@ class HubSerializer(ModelSerializer):
 
     def get_editor_permission_groups(self, hub_instance):
         context = self.context
-        __context_fields = context.get("hub_shs_get_editor_permission_groups", {})
+        __context_fields = context.get(
+            "hub_shs_get_editor_permission_groups", {})
         editor_groups = hub_instance.editor_permission_groups
         return DynamicPermissionSerializer(
             editor_groups,
@@ -156,7 +154,8 @@ class DynamicHubSerializer(DynamicModelFieldSerializer):
 
     def get_editor_permission_groups(self, hub_instance):
         context = self.context
-        __context_fields = context.get("hub_dhs_get_editor_permission_groups", {})
+        __context_fields = context.get(
+            "hub_dhs_get_editor_permission_groups", {})
         editor_groups = hub_instance.editor_permission_groups
         return DynamicPermissionSerializer(
             editor_groups,
@@ -164,3 +163,13 @@ class DynamicHubSerializer(DynamicModelFieldSerializer):
             context=context,
             many=True,
         ).data
+
+
+class HubV2Serializer(ModelSerializer):
+    class Meta:
+        model = HubV2
+        fields = [
+            'id',
+            'display_name',
+            'description'
+        ]

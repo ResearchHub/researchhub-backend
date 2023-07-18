@@ -1,10 +1,8 @@
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
-from django.db.models import Sum
-
+from django.db.models import JSONField, Sum
 from researchhub_access_group.constants import EDITOR
 from researchhub_access_group.models import Permission
-
 from slugify import slugify
 
 HELP_TEXT_IS_REMOVED = (
@@ -138,3 +136,38 @@ class HubMembership(models.Model):
 
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
+
+
+# HubV2
+
+class HubProvider(models.Model):
+    id = models.CharField(max_length=255, primary_key=True)
+    display_name = models.CharField(max_length=255)
+    is_user = models.BooleanField()
+
+    def __str__(self):
+        return self.display_name
+
+
+class HubV2(models.Model):
+    id = models.CharField(max_length=255, primary_key=True)
+    display_name = models.CharField(max_length=255)
+    description = models.TextField()
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
+    is_removed = models.BooleanField(default=False)
+
+    def __str__(self):
+        return self.display_name
+
+
+class HubMetadata(models.Model):
+    hub = models.ForeignKey(HubV2, on_delete=models.CASCADE)
+    hub_provider = models.ForeignKey(HubProvider, on_delete=models.CASCADE)
+    raw_data = JSONField()
+
+    def __str__(self):
+        return (
+            f"Metadata for {self.hub.display_name} "
+            f"from {self.hub_provider.display_name}"
+        )
