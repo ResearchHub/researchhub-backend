@@ -164,13 +164,13 @@ class CitationEntryViewSet(ModelViewSet):
                 parsed_url = urlparse(url_string)
                 cleaned_dois = clean_dois(parsed_url, list(map(str.strip, dois)))
                 doi_counter = Counter(cleaned_dois)
-                formatted = [doi for doi, _ in doi_counter.most_common(1)]
+                formatted_dois = [doi for doi, _ in doi_counter.most_common(1)]
 
-                if len(formatted) == 0:
+                if len(formatted_dois) == 0:
                     raise DOINotFoundError()
 
                 open_alex = OpenAlex()
-                open_alex_result = open_alex.get_data_from_doi(formatted[0])
+                open_alex_result = open_alex.get_data_from_doi(formatted_dois[0])
 
                 return Response(open_alex_result, status=200)
         except Exception as error:
