@@ -28,7 +28,7 @@ We believe that by empowering scientists to independently fund, create, and publ
 
 # Installation
 
-## 1. Quick install using Docker (Recommended)
+## 1. Quick install using Docker (Not recommended for development)
 
 1. Download or clone this repository.
 2. Copy local config files. From inside the dir root, run
@@ -186,7 +186,12 @@ The backend will now run at localhost:8000
 python manage.py runserver
 ```
 
-### Useful stuff
+### Ensure pre-commit hooks are set up
+```
+pre-commit install
+```
+
+## Useful stuff
 
 #### Create a superuser in order to get data from the API
 
