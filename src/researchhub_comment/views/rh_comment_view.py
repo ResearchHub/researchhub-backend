@@ -86,8 +86,9 @@ def censor_comment(comment):
 class CommentPagination(PageNumberPagination):
     django_paginator_class = FasterDjangoPaginator
     page_size_query_param = "page_size"
-    max_page_size = 20
-    page_size = 20
+    # Large max page size needed for inline comments since they are not paginated and need to be load all at once
+    max_page_size = 500
+    page_size = 500
 
 
 class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
