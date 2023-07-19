@@ -7,6 +7,7 @@ from boto3 import session
 from bs4 import BeautifulSoup
 from django.db import transaction
 from django.utils.crypto import get_random_string
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
@@ -14,7 +15,6 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
-from urllib.parse import urlparse
 
 from citation.constants import CITATION_TYPE_FIELDS
 from citation.filters import CitationEntryFilter
@@ -22,8 +22,6 @@ from citation.models import CitationEntry
 from citation.permissions import PDFUploadsS3CallBack
 from citation.schema import generate_schema_for_citation
 from citation.serializers import CitationEntrySerializer
-from paper.exceptions import DOINotFoundError
-from paper.utils import DOI_REGEX, clean_dois
 from citation.tasks import handle_creating_citation_entry
 from paper.exceptions import DOINotFoundError
 from paper.utils import DOI_REGEX, clean_dois
