@@ -11,7 +11,7 @@ from rest_framework.request import Request
 from citation.constants import JOURNAL_ARTICLE
 from citation.exceptions import GrobidProcessingError
 from citation.models import CitationEntry
-from citation.schema import generate_json_for_doi, generate_json_for_pdf
+from citation.schema import generate_json_for_doi_with_oa, generate_json_for_pdf
 from citation.serializers import CitationEntrySerializer
 from paper.models import Paper
 from paper.paper_upload_tasks import celery_process_paper
@@ -72,7 +72,7 @@ def get_citation_entry_from_pdf(
             json = generate_json_for_pdf(filename)
         else:
             try:
-                json = generate_json_for_doi(doi)
+                json = generate_json_for_doi_with_oa(doi)
             except Exception as e:
                 log_error(e)
                 pdf.name = filename
@@ -113,8 +113,9 @@ def create_paper_from_citation(citation):
     else:
         url = doi
 
+    url_search_query = SearchQuery(url)
     duplicate_papers = Paper.objects.filter(
-        Q(url_svf=SearchQuery(url)) | Q(pdf_url_svf=SearchQuery(url))
+        Q(url_svf=url_search_query) | Q(pdf_url_svf=url_search_query)
     )
 
     process_id = None

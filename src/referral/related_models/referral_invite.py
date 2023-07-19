@@ -1,5 +1,6 @@
 from django.db import models
 from django.db.models import Sum
+from django.db.models.functions import Coalesce
 
 from invite.models import Invitation
 from reputation.related_models.bounty import Bounty
@@ -46,7 +47,11 @@ class ReferralInvite(Invitation):
         url = uni_doc.frontend_view_link()
         bounty_amount = round(
             uni_doc.related_bounties.filter(status=Bounty.OPEN)
-            .aggregate(Sum("amount"))
+            .aggregate(
+                amount__sum=Coalesce(
+                    Sum("amount"), 0, output_field=models.IntegerField()
+                )
+            )
             .get("amount__sum", 0)
         )
         referral_name = f"{self.referral_first_name or ''}"

@@ -1,10 +1,10 @@
-import cloudscraper
 import re
+from collections import Counter
+from urllib.parse import urlparse
 
+import cloudscraper
 from boto3 import session
 from bs4 import BeautifulSoup
-from collections import Counter
-from django_filters.rest_framework import DjangoFilterBackend
 from django.db import transaction
 from django.utils.crypto import get_random_string
 from rest_framework import status
@@ -25,10 +25,13 @@ from citation.serializers import CitationEntrySerializer
 from paper.exceptions import DOINotFoundError
 from paper.utils import DOI_REGEX, clean_dois
 from citation.tasks import handle_creating_citation_entry
+from paper.exceptions import DOINotFoundError
+from paper.utils import DOI_REGEX, clean_dois
 from researchhub.pagination import FasterDjangoPaginator
 from researchhub.settings import AWS_STORAGE_BUCKET_NAME
 from utils.openalex import OpenAlex
 from utils.parsers import clean_filename
+from utils.sentry import log_error
 
 
 class CitationEntryPagination(PageNumberPagination):
@@ -163,16 +166,17 @@ class CitationEntryViewSet(ModelViewSet):
                 parsed_url = urlparse(url_string)
                 cleaned_dois = clean_dois(parsed_url, list(map(str.strip, dois)))
                 doi_counter = Counter(cleaned_dois)
-                formmated_dois = [doi for doi, _ in doi_counter.most_common(1)]
+                formatted = [doi for doi, _ in doi_counter.most_common(1)]
 
-                if len(formmated_dois) == 0:
+                if len(formatted) == 0:
                     raise DOINotFoundError()
 
                 open_alex = OpenAlex()
-                open_alex_result = open_alex.get_data_from_doi(formmated_dois[0])
+                open_alex_result = open_alex.get_data_from_doi(formatted[0])
 
                 return Response(open_alex_result, status=200)
         except Exception as error:
+            log_error(error)
             return Response({"result": "DOI / URL not found"}, status=400)
 
     @action(
