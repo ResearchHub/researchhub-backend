@@ -121,9 +121,7 @@ def celery_get_doi(self, celery_data):
 
         if status_code >= 200 and status_code < 400:
             content = BeautifulSoup(res.content, "lxml")
-            dois = re.findall(
-                DOI_REGEX, str(content)
-            )
+            dois = re.findall(DOI_REGEX, str(content))
             dois = list(map(str.strip, dois))
             dois = clean_dois(parsed_url, dois)
 
@@ -276,6 +274,7 @@ def celery_manubot(self, celery_data):
             "paper_publish_date": publish_date,
             "raw_authors": raw_authors,
             "title": cleaned_title,
+            "paper_title": cleaned_title,
             "url": url,
         }
 
