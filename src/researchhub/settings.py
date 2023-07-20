@@ -500,7 +500,10 @@ ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
 DEFAULT_FROM_EMAIL = "noreply@researchhub.com"
 # Storage
 
-DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+if TESTING:
+    DEFAULT_FILE_STORAGE = ("django.core.files.storage.FileSystemStorage",)
+else:
+    DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
 AWS_QUERYSTRING_EXPIRE = 604800
 AWS_STORAGE_BUCKET_NAME = os.environ.get(
     "AWS_STORAGE_BUCKET_NAME", "researchhub-paper-dev1"
