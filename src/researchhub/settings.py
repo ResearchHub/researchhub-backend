@@ -501,7 +501,7 @@ DEFAULT_FROM_EMAIL = "noreply@researchhub.com"
 # Storage
 
 if TESTING:
-    DEFAULT_FILE_STORAGE = ("django.core.files.storage.FileSystemStorage",)
+    DEFAULT_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
 else:
     DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
 AWS_QUERYSTRING_EXPIRE = 604800
