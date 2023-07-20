@@ -67,7 +67,6 @@ black = "^22.3.0"
 cloudscraper = "^1.2.60"
 djangorestframework-api-key = "2.2"
 Markdown = "^3.3.7"
-bs4 = "^0.0.1"
 responses = "0.21.0"
 django-mjml = "1.0"
 channels = "3.0.5"
@@ -78,6 +77,7 @@ django-elasticsearch-dsl = "7.2.2"
 django-elasticsearch-dsl-drf = "0.20.8"
 q5-django-inlinecss = "0.0.2"
 pdf2doi = "1.5"
+beautifulsoup4 = "4.12.2"
 
 [tool.poetry.dev-dependencies]
 

@@ -185,6 +185,7 @@ class CitationEntryViewSet(ModelViewSet):
                 if len(formatted_dois) == 0:
                     raise DOINotFoundError()
 
+                # Using first most common doi
                 doi = formatted_dois[0]
                 try:
                     paper = get_paper_by_doi(doi)

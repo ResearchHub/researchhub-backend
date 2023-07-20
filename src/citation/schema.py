@@ -14,7 +14,7 @@ initial_creators_schema_regex = r"|".join(f"^{field}$" for field in CREATOR_TYPE
 CREATORS_SCHEMA_REGEX = f"({initial_creators_schema_regex})"
 
 
-def generate_json_for_doi_with_oa(doi):
+def generate_json_for_doi_via_oa(doi):
     json_dict = {}
     schema = generate_schema_for_citation(JOURNAL_ARTICLE)
     open_alex = OpenAlex()
@@ -53,7 +53,7 @@ def generate_json_for_rh_paper(paper):
     json_dict = {}
     schema = generate_schema_for_citation(JOURNAL_ARTICLE)
     for field in schema["required"]:
-        mapping_field = RH_PAPER_MAPPING.get(field, "")
+        mapping_field = CITATION_TO_PAPER_MAPPING.get(field, "")
         if mapping_field:
             json_dict[field] = json_serial(
                 getattr(paper, mapping_field, ""), ignore_errors=True
@@ -395,7 +395,7 @@ PATENTS_SCHEMA = {
     "legal_status": {"type": "string"},
 }
 
-RH_PAPER_MAPPING = {
+CITATION_TO_PAPER_MAPPING = {
     "DOI": "doi",
     "creators": "raw_authors",
     "title": "paper_title",

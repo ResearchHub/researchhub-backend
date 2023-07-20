@@ -12,7 +12,7 @@ from citation.constants import JOURNAL_ARTICLE
 from citation.exceptions import GrobidProcessingError
 from citation.models import CitationEntry
 from citation.schema import (
-    generate_json_for_doi_with_oa,
+    generate_json_for_doi_via_oa,
     generate_json_for_pdf,
     generate_json_for_rh_paper,
 )
@@ -78,7 +78,7 @@ def get_citation_entry_from_pdf(
                 paper = get_paper_by_doi(doi)
                 json = generate_json_for_rh_paper(paper)
             except Paper.DoesNotExist:
-                json = generate_json_for_doi_with_oa(doi)
+                json = generate_json_for_doi_via_oa(doi)
             except Exception as e:
                 log_error(e)
                 pdf.name = filename
@@ -152,5 +152,5 @@ def get_paper_by_doi(doi):
     return get_paper_by_svf("doi_svf", doi)
 
 
-def get_paper_by_url(doi):
-    return get_paper_by_svf("url_svf", doi) or get_paper_by_svf("pdf_url_svf", doi)
+def get_paper_by_url(url):
+    return get_paper_by_svf("url_svf", url) or get_paper_by_svf("pdf_url_svf", url)
