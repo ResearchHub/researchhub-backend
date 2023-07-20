@@ -16,6 +16,7 @@ from django.urls import include, path, re_path
 from rest_framework import routers
 
 import analytics.views
+import discussion.views
 import google_analytics.views
 import hub.views
 import hypothesis.views as hypothesis_views
@@ -33,7 +34,6 @@ import researchhub.views
 import researchhub_case.views as researchhub_case_views
 import researchhub_document.views as researchhub_document_views
 import search.urls
-import summary.views
 import user.views
 from citation.views import CitationEntryViewSet, CitationProjectViewSet
 from peer_review.views import (
@@ -48,6 +48,12 @@ from review.views.review_view import ReviewViewSet
 from user.views import editor_views
 
 router = routers.DefaultRouter()
+
+router.register(
+    r"paper/discussion/file",
+    discussion.views.CommentFileUpload,
+    basename="discussion_file_upload",
+)
 
 router.register(
     r"new_feature_release",

@@ -37,7 +37,7 @@ class ViewTests(APITestCase):
         response = self.client.delete(
             f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/censor/"
         )
-        doc = ResearchhubUnifiedDocument.objects.get(
+        doc = ResearchhubUnifiedDocument.all_objects.get(
             id=doc_response.data["unified_document_id"]
         )
         self.assertEqual(doc.is_removed, True)
@@ -154,7 +154,7 @@ class ViewTests(APITestCase):
         response = self.client.delete(
             f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/censor/"
         )
-        doc = ResearchhubUnifiedDocument.objects.get(
+        doc = ResearchhubUnifiedDocument.all_objects.get(
             id=doc_response.data["unified_document_id"]
         )
         self.assertEqual(doc.is_removed, True)
@@ -350,16 +350,18 @@ class ViewTests(APITestCase):
         )
         user_uploader = create_random_default_user("user_uploader")
         test_paper = create_paper(uploaded_by=user_uploader)
+        test_paper.unified_document.hubs.add(hub)
         test_paper.hubs.add(hub)
         test_paper.save()
 
         self.client.force_authenticate(user_editor)
         response = self.client.put(
-            f"/api/paper/{test_paper.id}/censor_paper/", {"id": test_paper.id}
+            f"/api/paper/{test_paper.id}/censor/", {"id": test_paper.id}
         )
 
+        test_paper.refresh_from_db()
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["is_removed"], True)
+        self.assertEqual(test_paper.is_removed, True)
 
     def test_hub_editors_can_restore_papers(self):
         hub = create_hub()
