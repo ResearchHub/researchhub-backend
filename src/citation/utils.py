@@ -153,4 +153,4 @@ def get_paper_by_doi(doi):
 
 
 def get_paper_by_url(doi):
-    return get_paper_by_svf("doi_svf", doi)
+    return get_paper_by_svf("url_svf", doi) or get_paper_by_svf("pdf_url_svf", doi)
