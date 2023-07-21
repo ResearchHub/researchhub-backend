@@ -78,7 +78,6 @@ class SocialLoginSerializer(serializers.Serializer):
             access_token = credential
         # Case 2: We received the authorization code => "Regular flow"
         elif attrs.get("code"):
-            # pdb.set_trace()
             self.callback_url = getattr(view, "callback_url", None)
             self.client_class = getattr(view, "client_class", None)
 
@@ -129,9 +128,6 @@ class SocialLoginSerializer(serializers.Serializer):
         update_user_risk_score(login_user, tracked_login_w_events_api)
         self.track_user_visit_after_login(attrs)
         self.handle_referral(attrs)
-        import pdb
-
-        pdb.set_trace()
         return attrs
 
     def handle_social_login(self, adapter, app, access_token):
