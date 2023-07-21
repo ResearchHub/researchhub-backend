@@ -177,7 +177,7 @@ class SocialLoginSerializer(serializers.Serializer):
 
         return attrs
 
-    def handle_social_login(self, adapter, app, access_token, response):
+    def handle_social_login(self, adapter, app, access_token):
         """
         :param adapter: allauth.socialaccount Adapter subclass.
             Usually OAuthAdapter or Auth2Adapter
@@ -189,7 +189,7 @@ class SocialLoginSerializer(serializers.Serializer):
         """
         request = self._get_request()
         social_login = adapter.complete_login(
-            request, app, access_token, response=response
+            request, app, access_token, response=access_token
         )
 
         social_token = adapter.parse_token(
