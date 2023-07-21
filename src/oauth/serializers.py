@@ -73,9 +73,6 @@ class SocialLoginSerializer(serializers.Serializer):
         # http://stackoverflow.com/questions/8666316/facebook-oauth-2-0-code-and-token
 
         credential = attrs.get("credential")
-        # import pdb
-
-        # pdb.set_trace()
         # Case 1: OneTap Login sends back "credential" which is a jwt encoded user data
         if credential:
             access_token = credential
@@ -126,54 +123,12 @@ class SocialLoginSerializer(serializers.Serializer):
 
         login_user = login.account.user
         attrs["user"] = login_user
-        tracked_login = events_api.track_login(login_user, "$success", request)
-        update_user_risk_score(login_user, tracked_login)
-
-        try:
-            visits = WebsiteVisits.objects.get(uuid=attrs["uuid"])
-            visits.user = attrs["user"]
-            visits.save()
-        except Exception as e:
-            print(e)
-            pass
-
-        try:
-            referral_code = attrs.get("referral_code")
-            if referral_code:
-                referral_user = User.objects.get(referral_code=referral_code)
-                user = attrs["user"]
-
-                invited_by_flag_not_set = (
-                    referral_code
-                    and not user.invited_by
-                    and referral_user.id != user.id
-                )
-                if invited_by_flag_not_set:
-                    user.invited_by = referral_user
-                    user.save()
-
-                    has_invited_been_paid = Distribution.objects.filter(
-                        distribution_type=REFERRAL_PROGRAM["INVITED_DISTRIBUTION_TYPE"],
-                        recipient_id=user.id,
-                    ).exists()
-
-                    if not has_invited_been_paid:
-                        try:
-                            referral_bonus = Distributor(
-                                distribution=distributions.ReferralInvitedBonus,
-                                recipient=user,
-                                giver=referral_user,
-                                db_record=user,
-                                timestamp=time(),
-                            )
-                            referral_bonus.distribute()
-                        except Exception as error:
-                            print(error)
-                            sentry.log_error(error)
-
-        except Exception as e:
-            sentry.log_error(e)
-            pass
+        tracked_login_w_events_api = events_api.track_login(
+            login_user, "$success", request
+        )
+        update_user_risk_score(login_user, tracked_login_w_events_api)
+        self.track_user_visit_after_login(attrs)
+        self.handle_referral(attrs)
 
         return attrs
 
@@ -242,3 +197,52 @@ class SocialLoginSerializer(serializers.Serializer):
 
             login.lookup()
             login.save(request, connect=True)
+
+    def track_user_visit_after_login(self, attrs):
+        """failure of this function is trivial"""
+        try:
+            visits = WebsiteVisits.objects.get(uuid=attrs.get("uuid"))
+            visits.user = attrs["user"]
+            visits.save()
+        except Exception as e:
+            print(e)
+            pass
+
+    def handle_referral(self, attrs):
+        try:
+            referral_code = attrs.get("referral_code")
+            if referral_code:
+                referral_user = User.objects.get(referral_code=referral_code)
+                user = attrs["user"]
+
+                invited_by_flag_not_set = (
+                    referral_code
+                    and not user.invited_by
+                    and referral_user.id != user.id
+                )
+                if invited_by_flag_not_set:
+                    user.invited_by = referral_user
+                    user.save()
+
+                    has_invited_been_paid = Distribution.objects.filter(
+                        distribution_type=REFERRAL_PROGRAM["INVITED_DISTRIBUTION_TYPE"],
+                        recipient_id=user.id,
+                    ).exists()
+
+                    if not has_invited_been_paid:
+                        try:
+                            referral_bonus = Distributor(
+                                distribution=distributions.ReferralInvitedBonus,
+                                recipient=user,
+                                giver=referral_user,
+                                db_record=user,
+                                timestamp=time(),
+                            )
+                            referral_bonus.distribute()
+                        except Exception as error:
+                            print(error)
+                            sentry.log_error(error)
+
+        except Exception as e:
+            sentry.log_error(e)
+            pass
