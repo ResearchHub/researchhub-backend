@@ -129,7 +129,9 @@ class SocialLoginSerializer(serializers.Serializer):
         update_user_risk_score(login_user, tracked_login_w_events_api)
         self.track_user_visit_after_login(attrs)
         self.handle_referral(attrs)
+        import pdb
 
+        pdb.set_trace()
         return attrs
 
     def handle_social_login(self, adapter, app, access_token):
