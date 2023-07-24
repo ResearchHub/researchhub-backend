@@ -147,10 +147,10 @@ class SocialLoginSerializer(serializers.Serializer):
             request = self._get_request()
             social_login = adapter.complete_login(
                 # NOTE: argument order matters here.
-                request=request,
-                app=app,
-                social_token=social_token,
-                access_token=access_token,
+                request,
+                app,
+                social_token,
+                access_token,
             )
             complete_social_login(request, social_login)
         except ConnectionTimeout:
