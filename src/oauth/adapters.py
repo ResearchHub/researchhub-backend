@@ -57,9 +57,9 @@ class GoogleIdTokenProvider(GoogleProvider):
 
 class GoogleOAuth2AdapterIdToken(GoogleOAuth2Adapter):
     def complete_login(self, request, app, access_token, **kwargs):
-        """ 
-            NOTE: this can be confusing due to naming compared to GoogleOAuth2Adapter
-            But this is what we have to play with since the payload from Google is different 
+        """
+        NOTE: this can be confusing due to naming compared to GoogleOAuth2Adapter
+        But this is what we have to play with since the payload from Google is different
         """
         # import pdb
 
