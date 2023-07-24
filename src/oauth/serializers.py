@@ -115,9 +115,12 @@ class SocialLoginSerializer(serializers.Serializer):
                 _("Incorrect input. access_token or code is required.")
             )
 
+        social_token = adapter.parse_token({"access_token": access_token})
+        social_token.app = app
+        social_token.token = access_token
         login = None
         # executes respective adaptor's social login protocols
-        login = self.handle_social_login(adapter, app, access_token)
+        login = self.handle_social_login(adapter, app, social_token, access_token)
         self.check_duplicates_then_save_social_login(request, login)
 
         login_user = login.account.user
@@ -130,28 +133,25 @@ class SocialLoginSerializer(serializers.Serializer):
         self.handle_referral(attrs)
         return attrs
 
-    def handle_social_login(self, adapter, app, access_token):
+    def handle_social_login(self, adapter, app, social_token, access_token):
         """
         :param adapter: allauth.socialaccount Adapter subclass.
             Usually OAuthAdapter or Auth2Adapter
         :param app: `allauth.socialaccount.SocialApp` instance
-        :param token: `allauth.socialaccount.SocialToken` instance
-        :param response: Provider's response for OAuth1. Not used in the
+        :param social_token: `allauth.socialaccount.SocialToken` instance
+        :param access_token: Provider's response for OAuth1. Not used in the
         :returns: A populated instance of the
             `allauth.socialaccount.SocialLoginView` instance
         """
-        request = self._get_request()
-        social_login = adapter.complete_login(
-            request, app, access_token, response=access_token
-        )
-
-        social_token = adapter.parse_token(
-            {"access_token": access_token}
-        )  # token instance
-        social_token.app = app
-        social_login.token = access_token
-
         try:
+            request = self._get_request()
+            social_login = adapter.complete_login(
+                request=request,
+                app=app,
+                access_token=access_token,
+                social_token=social_token,
+                response=access_token,
+            )
             complete_social_login(request, social_login)
         except ConnectionTimeout:
             pass
