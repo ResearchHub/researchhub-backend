@@ -73,9 +73,11 @@ class SocialLoginSerializer(serializers.Serializer):
         # http://stackoverflow.com/questions/8666316/facebook-oauth-2-0-code-and-token
 
         credential = attrs.get("credential")
+        is_yolo = False
         # Case 1: OneTap Login sends back "credential" which is a jwt encoded user data
         if credential:
             access_token = credential
+            is_yolo = True
         # Case 2: We received the authorization code => "Regular flow"
         elif attrs.get("code"):
             self.callback_url = getattr(view, "callback_url", None)
@@ -120,7 +122,13 @@ class SocialLoginSerializer(serializers.Serializer):
         social_token.token = access_token
         login = None
         # executes respective adaptor's social login protocols
-        login = self.handle_social_login(adapter, app, social_token, access_token)
+        login = self.handle_social_login(
+            access_token,
+            adapter,
+            app,
+            is_yolo,
+            social_token,
+        )
         self.check_duplicates_then_save_social_login(request, login)
 
         login_user = login.account.user
@@ -133,7 +141,14 @@ class SocialLoginSerializer(serializers.Serializer):
         self.handle_referral(attrs)
         return attrs
 
-    def handle_social_login(self, adapter, app, social_token, access_token):
+    def handle_social_login(
+        self,
+        access_token,
+        adapter,
+        app,
+        is_yolo,
+        social_token,
+    ):
         """
         :param adapter: allauth.socialaccount Adapter subclass.
             Usually OAuthAdapter or Auth2Adapter
@@ -149,8 +164,7 @@ class SocialLoginSerializer(serializers.Serializer):
                 # NOTE: argument order matters here.
                 request,
                 app,
-                social_token,
-                access_token,
+                social_token if is_yolo else access_token,
             )
             complete_social_login(request, social_login)
         except ConnectionTimeout:
