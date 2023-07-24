@@ -164,7 +164,7 @@ class SocialLoginSerializer(serializers.Serializer):
                 # NOTE: argument order matters here.
                 request,
                 app,
-                social_token if is_yolo else access_token,
+                access_token if is_yolo else social_token,
             )
             complete_social_login(request, social_login)
         except ConnectionTimeout:
