@@ -56,14 +56,11 @@ class GoogleIdTokenProvider(GoogleProvider):
 
 
 class GoogleOAuth2AdapterIdToken(GoogleOAuth2Adapter):
-    def complete_login(self, request, app, access_token, **kwargs):
+    def complete_login(self, request, app, social_token, access_token, **kwargs):
         """
         NOTE: this can be confusing due to naming compared to GoogleOAuth2Adapter
         But this is what we have to play with since the payload from Google is different
         """
-        # import pdb
-
-        # pdb.set_trace()
         user_info = jwt.decode(access_token, options={"verify_signature": False})
         user_info["id"] = user_info["sub"]
         login = self.get_provider().sociallogin_from_response(
