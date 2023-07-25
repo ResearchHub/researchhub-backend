@@ -75,11 +75,18 @@ class Amplitude:
         data = {
             "user_id": user_id,
             "event_type": event_type,
-            "event_properties": res.data,
             "user_properties": user_properties,
-            "insert_id": f"{event_type}_{res.data['id']}",
             # **geo_properties,
         }
+
+        res_data = res.data
+        if isinstance(res_data, dict):
+            data["event_properties"] = res_data
+        else:
+            data["event_properties"] = {"data": res_data}
+
+        if res_id := getattr(res_data, "id", None):
+            data["insert_id"] = f"{event_type}_{res_id}"
 
         if extra_data := getattr(res, "amplitude_data", None):
             data["event_properties"].update(extra_data)
@@ -89,7 +96,7 @@ class Amplitude:
             "events": [data],
         }
         hit = json.dumps(hit, default=json_serial)
-        self.forward_event(hit)
+        return self.forward_event(hit)
 
     def forward_event(self, hit):
         headers = {"Content-Type": "application/json", "Accept": "*/*"}

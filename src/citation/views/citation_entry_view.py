@@ -16,6 +16,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
+from analytics.amplitude import track_event
 from citation.constants import CITATION_TYPE_FIELDS
 from citation.filters import CitationEntryFilter
 from citation.models import CitationEntry
@@ -64,6 +65,7 @@ class CitationEntryViewSet(ModelViewSet):
             status=status.HTTP_405_METHOD_NOT_ALLOWED,
         )
 
+    @track_event
     @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
     def upload_pdfs(self, request):
         data = request.data
@@ -94,6 +96,7 @@ class CitationEntryViewSet(ModelViewSet):
         )
         return Response(res, status=200)
 
+    @track_event
     @action(detail=False, methods=["post"], permission_classes=[PDFUploadsS3CallBack])
     def upload_pdfs_callback(self, request):
         data = request.data
@@ -146,6 +149,7 @@ class CitationEntryViewSet(ModelViewSet):
         citation_types = CITATION_TYPE_FIELDS.keys()
         return Response(citation_types)
 
+    @track_event
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def doi_search(self, request):
         doi_string = request.query_params.get("doi", None)
@@ -159,6 +163,7 @@ class CitationEntryViewSet(ModelViewSet):
             result = open_alex.get_data_from_doi(doi_string)
         return Response(result, status=200)
 
+    @track_event
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def url_search(self, request):
         url_string = request.query_params.get("url", None)
@@ -199,6 +204,7 @@ class CitationEntryViewSet(ModelViewSet):
             log_error(e)
             return Response({"result": "DOI / URL not found"}, status=400)
 
+    @track_event
     @action(
         detail=False,
         methods=["POST", "DELETE"],
