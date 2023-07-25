@@ -67,6 +67,7 @@ def captcha_verify(request):
     return Response(data, status=status)
 
 
+# Google login -> SocialLoingSerializer -> adaptor functions are called in "#complete_login"
 class GoogleLogin(SocialLoginView):
     adapter_class = GoogleOAuth2Adapter
     callback_url = GOOGLE_REDIRECT_URL
@@ -74,6 +75,7 @@ class GoogleLogin(SocialLoginView):
     serializer_class = SocialLoginSerializer
 
 
+# Google login -> SocialLoingSerializer -> adaptor functions are called in "#complete_login"
 class GoogleYoloLogin(SocialLoginView):
     adapter_class = GoogleOAuth2AdapterIdToken
     callback_url = GOOGLE_YOLO_REDIRECT_URL

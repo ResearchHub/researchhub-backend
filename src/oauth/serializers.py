@@ -49,23 +49,6 @@ class SocialLoginSerializer(serializers.Serializer):
                 return True
         return False
 
-    def get_social_login(self, adapter, app, token, response):
-        """
-        :param adapter: allauth.socialaccount Adapter subclass.
-            Usually OAuthAdapter or Auth2Adapter
-        :param app: `allauth.socialaccount.SocialApp` instance
-        :param token: `allauth.socialaccount.SocialToken` instance
-        :param response: Provider's response for OAuth1. Not used in the
-        :returns: A populated instance of the
-            `allauth.socialaccount.SocialLoginView` instance
-        """
-
-        request = self._get_request()
-        social_login = adapter.complete_login(request, app, token, response=response)
-
-        social_login.token = token
-        return social_login
-
     def validate(self, attrs, retry=0):
         view = self.context.get("view")
         request = self._get_request()
@@ -90,14 +73,12 @@ class SocialLoginSerializer(serializers.Serializer):
         # http://stackoverflow.com/questions/8666316/facebook-oauth-2-0-code-and-token
 
         credential = attrs.get("credential")
-
-        # Case 1: We received the access_token
-        if attrs.get("access_token") or credential:
-            access_token = attrs.get("access_token")
-            if credential:
-                access_token = credential
-
-        # Case 2: We received the authorization code
+        is_yolo = False
+        # Case 1: OneTap Login sends back "credential" which is a jwt encoded user data
+        if credential:
+            access_token = credential
+            is_yolo = True
+        # Case 2: We received the authorization code => "Regular flow"
         elif attrs.get("code"):
             self.callback_url = getattr(view, "callback_url", None)
             self.client_class = getattr(view, "client_class", None)
@@ -126,7 +107,7 @@ class SocialLoginSerializer(serializers.Serializer):
             )
             token = client.get_access_token(code)
             access_token = token["access_token"]
-
+        # Case 3: Handle error
         else:
             error = serializers.ValidationError(
                 _("Incorrect input. access_token or code is required.")
@@ -138,31 +119,71 @@ class SocialLoginSerializer(serializers.Serializer):
 
         social_token = adapter.parse_token({"access_token": access_token})
         social_token.app = app
-
+        social_token.token = access_token
         login = None
-        try:
-            login = self.get_social_login(adapter, app, social_token, access_token)
-            complete_social_login(request, login)
+        # executes respective adaptor's social login protocols
+        login = self.handle_social_login(
+            access_token,
+            adapter,
+            app,
+            is_yolo,
+            social_token,
+        )
+        self.check_duplicates_then_save_social_login(request, login)
 
+        login_user = login.account.user
+        attrs["user"] = login_user
+        tracked_login_w_events_api = events_api.track_login(
+            login_user, "$success", request
+        )
+        update_user_risk_score(login_user, tracked_login_w_events_api)
+        self.track_user_visit_after_login(attrs)
+        self.handle_referral(attrs)
+        return attrs
+
+    def handle_social_login(
+        self,
+        access_token,
+        adapter,
+        app,
+        is_yolo,
+        social_token,
+    ):
+        """
+        :param adapter: allauth.socialaccount Adapter subclass.
+            Usually OAuthAdapter or Auth2Adapter
+        :param app: `allauth.socialaccount.SocialApp` instance
+        :param social_token: `allauth.socialaccount.SocialToken` instance
+        :param access_token: Provider's response for OAuth1. Not used in the
+        :returns: A populated instance of the
+            `allauth.socialaccount.SocialLoginView` instance
+        """
+        try:
+            request = self._get_request()
+            social_login = adapter.complete_login(
+                # NOTE: argument order matters here.
+                request,
+                app,
+                access_token if is_yolo else social_token,
+            )
+            complete_social_login(request, social_login)
         except ConnectionTimeout:
             pass
         except NoReverseMatch as e:
             if "account_inactive" in str(e):
-                login_user = login.account.user
+                login_user = social_login.account.user
                 tracked_login = events_api.track_login(login_user, "$failure", request)
                 update_user_risk_score(login_user, tracked_login)
                 raise LoginError(None, "Account is suspended")
         except Exception as e:
             error = LoginError(e, "Login failed")
             sentry.log_info(error, error=e)
-
-            # if login:
-            #     deleted = self._delete_user_account(login.user, error=e)
-            #     if deleted and retry < 3:
-            #         return self.validate(attrs, retry=retry + 1)
             sentry.log_error(error, base_error=e)
             raise serializers.ValidationError(_("Incorrect value"))
 
+        return social_login
+
+    def check_duplicates_then_save_social_login(self, request, login):
         if login and not login.is_existing:
             # We have an account already signed up in a different flow
             # with the same email address: raise an exception.
@@ -189,19 +210,17 @@ class SocialLoginSerializer(serializers.Serializer):
             login.lookup()
             login.save(request, connect=True)
 
-        login_user = login.account.user
-        attrs["user"] = login_user
-        tracked_login = events_api.track_login(login_user, "$success", request)
-        update_user_risk_score(login_user, tracked_login)
-
+    def track_user_visit_after_login(self, attrs):
+        """failure of this function is trivial"""
         try:
-            visits = WebsiteVisits.objects.get(uuid=attrs["uuid"])
+            visits = WebsiteVisits.objects.get(uuid=attrs.get("uuid"))
             visits.user = attrs["user"]
             visits.save()
         except Exception as e:
             print(e)
             pass
 
+    def handle_referral(self, attrs):
         try:
             referral_code = attrs.get("referral_code")
             if referral_code:
@@ -239,27 +258,3 @@ class SocialLoginSerializer(serializers.Serializer):
         except Exception as e:
             sentry.log_error(e)
             pass
-
-        # DEPRECATED
-        # Requires geolocation data from frontend
-
-        # request = self._get_request()
-        # x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-        # if x_forwarded_for:
-        #     ip = x_forwarded_for.split(",")[0]
-        # else:
-        #     ip = request.META.get("REMOTE_ADDR")
-
-        # user = attrs["user"]
-        # check_user_risk(user)
-
-        # if user.is_authenticated and not user.probable_spammer:
-        #     try:
-        #         country = geo.country(ip)
-        #         user.country_code = country.get("country_code")
-        #         user.save()
-        #     except Exception as e:
-        #         print(e)
-        #         sentry.log_error(e)
-
-        return attrs
