@@ -9,6 +9,7 @@ from django.db import IntegrityError, transaction
 from django.http import QueryDict
 
 import utils.sentry as sentry
+from citation.constants import JOURNAL_ARTICLE
 from discussion.models import Flag as GrmFlag
 from discussion.models import Vote as GrmVote
 from discussion.reaction_serializers import GenericReactionSerializerMixin
@@ -780,6 +781,46 @@ class PaperReferenceSerializer(
                 return FigureSerializer(figure).data
         except AttributeError:
             return None
+
+
+class PaperCitationSerializer(serializers.ModelSerializer):
+    # Transform paper data into OpenAlex format
+
+    display_name = serializers.SerializerMethodField()
+    authorships = serializers.SerializerMethodField()
+    publication_date = serializers.SerializerMethodField()
+    type = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Paper
+        fields = [
+            "title",
+            "doi",
+            "display_name",
+            "authorships",
+            "publication_date",
+            "type",
+        ]
+
+    def get_display_name(self, paper):
+        return paper.paper_title or paper.title
+
+    def get_authorships(self, paper):
+        authors = paper.raw_authors
+        return [
+            {
+                "author": {
+                    "display_name": f"{author['first_name']} {author['last_name']}"
+                }
+            }
+            for author in authors
+        ]
+
+    def get_publication_date(self, paper):
+        return paper.paper_publish_date
+
+    def get_type(self, paper):
+        return JOURNAL_ARTICLE
 
 
 class DynamicPaperSerializer(

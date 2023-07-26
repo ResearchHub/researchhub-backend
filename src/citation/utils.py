@@ -11,7 +11,11 @@ from rest_framework.request import Request
 from citation.constants import JOURNAL_ARTICLE
 from citation.exceptions import GrobidProcessingError
 from citation.models import CitationEntry
-from citation.schema import generate_json_for_doi, generate_json_for_pdf
+from citation.schema import (
+    generate_json_for_doi_via_oa,
+    generate_json_for_pdf,
+    generate_json_for_rh_paper,
+)
 from citation.serializers import CitationEntrySerializer
 from paper.models import Paper
 from paper.paper_upload_tasks import celery_process_paper
@@ -46,7 +50,6 @@ def get_citation_entry_from_pdf(
     path, filename, user_id, organization_id, project_id, use_grobid
 ):
     pdf = None
-
     if use_grobid:
         header_data = get_pdf_header_data(path)
         doi = header_data.get("doi", None)
@@ -72,7 +75,10 @@ def get_citation_entry_from_pdf(
             json = generate_json_for_pdf(filename)
         else:
             try:
-                json = generate_json_for_doi(doi)
+                paper = get_paper_by_doi(doi)
+                json = generate_json_for_rh_paper(paper)
+            except Paper.DoesNotExist:
+                json = generate_json_for_doi_via_oa(doi)
             except Exception as e:
                 log_error(e)
                 pdf.name = filename
@@ -113,8 +119,9 @@ def create_paper_from_citation(citation):
     else:
         url = doi
 
+    url_search_query = SearchQuery(url)
     duplicate_papers = Paper.objects.filter(
-        Q(url_svf=SearchQuery(url)) | Q(pdf_url_svf=SearchQuery(url))
+        Q(url_svf=url_search_query) | Q(pdf_url_svf=url_search_query)
     )
 
     process_id = None
@@ -134,3 +141,16 @@ def create_paper_from_citation(citation):
         print("duplicate paper with doi {}".format(citation.doi))
 
     return {"duplicate": duplicate_papers.exists(), "process_id": process_id}
+
+
+def get_paper_by_svf(key, query):
+    search_query = SearchQuery(query)
+    return Paper.objects.get(**{key: search_query})
+
+
+def get_paper_by_doi(doi):
+    return get_paper_by_svf("doi_svf", doi)
+
+
+def get_paper_by_url(url):
+    return get_paper_by_svf("url_svf", url) or get_paper_by_svf("pdf_url_svf", url)

@@ -174,6 +174,7 @@ class ReferralTests(APITestCase):
             {
                 "recipient_email": "invite_email@example.com",
                 "invite_type": "BOUNTY",
+                "unified_document": self.post["unified_document"]["id"],
             },
         )
 

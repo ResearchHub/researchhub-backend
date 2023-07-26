@@ -1,12 +1,13 @@
-import cloudscraper
 import re
+from collections import Counter
+from urllib.parse import urlparse
 
+import cloudscraper
 from boto3 import session
 from bs4 import BeautifulSoup
-from collections import Counter
-from django_filters.rest_framework import DjangoFilterBackend
 from django.db import transaction
 from django.utils.crypto import get_random_string
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
@@ -14,7 +15,6 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
-from urllib.parse import urlparse
 
 from citation.constants import CITATION_TYPE_FIELDS
 from citation.filters import CitationEntryFilter
@@ -22,13 +22,17 @@ from citation.models import CitationEntry
 from citation.permissions import PDFUploadsS3CallBack
 from citation.schema import generate_schema_for_citation
 from citation.serializers import CitationEntrySerializer
-from paper.exceptions import DOINotFoundError
-from paper.utils import DOI_REGEX, clean_dois
 from citation.tasks import handle_creating_citation_entry
+from citation.utils import get_paper_by_doi, get_paper_by_url
+from paper.exceptions import DOINotFoundError
+from paper.models import Paper
+from paper.serializers import PaperCitationSerializer
+from paper.utils import DOI_REGEX, clean_dois
 from researchhub.pagination import FasterDjangoPaginator
 from researchhub.settings import AWS_STORAGE_BUCKET_NAME
 from utils.openalex import OpenAlex
 from utils.parsers import clean_filename
+from utils.sentry import log_error
 
 
 class CitationEntryPagination(PageNumberPagination):
@@ -145,15 +149,28 @@ class CitationEntryViewSet(ModelViewSet):
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def doi_search(self, request):
         doi_string = request.query_params.get("doi", None)
-        open_alex = OpenAlex()
-        result = open_alex.get_data_from_doi(doi_string)
+        if doi_string is None:
+            return Response(status=404)
+        try:
+            paper = get_paper_by_doi(doi_string)
+            result = PaperCitationSerializer(paper).data
+        except Paper.DoesNotExist:
+            open_alex = OpenAlex()
+            result = open_alex.get_data_from_doi(doi_string)
         return Response(result, status=200)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def url_search(self, request):
+        url_string = request.query_params.get("url", None)
+        if url_string is None:
+            return Response(status=404)
+
         try:
-            url_string = request.query_params.get("url", None)
-            scraper_result = cloudscraper.create_scraper().get(url_string, timeout=15)
+            paper = get_paper_by_url(url_string)
+            result = PaperCitationSerializer(paper).data
+            return Response(result, status=200)
+        except Paper.DoesNotExist:
+            scraper_result = cloudscraper.create_scraper().get(url_string, timeout=5)
             status_code = scraper_result.status_code
             dois = []
 
@@ -163,16 +180,23 @@ class CitationEntryViewSet(ModelViewSet):
                 parsed_url = urlparse(url_string)
                 cleaned_dois = clean_dois(parsed_url, list(map(str.strip, dois)))
                 doi_counter = Counter(cleaned_dois)
-                formmated_dois = [doi for doi, _ in doi_counter.most_common(1)]
+                formatted_dois = [doi for doi, _ in doi_counter.most_common(1)]
 
-                if len(formmated_dois) == 0:
+                if len(formatted_dois) == 0:
                     raise DOINotFoundError()
 
-                open_alex = OpenAlex()
-                open_alex_result = open_alex.get_data_from_doi(formmated_dois[0])
+                # Using first most common doi
+                doi = formatted_dois[0]
+                try:
+                    paper = get_paper_by_doi(doi)
+                    result = PaperCitationSerializer(paper).data
+                except Paper.DoesNotExist:
+                    open_alex = OpenAlex()
+                    result = open_alex.get_data_from_doi(doi)
 
-                return Response(open_alex_result, status=200)
-        except Exception as error:
+                return Response(result, status=200)
+        except Exception as e:
+            log_error(e)
             return Response({"result": "DOI / URL not found"}, status=400)
 
     @action(

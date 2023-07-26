@@ -52,13 +52,17 @@ def iso_string_to_datetime(string, naive=False):
     return timezone.make_aware(dt)
 
 
-def json_serial(obj):
+def json_serial(obj, ignore_errors=False):
     """JSON serializer for objects not serializable by default json code"""
 
     if isinstance(obj, (datetime, date)):
         return obj.isoformat()
     if isinstance(obj, decimal.Decimal):
         return str(obj)
+    if obj is None:
+        return ""
+    if ignore_errors:
+        return obj
     raise TypeError("Type %s not serializable" % type(obj))
 
 

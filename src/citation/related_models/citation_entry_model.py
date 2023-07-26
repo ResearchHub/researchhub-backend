@@ -1,6 +1,5 @@
 from django.core.validators import FileExtensionValidator
 from django.db import models
-from jsonschema import validate
 
 from citation.constants import CITATION_TYPE_CHOICES
 from citation.related_models.citation_project_model import CitationProject

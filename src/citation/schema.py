@@ -1,4 +1,5 @@
 from utils.openalex import OpenAlex
+from utils.parsers import json_serial
 
 from .constants import CITATION_TYPE_FIELDS, CREATOR_TYPES, JOURNAL_ARTICLE
 
@@ -13,8 +14,8 @@ initial_creators_schema_regex = r"|".join(f"^{field}$" for field in CREATOR_TYPE
 CREATORS_SCHEMA_REGEX = f"({initial_creators_schema_regex})"
 
 
-def generate_json_for_doi(doi):
-    json = {}
+def generate_json_for_doi_via_oa(doi):
+    json_dict = {}
     schema = generate_schema_for_citation(JOURNAL_ARTICLE)
     open_alex = OpenAlex()
     result = open_alex.get_data_from_doi(doi)
@@ -36,34 +37,48 @@ def generate_json_for_doi(doi):
                         author_array.append(
                             {"first_name": names[0], "last_name": names[len(names) - 1]}
                         )
-                json[field] = author_array
+                json_dict[field] = author_array
             else:
                 pdf_value = mapping_field.split(".")
                 cur_json = result
                 for val in pdf_value:
                     cur_json = result[val]
-                json[field] = cur_json
+                json_dict[field] = cur_json
         else:
-            json[field] = ""
-    return json
+            json_dict[field] = ""
+    return json_dict
+
+
+def generate_json_for_rh_paper(paper):
+    json_dict = {}
+    schema = generate_schema_for_citation(JOURNAL_ARTICLE)
+    for field in schema["required"]:
+        mapping_field = CITATION_TO_PAPER_MAPPING.get(field, "")
+        if mapping_field:
+            json_dict[field] = json_serial(
+                getattr(paper, mapping_field, ""), ignore_errors=True
+            )
+        else:
+            json_dict[field] = ""
+    return json_dict
 
 
 def generate_json_for_pdf(filename):
-    json = {}
+    json_dict = {}
     schema = generate_schema_for_citation(JOURNAL_ARTICLE)
     for key, value in schema["properties"].items():
         value_type = value["type"]
         if value_type == "string":
-            json[key] = ""
+            json_dict[key] = ""
         elif value_type == "array":
-            json[key] = []
+            json_dict[key] = []
         elif value_type == "object":
-            json[key] = {}
+            json_dict[key] = {}
         else:
             raise Exception("Unknown value type for schema")
 
-    json["title"] = filename
-    return json
+    json_dict["title"] = filename
+    return json_dict
 
 
 def generate_schema_for_citation(citation_type):
@@ -366,6 +381,7 @@ PATENTS_SCHEMA_FIELDS = [
     "references",
     "legal_status",
 ]
+
 PATENTS_SCHEMA = {
     "country": {"type": "string"},
     "assignee": {"type": "string"},
@@ -378,6 +394,19 @@ PATENTS_SCHEMA = {
     "references": {"type": "string"},
     "legal_status": {"type": "string"},
 }
+
+CITATION_TO_PAPER_MAPPING = {
+    "DOI": "doi",
+    "creators": "raw_authors",
+    "title": "paper_title",
+    "date": "paper_publish_date",
+    "abstract": "abstract",
+    "publication_title": "paper_title",
+    "journal_abbreviation": "external_source",
+    "is_oa": "is_open_access",
+    "url": "url",
+}
+
 OPENALEX_JOURNAL_MAPPING = {
     "DOI": "doi",
     "creators": "authorships",

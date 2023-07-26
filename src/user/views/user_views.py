@@ -1353,9 +1353,22 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     "promoted",
                     "user_endorsement",
                     "user_flag",
+                    "purchases",
+                ]
+            },
+            "rhc_dcs_get_purchases": {
+                "_include_fields": [
+                    "amount",
+                    "user",
                 ]
             },
             "rev_drs_get_created_by": {
+                "_include_fields": [
+                    "author_profile",
+                    "id",
+                ]
+            },
+            "pch_dps_get_user": {
                 "_include_fields": [
                     "author_profile",
                     "id",
