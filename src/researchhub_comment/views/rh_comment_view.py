@@ -27,10 +27,15 @@ from reputation.views.bounty_view import (
 from researchhub.pagination import FasterDjangoPaginator
 from researchhub.permissions import IsObjectOwner, IsObjectOwnerOrModerator
 from researchhub.settings import TESTING
+from researchhub_access_group.constants import ADMIN, PRIVATE, WORKSPACE
+from researchhub_access_group.models import Permission
 from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT
 from researchhub_comment.filters import RHCommentFilter
 from researchhub_comment.models import RhCommentModel
-from researchhub_comment.permissions import CanSetAsAcceptedAnswer
+from researchhub_comment.permissions import (
+    CanSetAsAcceptedAnswer,
+    ThreadViewingPermissions,
+)
 from researchhub_comment.serializers import (
     DynamicRhCommentSerializer,
     RhCommentSerializer,
@@ -55,6 +60,7 @@ from researchhub_document.related_models.constants.filters import (
     MOST_RSC,
 )
 from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
+from user.models import Organization
 
 
 def censor_comment(comment):
@@ -97,7 +103,11 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
     filter_backends = (DjangoFilterBackend,)
     filter_class = RHCommentFilter
     pagination_class = CommentPagination
-    permission_classes = [IsAuthenticatedOrReadOnly, IsObjectOwner]
+    permission_classes = [
+        IsAuthenticatedOrReadOnly,
+        IsObjectOwner,
+        ThreadViewingPermissions,
+    ]
     _ALLOWED_MODEL_NAMES = ("paper", "researchhub_post", "hypothesis", "citation")
     _CONTENT_TYPE_MAPPINGS = {
         "paper": "paper",
@@ -484,6 +494,10 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             res.data = serializer_data
             return res
 
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        instance.update_comment_content()
+
     @action(
         detail=True,
         methods=["put", "patch", "delete"],
@@ -497,10 +511,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             comment = self.get_object()
             censor_comment(comment)
             return super().censor(request, *args, **kwargs)
-
-    def perform_update(self, serializer):
-        instance = serializer.save()
-        instance.update_comment_content()
 
     @action(
         detail=True,
@@ -562,6 +572,37 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 with_default_hub=True,
             )
             return Response({"comment_id": comment.id}, status=200)
+
+    # TODO: Permissions
+    @action(detail=True, methods=["PATCH"], permission_classes=[])
+    def update_comment_permission(
+        self, request, model=None, model_object_id=None, pk=None
+    ):
+        data = request.data
+        user = request.user
+        comment = self.get_object()
+        thread = comment.thread
+
+        if permission_type := data.get("permission", None) == PRIVATE:
+            permission = Permission.objects.create(
+                access_type=ADMIN,
+                item=thread,
+                user=user,
+            )
+        elif permission_type == WORKSPACE:
+            org_id = data.get("organization_id")
+            # add check for org access in permission class
+            organization = Organization.objects.get(id=org_id)
+            permission = Permission.objects.create(
+                access_type=ADMIN,
+                item=thread,
+                user=user,
+                org=organization,
+            )
+        else:
+            comment_permissions = thread.permissions.all().delete()
+            # how to transfer comment thread back to unified doc?
+        return Response()
 
     def _create_mention_notifications_from_request(self, request, comment_id):
         data = request.data

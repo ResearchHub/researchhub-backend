@@ -1,6 +1,8 @@
+from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models import CharField, Count, JSONField, Q
 
+from researchhub_access_group.models import Permission
 from researchhub_comment.constants.rh_comment_thread_types import (
     GENERIC_COMMENT,
     INNER_CONTENT_COMMENT,
@@ -72,6 +74,10 @@ class RhCommentThreadModel(AbstractGenericRelationModel):
         null=True,
     )
     anchor = JSONField(blank=True, null=True)
+    permissions = GenericRelation(
+        Permission,
+        related_name="rh_thread",
+    )
 
     """--- OBJECT MANAGER ---"""
     objects = RhCommentThreadManager()

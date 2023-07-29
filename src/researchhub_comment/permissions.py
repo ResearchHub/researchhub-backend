@@ -20,3 +20,24 @@ class CanSetAsAcceptedAnswer(BasePermission):
                 return True
 
         return False
+
+
+class ThreadViewingPermissions(BasePermission):
+    message = "User does not have permission to view comments"
+
+    def has_permission(self, request, view):
+        return True
+        if view.action == "list":
+            user = request.user
+            kwargs = view.kwargs
+            model = kwargs.get("model")
+
+            if model == "citation":
+                view.get
+
+            import pdb
+
+            pdb.set_trace()
+            print(1)
+
+        return True
