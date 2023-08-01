@@ -141,7 +141,13 @@ class RhCommentModel(
         )
 
     def _update_related_discussion_count(self, amount):
-        related_document = self.unified_document.get_document()
+        from citation.models import CitationEntry
+
+        thread = self.thread
+        if isinstance(self.thread.content_object, CitationEntry):
+            return
+
+        related_document = thread.unified_document.get_document()
         if hasattr(related_document, "discussion_count"):
             related_document.discussion_count += amount
             related_document.save()

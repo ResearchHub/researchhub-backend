@@ -14,7 +14,6 @@ from researchhub_comment.constants.rh_comment_thread_types import (
     SUMMARY,
 )
 from researchhub_comment.models import RhCommentModel
-from user.models import Organization
 
 BEST = "BEST"
 TOP = "TOP"
@@ -95,7 +94,6 @@ class RHCommentFilter(filters.FilterSet):
         # This will ensure private/organization comments will be hidden
         kwargs["data"]._mutable = True
         if "privacy_type" not in kwargs["data"]:
-            print("no privact type")
             kwargs["data"]["privacy_type"] = PUBLIC
         kwargs["data"]._mutable = False
         super().__init__(*args, **kwargs)
@@ -202,23 +200,16 @@ class RHCommentFilter(filters.FilterSet):
 
         request = self.request
         user = request.user
-        user = User.objects.get(id=1)
+        # user = User.objects.get(id=1)
         if user.is_anonymous:
             return qs
 
-        # import pdb; pdb.set_trace()
         if value == PRIVATE:
             qs = qs.filter(thread__permissions__user=user)
         elif value == WORKSPACE:
-            data = request.data
-            organization_id = data.get("organization_id", None)
-            # add check for org access in permission class
-            try:
-                org = Organization.objects.get(id=organization_id)
-                if org.has_user(user):
-                    qs = qs.filter(thread__permissions__organization=org)
-            except Organization.DoesNotExist:
-                return qs
+            # Organization permission check is done in permissions
+            org = request.organization
+            qs = qs.filter(thread__permissions__organization=org)
         else:
             # Public comments
             return qs

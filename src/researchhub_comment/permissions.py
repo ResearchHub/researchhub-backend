@@ -1,5 +1,7 @@
 from rest_framework.permissions import BasePermission
 
+from utils.http import GET, POST
+
 
 class CanSetAsAcceptedAnswer(BasePermission):
     message = "User does not have permission to set answer"
@@ -26,18 +28,17 @@ class ThreadViewingPermissions(BasePermission):
     message = "User does not have permission to view comments"
 
     def has_permission(self, request, view):
-        return True
-        if view.action == "list":
-            user = request.user
-            kwargs = view.kwargs
-            model = kwargs.get("model")
+        user = request.user
+        if request.method == GET:
+            organization_id = request.query_params.get("organization_id", None)
 
-            if model == "citation":
-                view.get
-
-            import pdb
-
-            pdb.set_trace()
-            print(1)
-
+            if organization_id and not user.is_anonymous:
+                organization = request.organization
+                if organization:
+                    return organization.org_has_user(user)
+            elif not organization_id:
+                return True
+            return False
+        elif request.method == POST:
+            pass
         return True
