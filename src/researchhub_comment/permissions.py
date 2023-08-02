@@ -42,3 +42,12 @@ class ThreadViewingPermissions(BasePermission):
         elif request.method == POST:
             pass
         return True
+
+
+class IsThreadCreator(BasePermission):
+    message = "User is not creator of thread"
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        thread = obj.thread
+        return thread.created_by == user

@@ -40,6 +40,7 @@ from researchhub_comment.filters import RHCommentFilter
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.permissions import (
     CanSetAsAcceptedAnswer,
+    IsThreadCreator,
     ThreadViewingPermissions,
 )
 from researchhub_comment.serializers import (
@@ -589,8 +590,11 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             )
             return Response({"comment_id": comment.id}, status=200)
 
-    # TODO: Permissions
-    @action(detail=True, methods=["PATCH"], permission_classes=[])
+    @action(
+        detail=True,
+        methods=["PATCH"],
+        permission_classes=[IsAuthenticated, IsObjectOwner, IsThreadCreator],
+    )
     def update_comment_permission(
         self, request, model=None, model_object_id=None, pk=None
     ):
@@ -599,16 +603,31 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         comment = self.get_object()
         thread = comment.thread
 
-        if permission_type := data.get("permission", None) == PRIVATE:
-            self._create_thread_permission(user, thread, None)
-        elif permission_type == WORKSPACE:
-            organization = request.organization
-            # add check for org access in permission class
-            self._create_thread_permission(user, thread, organization)
-        else:
-            comment_permissions = thread.permissions.all().delete()
-            # how to transfer comment thread back to unified doc?
-        return Response()
+        with transaction.atomic():
+            if permission_type := data.get("permission", None) == PRIVATE:
+                thread.permissions.all().delete()
+                self._create_thread_permission(user, thread, None)
+            elif permission_type == WORKSPACE:
+                thread.permissions.all().delete()
+                organization = request.organization
+                if organization is None:
+                    return Response(status=401)
+                self._create_thread_permission(user, thread, organization)
+            else:
+                thread.permissions.all().delete()
+                model = data.get("content_type")
+                object_id = data.get("object_id")
+                if model not in self._ALLOWED_MODEL_NAMES:
+                    return Response(status=401)
+                content_type = self._get_content_type_model(model)
+                serializer = RhCommentThreadSerializer(
+                    thread,
+                    data={"content_type": content_type.id, "object_id": object_id},
+                    partial=True,
+                )
+                serializer.is_valid()
+                serializer.save()
+            return Response(status=200)
 
     def _create_mention_notifications_from_request(self, request, comment_id):
         data = request.data
