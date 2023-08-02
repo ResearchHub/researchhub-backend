@@ -1,6 +1,6 @@
 from rest_framework.permissions import BasePermission
 
-from utils.http import GET, POST
+from utils.http import GET
 
 
 class CanSetAsAcceptedAnswer(BasePermission):
@@ -25,22 +25,20 @@ class CanSetAsAcceptedAnswer(BasePermission):
 
 
 class ThreadViewingPermissions(BasePermission):
-    message = "User does not have permission to view comments"
+    message = "User does not have permission to view thread"
 
     def has_permission(self, request, view):
         user = request.user
+        organization = request.organization
         if request.method == GET:
             organization_id = request.query_params.get("organization_id", None)
 
             if organization_id and not user.is_anonymous:
-                organization = request.organization
                 if organization:
                     return organization.org_has_user(user)
             elif not organization_id:
                 return True
             return False
-        elif request.method == POST:
-            pass
         return True
 
 
