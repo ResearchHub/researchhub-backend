@@ -3,7 +3,7 @@ from django.db import models
 
 from researchhub_access_group.constants import ADMIN, EDITOR, VIEWER
 from researchhub_access_group.related_models.permission_model import Permission
-from user.models import Organization, User
+from user.models import Organization
 from utils.models import DefaultAuthenticatedModel
 
 
@@ -43,16 +43,14 @@ class CitationProject(DefaultAuthenticatedModel):
         for editor_id in editor_ids:
             editor_exists = self.permissions.has_editor_user(editor_id)
             if not editor_exists:
-                self.permissions.create(access_type=EDITOR, user=editor_id)
+                self.permissions.create(access_type=EDITOR, user_id=editor_id)
         return True
 
-    def add_viewers(self, viwer_ids=[]):
-        for viwer_id in viwer_ids:
-            viewer_exists = self.permissions.has_viewer_user(viwer_id)
+    def add_viewers(self, viewer_ids=[]):
+        for viewer_id in viewer_ids:
+            viewer_exists = self.permissions.has_viewer_user(viewer_id)
             if not viewer_exists:
-                self.permissions.create(
-                    access_type=VIEWER, user=User.objects.get(id=viwer_id)
-                )
+                self.permissions.create(access_type=VIEWER, user_id=viewer_id)
         return True
 
     def get_is_user_admin(self, user):
@@ -77,7 +75,7 @@ class CitationProject(DefaultAuthenticatedModel):
     def remove_viewers(self, viewer_ids):
         for viewer_id in viewer_ids:
             self.permissions.filter(
-                access_type=VIEWER, user=User.objects.get(id=viewer_id)
+                access_type=VIEWER, user_id=viewer_id
             ).all().delete()
         return True
 
