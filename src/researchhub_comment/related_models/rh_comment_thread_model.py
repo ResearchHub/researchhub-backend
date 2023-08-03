@@ -3,6 +3,7 @@ from django.db.models import CharField, Count, JSONField, Q
 
 from researchhub_comment.constants.rh_comment_thread_types import (
     GENERIC_COMMENT,
+    INNER_CONTENT_COMMENT,
     PEER_REVIEW,
     RH_COMMENT_THREAD_TYPES,
     SUMMARY,
@@ -25,8 +26,11 @@ class RhCommentThreadManager(models.Manager):
         return self.exclude(rh_comments__bounties__isnull=False).aggregate(
             discussion_count=Count(
                 "rh_comments",
-                filter=Q(
-                    thread_type=GENERIC_COMMENT,
+                filter=(
+                    Q(thread_type=INNER_CONTENT_COMMENT)
+                    | Q(thread_type=GENERIC_COMMENT)
+                )
+                & Q(
                     rh_comments__is_removed=False,
                     rh_comments__bounties__isnull=True,
                     rh_comments__parent__bounties__isnull=True,
