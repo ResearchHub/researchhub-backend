@@ -7,6 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
+from analytics.amplitude import track_event
 from citation.models import CitationProject
 from citation.permissions import UserIsAdminOfProject
 from citation.serializers import CitationProjectSerializer
@@ -22,6 +23,7 @@ class CitationProjectViewSet(ModelViewSet):
     serializer_class = CitationProjectSerializer
     ordering_fields = ("created_date", "created_date")
 
+    @track_event
     def create(self, request, *args, **kwargs):
         upserted_collaborators = request.data.get("collaborators")
         with transaction.atomic():
