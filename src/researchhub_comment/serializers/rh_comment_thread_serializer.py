@@ -1,5 +1,6 @@
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
+from citation.models import CitationEntry
 from hypothesis.models import Hypothesis
 from paper.models import Paper
 from paper.serializers import DynamicPaperSerializer
@@ -71,6 +72,10 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
             from hypothesis.serializers import DynamicHypothesisSerializer
 
             serializer = DynamicHypothesisSerializer
+        elif isinstance(content_object, CitationEntry):
+            from citation.serializers import DynamicCitationEntrySerializer
+
+            serializer = DynamicCitationEntrySerializer
 
         if not serializer:
             raise Exception(f"No content object serializer for {str(content_object)}")
