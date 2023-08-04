@@ -1,10 +1,13 @@
 from django.contrib import admin
-from .models import Hub, HubCategory
+
+from hub.models import Hub, HubCategory
 
 
 class HubAdmin(admin.ModelAdmin):
     model = Hub
-    filter_horizontal = ('subscribers',)  # If you don't specify this, you will get a multiple select widget.
+    filter_horizontal = (
+        "subscribers",
+    )  # If you don't specify this, you will get a multiple select widget.
 
 
 class HubCategoryAdmin(admin.ModelAdmin):

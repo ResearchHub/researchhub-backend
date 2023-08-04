@@ -19,34 +19,33 @@ from rest_framework.permissions import (
 from rest_framework.response import Response
 
 from discussion.reaction_models import Vote
-from mailing_list.models import EmailRecipient, HubSubscription
-from paper.models import Paper
-from paper.utils import get_cache_key
-from reputation.models import Contribution
-from researchhub.settings import SERIALIZER_SWITCH
-from researchhub_access_group.constants import EDITOR
-from researchhub_access_group.models import Permission
-from researchhub_document.utils import reset_unified_document_cache
-from user.models import Action, User
-from user.serializers import DynamicActionSerializer, UserActions
-from user.views.editor_views import resolve_timeframe_for_contribution
-from utils.http import DELETE, GET, PATCH, POST, PUT
-from utils.message import send_email_message
-from utils.permissions import CreateOrUpdateIfAllowed
-from utils.throttles import THROTTLE_CLASSES
-
-from .filters import HubFilter
-from .models import Hub, HubCategory
-from .permissions import (
+from hub.filters import HubFilter
+from hub.models import Hub, HubCategory
+from hub.permissions import (
     CensorHub,
     CreateHub,
-    IsModerator,
     IsModeratorOrSuperEditor,
     IsNotSubscribed,
     IsSubscribed,
     UpdateHub,
 )
-from .serializers import HubCategorySerializer, HubContributionSerializer, HubSerializer
+from hub.serializers import (
+    HubCategorySerializer,
+    HubContributionSerializer,
+    HubSerializer,
+)
+from mailing_list.models import EmailRecipient, HubSubscription
+from paper.models import Paper
+from paper.utils import get_cache_key
+from reputation.models import Contribution
+from researchhub_access_group.constants import EDITOR
+from researchhub_access_group.models import Permission
+from researchhub_document.utils import reset_unified_document_cache
+from user.models import User
+from utils.http import DELETE, GET, PATCH, POST, PUT
+from utils.message import send_email_message
+from utils.permissions import CreateOrUpdateIfAllowed
+from utils.throttles import THROTTLE_CLASSES
 
 
 class CustomPageLimitPagination(PageNumberPagination):
