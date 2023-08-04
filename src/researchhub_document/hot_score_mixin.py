@@ -6,7 +6,7 @@ from django.db.models import Count, Q
 
 from discussion.models import Vote
 from reputation.related_models.bounty import Bounty
-from researchhub_document.related_models.constants.document_type import PAPER
+from researchhub_document.models.constants.document_type import PAPER
 
 
 class HotScoreMixin:

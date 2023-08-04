@@ -17,7 +17,8 @@ from notification.models import Notification
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.views.rh_comment_view import censor_comment
 from user.filters import AuditDashboardFilterBackend
-from user.models import Action, User
+from user.models import User
+from user.models.action import Action
 from user.permissions import IsModerator, UserIsEditor
 from user.serializers import DynamicActionSerializer, VerdictSerializer
 from utils import sentry

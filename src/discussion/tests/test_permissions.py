@@ -16,7 +16,7 @@ from discussion.tests.tests import (
     BaseIntegrationTestCase as DiscussionIntegrationTestCase,
 )
 from paper.tests.helpers import create_paper
-from user.models import Author
+from user.models.author import Author
 from user.tests.helpers import create_random_authenticated_user
 from utils.test_helpers import (
     get_authenticated_get_response,

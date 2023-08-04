@@ -3,7 +3,7 @@ from django_filters import rest_framework as filters
 
 from hub.models import Hub
 from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_document.related_models.constants.document_type import (
+from researchhub_document.models.constants.document_type import (
     BOUNTY,
     DISCUSSION,
     ELN,
@@ -13,7 +13,7 @@ from researchhub_document.related_models.constants.document_type import (
     POSTS,
     QUESTION,
 )
-from researchhub_document.related_models.constants.filters import (
+from researchhub_document.models.constants.filters import (
     DISCUSSED,
     EXPIRING_SOON,
     HOT,

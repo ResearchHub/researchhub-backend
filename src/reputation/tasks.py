@@ -15,7 +15,7 @@ from reputation.models import Bounty, Contribution
 from researchhub.celery import QUEUE_BOUNTIES, QUEUE_CONTRIBUTIONS, QUEUE_PURCHASES, app
 from researchhub.settings import PRODUCTION
 from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_document.related_models.constants.document_type import (
+from researchhub_document.models.constants.document_type import (
     ALL,
     BOUNTY,
     FILTER_BOUNTY_EXPIRED,
@@ -176,7 +176,9 @@ def check_open_bounties():
 )
 def send_bounty_hub_notifications():
     action_user = User.objects.get_community_account()
-    open_bounties = Bounty.objects.filter(status=Bounty.OPEN,).annotate(
+    open_bounties = Bounty.objects.filter(
+        status=Bounty.OPEN,
+    ).annotate(
         time_left=Cast(
             F("expiration_date") - datetime.now(pytz.UTC),
             DurationField(),

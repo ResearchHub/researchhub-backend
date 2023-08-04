@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from referral.related_models.referral_invite import ReferralInvite
 from referral.serializers.referral_invite_serializer import ReferralInviteSerializer
 from researchhub.settings import TESTING
-from user.related_models.user_model import User
+from user.models.user_model import User
 from utils.http import POST
 from utils.permissions import PostOnly
 

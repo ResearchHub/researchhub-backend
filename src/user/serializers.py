@@ -29,8 +29,6 @@ from researchhub_document.models import ResearchhubPost
 from summary.models import Summary
 from summary.models import Vote as SummaryVote
 from user.models import (
-    Action,
-    Author,
     Major,
     Organization,
     University,
@@ -39,7 +37,9 @@ from user.models import (
     Verdict,
     Verification,
 )
-from user.related_models.gatekeeper_model import Gatekeeper
+from user.models.action import Action
+from user.models.author import Author
+from user.models.gatekeeper_model import Gatekeeper
 from utils import sentry
 
 

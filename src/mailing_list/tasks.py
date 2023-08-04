@@ -19,7 +19,8 @@ from researchhub.celery import QUEUE_NOTIFICATION, app
 from researchhub.settings import PRODUCTION, STAGING
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.views import ResearchhubUnifiedDocumentViewSet
-from user.models import Action, User
+from user.models import User
+from user.models.action import Action
 from utils.message import send_email_message
 
 

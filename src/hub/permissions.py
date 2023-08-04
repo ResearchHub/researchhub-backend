@@ -1,7 +1,7 @@
 from rest_framework.permissions import BasePermission
 
 from user.constants.gatekeeper_constants import PERMISSIONS_DASH
-from user.related_models.gatekeeper_model import Gatekeeper
+from user.models.gatekeeper_model import Gatekeeper
 from utils.permissions import AuthorizationBasedPermission, RuleBasedPermission
 
 

@@ -18,7 +18,7 @@ from reputation.serializers import (
 )
 from researchhub.serializers import DynamicModelFieldSerializer
 from summary.serializers import SummarySerializer, SummaryVoteSerializer
-from user.models import Author
+from user.models.author import Author
 from user.serializers import (
     DynamicAuthorSerializer,
     DynamicUserSerializer,

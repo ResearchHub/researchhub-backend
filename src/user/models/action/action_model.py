@@ -13,7 +13,7 @@ from reputation.models import Bounty, Withdrawal
 from researchhub.settings import BASE_FRONTEND_URL, TESTING
 from researchhub_comment.models import RhCommentModel
 from summary.models import Summary
-from user.related_models.user_model import User
+from user.models.user_model import User
 from utils.models import DefaultModel
 from utils.time import time_since
 

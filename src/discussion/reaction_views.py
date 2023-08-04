@@ -19,12 +19,8 @@ from discussion.reaction_serializers import (
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from researchhub_comment.models import RhCommentModel
-from researchhub_document.related_models.constants.document_type import SORT_UPVOTED
-from researchhub_document.related_models.constants.filters import (
-    DISCUSSED,
-    HOT,
-    UPVOTED,
-)
+from researchhub_document.models.constants.document_type import SORT_UPVOTED
+from researchhub_document.models.constants.filters import DISCUSSED, HOT, UPVOTED
 from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
 from utils.models import SoftDeletableModel
 from utils.permissions import CreateOrUpdateIfAllowed

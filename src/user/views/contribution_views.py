@@ -5,7 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.pagination import CursorPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 
-from user.models import Action
+from user.models.action import Action
 from user.serializers import DynamicActionSerializer
 
 

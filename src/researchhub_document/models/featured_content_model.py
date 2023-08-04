@@ -1,7 +1,7 @@
 from django.db import models
 
 from hub.models import Hub
-from researchhub_document.related_models.researchhub_unified_document_model import (
+from researchhub_document.models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
 from utils.models import DefaultModel

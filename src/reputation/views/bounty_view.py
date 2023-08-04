@@ -26,7 +26,7 @@ from reputation.serializers import (
     EscrowSerializer,
 )
 from reputation.tasks import create_contribution
-from researchhub_document.related_models.constants.document_type import (
+from researchhub_document.models.constants.document_type import (
     ALL,
     BOUNTY,
     FILTER_BOUNTY_CLOSED,

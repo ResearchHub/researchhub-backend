@@ -43,7 +43,7 @@ from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from researchhub.lib import get_document_id_from_path
 from researchhub_document.models import ResearchhubPost
-from researchhub_document.related_models.constants.document_type import (
+from researchhub_document.models.constants.document_type import (
     FILTER_ANSWERED,
     FILTER_BOUNTY_CLOSED,
     FILTER_BOUNTY_OPEN,
@@ -51,7 +51,7 @@ from researchhub_document.related_models.constants.document_type import (
     SORT_BOUNTY_TOTAL_AMOUNT,
     SORT_DISCUSSED,
 )
-from researchhub_document.related_models.constants.filters import (
+from researchhub_document.models.constants.filters import (
     DISCUSSED,
     EXPIRING_SOON,
     HOT,
@@ -227,8 +227,11 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             hypothesis_id = get_document_id_from_path(self.request)
             threads = Thread.objects.filter(
                 Q(hypothesis=hypothesis_id)
-                | Q(citation_id__in=Citation.objects.filter(
-                    hypothesis=hypothesis_id).values_list('id', flat=True))
+                | Q(
+                    citation_id__in=Citation.objects.filter(
+                        hypothesis=hypothesis_id
+                    ).values_list("id", flat=True)
+                )
             )
         elif document_type == "citation":
             citation_id = get_document_id_from_path(self.request)

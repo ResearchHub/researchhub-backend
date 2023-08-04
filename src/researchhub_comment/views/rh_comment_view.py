@@ -37,7 +37,7 @@ from researchhub_comment.serializers import (
     RhCommentThreadSerializer,
 )
 from researchhub_comment.tasks import celery_create_mention_notification
-from researchhub_document.related_models.constants.document_type import (
+from researchhub_document.models.constants.document_type import (
     ALL,
     BOUNTY,
     FILTER_ANSWERED,
@@ -48,7 +48,7 @@ from researchhub_document.related_models.constants.document_type import (
     SORT_BOUNTY_TOTAL_AMOUNT,
     SORT_DISCUSSED,
 )
-from researchhub_document.related_models.constants.filters import (
+from researchhub_document.models.constants.filters import (
     DISCUSSED,
     EXPIRING_SOON,
     HOT,

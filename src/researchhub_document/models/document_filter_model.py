@@ -7,7 +7,7 @@ from django.db.models.functions import Coalesce
 
 from reputation.models import Bounty
 from researchhub_comment.models import RhCommentModel
-from researchhub_document.related_models.constants.document_type import (
+from researchhub_document.models.constants.document_type import (
     FILTER_ALL,
     FILTER_ANSWERED,
     FILTER_AUTHOR_CLAIMED,

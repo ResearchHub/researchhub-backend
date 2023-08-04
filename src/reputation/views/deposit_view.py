@@ -33,7 +33,7 @@ from researchhub.settings import (
     WEB3_RSC_ADDRESS,
     WEB3_SHARED_SECRET,
 )
-from user.models import Action
+from user.models.action import Action
 from user.serializers import UserSerializer
 from utils import sentry
 from utils.http import POST, http_request

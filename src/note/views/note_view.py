@@ -39,7 +39,7 @@ from researchhub_access_group.permissions import (
 )
 from researchhub_access_group.serializers import DynamicPermissionSerializer
 from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_document.related_models.constants.document_type import NOTE
+from researchhub_document.models.constants.document_type import NOTE
 from user.models import Organization, User
 from utils.http import RequestMethods
 

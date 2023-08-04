@@ -44,9 +44,11 @@ from reputation.models import Contribution, Escrow
 from reputation.tasks import create_contribution
 from researchhub.settings import ASYNC_SERVICE_HOST, BASE_FRONTEND_URL
 from researchhub_document.models import ResearchhubPost
-from researchhub_document.related_models.constants.filters import HOT
+from researchhub_document.models.constants.filters import HOT
 from researchhub_document.utils import reset_unified_document_cache
-from user.models import Action, Author, User
+from user.models import User
+from user.models.action import Action
+from user.models.author import Author
 from user.permissions import IsModerator
 from user.serializers import UserSerializer
 from utils.http import RequestMethods, http_request

@@ -14,7 +14,7 @@ from reputation.models import Distribution, Escrow
 from researchhub_case.constants.case_constants import APPROVED
 from researchhub_case.models import AuthorClaimCase
 from researchhub_case.tasks import after_approval_flow
-from user.models import Author
+from user.models.author import Author
 from utils.test_helpers import TestHelper
 
 

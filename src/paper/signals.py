@@ -4,9 +4,7 @@ from django.utils.crypto import get_random_string
 from django.utils.text import slugify
 
 from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_document.related_models.constants.document_type import (
-    PAPER as PAPER_DOC_TYPE,
-)
+from researchhub_document.models.constants.document_type import PAPER as PAPER_DOC_TYPE
 from utils.sentry import log_error
 
 from .models import Paper

@@ -4,7 +4,7 @@ from django.core.management.base import BaseCommand
 
 from paper.models import Paper
 from researchhub_document.models import ResearchhubUnifiedDocument as UnifiedDocument
-from researchhub_document.related_models.constants.document_type import PAPER
+from researchhub_document.models.constants.document_type import PAPER
 
 
 class Command(BaseCommand):

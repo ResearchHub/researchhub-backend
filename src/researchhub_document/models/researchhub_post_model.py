@@ -11,18 +11,16 @@ from hub.serializers import HubSerializer
 from paper.utils import paper_piecewise_log
 from purchase.models import Purchase
 from researchhub_comment.models import RhCommentThreadModel
-from researchhub_document.related_models.constants.document_type import (
+from researchhub_document.models.constants.document_type import (
     DISCUSSION,
     DOCUMENT_TYPES,
 )
-from researchhub_document.related_models.constants.editor_type import (
-    CK_EDITOR,
-    EDITOR_TYPES,
-)
-from researchhub_document.related_models.researchhub_unified_document_model import (
+from researchhub_document.models.constants.editor_type import CK_EDITOR, EDITOR_TYPES
+from researchhub_document.models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
-from user.models import Author, User
+from user.models import User
+from user.models.author import Author
 
 
 class ResearchhubPost(AbstractGenericReactionModel):

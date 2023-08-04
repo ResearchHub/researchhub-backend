@@ -4,7 +4,7 @@ from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from paper.serializers import DynamicPaperSerializer, PaperSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_document.related_models.constants.document_type import (
+from researchhub_document.models.constants.document_type import (
     HYPOTHESIS,
     PAPER,
     RESEARCHHUB_POST_DOCUMENT_TYPES,

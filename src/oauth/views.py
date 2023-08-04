@@ -38,7 +38,7 @@ from researchhub.settings import (
     RECAPTCHA_VERIFY_URL,
     keys,
 )
-from user.models import Author
+from user.models.author import Author
 from user.utils import merge_author_profiles
 from utils import sentry
 from utils.http import RequestMethods, http_request

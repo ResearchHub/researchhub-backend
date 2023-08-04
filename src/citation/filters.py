@@ -1,9 +1,9 @@
-from django_filters import rest_framework as filters
 from django.db.models import Q
+from django_filters import rest_framework as filters
 from rest_framework.exceptions import ValidationError
 
 from citation.models import CitationEntry, CitationProject
-from user.related_models.organization_model import Organization
+from user.models.organization_model import Organization
 
 
 class CitationEntryFilter(filters.FilterSet):

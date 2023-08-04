@@ -96,7 +96,6 @@ class Distributor:
         return record
 
     def _record_referral_distribution_if_applicable(self, original_distribution):
-
         if not original_distribution.recipient.invited_by:
             return False
 
@@ -236,7 +235,8 @@ class RewardDistributor:
         from paper.models import Paper, Vote
         from summary.models import Summary
         from summary.models import Vote as SummaryVote
-        from user.models import Author, User
+        from user.models import User
+        from user.models.author import Author
 
         item_type = type(item)
 

@@ -15,7 +15,7 @@ from discussion.tests.helpers import (
     upvote_discussion,
 )
 from discussion.views import get_thread_id_from_path
-from user.models import Author
+from user.models.author import Author
 from user.tests.helpers import create_random_authenticated_user
 from utils.test_helpers import (
     get_authenticated_delete_response,

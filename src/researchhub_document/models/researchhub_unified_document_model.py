@@ -9,7 +9,7 @@ from hub.models import Hub
 from researchhub.settings import BASE_FRONTEND_URL
 from researchhub_access_group.models import Permission
 from researchhub_document.hot_score_mixin import HotScoreMixin
-from researchhub_document.related_models.constants.document_type import (
+from researchhub_document.models.constants.document_type import (
     BOUNTY,
     DISCUSSION,
     DOCUMENT_TYPES,
@@ -19,9 +19,9 @@ from researchhub_document.related_models.constants.document_type import (
     POSTS,
     QUESTION,
 )
-from researchhub_document.related_models.document_filter_model import DocumentFilter
+from researchhub_document.models.document_filter_model import DocumentFilter
 from researchhub_document.tasks import update_elastic_registry
-from user.models import Author
+from user.models.author import Author
 from utils.models import DefaultModel, SoftDeletableModel
 
 

@@ -6,7 +6,7 @@ class ProfileImageStorage(S3Boto3Storage):
         super(ProfileImageStorage, self).__init__()
 
     def url(self, name):
-        if 'http' in name:
+        if "http" in name:
             return name
         else:
             return super(ProfileImageStorage, self).url(name)

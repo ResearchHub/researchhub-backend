@@ -15,7 +15,8 @@ from discussion.models import Thread
 from discussion.models import Vote as GrmVote
 from hub.models import Hub
 from paper.models import Paper
-from user.models import Author, University, User
+from user.models import University, User
+from user.models.author import Author
 
 
 class TestData:

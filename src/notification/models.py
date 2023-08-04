@@ -5,7 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import ArrayField, HStoreField
 from django.db import models
 
-from researchhub_document.related_models.researchhub_unified_document_model import (
+from researchhub_document.models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
 from user.models import User

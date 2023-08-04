@@ -4,7 +4,7 @@ from unittest import skip
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, tag
 
-from user.models import Author
+from user.models.author import Author
 from utils.test_helpers import (
     IntegrationTestHelper,
     TestHelper,

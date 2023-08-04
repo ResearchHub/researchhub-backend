@@ -12,13 +12,12 @@ from rest_framework.response import Response
 from hub.models import Hub
 from reputation.models import Contribution
 from researchhub_access_group.constants import EDITOR
-from user.related_models.user_model import User
+from user.models.user_model import User
 from user.serializers import EditorContributionSerializer
 from utils.http import GET
 
 
 def resolve_timeframe_for_contribution(start_date, end_date, query_key=None):
-
     dateFrame = {}
 
     if start_date:

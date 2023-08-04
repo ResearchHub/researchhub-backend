@@ -61,13 +61,8 @@ from paper.utils import (
 from purchase.models import Purchase
 from reputation.models import Contribution
 from researchhub.lib import get_document_id_from_path
+from researchhub_document.models.constants.filters import DISCUSSED, HOT, NEW, UPVOTED
 from researchhub_document.permissions import HasDocumentCensorPermission
-from researchhub_document.related_models.constants.filters import (
-    DISCUSSED,
-    HOT,
-    NEW,
-    UPVOTED,
-)
 from researchhub_document.utils import reset_unified_document_cache
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.permissions import CreateOrUpdateIfAllowed, HasAPIKey, PostOnly

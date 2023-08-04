@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 from django.db.models.query import QuerySet
 
-from researchhub_document.related_models.constants.document_type import (
+from researchhub_document.models.constants.document_type import (
     ALL,
     BOUNTY,
     HYPOTHESIS,
@@ -10,7 +10,7 @@ from researchhub_document.related_models.constants.document_type import (
     POSTS,
     QUESTION,
 )
-from researchhub_document.related_models.constants.filters import (
+from researchhub_document.models.constants.filters import (
     DISCUSSED,
     EXPIRING_SOON,
     HOT,

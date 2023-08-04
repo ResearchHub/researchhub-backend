@@ -6,9 +6,9 @@ from django.db.models.deletion import SET_NULL
 
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
 from researchhub_case.constants.case_constants import APPROVED
-from user.related_models.profile_image_storage import ProfileImageStorage
-from user.related_models.school_model import University
-from user.related_models.user_model import User
+from user.models.profile_image_storage import ProfileImageStorage
+from user.models.school_model import University
+from user.models.user_model import User
 
 fs = ProfileImageStorage()
 

@@ -9,7 +9,7 @@ from researchhub_case.constants.case_constants import (
 from researchhub_case.related_models.researchhub_case_abstract_model import (
     AbstractResearchhubCase,
 )
-from user.models import Author
+from user.models.author import Author
 
 
 class AuthorClaimCase(AbstractResearchhubCase):

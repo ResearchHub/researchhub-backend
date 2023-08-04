@@ -5,7 +5,7 @@ from django.db.models.functions import Coalesce
 from invite.models import Invitation
 from reputation.related_models.bounty import Bounty
 from researchhub.settings import BASE_FRONTEND_URL, REFERRAL_PROGRAM
-from researchhub_document.related_models.researchhub_unified_document_model import (
+from researchhub_document.models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
 from utils.message import send_email_message

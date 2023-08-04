@@ -8,7 +8,9 @@ from hub.models import Hub
 from hub.tests.helpers import create_hub
 from researchhub_access_group.constants import EDITOR
 from researchhub_access_group.models import Permission
-from user.models import Action, Author, University, User
+from user.models import University, User
+from user.models.action import Action
+from user.models.author import Author
 
 
 class TestData:

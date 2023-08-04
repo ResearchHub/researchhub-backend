@@ -3,7 +3,7 @@ import math
 
 import numpy as np
 
-from researchhub_document.related_models.constants.document_type import PAPER
+from researchhub_document.models.constants.document_type import PAPER
 
 
 class HotScoreMixinDEPRECATED:

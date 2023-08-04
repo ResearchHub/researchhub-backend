@@ -9,10 +9,10 @@ from discussion.constants.flag_reasons import (
     VERIDCT_OPEN,
 )
 from discussion.reaction_models import Flag
-from user.models import Action, User
+from user.models import User
+from user.models.action import Action
+from user.models.author import Author
 from utils.filters import ListExcludeFilter
-
-from .models import Author
 
 
 class AuthorFilter(filters.FilterSet):

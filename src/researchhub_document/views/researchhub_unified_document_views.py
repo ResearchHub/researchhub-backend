@@ -22,12 +22,11 @@ from researchhub_document.models import (
     ResearchhubPost,
     ResearchhubUnifiedDocument,
 )
-from researchhub_document.permissions import HasDocumentCensorPermission
-from researchhub_document.related_models.constants.document_type import (
+from researchhub_document.models.constants.document_type import (
     FILTER_EXCLUDED_FROM_FEED,
     FILTER_INCLUDED_IN_FEED,
 )
-from researchhub_document.related_models.constants.filters import (
+from researchhub_document.models.constants.filters import (
     DISCUSSED,
     EXPIRING_SOON,
     HOT,
@@ -35,6 +34,7 @@ from researchhub_document.related_models.constants.filters import (
     NEW,
     UPVOTED,
 )
+from researchhub_document.permissions import HasDocumentCensorPermission
 from researchhub_document.serializers import (
     DynamicUnifiedDocumentSerializer,
     ResearchhubUnifiedDocumentSerializer,

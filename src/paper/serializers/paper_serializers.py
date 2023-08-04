@@ -48,17 +48,12 @@ from reputation.tasks import create_contribution
 from researchhub.lib import get_document_id_from_path
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
-from researchhub_document.related_models.constants.filters import (
-    DISCUSSED,
-    HOT,
-    NEW,
-    UPVOTED,
-)
+from researchhub_document.models.constants.filters import DISCUSSED, HOT, NEW, UPVOTED
 from researchhub_document.utils import (
     reset_unified_document_cache,
     update_unified_document_to_paper,
 )
-from user.models import Author
+from user.models.author import Author
 from user.serializers import (
     AuthorSerializer,
     DynamicAuthorSerializer,

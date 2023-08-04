@@ -23,7 +23,7 @@ from reputation.lib import WITHDRAWAL_MINIMUM, PendingWithdrawal
 from reputation.models import PaidStatusModelMixin, Webhook, Withdrawal
 from reputation.serializers import WithdrawalSerializer
 from researchhub.settings import WEB3_KEYSTORE_ADDRESS, WEB3_RSC_ADDRESS
-from user.models import Action
+from user.models.action import Action
 from user.serializers import UserSerializer
 from utils import sentry
 from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfAllowed, UserNotSpammer

@@ -9,7 +9,7 @@ from rest_framework.request import Request
 from paper.utils import get_cache_key
 from researchhub.celery import QUEUE_CACHES, QUEUE_ELASTIC_SEARCH, QUEUE_HOT_SCORE, app
 from researchhub.settings import PRODUCTION, STAGING
-from researchhub_document.related_models.constants.document_type import BOUNTY
+from researchhub_document.models.constants.document_type import BOUNTY
 from utils import sentry
 
 

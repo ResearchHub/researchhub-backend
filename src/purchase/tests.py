@@ -5,7 +5,7 @@ from rest_framework.test import APITestCase
 from paper.tests.helpers import create_paper
 from purchase.models import Balance
 from reputation.models import Escrow
-from user.related_models.gatekeeper_model import Gatekeeper
+from user.models.gatekeeper_model import Gatekeeper
 from user.tests.helpers import (
     create_moderator,
     create_random_authenticated_user,

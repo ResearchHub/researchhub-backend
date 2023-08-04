@@ -1,10 +1,8 @@
 from django.core.files.uploadedfile import SimpleUploadedFile
 
 from paper.models import Flag, Paper, Vote
-from researchhub_document.related_models.constants.document_type import (
-    PAPER as PAPER_DOC_TYPE,
-)
-from researchhub_document.related_models.researchhub_unified_document_model import (
+from researchhub_document.models.constants.document_type import PAPER as PAPER_DOC_TYPE
+from researchhub_document.models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
 from user.tests.helpers import create_random_default_user

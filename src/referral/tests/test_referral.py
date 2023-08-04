@@ -12,7 +12,7 @@ from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.models import BountyFee, Distribution
 from researchhub.settings import REFERRAL_PROGRAM
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.models.researchhub_post_model import ResearchhubPost
 from user.tests.helpers import create_moderator, create_random_default_user, create_user
 
 

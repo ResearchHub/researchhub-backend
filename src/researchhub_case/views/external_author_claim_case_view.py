@@ -20,7 +20,8 @@ from researchhub_case.serializers import (
     ExternalAuthorClaimCaseSerializer,
 )
 from rh_scholarly.lambda_handler import SEARCH_FOR_AUTHORS
-from user.models import Action, User
+from user.models import User
+from user.models.action import Action
 from user.permissions import IsModerator
 from utils.http import POST
 from utils.permissions import PostOnly

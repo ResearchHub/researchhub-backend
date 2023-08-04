@@ -15,9 +15,9 @@ from mailing_list.lib import base_email_context
 from reputation import distributions
 from reputation.distributor import Distributor
 from researchhub.settings import BASE_FRONTEND_URL
+from user.models import Organization, User, Verification
+from user.models.action import Action
 from utils.message import send_email_message
-
-from .models import Action, Organization, User, Verification
 
 
 class CustomUserAdmin(UserAdmin):

@@ -21,11 +21,13 @@ from researchhub.settings import NO_ELASTIC, TESTING
 from researchhub_access_group.constants import ADMIN
 from researchhub_access_group.models import Permission
 from researchhub_comment.models import RhCommentModel
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.models.researchhub_post_model import ResearchhubPost
 from summary.models import Summary
 from summary.models import Vote as SummaryVote
 from user.constants.organization_constants import PERSONAL
-from user.models import Action, Author, Organization, User
+from user.models import Organization, User
+from user.models.action import Action
+from user.models.author import Author
 from user.tasks import (
     handle_spam_user_task,
     link_author_to_papers,

@@ -1,16 +1,14 @@
 import datetime
 import math
-from researchhub_document.related_models.constants.document_type import PAPER
+
 import numpy as np
-from django.db.models import (
-    Q,
-    Count
-)
+from django.db.models import Count, Q
+
 from discussion.models import Vote
+from researchhub_document.models.constants.document_type import PAPER
 
 
 class HotScoreMixin:
-
     def _c(self, num):
         if num > 0:
             return 1
@@ -46,8 +44,8 @@ class HotScoreMixin:
 
         # Debug
         if False:
-            print(f'Num seconds since epoch: {num_seconds_since_epoch}')
-            print(f'Value for {date} is: {time_score}')
+            print(f"Num seconds since epoch: {num_seconds_since_epoch}")
+            print(f"Value for {date} is: {time_score}")
 
         return time_score
 
@@ -91,42 +89,35 @@ class HotScoreMixin:
         discussion_count_score = doc.discussion_count
 
         agg_score = (
-            discussion_vote_score +
-            doc_vote_score +
-            discussion_count_score +
-            social_media_score +
-            boost_score
+            discussion_vote_score
+            + doc_vote_score
+            + discussion_count_score
+            + social_media_score
+            + boost_score
         )
 
         hot_score = agg_score + time_score_with_magnitude
 
         debug_obj = {
-            'unified_doc_id': self.id,
-            'inner_doc_id': doc.id,
-            'document_type': self.document_type,
-            'created_date': self.created_date,
-            'discussion_count': {
-                'count': doc.discussion_count,
-                '=score': discussion_count_score
+            "unified_doc_id": self.id,
+            "inner_doc_id": doc.id,
+            "document_type": self.document_type,
+            "created_date": self.created_date,
+            "discussion_count": {
+                "count": doc.discussion_count,
+                "=score": discussion_count_score,
             },
-            'discussion_votes': {
-                'total_comment_vote_score': total_comment_vote_score,
-                '=score': discussion_vote_score 
+            "discussion_votes": {
+                "total_comment_vote_score": total_comment_vote_score,
+                "=score": discussion_vote_score,
             },
-            'votes': {
-                'doc_votes': doc_vote_net_score,
-                '=score': doc_vote_score
-            },
-            'social_media': {
-                '=score': social_media_score
-            },
-            'boost_score': {
-                '=score': boost_score
-            },
-            'agg_score': agg_score,
-            'time_score': time_score,
-            'time_score_with_magnitude': time_score_with_magnitude,
-            '=hot_score': hot_score,
+            "votes": {"doc_votes": doc_vote_net_score, "=score": doc_vote_score},
+            "social_media": {"=score": social_media_score},
+            "boost_score": {"=score": boost_score},
+            "agg_score": agg_score,
+            "time_score": time_score,
+            "time_score_with_magnitude": time_score_with_magnitude,
+            "=hot_score": hot_score,
         }
 
         if should_save:

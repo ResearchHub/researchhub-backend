@@ -1,30 +1,31 @@
 from paper.models import Paper
 from researchhub.lib import get_document_id_from_path
-from user.models import Author
-from utils.http import POST, PATCH, PUT, DELETE
+from user.models.author import Author
+from utils.http import DELETE, PATCH, POST, PUT
 from utils.permissions import AuthorizationBasedPermission, RuleBasedPermission
 
 
 class CreateBulletPoint(RuleBasedPermission):
-    message = 'Not enough reputation to create bullet point.'
+    message = "Not enough reputation to create bullet point."
 
     def satisfies_rule(self, request):
         if request.method == POST:
-            return request.user.reputation >= 1 and not request.user.is_suspended and not request.user.probable_spammer
+            return (
+                request.user.reputation >= 1
+                and not request.user.is_suspended
+                and not request.user.probable_spammer
+            )
         return True
 
 
 class UpdateOrDeleteBulletPoint(AuthorizationBasedPermission):
-    message = 'You do not have permission to perform this action.'
+    message = "You do not have permission to perform this action."
 
     def is_authorized(self, request, view, obj):
         method = request.method
         user = request.user
         if method == PATCH:
-            return (
-                (user == obj.created_by)
-                or check_user_is_moderator(user, obj)
-            )
+            return (user == obj.created_by) or check_user_is_moderator(user, obj)
         if method == PUT:
             return False
         if method == DELETE:
@@ -38,14 +39,14 @@ def check_user_is_moderator(user, bullet_point):
 
 
 class Censor(AuthorizationBasedPermission):
-    message = 'Need to be a moderator to delete bullet point.'
+    message = "Need to be a moderator to delete bullet point."
 
     def is_authorized(self, request, view, obj):
         return request.user.moderator
 
 
 class Endorse(AuthorizationBasedPermission):
-    message = 'Not authorized to endorse bullet point.'
+    message = "Not authorized to endorse bullet point."
 
     def is_authorized(self, request, view, obj):
         paper_id = get_document_id_from_path(request)
@@ -55,7 +56,7 @@ class Endorse(AuthorizationBasedPermission):
 
 
 class Flag(RuleBasedPermission):
-    message = 'Not enough reputation to flag bullet point.'
+    message = "Not enough reputation to flag bullet point."
 
     def satisfies_rule(self, request):
         return request.user.reputation >= 1

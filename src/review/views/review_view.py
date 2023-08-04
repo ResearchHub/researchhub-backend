@@ -6,9 +6,7 @@ from rest_framework.response import Response
 
 from discussion.reaction_views import ReactionViewActionMixin
 from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_document.related_models.constants.document_type import (
-    FILTER_PEER_REVIEWED,
-)
+from researchhub_document.models.constants.document_type import FILTER_PEER_REVIEWED
 from review.models.review_model import Review
 from review.permissions import AllowedToUpdateReview
 from review.serializers import ReviewSerializer

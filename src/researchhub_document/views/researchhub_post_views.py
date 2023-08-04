@@ -29,22 +29,22 @@ from researchhub.settings import (
     TESTING,
 )
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
-from researchhub_document.permissions import HasDocumentEditingPermission
-from researchhub_document.related_models.constants.document_type import (
+from researchhub_document.models.constants.document_type import (
     ALL,
     BOUNTY,
     POSTS,
     QUESTION,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
 )
-from researchhub_document.related_models.constants.editor_type import CK_EDITOR
-from researchhub_document.related_models.constants.filters import (
+from researchhub_document.models.constants.editor_type import CK_EDITOR
+from researchhub_document.models.constants.filters import (
     DISCUSSED,
     HOT,
     MOST_RSC,
     NEW,
     UPVOTED,
 )
+from researchhub_document.permissions import HasDocumentEditingPermission
 from researchhub_document.serializers.researchhub_post_serializer import (
     ResearchhubPostSerializer,
 )

@@ -40,10 +40,7 @@ from purchase.models import Purchase
 from researchhub.lib import CREATED_LOCATIONS
 from researchhub.settings import TESTING
 from researchhub_comment.models import RhCommentThreadModel
-from researchhub_document.related_models.constants.editor_type import (
-    EDITOR_TYPES,
-    TEXT_FIELD,
-)
+from researchhub_document.models.constants.editor_type import EDITOR_TYPES, TEXT_FIELD
 from summary.models import Summary
 from utils.http import check_url_contains_pdf, scraper_get_url
 from utils.twitter import (

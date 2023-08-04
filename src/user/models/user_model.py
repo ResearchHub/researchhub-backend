@@ -12,7 +12,6 @@ from mailing_list.models import EmailRecipient
 from reputation.models import PaidStatusModelMixin, Withdrawal
 from researchhub.settings import BASE_FRONTEND_URL, NO_ELASTIC
 from researchhub_access_group.constants import EDITOR
-from user.tasks import handle_spam_user_task, update_elastic_registry
 from utils.message import send_email_message
 from utils.siftscience import decisions_api
 from utils.throttles import UserSustainedRateThrottle
@@ -99,6 +98,7 @@ class User(AbstractUser):
         #
         # If we want to allow client specified usernames, simply remove the
         # set username line.
+        from user.tasks import update_elastic_registry
 
         if (self.email is not None) and (self.email != ""):
             self.username = self.email
@@ -137,6 +137,8 @@ class User(AbstractUser):
         self.save()
 
     def set_probable_spammer(self, probable_spammer=True):
+        from user.tasks import handle_spam_user_task
+
         if self.probable_spammer != probable_spammer:
             capcha_throttle = UserSustainedRateThrottle()
             capcha_throttle.lock(self, "probably_spam")

@@ -10,7 +10,7 @@ from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from purchase.models import Purchase
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.models import ResearchhubPost
-from researchhub_document.related_models.constants.document_type import (
+from researchhub_document.models.constants.document_type import (
     RESEARCHHUB_POST_DOCUMENT_TYPES,
 )
 from user.serializers import (

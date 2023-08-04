@@ -35,9 +35,7 @@ from paper.utils import (
     get_pdf_location_for_csl_item,
 )
 from researchhub.celery import QUEUE_PAPER_METADATA, app
-from researchhub_document.related_models.constants.document_type import (
-    FILTER_OPEN_ACCESS,
-)
+from researchhub_document.models.constants.document_type import FILTER_OPEN_ACCESS
 from tag.models import Concept
 from utils import sentry
 from utils.http import check_url_contains_pdf

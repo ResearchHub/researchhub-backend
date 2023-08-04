@@ -18,11 +18,9 @@ from researchhub_case.utils.author_claim_case_utils import (
     send_rejection_email,
     send_validation_email,
 )
-from researchhub_document.related_models.constants.document_type import (
-    FILTER_AUTHOR_CLAIMED,
-)
+from researchhub_document.models.constants.document_type import FILTER_AUTHOR_CLAIMED
 from rh_scholarly.lambda_handler import AUTHOR_PROFILE_LOOKUP
-from user.models import Author, AuthorCitation
+from user.models.author import Author, AuthorCitation
 from utils import sentry
 
 

@@ -1,12 +1,12 @@
 from hypothesis.related_models.hypothesis import Hypothesis
 from paper.models import Paper
 from researchhub_document.models import ResearchhubPost
-from researchhub_document.related_models.constants.document_type import (
+from researchhub_document.models.constants.document_type import (
     HYPOTHESIS,
     PAPER,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
 )
-from researchhub_document.related_models.researchhub_unified_document_model import (
+from researchhub_document.models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
 from utils.permissions import AuthorizationBasedPermission
@@ -68,7 +68,11 @@ class HasDocumentEditingPermission(AuthorizationBasedPermission):
         ):
             if request.data.get("post_id") is not None:
                 post = ResearchhubPost.objects.get(id=request.data.get("post_id"))
-                if post.created_by_id == request.user.id or request.user.moderator or post.note.organization.org_has_member_user(request.user):
+                if (
+                    post.created_by_id == request.user.id
+                    or request.user.moderator
+                    or post.note.organization.org_has_member_user(request.user)
+                ):
                     return True
                 else:
                     return False

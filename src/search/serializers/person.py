@@ -1,8 +1,6 @@
-from django_elasticsearch_dsl_drf.serializers import DocumentSerializer
 from rest_framework import serializers
 
-from search.documents import PersonDocument
-from user.models import Author, User
+from user.models.author import Author
 from user.serializers import AuthorSerializer, UserSerializer
 
 

@@ -18,7 +18,7 @@ from hypothesis.related_models.hypothesis import Hypothesis
 from paper.models import Figure, Paper
 from researchhub.celery import QUEUE_EXTERNAL_REPORTING, app
 from researchhub.settings import PRODUCTION
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.models.researchhub_post_model import ResearchhubPost
 from summary.models import Summary
 from user.models import User
 

@@ -10,8 +10,8 @@ from hypothesis.models import Citation
 from hypothesis.related_models.hypothesis import Hypothesis
 from paper.models import Paper
 from researchhub.lib import get_document_id_from_path
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
-from user.models import Author
+from researchhub_document.models.researchhub_post_model import ResearchhubPost
+from user.models.author import Author
 from utils.http import RequestMethods
 from utils.permissions import (
     AuthorizationBasedPermission,

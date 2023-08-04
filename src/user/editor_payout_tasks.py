@@ -18,7 +18,7 @@ from user.constants.gatekeeper_constants import (
     EDITOR_PAYOUT_ADMIN,
     PAYOUT_EXCLUSION_LIST,
 )
-from user.related_models.gatekeeper_model import Gatekeeper
+from user.models.gatekeeper_model import Gatekeeper
 from utils import sentry
 
 UNI_SWAP_BUNDLE_ID = 1  # their own hard-coded eth-bundle id
