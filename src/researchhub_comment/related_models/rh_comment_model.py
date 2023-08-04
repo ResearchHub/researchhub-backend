@@ -123,15 +123,19 @@ class RhCommentModel(
         for op in ops:
             text = op.get("insert")
             # Ensuring it is a string
-            plain_text += f"{text}"
+            plain_text = f"{plain_text}{text}"
         return plain_text
 
     @property
     def users_to_notify(self):
         if self.parent:
-            return [self.parent.created_by]
+            users_to_notify = self.parent.created_by
         else:
-            return [self.thread.content_object.created_by]
+            users_to_notify = self.thread.content_object.created_by
+
+        if users_to_notify:
+            return [users_to_notify]
+        return []
 
     """ --- METHODS --- """
 
