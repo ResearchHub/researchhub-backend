@@ -5,6 +5,7 @@ from hypothesis.models import Hypothesis
 from paper.models import Paper
 from paper.serializers import DynamicPaperSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
+from researchhub_access_group.constants import PRIVATE, PUBLIC, WORKSPACE
 from researchhub_comment.models import RhCommentThreadModel
 from researchhub_comment.serializers.constants.rh_comment_thread_serializer_constants import (
     RH_COMMENT_THREAD_FIELDS,
@@ -36,6 +37,7 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
     comments = SerializerMethodField()
     comment_count = SerializerMethodField()
     content_object = SerializerMethodField()
+    privacy_type = SerializerMethodField()
 
     class Meta:
         fields = "__all__"
@@ -84,3 +86,13 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
             content_object, context=context, **_context_fields
         ).data
         return serializer_data
+
+    def get_privacy_type(self, thread):
+        permissions = thread.permissions
+        if permissions.exists():
+            permission = permissions.first()
+            if permission.organization:
+                return WORKSPACE
+            else:
+                return PRIVATE
+        return PUBLIC

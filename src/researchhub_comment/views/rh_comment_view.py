@@ -202,7 +202,14 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         context = self.get_serializer_context()
         context = {
             **context,
-            "rhc_dcs_get_thread": {"_include_fields": ("thread_type", "id", "anchor")},
+            "rhc_dcs_get_thread": {
+                "_include_fields": (
+                    "anchor",
+                    "id",
+                    "privacy_type",
+                    "thread_type",
+                )
+            },
             "rhc_dcs_get_created_by": {
                 "_include_fields": (
                     "id",
@@ -434,6 +441,8 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             "bounties__created_by",
             "bounties__created_by__author_profile",
             "bounty_solution",
+            "reviews",
+            "thread__permissions",
         )
 
         page = self.paginate_queryset(queryset)
