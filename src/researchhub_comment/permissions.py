@@ -29,7 +29,7 @@ class ThreadViewingPermissions(BasePermission):
 
     def has_permission(self, request, view):
         user = request.user
-        organization = request.organization
+        organization = getattr(request, "organization", None)
         if request.method == GET:
             organization_id = request.query_params.get("organization_id", None)
 
