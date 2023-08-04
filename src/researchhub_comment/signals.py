@@ -17,7 +17,7 @@ def create_thread_notification(sender, instance, created, **kwargs):
             notification_type = Notification.COMMENT
 
         for recipient in instance.users_to_notify:
-            if recipient != creator:
+            if recipient and recipient != creator:
                 notification = Notification.objects.create(
                     item=instance,
                     unified_document=instance.unified_document,
