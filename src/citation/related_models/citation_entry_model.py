@@ -43,6 +43,28 @@ class CitationEntry(DefaultAuthenticatedModel):
         related_name="citation_entries",
     )
 
+    """--- PROPERTIES ---"""
+
+    @property
+    def created_by_indexing(self):
+        # For Elasticsearch indexing
+        created_by = self.created_by
+        first_name = created_by.first_name
+        last_name = created_by.last_name
+        return {
+            "id": self.created_by.id,
+            "first_name": first_name,
+            "last_name": first_name,
+            "full_name": f"{first_name} {last_name}",
+        }
+
+    @property
+    def title_indexing(self):
+        # For Elasticsearch indexing
+        title = self.fields.get("title", "")
+        print(title)
+        return title
+
     """--- METHODS ---"""
 
     def is_user_allowed_to_edit(self, user):

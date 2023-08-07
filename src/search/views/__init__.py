@@ -1,4 +1,5 @@
 # flake8: noqa
+from .citation import CitationEntryDocumentView
 from .combined import CombinedView  # , crossref, orcid
 from .hub import HubDocumentView
 from .paper import PaperDocumentView

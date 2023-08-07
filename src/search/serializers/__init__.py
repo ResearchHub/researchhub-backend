@@ -1,8 +1,9 @@
 # flake8: noqa
-from .person import PersonDocumentSerializer
+from .citation import CitationEntryDocumentSerializer
 from .hub import HubDocumentSerializer
-from .paper import PaperDocumentSerializer, CrossrefPaperSerializer
+from .paper import CrossrefPaperSerializer, PaperDocumentSerializer
+from .person import PersonDocumentSerializer
+from .post import PostDocumentSerializer
 from .summary import SummaryDocumentSerializer
 from .thread import ThreadDocumentSerializer
 from .university import UniversityDocumentSerializer
-from .post import PostDocumentSerializer
