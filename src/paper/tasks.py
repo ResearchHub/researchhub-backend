@@ -431,7 +431,6 @@ def celery_extract_twitter_comments(paper_id):
 
     source = "twitter"
     try:
-
         results = get_twitter_url_results(url)
         for res in results:
             source_id = res.id_str
@@ -672,6 +671,7 @@ RETRY_MAX = 20  # It fails a lot so retry a bunch
 NUM_DUP_STOP = 30  # Number of dups to hit before determining we're done
 BASE_URL = "http://export.arxiv.org/api/query?"
 
+
 # Pull Daily (arxiv updates 20:00 EST)
 # @periodic_task(
 #     run_every=crontab(minute=0, hour='*/2'),
@@ -896,6 +896,7 @@ RETRY_WAIT = 8
 RETRY_MAX = 20
 NUM_DUP_STOP = 30
 
+
 # Pull Daily
 # @periodic_task(
 #     run_every=crontab(minute=0, hour='*/6'),
@@ -1066,3 +1067,13 @@ def pull_crossref_papers(start=0, force=False):
     """
     sentry.log_info(info)
     return total_results
+
+
+# Pull Daily
+# @periodic_task(
+#     run_every=crontab(minute=0, hour='*/6'),
+#     priority=1,
+#     queue=QUEUE_PULL_PAPERS
+# )
+def pull_biorxiv_papers(start=0):
+    pass
