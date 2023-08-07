@@ -2,6 +2,7 @@ from django_elasticsearch_dsl_drf.constants import SUGGESTER_COMPLETION
 from django_elasticsearch_dsl_drf.filter_backends import (
     FilteringFilterBackend,
     OrderingFilterBackend,
+    SearchFilterBackend,
     SuggesterFilterBackend,
 )
 from django_elasticsearch_dsl_drf.pagination import LimitOffsetPagination
@@ -22,8 +23,9 @@ class CitationEntryDocumentView(DocumentViewSet):
     lookup_field = "id"
     filter_backends = [
         FilteringFilterBackend,
-        MultiMatchSearchFilterBackend,
-        SuggesterFilterBackend,
+        SearchFilterBackend,
+        # MultiMatchSearchFilterBackend,
+        # SuggesterFilterBackend,
     ]
     search_fields = ("title", "full_name")
     filter_fields = {
