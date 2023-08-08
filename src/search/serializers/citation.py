@@ -9,5 +9,6 @@ class CitationEntryDocumentSerializer(DocumentSerializer):
         fields = (
             "id",
             "created_by",
+            "organization",
             "title",
         )

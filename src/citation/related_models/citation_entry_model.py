@@ -59,10 +59,14 @@ class CitationEntry(DefaultAuthenticatedModel):
         }
 
     @property
+    def organization_indexing(self):
+        # For Elasticsearch indexing
+        return {"id": self.organization.id, "name": self.organization.name}
+
+    @property
     def title_indexing(self):
         # For Elasticsearch indexing
         title = self.fields.get("title", "")
-        print(title)
         return title
 
     """--- METHODS ---"""
