@@ -12,8 +12,8 @@ from rest_framework.serializers import (
 
 from citation.related_models.citation_entry_model import CitationEntry
 from citation.schema import generate_schema_for_citation
-from paper.serializers import PaperSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
+from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 from user.serializers import DynamicOrganizationSerializer, DynamicUserSerializer
 from utils.serializers import DefaultAuthenticatedSerializer
 
@@ -22,7 +22,7 @@ class CitationEntrySerializer(DefaultAuthenticatedSerializer):
     checksum = ReadOnlyField()
     fields = JSONField()
     required_fields = SerializerMethodField(read_only=True)
-    paper = SerializerMethodField(read_only=True)
+    related_unified_doc = SerializerMethodField()
 
     class Meta:
         model = CitationEntry
@@ -31,10 +31,19 @@ class CitationEntrySerializer(DefaultAuthenticatedSerializer):
     """ ----- Django Method Overrides -----"""
 
     def create(self, validated_data):
+        from citation.utils import get_paper_by_doi
+
         with transaction.atomic():
             cleaned_attachment, attachment_name = self._get_cleaned_up_attachment(
                 validated_data
             )
+            try:
+                if doi := validated_data.get("doi", None):
+                    paper = get_paper_by_doi(doi)
+                    validated_data["related_unified_doc_id"] = paper.unified_document.id
+            except Exception:
+                pass
+
             citation_entry = self._add_attachment(
                 citation_entry=super().create(validated_data),
                 attachment=cleaned_attachment,
@@ -67,10 +76,6 @@ class CitationEntrySerializer(DefaultAuthenticatedSerializer):
 
     """ ----- Serializer Methods -----"""
 
-    def get_paper(self, citation_entry):
-        if citation_entry.unified_doc:
-            return PaperSerializer(citation_entry.unified_doc.paper)
-
     def get_attachment_url(self, citation_entry):
         try:
             attachment = citation_entry.attachment
@@ -87,6 +92,32 @@ class CitationEntrySerializer(DefaultAuthenticatedSerializer):
             ).get("required")
             or []
         )
+
+    def get_related_unified_doc(self, citation_entry):
+        related_unified_doc = citation_entry.related_unified_doc
+        if related_unified_doc:
+            serializer = DynamicUnifiedDocumentSerializer(
+                related_unified_doc,
+                _include_fields=[
+                    "id",
+                    "documents",
+                    "paper_title",
+                    "document_type",
+                ],
+                context={
+                    "doc_duds_get_documents": {
+                        "_include_fields": [
+                            "id",
+                            "title",
+                            "slug",
+                            "paper_title",
+                        ]
+                    },
+                },
+                many=False,
+            )
+            return serializer.data
+        return None
 
     """ ----- Private Methods -----"""
 
@@ -112,6 +143,7 @@ class CitationEntrySerializer(DefaultAuthenticatedSerializer):
 
 class DynamicCitationEntrySerializer(DynamicModelFieldSerializer):
     created_by = SerializerMethodField()
+    related_unified_doc = SerializerMethodField()
     organization = SerializerMethodField()
 
     class Meta:
@@ -125,6 +157,31 @@ class DynamicCitationEntrySerializer(DynamicModelFieldSerializer):
             citation.created_by, context=context, **_context_fields
         )
         return serializer.data
+
+    def get_related_unified_doc(self, citation_entry):
+        related_unified_doc = citation_entry.related_unified_doc
+        if related_unified_doc:
+            serializer = DynamicUnifiedDocumentSerializer(
+                related_unified_doc,
+                _include_fields=[
+                    "id",
+                    "documents",
+                    "paper_title",
+                    "document_type",
+                ],
+                context={
+                    "doc_duds_get_documents": {
+                        "_include_fields": [
+                            "id",
+                            "title",
+                            "slug",
+                            "paper_title",
+                        ]
+                    },
+                },
+                many=False,
+            )
+            return serializer.data
 
     def get_organization(self, citation):
         context = self.context

@@ -618,7 +618,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 self._create_thread_permission(user, thread, None)
             elif permission_type == WORKSPACE:
                 thread.permissions.all().delete()
-                organization = request.organization
+                organization = getattr(request, "organization", None)
                 if organization is None:
                     return Response(status=401)
                 self._create_thread_permission(user, thread, organization)
@@ -669,7 +669,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
     def _retrieve_or_create_thread_from_request(self, request):
         data = request.data
         user = request.user
-        organization = request.organization
+        organization = getattr(request, "organization", None)
 
         try:
             thread_id = data.get("thread_id", None)

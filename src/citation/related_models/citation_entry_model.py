@@ -37,9 +37,8 @@ class CitationEntry(DefaultAuthenticatedModel):
         related_name="citations",
         related_query_name="citations",
     )
-    unified_doc = models.ForeignKey(
+    related_unified_doc = models.ForeignKey(
         ResearchhubUnifiedDocument,
-        blank=True,
         null=True,
         on_delete=models.CASCADE,
         related_name="citation_entries",

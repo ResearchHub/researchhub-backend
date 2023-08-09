@@ -196,13 +196,11 @@ class RHCommentFilter(filters.FilterSet):
         return qs.filter(id__in=sliced_children_ids)
 
     def privacy_filter(self, qs, name, value):
-        from user.models import User
-
         request = self.request
         user = request.user
-        # user = User.objects.get(id=1)
+
         if user.is_anonymous:
-            return qs
+            return qs.filter(thread__permissions__isnull=True)
 
         if value == PRIVATE:
             qs = qs.filter(thread__permissions__user=user)
@@ -212,5 +210,5 @@ class RHCommentFilter(filters.FilterSet):
             qs = qs.filter(thread__permissions__organization=org)
         else:
             # Public comments
-            return qs
+            qs = qs.filter(thread__permissions__isnull=True)
         return qs

@@ -8,7 +8,7 @@ from django.contrib.admin.options import get_content_type_for_model
 from django.db import connection
 from django.test import Client
 from rest_framework.authtoken.models import Token
-from rest_framework.test import APIClient
+from rest_framework.test import APIClient, APITestCase, ForceAuthClientHandler
 
 from bullet_point.models import BulletPoint
 from discussion.models import Thread
@@ -379,3 +379,24 @@ def test_concurrently(runs, delay=None):
         return wrapper
 
     return test_concurrently_decorator
+
+
+class ForceAuthClientHandlerWithOrg(ForceAuthClientHandler):
+    def get_response(self, request):
+        request.organization = self._organization
+        res = super().get_response(request)
+        return res
+
+
+class APIClientWithOrg(APIClient):
+    def __init__(self, enforce_csrf_checks=False, **defaults):
+        super().__init__(enforce_csrf_checks=False, **defaults)
+        self.handler = ForceAuthClientHandlerWithOrg(enforce_csrf_checks)
+
+    def force_authenticate(self, user=None, token=None, organization=None):
+        super().force_authenticate(user=user, token=token)
+        self.handler._organization = organization
+
+
+class APITestCaseWithOrg(APITestCase):
+    client_class = APIClientWithOrg
