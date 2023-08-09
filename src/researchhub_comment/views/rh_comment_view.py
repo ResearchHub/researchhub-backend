@@ -31,7 +31,7 @@ from researchhub_access_group.constants import ADMIN, PRIVATE, PUBLIC, WORKSPACE
 from researchhub_access_group.models import Permission
 from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT
 from researchhub_comment.constants.rh_comment_view_constants import (
-    CITATION,
+    CITATION_ENTRY,
     HYPOTHESIS,
     PAPER,
     RESEARCHHUB_POST,
@@ -114,12 +114,12 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         IsObjectOwner,
         ThreadViewingPermissions,
     ]
-    _ALLOWED_MODEL_NAMES = (PAPER, RESEARCHHUB_POST, HYPOTHESIS, CITATION)
+    _ALLOWED_MODEL_NAMES = (PAPER, RESEARCHHUB_POST, HYPOTHESIS, CITATION_ENTRY)
     _CONTENT_TYPE_MAPPINGS = {
         PAPER: "paper",
         RESEARCHHUB_POST: "researchhubpost",
         HYPOTHESIS: "hypothesis",
-        CITATION: "citationentry",
+        CITATION_ENTRY: "citationentry",
     }
     _ALLOWED_UPDATE_FIELDS = set(
         ["comment_content_type", "comment_content_json", "context_title", "mentions"]
@@ -285,7 +285,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             )
             rh_comment, _ = RhCommentModel.create_from_data(data)
 
-            if model != CITATION:
+            if model != CITATION_ENTRY:
                 unified_document = rh_comment.unified_document
                 self.add_upvote(user, rh_comment)
                 self._create_mention_notifications_from_request(request, rh_comment.id)
@@ -657,7 +657,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
     def _create_thread_permission(self, user, thread, organization):
         # Ensure private/workspace comments can only be created within citation endpoint
         model = self._get_model_name()
-        if model == CITATION:
+        if model == CITATION_ENTRY:
             data = {
                 "access_type": ADMIN,
                 "source": thread,
