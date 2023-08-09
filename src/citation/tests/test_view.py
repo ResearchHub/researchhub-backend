@@ -68,7 +68,7 @@ class CitationEntryViewTests(APITestCaseWithOrg):
 
         self.client.force_authenticate(self.authenticated_user)
         response = self.client.post(
-            f"/api/citation/{citation_id}/comments/create_rh_comment/",
+            f"/api/citationentry/{citation_id}/comments/create_rh_comment/",
             {
                 "comment_content_json": {"ops": [{"insert": "test"}]},
                 "thread_type": "GENERIC_COMMENT",
@@ -87,7 +87,7 @@ class CitationEntryViewTests(APITestCaseWithOrg):
             self.authenticated_user, organization=self.authenticated_user.organization
         )
         response = self.client.post(
-            f"/api/citation/{citation_id}/comments/create_rh_comment/",
+            f"/api/citationentry/{citation_id}/comments/create_rh_comment/",
             {
                 "comment_content_json": {"ops": [{"insert": "test"}]},
                 "thread_type": "GENERIC_COMMENT",
@@ -104,9 +104,9 @@ class CitationEntryViewTests(APITestCaseWithOrg):
         self.client.force_authenticate(self.random_user)
 
         response_1 = self.client.get(
-            f"/api/citation/{citation_id}/comments/{private_comment_id}/"
+            f"/api/citationentry/{citation_id}/comments/{private_comment_id}/"
         )
-        response_2 = self.client.get(f"/api/citation/{citation_id}/comments/")
+        response_2 = self.client.get(f"/api/citationentry/{citation_id}/comments/")
         self.assertEqual(response_1.status_code, 404)
         self.assertEqual(response_2.data.get("count", None), 0)
 
@@ -117,9 +117,9 @@ class CitationEntryViewTests(APITestCaseWithOrg):
         self.client.force_authenticate(self.random_user)
 
         response_1 = self.client.get(
-            f"/api/citation/{citation_id}/comments/{workspace_comment_id}/"
+            f"/api/citationentry/{citation_id}/comments/{workspace_comment_id}/"
         )
-        response_2 = self.client.get(f"/api/citation/{citation_id}/comments/")
+        response_2 = self.client.get(f"/api/citationentry/{citation_id}/comments/")
         self.assertEqual(response_1.status_code, 404)
         self.assertEqual(response_2.data.get("count", None), 0)
 
@@ -137,10 +137,24 @@ class CitationEntryViewTests(APITestCaseWithOrg):
             self.organization_user, organization=self.authenticated_user.organization
         )
         response_1 = self.client.get(
-            f"/api/citation/{citation_id}/comments/{workspace_comment_id}/?privacy_type=WORKSPACE"
+            f"/api/citationentry/{citation_id}/comments/{workspace_comment_id}/?privacy_type=WORKSPACE"
         )
         response_2 = self.client.get(
-            f"/api/citation/{citation_id}/comments/?privacy_type=WORKSPACE"
+            f"/api/citationentry/{citation_id}/comments/?privacy_type=WORKSPACE"
         )
         self.assertEqual(response_1.status_code, 200)
         self.assertEqual(response_2.data.get("count", None), 1)
+
+    def test_change_comment_from_private_to_workspace(self):
+        private_comment, citation = self.test_create_private_comment()
+        citation_id = citation.data.get("id")
+        private_comment_id = private_comment.data.get("id")
+        self.client.force_authenticate(self.authenticated_user)
+        self.client.patch(
+            f"/api/citationentry/{citation_id}/comments/{private_comment_id}/update_comment_permission/",
+            {
+                "privacy_type": "WORKSPACE",
+                "content_type": "citationentry",
+                "object_id": private_comment_id,
+            },
+        )
