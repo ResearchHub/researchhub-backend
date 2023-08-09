@@ -613,7 +613,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         thread = comment.thread
 
         with transaction.atomic():
-            if permission_type := data.get("privacy_type", None) == PRIVATE:
+            if (permission_type := data.get("privacy_type", None)) == PRIVATE:
                 thread.permissions.all().delete()
                 self._create_thread_permission(user, thread, None)
             elif permission_type == WORKSPACE:

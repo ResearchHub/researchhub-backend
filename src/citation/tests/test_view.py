@@ -1,4 +1,5 @@
 from citation.constants import JOURNAL_ARTICLE
+from paper.tests.helpers import create_paper
 from researchhub_access_group.models import Permission
 from user.tests.helpers import create_random_default_user
 from utils.test_helpers import APITestCaseWithOrg
@@ -149,12 +150,128 @@ class CitationEntryViewTests(APITestCaseWithOrg):
         private_comment, citation = self.test_create_private_comment()
         citation_id = citation.data.get("id")
         private_comment_id = private_comment.data.get("id")
-        self.client.force_authenticate(self.authenticated_user)
-        self.client.patch(
-            f"/api/citationentry/{citation_id}/comments/{private_comment_id}/update_comment_permission/",
+        self.client.force_authenticate(
+            self.authenticated_user, organization=self.authenticated_user.organization
+        )
+        response_1 = self.client.patch(
+            f"/api/citationentry/{citation_id}/comments/{private_comment_id}/update_comment_permission/?privacy_type=PRIVATE",
             {
                 "privacy_type": "WORKSPACE",
-                "content_type": "citationentry",
-                "object_id": private_comment_id,
+                # "content_type": "citationentry",
+                # "object_id": private_comment_id,
             },
         )
+        self.assertEqual(response_1.status_code, 200)
+
+        self.client.force_authenticate(
+            self.organization_user, organization=self.organization_user.organization
+        )
+        response_2 = self.client.get(
+            f"/api/citationentry/{citation_id}/comments/{private_comment_id}/?privacy_type=WORKSPACE"
+        )
+        self.assertEqual(response_2.status_code, 404)
+
+        Permission.objects.create(
+            access_type="ADMIN",
+            source=self.authenticated_user.organization,
+            user=self.organization_user,
+        )
+        self.client.force_authenticate(
+            self.organization_user, organization=self.authenticated_user.organization
+        )
+        response_3 = self.client.get(
+            f"/api/citationentry/{citation_id}/comments/?privacy_type=WORKSPACE"
+        )
+        self.assertEqual(response_3.data.get("count", None), 1)
+
+    def test_change_comment_from_workspace_to_private(self):
+        workspace_comment, citation = self.test_create_workspace_comment()
+        citation_id = citation.data.get("id")
+        workspace_comment_id = workspace_comment.data.get("id")
+        self.client.force_authenticate(
+            self.authenticated_user, organization=self.authenticated_user.organization
+        )
+        response_1 = self.client.patch(
+            f"/api/citationentry/{citation_id}/comments/{workspace_comment_id}/update_comment_permission/?privacy_type=WORKSPACE",
+            {
+                "privacy_type": "PRIVATE",
+            },
+        )
+        self.assertEqual(response_1.status_code, 200)
+
+        self.client.force_authenticate(
+            self.organization_user, organization=self.organization_user.organization
+        )
+        response_2 = self.client.get(
+            f"/api/citationentry/{citation_id}/comments/{workspace_comment_id}/?privacy_type=PRIVATE"
+        )
+        self.assertEqual(response_2.status_code, 404)
+
+        Permission.objects.create(
+            access_type="ADMIN",
+            source=self.authenticated_user.organization,
+            user=self.organization_user,
+        )
+        self.client.force_authenticate(
+            self.organization_user, organization=self.authenticated_user.organization
+        )
+        response_3 = self.client.get(
+            f"/api/citationentry/{citation_id}/comments/?privacy_type=PRIVATE"
+        )
+        self.assertEqual(response_3.data.get("count", None), 1)
+
+    def test_change_comment_from_private_to_public(self):
+        paper = create_paper()
+        private_comment, citation = self.test_create_private_comment()
+        citation_id = citation.data.get("id")
+        private_comment_id = private_comment.data.get("id")
+        self.client.force_authenticate(
+            self.authenticated_user, organization=self.authenticated_user.organization
+        )
+        response_1 = self.client.patch(
+            f"/api/citationentry/{citation_id}/comments/{private_comment_id}/update_comment_permission/?privacy_type=PRIVATE",
+            {
+                "privacy_type": "PUBLIC",
+                "content_type": "paper",
+                "object_id": paper.id,
+            },
+        )
+        self.assertEqual(response_1.status_code, 200)
+
+        self.client.force_authenticate(self.organization_user)
+        response_2 = self.client.get(
+            f"/api/paper/{paper.id}/comments/{private_comment_id}/"
+        )
+        self.assertEqual(response_2.status_code, 200)
+        return paper, citation, private_comment
+
+    def test_change_comment_from_public_to_private(self):
+        (
+            paper,
+            citation,
+            public_comment,
+        ) = self.test_change_comment_from_private_to_public()
+        paper_id = paper.id
+        citation_id = citation.data.get("id")
+        public_comment_id = public_comment.data.get("id")
+        self.client.force_authenticate(
+            self.authenticated_user, organization=self.authenticated_user.organization
+        )
+        response_1 = self.client.patch(
+            f"/api/paper/{paper_id}/comments/{public_comment_id}/update_comment_permission/?privacy_type=PUBLIC",
+            {
+                "privacy_type": "PRIVATE",
+                "content_type": "citationentry",
+                "object_id": citation_id,
+            },
+        )
+        self.assertEqual(response_1.status_code, 200)
+
+        response_2 = self.client.get(
+            f"/api/citationentry/{citation_id}/comments/{public_comment_id}/?privacy_type=PRIVATE"
+        )
+        self.assertEqual(response_2.status_code, 200)
+        response_3 = self.client.get(
+            f"/api/citationentry/{citation_id}/comments/?privacy_type=PRIVATE"
+        )
+        self.assertEqual(response_3.data.get("count", None), 1)
