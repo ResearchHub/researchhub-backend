@@ -613,6 +613,9 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         thread = comment.thread
 
         with transaction.atomic():
+            model = data.get("content_type")
+            object_id = data.get("object_id")
+
             if (permission_type := data.get("privacy_type", None)) == PRIVATE:
                 thread.permissions.all().delete()
                 self._create_thread_permission(user, thread, None)
@@ -624,18 +627,17 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 self._create_thread_permission(user, thread, organization)
             else:
                 thread.permissions.all().delete()
-                model = data.get("content_type")
-                object_id = data.get("object_id")
                 if model not in self._ALLOWED_MODEL_NAMES:
                     return Response(status=401)
-                content_type = self._get_content_type_model(model)
-                serializer = RhCommentThreadSerializer(
-                    thread,
-                    data={"content_type": content_type.id, "object_id": object_id},
-                    partial=True,
-                )
-                serializer.is_valid()
-                serializer.save()
+
+            content_type = self._get_content_type_model(model)
+            serializer = RhCommentThreadSerializer(
+                thread,
+                data={"content_type": content_type.id, "object_id": object_id},
+                partial=True,
+            )
+            serializer.is_valid()
+            serializer.save()
             return Response(status=200)
 
     def _create_mention_notifications_from_request(self, request, comment_id):
@@ -655,16 +657,13 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             )
 
     def _create_thread_permission(self, user, thread, organization):
-        # Ensure private/workspace comments can only be created within citation endpoint
-        model = self._get_model_name()
-        if model == CITATION_ENTRY:
-            data = {
-                "access_type": ADMIN,
-                "source": thread,
-                "user": user,
-                "organization": organization,
-            }
-            return Permission.objects.create(**data)
+        data = {
+            "access_type": ADMIN,
+            "source": thread,
+            "user": user,
+            "organization": organization,
+        }
+        return Permission.objects.create(**data)
 
     def _retrieve_or_create_thread_from_request(self, request):
         data = request.data
@@ -701,10 +700,14 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     )
                     serializer.is_valid(raise_exception=True)
                     instance = serializer.save()
-                    if privacy_type == PRIVATE:
-                        self._create_thread_permission(user, instance, None)
-                    elif privacy_type == WORKSPACE:
-                        self._create_thread_permission(user, instance, organization)
+
+                    # Ensure private/workspace comments can only be created within citation endpoint
+                    model = self._get_model_name()
+                    if model == CITATION_ENTRY:
+                        if privacy_type == PRIVATE:
+                            self._create_thread_permission(user, instance, None)
+                        elif privacy_type == WORKSPACE:
+                            self._create_thread_permission(user, instance, organization)
                     return instance, None
 
         except Exception as error:

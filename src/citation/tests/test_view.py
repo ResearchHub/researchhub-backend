@@ -154,11 +154,11 @@ class CitationEntryViewTests(APITestCaseWithOrg):
             self.authenticated_user, organization=self.authenticated_user.organization
         )
         response_1 = self.client.patch(
-            f"/api/citationentry/{citation_id}/comments/{private_comment_id}/update_comment_permission/?privacy_type=PRIVATE",
+            f"/api/citationentry/{citation_id}/comments/{private_comment_id}/update_comment_permission/",
             {
                 "privacy_type": "WORKSPACE",
-                # "content_type": "citationentry",
-                # "object_id": private_comment_id,
+                "content_type": "citationentry",
+                "object_id": private_comment_id,
             },
         )
         self.assertEqual(response_1.status_code, 200)
@@ -192,9 +192,11 @@ class CitationEntryViewTests(APITestCaseWithOrg):
             self.authenticated_user, organization=self.authenticated_user.organization
         )
         response_1 = self.client.patch(
-            f"/api/citationentry/{citation_id}/comments/{workspace_comment_id}/update_comment_permission/?privacy_type=WORKSPACE",
+            f"/api/citationentry/{citation_id}/comments/{workspace_comment_id}/update_comment_permission/",
             {
                 "privacy_type": "PRIVATE",
+                "content_type": "citationentry",
+                "object_id": citation_id,
             },
         )
         self.assertEqual(response_1.status_code, 200)
@@ -218,7 +220,15 @@ class CitationEntryViewTests(APITestCaseWithOrg):
         response_3 = self.client.get(
             f"/api/citationentry/{citation_id}/comments/?privacy_type=PRIVATE"
         )
-        self.assertEqual(response_3.data.get("count", None), 1)
+        self.assertEqual(response_3.data.get("count", None), 0)
+
+        self.client.force_authenticate(
+            self.authenticated_user, organization=self.authenticated_user.organization
+        )
+        response_4 = self.client.get(
+            f"/api/citationentry/{citation_id}/comments/?privacy_type=PRIVATE"
+        )
+        self.assertEqual(response_4.data.get("count", None), 1)
 
     def test_change_comment_from_private_to_public(self):
         paper = create_paper()
@@ -229,7 +239,7 @@ class CitationEntryViewTests(APITestCaseWithOrg):
             self.authenticated_user, organization=self.authenticated_user.organization
         )
         response_1 = self.client.patch(
-            f"/api/citationentry/{citation_id}/comments/{private_comment_id}/update_comment_permission/?privacy_type=PRIVATE",
+            f"/api/citationentry/{citation_id}/comments/{private_comment_id}/update_comment_permission/",
             {
                 "privacy_type": "PUBLIC",
                 "content_type": "paper",
@@ -258,7 +268,7 @@ class CitationEntryViewTests(APITestCaseWithOrg):
             self.authenticated_user, organization=self.authenticated_user.organization
         )
         response_1 = self.client.patch(
-            f"/api/paper/{paper_id}/comments/{public_comment_id}/update_comment_permission/?privacy_type=PUBLIC",
+            f"/api/paper/{paper_id}/comments/{public_comment_id}/update_comment_permission/",
             {
                 "privacy_type": "PRIVATE",
                 "content_type": "citationentry",

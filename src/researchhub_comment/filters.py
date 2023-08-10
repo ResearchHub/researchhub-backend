@@ -14,6 +14,7 @@ from researchhub_comment.constants.rh_comment_thread_types import (
     SUMMARY,
 )
 from researchhub_comment.models import RhCommentModel
+from utils.http import GET
 
 BEST = "BEST"
 TOP = "TOP"
@@ -89,14 +90,15 @@ class RHCommentFilter(filters.FilterSet):
         model = RhCommentModel
         fields = ("ordering",)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, request=None, **kwargs):
         # Privacy type should always be set, even if not passed in
         # This will ensure private/organization comments will be hidden
-        kwargs["data"]._mutable = True
-        if "privacy_type" not in kwargs["data"]:
-            kwargs["data"]["privacy_type"] = PUBLIC
-        kwargs["data"]._mutable = False
-        super().__init__(*args, **kwargs)
+        if request.method == GET:
+            kwargs["data"]._mutable = True
+            if "privacy_type" not in kwargs["data"]:
+                kwargs["data"]["privacy_type"] = PUBLIC
+            kwargs["data"]._mutable = False
+        super().__init__(*args, request=request, **kwargs)
 
     def _is_ascending(self):
         return self.data.get("ascending", ASCENDING_FALSE) == ASCENDING_TRUE
