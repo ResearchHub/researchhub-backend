@@ -42,7 +42,6 @@ class CitationSerializer(ModelSerializer, GenericReactionSerializerMixin):
     promoted = SerializerMethodField()
     user_endorsement = SerializerMethodField()
     user_flag = SerializerMethodField()
-    user_vote = SerializerMethodField()
 
     def get_boost_amount(self, citation):
         # TODO: leo | thomasvu - add logic / instance method
