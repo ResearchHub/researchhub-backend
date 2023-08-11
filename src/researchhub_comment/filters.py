@@ -209,7 +209,10 @@ class RHCommentFilter(filters.FilterSet):
         elif value == WORKSPACE:
             # Organization permission check is done in permissions
             org = request.organization
-            qs = qs.filter(thread__permissions__organization=org)
+            qs = qs.filter(
+                thread__permissions__organization=org,
+                thread__permissions__organization__isnull=False,
+            )
         else:
             # Public comments
             qs = qs.filter(thread__permissions__isnull=True)

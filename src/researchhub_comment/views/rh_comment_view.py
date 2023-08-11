@@ -443,6 +443,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             "bounty_solution",
             "reviews",
             "thread__permissions",
+            "thread__content_type",
         )
 
         page = self.paginate_queryset(queryset)
