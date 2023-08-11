@@ -208,6 +208,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "id",
                     "privacy_type",
                     "thread_type",
+                    "related_content",
                 )
             },
             "rhc_dcs_get_created_by": {
@@ -221,7 +222,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             },
             "rhc_dcs_get_children": {
                 "_exclude_fields": (
-                    "thread",
                     "comment_content_src",
                     "promoted",
                     "user_endorsement",

@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.models import ContentType
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
 from citation.models import CitationEntry
@@ -38,6 +39,7 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
     comment_count = SerializerMethodField()
     content_object = SerializerMethodField()
     privacy_type = SerializerMethodField()
+    related_content = SerializerMethodField()
 
     class Meta:
         fields = "__all__"
@@ -56,6 +58,17 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
             **_context_fields,
         )
         return serializer.data
+
+    def get_related_content(self, thread):
+        content_object = thread.content_object
+
+        content_type = ContentType.objects.get_for_model(content_object)
+        model_name = content_type.model
+
+        return {
+            "id": content_object.id,
+            "content_type": model_name,
+        }
 
     def get_comment_count(self, thread):
         return thread.rh_comments.count()

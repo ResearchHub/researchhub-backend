@@ -176,6 +176,11 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}/",
 ]
 
+CORS_ALLOW_HEADERS = (
+    *default_headers,
+    "X-organization-id",
+)
+
 
 # Application definition
 
