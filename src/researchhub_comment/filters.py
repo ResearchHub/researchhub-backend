@@ -205,7 +205,10 @@ class RHCommentFilter(filters.FilterSet):
             return qs.filter(thread__permissions__isnull=True)
 
         if value == PRIVATE:
-            qs = qs.filter(thread__permissions__user=user)
+            qs = qs.filter(
+                thread__permissions__user=user,
+                thread__permissions__organization__isnull=True,
+            )
         elif value == WORKSPACE:
             # Organization permission check is done in permissions
             org = request.organization
