@@ -8,11 +8,11 @@ class CitationEntryDocumentSerializer(DocumentSerializer):
         document = CitationEntryDocument
         fields = (
             "id",
-            "doi",
             "citation_type",
             "created_by",
             "created_date",
+            "doi",
+            "fields",
             "organization",
             "title",
-            "fields",
         )
