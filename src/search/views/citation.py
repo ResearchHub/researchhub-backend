@@ -29,15 +29,20 @@ class CitationEntryDocumentView(DocumentViewSet):
         # SuggesterFilterBackend,
     ]
     # search_fields = ("title", "full_name", "fields")
-    search_fields = ("title", "full_name")
-    search_nested_fields = {"title": {"path": "fields", "fields": ["title"]}}
+    search_fields = ("title", "authors")
+    search_nested_fields = {
+        "title": {"path": "fields", "fields": ["title"]},
+        "authors": {
+            "path": "fields",
+            "fields": ["creators.first_name", "creators.last_name"],
+        },
+    }
 
     filter_fields = {
         "created_by": {"field": "created_by.full_name"},
         "created_by_id": {"field": "created_by.id"},
         "organization": {"field": "organization.id"},
         "title": {"field": "title"},
-        "title_test": {"field": "fields.title"}
         # "first_name": {"field": "full_name", "lookups": ["match"]},
     }
     multi_match_search_fields = {
@@ -61,6 +66,7 @@ class CitationEntryDocumentView(DocumentViewSet):
         if organization:
             organization_id = organization.id
         else:
+            # organization_id = user.organization.id
             organization_id = 65
         terms.append({"terms": {"organization.id": [organization_id]}})
         return terms

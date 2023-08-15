@@ -22,6 +22,7 @@ class CitationEntryDocument(BaseDocument):
             "full_name": es_fields.TextField(),
         },
     )
+    created_date = es_fields.DateField(attr="created_date")
     # title = es_fields.TextField(
     #     attr="title_indexing",
     #     analyzer=title_analyzer,
