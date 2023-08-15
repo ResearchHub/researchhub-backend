@@ -2,7 +2,6 @@ from django_elasticsearch_dsl import fields as es_fields
 from django_elasticsearch_dsl.registries import registry
 
 from citation.models import CitationEntry
-from search.analyzers import content_analyzer, name_analyzer, title_analyzer
 
 from .base import BaseDocument
 
@@ -23,10 +22,6 @@ class CitationEntryDocument(BaseDocument):
         },
     )
     created_date = es_fields.DateField(attr="created_date")
-    # title = es_fields.TextField(
-    #     attr="title_indexing",
-    #     analyzer=title_analyzer,
-    # )
     organization = es_fields.ObjectField(
         attr="organization_indexing",
         properties={

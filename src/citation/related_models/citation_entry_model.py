@@ -63,12 +63,6 @@ class CitationEntry(DefaultAuthenticatedModel):
         # For Elasticsearch indexing
         return {"id": self.organization.id, "name": self.organization.name}
 
-    @property
-    def title_indexing(self):
-        # For Elasticsearch indexing
-        title = self.fields.get("title", "")
-        return title
-
     """--- METHODS ---"""
 
     def is_user_allowed_to_edit(self, user):
