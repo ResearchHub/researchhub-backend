@@ -47,7 +47,7 @@ class CitationEntryViewSet(ModelViewSet):
     queryset = CitationEntry.objects.all()
     filter_class = CitationEntryFilter
     filter_backends = (DjangoFilterBackend, OrderingFilter)
-    permission_classes = [UserCanViewCitation, IsAuthenticated]
+    permission_classes = [IsAuthenticated, UserCanViewCitation]
     serializer_class = CitationEntrySerializer
     pagination_class = CitationEntryPagination
     ordering = ("-updated_date", "-created_date")
@@ -125,18 +125,6 @@ class CitationEntryViewSet(ModelViewSet):
         #     return self.get_paginated_response(serializer.data)
 
         serializer = self.get_serializer(citations_query, many=True)
-        return Response(serializer.data)
-
-    def retrieve(self, request, pk=None):
-        citation = self.get_queryset().filter(id=pk).first()
-        self.check_object_permissions(self.request, citation)
-
-        if not citation:
-            return Response(
-                {"detail": "Citation not found"}, status=status.HTTP_404_NOT_FOUND
-            )
-
-        serializer = self.get_serializer(citation)
         return Response(serializer.data)
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
