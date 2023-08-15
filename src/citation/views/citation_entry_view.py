@@ -47,19 +47,13 @@ class CitationEntryViewSet(ModelViewSet):
     queryset = CitationEntry.objects.all()
     filter_class = CitationEntryFilter
     filter_backends = (DjangoFilterBackend, OrderingFilter)
-    permission_classes = [IsAuthenticated]
+    permission_classes = [UserCanViewCitation, IsAuthenticated]
     serializer_class = CitationEntrySerializer
     pagination_class = CitationEntryPagination
     ordering = ("-updated_date", "-created_date")
     ordering_fields = ("updated_date", "created_date")
 
     def list(self, request):
-        return Response(
-            "Method not allowed. Use user_citations instead",
-            status=status.HTTP_405_METHOD_NOT_ALLOWED,
-        )
-
-    def retrieve(self, request):
         return Response(
             "Method not allowed. Use user_citations instead",
             status=status.HTTP_405_METHOD_NOT_ALLOWED,
@@ -133,12 +127,7 @@ class CitationEntryViewSet(ModelViewSet):
         serializer = self.get_serializer(citations_query, many=True)
         return Response(serializer.data)
 
-    @action(
-        detail=True,
-        methods=["get"],
-        permission_classes=[UserCanViewCitation],
-    )
-    def get_citation(self, request, pk=None):
+    def retrieve(self, request, pk=None):
         citation = self.get_queryset().filter(id=pk).first()
         self.check_object_permissions(self.request, citation)
 

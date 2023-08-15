@@ -32,6 +32,7 @@ class UserCanViewCitation(BasePermission):
     message = "User does not have permission to view citation"
 
     def has_object_permission(self, request, view, obj):
+        print("yoooooo")
         if request.user.is_anonymous == False and obj.organization.org_has_user(
             request.user.id
         ):
