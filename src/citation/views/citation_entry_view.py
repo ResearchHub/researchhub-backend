@@ -20,7 +20,7 @@ from analytics.amplitude import track_event
 from citation.constants import CITATION_TYPE_FIELDS
 from citation.filters import CitationEntryFilter
 from citation.models import CitationEntry
-from citation.permissions import PDFUploadsS3CallBack
+from citation.permissions import PDFUploadsS3CallBack, UserCanViewCitation
 from citation.schema import generate_schema_for_citation
 from citation.serializers import CitationEntrySerializer
 from citation.tasks import handle_creating_citation_entry
@@ -131,6 +131,23 @@ class CitationEntryViewSet(ModelViewSet):
         #     return self.get_paginated_response(serializer.data)
 
         serializer = self.get_serializer(citations_query, many=True)
+        return Response(serializer.data)
+
+    @action(
+        detail=True,
+        methods=["get"],
+        permission_classes=[UserCanViewCitation],
+    )
+    def get_citation(self, request, pk=None):
+        citation = self.get_queryset().filter(id=pk).first()
+        self.check_object_permissions(self.request, citation)
+
+        if not citation:
+            return Response(
+                {"detail": "Citation not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        serializer = self.get_serializer(citation)
         return Response(serializer.data)
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])

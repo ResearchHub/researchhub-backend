@@ -26,3 +26,15 @@ class PDFUploadsS3CallBack(BasePermission):
         if client_ip not in LAMBDA_IPS:
             return False
         return True
+
+
+class UserCanViewCitation(BasePermission):
+    message = "User does not have permission to view citation"
+
+    def has_object_permission(self, request, view, obj):
+        if request.user.is_anonymous == False and obj.organization.org_has_user(
+            request.user.id
+        ):
+            return True
+
+        return False
