@@ -28,12 +28,16 @@ class CitationEntryDocumentView(DocumentViewSet):
         # MultiMatchSearchFilterBackend,
         # SuggesterFilterBackend,
     ]
+    # search_fields = ("title", "full_name", "fields")
     search_fields = ("title", "full_name")
+    search_nested_fields = {"title": {"path": "fields", "fields": ["title"]}}
+
     filter_fields = {
         "created_by": {"field": "created_by.full_name"},
         "created_by_id": {"field": "created_by.id"},
         "organization": {"field": "organization.id"},
         "title": {"field": "title"},
+        "title_test": {"field": "fields.title"}
         # "first_name": {"field": "full_name", "lookups": ["match"]},
     }
     multi_match_search_fields = {

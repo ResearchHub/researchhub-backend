@@ -10,13 +10,9 @@ from .base import BaseDocument
 @registry.register_document
 class CitationEntryDocument(BaseDocument):
     id = es_fields.IntegerField(attr="id")
-    # title = es_fields.ObjectField(
-    #     properties={"title": es_fields.TextField()}
-    # )
-    title = es_fields.TextField(
-        attr="title_indexing",
-        analyzer=title_analyzer,
-    )
+    fields = es_fields.NestedField(attr="fields")
+    doi = es_fields.TextField(attr="doi")
+    citation_type = es_fields.TextField(attr="citation_type")
     created_by = es_fields.ObjectField(
         attr="created_by_indexing",
         properties={
@@ -26,6 +22,10 @@ class CitationEntryDocument(BaseDocument):
             "full_name": es_fields.TextField(),
         },
     )
+    # title = es_fields.TextField(
+    #     attr="title_indexing",
+    #     analyzer=title_analyzer,
+    # )
     organization = es_fields.ObjectField(
         attr="organization_indexing",
         properties={

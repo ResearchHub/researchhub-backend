@@ -10,9 +10,12 @@ class CitationEntryDocumentSerializer(DocumentSerializer):
         document = CitationEntryDocument
         fields = (
             "id",
+            "doi",
+            "citation_type",
             "created_by",
             "organization",
             "title",
+            "fields",
         )
 
     def to_representation(self, document):
