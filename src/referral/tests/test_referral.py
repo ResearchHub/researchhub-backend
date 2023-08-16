@@ -83,7 +83,7 @@ class ReferralTests(APITestCase):
         # Random user upvotes
         self.client.force_authenticate(self.random_user)
         upvote = self.client.post(
-            f'/api/researchhub_post/{self.post["id"]}/comments/{comment.id}/upvote/'
+            f'/api/researchhubpost/{self.post["id"]}/comments/{comment.id}/upvote/'
         )
 
         res = Distribution.objects.filter(
@@ -112,7 +112,7 @@ class ReferralTests(APITestCase):
         # Random user upvotes
         self.client.force_authenticate(self.random_user)
         upvote = self.client.post(
-            f'/api/researchhub_post/{self.post["id"]}/comments/{comment.id}/upvote/'
+            f'/api/researchhubpost/{self.post["id"]}/comments/{comment.id}/upvote/'
         )
 
         # Ensure no referral earnings to referrer
@@ -133,7 +133,7 @@ class ReferralTests(APITestCase):
         # Random user upvotes
         self.client.force_authenticate(self.random_user)
         upvote = self.client.post(
-            f'/api/researchhub_post/{self.post["id"]}/comments/{comment.id}/upvote/'
+            f'/api/researchhubpost/{self.post["id"]}/comments/{comment.id}/upvote/'
         )
 
         invited_earned = Distribution.objects.filter(recipient=self.invited_user).last()
@@ -157,7 +157,7 @@ class ReferralTests(APITestCase):
         # Referrer upvotes
         self.client.force_authenticate(self.referrer_user)
         upvote = self.client.post(
-            f'/api/researchhub_post/{self.post["id"]}/comments/{comment.id}/upvote/'
+            f'/api/researchhubpost/{self.post["id"]}/comments/{comment.id}/upvote/'
         )
 
         dist = Distribution.objects.filter(
