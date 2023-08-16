@@ -4,6 +4,10 @@ from rest_framework.serializers import (
     SerializerMethodField,
 )
 
+from discussion.reaction_models import Vote
+from discussion.reaction_serializers import (
+    DynamicVoteSerializer,  # Import is needed for discussion serializer imports
+)
 from discussion.reaction_serializers import GenericReactionSerializerMixin
 from discussion.serializers import DynamicThreadSerializer
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
@@ -19,6 +23,7 @@ from user.serializers import (
     DynamicUserSerializer,
     UserSerializer,
 )
+from utils.http import get_user_from_request
 
 
 class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin):
@@ -213,6 +218,7 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
     score = SerializerMethodField()
     threads = SerializerMethodField()
     unified_document = SerializerMethodField()
+    user_vote = SerializerMethodField()
 
     class Meta:
         model = ResearchhubPost
@@ -336,3 +342,19 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
 
     def get_score(self, post):
         return post.unified_document.score
+
+    def get_user_vote(self, post):
+        vote = None
+        user = get_user_from_request(self.context)
+        _context_fields = self.context.get("doc_dps_get_user_vote", {})
+        try:
+            if user and not user.is_anonymous:
+                vote = post.votes.get(created_by=user)
+                vote = DynamicVoteSerializer(
+                    vote,
+                    context=self.context,
+                    **_context_fields,
+                ).data
+            return vote
+        except Vote.DoesNotExist:
+            return None
