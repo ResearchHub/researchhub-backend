@@ -44,7 +44,7 @@ class PeerReviewInviteViewTests(APITestCase):
 
         # Author Publish
         doc_response = self.client.post(
-            "/api/researchhub_post/",
+            "/api/researchhubpost/",
             {
                 "document_type": "DISCUSSION",
                 "created_by": self.author.id,
@@ -83,7 +83,7 @@ class PeerReviewInviteViewTests(APITestCase):
 
         # Publish + Request review
         doc_response = self.client.post(
-            "/api/researchhub_post/",
+            "/api/researchhubpost/",
             {
                 "document_type": "DISCUSSION",
                 "created_by": self.author.id,

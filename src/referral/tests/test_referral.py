@@ -59,7 +59,7 @@ class ReferralTests(APITestCase):
 
         # Author Publish
         doc_response = self.client.post(
-            "/api/researchhub_post/",
+            "/api/researchhubpost/",
             {
                 "document_type": "DISCUSSION",
                 "full_src": "body",

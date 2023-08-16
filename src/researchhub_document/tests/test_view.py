@@ -22,7 +22,7 @@ class ViewTests(APITestCase):
         self.client.force_authenticate(author)
 
         doc_response = self.client.post(
-            "/api/researchhub_post/",
+            "/api/researchhubpost/",
             {
                 "document_type": "DISCUSSION",
                 "created_by": author.id,
@@ -49,7 +49,7 @@ class ViewTests(APITestCase):
         self.client.force_authenticate(author)
 
         doc_response = self.client.post(
-            "/api/researchhub_post/",
+            "/api/researchhubpost/",
             {
                 "document_type": "DISCUSSION",
                 "created_by": author.id,
@@ -77,7 +77,7 @@ class ViewTests(APITestCase):
         self.client.force_authenticate(author)
 
         doc_response = self.client.post(
-            "/api/researchhub_post/",
+            "/api/researchhubpost/",
             {
                 "document_type": "DISCUSSION",
                 "created_by": author.id,
@@ -107,7 +107,7 @@ class ViewTests(APITestCase):
         self.client.force_authenticate(author)
 
         doc_response = self.client.post(
-            f"/api/researchhub_post/",
+            f"/api/researchhubpost/",
             {
                 "document_type": "DISCUSSION",
                 "created_by": author.id,
@@ -137,7 +137,7 @@ class ViewTests(APITestCase):
         self.client.force_authenticate(author)
 
         doc_response = self.client.post(
-            "/api/researchhub_post/",
+            "/api/researchhubpost/",
             {
                 "document_type": "DISCUSSION",
                 "created_by": author.id,
@@ -166,7 +166,7 @@ class ViewTests(APITestCase):
         self.client.force_authenticate(author)
 
         doc_response = self.client.post(
-            "/api/researchhub_post/",
+            "/api/researchhubpost/",
             {
                 "document_type": "DISCUSSION",
                 "created_by": author.id,
@@ -187,7 +187,7 @@ class ViewTests(APITestCase):
         self.client.force_authenticate(author)
 
         doc_response = self.client.post(
-            "/api/researchhub_post/",
+            "/api/researchhubpost/",
             {
                 "document_type": "DISCUSSION",
                 "created_by": author.id,
@@ -200,7 +200,7 @@ class ViewTests(APITestCase):
         )
 
         updated_response = self.client.post(
-            "/api/researchhub_post/",
+            "/api/researchhubpost/",
             {
                 "post_id": doc_response.data["id"],
                 "title": "updated title",
@@ -223,7 +223,7 @@ class ViewTests(APITestCase):
         self.client.force_authenticate(author)
 
         doc_response = self.client.post(
-            "/api/researchhub_post/",
+            "/api/researchhubpost/",
             {
                 "document_type": "DISCUSSION",
                 "created_by": author.id,
@@ -237,7 +237,7 @@ class ViewTests(APITestCase):
 
         self.client.force_authenticate(nonauthor)
         updated_response = self.client.post(
-            "/api/researchhub_post/",
+            "/api/researchhubpost/",
             {
                 "post_id": doc_response.data["id"],
                 "title": "updated title",
@@ -398,7 +398,7 @@ class ViewTests(APITestCase):
         distributor.distribute()
 
         doc_response = self.client.post(
-            "/api/researchhub_post/",
+            "/api/researchhubpost/",
             {
                 "assign_doi": True,
                 "document_type": "DISCUSSION",
@@ -426,7 +426,7 @@ class ViewTests(APITestCase):
         distributor.distribute()
 
         doc_response = self.client.post(
-            "/api/researchhub_post/",
+            "/api/researchhubpost/",
             {
                 "assign_doi": True,
                 "document_type": "DISCUSSION",
@@ -454,7 +454,7 @@ class ViewTests(APITestCase):
         distributor.distribute()
 
         doc_response = self.client.post(
-            "/api/researchhub_post/",
+            "/api/researchhubpost/",
             {
                 "assign_doi": False,
                 "document_type": "DISCUSSION",

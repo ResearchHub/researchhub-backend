@@ -45,7 +45,7 @@ class PeerReviewRequestViewTests(APITestCase):
 
         # Author Publish
         doc_response = self.client.post(
-            "/api/researchhub_post/",
+            "/api/researchhubpost/",
             {
                 "document_type": "DISCUSSION",
                 "full_src": "body",
@@ -98,7 +98,7 @@ class PeerReviewRequestViewTests(APITestCase):
 
         # Publish + Request review
         doc_response = self.client.post(
-            "/api/researchhub_post/",
+            "/api/researchhubpost/",
             {
                 "document_type": "DISCUSSION",
                 "created_by": self.author.id,
