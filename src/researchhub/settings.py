@@ -17,6 +17,7 @@ import requests
 import sentry_sdk
 import stripe
 from celery.task.schedules import crontab
+from corsheaders.defaults import default_headers
 from sentry_sdk.integrations.django import DjangoIntegration
 from web3 import Web3
 
@@ -149,6 +150,11 @@ if ELASTIC_BEANSTALK:
 
     except requests.exceptions.RequestException:
         pass
+
+CORS_ALLOW_HEADERS = (
+    *default_headers,
+    "X-organization-id",
+)
 
 # Cors
 CORS_ORIGIN_WHITELIST = [
