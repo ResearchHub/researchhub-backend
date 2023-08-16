@@ -67,7 +67,7 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
 
         return {
             "id": content_object.id,
-            "content_type": model_name,
+            "name": model_name,
         }
 
     def get_comment_count(self, thread):

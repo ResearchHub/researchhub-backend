@@ -232,7 +232,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                 ]
             },
             "rhc_dcs_get_thread": {
-                "_include_fields": ["content_object", "thread_type", "anchor"]
+                "_include_fields": ["related_content", "thread_type", "anchor"]
             },
             "rhc_dts_get_content_object": {
                 "_include_fields": [
