@@ -4,13 +4,11 @@ import logging
 import os
 import re
 import shutil
-import time
-import urllib.request
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from subprocess import PIPE, run
+from unicodedata import normalize
 
-import feedparser
 import fitz
 import requests
 import twitter
@@ -19,24 +17,25 @@ from celery.decorators import periodic_task
 from celery.task.schedules import crontab
 from celery.utils.log import get_task_logger
 from django.apps import apps
+from django.contrib.postgres.search import SearchQuery
 from django.core.cache import cache
 from django.core.files import File
 from django.core.files.base import ContentFile
-from django.db import IntegrityError
-from django.utils.text import slugify
+from django.db import IntegrityError, transaction
+from django.db.models import Q
 from habanero import Crossref
 from PIL import Image
 from psycopg2.errors import UniqueViolation
 from pytz import timezone as pytz_tz
 
 from discussion.models import Comment, Thread
-from hub.utils import scopus_to_rh_map
 from paper.utils import (
     IGNORE_PAPER_TITLES,
     check_crossref_title,
     check_pdf_title,
     clean_abstract,
     fitz_extract_figures,
+    format_raw_authors,
     get_cache_key,
     get_crossref_results,
     get_csl_item,
@@ -57,16 +56,10 @@ from researchhub.celery import (
     QUEUE_PAPER_MISC,
     app,
 )
-from researchhub.settings import APP_ENV, PRODUCTION
-from researchhub_document.utils import update_unified_document_to_paper
+from researchhub.settings import APP_ENV
 from utils import sentry
-from utils.arxiv.categories import (
-    ARXIV_CATEGORIES,
-    get_category_name,
-    get_general_hub_name,
-)
-from utils.crossref import get_crossref_issued_date
 from utils.http import check_url_contains_pdf
+from utils.openalex import OpenAlex
 from utils.twitter import get_twitter_results, get_twitter_url_results
 
 logger = get_task_logger(__name__)
@@ -661,419 +654,61 @@ def log_daily_uploads():
     return request.status_code, paper_count
 
 
-# ARXIV Download Constants
-RESULTS_PER_ITERATION = (
-    50  # default is 10, if this goes too high like >=100 it seems to fail too often
-)
-WAIT_TIME = 3  # The docs recommend 3 seconds between queries
-RETRY_WAIT = 8
-RETRY_MAX = 20  # It fails a lot so retry a bunch
-NUM_DUP_STOP = 30  # Number of dups to hit before determining we're done
-BASE_URL = "http://export.arxiv.org/api/query?"
-
-
-# Pull Daily (arxiv updates 20:00 EST)
-# @periodic_task(
-#     run_every=crontab(minute=0, hour='*/2'),
-#     priority=2,
-#     queue=QUEUE_PULL_PAPERS,
-# )
-def pull_papers(start=0, force=False):
-    # Temporarily disabling autopull
-    return
-
-    if not PRODUCTION and not force:
-        return
-
-    logger.info("Pulling Papers")
-
-    Paper = apps.get_model("paper.Paper")
-    Summary = apps.get_model("summary.Summary")
-    Hub = apps.get_model("hub.Hub")
-
-    # Namespaces don't quite work with the feedparser, so hack them in
-    feedparser.namespaces._base.Namespace.supported_namespaces[
-        "http://a9.com/-/spec/opensearch/1.1/"
-    ] = "opensearch"
-    feedparser.namespaces._base.Namespace.supported_namespaces[
-        "http://arxiv.org/schemas/atom"
-    ] = "arxiv"
-
-    # Code Inspired from https://static.arxiv.org/static/arxiv.marxdown/0.1/help/api/examples/python_arXiv_parsing_example.txt
-    # Original Author: Julius B. Lucks
-
-    # All categories
-    search_query = "+OR+".join(["cat:" + cat for cat in ARXIV_CATEGORIES])
-    sortBy = "submittedDate"
-    sortOrder = "descending"
-
-    i = start
-    num_retries = 0
-    dups = 0
-    twitter_score_priority = 4
-    while True:
-        logger.info("Entries: %i - %i" % (i, i + RESULTS_PER_ITERATION))
-
-        query = "search_query=%s&start=%i&max_results=%i&sortBy=%s&sortOrder=%s&" % (
-            search_query,
-            i,
-            RESULTS_PER_ITERATION,
-            sortBy,
-            sortOrder,
-        )
-
-        with urllib.request.urlopen(BASE_URL + query) as url:
-            response = url.read()
-            feed = feedparser.parse(response)
-            # If failed to fetch and we're not at the end retry until the limit
-            if url.getcode() != 200:
-                if num_retries < RETRY_MAX and i < int(
-                    feed.feed.opensearch_totalresults
-                ):
-                    num_retries += 1
-                    time.sleep(RETRY_WAIT)
-                    continue
-                else:
-                    return
-
-            if i == start:
-                logger.info(f"Total results: {feed.feed.opensearch_totalresults}")
-                logger.info(f"Last updated: {feed.feed.updated}")
-
-            # If no results and we're at the end or we've hit the retry limit give up
-            if len(feed.entries) == 0:
-                if num_retries < RETRY_MAX and i < int(
-                    feed.feed.opensearch_totalresults
-                ):
-                    num_retries += 1
-                    time.sleep(RETRY_WAIT)
-                    continue
-                else:
-                    return
-
-            # Run through each entry, and print out information
-            for entry in feed.entries:
-                num_retries = 0
-                try:
-                    title = entry.title
-                    if title.lower() in IGNORE_PAPER_TITLES:
-                        continue
-
-                    paper, created = Paper.objects.get_or_create(url=entry.id)
-                    if created:
-                        paper.alternate_ids = {"arxiv": entry.id.split("/abs/")[-1]}
-                        paper.title = title
-                        paper.paper_title = title
-                        paper.abstract = clean_abstract(entry.summary)
-                        paper.paper_publish_date = entry.published.split("T")[0]
-                        paper.external_source = "Arxiv"
-                        paper.external_metadata = entry
-
-                        authors = [entry.author]
-                        authors += [author.name for author in entry.authors]
-                        raw_authors = []
-
-                        for author in authors:
-                            full_name = author.split(" ")
-                            if len(full_name) > 1:
-                                raw_authors.append(
-                                    {
-                                        "first_name": full_name[0],
-                                        "last_name": full_name[-1],
-                                    }
-                                )
-                            else:
-                                raw_authors.append(
-                                    {"first_name": full_name, "last_name": ""}
-                                )
-                        paper.raw_authors = raw_authors
-
-                        pdf_url = ""
-                        csl = {}
-                        for link in entry.links:
-                            try:
-                                if link.title == "pdf":
-                                    try:
-                                        pdf_url = get_redirect_url(link.href)
-                                        if pdf_url:
-                                            paper.pdf_url = pdf_url
-                                            csl = get_csl_item(pdf_url)
-                                            if csl:
-                                                paper.csl_item = csl
-                                    except Exception as e:
-                                        sentry.log_error(e)
-                                if link.title == "doi":
-                                    paper.doi = link.href.split("doi.org/")[-1]
-                            except AttributeError:
-                                pass
-
-                        if csl:
-                            license = paper.get_license(save=False)
-                            if license:
-                                twitter_score_priority = 1
-                                paper.pdf_license = license
-
-                        paper.save()
-                        paper.set_paper_completeness()
-                        update_unified_document_to_paper(paper)
-
-                        if pdf_url:
-                            download_pdf.apply_async(
-                                (paper.id,), priority=5, countdown=7
-                            )
-
-                        # celery_calculate_paper_twitter_score.apply_async(
-                        #     (paper.id,), priority=twitter_score_priority, countdown=15
-                        # )
-
-                        add_orcid_authors.apply_async(
-                            (paper.id,), priority=6, countdown=10
-                        )
-
-                        # If not published in the past week we're done
-                        if Paper.objects.get(
-                            pk=paper.id
-                        ).paper_publish_date < datetime.now().date() - timedelta(
-                            days=7
-                        ):
-                            return
-
-                        # Arxiv Journal Ref
-                        # try:
-                        # journal_ref = entry.arxiv_journal_ref
-                        # except AttributeError:
-                        # journal_ref = 'No journal ref found'
-
-                        # Arxiv Comment
-                        # try:
-                        # comment = entry.arxiv_comment
-                        # except AttributeError:
-                        # comment = 'No comment found'
-
-                        # Arxiv Categories
-                        # all_categories = [t['term'] for t in entry.tags]
-                        try:
-                            general_hub = get_general_hub_name(
-                                entry.arxiv_primary_category["term"]
-                            )
-                            if general_hub:
-                                hub = Hub.objects.filter(
-                                    name__iexact=general_hub
-                                ).first()
-                                if hub:
-                                    paper.hubs.add(hub)
-
-                            specific_hub = get_category_name(
-                                entry.arxiv_primary_category["term"]
-                            )
-                            if specific_hub:
-                                shub = Hub.objects.filter(
-                                    name__iexact=general_hub
-                                ).first()
-                                if shub:
-                                    paper.hubs.add(shub)
-                        except AttributeError:
-                            pass
-                    else:
-                        # if we've reach the max dups then we're done
-                        if dups > NUM_DUP_STOP:
-                            return
-                        else:
-                            dups += 1
-                except Exception as e:
-                    sentry.log_error(e)
-
-        # Rate limit
-        time.sleep(WAIT_TIME)
-
-        i += RESULTS_PER_ITERATION
-
-
-# Crossref Download Constants
-RESULTS_PER_ITERATION = 200
-WAIT_TIME = 2
-RETRY_WAIT = 8
-RETRY_MAX = 20
-NUM_DUP_STOP = 30
-
-
 # Pull Daily
 # @periodic_task(
 #     run_every=crontab(minute=0, hour='*/6'),
 #     priority=1,
 #     queue=QUEUE_PULL_PAPERS
 # )
-def pull_crossref_papers(start=0, force=False):
-    # Temporarily disabling autopull
-    return
+def pull_biorxiv_papers():
+    from paper.models import Paper
 
-    if not PRODUCTION and not force:
-        return
+    biorxiv_id = "https://openalex.org/S4306402567"
+    today = datetime.now().strftime("%Y-%m-%d")
+    import pdb
 
-    logger.info("Pulling Crossref Papers")
-    sentry.log_info("Pulling Crossref Papers")
+    pdb.set_trace()
+    open_alex = OpenAlex()
+    biorxiv_works = open_alex.get_data_from_source(biorxiv_id, today)
 
-    Paper = apps.get_model("paper.Paper")
-    Hub = apps.get_model("hub.Hub")
+    for result in biorxiv_works.get("results", []):
+        with transaction.atomic():
+            doi = result.get("doi")
+            pure_doi = doi.split("doi.org/")[-1]
 
-    cr = Crossref()
+            host_venue = result.get("host_venue", {})
+            oa = result.get("open_access", {})
+            oa_pdf_url = oa.get("oa_url", None)
+            url = host_venue.get("url", None)
+            title = normalize("NFKD", result.get("title", ""))
+            raw_authors = result.get("authorships", [])
 
-    twitter_score_priority = 1
-    num_retries = 0
-    num_duplicates = 0
+            doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(doi))
+            url_paper_check = Paper.objects.filter(
+                Q(url_svf=SearchQuery(oa_pdf_url))
+                | Q(pdf_url_svf=SearchQuery(oa_pdf_url))
+            )
+            if doi_paper_check.exists() or url_paper_check.exists():
+                # This skips over the current iteration
+                continue
 
-    offset = 0
-    today = datetime.now().date()
-    start_date = (today - timedelta(days=1)).strftime("%Y-%m-%d")
-    end_date = today.strftime("%Y-%m-%d")
-    filters = {
-        "type": "journal-article",
-        "from-created-date": start_date,
-        "until-created-date": end_date,
-        "from-index-date": start_date,
-        "until-index-date": end_date,
-    }
+            data = {
+                "doi": pure_doi,
+                "url": url,
+                "raw_authors": format_raw_authors(raw_authors),
+                "title": title,
+                "paper_title": title,
+                "paper_publish_date": result.get("publication_date", None),
+                "is_open_access": oa.get("is_oa", None),
+                "oa_status": oa.get("oa_status", None),
+                "pdf_license": host_venue.get("license", None),
+                "pdf_license_url": url,
+                "external_source": host_venue.get("display_name", None),
+            }
+            if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
+                data["pdf_url"] = oa_pdf_url
 
-    while True:
-        try:
-            try:
-                results = cr.works(
-                    filter=filters,
-                    limit=RESULTS_PER_ITERATION,
-                    sort="issued",
-                    order="desc",
-                    offset=offset,
-                )
-            except Exception as e:
-                if num_retries < RETRY_MAX:
-                    num_retries += 1
-                    time.sleep(RETRY_WAIT)
-                    continue
-                else:
-                    sentry.log_error(e)
-                    return
-
-            items = results["message"]["items"]
-            total_results = results["message"]["total-results"]
-            if total_results == 0 or len(items) == 0:
-                if num_retries < RETRY_MAX:
-                    num_retries += 1
-                    time.sleep(RETRY_WAIT)
-                    continue
-                else:
-                    sentry.log_info("No Crossref results found")
-                    return
-
-            for item in items:
-                num_retries = 0
-                try:
-                    title = item["title"][0]
-                    if title.lower() in IGNORE_PAPER_TITLES:
-                        continue
-
-                    paper, created = Paper.objects.get_or_create(doi=item["DOI"])
-                    if created:
-                        paper.title = title
-                        paper.paper_title = title
-                        paper.slug = slugify(title)
-                        paper.doi = item["DOI"]
-                        paper.url = item["URL"]
-                        paper.paper_publish_date = get_crossref_issued_date(item)
-                        paper.retrieved_from_external_source = True
-                        paper.external_metadata = item
-                        external_source = item.get("container-title", ["Crossref"])[0]
-                        if type(external_source) is list:
-                            external_source = external_source[0]
-
-                        paper.external_source = external_source
-                        paper.publication_type = item["type"]
-                        if "abstract" in item:
-                            paper.abstract = clean_abstract(item["abstract"])
-                        else:
-                            csl = {}
-                            try:
-                                csl = get_csl_item(item["URL"])
-                                if csl:
-                                    paper.csl_item = csl
-                                    abstract = csl.get("abstract", None)
-                                    if abstract:
-                                        paper.abstract = abstract
-                            except Exception as e:
-                                sentry.log_error(e)
-
-                        if "author" in item:
-                            paper.raw_authors = {}
-                            raw_authors = []
-                            for i, author in enumerate(item["author"]):
-                                given = author.get("given")
-                                family = author.get("family")
-                                if given and family:
-                                    raw_authors.append(
-                                        {"last_name": family, "first_name": given}
-                                    )
-                            if raw_authors:
-                                paper.raw_authors = raw_authors
-
-                        pdf_url = ""
-                        if "link" in item and item["link"]:
-                            try:
-                                pdf_url = get_redirect_url(item["link"][0]["URL"])
-                            except Exception as e:
-                                sentry.log_error(e)
-                            if check_url_contains_pdf(pdf_url):
-                                paper.pdf_url = pdf_url
-
-                        if "subject" in item:
-                            for subject_name in item["subject"]:
-                                rh_key = scopus_to_rh_map[subject_name]
-                                hub = Hub.objects.filter(name__iexact=rh_key).first()
-                                if hub:
-                                    paper.hubs.add(hub)
-
-                        if csl:
-                            license = paper.get_license(save=False)
-                            if license:
-                                twitter_score_priority = 1
-                                paper.pdf_license = license
-
-                        paper.save()
-                        paper.set_paper_completeness()
-                        update_unified_document_to_paper(paper)
-
-                        # celery_calculate_paper_twitter_score.apply_async(
-                        #     (paper.id,), priority=twitter_score_priority, countdown=15
-                        # )
-                        add_orcid_authors.apply_async(
-                            (paper.id,), priority=6, countdown=10
-                        )
-
-                        if pdf_url:
-                            download_pdf.apply_async(
-                                (paper.id,), priority=5, countdown=7
-                            )
-                    else:
-                        num_duplicates += 1
-                except Exception as e:
-                    sentry.log_error(e)
-
-            offset += RESULTS_PER_ITERATION
-            time.sleep(WAIT_TIME)
-        except Exception as e:
-            sentry.log_error(e, message=f"Total Results: {total_results}")
-
-    info = f"""
-        Crossref Duplicates Detected: {num_duplicates}\n
-        Total Crossref pull: {total_results}
-    """
-    sentry.log_info(info)
-    return total_results
-
-
-# Pull Daily
-# @periodic_task(
-#     run_every=crontab(minute=0, hour='*/6'),
-#     priority=1,
-#     queue=QUEUE_PULL_PAPERS
-# )
-def pull_biorxiv_papers(start=0):
-    pass
+            paper = Paper(**data)
+            paper.full_clean()
+            paper.save()
+    return biorxiv_works

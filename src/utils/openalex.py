@@ -43,6 +43,11 @@ class OpenAlex:
             raise DOINotFoundError(f"No OpenAlex works found for doi: {doi}")
         return results[0]
 
+    def get_data_from_source(self, source, date):
+        filters = {"filter": f"locations.source.id:{source},from_created_date:{date}"}
+        works = self._get("works", filters)
+        return works
+
     # Fetch hydrated concepts by ids: https://docs.openalex.org/about-the-data/concept#id
     # e.g. https://openalex.org/C126537357
     # May come from local db or openalex api.
