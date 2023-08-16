@@ -45,8 +45,7 @@ class CitationEntryDocumentView(DocumentViewSet):
         if organization:
             organization_id = organization.id
         else:
-            # organization_id = user.organization.id
-            organization_id = 65
+            organization_id = user.organization.id
         terms.append({"terms": {"organization.id": [organization_id]}})
         return terms
 
