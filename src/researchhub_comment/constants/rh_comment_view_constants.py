@@ -1,4 +1,4 @@
 PAPER = "paper"
-RESEARCHHUB_POST = "researchhub_post"
+RESEARCHHUB_POST = "researchhubpost"
 HYPOTHESIS = "hypothesis"
 CITATION_ENTRY = "citationentry"
