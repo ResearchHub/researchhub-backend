@@ -67,7 +67,7 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
 
         return {
             "id": content_object.id,
-            "name": model_name,
+            "content_type": model_name,
         }
 
     def get_comment_count(self, thread):
@@ -98,6 +98,7 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
         serializer_data = serializer(
             content_object, context=context, **_context_fields
         ).data
+        serializer_data["name"] = content_object._meta.model_name
         return serializer_data
 
     def get_privacy_type(self, thread):
