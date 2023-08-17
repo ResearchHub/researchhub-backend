@@ -67,6 +67,7 @@ from researchhub_document.related_models.constants.filters import (
     MOST_RSC,
 )
 from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
+from utils.throttles import THROTTLE_CLASSES
 
 
 def censor_comment(comment):
@@ -114,6 +115,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         IsObjectOwner,
         ThreadViewingPermissions,
     ]
+    throttle_classes = THROTTLE_CLASSES
     _ALLOWED_MODEL_NAMES = (PAPER, RESEARCHHUB_POST, HYPOTHESIS, CITATION_ENTRY)
     _CONTENT_TYPE_MAPPINGS = {
         PAPER: "paper",
