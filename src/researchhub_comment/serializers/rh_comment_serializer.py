@@ -177,8 +177,9 @@ class DynamicRhCommentSerializer(
     def get_review(self, comment):
         context = self.context
         _context_fields = context.get("rhc_dcs_get_review", {})
-        review = comment.reviews.first()
-        if review:
+        reviews = comment.reviews
+        if reviews.exists():
+            review = reviews.first()
             serializer = DynamicReviewSerializer(
                 review, many=False, context=context, **_context_fields
             )

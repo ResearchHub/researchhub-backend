@@ -27,10 +27,22 @@ from reputation.views.bounty_view import (
 from researchhub.pagination import FasterDjangoPaginator
 from researchhub.permissions import IsObjectOwner, IsObjectOwnerOrModerator
 from researchhub.settings import TESTING
+from researchhub_access_group.constants import ADMIN, PRIVATE, PUBLIC, WORKSPACE
+from researchhub_access_group.models import Permission
 from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT
+from researchhub_comment.constants.rh_comment_view_constants import (
+    CITATION_ENTRY,
+    HYPOTHESIS,
+    PAPER,
+    RESEARCHHUB_POST,
+)
 from researchhub_comment.filters import RHCommentFilter
 from researchhub_comment.models import RhCommentModel
-from researchhub_comment.permissions import CanSetAsAcceptedAnswer
+from researchhub_comment.permissions import (
+    CanSetAsAcceptedAnswer,
+    IsThreadCreator,
+    ThreadViewingPermissions,
+)
 from researchhub_comment.serializers import (
     DynamicRhCommentSerializer,
     RhCommentSerializer,
@@ -97,17 +109,31 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
     filter_backends = (DjangoFilterBackend,)
     filter_class = RHCommentFilter
     pagination_class = CommentPagination
-    permission_classes = [IsAuthenticatedOrReadOnly, IsObjectOwner]
-    _ALLOWED_MODEL_NAMES = ("paper", "researchhub_post", "hypothesis", "citation")
+    permission_classes = [
+        IsAuthenticatedOrReadOnly,
+        IsObjectOwner,
+        ThreadViewingPermissions,
+    ]
+    _ALLOWED_MODEL_NAMES = (PAPER, RESEARCHHUB_POST, HYPOTHESIS, CITATION_ENTRY)
     _CONTENT_TYPE_MAPPINGS = {
-        "paper": "paper",
-        "researchhub_post": "researchhubpost",
-        "hypothesis": "hypothesis",
-        "citation": "citation",
+        PAPER: "paper",
+        RESEARCHHUB_POST: "researchhubpost",
+        HYPOTHESIS: "hypothesis",
+        CITATION_ENTRY: "citationentry",
     }
     _ALLOWED_UPDATE_FIELDS = set(
         ["comment_content_type", "comment_content_json", "context_title", "mentions"]
     )
+
+    def _get_model_name(self):
+        kwargs = self.kwargs
+        model_name = kwargs.get("model")
+        return model_name
+
+    def _get_model_object_id(self):
+        kwargs = self.kwargs
+        model_object_id = kwargs.get("model_object_id")
+        return model_object_id
 
     def _get_content_type_model(self, model_name):
         key = self._CONTENT_TYPE_MAPPINGS[model_name]
@@ -115,9 +141,8 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         return content_type
 
     def _get_model_object(self):
-        kwargs = self.kwargs
-        model_name = kwargs.get("model")
-        model_object_id = kwargs.get("model_object_id")
+        model_name = self._get_model_name()
+        model_object_id = self._get_model_object_id()
 
         assert (
             model_object_id is not None
@@ -177,7 +202,15 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         context = self.get_serializer_context()
         context = {
             **context,
-            "rhc_dcs_get_thread": {"_include_fields": ("thread_type", "id", "anchor")},
+            "rhc_dcs_get_thread": {
+                "_include_fields": (
+                    "anchor",
+                    "id",
+                    "privacy_type",
+                    "thread_type",
+                    "related_content",
+                )
+            },
             "rhc_dcs_get_created_by": {
                 "_include_fields": (
                     "id",
@@ -189,7 +222,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             },
             "rhc_dcs_get_children": {
                 "_exclude_fields": (
-                    "thread",
                     "comment_content_src",
                     "promoted",
                     "user_endorsement",
@@ -240,6 +272,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
     def _create_rh_comment(self, request, *args, **kwargs):
         data = request.data
         user = request.user
+        model = self._get_model_name()
         with transaction.atomic():
             rh_thread, parent_id = self._retrieve_or_create_thread_from_request(request)
             data.update(
@@ -251,31 +284,32 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 }
             )
             rh_comment, _ = RhCommentModel.create_from_data(data)
-            unified_document = rh_comment.unified_document
-            self.add_upvote(user, rh_comment)
-            self._create_mention_notifications_from_request(request, rh_comment.id)
 
-            create_contribution.apply_async(
-                (
-                    Contribution.COMMENTER,
-                    {"app_label": "researchhub_comment", "model": "rhcommentmodel"},
-                    request.user.id,
-                    unified_document.id,
-                    rh_comment.id,
-                ),
-                priority=1,
-                countdown=10,
-            )
+            if model != CITATION_ENTRY:
+                unified_document = rh_comment.unified_document
+                self.add_upvote(user, rh_comment)
+                self._create_mention_notifications_from_request(request, rh_comment.id)
+                create_contribution.apply_async(
+                    (
+                        Contribution.COMMENTER,
+                        {"app_label": "researchhub_comment", "model": "rhcommentmodel"},
+                        request.user.id,
+                        unified_document.id,
+                        rh_comment.id,
+                    ),
+                    priority=1,
+                    countdown=10,
+                )
 
-            unified_document.update_filter(SORT_DISCUSSED)
-            hubs = list(unified_document.hubs.all().values_list("id", flat=True))
-            doc_type = get_doc_type_key(unified_document)
-            reset_unified_document_cache(
-                hub_ids=hubs,
-                document_type=[doc_type, "all"],
-                filters=[DISCUSSED, HOT],
-                with_default_hub=True,
-            )
+                unified_document.update_filter(SORT_DISCUSSED)
+                hubs = list(unified_document.hubs.all().values_list("id", flat=True))
+                doc_type = get_doc_type_key(unified_document)
+                reset_unified_document_cache(
+                    hub_ids=hubs,
+                    document_type=[doc_type, "all"],
+                    filters=[DISCUSSED, HOT],
+                    with_default_hub=True,
+                )
 
             context = self._get_retrieve_context()
             serializer_data = DynamicRhCommentSerializer(
@@ -407,6 +441,9 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             "bounties__created_by",
             "bounties__created_by__author_profile",
             "bounty_solution",
+            "reviews",
+            "thread__permissions",
+            "thread__content_type",
         )
 
         page = self.paginate_queryset(queryset)
@@ -484,6 +521,10 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             res.data = serializer_data
             return res
 
+    def perform_update(self, serializer):
+        instance = serializer.save()
+        instance.update_comment_content()
+
     @action(
         detail=True,
         methods=["put", "patch", "delete"],
@@ -497,10 +538,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             comment = self.get_object()
             censor_comment(comment)
             return super().censor(request, *args, **kwargs)
-
-    def perform_update(self, serializer):
-        instance = serializer.save()
-        instance.update_comment_content()
 
     @action(
         detail=True,
@@ -563,6 +600,47 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             )
             return Response({"comment_id": comment.id}, status=200)
 
+    @action(
+        detail=True,
+        methods=["PATCH"],
+        permission_classes=[IsAuthenticated, IsObjectOwner, IsThreadCreator],
+    )
+    def update_comment_permission(
+        self, request, model=None, model_object_id=None, pk=None
+    ):
+        data = request.data
+        user = request.user
+        comment = self.get_object()
+        thread = comment.thread
+
+        with transaction.atomic():
+            model = data.get("content_type")
+            object_id = data.get("object_id")
+
+            if (permission_type := data.get("privacy_type", None)) == PRIVATE:
+                thread.permissions.all().delete()
+                self._create_thread_permission(user, thread, None)
+            elif permission_type == WORKSPACE:
+                thread.permissions.all().delete()
+                organization = getattr(request, "organization", None)
+                if organization is None:
+                    return Response(status=401)
+                self._create_thread_permission(user, thread, organization)
+            else:
+                thread.permissions.all().delete()
+                if model not in self._ALLOWED_MODEL_NAMES:
+                    return Response(status=401)
+
+            content_type = self._get_content_type_model(model)
+            serializer = RhCommentThreadSerializer(
+                thread,
+                data={"content_type": content_type.id, "object_id": object_id},
+                partial=True,
+            )
+            serializer.is_valid()
+            serializer.save()
+            return Response(status=200)
+
     def _create_mention_notifications_from_request(self, request, comment_id):
         data = request.data
         mentions = data.get("mentions", [])
@@ -579,9 +657,19 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 (comment_id, mentions), countdown=1
             )
 
+    def _create_thread_permission(self, user, thread, organization):
+        data = {
+            "access_type": ADMIN,
+            "source": thread,
+            "user": user,
+            "organization": organization,
+        }
+        return Permission.objects.create(**data)
+
     def _retrieve_or_create_thread_from_request(self, request):
         data = request.data
         user = request.user
+        organization = getattr(request, "organization", None)
 
         try:
             thread_id = data.get("thread_id", None)
@@ -597,6 +685,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     return existing_thread, parent_id
                 else:
                     thread_target_instance = self._get_model_object()
+                    privacy_type = data.get("privacy_type", PUBLIC)
                     serializer = RhCommentThreadSerializer(
                         data={
                             "thread_type": data.get("thread_type", GENERIC_COMMENT),
@@ -612,6 +701,14 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     )
                     serializer.is_valid(raise_exception=True)
                     instance = serializer.save()
+
+                    # Ensure private/workspace comments can only be created within citation endpoint
+                    model = self._get_model_name()
+                    if model == CITATION_ENTRY:
+                        if privacy_type == PRIVATE:
+                            self._create_thread_permission(user, instance, None)
+                        elif privacy_type == WORKSPACE:
+                            self._create_thread_permission(user, instance, organization)
                     return instance, None
 
         except Exception as error:

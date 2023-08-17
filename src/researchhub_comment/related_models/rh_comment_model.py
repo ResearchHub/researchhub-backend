@@ -123,15 +123,19 @@ class RhCommentModel(
         for op in ops:
             text = op.get("insert")
             # Ensuring it is a string
-            plain_text += f"{text}"
+            plain_text = f"{plain_text}{text}"
         return plain_text
 
     @property
     def users_to_notify(self):
         if self.parent:
-            return [self.parent.created_by]
+            users_to_notify = self.parent.created_by
         else:
-            return [self.thread.content_object.created_by]
+            users_to_notify = self.thread.content_object.created_by
+
+        if users_to_notify:
+            return [users_to_notify]
+        return []
 
     """ --- METHODS --- """
 
@@ -141,7 +145,13 @@ class RhCommentModel(
         )
 
     def _update_related_discussion_count(self, amount):
-        related_document = self.unified_document.get_document()
+        from citation.models import CitationEntry
+
+        thread = self.thread
+        if isinstance(self.thread.content_object, CitationEntry):
+            return
+
+        related_document = thread.unified_document.get_document()
         if hasattr(related_document, "discussion_count"):
             related_document.discussion_count += amount
             related_document.save()

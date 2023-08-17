@@ -156,9 +156,9 @@ router.register(
 )
 
 router.register(
-    r"researchhub_post",
+    r"researchhubpost",
     researchhub_document_views.ResearchhubPostViewSet,
-    basename="researchhub_post",
+    basename="researchhubpost",
 )
 
 router.register(

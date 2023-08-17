@@ -20,7 +20,7 @@ from analytics.amplitude import track_event
 from citation.constants import CITATION_TYPE_FIELDS
 from citation.filters import CitationEntryFilter
 from citation.models import CitationEntry
-from citation.permissions import PDFUploadsS3CallBack
+from citation.permissions import PDFUploadsS3CallBack, UserCanViewCitation
 from citation.schema import generate_schema_for_citation
 from citation.serializers import CitationEntrySerializer
 from citation.tasks import handle_creating_citation_entry
@@ -47,19 +47,13 @@ class CitationEntryViewSet(ModelViewSet):
     queryset = CitationEntry.objects.all()
     filter_class = CitationEntryFilter
     filter_backends = (DjangoFilterBackend, OrderingFilter)
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, UserCanViewCitation]
     serializer_class = CitationEntrySerializer
     pagination_class = CitationEntryPagination
     ordering = ("-updated_date", "-created_date")
     ordering_fields = ("updated_date", "created_date")
 
     def list(self, request):
-        return Response(
-            "Method not allowed. Use user_citations instead",
-            status=status.HTTP_405_METHOD_NOT_ALLOWED,
-        )
-
-    def retrieve(self, request):
         return Response(
             "Method not allowed. Use user_citations instead",
             status=status.HTTP_405_METHOD_NOT_ALLOWED,

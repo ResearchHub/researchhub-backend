@@ -4,6 +4,7 @@ import pdf2doi
 import requests
 from django.contrib.postgres.search import SearchQuery
 from django.core.files.storage import default_storage
+from django.db import transaction
 from django.db.models import Q
 from django.http.request import HttpRequest
 from rest_framework.request import Request
@@ -62,44 +63,50 @@ def get_citation_entry_from_pdf(
         doi=doi, created_by=user_id, project_id=project_id
     )
     if doi is None or not citation_entry.exists():
-        # CitationEntrySerializer inherits from DefaultAuthenticatedSerializer,
-        # which requires a request object with a user attached
-        request = Request(HttpRequest())
-        request.user = User.objects.get(id=user_id)
+        with transaction.atomic():
+            # CitationEntrySerializer inherits from DefaultAuthenticatedSerializer,
+            # which requires a request object with a user attached
+            request = Request(HttpRequest())
+            request.user = User.objects.get(id=user_id)
 
-        if pdf is None:
-            pdf = default_storage.open(path)
+            related_unified_doc = None
+            if pdf is None:
+                pdf = default_storage.open(path)
 
-        if not doi:
-            pdf.name = filename
-            json = generate_json_for_pdf(filename)
-        else:
-            try:
-                paper = get_paper_by_doi(doi)
-                json = generate_json_for_rh_paper(paper)
-            except Paper.DoesNotExist:
-                json = generate_json_for_doi_via_oa(doi)
-            except Exception as e:
-                log_error(e)
+            if not doi:
                 pdf.name = filename
                 json = generate_json_for_pdf(filename)
+            else:
+                try:
+                    paper = get_paper_by_doi(doi)
+                    json = generate_json_for_rh_paper(paper)
+                    related_unified_doc = paper.unified_document.id
+                except Paper.DoesNotExist:
+                    json = generate_json_for_doi_via_oa(doi)
+                except Exception as e:
+                    log_error(e)
+                    pdf.name = filename
+                    json = generate_json_for_pdf(filename)
 
-        citation_entry_data = {
-            "citation_type": JOURNAL_ARTICLE,
-            "fields": json,
-            "created_by": user_id,
-            "organization": organization_id,
-            "attachment": pdf,
-            "doi": doi,
-            "project": project_id,
-        }
-        context = {"request": request}
-        serializer = CitationEntrySerializer(data=citation_entry_data, context=context)
-        serializer.is_valid(raise_exception=True)
-        entry = serializer.save()
-        create_paper_from_citation(entry)
-        default_storage.delete(path)
-        return entry, False
+            citation_entry_data = {
+                "citation_type": JOURNAL_ARTICLE,
+                "fields": json,
+                "created_by": user_id,
+                "organization": organization_id,
+                "attachment": pdf,
+                "doi": doi,
+                "project": project_id,
+                "related_unified_doc": related_unified_doc,
+            }
+            context = {"request": request}
+            serializer = CitationEntrySerializer(
+                data=citation_entry_data, context=context
+            )
+            serializer.is_valid(raise_exception=True)
+            entry = serializer.save()
+            create_paper_from_citation(entry)
+            default_storage.delete(path)
+            return entry, False
     else:
         return citation_entry.first(), True
 

@@ -6,6 +6,7 @@ from django_filters import DateTimeFilter
 from django_filters import rest_framework as filters
 
 from reputation.models import Bounty
+from researchhub_access_group.constants import PRIVATE, PUBLIC, WORKSPACE
 from researchhub_comment.constants.rh_comment_thread_types import (
     GENERIC_COMMENT,
     INNER_CONTENT_COMMENT,
@@ -13,6 +14,7 @@ from researchhub_comment.constants.rh_comment_thread_types import (
     SUMMARY,
 )
 from researchhub_comment.models import RhCommentModel
+from utils.http import GET
 
 BEST = "BEST"
 TOP = "TOP"
@@ -27,6 +29,12 @@ ORDER_CHOICES = (
     (BEST, "Best"),
     (TOP, "Top"),
     (CREATED_DATE, "Created Date"),
+)
+
+PRIVACY_CHOICES = (
+    (PUBLIC, "Public comments"),
+    (PRIVATE, "Private comments"),
+    (WORKSPACE, "Organization comments"),
 )
 
 FILTER_CHOICES = (
@@ -74,10 +82,23 @@ class RHCommentFilter(filters.FilterSet):
         field_name="thread__thread_type",
         label="Thread Type",
     )
+    privacy_type = filters.ChoiceFilter(
+        choices=PRIVACY_CHOICES, method="privacy_filter", label="Privacy Filter"
+    )
 
     class Meta:
         model = RhCommentModel
         fields = ("ordering",)
+
+    def __init__(self, *args, request=None, **kwargs):
+        # Privacy type should always be set, even if not passed in
+        # This will ensure private/organization comments will be hidden
+        if request.method == GET:
+            kwargs["data"]._mutable = True
+            if "privacy_type" not in kwargs["data"]:
+                kwargs["data"]["privacy_type"] = PUBLIC
+            kwargs["data"]._mutable = False
+        super().__init__(*args, request=request, **kwargs)
 
     def _is_ascending(self):
         return self.data.get("ascending", ASCENDING_FALSE) == ASCENDING_TRUE
@@ -175,3 +196,27 @@ class RHCommentFilter(filters.FilterSet):
         # if the queryset has additional filtering
         sliced_children_ids = qs[offset:count].values_list("id")
         return qs.filter(id__in=sliced_children_ids)
+
+    def privacy_filter(self, qs, name, value):
+        request = self.request
+        user = request.user
+
+        if user.is_anonymous:
+            return qs.filter(thread__permissions__isnull=True)
+
+        if value == PRIVATE:
+            qs = qs.filter(
+                thread__permissions__user=user,
+                thread__permissions__organization__isnull=True,
+            )
+        elif value == WORKSPACE:
+            # Organization permission check is done in permissions
+            org = request.organization
+            qs = qs.filter(
+                thread__permissions__organization=org,
+                thread__permissions__organization__isnull=False,
+            )
+        else:
+            # Public comments
+            qs = qs.filter(thread__permissions__isnull=True)
+        return qs

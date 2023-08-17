@@ -1,8 +1,10 @@
+from django.contrib.contenttypes.fields import GenericRelation
 from django.core.validators import FileExtensionValidator
 from django.db import models
 
 from citation.constants import CITATION_TYPE_CHOICES
 from citation.related_models.citation_project_model import CitationProject
+from researchhub_comment.models import RhCommentThreadModel
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.models import Organization
 from utils.models import DefaultAuthenticatedModel
@@ -35,12 +37,15 @@ class CitationEntry(DefaultAuthenticatedModel):
         related_name="citations",
         related_query_name="citations",
     )
-    unified_doc = models.ForeignKey(
+    related_unified_doc = models.ForeignKey(
         ResearchhubUnifiedDocument,
-        blank=True,
         null=True,
         on_delete=models.CASCADE,
         related_name="citation_entries",
+    )
+    rh_threads = GenericRelation(
+        RhCommentThreadModel,
+        related_query_name="citation",
     )
 
     """--- PROPERTIES ---"""
