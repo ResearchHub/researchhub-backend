@@ -50,6 +50,7 @@ from researchhub_document.serializers.researchhub_post_serializer import (
 )
 from researchhub_document.utils import reset_unified_document_cache
 from utils.sentry import log_error
+from utils.throttles import THROTTLE_CLASSES
 
 
 class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
@@ -57,6 +58,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
     queryset = ResearchhubUnifiedDocument.objects.all()
     permission_classes = [IsAuthenticatedOrReadOnly, HasDocumentEditingPermission]
     serializer_class = ResearchhubPostSerializer
+    throttle_classes = THROTTLE_CLASSES
 
     @track_event
     def create(self, request, *args, **kwargs):
