@@ -1,6 +1,7 @@
 import codecs
 import json
 import logging
+import math
 import os
 import re
 import shutil
@@ -30,10 +31,8 @@ from pytz import timezone as pytz_tz
 
 from discussion.models import Comment, Thread
 from paper.utils import (
-    IGNORE_PAPER_TITLES,
     check_crossref_title,
     check_pdf_title,
-    clean_abstract,
     fitz_extract_figures,
     format_raw_authors,
     get_cache_key,
@@ -41,7 +40,6 @@ from paper.utils import (
     get_csl_item,
     get_pdf_from_url,
     get_pdf_location_for_csl_item,
-    get_redirect_url,
     merge_paper_bulletpoints,
     merge_paper_threads,
     merge_paper_votes,
@@ -54,6 +52,7 @@ from researchhub.celery import (
     QUEUE_EXTERNAL_REPORTING,
     QUEUE_HOT_SCORE,
     QUEUE_PAPER_MISC,
+    QUEUE_PULL_PAPERS,
     app,
 )
 from researchhub.settings import APP_ENV
@@ -654,115 +653,125 @@ def log_daily_uploads():
     return request.status_code, paper_count
 
 
-# Pull Daily
-# @periodic_task(
-#     run_every=crontab(minute=0, hour='*/6'),
-#     priority=1,
-#     queue=QUEUE_PULL_PAPERS
-# )
+# Pull Daily at 6am UTC
+@periodic_task(run_every=crontab(minute=0, hour=6), priority=3, queue=QUEUE_PULL_PAPERS)
 def pull_biorxiv_papers():
     from paper.models import Paper
 
     biorxiv_id = "https://openalex.org/S4306402567"
-    today = datetime.now().strftime("%Y-%m-%d")
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     open_alex = OpenAlex()
-    biorxiv_works = open_alex.get_data_from_source(biorxiv_id, today)
+    biorxiv_works = open_alex.get_data_from_source(biorxiv_id, yesterday)
+    total_works = biorxiv_works.get("meta").get("count")
+    pages = math.ceil(total_works / open_alex.per_page)
 
-    for result in biorxiv_works.get("results", []):
-        with transaction.atomic():
-            doi = result.get("doi")
-            pure_doi = doi.split("doi.org/")[-1]
+    for i in range(1, pages + 1):
+        for result in biorxiv_works.get("results", []):
+            with transaction.atomic():
+                doi = result.get("doi")
+                pure_doi = doi.split("doi.org/")[-1]
 
-            host_venue = result.get("host_venue", {})
-            oa = result.get("open_access", {})
-            oa_pdf_url = oa.get("oa_url", None)
-            url = host_venue.get("url", None)
-            title = normalize("NFKD", result.get("title", ""))
-            raw_authors = result.get("authorships", [])
+                primary_location = result.get("best_oa_location", None) or result.get(
+                    "primary_location", {}
+                )
+                source = primary_location.get("source", {})
+                oa = result.get("open_access", {})
+                oa_pdf_url = oa.get("oa_url", None)
+                url = primary_location.get("landing_page_url", None)
+                title = normalize("NFKD", result.get("title", ""))
+                raw_authors = result.get("authorships", [])
 
-            doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(doi))
-            url_paper_check = Paper.objects.filter(
-                Q(url_svf=SearchQuery(oa_pdf_url))
-                | Q(pdf_url_svf=SearchQuery(oa_pdf_url))
-            )
-            if doi_paper_check.exists() or url_paper_check.exists():
-                # This skips over the current iteration
-                continue
+                doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(doi))
+                url_paper_check = Paper.objects.filter(
+                    Q(url_svf=SearchQuery(oa_pdf_url))
+                    | Q(pdf_url_svf=SearchQuery(oa_pdf_url))
+                )
+                if doi_paper_check.exists() or url_paper_check.exists():
+                    # This skips over the current iteration
+                    continue
 
-            data = {
-                "doi": pure_doi,
-                "url": url,
-                "raw_authors": format_raw_authors(raw_authors),
-                "title": title,
-                "paper_title": title,
-                "paper_publish_date": result.get("publication_date", None),
-                "is_open_access": oa.get("is_oa", None),
-                "oa_status": oa.get("oa_status", None),
-                "pdf_license": host_venue.get("license", None),
-                "pdf_license_url": url,
-                "external_source": host_venue.get("display_name", None),
-            }
-            if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
-                data["pdf_url"] = oa_pdf_url
+                data = {
+                    "doi": pure_doi,
+                    "url": url,
+                    "raw_authors": format_raw_authors(raw_authors),
+                    "title": title,
+                    "paper_title": title,
+                    "paper_publish_date": result.get("publication_date", None),
+                    "is_open_access": oa.get("is_oa", None),
+                    "oa_status": oa.get("oa_status", None),
+                    "pdf_license": source.get("license", None),
+                    "external_source": source.get("display_name", None),
+                }
+                if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
+                    data["pdf_url"] = oa_pdf_url
 
-            paper = Paper(**data)
-            paper.full_clean()
-            paper.save()
-    return biorxiv_works
+                paper = Paper(**data)
+                paper.full_clean()
+                paper.save()
+                download_pdf.apply_async((paper.id,), priority=4, countdown=4)
+        biorxiv_works = open_alex.get_data_from_source(
+            biorxiv_id, yesterday, page=i + 1
+        )
+    return i
 
 
-# Pull Daily
-# @periodic_task(
-#     run_every=crontab(minute=0, hour='*/6'),
-#     priority=1,
-#     queue=QUEUE_PULL_PAPERS
-# )
+# Pull Daily at 6am UTC
+@periodic_task(run_every=crontab(minute=0, hour=6), priority=3, queue=QUEUE_PULL_PAPERS)
 def pull_arxiv_papers():
     from paper.models import Paper
 
     arxiv_id = "https://api.openalex.org/sources/S4306400194"
-    today = datetime.now().strftime("%Y-%m-%d")
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     open_alex = OpenAlex()
-    arxiv_works = open_alex.get_data_from_source(arxiv_id, today)
+    arxiv_works = open_alex.get_data_from_source(arxiv_id, yesterday)
+    total_works = arxiv_works.get("meta").get("count")
+    pages = math.ceil(total_works / open_alex.per_page)
 
-    for result in arxiv_works.get("results", []):
-        with transaction.atomic():
-            doi = result.get("doi")
-            pure_doi = doi.split("doi.org/")[-1]
+    for i in range(1, pages + 1):
+        for result in arxiv_works.get("results", []):
+            with transaction.atomic():
+                doi = result.get("doi")
+                pure_doi = doi.split("doi.org/")[-1]
 
-            host_venue = result.get("host_venue", {})
-            oa = result.get("open_access", {})
-            oa_pdf_url = oa.get("oa_url", None)
-            url = host_venue.get("url", None)
-            title = normalize("NFKD", result.get("title", ""))
-            raw_authors = result.get("authorships", [])
+                primary_location = result.get("best_oa_location", None) or result.get(
+                    "primary_location", {}
+                )
+                source = primary_location.get("source", {})
+                oa = result.get("open_access", {})
+                oa_pdf_url = oa.get("oa_url", None)
+                url = primary_location.get("landing_page_url", None)
+                title = normalize("NFKD", result.get("title", ""))
+                raw_authors = result.get("authorships", [])
 
-            doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(doi))
-            url_paper_check = Paper.objects.filter(
-                Q(url_svf=SearchQuery(oa_pdf_url))
-                | Q(pdf_url_svf=SearchQuery(oa_pdf_url))
-            )
-            if doi_paper_check.exists() or url_paper_check.exists():
-                # This skips over the current iteration
-                continue
+                doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(doi))
+                url_paper_check = Paper.objects.filter(
+                    Q(url_svf=SearchQuery(oa_pdf_url))
+                    | Q(pdf_url_svf=SearchQuery(oa_pdf_url))
+                )
+                if doi_paper_check.exists() or url_paper_check.exists():
+                    # This skips over the current iteration
+                    continue
 
-            data = {
-                "doi": pure_doi,
-                "url": url,
-                "raw_authors": format_raw_authors(raw_authors),
-                "title": title,
-                "paper_title": title,
-                "paper_publish_date": result.get("publication_date", None),
-                "is_open_access": oa.get("is_oa", None),
-                "oa_status": oa.get("oa_status", None),
-                "pdf_license": host_venue.get("license", None),
-                "pdf_license_url": url,
-                "external_source": host_venue.get("display_name", None),
-            }
-            if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
-                data["pdf_url"] = oa_pdf_url
+                data = {
+                    "doi": pure_doi,
+                    "url": url,
+                    "raw_authors": format_raw_authors(raw_authors),
+                    "title": title,
+                    "paper_title": title,
+                    "paper_publish_date": result.get("publication_date", None),
+                    "is_open_access": oa.get("is_oa", None),
+                    "oa_status": oa.get("oa_status", None),
+                    "pdf_license": source.get("license", None),
+                    "external_source": source.get("display_name", None),
+                }
+                if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
+                    data["pdf_url"] = oa_pdf_url
 
-            paper = Paper(**data)
-            paper.full_clean()
-            paper.save()
-    return arxiv_works
+                paper = Paper(**data)
+                paper.full_clean()
+                paper.save()
+
+                if license == "cc-by":
+                    download_pdf.apply_async((paper.id,), priority=4, countdown=4)
+        arxiv_works = open_alex.get_data_from_source(arxiv_works, yesterday, page=i + 1)
+    return i
