@@ -30,6 +30,7 @@ from psycopg2.errors import UniqueViolation
 from pytz import timezone as pytz_tz
 
 from discussion.models import Comment, Thread
+from hub.models import Hub
 from paper.utils import (
     check_crossref_title,
     check_pdf_title,
@@ -56,6 +57,8 @@ from researchhub.celery import (
     app,
 )
 from researchhub.settings import APP_ENV
+from researchhub_document.related_models.constants.filters import NEW
+from researchhub_document.utils import reset_unified_document_cache
 from utils import sentry
 from utils.http import check_url_contains_pdf
 from utils.openalex import OpenAlex
@@ -664,11 +667,14 @@ def pull_biorxiv_papers():
     biorxiv_works = open_alex.get_data_from_source(biorxiv_id, yesterday)
     total_works = biorxiv_works.get("meta").get("count")
     pages = math.ceil(total_works / open_alex.per_page)
+    hub_ids = set()
 
     for i in range(1, pages + 1):
         for result in biorxiv_works.get("results", []):
             with transaction.atomic():
                 doi = result.get("doi")
+                if doi is None:
+                    continue
                 pure_doi = doi.split("doi.org/")[-1]
 
                 primary_location = result.get("best_oa_location", None) or result.get(
@@ -680,8 +686,9 @@ def pull_biorxiv_papers():
                 url = primary_location.get("landing_page_url", None)
                 title = normalize("NFKD", result.get("title", ""))
                 raw_authors = result.get("authorships", [])
+                concepts = result.get("concepts", [])
 
-                doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(doi))
+                doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(pure_doi))
                 url_paper_check = Paper.objects.filter(
                     Q(url_svf=SearchQuery(oa_pdf_url))
                     | Q(pdf_url_svf=SearchQuery(oa_pdf_url))
@@ -708,11 +715,31 @@ def pull_biorxiv_papers():
                 paper = Paper(**data)
                 paper.full_clean()
                 paper.save()
+
+                concept_names = [
+                    concept.get("display_name", "other")
+                    for concept in concepts
+                    if concept.get("level", 0) == 0
+                ]
+                potential_hubs = []
+                for concept_name in concept_names:
+                    potential_hub = Hub.objects.filter(name__icontains=concept_name)
+                    if potential_hub.exists():
+                        potential_hub = potential_hub.first()
+                        potential_hubs.append(potential_hub)
+                        hub_ids.add(potential_hub.id)
+                paper.hubs.add(*potential_hubs)
+
                 download_pdf.apply_async((paper.id,), priority=4, countdown=4)
         biorxiv_works = open_alex.get_data_from_source(
             biorxiv_id, yesterday, page=i + 1
         )
-    return i
+    reset_unified_document_cache(
+        hub_ids=hub_ids,
+        document_type=["paper"],
+        filters=[NEW],
+    )
+    return total_works
 
 
 # Pull Daily at 6am UTC
@@ -726,11 +753,14 @@ def pull_arxiv_papers():
     arxiv_works = open_alex.get_data_from_source(arxiv_id, yesterday)
     total_works = arxiv_works.get("meta").get("count")
     pages = math.ceil(total_works / open_alex.per_page)
+    hub_ids = set()
 
     for i in range(1, pages + 1):
         for result in arxiv_works.get("results", []):
             with transaction.atomic():
-                doi = result.get("doi")
+                doi = result.get("doi", "")
+                if doi is None:
+                    continue
                 pure_doi = doi.split("doi.org/")[-1]
 
                 primary_location = result.get("best_oa_location", None) or result.get(
@@ -742,8 +772,9 @@ def pull_arxiv_papers():
                 url = primary_location.get("landing_page_url", None)
                 title = normalize("NFKD", result.get("title", ""))
                 raw_authors = result.get("authorships", [])
+                concepts = result.get("concepts", [])
 
-                doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(doi))
+                doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(pure_doi))
                 url_paper_check = Paper.objects.filter(
                     Q(url_svf=SearchQuery(oa_pdf_url))
                     | Q(pdf_url_svf=SearchQuery(oa_pdf_url))
@@ -771,7 +802,26 @@ def pull_arxiv_papers():
                 paper.full_clean()
                 paper.save()
 
+                concept_names = [
+                    concept.get("display_name", "other")
+                    for concept in concepts
+                    if concept.get("level", 0) == 0
+                ]
+                potential_hubs = []
+                for concept_name in concept_names:
+                    potential_hub = Hub.objects.filter(name__icontains=concept_name)
+                    if potential_hub.exists():
+                        potential_hub = potential_hub.first()
+                        potential_hubs.append(potential_hub)
+                        hub_ids.add(potential_hub.id)
+                paper.hubs.add(*potential_hubs)
+
                 if license == "cc-by":
                     download_pdf.apply_async((paper.id,), priority=4, countdown=4)
-        arxiv_works = open_alex.get_data_from_source(arxiv_works, yesterday, page=i + 1)
-    return i
+        arxiv_works = open_alex.get_data_from_source(arxiv_id, yesterday, page=i + 1)
+    reset_unified_document_cache(
+        hub_ids=hub_ids,
+        document_type=["paper"],
+        filters=[NEW],
+    )
+    return total_works
