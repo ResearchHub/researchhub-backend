@@ -108,6 +108,7 @@ class CitationEntrySerializer(DefaultAuthenticatedSerializer):
                     "doc_duds_get_documents": {
                         "_include_fields": [
                             "id",
+                            "file",
                             "title",
                             "slug",
                             "paper_title",
