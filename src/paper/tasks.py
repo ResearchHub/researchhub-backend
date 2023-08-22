@@ -659,6 +659,8 @@ def log_daily_uploads():
 # Pull Daily at 6am UTC
 @periodic_task(run_every=crontab(hour="*/3"), priority=3, queue=QUEUE_PULL_PAPERS)
 def pull_biorxiv_papers():
+    sentry.log_info("Starting Biorxiv pull")
+
     from paper.models import Paper
 
     biorxiv_id = "https://openalex.org/S4306402567"
@@ -744,6 +746,7 @@ def pull_biorxiv_papers():
 # Pull Daily at 6am UTC
 @periodic_task(run_every=crontab(hour="*/3"), priority=3, queue=QUEUE_PULL_PAPERS)
 def pull_arxiv_papers():
+    sentry.log_info("Starting Arxiv pull")
     from paper.models import Paper
 
     arxiv_id = "https://api.openalex.org/sources/S4306400194"
