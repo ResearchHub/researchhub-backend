@@ -16,6 +16,11 @@ class CitationProject(DefaultAuthenticatedModel):
         default=True,
         null=False,
     )
+    slug = models.SlugField(
+        max_length=1024,
+        blank=True,
+        help_text="Slug is automatically generated on a signal, so it is not needed in a form",
+    )
     parent = models.ForeignKey(
         "self",
         blank=True,
