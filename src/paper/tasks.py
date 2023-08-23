@@ -665,7 +665,7 @@ def pull_biorxiv_papers():
 
     biorxiv_id = "https://openalex.org/S4306402567"
     # yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-    today = datetime.now(tz=pytz_tz("US/Pacific"))
+    today = datetime.now(tz=pytz_tz("US/Pacific")).strftime("%Y-%m-%d")
     open_alex = OpenAlex()
     biorxiv_works = open_alex.get_data_from_source(biorxiv_id, today)
     total_works = biorxiv_works.get("meta").get("count")
@@ -751,7 +751,7 @@ def pull_arxiv_papers():
 
     arxiv_id = "https://api.openalex.org/sources/S4306400194"
     # yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-    today = datetime.now(tz=pytz_tz("US/Pacific"))
+    today = datetime.now(tz=pytz_tz("US/Pacific")).strftime("%Y-%m-%d")
     open_alex = OpenAlex()
     arxiv_works = open_alex.get_data_from_source(arxiv_id, today)
     total_works = arxiv_works.get("meta").get("count")
