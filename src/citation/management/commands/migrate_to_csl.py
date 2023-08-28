@@ -38,7 +38,15 @@ class Command(BaseCommand):
         for citation in CitationEntry.objects.all().iterator():
             fields = citation.fields
             if hasattr(fields, "creators"):
-                fields["author"] = fields["creators"]
+                creators = fields["creators"]
+                new_authors = []
+                for creator in creators:
+                    new_authors.append(
+                        {"given": creator["first_name"], "family": creator["last_name"]}
+                    )
+                fields["author"] = new_authors
+            else:
+                fields["author"] = []
             fields["type"] = ZOTERO_TO_CSL_MAPPING[citation.citation_type]
             fields["id"] = f"user_{citation.created_by.id}_{citation.citation_type}"
             validator.validate([fields])
