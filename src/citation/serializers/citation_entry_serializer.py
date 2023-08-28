@@ -11,7 +11,7 @@ from rest_framework.serializers import (
 )
 
 from citation.related_models.citation_entry_model import CitationEntry
-from citation.schema import generate_schema_for_citation
+from citation.schema import CSL_SCHEMA, generate_schema_for_citation
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 from user.serializers import DynamicOrganizationSerializer, DynamicUserSerializer
@@ -67,14 +67,25 @@ class CitationEntrySerializer(DefaultAuthenticatedSerializer):
 
     def validate_fields(self, fields_data):
         citation_type = self.initial_data.get("citation_type")
+        self._attach_csl_type(citation_type, fields_data)
+        self._attach_csl_id(citation_type, fields_data)
         if not citation_type:
             raise ValidationError("No citation type provided")
-        schema = generate_schema_for_citation(citation_type)
-        validate(fields_data, schema=schema)
+        # schema = generate_schema_for_citation(citation_type)
+        # validate(fields_data, schema=schema)
+        validate([fields_data], schema=CSL_SCHEMA)
 
         return fields_data
 
     """ ----- Serializer Methods -----"""
+
+    def _attach_csl_type(self, citation_type, fields_data):
+        fields_data["type"] = citation_type
+
+    def _attach_csl_id(self, citation_type, fields_data):
+        request = self.context.get("request")
+        user = request.user
+        fields_data["id"] = f"user_{user.id}_{citation_type}"
 
     def get_attachment_url(self, citation_entry):
         try:
