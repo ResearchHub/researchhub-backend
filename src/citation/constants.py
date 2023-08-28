@@ -236,7 +236,6 @@ CITATION_TYPE_FIELDS = {
         "issue",
         "page",
         "collection-title",
-        "collection-title",
         "journalAbbreviation",
         "language",
         "DOI",

@@ -10,6 +10,7 @@ from rest_framework.serializers import (
     ValidationError,
 )
 
+from citation.constants import ZOTERO_TO_CSL_MAPPING
 from citation.related_models.citation_entry_model import CitationEntry
 from citation.schema import CSL_SCHEMA, generate_schema_for_citation
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -80,7 +81,7 @@ class CitationEntrySerializer(DefaultAuthenticatedSerializer):
     """ ----- Serializer Methods -----"""
 
     def _attach_csl_type(self, citation_type, fields_data):
-        fields_data["type"] = citation_type
+        fields_data["type"] = ZOTERO_TO_CSL_MAPPING[citation_type]
 
     def _attach_csl_id(self, citation_type, fields_data):
         request = self.context.get("request")

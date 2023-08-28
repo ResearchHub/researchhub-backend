@@ -82,28 +82,6 @@ def generate_json_for_pdf(filename):
 
 
 def generate_schema_for_citation(citation_type):
-    # creator_fields = CREATOR_TYPES[citation_type]
-    # creators_schema_regex = r"|".join(f"^{field}$" for field in creator_fields)
-    creators_schema = {
-        # "type": "object",
-        # "patternProperties": {
-        #     f"{creators_schema_regex}": {
-        "type": "array",
-        "items": {
-            "type": "object",
-            "properties": {
-                "first_name": {"type": "string"},
-                "last_name": {"type": "string"},
-                "title": {"type": "string"},
-            },
-            "required": ["first_name", "last_name"],
-        },
-        #     }
-        # },
-        "minProperties": 1,
-        "additionalProperties": False,
-    }
-
     citation_fields = CITATION_TYPE_FIELDS[citation_type]
     citation_field_properties = {
         citation_field: CSL_SCHEMA["items"]["properties"].get(
@@ -114,7 +92,7 @@ def generate_schema_for_citation(citation_type):
     general_schema = {
         "type": "object",
         "properties": {
-            "author": creators_schema,
+            "author": CSL_SCHEMA["definitions"]["name-variable"],
             **citation_field_properties,
         },
         "required": ["author", *citation_fields],
