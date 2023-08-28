@@ -26,7 +26,7 @@ class CitationEntryDocumentView(DocumentViewSet):
         "title": {"path": "fields", "fields": ["title"]},
         "authors": {
             "path": "fields",
-            "fields": ["creators.first_name", "creators.last_name"],
+            "fields": ["author.given", "author.family"],
         },
     }
 
