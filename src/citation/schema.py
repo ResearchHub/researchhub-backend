@@ -1,17 +1,9 @@
 from utils.openalex import OpenAlex
 from utils.parsers import json_serial
 
-from .constants import CITATION_TYPE_FIELDS, CREATOR_TYPES, JOURNAL_ARTICLE
+from .constants import CITATION_TYPE_FIELDS, JOURNAL_ARTICLE
 
 # https://www.zotero.org/support/kb/item_types_and_fields
-
-CREATOR_TYPE_FIELDS = set()
-for creator_type in CREATOR_TYPES.values():
-    for creator_type_field in creator_type:
-        CREATOR_TYPE_FIELDS.add(creator_type_field)
-
-initial_creators_schema_regex = r"|".join(f"^{field}$" for field in CREATOR_TYPE_FIELDS)
-CREATORS_SCHEMA_REGEX = f"({initial_creators_schema_regex})"
 
 
 def generate_json_for_doi_via_oa(doi):
@@ -103,26 +95,23 @@ def generate_schema_for_citation(citation_type):
 
 CITATION_TO_PAPER_MAPPING = {
     "DOI": "doi",
-    "creators": "raw_authors",
+    "author": "raw_authors",
     "title": "paper_title",
     "date": "paper_publish_date",
     "abstract": "abstract",
-    "publication_title": "paper_title",
-    "journal_abbreviation": "external_source",
-    "is_oa": "is_open_access",
+    "container-title": "paper_title",
+    "journalAbbreviation": "external_source",
     "url": "url",
 }
 
 OPENALEX_JOURNAL_MAPPING = {
     "DOI": "doi",
-    "creators": "authorships",
+    "author": "authorships",
     "title": "title",
     "date": "publication_date",
     "abstract": "abstract",
-    "publication_title": "",
-    "journal_abbreviation": "",
-    "publication_type": "publication_type",
-    "is_oa": "openaccess.is_oa",
+    "container-title": "",
+    "journalAbbreviation": "",
 }
 
 
