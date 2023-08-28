@@ -153,6 +153,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "note",
     ],
     ARTWORK: [
         "title",
@@ -166,6 +167,7 @@ CITATION_TYPE_FIELDS = {
         "source",
         "call-number",
         "URL",
+        "note",
     ],
     AUDIO_RECORDING: [
         "title",
@@ -185,6 +187,7 @@ CITATION_TYPE_FIELDS = {
         "source",
         "call-number",
         "URL",
+        "note",
     ],
     BILL: [
         "title",
@@ -200,6 +203,7 @@ CITATION_TYPE_FIELDS = {
         "language",
         "URL",
         "title-short",
+        "note",
     ],
     BLOG_POST: [
         "title",
@@ -209,6 +213,7 @@ CITATION_TYPE_FIELDS = {
         "URL",
         "language",
         "title-short",
+        "note",
     ],
     BOOK: [
         "title",
@@ -229,6 +234,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "note",
     ],
     BOOK_SECTION: [
         "title",
@@ -250,6 +256,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "note",
     ],
     CASE: [
         "title",
@@ -263,6 +270,7 @@ CITATION_TYPE_FIELDS = {
         "language",
         "title-short",
         "URL",
+        "note",
     ],
     SOFTWARE: [
         "title",
@@ -280,6 +288,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "note",
     ],
     CONFERENCE_PAPER: [
         "title",
@@ -300,6 +309,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "note",
     ],
     DICTIONARY_ENTRY: [
         "title",
@@ -321,6 +331,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "note",
     ],
     DOCUMENT: [
         "title",
@@ -333,8 +344,17 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "note",
     ],
-    EMAIL: ["title", "abstract", "title-short", "URL", "language", "license"],
+    EMAIL: [
+        "title",
+        "abstract",
+        "title-short",
+        "URL",
+        "language",
+        "license",
+        "note",
+    ],
     ENCYCLOPEDIA_ARTICLE: [
         "title",
         "abstract",
@@ -355,6 +375,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "note",
     ],
     FILM: [
         "title",
@@ -370,6 +391,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "note",
     ],
     FORUM_POST: [
         "title",
@@ -379,6 +401,7 @@ CITATION_TYPE_FIELDS = {
         "language",
         "title-short",
         "URL",
+        "note",
     ],
     HEARING: [
         "title",
@@ -395,6 +418,7 @@ CITATION_TYPE_FIELDS = {
         "language",
         "title-short",
         "URL",
+        "note",
     ],
     INSTANT_MESSAGE: [
         "title",
@@ -402,6 +426,7 @@ CITATION_TYPE_FIELDS = {
         "language",
         "title-short",
         "URL",
+        "note",
     ],
     INTERVIEW: [
         "title",
@@ -414,6 +439,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "note",
     ],
     LETTER: [
         "title",
@@ -426,6 +452,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "note",
     ],
     MAGAZINE_ARTICLE: [
         "title",
@@ -442,6 +469,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "note",
     ],
     MANUSCRIPT: [
         "title",
@@ -456,6 +484,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "note",
     ],
     MAP: [
         "title",
@@ -474,6 +503,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "note",
     ],
     NEWSPAPER_ARTICLE: [
         "title",
@@ -491,6 +521,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "note",
     ],
     PATENT: [
         "title",
@@ -506,6 +537,7 @@ CITATION_TYPE_FIELDS = {
         "language",
         "title-short",
         "URL",
+        "note",
     ],
     PODCAST: [
         "title",
@@ -517,6 +549,7 @@ CITATION_TYPE_FIELDS = {
         "URL",
         "language",
         "title-short",
+        "note",
     ],
     PREPRINT: [
         "title",
@@ -535,6 +568,7 @@ CITATION_TYPE_FIELDS = {
         "language",
         "source",
         "call-number",
+        "note",
     ],
     PRESENTATION: [
         "title",
@@ -545,6 +579,7 @@ CITATION_TYPE_FIELDS = {
         "URL",
         "language",
         "title-short",
+        "note",
     ],
     RADIO_BROADCAST: [
         "title",
@@ -562,6 +597,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "note",
     ],
     REPORT: [
         "title",
@@ -579,6 +615,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "note",
     ],
     STATUTE: [
         "title",
@@ -593,6 +630,7 @@ CITATION_TYPE_FIELDS = {
         "language",
         "title-short",
         "URL",
+        "note",
     ],
     THESIS: [
         "title",
@@ -608,6 +646,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "note",
     ],
     TV_BROADCAST: [
         "title",
@@ -625,6 +664,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "note",
     ],
     VIDEO_RECORDING: [
         "title",
@@ -644,6 +684,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "note",
     ],
     WEBPAGE: [
         "title",
@@ -653,5 +694,6 @@ CITATION_TYPE_FIELDS = {
         "title-short",
         "URL",
         "language",
+        "note",
     ],
 }

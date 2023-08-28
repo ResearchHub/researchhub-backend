@@ -14,27 +14,25 @@ def generate_json_for_doi_via_oa(doi):
     for field in schema["required"]:
         mapping_field = OPENALEX_JOURNAL_MAPPING.get(field, "")
         if mapping_field:
-            if field == "creators":
+            if field == "author":
                 authors = result[mapping_field]
                 author_array = []
                 for author in authors:
                     name = author["author"]["display_name"]
                     if "," in name:
                         names = name.split(", ")
-                        author_array.append(
-                            {"first_name": names[1], "last_name": names[0]}
-                        )
+                        author_array.append({"given": names[1], "family": names[0]})
                     else:
                         names = name.split(" ")
                         author_array.append(
-                            {"first_name": names[0], "last_name": names[len(names) - 1]}
+                            {"given": names[0], "family": names[len(names) - 1]}
                         )
                 json_dict[field] = author_array
             else:
                 pdf_value = mapping_field.split(".")
                 cur_json = result
                 for val in pdf_value:
-                    cur_json = result[val]
+                    cur_json = result.get(val, "")
                 json_dict[field] = cur_json
         else:
             json_dict[field] = ""
@@ -47,9 +45,20 @@ def generate_json_for_rh_paper(paper):
     for field in schema["required"]:
         mapping_field = CITATION_TO_PAPER_MAPPING.get(field, "")
         if mapping_field:
-            json_dict[field] = json_serial(
-                getattr(paper, mapping_field, ""), ignore_errors=True
-            )
+            author_array = []
+            if mapping_field == "raw_authors":
+                for author in paper[mapping_field]:
+                    author_array.append(
+                        {
+                            "given": author.get("first_name", ""),
+                            "family": author.get("last_name", ""),
+                        }
+                    )
+                json_dict[field] = author_array
+            else:
+                json_dict[field] = json_serial(
+                    getattr(paper, mapping_field, ""), ignore_errors=True
+                )
         else:
             json_dict[field] = ""
     return json_dict
