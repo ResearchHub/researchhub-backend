@@ -72,8 +72,6 @@ class CitationEntrySerializer(DefaultAuthenticatedSerializer):
         self._attach_csl_id(citation_type, fields_data)
         if not citation_type:
             raise ValidationError("No citation type provided")
-        # schema = generate_schema_for_citation(citation_type)
-        # validate(fields_data, schema=schema)
         validate([fields_data], schema=CSL_SCHEMA)
 
         return fields_data
