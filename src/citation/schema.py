@@ -35,7 +35,9 @@ def generate_json_for_doi_via_oa(doi):
                         )
                 json_dict[field] = author_array
             elif field == "issued":
-                json_dict[field] = date_string_to_parts(mapping_field)
+                json_dict[field] = {
+                    "date-parts": [date_string_to_parts(result[mapping_field])]
+                }
             else:
                 pdf_value = mapping_field.split(".")
                 cur_json = result
@@ -55,7 +57,7 @@ def generate_json_for_rh_paper(paper):
         if mapping_field:
             author_array = []
             if mapping_field == "raw_authors":
-                for author in paper[mapping_field]:
+                for author in getattr(paper, mapping_field):
                     author_array.append(
                         {
                             "given": author.get("first_name", ""),
@@ -64,7 +66,11 @@ def generate_json_for_rh_paper(paper):
                     )
                 json_dict[field] = author_array
             elif mapping_field == "paper_publish_date":
-                json_dict[field] = date_string_to_parts(mapping_field)
+                json_dict[field] = {
+                    "date-parts": [
+                        date_string_to_parts(getattr(paper, mapping_field).isoformat())
+                    ]
+                }
             else:
                 json_dict[field] = json_serial(
                     getattr(paper, mapping_field, ""), ignore_errors=True
@@ -78,15 +84,20 @@ def generate_json_for_pdf(filename):
     json_dict = {}
     schema = generate_schema_for_citation(JOURNAL_ARTICLE)
     for key, value in schema["properties"].items():
-        value_type = value["type"]
-        if value_type == "string":
-            json_dict[key] = ""
-        elif value_type == "array":
+        if "type" in value:
+            value_type = value["type"]
+            if value_type == "string":
+                json_dict[key] = ""
+            elif value_type == "array":
+                json_dict[key] = []
+            elif value_type == "object":
+                json_dict[key] = {}
+            elif isinstance(value_type, list):
+                json_dict[key] = ""
+        elif key == "author":
             json_dict[key] = []
-        elif value_type == "object":
-            json_dict[key] = {}
         else:
-            raise Exception("Unknown value type for schema")
+            json_dict[key] = {}
 
     json_dict["title"] = filename
     return json_dict
