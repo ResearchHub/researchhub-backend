@@ -23,5 +23,5 @@ class Command(BaseCommand):
             if not CitationProject.objects.filter(slug=slug).exists():
                 instance.slug = slug
             else:
-                instance.slug = slug + "_" + suffix
+                instance.slug = slug + "-" + suffix
             instance.save()

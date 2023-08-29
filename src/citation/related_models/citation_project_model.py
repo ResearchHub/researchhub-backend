@@ -48,6 +48,16 @@ class CitationProject(DefaultAuthenticatedModel):
 
     """--- METHODS ---"""
 
+    def get_parent_name(self, project, names=[], slugs=[]):
+        names.append(project.project_name)
+        slugs.append(project.slug)
+        if not project.parent:
+            names.reverse()
+            slugs.reverse()
+            return {"names": names, "slugs": slugs}
+        else:
+            return self.get_parent_name(project.parent, names, slugs)
+
     def add_editors(self, editor_ids=[]):
         for editor_id in editor_ids:
             editor_exists = self.permissions.has_editor_user(editor_id)
