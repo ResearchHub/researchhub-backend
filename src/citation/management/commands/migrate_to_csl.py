@@ -45,6 +45,10 @@ class Command(BaseCommand):
                         {"given": creator["first_name"], "family": creator["last_name"]}
                     )
                 fields["author"] = new_authors
+            elif hasattr(fields, "date"):
+                date = fields["date"]
+                date_parts = {"date-parts": [date.split("-")]}
+                fields["issued"] = date_parts
             else:
                 fields["author"] = []
             fields["type"] = ZOTERO_TO_CSL_MAPPING[citation.citation_type]

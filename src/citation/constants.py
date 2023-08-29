@@ -153,6 +153,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "issued",
         "note",
     ],
     ARTWORK: [
@@ -167,6 +168,7 @@ CITATION_TYPE_FIELDS = {
         "source",
         "call-number",
         "URL",
+        "issued",
         "note",
     ],
     AUDIO_RECORDING: [
@@ -187,6 +189,7 @@ CITATION_TYPE_FIELDS = {
         "source",
         "call-number",
         "URL",
+        "issued",
         "note",
     ],
     BILL: [
@@ -203,6 +206,7 @@ CITATION_TYPE_FIELDS = {
         "language",
         "URL",
         "title-short",
+        "issued",
         "note",
     ],
     BLOG_POST: [
@@ -213,6 +217,7 @@ CITATION_TYPE_FIELDS = {
         "URL",
         "language",
         "title-short",
+        "issued",
         "note",
     ],
     BOOK: [
@@ -234,6 +239,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "issued",
         "note",
     ],
     BOOK_SECTION: [
@@ -256,6 +262,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "issued",
         "note",
     ],
     CASE: [
@@ -270,6 +277,7 @@ CITATION_TYPE_FIELDS = {
         "language",
         "title-short",
         "URL",
+        "issued",
         "note",
     ],
     SOFTWARE: [
@@ -288,6 +296,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "issued",
         "note",
     ],
     CONFERENCE_PAPER: [
@@ -309,6 +318,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "issued",
         "note",
     ],
     DICTIONARY_ENTRY: [
@@ -331,6 +341,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "issued",
         "note",
     ],
     DOCUMENT: [
@@ -344,6 +355,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "issued",
         "note",
     ],
     EMAIL: [
@@ -353,6 +365,7 @@ CITATION_TYPE_FIELDS = {
         "URL",
         "language",
         "license",
+        "issued",
         "note",
     ],
     ENCYCLOPEDIA_ARTICLE: [
@@ -375,6 +388,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "issued",
         "note",
     ],
     FILM: [
@@ -391,6 +405,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "issued",
         "note",
     ],
     FORUM_POST: [
@@ -401,6 +416,7 @@ CITATION_TYPE_FIELDS = {
         "language",
         "title-short",
         "URL",
+        "issued",
         "note",
     ],
     HEARING: [
@@ -418,6 +434,7 @@ CITATION_TYPE_FIELDS = {
         "language",
         "title-short",
         "URL",
+        "issued",
         "note",
     ],
     INSTANT_MESSAGE: [
@@ -426,6 +443,7 @@ CITATION_TYPE_FIELDS = {
         "language",
         "title-short",
         "URL",
+        "issued",
         "note",
     ],
     INTERVIEW: [
@@ -439,6 +457,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "issued",
         "note",
     ],
     LETTER: [
@@ -452,6 +471,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "issued",
         "note",
     ],
     MAGAZINE_ARTICLE: [
@@ -469,6 +489,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "issued",
         "note",
     ],
     MANUSCRIPT: [
@@ -484,6 +505,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "issued",
         "note",
     ],
     MAP: [
@@ -503,6 +525,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "issued",
         "note",
     ],
     NEWSPAPER_ARTICLE: [
@@ -521,6 +544,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "issued",
         "note",
     ],
     PATENT: [
@@ -537,6 +561,7 @@ CITATION_TYPE_FIELDS = {
         "language",
         "title-short",
         "URL",
+        "issued",
         "note",
     ],
     PODCAST: [
@@ -549,6 +574,7 @@ CITATION_TYPE_FIELDS = {
         "URL",
         "language",
         "title-short",
+        "issued",
         "note",
     ],
     PREPRINT: [
@@ -568,6 +594,7 @@ CITATION_TYPE_FIELDS = {
         "language",
         "source",
         "call-number",
+        "issued",
         "note",
     ],
     PRESENTATION: [
@@ -579,6 +606,7 @@ CITATION_TYPE_FIELDS = {
         "URL",
         "language",
         "title-short",
+        "issued",
         "note",
     ],
     RADIO_BROADCAST: [
@@ -597,6 +625,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "issued",
         "note",
     ],
     REPORT: [
@@ -615,6 +644,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "issued",
         "note",
     ],
     STATUTE: [
@@ -630,6 +660,7 @@ CITATION_TYPE_FIELDS = {
         "language",
         "title-short",
         "URL",
+        "issued",
         "note",
     ],
     THESIS: [
@@ -646,6 +677,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "issued",
         "note",
     ],
     TV_BROADCAST: [
@@ -664,6 +696,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "issued",
         "note",
     ],
     VIDEO_RECORDING: [
@@ -684,6 +717,7 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "issued",
         "note",
     ],
     WEBPAGE: [
@@ -694,6 +728,7 @@ CITATION_TYPE_FIELDS = {
         "title-short",
         "URL",
         "language",
+        "issued",
         "note",
     ],
 }
