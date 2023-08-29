@@ -21,6 +21,10 @@ class CitationProject(DefaultAuthenticatedModel):
         blank=True,
         help_text="Slug is automatically generated on a signal, so it is not needed in a form",
     )
+    parent_names = models.JSONField(
+        blank=True,
+        null=True,
+    )
     parent = models.ForeignKey(
         "self",
         blank=True,
