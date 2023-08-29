@@ -107,7 +107,10 @@ class SocialLoginSerializer(serializers.Serializer):
             )
             token = client.get_access_token(code)
             access_token = token["access_token"]
-        # Case 3: Handle error
+        # Case 3: access token is sent directly in response
+        elif attrs.get("access_token"):
+            access_token = attrs.get("access_token")
+        # Case 4: Handle error
         else:
             error = serializers.ValidationError(
                 _("Incorrect input. access_token or code is required.")
