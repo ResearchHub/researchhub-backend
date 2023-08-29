@@ -62,6 +62,7 @@ from researchhub_document.utils import reset_unified_document_cache
 from utils import sentry
 from utils.http import check_url_contains_pdf
 from utils.openalex import OpenAlex
+from utils.parsers import rebuild_sentence_from_inverted_index
 from utils.twitter import get_twitter_results, get_twitter_url_results
 
 logger = get_task_logger(__name__)
@@ -692,6 +693,9 @@ def pull_biorxiv_papers():
                 title = normalize("NFKD", result.get("title", ""))
                 raw_authors = result.get("authorships", [])
                 concepts = result.get("concepts", [])
+                abstract = rebuild_sentence_from_inverted_index(
+                    result.get("abstract_inverted_index", [])
+                )
 
                 doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(pure_doi))
                 url_paper_check = Paper.objects.filter(
@@ -713,6 +717,7 @@ def pull_biorxiv_papers():
                     "oa_status": oa.get("oa_status", None),
                     "pdf_license": source.get("license", None),
                     "external_source": source.get("display_name", None),
+                    "abstract": abstract,
                 }
                 if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
                     data["pdf_url"] = oa_pdf_url
@@ -780,6 +785,9 @@ def pull_arxiv_papers():
                 title = normalize("NFKD", result.get("title", ""))
                 raw_authors = result.get("authorships", [])
                 concepts = result.get("concepts", [])
+                abstract = rebuild_sentence_from_inverted_index(
+                    result.get("abstract_inverted_index", [])
+                )
 
                 doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(pure_doi))
                 url_paper_check = Paper.objects.filter(
@@ -801,6 +809,7 @@ def pull_arxiv_papers():
                     "oa_status": oa.get("oa_status", None),
                     "pdf_license": source.get("license", None),
                     "external_source": source.get("display_name", None),
+                    "abstract": abstract,
                 }
                 if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
                     data["pdf_url"] = oa_pdf_url
