@@ -1,9 +1,15 @@
+import re
+
 from utils.openalex import OpenAlex
 from utils.parsers import json_serial
 
 from .constants import CITATION_TYPE_FIELDS, JOURNAL_ARTICLE
 
 # https://www.zotero.org/support/kb/item_types_and_fields
+
+
+def date_string_to_parts(date):
+    return re.split(r"[-,\.]", date)
 
 
 def generate_json_for_doi_via_oa(doi):
@@ -28,6 +34,8 @@ def generate_json_for_doi_via_oa(doi):
                             {"given": names[0], "family": names[len(names) - 1]}
                         )
                 json_dict[field] = author_array
+            elif field == "issued":
+                json_dict[field] = date_string_to_parts(mapping_field)
             else:
                 pdf_value = mapping_field.split(".")
                 cur_json = result
@@ -55,6 +63,8 @@ def generate_json_for_rh_paper(paper):
                         }
                     )
                 json_dict[field] = author_array
+            elif mapping_field == "paper_publish_date":
+                json_dict[field] = date_string_to_parts(mapping_field)
             else:
                 json_dict[field] = json_serial(
                     getattr(paper, mapping_field, ""), ignore_errors=True
@@ -90,6 +100,7 @@ def generate_schema_for_citation(citation_type):
         )
         for citation_field in citation_fields
     }
+    citation_field_properties["issued"] = CSL_SCHEMA["definitions"]["date-variable"]
     general_schema = {
         "type": "object",
         "properties": {
@@ -106,7 +117,7 @@ CITATION_TO_PAPER_MAPPING = {
     "DOI": "doi",
     "author": "raw_authors",
     "title": "paper_title",
-    "date": "paper_publish_date",
+    "issued": "paper_publish_date",
     "abstract": "abstract",
     "container-title": "paper_title",
     "journalAbbreviation": "external_source",
@@ -117,7 +128,7 @@ OPENALEX_JOURNAL_MAPPING = {
     "DOI": "doi",
     "author": "authorships",
     "title": "title",
-    "date": "publication_date",
+    "issued": "publication_date",
     "abstract": "abstract",
     "container-title": "",
     "journalAbbreviation": "",

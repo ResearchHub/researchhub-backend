@@ -60,7 +60,10 @@ def get_citation_entry_from_pdf(
         doi = header_data.get("identifier")
 
     citation_entry = CitationEntry.objects.filter(
-        doi=doi, created_by=user_id, project_id=project_id
+        doi=doi,
+        created_by=user_id,
+        project_id=project_id,
+        organization_id=organization_id,
     )
     if doi is None or not citation_entry.exists():
         with transaction.atomic():
