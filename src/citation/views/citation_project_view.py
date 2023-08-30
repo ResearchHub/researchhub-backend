@@ -41,7 +41,7 @@ class CitationProjectViewSet(ModelViewSet):
             if not CitationProject.objects.filter(slug=slug).exists():
                 project.slug = slug
             else:
-                project.slug = slug + "-" + suffix
+                project.slug = f"{slug}_{suffix}"
             project.save()
 
             parent_names = project.get_parent_name(project, [], [])
