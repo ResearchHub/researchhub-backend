@@ -408,9 +408,19 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         permission_classes=[],
     )
     def pdf_coverage(self, request, pk=None):
-        paper_count = Paper.objects.all().count()
-        papers_with_pdfs = Paper.objects.filter(
+        date = request.GET.get("date", None)
+        paper_query = Paper.objects.all()
+        if date:
+            paper_query = paper_query.filter(created_date__gte=date)
+
+        paper_count = paper_query.count()
+        papers_with_pdfs = paper_query.filter(
             Q(file__isnull=False) | Q(pdf_url__isnull=False)
+        ).count()
+
+        open_access_count = paper_query.filter(is_open_access=True).count()
+        open_access_papers_with_pdf = paper_query.filter(
+            Q(file__isnull=False) | Q(pdf_url__isnull=False), is_open_access=True
         ).count()
 
         return Response(
@@ -419,6 +429,11 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 "internal_pdf_count": papers_with_pdfs,
                 "internal_coverage_percentage": round(
                     papers_with_pdfs / paper_count, 2
+                ),
+                "open_access_count": open_access_count,
+                "open_access_pdf_count": open_access_papers_with_pdf,
+                "open_access_pdf_percentage": round(
+                    open_access_count / open_access_papers_with_pdf, 2
                 ),
             },
             status=200,
