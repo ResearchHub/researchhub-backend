@@ -60,8 +60,7 @@ elif CLOUD:
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 
 # Django Debug Toolbar
-USE_DEBUG_TOOLBAR = False
-USE_DEBUG_TOOLBAR = getattr(keys, "USE_DEBUG_TOOLBAR", False)
+USE_DEBUG_TOOLBAR = os.environ.get("USE_DEBUG_TOOLBAR", False)
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/2.2/howto/deployment/checklist/
@@ -272,6 +271,13 @@ MIDDLEWARE = [
 
 # if not TESTING:
 #     MIDDLEWARE.append('profiler.middleware.profiler.ProfileMiddleware')
+
+if USE_DEBUG_TOOLBAR:
+    INSTALLED_APPS += ["debug_toolbar"]
+    MIDDLEWARE += ["debug_toolbar.middleware.DebugToolbarMiddleware"]
+    INTERNAL_IPS = [
+        "127.0.0.1",
+    ]
 
 if USE_SILK:
     INSTALLED_APPS += ["silk", "dbbackup"]

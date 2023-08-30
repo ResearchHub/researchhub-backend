@@ -1,5 +1,6 @@
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.db.models import Prefetch
 from django.db.models.query import QuerySet
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
@@ -207,10 +208,12 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             "rhc_dcs_get_thread": {
                 "_include_fields": (
                     "anchor",
+                    "content_type",
                     "id",
+                    "object_id",
                     "privacy_type",
                     "thread_type",
-                    "related_content",
+                    # "related_content",
                 )
             },
             "rhc_dcs_get_created_by": {
@@ -427,6 +430,8 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         )
 
     def list(self, request, *args, **kwargs):
+        from researchhub_access_group.models import Permission
+
         queryset = self.filter_queryset(self.get_queryset().filter(parent__isnull=True))
         queryset = queryset.select_related(
             "created_by",
@@ -437,6 +442,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             # "created_by__permissions",
             # "bounties__parent__created_by__permissions",
             "children",
+            # "children__created_by__permissions",
             "purchases",
             "bounties",
             "bounties__parent",
@@ -446,6 +452,36 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             "reviews",
             "thread__permissions",
             "thread__content_type",
+        )
+
+        # queryset = queryset.prefetch_related(
+        #     Prefetch(
+        #         "created_by__permissions",
+        #         queryset=Permission.objects.all(),
+        #         to_attr="blah_editors"
+        #     )
+        # )
+
+        # queryset = queryset.prefetch_related(
+        #     Prefetch(
+        #         "children__created_by__permissions",
+        #         queryset=Permission.objects.filter(
+        #             access_type="EDITOR",
+        #             content_type__model="hub",
+        #         ),
+        #         to_attr="children_editors"
+        #         # to_attr="blah_editors",
+        #     )
+        # )
+        queryset = queryset.prefetch_related(
+            Prefetch(
+                "created_by__permissions",
+                queryset=Permission.objects.filter(
+                    access_type="EDITOR",
+                    content_type__model="hub",
+                ),
+                to_attr="blah_editors",
+            )
         )
 
         page = self.paginate_queryset(queryset)
