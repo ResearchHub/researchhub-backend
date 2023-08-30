@@ -37,11 +37,11 @@ class CitationProjectViewSet(ModelViewSet):
             suffix = get_random_string(length=32)
             slug = slugify(project.project_name)
             if not slug:
-                slug = f"{slug}_{suffix}"
+                slug = f"{slug}-{suffix}"
             if not CitationProject.objects.filter(slug=slug).exists():
                 project.slug = slug
             else:
-                project.slug = f"{slug}_{suffix}"
+                project.slug = f"{slug}-{suffix}"
             project.save()
 
             parent_names = project.get_parent_name(project, [], [])
