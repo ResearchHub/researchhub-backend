@@ -37,7 +37,7 @@ class CitationProjectViewSet(ModelViewSet):
             suffix = get_random_string(length=32)
             slug = slugify(project.project_name)
             if not slug:
-                slug += suffix
+                slug = f"{slug}_{suffix}"
             if not CitationProject.objects.filter(slug=slug).exists():
                 project.slug = slug
             else:
