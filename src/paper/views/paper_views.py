@@ -403,6 +403,28 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         return Response("Paper was deleted.", status=200)
 
     @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[],
+    )
+    def pdf_coverage(self, request, pk=None):
+        paper_count = Paper.objects.all().count()
+        papers_with_pdfs = Paper.objects.filter(
+            Q(file__isnull=False) | Q(pdf_url__isnull=False)
+        ).count()
+
+        return Response(
+            {
+                "paper_count": paper_count,
+                "internal_pdf_count": papers_with_pdfs,
+                "internal_coverage_percentage": round(
+                    papers_with_pdfs / paper_count, 2
+                ),
+            },
+            status=200,
+        )
+
+    @action(
         detail=True,
         methods=["put", "patch", "delete"],
         permission_classes=[HasDocumentCensorPermission],
