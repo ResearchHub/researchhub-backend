@@ -16,6 +16,15 @@ class CitationProject(DefaultAuthenticatedModel):
         default=True,
         null=False,
     )
+    slug = models.SlugField(
+        max_length=1024,
+        blank=True,
+        help_text="Slug is automatically generated on a signal, so it is not needed in a form",
+    )
+    parent_names = models.JSONField(
+        blank=True,
+        null=True,
+    )
     parent = models.ForeignKey(
         "self",
         blank=True,
@@ -38,6 +47,16 @@ class CitationProject(DefaultAuthenticatedModel):
     )
 
     """--- METHODS ---"""
+
+    def get_parent_name(self, project, names=[], slugs=[]):
+        names.append(project.project_name)
+        slugs.append(project.slug)
+        if not project.parent:
+            names.reverse()
+            slugs.reverse()
+            return {"names": names, "slugs": slugs}
+        else:
+            return self.get_parent_name(project.parent, names, slugs)
 
     def add_editors(self, editor_ids=[]):
         for editor_id in editor_ids:

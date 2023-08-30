@@ -1,5 +1,7 @@
 from django.db import transaction
 from django.db.models import Q
+from django.utils.crypto import get_random_string
+from django.utils.text import slugify
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
@@ -32,6 +34,19 @@ class CitationProjectViewSet(ModelViewSet):
             project.set_creator_as_admin()
             project.add_editors(upserted_collaborators.get("editors", []))
             project.add_viewers(upserted_collaborators.get("viewers", []))
+            suffix = get_random_string(length=32)
+            slug = slugify(project.project_name)
+            if not slug:
+                slug = f"{slug}-{suffix}"
+            if not CitationProject.objects.filter(slug=slug).exists():
+                project.slug = slug
+            else:
+                project.slug = f"{slug}-{suffix}"
+            project.save()
+
+            parent_names = project.get_parent_name(project, [], [])
+            project.parent_names = parent_names
+            project.save()
 
             project.refresh_from_db()
             return Response(
