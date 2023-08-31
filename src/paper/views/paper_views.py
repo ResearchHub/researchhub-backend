@@ -414,26 +414,24 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             paper_query = paper_query.filter(created_date__gte=date)
 
         paper_count = paper_query.count()
-        papers_with_pdfs = paper_query.filter(
-            Q(file__isnull=False) | Q(pdf_url__isnull=False)
-        ).count()
+        papers_with_pdfs = paper_query.filter(Q(file="") | Q(file__isnull=True)).count()
 
         open_access_count = paper_query.filter(is_open_access=True).count()
         open_access_papers_with_pdf = paper_query.filter(
-            Q(file__isnull=False) | Q(pdf_url__isnull=False), is_open_access=True
+            Q(file="") | Q(file__isnull=True), is_open_access=True
         ).count()
 
         return Response(
             {
                 "paper_count": paper_count,
                 "internal_pdf_count": papers_with_pdfs,
-                "internal_coverage_percentage": round(
-                    papers_with_pdfs / paper_count, 2
+                "internal_coverage_percentage": "{}%".format(
+                    round(papers_with_pdfs / paper_count, 2) * 100
                 ),
                 "open_access_count": open_access_count,
                 "open_access_pdf_count": open_access_papers_with_pdf,
-                "open_access_pdf_percentage": round(
-                    open_access_count / open_access_papers_with_pdf, 2
+                "open_access_pdf_percentage": "{}%".format(
+                    round(open_access_papers_with_pdf / open_access_count, 2) * 100
                 ),
             },
             status=200,
