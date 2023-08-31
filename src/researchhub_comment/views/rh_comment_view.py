@@ -231,7 +231,32 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "promoted",
                     "user_endorsement",
                     "user_flag",
-                )
+                ),
+                "_select_related_fields": (
+                    "created_by",
+                    "created_by__author_profile",
+                    "thread",
+                ),
+                "_prefetch_related_fields": (
+                    "children",
+                    "purchases",
+                    "bounties",
+                    "bounties__parent",
+                    "bounties__created_by",
+                    "bounties__created_by__author_profile",
+                    "bounty_solution",
+                    "reviews",
+                    "thread__permissions",
+                    "thread__content_type",
+                    Prefetch(
+                        "created_by__permissions",
+                        queryset=Permission.objects.filter(
+                            access_type="EDITOR",
+                            content_type__model="hub",
+                        ),
+                        to_attr="created_by_permissions",
+                    ),
+                ),
             },
             "rhc_dcs_get_purchases": {"_include_fields": ("amount", "user")},
             "rhc_dcs_get_bounties": {
