@@ -66,9 +66,6 @@ class DynamicRhCommentSerializer(
     def get_created_by(self, comment):
         context = self.context
         _context_fields = context.get("rhc_dcs_get_created_by", {})
-        # import pdb; pdb.set_trace()
-        # if comment.created_by.id == 1:
-        #     import pdb; pdb.set_trace()
         serializer = DynamicUserSerializer(
             comment.created_by, context=context, **_context_fields
         )
@@ -99,7 +96,6 @@ class DynamicRhCommentSerializer(
         relative_depth_key = f"relative_depth_{comment.id}"
         depth_context = context.get(depth_key, None)
 
-        # import pdb; pdb.set_trace()
         if not depth_context:
             depth_context = {}
             context[depth_key] = depth_context
@@ -120,6 +116,7 @@ class DynamicRhCommentSerializer(
             qs = view.filter_queryset(comment.children)
         else:
             qs = comment.children.filter(**_filter_fields)
+
         serializer = DynamicRhCommentSerializer(
             qs,
             many=True,

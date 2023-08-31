@@ -439,10 +439,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             "thread",
         )
         queryset = queryset.prefetch_related(
-            # "created_by__permissions",
-            # "bounties__parent__created_by__permissions",
             "children",
-            # "children__created_by__permissions",
             "purchases",
             "bounties",
             "bounties__parent",
@@ -454,25 +451,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             "thread__content_type",
         )
 
-        # queryset = queryset.prefetch_related(
-        #     Prefetch(
-        #         "created_by__permissions",
-        #         queryset=Permission.objects.all(),
-        #         to_attr="blah_editors"
-        #     )
-        # )
-
-        # queryset = queryset.prefetch_related(
-        #     Prefetch(
-        #         "children__created_by__permissions",
-        #         queryset=Permission.objects.filter(
-        #             access_type="EDITOR",
-        #             content_type__model="hub",
-        #         ),
-        #         to_attr="children_editors"
-        #         # to_attr="blah_editors",
-        #     )
-        # )
         queryset = queryset.prefetch_related(
             Prefetch(
                 "created_by__permissions",
@@ -480,7 +458,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     access_type="EDITOR",
                     content_type__model="hub",
                 ),
-                to_attr="blah_editors",
+                to_attr="created_by_permissions",
             )
         )
 
