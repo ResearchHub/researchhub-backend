@@ -213,7 +213,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "object_id",
                     "privacy_type",
                     "thread_type",
-                    # "related_content",
                 )
             },
             "rhc_dcs_get_created_by": {
