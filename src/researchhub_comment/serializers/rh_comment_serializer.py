@@ -143,7 +143,7 @@ class DynamicRhCommentSerializer(
         context = self.context
         _context_fields = context.get("rhc_dcs_get_bounties", {})
         serializer = DynamicBountySerializer(
-            comment.bounties, many=True, context=context, **_context_fields
+            comment.bounties.all(), many=True, context=context, **_context_fields
         )
         return serializer.data
 

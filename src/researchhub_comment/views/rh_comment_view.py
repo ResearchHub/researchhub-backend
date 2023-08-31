@@ -455,8 +455,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         )
 
     def list(self, request, *args, **kwargs):
-        from researchhub_access_group.models import Permission
-
         queryset = self.filter_queryset(self.get_queryset().filter(parent__isnull=True))
         queryset = queryset.select_related(
             "created_by",
