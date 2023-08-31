@@ -28,7 +28,7 @@ from reputation.views.bounty_view import (
 from researchhub.pagination import FasterDjangoPaginator
 from researchhub.permissions import IsObjectOwner, IsObjectOwnerOrModerator
 from researchhub.settings import TESTING
-from researchhub_access_group.constants import ADMIN, PRIVATE, PUBLIC, WORKSPACE
+from researchhub_access_group.constants import ADMIN, EDITOR, PRIVATE, PUBLIC, WORKSPACE
 from researchhub_access_group.models import Permission
 from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT
 from researchhub_comment.constants.rh_comment_view_constants import (
@@ -250,7 +250,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     Prefetch(
                         "created_by__permissions",
                         queryset=Permission.objects.filter(
-                            access_type="EDITOR",
+                            access_type=EDITOR,
                             content_type__model="hub",
                         ),
                         to_attr="created_by_permissions",
@@ -477,7 +477,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             Prefetch(
                 "created_by__permissions",
                 queryset=Permission.objects.filter(
-                    access_type="EDITOR",
+                    access_type=EDITOR,
                     content_type__model="hub",
                 ),
                 to_attr="created_by_permissions",
