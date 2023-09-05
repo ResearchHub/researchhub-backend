@@ -5,6 +5,7 @@ import math
 import os
 import re
 import shutil
+import time
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from subprocess import PIPE, run
@@ -62,7 +63,7 @@ from researchhub_document.utils import reset_unified_document_cache
 from utils import sentry
 from utils.http import check_url_contains_pdf
 from utils.openalex import OpenAlex
-from utils.parsers import rebuild_sentence_from_inverted_index
+from utils.parsers import get_license_by_url, rebuild_sentence_from_inverted_index
 from utils.twitter import get_twitter_results, get_twitter_url_results
 
 logger = get_task_logger(__name__)
@@ -658,9 +659,9 @@ def log_daily_uploads():
 
 
 # Pull Daily at 6am UTC
-@periodic_task(
-    run_every=crontab(minute=0, hour="*/3"), priority=3, queue=QUEUE_PULL_PAPERS
-)
+# @periodic_task(
+#     run_every=crontab(minute=0, hour="*/3"), priority=3, queue=QUEUE_PULL_PAPERS
+# )
 def pull_biorxiv_papers():
     sentry.log_info("Starting Biorxiv pull")
 
@@ -751,9 +752,9 @@ def pull_biorxiv_papers():
 
 
 # Pull Daily at 6am UTC
-@periodic_task(
-    run_every=crontab(minute=0, hour="*/3"), priority=3, queue=QUEUE_PULL_PAPERS
-)
+# @periodic_task(
+#     run_every=crontab(minute=0, hour="*/3"), priority=3, queue=QUEUE_PULL_PAPERS
+# )
 def pull_arxiv_papers():
     sentry.log_info("Starting Arxiv pull")
     from paper.models import Paper
@@ -841,3 +842,139 @@ def pull_arxiv_papers():
         filters=[NEW],
     )
     return total_works
+
+
+@periodic_task(
+    run_every=crontab(minute=0, hour="*/3"), priority=3, queue=QUEUE_PULL_PAPERS
+)
+def pull_biorxiv():
+    try:
+        page = 0
+        has_entries = True
+        while has_entries:
+            res = requests.get(
+                f"https://www.biorxiv.org/content/early/recent?page={page}", timeout=10
+            )
+            has_entries = _extract_biorxiv_entries(res.content)
+            page += 1
+    except Exception as e:
+        sentry.log_error(e)
+
+
+def _extract_biorxiv_entries(html_content):
+    from paper.models import Paper
+
+    soup = BeautifulSoup(html_content, "lxml")
+    today = datetime.now(tz=pytz_tz("US/Pacific"))
+    today_string = today.strftime("%B-%d-%Y").lower()
+
+    page = soup.find(id=today_string)
+    if page:
+        current_content = page.find_all(class_="highwire-cite-linked-title")
+        for content in current_content:
+            article_href = content.attrs.get("href")
+            article_url = f"https://biorxiv.org{article_href}"
+            article_url_check = Paper.objects.filter(doi_svf=SearchQuery(article_url))
+            print(article_url)
+            if article_url_check.exists():
+                continue
+            time.sleep(1)
+            _extract_biorxiv_entry(article_url)
+        return True
+
+    return False
+
+
+def _extract_biorxiv_entry(url):
+    from paper.models import Paper
+
+    try:
+        res = requests.get(url, timeout=10)
+        soup = BeautifulSoup(res.content, "lxml")
+
+        has_license_type_none = soup.find(class_="license-type-none")
+        if has_license_type_none:
+            # No reuse allowed without permission.
+            return
+
+        pure_doi = soup.find("meta", attrs={"name": "citation_doi"}).attrs.get(
+            "content"
+        )
+        pdf_url = soup.find("meta", attrs={"name": "citation_pdf_url"}).attrs.get(
+            "content"
+        )
+
+        doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(pure_doi))
+        url_paper_check = Paper.objects.filter(
+            Q(url_svf=SearchQuery(url)) | Q(pdf_url_svf=SearchQuery(pdf_url))
+        )
+        if doi_paper_check.exists() or url_paper_check.exists():
+            return
+
+        title = soup.find("meta", property="og:title").attrs.get("content")
+        authors_html = soup.find_all("meta", attrs={"name": "citation_author"})
+        raw_authors = [
+            {
+                "first_name": " ".join(author_name[:-1]),
+                "last_name": "".join(author_name[-1]),
+            }
+            for raw_author in authors_html
+            if (author_name := raw_author.attrs.get("content").split(" "))
+        ]
+        raw_publication_date = soup.find(
+            "meta", attrs={"name": "citation_publication_date"}
+        ).attrs.get("content")
+        publication_date = datetime.strptime(raw_publication_date, "%Y/%d/%m").strftime(
+            "%Y-%m-%d"
+        )
+        abstract = BeautifulSoup(
+            soup.find("meta", attrs={"name": "citation_abstract"}).attrs.get("content"),
+            "lxml",
+        ).text
+        journal = soup.find("meta", attrs={"name": "citation_journal_title"}).attrs.get(
+            "content"
+        )
+        publisher = soup.find("meta", attrs={"name": "citation_publisher"}).attrs.get(
+            "content"
+        )
+        license_url = soup.find(class_="license-type").findChild().attrs.get("href")
+        pdf_license = get_license_by_url(license_url)
+        external_source = f"{journal} ({publisher})"
+        subject_area = soup.find(class_="highwire-article-collection-term")
+
+        if subject_area:
+            hub = subject_area.text.strip().lower()
+    except Exception as e:
+        sentry.log_error(e)
+        return
+
+    data = {
+        "doi": pure_doi,
+        "url": url,
+        "raw_authors": raw_authors,
+        "title": title,
+        "paper_title": title,
+        "paper_publish_date": publication_date,
+        "pdf_license": pdf_license,
+        "external_source": external_source,
+        "abstract": abstract,
+        "pdf_url": pdf_url,
+    }
+    paper = Paper(**data)
+    paper.full_clean()
+    paper.save()
+    download_pdf.apply_async((paper.id,), priority=4, countdown=4)
+
+    hub_ids = []
+    if subject_area:
+        potential_hub = Hub.objects.filter(name__icontains=hub)
+        if potential_hub.exists():
+            potential_hub = potential_hub.first()
+            hub_ids.append(potential_hub.id)
+            paper.hubs.add(*hub_ids)
+
+    reset_unified_document_cache(
+        hub_ids=hub_ids,
+        document_type=["paper"],
+        filters=[NEW],
+    )

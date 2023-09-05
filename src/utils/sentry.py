@@ -1,3 +1,5 @@
+import traceback
+
 from sentry_sdk import capture_exception, capture_message, configure_scope
 
 
@@ -12,7 +14,11 @@ def log_error(e, base_error=None, message=None):
     from researchhub.settings import PRODUCTION
 
     if not PRODUCTION:
-        print(base_error, message)
+        if isinstance(base_error, Exception):
+            print(base_error, message)
+            traceback.print_exception(base_error)
+        else:
+            print(base_error, message)
 
     with configure_scope() as scope:
         if base_error is not None:
