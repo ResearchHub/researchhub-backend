@@ -48,7 +48,7 @@ django-celery-results==2.0.1 ; python_version >= "3.8" and python_version < "4.0
 django-contrib-comments==1.9.2 ; python_version >= "3.8" and python_version < "4.0"
 django-cors-headers==3.5.0 ; python_version >= "3.8" and python_version < "4.0"
 django-dbbackup==4.0.2 ; python_version >= "3.8" and python_version < "4.0"
-django-debug-toolbar==3.1.1 ; python_version >= "3.8" and python_version < "4.0"
+django-debug-toolbar==4.2.0 ; python_version >= "3.8" and python_version < "4.0"
 django-elasticsearch-debug-toolbar==2.0.0 ; python_version >= "3.8" and python_version < "4.0"
 django-elasticsearch-dsl-drf==0.20.8 ; python_version >= "3.8" and python_version < "4.0"
 django-elasticsearch-dsl==7.2.2 ; python_version >= "3.8" and python_version < "4.0"

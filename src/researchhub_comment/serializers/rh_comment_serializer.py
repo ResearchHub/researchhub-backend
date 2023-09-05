@@ -91,6 +91,8 @@ class DynamicRhCommentSerializer(
         view = context.get("view", None)
         _context_fields = context.get("rhc_dcs_get_children", {})
         _filter_fields = _context_fields.get("_filter_fields", {})
+        _select_related_fields = _context_fields.get("_select_related_fields", [])
+        _prefetch_related_fields = _context_fields.get("_prefetch_related_fields", [])
         max_depth = context.get("rhc_dcs_get_children_max_depth", 3)
         depth_key = f"rhc_dcs_get_children_{comment.thread.id}_depth"
         relative_depth_key = f"relative_depth_{comment.id}"
@@ -116,8 +118,11 @@ class DynamicRhCommentSerializer(
             qs = view.filter_queryset(comment.children)
         else:
             qs = comment.children.filter(**_filter_fields)
+
         serializer = DynamicRhCommentSerializer(
-            qs,
+            qs.select_related(*_select_related_fields).prefetch_related(
+                *_prefetch_related_fields
+            ),
             many=True,
             context=context,
             **_context_fields,

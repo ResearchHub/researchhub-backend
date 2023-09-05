@@ -1,5 +1,6 @@
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.db.models import Prefetch
 from django.db.models.query import QuerySet
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
@@ -27,7 +28,7 @@ from reputation.views.bounty_view import (
 from researchhub.pagination import FasterDjangoPaginator
 from researchhub.permissions import IsObjectOwner, IsObjectOwnerOrModerator
 from researchhub.settings import TESTING
-from researchhub_access_group.constants import ADMIN, PRIVATE, PUBLIC, WORKSPACE
+from researchhub_access_group.constants import ADMIN, EDITOR, PRIVATE, PUBLIC, WORKSPACE
 from researchhub_access_group.models import Permission
 from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT
 from researchhub_comment.constants.rh_comment_view_constants import (
@@ -207,10 +208,11 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             "rhc_dcs_get_thread": {
                 "_include_fields": (
                     "anchor",
+                    "content_type",
                     "id",
+                    "object_id",
                     "privacy_type",
                     "thread_type",
-                    "related_content",
                 )
             },
             "rhc_dcs_get_created_by": {
@@ -228,7 +230,32 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "promoted",
                     "user_endorsement",
                     "user_flag",
-                )
+                ),
+                "_select_related_fields": (
+                    "created_by",
+                    "created_by__author_profile",
+                    "thread",
+                ),
+                "_prefetch_related_fields": (
+                    "children",
+                    "purchases",
+                    "bounties",
+                    "bounties__parent",
+                    "bounties__created_by",
+                    "bounties__created_by__author_profile",
+                    "bounty_solution",
+                    "reviews",
+                    "thread__permissions",
+                    "thread__content_type",
+                    Prefetch(
+                        "created_by__permissions",
+                        queryset=Permission.objects.filter(
+                            access_type=EDITOR,
+                            content_type__model="hub",
+                        ),
+                        to_attr="created_by_permissions",
+                    ),
+                ),
             },
             "rhc_dcs_get_purchases": {"_include_fields": ("amount", "user")},
             "rhc_dcs_get_bounties": {
@@ -434,8 +461,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             "thread",
         )
         queryset = queryset.prefetch_related(
-            # "created_by__permissions",
-            # "bounties__parent__created_by__permissions",
             "children",
             "purchases",
             "bounties",
@@ -446,6 +471,17 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             "reviews",
             "thread__permissions",
             "thread__content_type",
+        )
+
+        queryset = queryset.prefetch_related(
+            Prefetch(
+                "created_by__permissions",
+                queryset=Permission.objects.filter(
+                    access_type=EDITOR,
+                    content_type__model="hub",
+                ),
+                to_attr="created_by_permissions",
+            )
         )
 
         page = self.paginate_queryset(queryset)
