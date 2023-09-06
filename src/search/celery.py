@@ -15,12 +15,12 @@ class CelerySignalProcessor(RealTimeSignalProcessor):
 
         if model in registry._models:
             self.registry_update_task.apply_async(
-                (pk, app_label, model_name), countdown=2
+                (pk, app_label, model_name), countdown=3
             )
 
         if model in registry._related_models:
             self.registry_update_related_task.apply_async(
-                (pk, app_label, model_name), countdown=2
+                (pk, app_label, model_name), countdown=3
             )
 
     @shared_task(ignore_result=True)

@@ -30,7 +30,11 @@ from paper.models import Paper
 from paper.serializers import PaperCitationSerializer
 from paper.utils import DOI_REGEX, clean_dois
 from researchhub.pagination import FasterDjangoPaginator
-from researchhub.settings import AWS_STORAGE_BUCKET_NAME
+from researchhub.settings import (
+    AWS_ACCESS_KEY_ID,
+    AWS_SECRET_ACCESS_KEY,
+    AWS_STORAGE_BUCKET_NAME,
+)
 from utils.openalex import OpenAlex
 from utils.parsers import clean_filename
 from utils.sentry import log_error
@@ -70,7 +74,11 @@ class CitationEntryViewSet(ModelViewSet):
         cleaned_filename = clean_filename(f"{get_random_string(8)}_{filename}")
         user_key = f"user_{request.user.id}"
         boto3_session = session.Session()
-        s3_client = boto3_session.client("s3")
+        s3_client = boto3_session.client(
+            "s3",
+            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+        )
         ascii_cleaned_filename = filename.encode("ascii", "ignore").decode()
 
         res = s3_client.generate_presigned_url(
