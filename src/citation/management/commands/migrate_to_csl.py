@@ -37,7 +37,7 @@ class Command(BaseCommand):
 
         for citation in CitationEntry.objects.all().iterator():
             fields = citation.fields
-            if hasattr(fields, "creators"):
+            if "creators" in fields:
                 creators = fields["creators"]
                 new_authors = []
                 for creator in creators:
@@ -45,12 +45,12 @@ class Command(BaseCommand):
                         {"given": creator["first_name"], "family": creator["last_name"]}
                     )
                 fields["author"] = new_authors
-            elif hasattr(fields, "date"):
+
+            if "date" in fields:
                 date = fields["date"]
                 date_parts = {"date-parts": [date.split("-")]}
                 fields["issued"] = date_parts
-            else:
-                fields["author"] = []
+
             fields["type"] = ZOTERO_TO_CSL_MAPPING[citation.citation_type]
             fields["id"] = f"user_{citation.created_by.id}_{citation.citation_type}"
             validator.validate([fields])
