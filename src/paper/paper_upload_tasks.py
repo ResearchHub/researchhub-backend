@@ -38,6 +38,9 @@ from researchhub.celery import QUEUE_PAPER_METADATA, app
 from researchhub_document.related_models.constants.document_type import (
     FILTER_OPEN_ACCESS,
 )
+from researchhub_document.related_models.unified_document_concept_model import (
+    UnifiedDocumentConcept,
+)
 from tag.models import Concept
 from utils import sentry
 from utils.http import check_url_contains_pdf
@@ -457,11 +460,8 @@ def celery_openalex(self, celery_data):
             if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
                 data["pdf_url"] = oa_pdf_url
 
-            concepts = result.get("concepts", [])
-            logger.info(f"concepts after get_data_from_doi: {concepts}")
-            data["concepts"] = hydrate_and_sort(concepts)
-            logger.info(f"concepts after hydrate_and_sort: {data['concepts']}")
-
+            paper_concepts = result.get("concepts", [])
+            data["concepts"] = open_alex.hydrate_paper_concepts(paper_concepts)
             response = {
                 **paper_data,
                 "data": data,
@@ -477,30 +477,6 @@ def celery_openalex(self, celery_data):
         return {"error": str(e), "key": 10, **paper_data}
     except Exception as e:
         return {"error": str(e), "key": 10, **paper_data}
-
-
-# Given a list of dehydrated concepts, hydrate them to get the rest of the fields such as description.
-# dehydrated concepts: https://docs.openalex.org/about-the-data/work#concepts
-# hydrated concepts: https://docs.openalex.org/about-the-data/concept
-def hydrate_and_sort(concepts):
-    # sort concepts by level (general to specific) and then score (strongly to weakly connected)
-    concepts.sort(key=operator.itemgetter("score"), reverse=True)
-    concepts.sort(key=operator.itemgetter("level"))
-
-    ids = []
-    for concept in concepts:
-        try:
-            pass_score_filter = float(concept.get("score")) > 0
-        except ValueError:
-            pass_score_filter = True
-        if pass_score_filter:
-            ids.append(concept["id"])
-    try:
-        return OpenAlex().get_hydrated_concepts(ids)
-    except HTTPError as e:
-        sentry.log_error(e)
-        print(e)
-        return []
 
 
 @app.task(bind=True, queue=QUEUE_PAPER_METADATA, ignore_result=False)
@@ -637,7 +613,11 @@ def celery_create_paper(self, celery_data):
             for concept in concepts:
                 # create model object for concept if it doesn't yet exist, then associate the concept with paper
                 (stored_concept, created) = Concept.objects.get_or_create(
-                    openalex_id=concept.pop("openalex_id"), defaults=concept
+                    openalex_id=concept["openalex_id"],
+                    defaults={
+                        "display_name": concept.get("display_name", ""),
+                        "description": concept.get("description", ""),
+                    },
                 )
                 if not created:
                     # update existing concept with fresh data from openalex
@@ -650,7 +630,14 @@ def celery_create_paper(self, celery_data):
                         "openalex_updated_date"
                     ]
                     stored_concept.save()
-                paper.unified_document.concepts.add(stored_concept)
+
+                # Store relationship between paper and concept
+                UnifiedDocumentConcept.create_or_update(
+                    unified_document_id=paper.unified_document.id,
+                    concept_id=stored_concept.id,
+                    level=concept.get("level", 0),
+                    relevancy_score=concept.get("score", 0),
+                )
 
         uploaded_by = paper_submission.uploaded_by
 
