@@ -694,7 +694,7 @@ def pull_biorxiv_papers():
                 raw_authors = result.get("authorships", [])
                 concepts = result.get("concepts", [])
                 abstract = rebuild_sentence_from_inverted_index(
-                    result.get("abstract_inverted_index", [])
+                    result.get("abstract_inverted_index", {})
                 )
 
                 doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(pure_doi))
@@ -785,7 +785,7 @@ def pull_arxiv_papers():
                 raw_authors = result.get("authorships", [])
                 concepts = result.get("concepts", [])
                 abstract = rebuild_sentence_from_inverted_index(
-                    result.get("abstract_inverted_index", [])
+                    result.get("abstract_inverted_index", {})
                 )
 
                 doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(pure_doi))
@@ -811,28 +811,31 @@ def pull_arxiv_papers():
                     "abstract": abstract,
                 }
                 if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
-                    data["pdf_url"] = oa_pdf_url
+                    data["pdf_url"] = oa_pdf_url.strip()
 
-                paper = Paper(**data)
-                paper.full_clean()
-                paper.save()
+                try:
+                    paper = Paper(**data)
+                    paper.full_clean()
+                    paper.save()
 
-                concept_names = [
-                    concept.get("display_name", "other")
-                    for concept in concepts
-                    if concept.get("level", 0) == 0
-                ]
-                potential_hubs = []
-                for concept_name in concept_names:
-                    potential_hub = Hub.objects.filter(name__icontains=concept_name)
-                    if potential_hub.exists():
-                        potential_hub = potential_hub.first()
-                        potential_hubs.append(potential_hub)
-                        hub_ids.add(potential_hub.id)
-                paper.hubs.add(*potential_hubs)
+                    concept_names = [
+                        concept.get("display_name", "other")
+                        for concept in concepts
+                        if concept.get("level", 0) == 0
+                    ]
+                    potential_hubs = []
+                    for concept_name in concept_names:
+                        potential_hub = Hub.objects.filter(name__icontains=concept_name)
+                        if potential_hub.exists():
+                            potential_hub = potential_hub.first()
+                            potential_hubs.append(potential_hub)
+                            hub_ids.add(potential_hub.id)
+                    paper.hubs.add(*potential_hubs)
 
-                if license == "cc-by":
-                    download_pdf.apply_async((paper.id,), priority=4, countdown=4)
+                    if license == "cc-by":
+                        download_pdf.apply_async((paper.id,), priority=4, countdown=4)
+                except Exception as e:
+                    sentry.log_error(e)
         arxiv_works = open_alex.get_data_from_source(arxiv_id, yesterday, page=i + 1)
     reset_unified_document_cache(
         hub_ids=hub_ids,
@@ -948,37 +951,37 @@ def _extract_biorxiv_entry(url):
 
         if subject_area:
             hub = subject_area.text.strip().lower()
+
+        data = {
+            "doi": pure_doi,
+            "url": url,
+            "raw_authors": raw_authors,
+            "title": title,
+            "paper_title": title,
+            "paper_publish_date": publication_date,
+            "pdf_license": pdf_license,
+            "external_source": external_source,
+            "abstract": abstract,
+            "pdf_url": pdf_url,
+        }
+        paper = Paper(**data)
+        paper.full_clean()
+        paper.save()
+        download_pdf.apply_async((paper.id,), priority=4, countdown=4)
+
+        hub_ids = []
+        if subject_area:
+            potential_hub = Hub.objects.filter(name__icontains=hub)
+            if potential_hub.exists():
+                potential_hub = potential_hub.first()
+                hub_ids.append(potential_hub.id)
+                paper.hubs.add(*hub_ids)
+
+        reset_unified_document_cache(
+            hub_ids=hub_ids,
+            document_type=["paper"],
+            filters=[NEW],
+        )
     except Exception as e:
         sentry.log_error(e)
         return
-
-    data = {
-        "doi": pure_doi,
-        "url": url,
-        "raw_authors": raw_authors,
-        "title": title,
-        "paper_title": title,
-        "paper_publish_date": publication_date,
-        "pdf_license": pdf_license,
-        "external_source": external_source,
-        "abstract": abstract,
-        "pdf_url": pdf_url,
-    }
-    paper = Paper(**data)
-    paper.full_clean()
-    paper.save()
-    download_pdf.apply_async((paper.id,), priority=4, countdown=4)
-
-    hub_ids = []
-    if subject_area:
-        potential_hub = Hub.objects.filter(name__icontains=hub)
-        if potential_hub.exists():
-            potential_hub = potential_hub.first()
-            hub_ids.append(potential_hub.id)
-            paper.hubs.add(*hub_ids)
-
-    reset_unified_document_cache(
-        hub_ids=hub_ids,
-        document_type=["paper"],
-        filters=[NEW],
-    )

@@ -76,6 +76,9 @@ def clean_filename(filename):
 
 
 def rebuild_sentence_from_inverted_index(index):
+    if not isinstance(index, dict):
+        return None
+
     reverse_index = {i: key for key, value in index.items() for i in value}
     sentence_array = [reverse_index[key] for key in sorted(reverse_index.keys())]
     return " ".join(sentence_array)
