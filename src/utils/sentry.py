@@ -11,12 +11,15 @@ def log_error(e, base_error=None, message=None):
         base_error (Exception) -- Exception that triggered e
         message (str) -- Optional message for additional info
     """
-    from researchhub.settings import DEVELOPMENT
+    from researchhub.settings import PRODUCTION
 
-    if DEVELOPMENT:
+    if not PRODUCTION:
         if isinstance(e, Exception):
             print(e, base_error, message)
-            traceback.print_exception(e)
+            try:
+                traceback.print_exception(e)
+            except:
+                pass
         else:
             print(e, base_error, message)
 
