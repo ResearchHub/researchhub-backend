@@ -16,7 +16,7 @@ def log_error(e, base_error=None, message=None):
     if not PRODUCTION:
         if isinstance(e, Exception):
             print(e, base_error, message)
-            print(traceback.print_exception(e))
+            traceback.print_exception(e)
         else:
             print(e, base_error, message)
 

@@ -658,7 +658,6 @@ def log_daily_uploads():
     return request.status_code, paper_count
 
 
-# Pull Daily at 6am UTC
 # @periodic_task(
 #     run_every=crontab(minute=0, hour="*/3"), priority=3, queue=QUEUE_PULL_PAPERS
 # )
@@ -751,19 +750,18 @@ def pull_biorxiv_papers():
     return total_works
 
 
-# Pull Daily at 6am UTC
-# @periodic_task(
-#     run_every=crontab(minute=0, hour="*/3"), priority=3, queue=QUEUE_PULL_PAPERS
-# )
+@periodic_task(
+    run_every=crontab(minute=0, hour="*/3"), priority=3, queue=QUEUE_PULL_PAPERS
+)
 def pull_arxiv_papers():
     sentry.log_info("Starting Arxiv pull")
     from paper.models import Paper
 
     arxiv_id = "https://api.openalex.org/sources/S4306400194"
-    # yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-    today = datetime.now(tz=pytz_tz("US/Pacific")).strftime("%Y-%m-%d")
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    # today = datetime.now(tz=pytz_tz("US/Pacific")).strftime("%Y-%m-%d")
     open_alex = OpenAlex()
-    arxiv_works = open_alex.get_data_from_source(arxiv_id, today)
+    arxiv_works = open_alex.get_data_from_source(arxiv_id, yesterday)
     total_works = arxiv_works.get("meta").get("count")
     pages = math.ceil(total_works / open_alex.per_page)
     hub_ids = set()
@@ -835,7 +833,7 @@ def pull_arxiv_papers():
 
                 if license == "cc-by":
                     download_pdf.apply_async((paper.id,), priority=4, countdown=4)
-        arxiv_works = open_alex.get_data_from_source(arxiv_id, today, page=i + 1)
+        arxiv_works = open_alex.get_data_from_source(arxiv_id, yesterday, page=i + 1)
     reset_unified_document_cache(
         hub_ids=hub_ids,
         document_type=["paper"],
