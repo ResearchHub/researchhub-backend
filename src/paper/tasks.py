@@ -937,8 +937,14 @@ def _extract_biorxiv_entry(url):
         publisher = soup.find("meta", attrs={"name": "citation_publisher"}).attrs.get(
             "content"
         )
-        license_url = soup.find(class_="license-type").findChild().attrs.get("href")
-        pdf_license = get_license_by_url(license_url)
+
+        license_block = soup.find(class_="license-type")
+        if license_ref := license_block.findChild():
+            license_url = license_ref.attrs.get("href")
+            pdf_license = get_license_by_url(license_url)
+        else:
+            pdf_license = None
+
         external_source = f"{journal} ({publisher})"
         subject_area = soup.find(class_="highwire-article-collection-term")
 
