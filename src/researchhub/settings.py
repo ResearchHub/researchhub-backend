@@ -36,7 +36,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 CI = "GITHUB_ACTIONS" in os.environ
 CLOUD = PRODUCTION or STAGING or CI
-TESTING = ("test" in APP_ENV) or ("test" in sys.argv)
+TESTING = ("test" in APP_ENV) or ("test" in sys.argv) or (APP_ENV == "test")
 PYTHONPATH = "/var/app/current:$PYTHONPATH"
 DJANGO_SETTINGS_MODULE = "researchhub.settings"
 ELASTIC_BEANSTALK = APP_ENV in ["production", "staging", "development"]
