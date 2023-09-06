@@ -14,11 +14,11 @@ def log_error(e, base_error=None, message=None):
     from researchhub.settings import PRODUCTION
 
     if not PRODUCTION:
-        if isinstance(base_error, Exception):
-            print(base_error, message)
-            traceback.print_exception(base_error)
+        if isinstance(e, Exception):
+            print(e, base_error, message)
+            print(traceback.print_exception(e))
         else:
-            print(base_error, message)
+            print(e, base_error, message)
 
     with configure_scope() as scope:
         if base_error is not None:
