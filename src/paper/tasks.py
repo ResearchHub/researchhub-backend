@@ -848,6 +848,8 @@ def pull_arxiv_papers():
     run_every=crontab(minute=0, hour="*/3"), priority=3, queue=QUEUE_PULL_PAPERS
 )
 def pull_biorxiv():
+    sentry.log_info("Starting Biorxiv pull")
+
     try:
         page = 0
         has_entries = True
