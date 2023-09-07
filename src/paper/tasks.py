@@ -5,7 +5,6 @@ import math
 import os
 import re
 import shutil
-import time
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from subprocess import PIPE, run
@@ -876,18 +875,20 @@ def _extract_biorxiv_entries(html_content):
             article_href = content.attrs.get("href")
             article_url = f"https://biorxiv.org{article_href}"
             article_url_check = Paper.objects.filter(doi_svf=SearchQuery(article_url))
-            print(article_url)
             if article_url_check.exists():
                 continue
-            time.sleep(1)
-            _extract_biorxiv_entry(article_url)
+            _extract_biorxiv_entry.apply_async((article_url,), priority=4, countdown=2)
         return True
 
     return False
 
 
-def _extract_biorxiv_entry(url):
+@app.task(queue=QUEUE_PULL_PAPERS)
+def _extract_biorxiv_entry(url, retry=0):
     from paper.models import Paper
+
+    if retry > 2:
+        return False
 
     try:
         res = requests.get(url, timeout=10)
@@ -982,6 +983,11 @@ def _extract_biorxiv_entry(url):
             document_type=["paper"],
             filters=[NEW],
         )
+    except requests.ConnectionError as e:
+        sentry.log_error(e)
+        _extract_biorxiv_entry.apply_async(
+            (url, retry + 1), priority=6, countdown=2 * (retry + 1)
+        )
     except Exception as e:
         sentry.log_error(e)
-        return
+        return False
