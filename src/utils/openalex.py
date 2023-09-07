@@ -49,30 +49,33 @@ class OpenAlex:
     def hydrate_paper_concepts(self, paper_concepts):
         concept_ids = [concept["id"].split("/")[-1] for concept in paper_concepts]
         filters = {"filter": f"openalex_id:{'|'.join(concept_ids)}"}
-        response = self._get("concepts", filters)
-        api_concepts = response["results"]
 
         hydrated_concepts = []
-        for hydrated_concept in api_concepts:
-            paper_concept = next(
-                (
-                    concept
-                    for concept in paper_concepts
-                    if concept["id"] == hydrated_concept["id"]
-                ),
-                None,
-            )
+        try:
+            response = self._get("concepts", filters)
+            api_concepts = response["results"]
+            for hydrated_concept in api_concepts:
+                paper_concept = next(
+                    (
+                        concept
+                        for concept in paper_concepts
+                        if concept["id"] == hydrated_concept["id"]
+                    ),
+                    None,
+                )
 
-            hydrated_concepts.append(
-                {
-                    "level": paper_concept["level"],
-                    "score": paper_concept["score"],
-                    "openalex_id": hydrated_concept["id"],
-                    "display_name": hydrated_concept["display_name"],
-                    "description": hydrated_concept["description"] or "",
-                    "openalex_created_date": hydrated_concept["created_date"],
-                    "openalex_updated_date": hydrated_concept["updated_date"],
-                }
-            )
+                hydrated_concepts.append(
+                    {
+                        "level": paper_concept["level"],
+                        "score": paper_concept["score"],
+                        "openalex_id": hydrated_concept["id"],
+                        "display_name": hydrated_concept["display_name"],
+                        "description": hydrated_concept["description"] or "",
+                        "openalex_created_date": hydrated_concept["created_date"],
+                        "openalex_updated_date": hydrated_concept["updated_date"],
+                    }
+                )
 
-        return hydrated_concepts
+            return hydrated_concepts
+        except Exception as e:
+            return []

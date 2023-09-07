@@ -440,6 +440,7 @@ def celery_openalex(self, celery_data):
             url = host_venue.get("url", None)
             title = normalize("NFKD", result.get("title", ""))
             raw_authors = result.get("authorships", [])
+            concepts = result.get("concepts", [])
 
             data = {
                 "doi": doi,
@@ -457,8 +458,8 @@ def celery_openalex(self, celery_data):
             if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
                 data["pdf_url"] = oa_pdf_url
 
-            paper_concepts = result.get("concepts", [])
-            data["concepts"] = open_alex.hydrate_paper_concepts(paper_concepts)
+            paper_concepts = open_alex.hydrate_paper_concepts(concepts)
+            data["concepts"] = paper_concepts
             response = {
                 **paper_data,
                 "data": data,
@@ -572,6 +573,7 @@ def celery_create_paper(self, celery_data):
     Paper = apps.get_model("paper.Paper")
     PaperSubmission = apps.get_model("paper.PaperSubmission")
     Contribution = apps.get_model("reputation.Contribution")
+    paper_concepts = paper_data.pop("concepts", [])
 
     try:
         paper_submission = PaperSubmission.objects.get(id=submission_id)
@@ -633,42 +635,22 @@ def celery_create_paper(self, celery_data):
     except Exception as e:
         raise e
 
-    # try:
-    #     concepts = paper_data.pop("concepts", None)
-    #     logger.info(f"concepts in celery_create_paper: {concepts}")
-    #     if concepts is not None:
-    #         for concept in concepts:
-    #             # create model object for concept if it doesn't yet exist, then associate the concept with paper
-    #             (stored_concept, created) = Concept.objects.get_or_create(
-    #                 openalex_id=concept["openalex_id"],
-    #                 defaults={
-    #                     "display_name": concept.get("display_name", ""),
-    #                     "description": concept.get("description", ""),
-    #                 },
-    #             )
-    #             if not created:
-    #                 # update existing concept with fresh data from openalex
-    #                 stored_concept.display_name = concept.get("display_name", "")
-    #                 stored_concept.description = concept.get("description", "")
-    #                 stored_concept.openalex_created_date = concept[
-    #                     "openalex_created_date"
-    #                 ]
-    #                 stored_concept.openalex_updated_date = concept[
-    #                     "openalex_updated_date"
-    #                 ]
-    #                 stored_concept.save()
+    try:
+        logger.info(f"concepts in celery_create_paper: {paper_concepts}")
 
-    #             # Store relationship between paper and concept
-    #             UnifiedDocumentConcept.create_or_update(
-    #                 unified_document_id=paper.unified_document.id,
-    #                 concept_id=stored_concept.id,
-    #                 level=concept.get("level", 0),
-    #                 relevancy_score=concept.get("score", 0),
-    #             )
+        for paper_concept in paper_concepts:
+            concept = Concept.create_or_update(paper_concept)
+            paper.unified_document.concepts.add(
+                concept,
+                through_defaults={
+                    "relevancy_score": paper_concept["score"],
+                    "level": paper_concept["level"],
+                },
+            )
 
-    # except Exception as e:
-    #     print('Failed to save concepts for paper' + str(paper.id))
-    #     raise e
+    except Exception as e:
+        print("Failed to save concepts for paper" + str(paper.id))
+        raise e
 
     return paper_id
 
