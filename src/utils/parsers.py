@@ -73,3 +73,30 @@ def clean_filename(filename):
         return f"{slugify(filename_parts[0])}.{extension}"
     else:
         return slugify(filename)
+
+
+def rebuild_sentence_from_inverted_index(index):
+    if not isinstance(index, dict):
+        return None
+
+    reverse_index = {i: key for key, value in index.items() for i in value}
+    sentence_array = [reverse_index[key] for key in sorted(reverse_index.keys())]
+    return " ".join(sentence_array)
+
+
+def get_pure_doi(doi_string):
+    return doi_string.split("doi.org/")[-1].strip()
+
+
+def get_license_by_url(url):
+    cleaned_url = url.split("creativecommons.org")[-1]
+    mapping = {
+        "/licenses/by/4.0/": "cc-by",
+        "/licenses/by-sa/4.0/": "cc-by-sa",
+        "/licenses/by-nd/4.0/": "cc-by-nd",
+        "/licenses/by-nc/4.0/": "cc-by-nc",
+        "/licenses/by-nc-sa/4.0/": "cc-by-nc-sa",
+        "/licenses/by-nc-nd/4.0/": "cc-by-nc-nd",
+        "/publicdomain/zero/1.0/": "cc0",
+    }
+    return mapping[cleaned_url]

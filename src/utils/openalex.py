@@ -13,6 +13,7 @@ class OpenAlex:
             "From": "mailto:hello@researchhub.com",
         }
         self.timeout = timeout
+        self.per_page = 25
 
         if OPENALEX_KEY:
             self.base_params["api_key"] = OPENALEX_KEY
@@ -42,6 +43,15 @@ class OpenAlex:
         if count == 0:
             raise DOINotFoundError(f"No OpenAlex works found for doi: {doi}")
         return results[0]
+
+    def get_data_from_source(self, source, date, page=1):
+        filters = {
+            "filter": f"locations.source.id:{source},from_created_date:{date}",
+            "per-page": self.per_page,
+            "page": page,
+        }
+        works = self._get("works", filters)
+        return works
 
     # Fetch hydrated concepts by ids: https://docs.openalex.org/about-the-data/concept#id
     # e.g. https://openalex.org/C126537357

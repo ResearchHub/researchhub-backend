@@ -85,7 +85,7 @@ def reset_unified_document_cache(
     date_ranges=CACHE_DATE_RANGES,
     with_default_hub=False,
 ):
-    if isinstance(hub_ids, QuerySet):
+    if isinstance(hub_ids, QuerySet) or isinstance(hub_ids, set):
         hub_ids = list(hub_ids)
 
     if with_default_hub and 0 not in hub_ids:
