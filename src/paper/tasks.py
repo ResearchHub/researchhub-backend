@@ -847,18 +847,28 @@ def pull_arxiv_papers():
 @periodic_task(
     run_every=crontab(minute=0, hour="*/3"), priority=3, queue=QUEUE_PULL_PAPERS
 )
-def pull_biorxiv():
+def pull_biorxiv(page=0, retry=0):
     sentry.log_info("Starting Biorxiv pull")
 
+    if retry > 2:
+        return False
+
     try:
-        page = 0
-        has_entries = True
-        while has_entries:
-            res = requests.get(
-                f"https://www.biorxiv.org/content/early/recent?page={page}", timeout=10
+        res = requests.get(
+            f"https://www.biorxiv.org/content/early/recent?page={page}", timeout=10
+        )
+        has_entries = _extract_biorxiv_entries(res.content)
+
+        if has_entries:
+            pull_biorxiv.apply_async(
+                (page + 1, 0),
+                priority=1,
+                countdown=10,
             )
-            has_entries = _extract_biorxiv_entries(res.content)
-            page += 1
+    except requests.ConnectionError:
+        pull_biorxiv.apply_async(
+            (page, retry + 1), priority=4, countdown=10 + (retry * 2)
+        )
     except Exception as e:
         sentry.log_error(e)
 
