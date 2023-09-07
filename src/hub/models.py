@@ -67,10 +67,6 @@ class Hub(models.Model):
 
     is_removed = models.BooleanField(default=False, help_text=HELP_TEXT_IS_REMOVED)
 
-    concept = models.OneToOneField(
-        "tag.Concept", on_delete=models.SET_NULL, null=True, blank=True
-    )
-
     def __str__(self):
         return "{}, locked: {}".format(self.name, self.is_locked)
 

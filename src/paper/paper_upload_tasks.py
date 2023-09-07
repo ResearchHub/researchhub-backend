@@ -38,9 +38,6 @@ from researchhub.celery import QUEUE_PAPER_METADATA, app
 from researchhub_document.related_models.constants.document_type import (
     FILTER_OPEN_ACCESS,
 )
-from researchhub_document.related_models.unified_document_concept_model import (
-    UnifiedDocumentConcept,
-)
 from tag.models import Concept
 from utils import sentry
 from utils.http import check_url_contains_pdf
@@ -584,8 +581,6 @@ def celery_create_paper(self, celery_data):
                 f"Unable to find article for: {dois}, {paper_submission.url}"
             )
 
-        concepts = paper_data.pop("concepts", None)
-
         async_paper_updator = getattr(paper_submission, "async_updator", None)
         paper = Paper(**paper_data)
         if async_paper_updator is not None:
@@ -607,37 +602,6 @@ def celery_create_paper(self, celery_data):
             citation = CitationEntry.objects.get(id=citation_id)
             citation.related_unified_doc = paper.unified_document
             citation.save()
-
-        logger.info(f"concepts in celery_create_paper: {concepts}")
-        if concepts is not None:
-            for concept in concepts:
-                # create model object for concept if it doesn't yet exist, then associate the concept with paper
-                (stored_concept, created) = Concept.objects.get_or_create(
-                    openalex_id=concept["openalex_id"],
-                    defaults={
-                        "display_name": concept.get("display_name", ""),
-                        "description": concept.get("description", ""),
-                    },
-                )
-                if not created:
-                    # update existing concept with fresh data from openalex
-                    stored_concept.display_name = concept.get("display_name", "")
-                    stored_concept.description = concept.get("description", "")
-                    stored_concept.openalex_created_date = concept[
-                        "openalex_created_date"
-                    ]
-                    stored_concept.openalex_updated_date = concept[
-                        "openalex_updated_date"
-                    ]
-                    stored_concept.save()
-
-                # Store relationship between paper and concept
-                UnifiedDocumentConcept.create_or_update(
-                    unified_document_id=paper.unified_document.id,
-                    concept_id=stored_concept.id,
-                    level=concept.get("level", 0),
-                    relevancy_score=concept.get("score", 0),
-                )
 
         uploaded_by = paper_submission.uploaded_by
 
@@ -664,11 +628,49 @@ def celery_create_paper(self, celery_data):
             countdown=3,
         )
         paper_submission.notify_status()
-        return paper_id
     except ValidationError as e:
         raise e
     except Exception as e:
         raise e
+
+    # try:
+    #     concepts = paper_data.pop("concepts", None)
+    #     logger.info(f"concepts in celery_create_paper: {concepts}")
+    #     if concepts is not None:
+    #         for concept in concepts:
+    #             # create model object for concept if it doesn't yet exist, then associate the concept with paper
+    #             (stored_concept, created) = Concept.objects.get_or_create(
+    #                 openalex_id=concept["openalex_id"],
+    #                 defaults={
+    #                     "display_name": concept.get("display_name", ""),
+    #                     "description": concept.get("description", ""),
+    #                 },
+    #             )
+    #             if not created:
+    #                 # update existing concept with fresh data from openalex
+    #                 stored_concept.display_name = concept.get("display_name", "")
+    #                 stored_concept.description = concept.get("description", "")
+    #                 stored_concept.openalex_created_date = concept[
+    #                     "openalex_created_date"
+    #                 ]
+    #                 stored_concept.openalex_updated_date = concept[
+    #                     "openalex_updated_date"
+    #                 ]
+    #                 stored_concept.save()
+
+    #             # Store relationship between paper and concept
+    #             UnifiedDocumentConcept.create_or_update(
+    #                 unified_document_id=paper.unified_document.id,
+    #                 concept_id=stored_concept.id,
+    #                 level=concept.get("level", 0),
+    #                 relevancy_score=concept.get("score", 0),
+    #             )
+
+    # except Exception as e:
+    #     print('Failed to save concepts for paper' + str(paper.id))
+    #     raise e
+
+    return paper_id
 
 
 @app.task(queue=QUEUE_PAPER_METADATA)

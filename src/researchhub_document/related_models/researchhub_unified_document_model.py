@@ -20,9 +20,6 @@ from researchhub_document.related_models.constants.document_type import (
     QUESTION,
 )
 from researchhub_document.related_models.document_filter_model import DocumentFilter
-from researchhub_document.related_models.unified_document_concept_model import (
-    UnifiedDocumentConcept,
-)
 from researchhub_document.tasks import update_elastic_registry
 from user.models import Author
 from utils.models import DefaultModel, SoftDeletableModel
@@ -66,7 +63,12 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
         related_name="unified_document",
         null=True,
     )
-    concepts = models.ManyToManyField(UnifiedDocumentConcept, related_name="documents")
+    concepts = models.ManyToManyField(
+        "tag.Concept",
+        related_name="documents",
+        blank=True,
+        through="UnifiedDocumentConcepts",
+    )
 
     class Meta:
         indexes = (
@@ -194,3 +196,22 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
                 update_elastic_registry.apply_async(post)
         except:
             pass
+
+
+class UnifiedDocumentConcepts(DefaultModel):
+    unified_document = models.ForeignKey(
+        ResearchhubUnifiedDocument,
+        on_delete=models.CASCADE,
+    )
+
+    concept = models.ForeignKey(
+        "tag.Concept", related_name="concept", blank=True, on_delete=models.CASCADE
+    )
+
+    relevancy_score = models.FloatField(
+        default=0.0,
+    )
+
+    level = models.IntegerField(
+        default=0,
+    )
