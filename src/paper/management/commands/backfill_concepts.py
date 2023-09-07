@@ -31,7 +31,12 @@ class Command(BaseCommand):
             return
 
         for paper in papers:
-            print(paper.id)
+            print(
+                "Fetching concepts from OA for paper: "
+                + str(paper.id)
+                + " doi: "
+                + paper.doi
+            )
             result = open_alex.get_data_from_doi(doi)
             if result:
                 paper_concepts = open_alex.hydrate_paper_concepts(
@@ -42,7 +47,7 @@ class Command(BaseCommand):
                     paper.unified_document.concepts.add(
                         concept,
                         through_defaults={
-                            "score": paper_concept["score"],
+                            "relevancy_score": paper_concept["score"],
                             "level": paper_concept["level"],
                         },
                     )
