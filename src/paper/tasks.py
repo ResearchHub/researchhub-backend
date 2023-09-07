@@ -830,9 +830,7 @@ def pull_arxiv_papers():
                             potential_hubs.append(potential_hub)
                             hub_ids.add(potential_hub.id)
                     paper.hubs.add(*potential_hubs)
-
-                    if license == "cc-by":
-                        download_pdf.apply_async((paper.id,), priority=4, countdown=4)
+                    download_pdf.apply_async((paper.id,), priority=4, countdown=4)
                 except Exception as e:
                     sentry.log_error(e)
         arxiv_works = open_alex.get_data_from_source(arxiv_id, yesterday, page=i + 1)
