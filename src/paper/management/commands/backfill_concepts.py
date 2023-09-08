@@ -31,7 +31,8 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR("Please provide a start date or DOI."))
             return
 
-        for paper in papers:
+        num_papers = papers.count()
+        for i, paper in enumerate(papers):
             try:
                 print(
                     "Fetching concepts from OA for paper: "
@@ -39,6 +40,7 @@ class Command(BaseCommand):
                     + " doi: "
                     + paper.doi
                 )
+                print("Remaining papers: " + str(num_papers - i))
                 result = open_alex.get_data_from_doi(paper.doi)
                 if result:
                     paper_concepts = open_alex.hydrate_paper_concepts(
