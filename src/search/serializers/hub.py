@@ -5,10 +5,8 @@ from search.documents import HubDocument
 
 
 class HubDocumentSerializer(DocumentSerializer):
-    document = HubDocument
-
     class Meta(object):
-        model = Hub
+        document = HubDocument
         fields = [
             "id",
             "name",

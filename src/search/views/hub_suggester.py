@@ -1,6 +1,4 @@
-from django_elasticsearch_dsl_drf.constants import SUGGESTER_COMPLETION
 from django_elasticsearch_dsl_drf.filter_backends import (
-    FilteringFilterBackend,
     OrderingFilterBackend,
     SuggesterFilterBackend,
 )
@@ -9,15 +7,15 @@ from django_elasticsearch_dsl_drf.viewsets import DocumentViewSet
 from elasticsearch_dsl import Search
 
 from search.backends.multi_match_filter import MultiMatchSearchFilterBackend
-from search.documents.user import UserDocument
-from search.serializers.user import UserDocumentSerializer
+from search.documents.hub import HubDocument
+from search.serializers.hub import HubDocumentSerializer
 from utils.permissions import ReadOnly
 
 
-class UserDocumentView(DocumentViewSet):
-    document = UserDocument
+class HubSuggesterDocumentView(DocumentViewSet):
+    document = HubDocument
     permission_classes = [ReadOnly]
-    serializer_class = UserDocumentSerializer
+    serializer_class = HubDocumentSerializer
     pagination_class = LimitOffsetPagination
     lookup_field = "id"
     filter_backends = [
@@ -25,19 +23,19 @@ class UserDocumentView(DocumentViewSet):
         SuggesterFilterBackend,
         OrderingFilterBackend,
     ]
-    ordering = ("-reputation",)
+    ordering = ("-id",)
     ordering_fields = {
-        "reputation": "reputation",
+        "id": "id",
     }
     filter_fields = {
-        "full_name": {"field": "full_name", "lookups": ["match"]},
+        "name": {"field": "name", "lookups": ["match"]},
     }
     multi_match_search_fields = {
-        "full_name": {"field": "full_name", "boost": 1},
+        "name": {"field": "name", "boost": 1},
     }
     suggester_fields = {
-        "full_name_suggest": {
-            "field": "full_name_suggest",
+        "name_suggest": {
+            "field": "name_suggest",
             "suggesters": ["completion"],
             "options": {
                 "size": 5,
