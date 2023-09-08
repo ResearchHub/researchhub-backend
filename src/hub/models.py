@@ -67,6 +67,14 @@ class Hub(models.Model):
 
     is_removed = models.BooleanField(default=False, help_text=HELP_TEXT_IS_REMOVED)
 
+    concept = models.OneToOneField(
+        "tag.concept",
+        related_name="hub",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+
     def __str__(self):
         return "{}, locked: {}".format(self.name, self.is_locked)
 
@@ -110,17 +118,13 @@ class Hub(models.Model):
     def get_editor_permission_groups(self):
         return self.permissions.filter(access_type=EDITOR).all()
 
-    def create_or_update_hub_from_concept(cls, name, concept_id):
-        name = name.lower()
-        hub, created = cls.objects.get_or_create(name=name)
+    @classmethod
+    def create_or_update_hub_from_concept(cls, concept):
+        name = concept.display_name.lower()
+        hub, _ = cls.objects.get_or_create(name=name)
 
-        if created:
-            hub.concept_id = concept_id
-            hub.save()
-        # If hub already existed and does not have a concept, update it
-        elif not hub.concept:
-            hub.concept_id = concept_id
-            hub.save()
+        hub.concept_id = concept.id
+        hub.save()
 
         return hub
 

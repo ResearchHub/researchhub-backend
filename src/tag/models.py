@@ -44,13 +44,6 @@ class Concept(DefaultModel):
         max_length=255,
     )
 
-    hub = models.OneToOneField(
-        Hub,
-        related_name="concept",
-        on_delete=models.CASCADE,
-        null=True,
-    )
-
     def needs_refresh(self):
         return datetime.now(self.updated_date.tzinfo) - self.updated_date > timedelta(
             days=30
@@ -59,6 +52,13 @@ class Concept(DefaultModel):
     def __str__(self):
         return self.display_name
 
+    def save(self, *args, **kwargs):
+        is_new_concept = not self.pk
+        super().save(*args, **kwargs)
+
+        if is_new_concept:
+            Hub.create_or_update_hub_from_concept(concept=self)
+
     @classmethod
     def create_or_update(cls, paper_concept):
         stored_concept, created = cls.objects.get_or_create(
@@ -66,6 +66,12 @@ class Concept(DefaultModel):
             defaults={
                 "display_name": paper_concept.get("display_name", ""),
                 "description": paper_concept.get("description", ""),
+                "openalex_created_date": paper_concept.get(
+                    "openalex_created_date", None
+                ),
+                "openalex_updated_date": paper_concept.get(
+                    "openalex_updated_date", None
+                ),
             },
         )
         if not created:
