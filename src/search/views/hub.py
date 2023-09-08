@@ -1,10 +1,6 @@
-from django_elasticsearch_dsl_drf.constants import SUGGESTER_COMPLETION
 from django_elasticsearch_dsl_drf.filter_backends import (
     CompoundSearchFilterBackend,
     DefaultOrderingFilterBackend,
-    FilteringFilterBackend,
-    OrderingFilterBackend,
-    SuggesterFilterBackend,
 )
 from django_elasticsearch_dsl_drf.pagination import LimitOffsetPagination
 from django_elasticsearch_dsl_drf.viewsets import DocumentViewSet
@@ -23,31 +19,27 @@ class HubDocumentView(DocumentViewSet):
     pagination_class = LimitOffsetPagination
     lookup_field = "id"
     filter_backends = [
+        MultiMatchSearchFilterBackend,
         CompoundSearchFilterBackend,
         DefaultOrderingFilterBackend,
-        MultiMatchSearchFilterBackend,
-        SuggesterFilterBackend,
     ]
-    filter_fields = {
-        "name": {"field": "name", "lookups": ["match"]},
-    }
-    multi_match_search_fields = {
-        "name": {"field": "name", "boost": 1},
-    }
-    suggester_fields = {
-        "name_suggest": {
-            "field": "name_suggest",
-            "suggesters": ["completion"],
-            "options": {
-                "size": 5,
-            },
-        },
-    }
 
     search_fields = {
         "name": {"boost": 1, "fuzziness": 1},
         "acronym": {"boost": 1, "fuzziness": 1},
         "description": {"boost": 1, "fuzziness": 1},
+    }
+
+    multi_match_search_fields = {
+        "name": {"boost": 1},
+        "acronym": {"boost": 1},
+        "description": {"boost": 1},
+    }
+
+    multi_match_options = {
+        "operator": "and",
+        "type": "cross_fields",
+        "analyzer": "content_analyzer",
     }
 
     def __init__(self, *args, **kwargs):
