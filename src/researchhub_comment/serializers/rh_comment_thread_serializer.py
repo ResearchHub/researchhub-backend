@@ -37,6 +37,7 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
     comments = SerializerMethodField()
     comment_count = SerializerMethodField()
     content_object = SerializerMethodField()
+    content_type = SerializerMethodField()
     privacy_type = SerializerMethodField()
 
     class Meta:
@@ -89,6 +90,7 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
         return serializer_data
 
     def get_content_type(self, thread):
+        print("thread", thread)
         content = thread.content_type
         return {"app_label": content.app_label, "model": content.model}
 
