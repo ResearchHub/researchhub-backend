@@ -2,6 +2,7 @@ from datetime import datetime
 
 from django.core.management.base import BaseCommand
 
+from hub.models import Hub
 from paper.related_models.paper_model import Paper
 from tag.models import Concept
 from utils.openalex import OpenAlex
@@ -55,6 +56,8 @@ class Command(BaseCommand):
                                 "level": paper_concept["level"],
                             },
                         )
+                        hubs = Hub.objects.filter(concept=concept)
+                        paper.unified_document.hubs.add(*hubs)
 
                     self.stdout.write(
                         self.style.SUCCESS(

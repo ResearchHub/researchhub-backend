@@ -56,6 +56,8 @@ class Concept(DefaultModel):
         is_new_concept = not self.pk
         super().save(*args, **kwargs)
 
+        # Do not update hub props when concept is updated to avoid
+        # overriding changes made by our system (e.g. hub name, description, etc.)
         if is_new_concept:
             Hub.create_or_update_hub_from_concept(concept=self)
 
@@ -74,16 +76,12 @@ class Concept(DefaultModel):
                 ),
             },
         )
-        if not created:
-            # update existing concept with fresh data from openalex
-            stored_concept.display_name = paper_concept.get("display_name", "")
-            stored_concept.description = paper_concept.get("description", "")
-            stored_concept.openalex_created_date = paper_concept[
-                "openalex_created_date"
-            ]
-            stored_concept.openalex_updated_date = paper_concept[
-                "openalex_updated_date"
-            ]
-            stored_concept.save()
+
+        # update existing concept with fresh data from openalex
+        stored_concept.display_name = paper_concept.get("display_name", "")
+        stored_concept.description = paper_concept.get("description", "")
+        stored_concept.openalex_created_date = paper_concept["openalex_created_date"]
+        stored_concept.openalex_updated_date = paper_concept["openalex_updated_date"]
+        stored_concept.save()
 
         return stored_concept
