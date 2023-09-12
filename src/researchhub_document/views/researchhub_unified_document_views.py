@@ -236,6 +236,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "slug",
                     "is_removed",
                     "hub_image",
+                    "relevancy_score",
                 ]
             },
             "pap_dps_get_hubs": {
@@ -246,6 +247,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "slug",
                     "is_removed",
                     "hub_image",
+                    "relevancy_score",
                 ]
             },
             "pap_dps_get_unified_document": {

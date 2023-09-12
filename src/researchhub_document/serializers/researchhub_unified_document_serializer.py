@@ -117,6 +117,7 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
     def get_documents(self, unified_doc):
         context = self.context
         _context_fields = context.get("doc_duds_get_documents", {})
+        context["unified_document"] = unified_doc
         doc_type = unified_doc.document_type
 
         if doc_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
