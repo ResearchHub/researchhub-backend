@@ -43,6 +43,7 @@ class Command(BaseCommand):
                 )
                 print("Remaining papers: " + str(num_papers - i))
                 result = open_alex.get_data_from_doi(paper.doi)
+
                 if result:
                     paper_concepts = open_alex.hydrate_paper_concepts(
                         result.get("concepts", [])

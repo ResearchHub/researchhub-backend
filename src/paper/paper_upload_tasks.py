@@ -20,6 +20,7 @@ from habanero import Crossref
 from requests.exceptions import HTTPError
 
 from citation.models import CitationEntry
+from hub.models import Hub
 from paper.exceptions import (
     DOINotFoundError,
     DuplicatePaperError,
@@ -455,6 +456,9 @@ def celery_openalex(self, celery_data):
                 "pdf_license_url": url,
                 "external_source": host_venue.get("display_name", None),
             }
+
+            print("raw_authors", raw_authors)
+
             if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
                 data["pdf_url"] = oa_pdf_url
 
@@ -647,6 +651,8 @@ def celery_create_paper(self, celery_data):
                     "level": paper_concept["level"],
                 },
             )
+            hubs = Hub.objects.filter(concept=concept)
+            paper.unified_document.hubs.add(*hubs)
 
     except Exception as e:
         print("Failed to save concepts for paper" + str(paper.id))

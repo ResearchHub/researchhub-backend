@@ -214,6 +214,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "title",
                     "uploaded_by",
                     "uploaded_date",
+                    "raw_authors",
                 ]
             },
             "doc_duds_get_bounties": {
@@ -274,6 +275,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "id",
                     "author_profile",
                 ]
+            },
+            "pap_dps_get_authors": {
+                "_include_fields": ["id", "first_name", "last_name"]
             },
             "usr_dus_get_author_profile": {
                 "_include_fields": [
@@ -424,6 +428,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             many=True,
             context=context,
         )
+
         serializer_data = serializer.data
 
         return self.get_paginated_response(serializer_data)
@@ -664,6 +669,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         discussion_context_fields = ("id", "comment_count", "thread_type")
         purchase_context_fields = ("id", "amount", "user")
         purchase_select_related_fields = ("user", "user__author_profile")
+        authors_context_fields = (
+            "id",
+            "first_name",
+            "last_name",
+        )
         metadata_context = {
             **context,
             "doc_duds_get_documents": {
@@ -689,7 +699,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "pap_dps_get_discussions": {"_include_fields": discussion_context_fields},
             "pap_dps_get_discussions_prefetch": ("rh_comments",),
             "pap_dps_get_purchases": {"_include_fields": purchase_context_fields},
-            "pap_dps_get_purchases_select": purchase_select_related_fields,
             "pch_dps_get_user": {
                 "_include_fields": [
                     "id",
