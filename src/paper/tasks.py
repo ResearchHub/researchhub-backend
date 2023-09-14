@@ -808,24 +808,14 @@ def pull_arxiv_papers_directly():
 
             for author in result.authors:
                 try:
-                    author_split = author.name.split(" ")
-                    author_name_length = len(author_split)
-                    if author_name_length == 1:
-                        first_name = author_split[0]
-                        last_name = ""
-                    elif author_name_length == 2:
-                        first_name = author_split[0]
-                        last_name = author_split[1]
-                    elif author_name_length > 2:
-                        last_name = author_split[-1]
-                        first_name = ""
-                        for name_index, name_part in enumerate(author_split):
-                            if name_index != author_name_length - 1:
-                                first_name += name_part + " "
-                        first_name = first_name.strip()
-                    raw_authors.append(
-                        {"first_name": first_name, "last_name": last_name}
-                    )
+        raw_authors = [
+            {
+                "first_name": " ".join(author_name[:-1]),
+                "last_name": "".join(author_name[-1]),
+            }
+            for author in result.authors
+            if (author_name := author.name.split(" "))
+        ]
                 except Exception as e:
                     print(e)
                     sentry.log_error(e)
