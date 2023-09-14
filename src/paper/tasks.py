@@ -831,7 +831,7 @@ def pull_arxiv_papers_directly():
                 "oa_status": "",
                 "external_source": "arXiv",
                 "abstract": abstract,
-                "pdf_url": "https://arxiv.org/pdf/{}.pdf".format(entry_id),
+                "pdf_url": f"https://arxiv.org/pdf/{entry_id}.pdf",
             }
 
             try:
