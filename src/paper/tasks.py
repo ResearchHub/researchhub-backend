@@ -799,7 +799,7 @@ def pull_arxiv_papers_directly():
             title = result.title
             abstract = result.summary
             publication_date = None
-            raw_authors = ""
+            raw_authors = []
             hubs = []
             publication_date = result.published
             for arxiv_cat in result.categories:
@@ -807,9 +807,29 @@ def pull_arxiv_papers_directly():
                 hubs.append(cur_cat)
 
             for author in result.authors:
-                raw_authors += author.name + ", "
+                try:
+                    author_split = author.name.split(" ")
+                    author_name_length = len(author_split)
+                    if author_name_length == 1:
+                        first_name = author_split[0]
+                        last_name = ""
+                    elif author_name_length == 2:
+                        first_name = author_split[0]
+                        last_name = author_split[1]
+                    elif author_name_length > 2:
+                        last_name = author_split[-1]
+                        first_name = ""
+                        for name_index, name_part in enumerate(author_split):
+                            if name_index != author_name_length - 1:
+                                first_name += name_part + " "
+                        first_name = first_name.strip()
+                    raw_authors.append(
+                        {"first_name": first_name, "last_name": last_name}
+                    )
+                except Exception as e:
+                    print(e)
+                    sentry.log_error(e)
 
-            raw_authors = raw_authors.strip(", ")
             data = {
                 "doi": pure_doi,
                 "url": result.entry_id,
