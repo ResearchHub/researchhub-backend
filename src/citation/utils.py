@@ -23,6 +23,7 @@ from paper.paper_upload_tasks import celery_process_paper
 from paper.serializers import PaperSubmissionSerializer
 from researchhub.settings import AWS_STORAGE_BUCKET_NAME, GROBID_SERVER
 from user.models import User
+from utils.aws import lambda_compress_and_linearize_pdf
 from utils.parsers import get_pure_doi
 from utils.sentry import log_error
 
@@ -110,6 +111,9 @@ def get_citation_entry_from_pdf(
             entry = serializer.save()
             create_paper_from_citation(entry)
             default_storage.delete(path)
+
+            key = entry.attachment.name
+            lambda_compress_and_linearize_pdf(key, filename)
             return entry, False
     else:
         return citation_entry.first(), True

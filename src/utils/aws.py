@@ -1,10 +1,19 @@
 import hashlib
+import json
 from urllib.parse import urlparse
 
+from boto3.session import Session
 from django.core.files.storage import default_storage
 from django.utils.text import slugify
 
-from researchhub.settings import AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+from researchhub.settings import (
+    AWS_ACCESS_KEY_ID,
+    AWS_GHOSTSCRIPT_LAMBDA,
+    AWS_S3_REGION_NAME,
+    AWS_SCHOLARLY_LAMBDA,
+    AWS_SECRET_ACCESS_KEY,
+    AWS_STORAGE_BUCKET_NAME,
+)
 
 
 def get_s3_url(bucket, key, with_credentials=False):
@@ -52,3 +61,30 @@ def upload_to_s3(data, folder):
         url = default_storage.url(file_path)
     url = url.split("?AWSAccessKeyId")[0]
     return url
+
+
+def lambda_compress_and_linearize_pdf(key, file_name):
+    """
+    key: path to file in S3 (ex: uploads/tmp/2000/01/01/test.pdf)
+    file_name: file name (ex: test.pdf)
+    """
+    lambda_body = {
+        "bucket": AWS_STORAGE_BUCKET_NAME,
+        "key": key,
+        "file_name": file_name,
+    }
+    data_bytes = json.dumps(lambda_body)
+    session = Session(
+        aws_access_key_id=AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+        region_name=AWS_S3_REGION_NAME,
+    )
+    lambda_client = session.client(
+        service_name="lambda", region_name=AWS_S3_REGION_NAME
+    )
+    response = lambda_client.invoke(
+        FunctionName=AWS_GHOSTSCRIPT_LAMBDA,
+        InvocationType="Event",
+        Payload=data_bytes,
+    )
+    return response

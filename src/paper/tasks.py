@@ -58,7 +58,7 @@ from researchhub.celery import (
     QUEUE_PULL_PAPERS,
     app,
 )
-from researchhub.settings import APP_ENV
+from researchhub.settings import APP_ENV, PRODUCTION
 from researchhub_document.related_models.constants.filters import NEW
 from researchhub_document.utils import reset_unified_document_cache
 from utils import sentry
@@ -169,6 +169,7 @@ def download_pdf(paper_id, retry=0):
             # Commenting out paper cache
             # paper.reset_cache(use_celery=False)
             paper.set_paper_completeness()
+            paper.compress_and_linearize_file()
             celery_extract_pdf_sections.apply_async(
                 (paper_id,), priority=5, countdown=15
             )
@@ -955,6 +956,9 @@ def pull_arxiv_papers_directly():
     run_every=crontab(minute=0, hour="*/3"), priority=3, queue=QUEUE_PULL_PAPERS
 )
 def pull_biorxiv(page=0, retry=0):
+    if not PRODUCTION:
+        return
+
     sentry.log_info("Starting Biorxiv pull")
 
     if retry > 2:

@@ -37,6 +37,7 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
     comments = SerializerMethodField()
     comment_count = SerializerMethodField()
     content_object = SerializerMethodField()
+    content_type = SerializerMethodField()
     privacy_type = SerializerMethodField()
 
     class Meta:

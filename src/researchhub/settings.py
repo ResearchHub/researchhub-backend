@@ -508,13 +508,16 @@ else:
 AWS_SCHOLARLY_LAMBDA = (
     "arn:aws:lambda:us-west-2:794128250202:function:ResearchHub-Scholarly"
 )
+AWS_GHOSTSCRIPT_LAMBDA = (
+    "arn:aws:lambda:us-west-2:794128250202:function:researchhub-ghostscript"
+)
 
 ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 7
 ACCOUNT_EMAIL_SUBJECT_PREFIX = "ResearchHub | "
 ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
 DEFAULT_FROM_EMAIL = "noreply@researchhub.com"
-# Storage
 
+# Storage
 if TESTING:
     DEFAULT_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
 else:
@@ -523,8 +526,11 @@ AWS_QUERYSTRING_EXPIRE = 604800
 AWS_STORAGE_BUCKET_NAME = os.environ.get(
     "AWS_STORAGE_BUCKET_NAME", "researchhub-paper-dev1"
 )
+AWS_S3_CUSTOM_DOMAIN = "d1as1kfwzmt26d.cloudfront.net"
 if PRODUCTION:
     AWS_STORAGE_BUCKET_NAME = "researchhub-paper-prod"
+    AWS_S3_CUSTOM_DOMAIN = "d2ogkcqdn9wsvr.cloudfront.net"
+
 AWS_S3_REGION_NAME = "us-west-2"
 
 AWS_S3_FILE_OVERWRITE = False
