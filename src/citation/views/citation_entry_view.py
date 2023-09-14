@@ -202,6 +202,7 @@ class CitationEntryViewSet(ModelViewSet):
                     result = open_alex.get_data_from_doi(doi)
 
                 return Response(result, status=200)
+            return Response({"result": "DOI / URL not found"}, status=400)
         except Exception as e:
             log_error(e)
             return Response({"result": "DOI / URL not found"}, status=400)
