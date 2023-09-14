@@ -753,7 +753,7 @@ def pull_biorxiv_papers():
 
 
 @periodic_task(
-    run_every=crontab(minute=0, hour="*/3"), priority=3, queue=QUEUE_PULL_PAPERS
+    run_every=crontab(minute=45, hour=17), priority=3, queue=QUEUE_PULL_PAPERS
 )
 def pull_arxiv_papers_directly():
     from paper.models import Paper
