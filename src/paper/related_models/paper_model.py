@@ -1,15 +1,17 @@
 import datetime
+import json
 
 import pytz
 import regex as re
 import requests
+from boto3.session import Session
 from bs4 import BeautifulSoup
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.postgres.indexes import GinIndex, HashIndex
 from django.contrib.postgres.search import SearchVectorField
 from django.core.validators import FileExtensionValidator
-from django.db import models, transaction
-from django.db.models import Avg, Count, F, IntegerField, JSONField, Q, Sum
+from django.db import models
+from django.db.models import Avg, Count, IntegerField, JSONField, Q, Sum
 from django.db.models.functions import Cast, Extract
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 from manubot.cite.doi import get_doi_csl_item
@@ -24,7 +26,6 @@ from paper.tasks import (
     celery_extract_meta_data,
     celery_extract_pdf_preview,
     celery_extract_twitter_comments,
-    celery_paper_reset_cache,
 )
 from paper.utils import (
     get_csl_item,
@@ -45,6 +46,7 @@ from researchhub_document.related_models.constants.editor_type import (
     TEXT_FIELD,
 )
 from summary.models import Summary
+from utils.aws import lambda_compress_and_linearize_pdf
 from utils.http import check_url_contains_pdf, scraper_get_url
 from utils.twitter import (
     get_twitter_doi_results,
@@ -884,6 +886,15 @@ class Paper(AbstractGenericReactionModel):
             if should_save:
                 self.save()
         return metadata, converted
+
+    def compress_and_linearize_file(self):
+        file = self.file
+        if not file:
+            return
+
+        key = file.name
+        file_name = key.split("/")[-1]
+        return lambda_compress_and_linearize_pdf(key, file_name)
 
 
 class MetadataRetrievalAttempt(models.Model):
