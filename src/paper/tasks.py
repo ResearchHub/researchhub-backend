@@ -807,19 +807,18 @@ def pull_arxiv_papers_directly():
                 cur_cat = get_category_name(arxiv_cat)
                 hubs.append(cur_cat)
 
-            for author in result.authors:
-                try:
-        raw_authors = [
-            {
-                "first_name": " ".join(author_name[:-1]),
-                "last_name": "".join(author_name[-1]),
-            }
-            for author in result.authors
-            if (author_name := author.name.split(" "))
-        ]
-                except Exception as e:
-                    print(e)
-                    sentry.log_error(e)
+            try:
+                raw_authors = [
+                    {
+                        "first_name": " ".join(author_name[:-1]),
+                        "last_name": "".join(author_name[-1]),
+                    }
+                    for author in result.authors
+                    if (author_name := author.name.split(" "))
+                ]
+            except Exception as e:
+                print(e)
+                sentry.log_error(e)
 
             data = {
                 "doi": pure_doi,
