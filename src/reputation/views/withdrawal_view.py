@@ -123,8 +123,8 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             )
 
         valid, message = self._check_meets_withdrawal_minimum(amount)
-        if valid:
-            valid, message = self._check_agreed_to_terms(user, request)
+        # if valid:
+        #     valid, message = self._check_agreed_to_terms(user, request)
         if valid:
             valid, message = self._check_withdrawal_interval(user, to_address)
         if valid:
