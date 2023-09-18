@@ -757,6 +757,9 @@ def pull_biorxiv_papers():
     run_every=crontab(minute=45, hour=17), priority=3, queue=QUEUE_PULL_PAPERS
 )
 def pull_arxiv_papers_directly():
+    if not PRODUCTION:
+        return
+
     from paper.models import Paper
 
     categories = [
@@ -797,6 +800,15 @@ def pull_arxiv_papers_directly():
         for i, result in enumerate(search.results()):
             entry_id = result.entry_id.split("http://arxiv.org/abs/")[1]
             pure_doi = "arXiv.{}".format(entry_id.split("v")[0])
+            pdf_url = f"https://arxiv.org/pdf/{entry_id}.pdf"
+
+            doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(pure_doi))
+            url_paper_check = Paper.objects.filter(
+                Q(url_svf=SearchQuery(url)) | Q(pdf_url_svf=SearchQuery(pdf_url))
+            )
+            if doi_paper_check.exists() or url_paper_check.exists():
+                continue
+
             title = result.title
             abstract = result.summary
             publication_date = None
@@ -831,7 +843,7 @@ def pull_arxiv_papers_directly():
                 "oa_status": "",
                 "external_source": "arXiv",
                 "abstract": abstract,
-                "pdf_url": f"https://arxiv.org/pdf/{entry_id}.pdf",
+                "pdf_url": pdf_url,
             }
 
             try:
@@ -1093,12 +1105,15 @@ def _extract_biorxiv_entry(url, retry=0):
         download_pdf.apply_async((paper.id,), priority=4, countdown=4)
 
         hub_ids = []
+        if PRODUCTION:
+            # Hard coded to add biorxiv preprints to specific biorxiv hub
+            hub_ids = [436]
         if subject_area:
             potential_hub = Hub.objects.filter(name__icontains=hub)
             if potential_hub.exists():
                 potential_hub = potential_hub.first()
                 hub_ids.append(potential_hub.id)
-                paper.hubs.add(*hub_ids)
+        paper.hubs.add(*hub_ids)
 
         reset_unified_document_cache(
             hub_ids=hub_ids,
