@@ -526,7 +526,7 @@ AWS_QUERYSTRING_EXPIRE = 604800
 AWS_STORAGE_BUCKET_NAME = os.environ.get(
     "AWS_STORAGE_BUCKET_NAME", "researchhub-paper-dev1"
 )
-AWS_S3_CUSTOM_DOMAIN = "d1as1kfwzmt26d.cloudfront.net"
+
 if PRODUCTION:
     AWS_STORAGE_BUCKET_NAME = "researchhub-paper-prod"
     AWS_S3_CUSTOM_DOMAIN = "d2ogkcqdn9wsvr.cloudfront.net"

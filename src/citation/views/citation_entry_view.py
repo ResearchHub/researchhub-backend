@@ -219,10 +219,13 @@ class CitationEntryViewSet(ModelViewSet):
                 target_citation_ids = request.data.get("citation_entry_ids", [])
                 current_user = request.user
                 for citation_id in target_citation_ids:
-                    target_ref = CitationEntry.objects.get(id=citation_id)
-                    if target_ref.is_user_allowed_to_edit(current_user):
-                        target_ref.delete()
+                    target_ref = self.get_queryset().filter(id=citation_id)
+                    if target_ref.exists():
+                        target_ref = target_ref.first()
+                        if target_ref.is_user_allowed_to_edit(current_user):
+                            target_ref.delete()
                 return Response(target_citation_ids, status=status.HTTP_200_OK)
 
             except Exception as error:
-                return Response(error, status=status.HTTP_400_BAD_REQUEST)
+                log_error(error)
+                return Response(status=status.HTTP_400_BAD_REQUEST)

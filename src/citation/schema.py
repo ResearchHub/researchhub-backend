@@ -57,20 +57,24 @@ def generate_json_for_rh_paper(paper):
         if mapping_field:
             author_array = []
             if mapping_field == "raw_authors":
-                for author in getattr(paper, mapping_field):
-                    author_array.append(
-                        {
-                            "given": author.get("first_name", ""),
-                            "family": author.get("last_name", ""),
-                        }
-                    )
+                authors = getattr(paper, mapping_field)
+                if authors:
+                    for author in authors:
+                        author_array.append(
+                            {
+                                "given": author.get("first_name", ""),
+                                "family": author.get("last_name", ""),
+                            }
+                        )
                 json_dict[field] = author_array
             elif mapping_field == "paper_publish_date":
-                json_dict[field] = {
-                    "date-parts": [
-                        date_string_to_parts(getattr(paper, mapping_field).isoformat())
-                    ]
-                }
+                date_parts = {}
+                publish_date = getattr(paper, mapping_field)
+                if publish_date:
+                    date_parts = {
+                        "date-parts": [date_string_to_parts(publish_date.isoformat())]
+                    }
+                json_dict[field] = date_parts
             else:
                 json_dict[field] = json_serial(
                     getattr(paper, mapping_field, ""), ignore_errors=True
