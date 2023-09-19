@@ -96,8 +96,9 @@ class PaperSubmissionConsumer(AsyncWebsocketConsumer):
         # Not entirely sure if the paper submission serializer requires async support
         serialized_data = PaperSubmissionSerializer(submission).data
         paper = await get_paper_from_submission(submission)
+        context = {"pap_dps_get_hubs": {"_include_fields": ("id", "name", "slug")}}
         current_paper_data = DynamicPaperSerializer(
-            paper, _include_fields=["id", "paper_title"]
+            paper, _include_fields=["id", "paper_title", "hubs"], context=context
         ).data
 
         if "id" not in current_paper_data:
