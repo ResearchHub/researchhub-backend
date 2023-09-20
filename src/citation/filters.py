@@ -1,5 +1,5 @@
-from django_filters import rest_framework as filters
 from django.db.models import Q
+from django_filters import rest_framework as filters
 from rest_framework.exceptions import ValidationError
 
 from citation.models import CitationEntry, CitationProject
@@ -11,6 +11,7 @@ class CitationEntryFilter(filters.FilterSet):
         method="filter_by_org",
         label="Organization Id",
     )
+    project_slug = filters.CharFilter(field_name="project__slug", lookup_expr="iexact")
     project_id = filters.NumberFilter(
         method="filter_by_proj",
         label="Project Id",
