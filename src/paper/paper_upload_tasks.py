@@ -591,7 +591,7 @@ def celery_create_paper(self, celery_data):
         paper = Paper(**paper_data)
         if async_paper_updator is not None:
             paper.doi = async_paper_updator.doi
-            paper.hub.add(*async_paper_updator.hubs)
+            paper.unified_document.hubs.add(*async_paper_updator.hubs)
             paper.title = async_paper_updator.title
 
         paper.full_clean()

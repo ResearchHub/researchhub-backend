@@ -442,9 +442,9 @@ class PaperSerializer(BasePaperSerializer):
 
                 self._add_orcid_authors(paper)
                 paper.hubs.add(*hubs)
-                for hub in hubs:
-                    hub.paper_count = hub.get_paper_count()
-                    hub.save(update_fields=["paper_count"])
+                # for hub in hubs:
+                #     hub.paper_count = hub.get_paper_count()
+                #     hub.save(update_fields=["paper_count"])
 
                 try:
                     file = paper.file
@@ -545,12 +545,6 @@ class PaperSerializer(BasePaperSerializer):
                     paper.hubs.add(*hubs)
                     unified_doc.hubs.remove(*remove_hubs)
                     unified_doc.hubs.add(*hubs)
-                    for hub in remove_hubs:
-                        hub.paper_count = hub.get_paper_count()
-                        hub.save(update_fields=["paper_count"])
-                    for hub in new_hubs:
-                        hub.paper_count = hub.get_paper_count()
-                        hub.save(update_fields=["paper_count"])
 
                 if authors:
                     current_authors = paper.authors.all()

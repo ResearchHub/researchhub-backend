@@ -47,6 +47,7 @@ from .permissions import (
     UpdateHub,
 )
 from .serializers import HubCategorySerializer, HubContributionSerializer, HubSerializer
+from .tasks import celery_set_hub_counts
 
 
 class CustomPageLimitPagination(PageNumberPagination):
@@ -59,7 +60,7 @@ class HubViewSet(viewsets.ModelViewSet):
     serializer_class = HubSerializer
     filter_backends = (
         SearchFilter,
-        DjangoFilterBackend,
+        # DjangoFilterBackend,
         OrderingFilter,
     )
     permission_classes = [
@@ -100,39 +101,52 @@ class HubViewSet(viewsets.ModelViewSet):
         return response
 
     def get_queryset(self):
+        print("hihihi")
         ordering = self.request.query_params.get("ordering", "")
         return self.get_ordered_queryset(ordering)
 
     # TODO: re consider approach
     def get_ordered_queryset(self, ordering):
+        print("ordering", ordering)
         if "score" in ordering:
-            two_weeks_ago = timezone.now().date() - timedelta(days=14)
-            num_upvotes = Count(
-                "papers__votes__vote_type",
-                filter=Q(
-                    papers__votes__vote_type=Vote.UPVOTE,
-                    papers__votes__created_date__gte=two_weeks_ago,
-                ),
-            )
-            num_downvotes = Count(
-                "papers__votes__vote_type",
-                filter=Q(
-                    papers__votes__vote_type=Vote.DOWNVOTE,
-                    papers__votes__created_date__gte=two_weeks_ago,
-                ),
-            )
-            paper_count = Count(
-                "papers",
-                filter=Q(
-                    papers__created_date__gte=two_weeks_ago,
-                    papers__uploaded_by__isnull=False,
-                ),
-            )
-            score = num_upvotes - num_downvotes
-            score += paper_count
-            qs = self.queryset.annotate(
-                score=score,
-            ).order_by("-score")
+            print("yoooo")
+            # two_weeks_ago = timezone.now().date() - timedelta(days=14)
+            # num_upvotes = Count(
+            #     "papers__votes__vote_type",
+            #     filter=Q(
+            #         papers__votes__vote_type=Vote.UPVOTE,
+            #         papers__votes__created_date__gte=two_weeks_ago,
+            #     ),
+            # )
+            # num_downvotes = Count(
+            #     "papers__votes__vote_type",
+            #     filter=Q(
+            #         papers__votes__vote_type=Vote.DOWNVOTE,
+            #         papers__votes__created_date__gte=two_weeks_ago,
+            #     ),
+            # )
+            # paper_count = Count(
+            #     "papers",
+            # )
+
+            # print('paper_count', paper_count)
+            # # score = num_upvotes - num_downvotes
+            # score = paper_count
+            # print('score', score)
+            # qs = self.queryset.annotate(
+            #     score=score,
+            # ).order_by("-score")
+
+            # qs = self.queryset.annotate(
+            #     score=Count("papers"),
+            # ).order_by("-score")
+            # return qs
+
+            paper_count = (F("paper_count"),)
+            score = paper_count
+
+            qs = self.queryset.annotate(score=F("paper_count")).order_by("-score")
+
             return qs
         else:
             return self.queryset
@@ -148,9 +162,6 @@ class HubViewSet(viewsets.ModelViewSet):
 
         # Update Hub
         hub.is_removed = True
-
-        hub.paper_count = hub.get_paper_count()
-        hub.discussion_count = hub.get_discussion_count()
 
         hub.save(update_fields=["is_removed", "paper_count", "discussion_count"])
         reset_unified_document_cache(with_default_hub=True)
