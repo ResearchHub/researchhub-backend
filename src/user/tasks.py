@@ -92,22 +92,6 @@ def reinstate_user_task(user_id):
         .distinct()
     )
 
-    # Update discussions
-    for thr in Thread.objects.filter(created_by=user):
-        thr.update_discussion_count()
-        thr.is_removed = False
-        thr.save()
-
-    for com in Comment.objects.filter(created_by=user):
-        com.update_discussion_count()
-        com.is_removed = False
-        com.save()
-
-    for rep in Reply.objects.filter(created_by=user):
-        rep.update_discussion_count()
-        rep.is_removed = False
-        rep.save()
-
     reset_unified_document_cache(hub_ids, {}, None)
 
 
