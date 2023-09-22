@@ -82,7 +82,9 @@ def reinstate_user_task(user_id):
     papers.update(is_removed=False)
     user.paper_votes.update(is_removed=False)
 
-    ResearchhubUnifiedDocument.objects.filter(paper__in=papers).update(is_removed=False)
+    ResearchhubUnifiedDocument.all_objects.filter(paper__in=papers).update(
+        is_removed=False
+    )
 
     hub_ids = list(
         Hub.objects.filter(papers__in=list(user.papers.values_list(flat=True)))
