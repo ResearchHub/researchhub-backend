@@ -12,4 +12,6 @@ class HubDocumentSerializer(DocumentSerializer):
             "name",
             "description",
             "slug",
+            "paper_count",
+            "discussion_count",
         ]

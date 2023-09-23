@@ -101,52 +101,36 @@ class HubViewSet(viewsets.ModelViewSet):
         return response
 
     def get_queryset(self):
-        print("hihihi")
         ordering = self.request.query_params.get("ordering", "")
         return self.get_ordered_queryset(ordering)
 
     # TODO: re consider approach
     def get_ordered_queryset(self, ordering):
-        print("ordering", ordering)
         if "score" in ordering:
-            print("yoooo")
-            # two_weeks_ago = timezone.now().date() - timedelta(days=14)
-            # num_upvotes = Count(
-            #     "papers__votes__vote_type",
-            #     filter=Q(
-            #         papers__votes__vote_type=Vote.UPVOTE,
-            #         papers__votes__created_date__gte=two_weeks_ago,
-            #     ),
-            # )
-            # num_downvotes = Count(
-            #     "papers__votes__vote_type",
-            #     filter=Q(
-            #         papers__votes__vote_type=Vote.DOWNVOTE,
-            #         papers__votes__created_date__gte=two_weeks_ago,
-            #     ),
-            # )
-            # paper_count = Count(
-            #     "papers",
-            # )
+            two_weeks_ago = timezone.now().date() - timedelta(days=14)
+            num_upvotes = Count(
+                "papers__votes__vote_type",
+                filter=Q(
+                    papers__votes__vote_type=Vote.UPVOTE,
+                    papers__votes__created_date__gte=two_weeks_ago,
+                ),
+            )
+            num_downvotes = Count(
+                "papers__votes__vote_type",
+                filter=Q(
+                    papers__votes__vote_type=Vote.DOWNVOTE,
+                    papers__votes__created_date__gte=two_weeks_ago,
+                ),
+            )
 
-            # print('paper_count', paper_count)
-            # # score = num_upvotes - num_downvotes
-            # score = paper_count
-            # print('score', score)
-            # qs = self.queryset.annotate(
-            #     score=score,
-            # ).order_by("-score")
+            DISCUSSION_FACTOR = 10
+            score = (
+                (num_upvotes - num_downvotes)
+                + DISCUSSION_FACTOR * F("discussion_count")
+                + F("paper_count")
+            )
 
-            # qs = self.queryset.annotate(
-            #     score=Count("papers"),
-            # ).order_by("-score")
-            # return qs
-
-            paper_count = (F("paper_count"),)
-            score = paper_count
-
-            qs = self.queryset.annotate(score=F("paper_count")).order_by("-score")
-
+            qs = self.queryset.annotate(score=score).order_by("-score")
             return qs
         else:
             return self.queryset

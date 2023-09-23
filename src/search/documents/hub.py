@@ -40,6 +40,8 @@ class HubDocument(BaseDocument):
         fields = [
             "id",
             "slug",
+            "paper_count",
+            "discussion_count",
         ]
 
     # Used specifically for "autocomplete" style suggest feature
