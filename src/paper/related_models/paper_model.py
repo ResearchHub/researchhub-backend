@@ -97,7 +97,7 @@ class Paper(AbstractGenericReactionModel):
     bullet_low_quality = models.BooleanField(default=False)
     summary_low_quality = models.BooleanField(default=False)
     discussion_count = models.IntegerField(default=0, db_index=True)
-    twitter_score = models.IntegerField(default=1)
+    twitter_score = models.IntegerField(default=0)
 
     views = models.IntegerField(default=0)
     downloads = models.IntegerField(default=0)
