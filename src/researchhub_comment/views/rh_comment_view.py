@@ -68,6 +68,7 @@ from researchhub_document.related_models.constants.filters import (
     MOST_RSC,
 )
 from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
+from utils.siftscience import SIFT_COMMENT, sift_track
 from utils.throttles import THROTTLE_CLASSES
 
 
@@ -354,6 +355,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             return Response(serializer_data, status=200)
 
     @track_event
+    @sift_track(SIFT_COMMENT)
     @action(
         detail=False, methods=["POST"], permission_classes=[IsAuthenticatedOrReadOnly]
     )
@@ -529,6 +531,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         )
         return Response(serializer.data)
 
+    @sift_track(SIFT_COMMENT, is_update=True)
     def update(self, request, *args, **kwargs):
         if request.method == "PUT":
             return Response(

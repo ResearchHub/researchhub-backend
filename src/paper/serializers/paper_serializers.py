@@ -457,8 +457,8 @@ class PaperSerializer(BasePaperSerializer):
 
                 update_unified_document_to_paper(paper)
 
-                tracked_paper = events_api.track_content_paper(user, paper, request)
-                update_user_risk_score(user, tracked_paper)
+                # tracked_paper = events_api.track_content_paper(user, paper, request)
+                # update_user_risk_score(user, tracked_paper)
 
                 create_contribution.apply_async(
                     (
@@ -571,11 +571,11 @@ class PaperSerializer(BasePaperSerializer):
                         with_default_hub=True,
                     )
 
-                if request:
-                    tracked_paper = events_api.track_content_paper(
-                        request.user, paper, request, update=True
-                    )
-                    update_user_risk_score(request.user, tracked_paper)
+                # if request:
+                #     tracked_paper = events_api.track_content_paper(
+                #         request.user, paper, request, update=True
+                #     )
+                #     update_user_risk_score(request.user, tracked_paper)
                 return paper
         except Exception as e:
             error = PaperSerializerError(e, "Failed to update paper")
