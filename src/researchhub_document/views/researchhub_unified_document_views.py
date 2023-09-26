@@ -716,7 +716,17 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "profile_image",
                 ]
             },
+            "doc_duds_get_hubs": {
+                "_include_fields": [
+                    "id",
+                    "name",
+                    "slug",
+                    "relevancy_score",
+                    "created_date",
+                ]
+            },
         }
+
         return metadata_context
 
     @action(detail=True, methods=["get"], permission_classes=[AllowAny])
@@ -726,7 +736,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         serializer = self.dynamic_serializer_class(
             unified_document,
-            _include_fields=("id", "documents", "reviews", "score"),
+            _include_fields=("id", "documents", "reviews", "score", "hubs"),
             context=metadata_context,
         )
         serializer_data = serializer.data

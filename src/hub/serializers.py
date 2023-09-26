@@ -173,13 +173,10 @@ class DynamicHubSerializer(DynamicModelFieldSerializer):
         relevancy_score = 0
 
         if unified_document and hub_instance.concept:
-            associated_concept = unified_document.concepts.filter(
-                concept=hub_instance.concept.id
+            concept_with_relevancy = UnifiedDocumentConcepts.objects.filter(
+                unified_document=unified_document, concept=hub_instance.concept.id
             ).first()
 
-            concept_with_relevancy = UnifiedDocumentConcepts.objects.filter(
-                unified_document=unified_document, concept=associated_concept
-            ).first()
             if concept_with_relevancy:
                 return concept_with_relevancy.relevancy_score
 

@@ -151,6 +151,8 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
 
     def get_hubs(self, unified_doc):
         context = self.context
+        context["unified_document"] = unified_doc
+
         _context_fields = context.get("doc_duds_get_hubs", {})
         serializer = DynamicHubSerializer(
             unified_doc.hubs, many=True, context=context, **_context_fields
