@@ -995,6 +995,24 @@ def pull_biorxiv(page=0, retry=0):
         sentry.log_error(e)
 
 
+def _get_biorxiv_tweet_counts(url, doi):
+    try:
+        res = requests.get(
+            f"https://connect.biorxiv.org/eval_get1.php?url={url}&doi={doi}"
+        )
+        unescaped_json_res = res.text
+        # For some reason, the request data comes back with "\ufeff" and then also has an open paren ( and a closed paren )
+        escaped_json_res = json.loads(res.text.strip("\ufeff(").rstrip(res.text[-1]))
+        count = 0
+        for message in escaped_json_res["messages"]:
+            count += message["count_tweets"] + message["count_retweets"]
+        return count
+    except Exception as e:
+        print(e)
+        sentry.log_error(e)
+        return 0
+
+
 def _extract_biorxiv_entries(html_content):
     from paper.models import Paper
 
@@ -1098,6 +1116,8 @@ def _extract_biorxiv_entry(url, retry=0):
             "external_source": external_source,
             "abstract": abstract,
             "pdf_url": pdf_url,
+            "twitter_score": _get_biorxiv_tweet_counts(url, pure_doi),
+            "twitter_score_updated_date": datetime.now(),
         }
         paper = Paper(**data)
         paper.full_clean()
