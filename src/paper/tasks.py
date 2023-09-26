@@ -998,7 +998,7 @@ def pull_biorxiv(page=0, retry=0):
 def _get_biorxiv_tweet_counts(url, doi):
     try:
         res = requests.get(
-            f"https://connect.biorxiv.org/eval_get1.php?url={url}&doi={doi}"
+            f"https://connect.biorxiv.org/eval_get1.php?url={url}&doi={doi}", timeout=10
         )
         unescaped_json_res = res.text
         # For some reason, the request data comes back with "\ufeff" and then also has an open paren ( and a closed paren )
