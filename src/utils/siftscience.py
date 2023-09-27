@@ -8,7 +8,7 @@ from ipware import get_client_ip
 from rest_framework.request import Request
 
 from researchhub.celery import QUEUE_EXTERNAL_REPORTING, app
-from researchhub.settings import SIFT_ACCOUNT_ID, SIFT_REST_API_KEY
+from researchhub.settings import DEVELOPMENT, SIFT_ACCOUNT_ID, SIFT_REST_API_KEY
 from utils import sentry
 
 # https://sift.com/resources/guides/content-abuse
@@ -428,13 +428,17 @@ def sift_track(track_type, is_update=False):
         def inner(*args, **kwargs):
             res = func(*args, **kwargs)
             try:
-                sift_func = getattr(events_api, track_type)
-                if isinstance(args[0], Request):
-                    request = args[0]
-                else:
-                    request = args[1]
-                sift_func(request, res.data, is_update)
-                # if res.status_code >= 200 and res.status_code <= 299 and not DEVELOPMENT:
+                if (
+                    res.status_code >= 200
+                    and res.status_code <= 299
+                    and not DEVELOPMENT
+                ):
+                    sift_func = getattr(events_api, track_type)
+                    if isinstance(args[0], Request):
+                        request = args[0]
+                    else:
+                        request = args[1]
+                    sift_func(request, res.data, is_update)
             except Exception as e:
                 sentry.log_error(e)
             return res
