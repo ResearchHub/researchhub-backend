@@ -428,11 +428,7 @@ def sift_track(track_type, is_update=False):
         def inner(*args, **kwargs):
             res = func(*args, **kwargs)
             try:
-                if (
-                    res.status_code >= 200
-                    and res.status_code <= 299
-                    and not DEVELOPMENT
-                ):
+                if res.status_code >= 200 and res.status_code <= 299:
                     sift_func = getattr(events_api, track_type)
                     if isinstance(args[0], Request):
                         request = args[0]
