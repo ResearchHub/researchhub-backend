@@ -29,7 +29,13 @@ from researchhub_document.utils import get_doc_type_key, reset_unified_document_
 from utils.models import SoftDeletableModel
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.sentry import log_error
-from utils.siftscience import decisions_api, events_api, update_user_risk_score
+from utils.siftscience import (
+    SIFT_VOTE,
+    decisions_api,
+    events_api,
+    sift_track,
+    update_user_risk_score,
+)
 
 
 def censor(requestor, item):
@@ -370,6 +376,7 @@ def create_vote(user, item, vote_type):
     return vote
 
 
+@sift_track(SIFT_VOTE)
 def update_or_create_vote(request, user, item, vote_type):
     cache_filters_to_reset = [UPVOTED, HOT]
     if isinstance(item, RhCommentModel):
@@ -409,7 +416,6 @@ def update_or_create_vote(request, user, item, vote_type):
                 target_vote=vote,
             )
 
-        # events_api.track_content_vote(user, vote, request)
         return get_vote_response(vote, 200)
 
     """CREATE VOTE"""
@@ -430,7 +436,6 @@ def update_or_create_vote(request, user, item, vote_type):
 
     app_label = item._meta.app_label
     model = item._meta.model.__name__.lower()
-    # events_api.track_content_vote(user, vote, request)
     create_contribution.apply_async(
         (
             Contribution.UPVOTER,

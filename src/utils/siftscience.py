@@ -3,7 +3,9 @@ import json
 
 import sift.client
 from django.apps import apps
+from django.contrib.contenttypes.models import ContentType
 from ipware import get_client_ip
+from rest_framework.request import Request
 
 from researchhub.celery import QUEUE_EXTERNAL_REPORTING, app
 from researchhub.settings import SIFT_ACCOUNT_ID, SIFT_REST_API_KEY
@@ -145,16 +147,15 @@ class EventsApi:
             "$user_email": user.email,
             "$name": f"{user.first_name} {user.last_name}",
             "$social_sign_on_type": "$google",
+            **meta,
         }
         track_type = "$update_account" if update else "$create_account"
 
         try:
             response = client.track(track_type, properties, return_score=False)
-            print(response.body)
             return response.body
         except sift.client.ApiException as e:
-            sentry.log_error(e)
-            print(e.api_error_message)
+            sentry.log_error(e, e.api_error_message)
 
     def track_account(self, user, request, update=False):
         meta = self.create_meta_properties(request, exclude_ip=True)
@@ -185,15 +186,14 @@ class EventsApi:
             "$user_id": str(user.id),
             "$login_status": login_status,
             "$username": user.username,
+            **meta,
         }
 
         try:
             response = client.track("$login", properties, return_score=False)
-            print(response.body)
             return response.body
         except sift.client.ApiException as e:
             sentry.log_error(e)
-            print(e.api_error_message)
 
     def track_content_comment(self, request, response_data, is_update):
         meta = self.create_meta_properties(request)
@@ -250,10 +250,9 @@ class EventsApi:
 
         try:
             response = client.track(track_type, comment_properties, return_score=False)
-            print(response.body)
             return response.body
         except sift.client.ApiException as e:
-            sentry.log_error(e)
+            sentry.log_error(e, e.api_error_message)
 
     def track_content_paper(self, request, response_data, is_update):
         meta = self.create_meta_properties(request)
@@ -280,7 +279,7 @@ class EventsApi:
         post_properties = {
             # Required fields
             "$user_id": user_id,
-            "$content_id": f"{type(paper).__name__}_{paper.id}",
+            "$content_id": f"{type(paper).__name__}_{paper_id}",
             # Recommended fields
             "$status": "$active",
             # Required $post object
@@ -302,41 +301,105 @@ class EventsApi:
             response = client.track(track_type, post_properties, return_score=False)
             return response.body
         except sift.client.ApiException as e:
-            sentry.log_error(e)
+            sentry.log_error(e, e.api_error_message)
 
-    def track_content_vote(self, user, vote, request, update=False):
+    def track_content_post(self, request, response_data, is_update):
         meta = self.create_meta_properties(request)
-        vote_type = vote.__module__.split(".")[0]
-        celery_response = self.celery_track_content_vote.apply(
-            (user.id, vote.id, vote_type, meta, update), priority=4, countdown=10
+        celery_response = self.celery_track_content_post.apply_async(
+            (response_data, meta, is_update),
+            priority=4,
+            countdown=5,
         )
-        tracked_vote = celery_response.get()
-        return tracked_vote
+        return celery_response
+
+    @staticmethod
+    @app.task(queue=QUEUE_EXTERNAL_REPORTING)
+    def celery_track_content_post(response_data, meta, update):
+        Post = apps.get_model("researchhub_document.ResearchhubPost")
+        User = apps.get_model("user.User")
+
+        post_id = response_data["id"]
+        post = Post.objects.get(id=post_id)
+
+        created_by = response_data["created_by"]
+        user_id = str(created_by["id"])
+        user = User.objects.get(id=user_id)
+
+        post_properties = {
+            # Required fields
+            "$user_id": user_id,
+            "$content_id": f"{type(post).__name__}_{post_id}",
+            # Recommended fields
+            "$status": "$active",
+            # Required $post object
+            "$post": {
+                "$subject": post.title,
+                "$body": post.renderable_text,
+                "$contact_email": user.email,
+                "$contact_address": {
+                    "$name": f"{user.first_name} {user.last_name}",
+                },
+                "$categories": list(post.hubs.values_list("slug", flat=True)),
+            },
+            **meta,
+        }
+
+        track_type = "$update_content" if update else "$create_content"
+
+        try:
+            response = client.track(track_type, post_properties, return_score=False)
+            return response.body
+        except sift.client.ApiException as e:
+            sentry.log_error(e, e.api_error_message)
+
+    def track_content_vote(self, request, response_data, is_update):
+        meta = self.create_meta_properties(request)
+        celery_response = self.celery_track_content_vote.apply_async(
+            (response_data, meta, is_update), priority=4, countdown=10
+        )
+        return celery_response
 
     @staticmethod
     @app.task
-    def celery_track_content_vote(user_id, vote_id, vote_type, meta, update):
+    def celery_track_content_vote(response_data, meta, update):
         User = apps.get_model("user.User")
-        user = User.objects.get(id=user_id)
-        Vote = apps.get_model(f"{vote_type}.Vote")
-        vote = Vote.objects.get(id=vote_id)
-        rating = vote.vote_type
+        Vote = apps.get_model("discussion.Vote")
+
+        created_by_id = response_data["created_by"]
+        user = User.objects.get(id=created_by_id)
+        vote = Vote.objects.get(id=response_data["id"])
+        vote_type = vote.vote_type
+        content_type_id = response_data["content_type"]
+        object_id = response_data["item"]
+        content_type = ContentType.objects.get(id=content_type_id)
+        model_class = content_type.model_class()
+        obj = model_class.objects.get(id=object_id)
+        review_content_id = f"{type(obj).__name__}_{object_id}"
+
+        if vote_type == Vote.UPVOTE:
+            rating = 1
+        elif vote_type == Vote.DOWNVOTE:
+            rating = -1
+        elif vote_type == vote.NEUTRAL:
+            rating = 0
 
         review_properties = {
             "$user_id": str(user.id),
             "$content_id": f"{type(vote).__name__}_{vote.id}",
             "$status": "$active",
-            "$review": {"$contact_email": user.email, "$rating": rating},
+            "$review": {
+                "$contact_email": user.email,
+                "$rating": rating,
+                "$reviewed_content_id": review_content_id,
+            },
         }
         track_type = "$update_content" if update else "$create_content"
 
         try:
             response = client.track(track_type, review_properties, return_score=False)
-            print(response.body)
             return response.body
         except sift.client.ApiException as e:
-            sentry.log_error(e)
-            print(e.api_error_message)
+            sentry.log_error(e, e.api_error_message)
 
     def track_flag_content(self, user, content_id, referer_id):
         # https://sift.com/developers/docs/curl/events-api/reserved-events/flag-content
@@ -350,34 +413,30 @@ class EventsApi:
 
         try:
             response = client.track("$flag_content", properties)
-            print(response.body)
+            return response.body
         except sift.client.ApiException as e:
-            sentry.log_error(e)
-            print(e.api_error_message)
-
-    def track_content_status(self):
-        # https://sift.com/developers/docs/python/events-api/reserved-events/content-status
-        # TODO: We might not need this?
-        properties = {"$user_id": "", "$content_id": "", "$status": ""}
+            sentry.log_error(e, e.api_error_message)
 
 
 events_api = EventsApi()
-
 decisions_api = DecisionsApi()
 
 
 def sift_track(track_type, is_update=False):
     def decorator(func):
         @functools.wraps(func)
-        def inner(class_, request, *args, **kwargs):
-            res = func(class_, request, *args, **kwargs)
+        def inner(*args, **kwargs):
+            res = func(*args, **kwargs)
             try:
                 sift_func = getattr(events_api, track_type)
+                if isinstance(args[0], Request):
+                    request = args[0]
+                else:
+                    request = args[1]
                 sift_func(request, res.data, is_update)
                 # if res.status_code >= 200 and res.status_code <= 299 and not DEVELOPMENT:
             except Exception as e:
-                print(e)
-                # log_info(e, getattr(amp, "hit", None))
+                sentry.log_error(e)
             return res
 
         return inner
