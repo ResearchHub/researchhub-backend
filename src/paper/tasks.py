@@ -880,7 +880,7 @@ def get_biorxiv_tweets():
     biorxiv_papers = Paper.objects.filter(
         external_source__icontains="bioRxiv", created_date__gte=three_days_ago
     )
-    for paper in biorxiv_papers:
+    for paper in biorxiv_papers.iterator():
         set_biorxiv_tweet_count.apply_async(
             (
                 paper.url,
