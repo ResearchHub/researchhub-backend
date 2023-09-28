@@ -110,8 +110,6 @@ class Hub(models.Model):
         )
 
     def get_doc_count(self):
-        # self.related_documents.count()
-
         return self.papers.filter(is_removed=False).count()
 
     def get_subscribers_count(self):
