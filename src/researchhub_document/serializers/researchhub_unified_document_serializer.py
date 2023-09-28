@@ -129,7 +129,7 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
             return DynamicHypothesisSerializer(
                 unified_doc.hypothesis, context=context, **_context_fields
             ).data
-        elif doc_type == PAPER:
+        elif doc_type == PAPER and unified_doc.paper:
             return DynamicPaperSerializer(
                 unified_doc.paper, context=context, **_context_fields
             ).data
