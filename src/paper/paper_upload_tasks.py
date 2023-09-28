@@ -456,8 +456,6 @@ def celery_openalex(self, celery_data):
                 "external_source": host_venue.get("display_name", None),
             }
 
-            print("raw_authors", raw_authors)
-
             if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
                 data["pdf_url"] = oa_pdf_url
 
@@ -592,6 +590,8 @@ def celery_create_paper(self, celery_data):
             paper.doi = async_paper_updator.doi
             paper.unified_document.hubs.add(*async_paper_updator.hubs)
             paper.title = async_paper_updator.title
+            # Used for backwards compatibility. Hubs should preferrably be retrieved through the unified_document model.
+            paper.hub.add(*async_paper_updator.hubs)
 
         paper.full_clean()
         paper.get_abstract_backup(should_save=False)
@@ -650,11 +650,11 @@ def celery_create_paper(self, celery_data):
                     "level": paper_concept["level"],
                 },
             )
-            hubs = Hub.objects.filter(concept=concept)
-            paper.unified_document.hubs.add(*hubs)
+            paper.unified_document.hubs.add(concept.hub)
 
     except Exception as e:
         print("Failed to save concepts for paper" + str(paper.id))
+        sentry.log_error(e)
         raise e
 
     return paper_id

@@ -442,9 +442,6 @@ class PaperSerializer(BasePaperSerializer):
 
                 self._add_orcid_authors(paper)
                 paper.hubs.add(*hubs)
-                # for hub in hubs:
-                #     hub.paper_count = hub.get_paper_count()
-                #     hub.save(update_fields=["paper_count"])
 
                 try:
                     file = paper.file
