@@ -99,41 +99,6 @@ class HubViewSet(viewsets.ModelViewSet):
             response = super().dispatch(request, *args, **kwargs)
         return response
 
-    def get_queryset(self):
-        ordering = self.request.query_params.get("ordering", "")
-        return self.get_ordered_queryset(ordering)
-
-    # TODO: re consider approach
-    def get_ordered_queryset(self, ordering):
-        if "score" in ordering:
-            two_weeks_ago = timezone.now().date() - timedelta(days=14)
-            num_upvotes = Count(
-                "papers__votes__vote_type",
-                filter=Q(
-                    papers__votes__vote_type=Vote.UPVOTE,
-                    papers__votes__created_date__gte=two_weeks_ago,
-                ),
-            )
-            num_downvotes = Count(
-                "papers__votes__vote_type",
-                filter=Q(
-                    papers__votes__vote_type=Vote.DOWNVOTE,
-                    papers__votes__created_date__gte=two_weeks_ago,
-                ),
-            )
-
-            DISCUSSION_FACTOR = 10
-            score = (
-                (num_upvotes - num_downvotes)
-                + DISCUSSION_FACTOR * F("discussion_count")
-                + F("paper_count")
-            )
-
-            qs = self.queryset.annotate(score=score).order_by("-score")
-            return qs
-        else:
-            return self.queryset
-
     @action(detail=True, methods=[PUT, PATCH, DELETE], permission_classes=[CensorHub])
     def censor(self, request, pk=None):
         hub = self.get_object()
