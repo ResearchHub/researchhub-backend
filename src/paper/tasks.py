@@ -927,11 +927,13 @@ def pull_biorxiv(page=0, retry=0):
 @app.task(queue=QUEUE_PULL_PAPERS)
 def set_biorxiv_tweet_count(url, doi, paper_id):
     from paper.models import Paper
+    from researchhub_document.signals import sync_scores
 
     counts = _get_biorxiv_tweet_counts(url, doi)
     paper = Paper.objects.get(id=paper_id)
     paper.twitter_score = counts
     paper.save()
+    sync_scores(paper.unified_document, paper)
 
 
 def _get_biorxiv_tweet_counts(url, doi):
