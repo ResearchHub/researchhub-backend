@@ -10,11 +10,11 @@ from researchhub.celery import QUEUE_HUBS
 
 
 @periodic_task(
-    run_every=crontab(minute="*/5"),
-    priority=1,
+    run_every=crontab(minute=0, hour=0),
+    priority=5,
     queue=QUEUE_HUBS,
 )
-def celery_set_hub_counts():
+def calculate_and_set_hub_counts():
     hubs = Hub.objects.annotate(
         total_paper_count=Count("related_documents"),
         posts_discussion_count=Sum("related_documents__posts__discussion_count"),

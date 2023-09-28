@@ -5,6 +5,7 @@ from channels.db import database_sync_to_async
 from channels.exceptions import StopConsumer
 from channels.generic.websocket import AsyncWebsocketConsumer
 
+from hub.serializers import DynamicHubSerializer
 from paper.models import Paper, PaperSubmission
 from paper.serializers import DynamicPaperSerializer, PaperSubmissionSerializer
 
@@ -22,6 +23,23 @@ def filter_papers(paper_ids):
 @database_sync_to_async
 def get_paper_from_submission(submission):
     return submission.paper
+
+
+@database_sync_to_async
+def get_hubs_from_unified_document(unified_document):
+    return unified_document.hubs
+
+
+@database_sync_to_async
+def serialize_hubs(hubs):
+    return DynamicHubSerializer(
+        hubs, many=True, _include_fields=["id", "name", "slug"]
+    ).data
+
+
+@database_sync_to_async
+def get_unified_document_from_paper(paper):
+    return paper.unified_document
 
 
 @database_sync_to_async
@@ -96,10 +114,13 @@ class PaperSubmissionConsumer(AsyncWebsocketConsumer):
         # Not entirely sure if the paper submission serializer requires async support
         serialized_data = PaperSubmissionSerializer(submission).data
         paper = await get_paper_from_submission(submission)
-        context = {"pap_dps_get_hubs": {"_include_fields": ("id", "name", "slug")}}
+        unified_document = await get_unified_document_from_paper(paper)
+        hubs = await get_hubs_from_unified_document(unified_document)
         current_paper_data = DynamicPaperSerializer(
-            paper, _include_fields=["id", "paper_title", "hubs"], context=context
+            paper, _include_fields=["id", "paper_title"]
         ).data
+
+        current_hub_data = await serialize_hubs(hubs)
 
         if "id" not in current_paper_data:
             current_paper_data["id"] = ""
@@ -107,6 +128,7 @@ class PaperSubmissionConsumer(AsyncWebsocketConsumer):
         data = {
             "data": serialized_data,
             "current_paper": current_paper_data,
+            "current_hubs": current_hub_data,
             **extra_metadata,
         }
         await self.send(text_data=json.dumps(data))

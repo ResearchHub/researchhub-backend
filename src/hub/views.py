@@ -47,12 +47,11 @@ from .permissions import (
     UpdateHub,
 )
 from .serializers import HubCategorySerializer, HubContributionSerializer, HubSerializer
-from .tasks import celery_set_hub_counts
 
 
 class CustomPageLimitPagination(PageNumberPagination):
     page_size_query_param = "page_limit"
-    max_page_size = 10000
+    max_page_size = 100
 
 
 class HubViewSet(viewsets.ModelViewSet):
@@ -60,7 +59,7 @@ class HubViewSet(viewsets.ModelViewSet):
     serializer_class = HubSerializer
     filter_backends = (
         SearchFilter,
-        # DjangoFilterBackend,
+        DjangoFilterBackend,
         OrderingFilter,
     )
     permission_classes = [
