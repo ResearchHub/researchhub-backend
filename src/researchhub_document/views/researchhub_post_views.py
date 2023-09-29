@@ -50,6 +50,7 @@ from researchhub_document.serializers.researchhub_post_serializer import (
 )
 from researchhub_document.utils import reset_unified_document_cache
 from utils.sentry import log_error
+from utils.siftscience import SIFT_POST, sift_track
 from utils.throttles import THROTTLE_CLASSES
 
 
@@ -91,6 +92,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         except (KeyError, TypeError) as exception:
             return Response(exception, status=400)
 
+    @sift_track(SIFT_POST)
     def create_researchhub_post(self, request):
         try:
             data = request.data
@@ -171,6 +173,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             log_error(exception)
             return Response(exception, status=400)
 
+    @sift_track(SIFT_POST, is_update=True)
     def update_existing_researchhub_posts(self, request):
         data = request.data
         created_by = request.user

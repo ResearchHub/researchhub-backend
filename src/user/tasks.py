@@ -46,26 +46,12 @@ def handle_spam_user_task(user_id):
     user = User.objects.filter(id=user_id).first()
     if user:
         user.papers.update(is_removed=True)
-        user.paper_votes.update(is_removed=True)
 
         hub_ids = list(
             Hub.objects.filter(papers__in=list(user.papers.values_list(flat=True)))
             .values_list(flat=True)
             .distinct()
         )
-
-        # Update discussions
-        for thr in Thread.objects.filter(created_by=user):
-            thr.remove_nested()
-            thr.update_discussion_count()
-
-        for com in Comment.objects.filter(created_by=user):
-            com.remove_nested()
-            com.update_discussion_count()
-
-        for rep in Reply.objects.filter(created_by=user):
-            rep.remove_nested()
-            rep.update_discussion_count()
 
     reset_unified_document_cache(hub_ids)
 
@@ -80,7 +66,6 @@ def reinstate_user_task(user_id):
 
     papers = Paper.objects.filter(uploaded_by=user)
     papers.update(is_removed=False)
-    user.paper_votes.update(is_removed=False)
 
     ResearchhubUnifiedDocument.all_objects.filter(paper__in=papers).update(
         is_removed=False

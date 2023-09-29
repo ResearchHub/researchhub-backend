@@ -12,7 +12,6 @@ from django.core.validators import URLValidator
 from django.db import IntegrityError
 from django.db.models import Count, F, IntegerField, Q, Sum, Value
 from django.db.models.functions import Cast, Coalesce
-from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from elasticsearch.exceptions import ConnectionError
 from rest_framework import status, viewsets
@@ -72,7 +71,7 @@ from researchhub_document.utils import reset_unified_document_cache
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.permissions import CreateOrUpdateIfAllowed, HasAPIKey, PostOnly
 from utils.sentry import log_error
-from utils.siftscience import decisions_api, events_api
+from utils.siftscience import SIFT_PAPER, decisions_api, events_api, sift_track
 from utils.throttles import THROTTLE_CLASSES
 
 
@@ -157,6 +156,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             return queryset
 
     @track_event
+    @sift_track(SIFT_PAPER)
     def create(self, request, *args, **kwargs):
         try:
             doi = request.data.get("doi", "")
@@ -316,6 +316,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         # Temporarily disabling endpoint
         return Response(status=200)
 
+    @sift_track(SIFT_PAPER, is_update=True)
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
 

@@ -17,6 +17,7 @@ from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from allauth.socialaccount.providers.orcid.views import OrcidOAuth2Adapter
 from allauth.utils import get_request_param
 from dj_rest_auth.registration.views import SocialLoginView
+from dj_rest_auth.views import LoginView
 from django.dispatch import receiver
 from mailchimp_marketing import Client
 from rest_framework.decorators import api_view, permission_classes
@@ -137,6 +138,13 @@ google_callback = CallbackView.adapter_view(GoogleOAuth2Adapter)
 google_yolo_login = OAuth2LoginView.adapter_view(GoogleOAuth2AdapterIdToken)
 google_yolo_callback = CallbackView.adapter_view(GoogleOAuth2AdapterIdToken)
 orcid_callback = CallbackView.adapter_view(OrcidOAuth2Adapter)
+
+
+class EmailLoginView(LoginView):
+    def post(self, request, *args, **kwargs):
+        res = super().post(request, *args, **kwargs)
+        events_api.track_login(self.user, "$success", request)
+        return res
 
 
 @api_view([RequestMethods.POST])

@@ -785,6 +785,7 @@ class UserViewSet(viewsets.ModelViewSet):
         verification_signature = "sha1={}".format(h.hexdigest())
 
         if verification_signature == postback_signature:
+            # Custom logic here
             decision_id = request.data["decision"]["id"]
             user_id = request.data["entity"]["id"]
             user = User.objects.get(id=user_id)
