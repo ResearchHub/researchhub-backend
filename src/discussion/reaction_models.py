@@ -141,7 +141,8 @@ class AbstractGenericReactionModel(DefaultModel):
             score=Count("id", filter=Q(vote_type=Vote.UPVOTE))
             - Count("id", filter=Q(vote_type=Vote.DOWNVOTE))
         ).get("score", 0)
-        return score
+        twitter_score = getattr(self, "twitter_score", 0)
+        return score + twitter_score
 
     def get_promoted_score(self):
         purchases = self.purchases.filter(

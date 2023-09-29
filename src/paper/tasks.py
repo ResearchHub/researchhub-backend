@@ -870,97 +870,26 @@ def pull_arxiv_papers_directly():
     return total_works
 
 
-# @periodic_task(
-#     run_every=crontab(minute=0, hour="*/3"), priority=3, queue=QUEUE_PULL_PAPERS
-# )
-# def pull_arxiv_papers():
-#     sentry.log_info("Starting Arxiv pull")
-#     from paper.models import Paper
+@periodic_task(
+    run_every=crontab(minute=0, hour="2"), priority=3, queue=QUEUE_PULL_PAPERS
+)
+def get_biorxiv_tweets():
+    from paper.models import Paper
 
-#     arxiv_id = "https://api.openalex.org/sources/S4306400194"
-#     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-#     # today = datetime.now(tz=pytz_tz("US/Pacific")).strftime("%Y-%m-%d")
-#     open_alex = OpenAlex()
-#     arxiv_works = open_alex.get_data_from_source(arxiv_id, yesterday)
-#     total_works = arxiv_works.get("meta").get("count")
-#     pages = math.ceil(total_works / open_alex.per_page)
-#     hub_ids = set()
-
-#     for i in range(1, pages + 1):
-#         for result in arxiv_works.get("results", []):
-#             with transaction.atomic():
-#                 doi = result.get("doi", "")
-#                 if doi is None:
-#                     continue
-#                 pure_doi = doi.split("doi.org/")[-1]
-
-#                 primary_location = result.get("best_oa_location", None) or result.get(
-#                     "primary_location", {}
-#                 )
-#                 source = primary_location.get("source", {})
-#                 oa = result.get("open_access", {})
-#                 oa_pdf_url = oa.get("oa_url", None)
-#                 url = primary_location.get("landing_page_url", None)
-#                 title = normalize("NFKD", result.get("title", ""))
-#                 raw_authors = result.get("authorships", [])
-#                 concepts = result.get("concepts", [])
-#                 abstract = rebuild_sentence_from_inverted_index(
-#                     result.get("abstract_inverted_index", {})
-#                 )
-
-#                 doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(pure_doi))
-#                 url_paper_check = Paper.objects.filter(
-#                     Q(url_svf=SearchQuery(oa_pdf_url))
-#                     | Q(pdf_url_svf=SearchQuery(oa_pdf_url))
-#                 )
-#                 if doi_paper_check.exists() or url_paper_check.exists():
-#                     # This skips over the current iteration
-#                     continue
-
-#                 data = {
-#                     "doi": pure_doi,
-#                     "url": url,
-#                     "raw_authors": format_raw_authors(raw_authors),
-#                     "title": title,
-#                     "paper_title": title,
-#                     "paper_publish_date": result.get("publication_date", None),
-#                     "is_open_access": oa.get("is_oa", None),
-#                     "oa_status": oa.get("oa_status", None),
-#                     "pdf_license": source.get("license", None),
-#                     "external_source": source.get("display_name", None),
-#                     "abstract": abstract,
-#                 }
-#                 if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
-#                     data["pdf_url"] = oa_pdf_url.strip()
-
-#                 try:
-#                     paper = Paper(**data)
-#                     paper.full_clean()
-#                     paper.save()
-
-#                     concept_names = [
-#                         concept.get("display_name", "other")
-#                         for concept in concepts
-#                         if concept.get("level", 0) == 0
-#                     ]
-#                     potential_hubs = []
-#                     for concept_name in concept_names:
-#                         potential_hub = Hub.objects.filter(name__icontains=concept_name)
-#                         if potential_hub.exists():
-#                             potential_hub = potential_hub.first()
-#                             potential_hubs.append(potential_hub)
-#                             hub_ids.add(potential_hub.id)
-#                     paper.hubs.add(*potential_hubs)
-#                     download_pdf.apply_async((paper.id,), priority=4, countdown=4)
-#                 except Exception as e:
-#                     sentry.log_error(e)
-#         arxiv_works = open_alex.get_data_from_source(arxiv_id, yesterday, page=i + 1)
-#     reset_unified_document_cache(
-#         hub_ids=hub_ids,
-#         document_type=["paper"],
-#         filters=[NEW],
-#     )
-#     return total_works
+    three_days_ago = datetime.now() - timedelta(days=3)
+    biorxiv_papers = Paper.objects.filter(
+        external_source__icontains="bioRxiv", created_date__gte=three_days_ago
+    )
+    for paper in biorxiv_papers.iterator():
+        set_biorxiv_tweet_count.apply_async(
+            (
+                paper.url,
+                paper.doi,
+                paper.id,
+            ),
+            priority=4,
+            countdown=2,
+        )
 
 
 @periodic_task(
@@ -993,6 +922,18 @@ def pull_biorxiv(page=0, retry=0):
         )
     except Exception as e:
         sentry.log_error(e)
+
+
+@app.task(queue=QUEUE_PULL_PAPERS)
+def set_biorxiv_tweet_count(url, doi, paper_id):
+    from paper.models import Paper
+    from researchhub_document.signals import sync_scores
+
+    counts = _get_biorxiv_tweet_counts(url, doi)
+    paper = Paper.objects.get(id=paper_id)
+    paper.twitter_score = counts
+    paper.save()
+    sync_scores(paper.unified_document, paper)
 
 
 def _get_biorxiv_tweet_counts(url, doi):

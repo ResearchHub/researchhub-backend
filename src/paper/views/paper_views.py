@@ -50,7 +50,7 @@ from paper.serializers import (
     PaperSerializer,
     PaperSubmissionSerializer,
 )
-from paper.tasks import censored_paper_cleanup
+from paper.tasks import _get_biorxiv_tweet_counts, censored_paper_cleanup
 from paper.utils import (
     add_default_hub,
     clean_abstract,
@@ -304,6 +304,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 "uploaded_date",
                 "uploaded_date",
                 "url",
+                "twitter_score",
             ],
         )
         serializer_data = serializer.data
