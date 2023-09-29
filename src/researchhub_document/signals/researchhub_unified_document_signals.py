@@ -92,4 +92,4 @@ def sync_scores(unified_doc, document_obj):
         unified_doc.score = score
         should_save = True
     if should_save:
-        unified_doc.save()
+        unified_doc.save(update_fields=["score", "hot_score"])
