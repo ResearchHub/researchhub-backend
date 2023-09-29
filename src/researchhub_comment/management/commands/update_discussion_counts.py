@@ -33,7 +33,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         CHUNK_SIZE = 10000
         documents = ResearchhubUnifiedDocument.objects.all()
-        start = documents.first().id
+        start = 1263860
         end = documents.last().id
 
         py_threads = []
