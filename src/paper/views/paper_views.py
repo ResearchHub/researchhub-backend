@@ -404,17 +404,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         return Response("Paper was deleted.", status=200)
 
     @action(
-        detail=True,
-        methods=["post"],
-        permission_classes=[],
-    )
-    def update_biorxiv_tweet_count(self, request, pk=None):
-        paper = self.get_object()
-        paper.twitter_score = _get_biorxiv_tweet_counts(paper.url, paper.doi)
-        paper.save()
-        return Response(self.serializer_class(paper).data)
-
-    @action(
         detail=False,
         methods=["get"],
         permission_classes=[],
