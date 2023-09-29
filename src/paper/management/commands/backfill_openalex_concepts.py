@@ -16,15 +16,27 @@ class Command(BaseCommand):
             "--start_date", type=str, help="Start date in YYYY-MM-DD format."
         )
         parser.add_argument("--doi", type=str, help="DOI of a specific paper.")
+        parser.add_argument(
+            "--only_user_uploaded", type=str, help="Only user uploaded papers"
+        )
 
     def handle(self, *args, **kwargs):
         start_date_str = kwargs["start_date"]
+        only_user_uploaded = kwargs["only_user_uploaded"]
         doi = kwargs["doi"]
         open_alex = OpenAlex()
 
         if start_date_str:
             start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
-            papers = Paper.objects.filter(created_date__gte=start_date)
+
+            if only_user_uploaded:
+                print("Only processing user uploaded papers")
+                papers = Paper.objects.filter(
+                    created_date__gte=start_date, uploaded_by__isnull=False
+                )
+            else:
+                papers = Paper.objects.filter(created_date__gte=start_date)
+
             print(f"Found {papers.count()} papers created after {start_date_str}")
         elif doi:
             papers = Paper.objects.filter(doi=doi)
