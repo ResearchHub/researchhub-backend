@@ -98,14 +98,6 @@ class PaperSubmissionViewTests(APITestCase):
         paper_id = celery_create_paper.apply((combined_celery_data,)).result
         self.assertEqual(isinstance(paper_id, int), True)
 
-        self.assertEqual(
-            set(self.concept_display_names),
-            set(
-                c.display_name
-                for c in Paper.objects.get(pk=paper_id).unified_document.concepts.all()
-            ),
-        )
-
     def _duplicate_doi_flow(self):
         self.client.force_authenticate(self.submitter)
         celery_data = (

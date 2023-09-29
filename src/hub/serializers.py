@@ -149,6 +149,7 @@ class HubContributionSerializer(ModelSerializer):
 
 class DynamicHubSerializer(DynamicModelFieldSerializer):
     editor_permission_groups = SerializerMethodField()
+    relevancy_score = SerializerMethodField()
 
     class Meta:
         model = Hub
@@ -164,3 +165,20 @@ class DynamicHubSerializer(DynamicModelFieldSerializer):
             context=context,
             many=True,
         ).data
+
+    def get_relevancy_score(self, hub_instance):
+        from researchhub_document.models import UnifiedDocumentConcepts
+
+        unified_document = self.context.get("unified_document", None)
+        relevancy_score = 0
+
+        concept = getattr(hub_instance, "concept", None)
+        if unified_document and concept:
+            concept_with_relevancy = UnifiedDocumentConcepts.objects.filter(
+                unified_document=unified_document, concept=concept.id
+            ).first()
+
+            if concept_with_relevancy:
+                return concept_with_relevancy.relevancy_score
+
+        return relevancy_score

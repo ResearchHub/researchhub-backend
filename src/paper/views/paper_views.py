@@ -203,7 +203,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                     "is_removed",
                     "document_type",
                     "documents",
-                    "concepts",
                 ]
             },
             "pap_dps_get_user_vote": {},
@@ -285,7 +284,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 "external_source",
                 "file",
                 "first_preview",
-                "hubs",
                 "id",
                 "is_open_access",
                 "oa_status",

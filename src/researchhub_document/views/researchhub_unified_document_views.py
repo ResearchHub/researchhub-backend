@@ -214,6 +214,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "title",
                     "uploaded_by",
                     "uploaded_date",
+                    "raw_authors",
                 ]
             },
             "doc_duds_get_bounties": {
@@ -236,6 +237,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "slug",
                     "is_removed",
                     "hub_image",
+                    "relevancy_score",
                 ]
             },
             "pap_dps_get_hubs": {
@@ -246,6 +248,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "slug",
                     "is_removed",
                     "hub_image",
+                    "relevancy_score",
                 ]
             },
             "pap_dps_get_unified_document": {
@@ -272,6 +275,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "id",
                     "author_profile",
                 ]
+            },
+            "pap_dps_get_authors": {
+                "_include_fields": ["id", "first_name", "last_name"]
             },
             "usr_dus_get_author_profile": {
                 "_include_fields": [
@@ -422,6 +428,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             many=True,
             context=context,
         )
+
         serializer_data = serializer.data
 
         return self.get_paginated_response(serializer_data)
@@ -662,6 +669,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         discussion_context_fields = ("id", "comment_count", "thread_type")
         purchase_context_fields = ("id", "amount", "user")
         purchase_select_related_fields = ("user", "user__author_profile")
+        authors_context_fields = (
+            "id",
+            "first_name",
+            "last_name",
+        )
         metadata_context = {
             **context,
             "doc_duds_get_documents": {
@@ -687,7 +699,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "pap_dps_get_discussions": {"_include_fields": discussion_context_fields},
             "pap_dps_get_discussions_prefetch": ("rh_comments",),
             "pap_dps_get_purchases": {"_include_fields": purchase_context_fields},
-            "pap_dps_get_purchases_select": purchase_select_related_fields,
             "pch_dps_get_user": {
                 "_include_fields": [
                     "id",
@@ -705,7 +716,17 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "profile_image",
                 ]
             },
+            "doc_duds_get_hubs": {
+                "_include_fields": [
+                    "id",
+                    "name",
+                    "slug",
+                    "relevancy_score",
+                    "created_date",
+                ]
+            },
         }
+
         return metadata_context
 
     @action(detail=True, methods=["get"], permission_classes=[AllowAny])
@@ -715,7 +736,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         serializer = self.dynamic_serializer_class(
             unified_document,
-            _include_fields=("id", "documents", "reviews", "score"),
+            _include_fields=("id", "documents", "reviews", "score", "hubs"),
             context=metadata_context,
         )
         serializer_data = serializer.data

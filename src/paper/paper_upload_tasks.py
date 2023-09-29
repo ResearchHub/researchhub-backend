@@ -1,4 +1,3 @@
-import operator
 import re
 from collections import Counter
 from json.decoder import JSONDecodeError
@@ -20,6 +19,7 @@ from habanero import Crossref
 from requests.exceptions import HTTPError
 
 from citation.models import CitationEntry
+from hub.models import Hub
 from paper.exceptions import (
     DOINotFoundError,
     DuplicatePaperError,
@@ -440,6 +440,7 @@ def celery_openalex(self, celery_data):
             url = host_venue.get("url", None)
             title = normalize("NFKD", result.get("title", ""))
             raw_authors = result.get("authorships", [])
+            concepts = result.get("concepts", [])
 
             data = {
                 "doi": doi,
@@ -454,14 +455,12 @@ def celery_openalex(self, celery_data):
                 "pdf_license_url": url,
                 "external_source": host_venue.get("display_name", None),
             }
+
             if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
                 data["pdf_url"] = oa_pdf_url
 
-            concepts = result.get("concepts", [])
-            logger.info(f"concepts after get_data_from_doi: {concepts}")
-            data["concepts"] = hydrate_and_sort(concepts)
-            logger.info(f"concepts after hydrate_and_sort: {data['concepts']}")
-
+            paper_concepts = open_alex.hydrate_paper_concepts(concepts)
+            data["concepts"] = paper_concepts
             response = {
                 **paper_data,
                 "data": data,
@@ -477,30 +476,6 @@ def celery_openalex(self, celery_data):
         return {"error": str(e), "key": 10, **paper_data}
     except Exception as e:
         return {"error": str(e), "key": 10, **paper_data}
-
-
-# Given a list of dehydrated concepts, hydrate them to get the rest of the fields such as description.
-# dehydrated concepts: https://docs.openalex.org/about-the-data/work#concepts
-# hydrated concepts: https://docs.openalex.org/about-the-data/concept
-def hydrate_and_sort(concepts):
-    # sort concepts by level (general to specific) and then score (strongly to weakly connected)
-    concepts.sort(key=operator.itemgetter("score"), reverse=True)
-    concepts.sort(key=operator.itemgetter("level"))
-
-    ids = []
-    for concept in concepts:
-        try:
-            pass_score_filter = float(concept.get("score")) > 0
-        except ValueError:
-            pass_score_filter = True
-        if pass_score_filter:
-            ids.append(concept["id"])
-    try:
-        return OpenAlex().get_hydrated_concepts(ids)
-    except HTTPError as e:
-        sentry.log_error(e)
-        print(e)
-        return []
 
 
 @app.task(bind=True, queue=QUEUE_PAPER_METADATA, ignore_result=False)
@@ -599,6 +574,7 @@ def celery_create_paper(self, celery_data):
     Paper = apps.get_model("paper.Paper")
     PaperSubmission = apps.get_model("paper.PaperSubmission")
     Contribution = apps.get_model("reputation.Contribution")
+    paper_concepts = paper_data.pop("concepts", [])
 
     try:
         paper_submission = PaperSubmission.objects.get(id=submission_id)
@@ -608,14 +584,14 @@ def celery_create_paper(self, celery_data):
                 f"Unable to find article for: {dois}, {paper_submission.url}"
             )
 
-        concepts = paper_data.pop("concepts", None)
-
         async_paper_updator = getattr(paper_submission, "async_updator", None)
         paper = Paper(**paper_data)
         if async_paper_updator is not None:
             paper.doi = async_paper_updator.doi
-            paper.hub.add(*async_paper_updator.hubs)
+            paper.unified_document.hubs.add(*async_paper_updator.hubs)
             paper.title = async_paper_updator.title
+            # Used for backwards compatibility. Hubs should preferrably be retrieved through the unified_document model.
+            paper.hub.add(*async_paper_updator.hubs)
 
         paper.full_clean()
         paper.get_abstract_backup(should_save=False)
@@ -631,26 +607,6 @@ def celery_create_paper(self, celery_data):
             citation = CitationEntry.objects.get(id=citation_id)
             citation.related_unified_doc = paper.unified_document
             citation.save()
-
-        logger.info(f"concepts in celery_create_paper: {concepts}")
-        if concepts is not None:
-            for concept in concepts:
-                # create model object for concept if it doesn't yet exist, then associate the concept with paper
-                (stored_concept, created) = Concept.objects.get_or_create(
-                    openalex_id=concept.pop("openalex_id"), defaults=concept
-                )
-                if not created:
-                    # update existing concept with fresh data from openalex
-                    stored_concept.display_name = concept.get("display_name", "")
-                    stored_concept.description = concept.get("description", "")
-                    stored_concept.openalex_created_date = concept[
-                        "openalex_created_date"
-                    ]
-                    stored_concept.openalex_updated_date = concept[
-                        "openalex_updated_date"
-                    ]
-                    stored_concept.save()
-                paper.unified_document.concepts.add(stored_concept)
 
         uploaded_by = paper_submission.uploaded_by
 
@@ -677,11 +633,31 @@ def celery_create_paper(self, celery_data):
             countdown=3,
         )
         paper_submission.notify_status()
-        return paper_id
     except ValidationError as e:
         raise e
     except Exception as e:
         raise e
+
+    try:
+        logger.info(f"concepts in celery_create_paper: {paper_concepts}")
+
+        for paper_concept in paper_concepts:
+            concept = Concept.create_or_update(paper_concept)
+            paper.unified_document.concepts.add(
+                concept,
+                through_defaults={
+                    "relevancy_score": paper_concept["score"],
+                    "level": paper_concept["level"],
+                },
+            )
+            paper.unified_document.hubs.add(concept.hub)
+
+    except Exception as e:
+        print("Failed to save concepts for paper" + str(paper.id))
+        sentry.log_error(e)
+        raise e
+
+    return paper_id
 
 
 @app.task(queue=QUEUE_PAPER_METADATA)

@@ -64,7 +64,10 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
         null=True,
     )
     concepts = models.ManyToManyField(
-        "tag.Concept", related_name="concepts", blank=True
+        "tag.Concept",
+        related_name="documents",
+        blank=True,
+        through="UnifiedDocumentConcepts",
     )
 
     class Meta:
@@ -193,3 +196,22 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
                 update_elastic_registry.apply_async(post)
         except:
             pass
+
+
+class UnifiedDocumentConcepts(DefaultModel):
+    unified_document = models.ForeignKey(
+        ResearchhubUnifiedDocument,
+        on_delete=models.CASCADE,
+    )
+
+    concept = models.ForeignKey(
+        "tag.Concept", related_name="concept", blank=True, on_delete=models.CASCADE
+    )
+
+    relevancy_score = models.FloatField(
+        default=0.0,
+    )
+
+    level = models.IntegerField(
+        default=0,
+    )
