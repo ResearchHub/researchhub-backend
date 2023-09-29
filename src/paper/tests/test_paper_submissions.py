@@ -26,18 +26,20 @@ class PaperSubmissionViewTests(APITestCase):
         self.paper_publish_date = "2020-04-24"
         self.concept_display_names = [
             "Computer science",
-            "Mathematics",
             "Biology",
+            "Mathematics",
+            "Sociology",
             "Artificial intelligence",
-            "Botany",
-            "Hue",
-            "RGB color model",
             "Population",
-            "Berry",
-            "Lightness",
+            "Botany",
+            "Demography",
             "Image (mathematics)",
             "Quantitative trait locus",
+            "RGB color model",
+            "Berry",
+            "Hue",
             "Color space",
+            "Lightness",
             "Color model",
         ]
         self.submitter = create_random_default_user("submitter")
