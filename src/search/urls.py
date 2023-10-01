@@ -19,7 +19,9 @@ post = router.register(r"post", PostDocumentView, basename="post_document")
 thread = router.register(r"thread", ThreadDocumentView, basename="thread_document")
 hub = router.register(r"hub", HubDocumentView, basename="hub_document")
 user = router.register(r"user", UserSuggesterDocumentView, basename="user_document")
-hub = router.register(r"hub", HubSuggesterDocumentView, basename="hub_document")
+hub_suggester = router.register(
+    r"hubs", HubSuggesterDocumentView, basename="hub_document"
+)
 
 urlpatterns = [
     re_path(r"^", include(router.urls)),
