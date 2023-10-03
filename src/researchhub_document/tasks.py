@@ -84,9 +84,7 @@ def preload_trending_documents(
 
     if hub_id == 0:
         hub_id = ""
-    query_string = "page=1&time={}&ordering={}&hub_id={}&type={}".format(
-        time_scope, filtering, hub_id, document_type
-    )
+    query_string = f"page=1&time={time_scope}&ordering={filtering}&hub_id={hub_id}&type={document_type}&ignore_excluded=true"
     if document_type == BOUNTY.lower():
         query_string = f"{query_string}&tags=open"
     http_meta = {

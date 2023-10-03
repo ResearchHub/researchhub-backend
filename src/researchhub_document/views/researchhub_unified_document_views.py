@@ -562,6 +562,15 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         unified_document = self.get_object()
         unified_document.update_filter(FILTER_EXCLUDED_FROM_FEED)
 
+        doc_type = get_doc_type_key(unified_document)
+        hub_ids = unified_document.hubs.values_list("id", flat=True)
+        reset_unified_document_cache(
+            hub_ids,
+            document_type=["all", doc_type],
+            filters=[UPVOTED, HOT, DISCUSSED],
+            with_default_hub=True,
+        )
+
         return Response(status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"], permission_classes=[IsModerator])
