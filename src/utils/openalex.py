@@ -88,3 +88,25 @@ class OpenAlex:
             return hydrated_concepts
         except Exception as e:
             return []
+
+    def get_author_data(self, orcid_id):
+        return self._get(f"authors/https://orcid.org/{orcid_id}")
+
+    def get_author_works_data(self, orcid_id):
+        works = []
+        cursor = "*"
+        while True:
+            response_data = self._get(
+                "works",
+                filters={
+                    "filter": f"author.orcid:{orcid_id}",
+                    "per_page": 200,
+                    "cursor": cursor,
+                },
+            )
+            if response_data["results"]:
+                works.extend(response_data["results"])
+                cursor = response_data["meta"]["next_cursor"]
+            else:
+                break
+        return works
