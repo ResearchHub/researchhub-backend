@@ -33,6 +33,7 @@ from paper.serializers import DynamicPaperSerializer
 from paper.tasks import pull_openalex_author_works
 from paper.utils import PAPER_SCORE_Q_ANNOTATION, get_cache_key
 from paper.views import PaperViewSet
+from prediction_market.models import PredictionMarketVote
 from reputation.models import Bounty, BountySolution, Contribution, Distribution
 from reputation.serializers import (
     DynamicBountySerializer,
@@ -1377,6 +1378,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     "title",
                     "user_flag",
                     "user_vote",
+                    "vote",
+                    "bet_amount",
                 ]
             },
             "rep_dbs_get_item": {
@@ -1573,6 +1576,9 @@ class AuthorViewSet(viewsets.ModelViewSet):
         review_content_type = ContentType.objects.get_for_model(Review)
         bounty_content_type = ContentType.objects.get_for_model(Bounty)
         bounty_solution_content_type = ContentType.objects.get_for_model(BountySolution)
+        replication_vote_content_type = ContentType.objects.get_for_model(
+            PredictionMarketVote
+        )
 
         types = asset_type.split(",")
 
@@ -1645,8 +1651,15 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     content_type_id=bounty_solution_content_type,
                     contribution_type__in=[Contribution.BOUNTY_SOLUTION],
                 )
+            elif asset_type == "replication_vote":
+                query |= Q(
+                    unified_document__is_removed=False,
+                    user__author_profile=author_id,
+                    content_type_id=replication_vote_content_type,
+                    contribution_type__in=[Contribution.REPLICATION_VOTE],
+                )
             else:
-                raise Exception("Unrecognized asset type")
+                raise Exception("Unrecognized asset type: {}".format(asset_type))
 
         qs = (
             Contribution.objects.filter(query)
