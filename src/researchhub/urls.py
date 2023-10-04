@@ -41,6 +41,7 @@ from peer_review.views import (
     PeerReviewRequestViewSet,
     PeerReviewViewSet,
 )
+from prediction_market.views import PredictionMarketViewSet, PredictionMarketVoteViewSet
 from referral.referral_invite_view import ReferralInviteViewSet
 from researchhub.settings import INSTALLED_APPS, USE_DEBUG_TOOLBAR
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
@@ -224,6 +225,15 @@ router.register(
     basename="rh_comments",
 )
 
+router.register(
+    r"prediction_market", PredictionMarketViewSet, basename="prediction_market"
+)
+
+router.register(
+    r"prediction_market_vote",
+    PredictionMarketVoteViewSet,
+    basename="prediction_market_vote",
+)
 
 urlpatterns = [
     path("admin/", admin.site.urls),

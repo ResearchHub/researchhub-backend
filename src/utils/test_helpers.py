@@ -293,7 +293,7 @@ def get_authenticated_patch_response(user, url, data, content_type):
     return response
 
 
-def get_authenticated_put_response(user, url, data, content_type):
+def get_authenticated_put_response(user, url, data, content_type="application/json"):
     """
     Sends a put request authenticated with `user` and returns the response.
     """
