@@ -932,7 +932,7 @@ def set_biorxiv_tweet_count(url, doi, paper_id):
     counts = _get_biorxiv_tweet_counts(url, doi)
     paper = Paper.objects.get(id=paper_id)
     paper.twitter_score = counts
-    paper.save()
+    paper.save(update_fields=["twitter_score"])
     sync_scores(paper.unified_document, paper)
 
 
@@ -941,7 +941,6 @@ def _get_biorxiv_tweet_counts(url, doi):
         res = requests.get(
             f"https://connect.biorxiv.org/eval_get1.php?url={url}&doi={doi}", timeout=10
         )
-        unescaped_json_res = res.text
         # For some reason, the request data comes back with "\ufeff" and then also has an open paren ( and a closed paren )
         escaped_json_res = json.loads(res.text.strip("\ufeff(").rstrip(res.text[-1]))
         count = 0
@@ -1075,6 +1074,7 @@ def _extract_biorxiv_entry(url, retry=0):
                 potential_hub = potential_hub.first()
                 hub_ids.append(potential_hub.id)
         paper.hubs.add(*hub_ids)
+        paper.unified_document.hubs.add(*hub_ids)
 
         reset_unified_document_cache(
             hub_ids=hub_ids,

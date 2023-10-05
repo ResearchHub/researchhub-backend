@@ -267,9 +267,10 @@ urlpatterns = [
     path(
         "api/auth/google/login/", oauth.views.GoogleLogin.as_view(), name="google_login"
     ),
-    re_path(r"api/auth/", include("dj_rest_auth.urls")),
     re_path(r"api/auth/register/", include("dj_rest_auth.registration.urls")),
-    re_path(r"api/auth/login/", LoginView.as_view(), name="rest_login"),
+    re_path(
+        r"api/auth/login/", oauth.views.EmailLoginView.as_view(), name="rest_login"
+    ),
     re_path(r"api/auth/logout/", LogoutView.as_view(), name="rest_logout"),
     re_path(
         r"api/auth/password-reset/$", PasswordResetView.as_view(), name="password-reset"

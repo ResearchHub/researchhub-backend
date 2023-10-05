@@ -66,17 +66,17 @@ class Command(BaseCommand):
                     )
 
                     print("paper_concepts", paper_concepts)
-                    # for paper_concept in paper_concepts:
-                    #     concept = Concept.create_or_update(paper_concept)
-                    #     paper.unified_document.concepts.add(
-                    #         concept,
-                    #         through_defaults={
-                    #             "relevancy_score": paper_concept["score"],
-                    #             "level": paper_concept["level"],
-                    #         },
-                    #     )
-                    #     hubs = Hub.objects.filter(concept=concept)
-                    #     paper.unified_document.hubs.add(*hubs)
+                    for paper_concept in paper_concepts:
+                        concept = Concept.create_or_update(paper_concept)
+                        paper.unified_document.concepts.add(
+                            concept,
+                            through_defaults={
+                                "relevancy_score": paper_concept["score"],
+                                "level": paper_concept["level"],
+                            },
+                        )
+                        hubs = Hub.objects.filter(concept=concept)
+                        paper.unified_document.hubs.add(*hubs)
 
                     self.stdout.write(
                         self.style.SUCCESS(
