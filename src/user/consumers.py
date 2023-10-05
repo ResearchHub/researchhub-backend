@@ -123,7 +123,7 @@ class PaperSubmissionConsumer(AsyncWebsocketConsumer):
             hubs = await get_hubs_from_unified_document(unified_document)
 
         current_paper_data = DynamicPaperSerializer(
-            paper, _include_fields=["id", "paper_title"]
+            paper, _include_fields=["id", "paper_title", "slug"]
         ).data
 
         current_hub_data = await serialize_hubs(hubs)

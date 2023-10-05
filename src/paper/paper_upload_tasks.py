@@ -677,6 +677,7 @@ def celery_create_paper(self, celery_data):
 
     if len(hubs_to_tag_paper_with) > 0:
         paper.unified_document.hubs.add(*hubs_to_tag_paper_with)
+        paper.hubs.add(*hubs_to_tag_paper_with)
 
     return paper_id
 
