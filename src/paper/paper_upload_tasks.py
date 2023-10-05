@@ -73,14 +73,14 @@ def celery_process_paper(self, submission_id):
     if doi:
         celery_data["doi"] = doi
 
-    apis.extend(
-        [
-            celery_unpaywall.s(),
-            celery_openalex.s(),
-            celery_crossref.s(),
-            celery_semantic_scholar.s(),
-        ]
-    )
+        apis.extend(
+            [
+                celery_unpaywall.s(),
+                celery_openalex.s(),
+                celery_crossref.s(),
+                celery_semantic_scholar.s(),
+            ]
+        )
 
     tasks = []
     if url:
