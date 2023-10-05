@@ -92,6 +92,7 @@ def celery_process_paper(self, submission_id):
             ]
         )
         apis.append(celery_manubot.s())
+        apis.append(celery_openalex.s())
     else:
         celery_data.pop("url")
 
