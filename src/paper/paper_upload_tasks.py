@@ -72,14 +72,15 @@ def celery_process_paper(self, submission_id):
     apis = []
     if doi:
         celery_data["doi"] = doi
-        apis.extend(
-            [
-                celery_unpaywall.s(),
-                celery_openalex.s(),
-                celery_crossref.s(),
-                celery_semantic_scholar.s(),
-            ]
-        )
+
+    apis.extend(
+        [
+            celery_unpaywall.s(),
+            celery_openalex.s(),
+            celery_crossref.s(),
+            celery_semantic_scholar.s(),
+        ]
+    )
 
     tasks = []
     if url:
@@ -173,6 +174,7 @@ def celery_combine_doi(self, celery_data):
     try:
         dois = []
         errors = []
+
         for doi_data in celery_data:
             submission_id = doi_data.get("submission_id")
             if "error" in doi_data:
@@ -638,10 +640,12 @@ def celery_create_paper(self, celery_data):
     except Exception as e:
         raise e
 
-    try:
-        logger.info(f"concepts in celery_create_paper: {paper_concepts}")
+    hubs_to_tag_paper_with = []
+    for paper_concept in paper_concepts:
+        try:
+            logger.info(f"concepts in celery_create_paper: {paper_concepts}")
 
-        for paper_concept in paper_concepts:
+            # Everytime a concept is created, an associated hub is also created
             concept = Concept.create_or_update(paper_concept)
             paper.unified_document.concepts.add(
                 concept,
@@ -650,12 +654,28 @@ def celery_create_paper(self, celery_data):
                     "level": paper_concept["level"],
                 },
             )
-            paper.unified_document.hubs.add(concept.hub)
 
-    except Exception as e:
-        print("Failed to save concepts for paper" + str(paper.id))
-        sentry.log_error(e)
-        raise e
+            hubs_to_tag_paper_with.append(concept.hub)
+        except Exception as e:
+            print("Failed to save concepts fo paper" + str(paper.id))
+            print(
+                {
+                    "concept": concept,
+                    "concept.hub": concept.hub,
+                    "paper_concept": paper_concept,
+                }
+            )
+            sentry.log_error(
+                e,
+                message={
+                    "concept": concept,
+                    "concept.hub": concept.hub,
+                    "paper_concept": paper_concept,
+                },
+            )
+
+    if len(hubs_to_tag_paper_with) > 0:
+        paper.unified_document.hubs.add(*hubs_to_tag_paper_with)
 
     return paper_id
 

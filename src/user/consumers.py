@@ -114,8 +114,14 @@ class PaperSubmissionConsumer(AsyncWebsocketConsumer):
         # Not entirely sure if the paper submission serializer requires async support
         serialized_data = PaperSubmissionSerializer(submission).data
         paper = await get_paper_from_submission(submission)
-        unified_document = await get_unified_document_from_paper(paper)
-        hubs = await get_hubs_from_unified_document(unified_document)
+
+        hubs = []
+        unified_document = None
+
+        if paper:
+            unified_document = await get_unified_document_from_paper(paper)
+            hubs = await get_hubs_from_unified_document(unified_document)
+
         current_paper_data = DynamicPaperSerializer(
             paper, _include_fields=["id", "paper_title"]
         ).data
