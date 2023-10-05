@@ -527,9 +527,9 @@ AWS_STORAGE_BUCKET_NAME = os.environ.get(
     "AWS_STORAGE_BUCKET_NAME", "researchhub-paper-dev1"
 )
 
-if PRODUCTION:
-    AWS_STORAGE_BUCKET_NAME = "researchhub-paper-prod"
-    AWS_S3_CUSTOM_DOMAIN = "d2ogkcqdn9wsvr.cloudfront.net"
+# if PRODUCTION:
+AWS_STORAGE_BUCKET_NAME = "researchhub-paper-prod"
+AWS_S3_CUSTOM_DOMAIN = "d2ogkcqdn9wsvr.cloudfront.net"
 
 AWS_S3_REGION_NAME = "us-west-2"
 
