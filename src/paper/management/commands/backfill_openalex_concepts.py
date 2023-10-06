@@ -16,6 +16,7 @@ class Command(BaseCommand):
             "--start_date", type=str, help="Start date in YYYY-MM-DD format."
         )
         parser.add_argument("--doi", type=str, help="DOI of a specific paper.")
+        parser.add_argument("--id", type=str, help="ID of a specific paper.")
         parser.add_argument(
             "--only_user_uploaded", type=str, help="Only user uploaded papers"
         )
@@ -24,6 +25,7 @@ class Command(BaseCommand):
         start_date_str = kwargs["start_date"]
         only_user_uploaded = kwargs["only_user_uploaded"]
         doi = kwargs["doi"]
+        id = kwargs["id"]
         open_alex = OpenAlex()
 
         if start_date_str:
@@ -40,6 +42,8 @@ class Command(BaseCommand):
             print(f"Found {papers.count()} papers created after {start_date_str}")
         elif doi:
             papers = Paper.objects.filter(doi=doi)
+        elif id:
+            papers = Paper.objects.filter(id=id)
         else:
             self.stdout.write(self.style.ERROR("Please provide a start date or DOI."))
             return
@@ -60,6 +64,8 @@ class Command(BaseCommand):
                     paper_concepts = open_alex.hydrate_paper_concepts(
                         result.get("concepts", [])
                     )
+
+                    print("paper_concepts", paper_concepts)
                     for paper_concept in paper_concepts:
                         concept = Concept.create_or_update(paper_concept)
                         paper.unified_document.concepts.add(
