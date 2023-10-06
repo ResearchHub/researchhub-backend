@@ -44,7 +44,7 @@ from researchhub.settings import (
     SIFT_MODERATION_WHITELIST,
     SIFT_WEBHOOK_SECRET_KEY,
 )
-from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
+from researchhub_comment.models import RhCommentModel
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.serializers import DynamicPostSerializer
 from review.models.review_model import Review
@@ -60,6 +60,7 @@ from user.serializers import (
     UserActions,
     UserEditableSerializer,
     UserSerializer,
+    VerificationFileSerializer,
     VerificationSerializer,
 )
 from user.tasks import handle_spam_user_task, reinstate_user_task
@@ -876,20 +877,25 @@ class MajorViewSet(viewsets.ReadOnlyModelViewSet):
 class VerificationViewSet(viewsets.ModelViewSet):
     queryset = Verification.objects.all()
     serializer_class = VerificationSerializer
+    permission_classes = [AllowAny]
+    throttle_classes = THROTTLE_CLASSES
+
+    def create(self, request, *args, **kwargs):
+        files = request.FILES
+        res = super().create(request, *args, **kwargs)
+        for _, file in files.items():
+            data = {"verification": res.data["id"], "file": file}
+            serializer = VerificationFileSerializer(data=data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+        return res
 
     @action(
         detail=False,
         methods=["post"],
     )
     def bulk_upload(self, request):
-        images = request.data.getlist("images")
-        for image in images:
-            Verification.objects.create(
-                file=image,
-                user=request.user,
-            )
-
-        return Response({"message": "Verification was uploaded!"})
+        return Response({"message": "Deprecated"})
 
 
 class AuthorViewSet(viewsets.ModelViewSet):

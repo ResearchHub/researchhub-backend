@@ -38,6 +38,7 @@ from user.models import (
     UserApiToken,
     Verdict,
     Verification,
+    VerificationFile,
 )
 from user.related_models.gatekeeper_model import Gatekeeper
 from utils import sentry
@@ -46,6 +47,12 @@ from utils import sentry
 class VerificationSerializer(ModelSerializer):
     class Meta:
         model = Verification
+        fields = "__all__"
+
+
+class VerificationFileSerializer(ModelSerializer):
+    class Meta:
+        model = VerificationFile
         fields = "__all__"
 
 
