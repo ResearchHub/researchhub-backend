@@ -21,6 +21,7 @@ TOP = "TOP"
 BOUNTY = "BOUNTY"
 REVIEW = "REVIEW"
 DISCUSSION = "DISCUSSION"
+REPLICABILITY_COMMENT = "REPLICABILITY_COMMENT"
 CREATED_DATE = "CREATED_DATE"
 ASCENDING_TRUE = "TRUE"
 ASCENDING_FALSE = "FALSE"
@@ -41,6 +42,7 @@ FILTER_CHOICES = (
     (BOUNTY, "Has Bounty"),
     (REVIEW, REVIEW),
     (DISCUSSION, DISCUSSION),
+    (REPLICABILITY_COMMENT, REPLICABILITY_COMMENT),
     (INNER_CONTENT_COMMENT, INNER_CONTENT_COMMENT),
 )
 
@@ -184,6 +186,8 @@ class RHCommentFilter(filters.FilterSet):
                 | Q(comment_type=SUMMARY)
                 | Q(comment_type=INNER_CONTENT_COMMENT)
             )
+        elif value == REPLICABILITY_COMMENT:
+            qs = qs.filter(thread__thread_type=REPLICABILITY_COMMENT)
 
         return qs
 
