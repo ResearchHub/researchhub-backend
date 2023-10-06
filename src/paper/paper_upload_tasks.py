@@ -646,7 +646,7 @@ def celery_create_paper(self, celery_data):
         try:
             logger.info(f"concepts in celery_create_paper: {paper_concepts}")
 
-            # Everytime a concept is created, an associated hub is also created
+            # Every time a concept is created, an associated hub is also created
             concept = Concept.create_or_update(paper_concept)
             paper.unified_document.concepts.add(
                 concept,
@@ -662,7 +662,6 @@ def celery_create_paper(self, celery_data):
             print(
                 {
                     "concept": concept,
-                    "concept.hub": concept.hub,
                     "paper_concept": paper_concept,
                 }
             )
@@ -670,7 +669,6 @@ def celery_create_paper(self, celery_data):
                 e,
                 message={
                     "concept": concept,
-                    "concept.hub": concept.hub,
                     "paper_concept": paper_concept,
                 },
             )
