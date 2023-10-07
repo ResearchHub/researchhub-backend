@@ -63,6 +63,24 @@ def create_contribution(
 
 
 @app.task(queue=QUEUE_CONTRIBUTIONS)
+def delete_contribution(contribution_type, instance_type, unified_doc_id, object_id):
+    content_type = ContentType.objects.get(**instance_type)
+    contribution = Contribution.objects.filter(
+        contribution_type=contribution_type,
+        content_type=content_type,
+        unified_document_id=unified_doc_id,
+        object_id=object_id,
+    )
+
+    # ignore if there's more than one contribution
+    if contribution.count() > 1:
+        return
+
+    if contribution.exists():
+        contribution.delete()
+
+
+@app.task(queue=QUEUE_CONTRIBUTIONS)
 def create_author_contribution(contribution_type, user_id, unified_doc_id, object_id):
     contributions = []
     content_type = ContentType.objects.get(model="author")

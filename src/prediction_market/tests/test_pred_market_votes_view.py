@@ -136,3 +136,56 @@ class PredictionMarketVotesViewTests(APITestCase):
 
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["created_by"]["id"], self.user.id)
+
+    def test_delete_prediction_market_vote(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.post(
+            "/api/prediction_market_vote/",
+            {
+                "prediction_market_id": self.prediction_market.id,
+                "vote": True,
+            },
+        )
+
+        self.assertIsNotNone(response.data["id"])
+        voteId = response.data["id"]
+
+        response = self.client.delete(
+            f"/api/prediction_market_vote/{response.data['id']}/"
+        )
+
+        self.assertEqual(response.status_code, 204)
+
+        response = self.client.get(
+            f"/api/prediction_market_vote/?prediction_market_id={self.prediction_market.id}"
+        )
+
+        existsInList = False
+        for vote in response.data:
+            if vote["id"] == voteId:
+                existsInList = True
+                break
+        self.assertFalse(existsInList)
+
+    def test_delete_vote_not_authorized_user(self):
+        self.client.force_authenticate(self.user)
+        response = self.client.post(
+            "/api/prediction_market_vote/",
+            {
+                "prediction_market_id": self.prediction_market.id,
+                "vote": True,
+            },
+        )
+
+        self.assertIsNotNone(response.data["id"])
+
+        # create another user and delete
+        user2 = create_random_authenticated_user("prediction_market_views")
+        self.client.force_authenticate(user2)
+
+        response = self.client.delete(
+            f"/api/prediction_market_vote/{response.data['id']}/"
+        )
+
+        self.assertEqual(response.status_code, 403)
+

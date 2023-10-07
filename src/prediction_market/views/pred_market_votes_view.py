@@ -10,7 +10,7 @@ from prediction_market.serializers.prediction_market_vote_serializer import (
 )
 from prediction_market.utils import get_or_create_prediction_market
 from reputation.models import Contribution
-from reputation.tasks import create_contribution
+from reputation.tasks import create_contribution, delete_contribution
 from utils.throttles import THROTTLE_CLASSES
 
 
@@ -150,3 +150,32 @@ class PredictionMarketVoteViewSet(viewsets.ModelViewSet):
             queryset, many=True, context=context
         )
         return Response(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        user = request.user
+        vote = self.get_object()
+        if vote.created_by != user:
+            return Response(
+                {"message": "You are not authorized to delete this vote"},
+                status=403
+            )
+
+        prediction_market = vote.prediction_market
+
+        delete_contribution.apply_async(
+            (
+                Contribution.REPLICATION_VOTE,
+                {
+                    "app_label": "prediction_market",
+                    "model": "predictionmarketvote",
+                },
+                prediction_market.unified_document.id,
+                vote.id,
+            ),
+            priority=1,
+            countdown=10,
+        )
+
+        vote.delete()
+
+        return Response(status=204)
