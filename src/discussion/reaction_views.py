@@ -5,6 +5,7 @@ from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from sentry_sdk import capture_exception
 
 from analytics.amplitude import track_event
 from discussion.permissions import CensorDiscussion as CensorDiscussionPermission
@@ -382,7 +383,6 @@ def create_vote(user, item, vote_type):
 def create_automated_bounty(item):
     if item.score >= 10 and item.hubs.filter(id=436).exists():
         user = User.objects.get(email="community@researchhub.com")
-        # item_content_type = RhCommentModel.__name__.lower()
         item_object_id = item.id
         item_content_type = ContentType.objects.get_for_model(item)
         amount = "15000"
@@ -474,6 +474,7 @@ def update_or_create_vote(request, user, item, vote_type):
         create_automated_bounty(item)
     except Exception as e:
         print(e)
+        capture_exception(e)
 
     if vote is not None:
         vote.vote_type = vote_type
