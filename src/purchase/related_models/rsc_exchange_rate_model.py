@@ -42,3 +42,8 @@ class RscExchangeRate(DefaultModel):
         max_length=255,
         null=False,
     )
+
+    @staticmethod
+    def usd_to_rsc(usd_amount):
+        latest_exchange_rate = RscExchangeRate.objects.last().rate
+        return usd_amount / latest_exchange_rate

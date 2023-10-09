@@ -18,6 +18,7 @@ from discussion.reaction_serializers import (
     FlagSerializer,
     VoteSerializer,
 )
+from purchase.models import RscExchangeRate
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from reputation.views.bounty_view import _create_bounty, _create_bounty_checks
@@ -385,7 +386,10 @@ def create_automated_bounty(item):
         user = User.objects.get(email="community@researchhub.com")
         item_object_id = item.id
         item_content_type = ContentType.objects.get_for_model(item)
-        amount = "15000"
+        usd_amount_for_bounty = 150
+
+        # Round the number to nearest 10, then turn it into a string
+        amount = str(RscExchangeRate.usd_to_rsc(usd_amount_for_bounty) // 10 * 10)
         bypass_user_balance = True
         json_content = {
             "ops": [
