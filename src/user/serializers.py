@@ -44,44 +44,10 @@ from user.related_models.gatekeeper_model import Gatekeeper
 from utils import sentry
 
 
-class VerificationFileSerializer(ModelSerializer):
-    class Meta:
-        model = VerificationFile
-        fields = "__all__"
-
-
-class VerificationSerializer(ModelSerializer):
-    files = VerificationFileSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = Verification
-        fields = "__all__"
-
-
 class UniversitySerializer(ModelSerializer):
     class Meta:
         model = University
         fields = "__all__"
-
-
-class MajorSerializer(ModelSerializer):
-    class Meta:
-        model = Major
-        fields = "__all__"
-
-
-class GatekeeperSerializer(ModelSerializer):
-    class Meta:
-        model = Gatekeeper
-        fields = "__all__"
-        read_only_fields = [field.name for field in Gatekeeper._meta.fields]
-
-
-class UserApiTokenSerializer(ModelSerializer):
-    class Meta:
-        model = UserApiToken
-        fields = ["name", "prefix", "revoked"]
-        read_only_fields = [field.name for field in UserApiToken._meta.fields]
 
 
 class AuthorSerializer(ModelSerializer):
@@ -216,6 +182,44 @@ class AuthorSerializer(ModelSerializer):
         user = author.user
         if user:
             return user.is_hub_editor()
+
+
+class VerificationFileSerializer(ModelSerializer):
+    class Meta:
+        model = VerificationFile
+        fields = "__all__"
+
+
+class VerificationSerializer(ModelSerializer):
+    files = VerificationFileSerializer(many=True, read_only=True)
+    related_author_object = SerializerMethodField()
+
+    class Meta:
+        model = Verification
+        fields = "__all__"
+
+    def get_related_author_object(self, obj):
+        return AuthorSerializer(obj.related_author).data
+
+
+class MajorSerializer(ModelSerializer):
+    class Meta:
+        model = Major
+        fields = "__all__"
+
+
+class GatekeeperSerializer(ModelSerializer):
+    class Meta:
+        model = Gatekeeper
+        fields = "__all__"
+        read_only_fields = [field.name for field in Gatekeeper._meta.fields]
+
+
+class UserApiTokenSerializer(ModelSerializer):
+    class Meta:
+        model = UserApiToken
+        fields = ["name", "prefix", "revoked"]
+        read_only_fields = [field.name for field in UserApiToken._meta.fields]
 
 
 class DynamicAuthorSerializer(DynamicModelFieldSerializer):

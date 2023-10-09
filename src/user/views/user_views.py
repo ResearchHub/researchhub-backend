@@ -913,14 +913,15 @@ class VerificationViewSet(viewsets.ModelViewSet):
     throttle_classes = THROTTLE_CLASSES
 
     def create(self, request, *args, **kwargs):
-        files = request.FILES
-        res = super().create(request, *args, **kwargs)
-        for _, file in files.items():
-            data = {"verification": res.data["id"], "file": file}
-            serializer = VerificationFileSerializer(data=data)
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
-        return res
+        with transaction.atomic():
+            files = request.data.getlist("file[]")
+            res = super().create(request, *args, **kwargs)
+            for file in files:
+                data = {"verification": res.data["id"], "file": file}
+                serializer = VerificationFileSerializer(data=data)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+            return res
 
     @action(
         detail=False,
