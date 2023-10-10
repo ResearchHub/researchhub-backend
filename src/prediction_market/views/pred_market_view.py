@@ -1,23 +1,23 @@
 from rest_framework import viewsets
+from rest_framework.exceptions import MethodNotAllowed
 from rest_framework.filters import OrderingFilter
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
 from prediction_market.models import PredictionMarket
+from prediction_market.permissions import IsModeratorOrReadOnly
 from prediction_market.serializers.prediction_market_serializer import (
     DynamicPredictionMarketSerializer,
-    PredictionMarketSerializer,
 )
 from prediction_market.utils import create_prediction_market
 from utils.throttles import THROTTLE_CLASSES
 
 
 class PredictionMarketViewSet(viewsets.ModelViewSet):
-    serializer_class = PredictionMarketSerializer
+    serializer_class = DynamicPredictionMarketSerializer
     throttle_classes = THROTTLE_CLASSES
 
     permission_classes = [
-        IsAuthenticatedOrReadOnly,
+        IsModeratorOrReadOnly,
     ]
     filter_backends = (OrderingFilter,)
     order_fields = "__all__"
@@ -39,7 +39,13 @@ class PredictionMarketViewSet(viewsets.ModelViewSet):
         data = DynamicPredictionMarketSerializer(prediction_market).data
         return Response(data, status=200)
 
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = DynamicPredictionMarketSerializer(instance)
-        return Response(serializer.data)
+    # Disabling any updating/deletion of prediction markets for now
+
+    def update(self, request, *args, **kwargs):
+        raise MethodNotAllowed("PUT")
+
+    def partial_update(self, request, *args, **kwargs):
+        raise MethodNotAllowed("PATCH")
+
+    def destroy(self, request, *args, **kwargs):
+        raise MethodNotAllowed("DELETE")

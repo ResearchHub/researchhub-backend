@@ -75,7 +75,7 @@ class PredictionMarketVotesViewTests(APITestCase):
             f"/api/prediction_market_vote/?prediction_market_id={self.prediction_market.id}"
         )
 
-        self.assertEqual(len(response.data), 0)
+        self.assertEqual(len(response.data["results"]), 0)
 
         self.client.post(
             "/api/prediction_market_vote/",
@@ -88,9 +88,10 @@ class PredictionMarketVotesViewTests(APITestCase):
         response = self.client.get(
             f"/api/prediction_market_vote/?prediction_market_id={self.prediction_market.id}"
         )
+        results = response.data["results"]
 
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]["created_by"]["id"], self.user.id)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["created_by"]["id"], self.user.id)
 
     def test_list_prediction_market_votes_for_user(self):
         self.client.force_authenticate(self.user)
@@ -98,8 +99,9 @@ class PredictionMarketVotesViewTests(APITestCase):
             self.user,
             f"/api/prediction_market_vote/?prediction_market_id={self.prediction_market.id}&is_user_vote=true",
         )
+        results = response.data["results"]
 
-        self.assertEqual(len(response.data), 0)
+        self.assertEqual(len(results), 0)
 
         get_authenticated_post_response(
             self.user,
@@ -114,9 +116,10 @@ class PredictionMarketVotesViewTests(APITestCase):
             self.user,
             f"/api/prediction_market_vote/?prediction_market_id={self.prediction_market.id}&is_user_vote=true",
         )
+        results = response.data["results"]
 
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]["created_by"]["id"], self.user.id)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["created_by"]["id"], self.user.id)
 
         # create another user and vote
         user2 = create_random_authenticated_user("prediction_market_views")
@@ -133,9 +136,10 @@ class PredictionMarketVotesViewTests(APITestCase):
             self.user,
             f"/api/prediction_market_vote/?prediction_market_id={self.prediction_market.id}&is_user_vote=true",
         )
+        results = response.data["results"]
 
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]["created_by"]["id"], self.user.id)
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["created_by"]["id"], self.user.id)
 
     def test_delete_prediction_market_vote(self):
         self.client.force_authenticate(self.user)
@@ -150,8 +154,8 @@ class PredictionMarketVotesViewTests(APITestCase):
         self.assertIsNotNone(response.data["id"])
         voteId = response.data["id"]
 
-        response = self.client.delete(
-            f"/api/prediction_market_vote/{response.data['id']}/"
+        response = self.client.post(
+            f"/api/prediction_market_vote/{response.data['id']}/soft_delete/"
         )
 
         self.assertEqual(response.status_code, 204)
@@ -159,9 +163,10 @@ class PredictionMarketVotesViewTests(APITestCase):
         response = self.client.get(
             f"/api/prediction_market_vote/?prediction_market_id={self.prediction_market.id}"
         )
+        results = response.data["results"]
 
         existsInList = False
-        for vote in response.data:
+        for vote in results:
             if vote["id"] == voteId:
                 existsInList = True
                 break
@@ -183,9 +188,8 @@ class PredictionMarketVotesViewTests(APITestCase):
         user2 = create_random_authenticated_user("prediction_market_views")
         self.client.force_authenticate(user2)
 
-        response = self.client.delete(
-            f"/api/prediction_market_vote/{response.data['id']}/"
+        response = self.client.post(
+            f"/api/prediction_market_vote/{response.data['id']}/soft_delete/"
         )
 
         self.assertEqual(response.status_code, 403)
-

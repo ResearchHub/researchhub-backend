@@ -8,7 +8,7 @@ from user.serializers import DynamicUserSerializer
 class PredictionMarketVoteSerializer(ModelSerializer):
     class Meta:
         model = PredictionMarketVote
-        exclude = ("created_by",)  # Excluding the created_by field
+        fields = "__all__"
 
 
 class DynamicPredictionMarketVoteSerializer(DynamicModelFieldSerializer):

@@ -6,7 +6,7 @@ from user.tests.helpers import create_random_authenticated_user
 
 class PredictionMarketViewTests(APITestCase):
     def setUp(self):
-        self.user = create_random_authenticated_user("discussion_views")
+        self.user = create_random_authenticated_user("discussion_views", moderator=True)
         self.paper = create_paper(uploaded_by=self.user)
 
     def test_create_prediction_market(self):

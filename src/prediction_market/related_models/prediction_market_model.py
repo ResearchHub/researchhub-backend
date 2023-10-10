@@ -1,5 +1,8 @@
 from django.db import models
 
+from prediction_market.related_models.prediction_market_vote_model import (
+    PredictionMarketVote,
+)
 from utils.models import DefaultModel
 
 
@@ -44,17 +47,32 @@ class PredictionMarket(DefaultModel):
         null=False,
     )
 
-    def get_summary(self):
-        total_votes = self.prediction_market_votes.count()
-        votes_for = self.prediction_market_votes.filter(vote=True).count()
-        votes_against = total_votes - votes_for
-        return {
-            "id": self.id,
-            "votes": {
-                "total": total_votes,
-                "yes": votes_for,
-                "no": votes_against,
-            },
-            "status": self.status,
-            "prediction_type": self.prediction_type,
-        }
+    votes_for = models.IntegerField(default=0)
+    votes_against = models.IntegerField(default=0)
+
+    bets_for = models.IntegerField(default=0)
+    bets_against = models.IntegerField(default=0)
+
+    def add_vote(self, vote):
+        if vote.vote == PredictionMarketVote.VOTE_YES:
+            self.votes_for = models.F("votes_for") + 1
+            if vote.bet_amount is not None:
+                self.bets_for = models.F("bets_for") + vote.bet_amount
+        elif vote.vote == PredictionMarketVote.VOTE_NO:
+            self.votes_against = models.F("votes_against") + 1
+            if vote.bet_amount is not None:
+                self.bets_against = models.F("bets_against") + vote.bet_amount
+
+    def remove_vote(self, prev_vote_value=None, prev_bet_amount=None):
+        if prev_vote_value == PredictionMarketVote.VOTE_YES:
+            self.votes_for = models.F("votes_for") - 1
+            if prev_bet_amount is not None:
+                self.bets_for = models.F("bets_for") - prev_bet_amount
+        elif prev_vote_value == PredictionMarketVote.VOTE_NO:
+            self.votes_against = models.F("votes_against") - 1
+            if prev_bet_amount is not None:
+                self.bets_against = models.F("bets_against") - prev_bet_amount
+
+    def update_vote(self, vote, prev_vote_value=None, prev_bet_amount=None):
+        self.add_vote(vote)
+        self.remove_vote(prev_vote_value, prev_bet_amount)
