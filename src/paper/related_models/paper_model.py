@@ -103,6 +103,7 @@ class Paper(AbstractGenericReactionModel):
     downloads = models.IntegerField(default=0)
     twitter_mentions = models.IntegerField(default=0)
     citations = models.IntegerField(default=0)
+    open_alex_raw_json = models.JSONField(null=True, blank=True)
 
     # Moderators are obsolete, in favor of super mods on the user
     moderators = models.ManyToManyField(

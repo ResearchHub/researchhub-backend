@@ -26,6 +26,7 @@ class PaperFilter(filters.FilterSet):
             "url_svf",
             "pdf_url_svf",
             "doi_svf",
+            "open_alex_raw_json",
         ]
 
     def uploaded_by_author(self, queryset, name, value):
