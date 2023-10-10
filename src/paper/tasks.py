@@ -680,6 +680,7 @@ def pull_biorxiv_papers():
 
     for i in range(1, pages + 1):
         print(f"{i} / {pages + 1}")
+        next_cursor = biorxiv_works.get("meta", {}).get("next_cursor", "*")
         for result in biorxiv_works.get("results", []):
             with transaction.atomic():
                 doi = result.get("doi")
@@ -722,6 +723,7 @@ def pull_biorxiv_papers():
                     "pdf_license": source.get("license", None),
                     "external_source": source.get("display_name", ""),
                     "abstract": abstract,
+                    "open_alex_raw_json": result,
                 }
                 if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
                     data["pdf_url"] = oa_pdf_url
@@ -745,7 +747,7 @@ def pull_biorxiv_papers():
                 paper.hubs.add(*potential_hubs)
 
                 download_pdf.apply_async((paper.id,), priority=4, countdown=4)
-                if "biorxiv" in pdf.url:
+                if "biorxiv" in paper.url:
                     set_biorxiv_tweet_count.apply_async(
                         (
                             paper.url,
@@ -755,7 +757,9 @@ def pull_biorxiv_papers():
                         priority=4,
                         countdown=2,
                     )
-        biorxiv_works = open_alex.get_data_from_source(biorxiv_id, today, page=i + 1)
+        biorxiv_works = open_alex.get_data_from_source(
+            biorxiv_id, today, cursor=next_cursor
+        )
     reset_unified_document_cache(
         hub_ids=hub_ids,
         document_type=["paper"],
@@ -889,7 +893,7 @@ def get_biorxiv_tweets():
 
     three_days_ago = datetime.now() - timedelta(days=3)
     biorxiv_papers = Paper.objects.filter(
-        external_source__icontains="bioRxiv", created_date__lte=three_days_ago
+        external_source__icontains="bioRxiv", created_date__gte=three_days_ago
     )
     for paper in biorxiv_papers.iterator():
         set_biorxiv_tweet_count.apply_async(

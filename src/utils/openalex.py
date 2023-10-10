@@ -44,14 +44,14 @@ class OpenAlex:
             raise DOINotFoundError(f"No OpenAlex works found for doi: {doi}")
         return results[0]
 
-    def get_data_from_source(self, source, date=None, page=1):
+    def get_data_from_source(self, source, date=None, cursor="*"):
         oa_filter = f"locations.source.id:{source}"
         if date:
             oa_filter = f"locations.source.id:{source},from_created_date:{date}"
         filters = {
             "filter": oa_filter,
             "per-page": self.per_page,
-            "page": page,
+            "cursor": cursor,
         }
         works = self._get("works", filters)
         return works
