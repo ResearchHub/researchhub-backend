@@ -670,15 +670,16 @@ def pull_biorxiv_papers():
     from paper.models import Paper
 
     biorxiv_id = "https://openalex.org/S4306402567"
-    # yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     today = datetime.now(tz=pytz_tz("US/Pacific")).strftime("%Y-%m-%d")
     open_alex = OpenAlex()
-    biorxiv_works = open_alex.get_data_from_source(biorxiv_id, today)
+    biorxiv_works = open_alex.get_data_from_source(biorxiv_id, None)
     total_works = biorxiv_works.get("meta").get("count")
     pages = math.ceil(total_works / open_alex.per_page)
     hub_ids = set()
+    print(pages)
 
     for i in range(1, pages + 1):
+        print(f"{i} / {pages + 1}")
         for result in biorxiv_works.get("results", []):
             with transaction.atomic():
                 doi = result.get("doi")
@@ -719,7 +720,7 @@ def pull_biorxiv_papers():
                     "is_open_access": oa.get("is_oa", None),
                     "oa_status": oa.get("oa_status", None),
                     "pdf_license": source.get("license", None),
-                    "external_source": source.get("display_name", None),
+                    "external_source": source.get("display_name", ""),
                     "abstract": abstract,
                 }
                 if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
@@ -744,6 +745,16 @@ def pull_biorxiv_papers():
                 paper.hubs.add(*potential_hubs)
 
                 download_pdf.apply_async((paper.id,), priority=4, countdown=4)
+                if "biorxiv" in pdf.url:
+                    set_biorxiv_tweet_count.apply_async(
+                        (
+                            paper.url,
+                            paper.doi,
+                            paper.id,
+                        ),
+                        priority=4,
+                        countdown=2,
+                    )
         biorxiv_works = open_alex.get_data_from_source(biorxiv_id, today, page=i + 1)
     reset_unified_document_cache(
         hub_ids=hub_ids,
@@ -878,7 +889,7 @@ def get_biorxiv_tweets():
 
     three_days_ago = datetime.now() - timedelta(days=3)
     biorxiv_papers = Paper.objects.filter(
-        external_source__icontains="bioRxiv", created_date__gte=three_days_ago
+        external_source__icontains="bioRxiv", created_date__lte=three_days_ago
     )
     for paper in biorxiv_papers.iterator():
         set_biorxiv_tweet_count.apply_async(
