@@ -5,7 +5,7 @@ from hashlib import sha1
 from allauth.account.models import EmailAddress
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
-from django.db import IntegrityError, models
+from django.db import IntegrityError, models, transaction
 from django.db.models import F, Q, Sum
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
@@ -44,13 +44,19 @@ from researchhub.settings import (
     SIFT_MODERATION_WHITELIST,
     SIFT_WEBHOOK_SECRET_KEY,
 )
-from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
+from researchhub_comment.models import RhCommentModel
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.serializers import DynamicPostSerializer
 from review.models.review_model import Review
 from user.filters import AuthorFilter, UserFilter
 from user.models import Author, Follow, Major, University, User, Verification
-from user.permissions import Censor, RequestorIsOwnUser, UpdateAuthor
+from user.permissions import (
+    Censor,
+    DeleteAuthorPermission,
+    DeleteUserPermission,
+    RequestorIsOwnUser,
+    UpdateAuthor,
+)
 from user.serializers import (
     AuthorEditableSerializer,
     AuthorSerializer,
@@ -60,6 +66,7 @@ from user.serializers import (
     UserActions,
     UserEditableSerializer,
     UserSerializer,
+    VerificationFileSerializer,
     VerificationSerializer,
 )
 from user.tasks import handle_spam_user_task, reinstate_user_task
@@ -73,7 +80,7 @@ from utils.throttles import THROTTLE_CLASSES
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.filter(is_suspended=False)
     serializer_class = UserEditableSerializer
-    permission_classes = [IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAuthenticatedOrReadOnly, DeleteUserPermission]
     filter_backends = (DjangoFilterBackend,)
     filter_class = UserFilter
 
@@ -85,6 +92,28 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def get_serializer_context(self):
         return {"get_subscribed": True, "get_balance": True, "user": self.request.user}
+
+    def destroy(self, request, pk=None):
+        with transaction.atomic():
+            # Manually retrieving user obj instead of using get_object
+            # because this view is legacy and does not support it
+            user_to_be_deleted = User.objects.get(id=pk)
+            if not DeleteUserPermission().has_object_permission(
+                request, self, user_to_be_deleted
+            ):
+                return Response(status=403)
+            author_profile = user_to_be_deleted.author_profile
+
+            # Close any open bounties
+            bounties = user_to_be_deleted.bounties.filter(
+                status=Bounty.OPEN, parent__isnull=True
+            )
+            for bounty in bounties.iterator():
+                bounty.close(Bounty.EXPIRED)
+
+            user_to_be_deleted.delete()
+            author_profile.delete()
+            return Response(status=204)
 
     @action(detail=False, methods=["GET"], permission_classes=[IsAuthenticated])
     def get_referred_users(self, request):
@@ -876,20 +905,30 @@ class MajorViewSet(viewsets.ReadOnlyModelViewSet):
 class VerificationViewSet(viewsets.ModelViewSet):
     queryset = Verification.objects.all()
     serializer_class = VerificationSerializer
+    # TODO: Permissions
+    permission_classes = [AllowAny]
+    filter_backends = (DjangoFilterBackend, OrderingFilter)
+    filterset_fields = ("status",)
+    ordering_fields = ("created_date",)
+    throttle_classes = THROTTLE_CLASSES
+
+    def create(self, request, *args, **kwargs):
+        with transaction.atomic():
+            files = request.data.getlist("file[]")
+            res = super().create(request, *args, **kwargs)
+            for file in files:
+                data = {"verification": res.data["id"], "file": file}
+                serializer = VerificationFileSerializer(data=data)
+                serializer.is_valid(raise_exception=True)
+                serializer.save()
+            return res
 
     @action(
         detail=False,
         methods=["post"],
     )
     def bulk_upload(self, request):
-        images = request.data.getlist("images")
-        for image in images:
-            Verification.objects.create(
-                file=image,
-                user=request.user,
-            )
-
-        return Response({"message": "Verification was uploaded!"})
+        return Response({"message": "Deprecated"})
 
 
 class AuthorViewSet(viewsets.ModelViewSet):
@@ -899,7 +938,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
     filter_class = AuthorFilter
     search_fields = ("first_name", "last_name")
     permission_classes = [
-        IsAuthenticatedOrReadOnly & UpdateAuthor & CreateOrUpdateIfAllowed
+        (IsAuthenticatedOrReadOnly & UpdateAuthor & CreateOrUpdateIfAllowed)
+        | DeleteAuthorPermission
     ]
     throttle_classes = THROTTLE_CLASSES
 

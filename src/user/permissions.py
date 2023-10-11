@@ -86,3 +86,27 @@ class RequestorIsOwnUser(BasePermission):
 
         target_user_id = request.data.get("target_user_id")
         return target_user_id == requestor.id
+
+
+class DeleteUserPermission(BasePermission):
+    message = "Permission Denied: Not own user or moderator"
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        user_is_moderator = user.moderator
+
+        if request.method == DELETE and (user_is_moderator or user == obj):
+            return True
+        return False
+
+
+class DeleteAuthorPermission(BasePermission):
+    message = "Permission Denied: User is not moderator"
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        user_is_moderator = user.moderator
+
+        if request.method == DELETE and user_is_moderator:
+            return True
+        return False
