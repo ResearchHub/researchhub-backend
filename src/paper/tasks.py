@@ -726,6 +726,7 @@ def pull_biorxiv_papers():
                     "external_source": source.get("display_name", ""),
                     "abstract": abstract,
                     "open_alex_raw_json": result,
+                    "score": 1,
                 }
                 if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
                     data["pdf_url"] = oa_pdf_url
