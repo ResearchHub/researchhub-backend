@@ -41,7 +41,7 @@ from utils.permissions import PostOnly
 from utils.sentry import log_error
 
 
-def _create_bounty_checks(user, amount, item_content_type):
+def _create_bounty_checks(user, amount, item_content_type, bypass_user_balance=False):
     try:
         amount = decimal.Decimal(amount)
     except Exception as e:
@@ -50,7 +50,11 @@ def _create_bounty_checks(user, amount, item_content_type):
 
     user_balance = user.get_balance()
     fee_amount, rh_fee, dao_fee, current_bounty_fee = _calculate_fees(amount)
-    if amount <= 0 or user_balance - (amount + fee_amount) < 0:
+    if (
+        amount <= 0
+        or user_balance - (amount + fee_amount) < 0
+        and not bypass_user_balance
+    ):
         return Response({"detail": "Insufficient Funds"}, status=402)
     elif amount <= 50 or amount > 1000000:
         return Response({"detail": "Invalid amount. Minimum of 50 RSC"}, status=400)
@@ -107,6 +111,7 @@ def _create_bounty(
     current_bounty_fee,
     item_content_type,
     item_object_id,
+    balance_required=True,
 ):
     content_type = ContentType.objects.get(model=item_content_type)
     content_type_id = content_type.id
@@ -153,19 +158,20 @@ def _create_bounty(
     amount_str = amount.to_eng_string()
     fee_str = fee_amount.to_eng_string()
 
-    Balance.objects.create(
-        user=user,
-        content_type=ContentType.objects.get_for_model(BountyFee),
-        object_id=current_bounty_fee.id,
-        amount=f"-{fee_str}",
-    )
+    if balance_required:
+        Balance.objects.create(
+            user=user,
+            content_type=ContentType.objects.get_for_model(BountyFee),
+            object_id=current_bounty_fee.id,
+            amount=f"-{fee_str}",
+        )
 
-    Balance.objects.create(
-        user=user,
-        content_type=ContentType.objects.get_for_model(Bounty),
-        object_id=bounty.id,
-        amount=f"-{amount_str}",
-    )
+        Balance.objects.create(
+            user=user,
+            content_type=ContentType.objects.get_for_model(Bounty),
+            object_id=bounty.id,
+            amount=f"-{amount_str}",
+        )
     return bounty
 
 

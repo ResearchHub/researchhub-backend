@@ -1,4 +1,5 @@
 from django.contrib.admin.options import get_content_type_for_model
+from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError, transaction
 from rest_framework import status
 from rest_framework.decorators import action
@@ -16,9 +17,11 @@ from discussion.reaction_serializers import (
     FlagSerializer,
     VoteSerializer,
 )
+from purchase.models import RscExchangeRate
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
-from researchhub_comment.models import RhCommentModel
+from reputation.views.bounty_view import _create_bounty, _create_bounty_checks
+from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_document.related_models.constants.document_type import SORT_UPVOTED
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
@@ -26,6 +29,7 @@ from researchhub_document.related_models.constants.filters import (
     UPVOTED,
 )
 from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
+from user.models import User
 from utils.models import SoftDeletableModel
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.sentry import log_error
@@ -376,6 +380,68 @@ def create_vote(user, item, vote_type):
     return vote
 
 
+def create_automated_bounty(item):
+    if item.score >= 10 and item.hubs.filter(id=436).exists():
+        user = User.objects.get(email="community@researchhub.com")
+        item_object_id = item.id
+        item_content_type = ContentType.objects.get_for_model(item)
+        usd_amount_for_bounty = 150
+
+        # Round the number to nearest 10, then turn it into a string
+        amount = str(RscExchangeRate.usd_to_rsc(usd_amount_for_bounty) // 10 * 10)
+        bypass_user_balance = True
+        json_content = {
+            "ops": [
+                {
+                    "insert": "We've placed an automatic Peer Review bounty on this paper. If you create a quality Peer Review, the moderators will pay out the bounty to you. Comment below once you've created your Peer Review to be eligible for the bounty!"
+                }
+            ]
+        }
+        thread = RhCommentThreadModel.objects.create(
+            thread_type="GENERIC_COMMENT",
+            content_type_id=item_content_type.id,
+            created_by=user,
+            updated_by=user,
+            object_id=item_object_id,
+        )
+
+        comment, _ = RhCommentModel.create_from_data(
+            {
+                "updated_by": user.id,
+                "created_by": user.id,
+                "comment_content_type": "QUILL_EDITOR",
+                "thread": thread.id,
+                "comment_content_json": json_content,
+            }
+        )
+
+        comment_content_type = RhCommentModel.__name__.lower()
+
+        data = {
+            "item_content_type": comment_content_type,
+            "item": comment,
+            "item_object_id": comment.id,
+        }
+
+        response = _create_bounty_checks(
+            user, amount, comment_content_type, bypass_user_balance
+        )
+        if not isinstance(response, tuple):
+            return response
+        else:
+            amount, fee_amount, rh_fee, dao_fee, current_bounty_fee = response
+
+        bounty = _create_bounty(
+            user,
+            data,
+            amount,
+            fee_amount,
+            current_bounty_fee,
+            comment_content_type,
+            comment.id,
+        )
+
+
 @sift_track(SIFT_VOTE)
 def update_or_create_vote(request, user, item, vote_type):
     cache_filters_to_reset = [UPVOTED, HOT]
@@ -405,6 +471,12 @@ def update_or_create_vote(request, user, item, vote_type):
         item.score += 1
 
     item.save()
+
+    try:
+        # If we're in the biorxiv review hub, we want all papers with 10 upvotes to get an automatic peer review
+        create_automated_bounty(item)
+    except Exception as e:
+        log_error(e)
 
     if vote is not None:
         vote.vote_type = vote_type
