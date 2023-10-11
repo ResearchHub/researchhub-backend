@@ -33,6 +33,22 @@ class OpenAlex:
         response.raise_for_status()
         return response.json()
 
+    def _get_works_from_api_url(self, data):
+        if isinstance(data, list):
+            for result in data:
+                self._get_works_from_api_url(result)
+            return data
+        elif isinstance(data, dict):
+            works_api_url = data.get("works_api_url", None)
+            if works_api_url:
+                with retryable_requests_session() as session:
+                    response = session.get(
+                        works_api_url, headers=self.base_headers, timeout=self.timeout
+                    )
+                response.raise_for_status()
+                data["works"] = response.json().get("results", [])
+        return data
+
     def get_data_from_doi(self, doi):
         filters = {"filter": f"doi:{doi}"}
         works = self._get("works", filters)
@@ -68,7 +84,7 @@ class OpenAlex:
     def search_authors_via_name(self, name):
         filters = {"search": name}
         res = self._get("authors", filters=filters)
-        return res
+        return res.get("results", [])
 
     # Hydrates a list of dehydrated paper concepts with fresh and expanded data from OpenAlex
     # https://docs.openalex.org/about-the-data/concept#id

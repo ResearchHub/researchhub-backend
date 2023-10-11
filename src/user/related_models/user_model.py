@@ -69,6 +69,7 @@ class User(AbstractUser):
         "self", related_name="invitee", on_delete=models.SET_NULL, null=True, blank=True
     )
     is_suspended = models.BooleanField(default=False)
+    is_verified = models.BooleanField(default=False)
     moderator = models.BooleanField(default=False)
     probable_spammer = models.BooleanField(default=False)
     referral_code = models.CharField(max_length=36, default=uuid.uuid4, unique=True)

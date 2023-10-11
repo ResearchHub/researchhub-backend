@@ -72,6 +72,7 @@ from user.serializers import (
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from user.utils import calculate_show_referral, reset_latest_acitvity_cache
 from utils.http import POST, RequestMethods
+from utils.openalex import OpenAlex
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.sentry import log_info
 from utils.throttles import THROTTLE_CLASSES
@@ -794,6 +795,16 @@ class UserViewSet(viewsets.ModelViewSet):
         serialized = UserSerializer(user)
         return Response(serialized.data, status=200)
 
+    # TODO: Permissions
+    @action(
+        detail=False,
+        methods=[RequestMethods.POST],
+    )
+    def verify_user(self, request):
+        user = request.user
+        user.is_verified = True
+        user.save(update_fields=["is_verified"])
+
     @action(
         detail=False,
         methods=[RequestMethods.POST],
@@ -929,6 +940,31 @@ class VerificationViewSet(viewsets.ModelViewSet):
     )
     def bulk_upload(self, request):
         return Response({"message": "Deprecated"})
+
+    @action(detail=False, methods=["post"])
+    def get_openalex_author_profiles(self, request):
+        data = request.data
+        user = request.user
+        request_type = data.get("request_type")
+        oa = OpenAlex()
+
+        if request_type == "ORCID":
+            author_profile = user.author_profile
+            orcid_id = author_profile.orcid_id
+            author = oa.get_author_via_orcid(orcid_id)
+            res = oa._get_works_from_api_url(author)
+        elif request_type == "NAME":
+            manual_name_input = data.get("name", None)
+            if manual_name_input:
+                authors = oa.search_authors_via_name(manual_name_input)
+            else:
+                name = f"{user.first_name} {user.last_name}"
+                authors = oa.search_authors_via_name(name)
+            res = oa._get_works_from_api_url(authors)
+        else:
+            return Response(status=400)
+
+        return Response(res, status=200)
 
 
 class AuthorViewSet(viewsets.ModelViewSet):
