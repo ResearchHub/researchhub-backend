@@ -685,6 +685,7 @@ def pull_biorxiv_papers():
             with transaction.atomic():
                 doi = result.get("doi")
                 if doi is None:
+                    print(f"No Doi for result: {result}")
                     continue
                 pure_doi = doi.split("doi.org/")[-1]
 
@@ -709,6 +710,7 @@ def pull_biorxiv_papers():
                 )
                 if doi_paper_check.exists() or url_paper_check.exists():
                     # This skips over the current iteration
+                    print(f"Skipping paper with doi {pure_doi}")
                     continue
 
                 data = {
@@ -758,7 +760,7 @@ def pull_biorxiv_papers():
                         countdown=2,
                     )
         biorxiv_works = open_alex.get_data_from_source(
-            biorxiv_id, today, cursor=next_cursor
+            biorxiv_id, None, cursor=next_cursor
         )
     reset_unified_document_cache(
         hub_ids=hub_ids,
