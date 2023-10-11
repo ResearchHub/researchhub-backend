@@ -5,7 +5,6 @@ from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from sentry_sdk import capture_exception
 
 from analytics.amplitude import track_event
 from discussion.permissions import CensorDiscussion as CensorDiscussionPermission
@@ -477,8 +476,7 @@ def update_or_create_vote(request, user, item, vote_type):
         # If we're in the biorxiv review hub, we want all papers with 10 upvotes to get an automatic peer review
         create_automated_bounty(item)
     except Exception as e:
-        print(e)
-        capture_exception(e)
+        log_error(e)
 
     if vote is not None:
         vote.vote_type = vote_type
