@@ -60,6 +60,16 @@ class OpenAlex:
         concepts = self._get("concepts", filters=filters)
         return concepts
 
+    def get_author_via_orcid(self, orcid_id):
+        orcid_lookup = f"https://orcid.org/{orcid_id}"
+        res = self._get(f"authors/{orcid_lookup}")
+        return res
+
+    def search_authors_via_name(self, name):
+        filters = {"search": name}
+        res = self._get("authors", filters=filters)
+        return res
+
     # Hydrates a list of dehydrated paper concepts with fresh and expanded data from OpenAlex
     # https://docs.openalex.org/about-the-data/concept#id
     def hydrate_paper_concepts(self, paper_concepts):
