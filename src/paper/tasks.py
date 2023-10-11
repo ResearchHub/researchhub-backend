@@ -683,83 +683,89 @@ def pull_biorxiv_papers():
         next_cursor = biorxiv_works.get("meta", {}).get("next_cursor", "*")
         for result in biorxiv_works.get("results", []):
             with transaction.atomic():
-                doi = result.get("doi")
-                if doi is None:
-                    print(f"No Doi for result: {result}")
-                    continue
-                pure_doi = doi.split("doi.org/")[-1]
+                try:
+                    doi = result.get("doi")
+                    if doi is None:
+                        print(f"No Doi for result: {result}")
+                        continue
+                    pure_doi = doi.split("doi.org/")[-1]
 
-                primary_location = result.get("best_oa_location", None) or result.get(
-                    "primary_location", {}
-                )
-                source = primary_location.get("source", {})
-                oa = result.get("open_access", {})
-                oa_pdf_url = oa.get("oa_url", None)
-                url = primary_location.get("landing_page_url", None)
-                title = normalize("NFKD", result.get("title", ""))
-                raw_authors = result.get("authorships", [])
-                concepts = result.get("concepts", [])
-                abstract = rebuild_sentence_from_inverted_index(
-                    result.get("abstract_inverted_index", {})
-                )
-
-                doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(pure_doi))
-                url_paper_check = Paper.objects.filter(
-                    Q(url_svf=SearchQuery(oa_pdf_url))
-                    | Q(pdf_url_svf=SearchQuery(oa_pdf_url))
-                )
-                if doi_paper_check.exists() or url_paper_check.exists():
-                    # This skips over the current iteration
-                    print(f"Skipping paper with doi {pure_doi}")
-                    continue
-
-                data = {
-                    "doi": pure_doi,
-                    "url": url,
-                    "raw_authors": format_raw_authors(raw_authors),
-                    "title": title,
-                    "paper_title": title,
-                    "paper_publish_date": result.get("publication_date", None),
-                    "is_open_access": oa.get("is_oa", None),
-                    "oa_status": oa.get("oa_status", None),
-                    "pdf_license": source.get("license", None),
-                    "external_source": source.get("display_name", ""),
-                    "abstract": abstract,
-                    "open_alex_raw_json": result,
-                    "score": 1,
-                }
-                if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
-                    data["pdf_url"] = oa_pdf_url
-
-                paper = Paper(**data)
-                paper.full_clean()
-                paper.save()
-
-                concept_names = [
-                    concept.get("display_name", "other")
-                    for concept in concepts
-                    if concept.get("level", 0) == 0
-                ]
-                potential_hubs = []
-                for concept_name in concept_names:
-                    potential_hub = Hub.objects.filter(name__icontains=concept_name)
-                    if potential_hub.exists():
-                        potential_hub = potential_hub.first()
-                        potential_hubs.append(potential_hub)
-                        hub_ids.add(potential_hub.id)
-                paper.hubs.add(*potential_hubs)
-
-                download_pdf.apply_async((paper.id,), priority=4, countdown=4)
-                if "biorxiv" in paper.url:
-                    set_biorxiv_tweet_count.apply_async(
-                        (
-                            paper.url,
-                            paper.doi,
-                            paper.id,
-                        ),
-                        priority=4,
-                        countdown=2,
+                    primary_location = result.get(
+                        "best_oa_location", None
+                    ) or result.get("primary_location", {})
+                    source = primary_location.get("source", {})
+                    oa = result.get("open_access", {})
+                    oa_pdf_url = oa.get("oa_url", None)
+                    url = primary_location.get("landing_page_url", None)
+                    title = normalize("NFKD", result.get("title", ""))
+                    raw_authors = result.get("authorships", [])
+                    concepts = result.get("concepts", [])
+                    abstract = rebuild_sentence_from_inverted_index(
+                        result.get("abstract_inverted_index", {})
                     )
+
+                    doi_paper_check = Paper.objects.filter(
+                        doi_svf=SearchQuery(pure_doi)
+                    )
+                    url_paper_check = Paper.objects.filter(
+                        Q(url_svf=SearchQuery(url))
+                        | Q(pdf_url_svf=SearchQuery(oa_pdf_url))
+                    )
+                    if doi_paper_check.exists() or url_paper_check.exists():
+                        # This skips over the current iteration
+                        print(f"Skipping paper with doi {pure_doi}")
+                        continue
+
+                    data = {
+                        "doi": pure_doi,
+                        "url": url,
+                        "raw_authors": format_raw_authors(raw_authors),
+                        "title": title,
+                        "paper_title": title,
+                        "paper_publish_date": result.get("publication_date", None),
+                        "is_open_access": oa.get("is_oa", None),
+                        "oa_status": oa.get("oa_status", None),
+                        "pdf_license": source.get("license", None),
+                        "external_source": source.get("display_name", ""),
+                        "abstract": abstract,
+                        "open_alex_raw_json": result,
+                        "score": 1,
+                    }
+                    if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
+                        data["pdf_url"] = oa_pdf_url
+
+                    paper = Paper(**data)
+                    paper.full_clean()
+                    paper.save()
+
+                    concept_names = [
+                        concept.get("display_name", "other")
+                        for concept in concepts
+                        if concept.get("level", 0) == 0
+                    ]
+                    potential_hubs = []
+                    for concept_name in concept_names:
+                        potential_hub = Hub.objects.filter(name__icontains=concept_name)
+                        if potential_hub.exists():
+                            potential_hub = potential_hub.first()
+                            potential_hubs.append(potential_hub)
+                            hub_ids.add(potential_hub.id)
+                    paper.hubs.add(*potential_hubs)
+
+                    download_pdf.apply_async((paper.id,), priority=4, countdown=4)
+                    if "biorxiv" in paper.url:
+                        set_biorxiv_tweet_count.apply_async(
+                            (
+                                paper.url,
+                                paper.doi,
+                                paper.id,
+                            ),
+                            priority=4,
+                            countdown=2,
+                        )
+                except Exception as e:
+                    print(e)
+                    sentry.log_error(e)
         biorxiv_works = open_alex.get_data_from_source(
             biorxiv_id, None, cursor=next_cursor
         )
