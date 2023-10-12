@@ -1,3 +1,5 @@
+import math
+
 from paper.exceptions import DOINotFoundError
 from researchhub.settings import OPENALEX_KEY
 from utils.retryable_requests import retryable_requests_session
@@ -58,6 +60,29 @@ class OpenAlex:
         if count == 0:
             raise DOINotFoundError(f"No OpenAlex works found for doi: {doi}")
         return results[0]
+
+    def get_data_from_id(self, openalex_id):
+        filters = {
+            "filter": f"author.id:{openalex_id}",
+            "per-page": self.per_page,
+            "page": 1,
+        }
+        works = self._get("works", filters)
+        meta = works["meta"]
+        count = meta["count"]
+        results = works["results"]
+
+        if count == 0:
+            raise DOINotFoundError(
+                f"No OpenAlex works found for OpenAlex Profile: {openalex_id}"
+            )
+        elif count > self.per_page:
+            pages = math.ceil(count / self.per_page)
+            for i in range(2, pages + 1):
+                filters["page"] = i
+                new_page_works = self._get("works", filters)
+                results.extend(new_page_works["results"])
+        return results
 
     def get_data_from_source(self, source, date=None, cursor="*"):
         oa_filter = f"locations.source.id:{source}"

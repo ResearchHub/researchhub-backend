@@ -63,7 +63,7 @@ from researchhub.settings import APP_ENV, PRODUCTION
 from researchhub_document.related_models.constants.filters import NEW
 from researchhub_document.utils import reset_unified_document_cache
 from utils import sentry
-from utils.arxiv.categories import ALL_CATEGORIES, get_category_name
+from utils.arxiv.categories import get_category_name
 from utils.http import check_url_contains_pdf
 from utils.openalex import OpenAlex
 from utils.parsers import get_license_by_url, rebuild_sentence_from_inverted_index
@@ -1127,3 +1127,92 @@ def _extract_biorxiv_entry(url, retry=0):
     except Exception as e:
         sentry.log_error(e)
         return False
+
+
+@app.task(queue=QUEUE_PULL_PAPERS)
+def pull_openalex_author_works(user_id, openalex_id):
+    from paper.models import Paper
+
+    oa = OpenAlex()
+    author_works = oa.get_data_from_id(openalex_id)
+    hub_ids = set()
+
+    for work in author_works:
+        with transaction.atomic():
+            try:
+                doi = work.get("doi")
+                if doi is None:
+                    print(f"No Doi for result: {work}")
+                    continue
+                pure_doi = doi.split("doi.org/")[-1]
+
+                primary_location = work.get("best_oa_location", None) or work.get(
+                    "primary_location", {}
+                )
+                source = primary_location.get("source", {}) or {}
+                oa = work.get("open_access", {})
+                oa_pdf_url = oa.get("oa_url", None)
+                url = primary_location.get("landing_page_url", None)
+                title = normalize("NFKD", work.get("title", ""))
+                raw_authors = work.get("authorships", [])
+                concepts = work.get("concepts", [])
+                abstract = rebuild_sentence_from_inverted_index(
+                    work.get("abstract_inverted_index", {})
+                )
+
+                doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(pure_doi))
+                url_paper_check = Paper.objects.filter(
+                    Q(url_svf=SearchQuery(url)) | Q(pdf_url_svf=SearchQuery(oa_pdf_url))
+                )
+                if doi_paper_check.exists() or url_paper_check.exists():
+                    # This skips over the current iteration
+                    print(f"Skipping paper with doi {pure_doi}")
+                    continue
+
+                data = {
+                    "doi": pure_doi,
+                    "url": url,
+                    "raw_authors": format_raw_authors(raw_authors),
+                    "title": title,
+                    "paper_title": title,
+                    "paper_publish_date": work.get("publication_date", None),
+                    "is_open_access": oa.get("is_oa", None),
+                    "oa_status": oa.get("oa_status", None),
+                    "pdf_license": source.get("license", None),
+                    "external_source": source.get("display_name", ""),
+                    "abstract": abstract,
+                    "open_alex_raw_json": work,
+                    "score": 1,
+                    "uploaded_by_id": user_id,
+                }
+                if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
+                    data["pdf_url"] = oa_pdf_url
+
+                paper = Paper(**data)
+                paper.full_clean()
+                paper.save()
+
+                concept_names = [
+                    concept.get("display_name", "other")
+                    for concept in concepts
+                    if concept.get("level", 0) == 0
+                ]
+                potential_hubs = []
+                for concept_name in concept_names:
+                    potential_hub = Hub.objects.filter(name__icontains=concept_name)
+                    if potential_hub.exists():
+                        potential_hub = potential_hub.first()
+                        potential_hubs.append(potential_hub)
+                        hub_ids.add(potential_hub.id)
+                paper.hubs.add(*potential_hubs)
+                paper.unified_document.hubs.add(*hub_ids)
+                download_pdf.apply_async((paper.id,), priority=4, countdown=4)
+            except Exception as e:
+                sentry.log_error(e)
+
+    reset_unified_document_cache(
+        hub_ids=hub_ids,
+        document_type=["paper"],
+        filters=[NEW],
+    )
+    return True

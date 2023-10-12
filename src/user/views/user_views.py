@@ -29,6 +29,7 @@ from discussion.serializers import DynamicThreadSerializer
 from hypothesis.related_models.hypothesis import Hypothesis
 from paper.models import Paper
 from paper.serializers import DynamicPaperSerializer
+from paper.tasks import pull_openalex_author_works
 from paper.utils import PAPER_SCORE_Q_ANNOTATION, get_cache_key
 from paper.views import PaperViewSet
 from reputation.models import Bounty, BountySolution, Contribution, Distribution
@@ -801,9 +802,19 @@ class UserViewSet(viewsets.ModelViewSet):
         methods=[RequestMethods.POST],
     )
     def verify_user(self, request):
+        data = request.data
+        openalex_id = data.get("openalex_id")
         user = request.user
+        author_profile = user.author_profile
+
         user.is_verified = True
+        author_profile.openalex_id = openalex_id
+        author_profile.save(update_fields=["is_verified"])
         user.save(update_fields=["is_verified"])
+        pull_openalex_author_works.apply_async(
+            (user.id, openalex_id), countdown=3, priority=6
+        )
+        return Response(status=200)
 
     @action(
         detail=False,
