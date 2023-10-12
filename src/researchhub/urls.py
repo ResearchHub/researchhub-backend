@@ -240,6 +240,16 @@ urlpatterns = [
         "api/rsc/get_rsc_circulating_supply",
         reputation.views.get_rsc_circulating_supply,
     ),
+    path(
+        "api/auth/linkedin/",
+        include("allauth.socialaccount.providers.linkedin_oauth2.urls"),
+        name="allauth_linkedin",
+    ),
+    path(
+        "api/auth/linkedin_oauth2/login/callback/",
+        oauth.views.linkedin_callback,
+        name="linkedin_login",
+    ),
     path("api/permissions/", researchhub.views.permissions, name="permissions"),
     path("api/search/", include(search.urls)),
     path("api/auth/orcid/connect/", oauth.views.orcid_connect, name="orcid_login"),

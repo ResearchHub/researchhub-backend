@@ -206,6 +206,7 @@ INSTALLED_APPS = [
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
     "allauth.socialaccount.providers.orcid",
+    "allauth.socialaccount.providers.linkedin_oauth2",
     "rest_framework.authtoken",
     "dj_rest_auth",
     "dj_rest_auth.registration",
@@ -383,16 +384,29 @@ ACCOUNT_AUTHENTICATED_LOGIN_REDIRECTS = False
 if STAGING or PRODUCTION:
     ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
 LOGIN_REDIRECT_URL = "http://localhost:3000/orcid"
+LINKEDIN_CALLBACK_URL = "http://localhost:3005/linkedin-login"
 if STAGING:
     LOGIN_REDIRECT_URL = "https://staging-web.researchhub.com/orcid"
 if PRODUCTION:
     LOGIN_REDIRECT_URL = "https://researchhub.com/orcid"
+    LINKEDIN_CALLBACK_URL = "https://www.researchhub.com/linkedin-login"
 SOCIALACCOUNT_ADAPTER = "oauth.adapters.SocialAccountAdapter"
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_EMAIL_REQUIRED = False
 SOCIALACCOUNT_QUERY_EMAIL = True
 
 SOCIALACCOUNT_PROVIDERS = {
+    "linkedin_oauth2": {
+        "APP": {
+            "client_id": os.environ.get("LINKEDIN_CLIENT_ID", keys.LINKEDIN_CLIENT_ID),
+            "secret": os.environ.get(
+                "LINKEDIN_CLIENT_SECRET", keys.LINKEDIN_CLIENT_SECRET
+            ),
+            "key": os.environ.get(
+                "LINKEDIN_CLIENT_ID", keys.LINKEDIN_CLIENT_ID
+            ),  # This is equal to the client_id
+        }
+    },
     "orcid": {
         # Defaults to 'orcid.org' for the production API
         "BASE_DOMAIN": "orcid.org",
@@ -404,10 +418,11 @@ SOCIALACCOUNT_PROVIDERS = {
         # not expiring for approximately 20 years
         "ACCESS_TOKEN": os.environ.get("ORCID_ACCESS_TOKEN", keys.ORCID_ACCESS_TOKEN),
         "REFRESH_TOKEN": "",
-    }
+    },
 }
 
 GOOGLE_REDIRECT_URL = "http://localhost:8000/auth/google/login/callback/"
+LINKEDIN_REDIRECT_URL = "http://localhost:8000/auth/"
 GOOGLE_YOLO_REDIRECT_URL = "http://localhost:8000/auth/google/yolo/callback/"
 if PRODUCTION:
     GOOGLE_REDIRECT_URL = "https://backend.researchhub.com/auth/google/login/callback/"
