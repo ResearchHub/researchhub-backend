@@ -809,7 +809,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
         user.is_verified = True
         author_profile.openalex_id = openalex_id
-        author_profile.save(update_fields=["is_verified"])
+        author_profile.save(update_fields=["openalex_id"])
         user.save(update_fields=["is_verified"])
         pull_openalex_author_works.apply_async(
             (user.id, openalex_id), countdown=3, priority=6
