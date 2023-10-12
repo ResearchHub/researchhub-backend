@@ -57,6 +57,7 @@ class Author(models.Model):
     linkedin = models.URLField(max_length=255, default=None, null=True, blank=True)
     academic_verification = models.BooleanField(default=None, null=True, blank=True)
     claimed = models.BooleanField(default=True, null=True, blank=True)
+    is_verified = models.BooleanField(default=False)
     merged_with = models.ForeignKey("self", on_delete=SET_NULL, null=True, blank=True)
 
     def __str__(self):

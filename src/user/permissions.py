@@ -110,3 +110,27 @@ class DeleteAuthorPermission(BasePermission):
         if request.method == DELETE and user_is_moderator:
             return True
         return False
+
+
+class HasVerificationPermission(BasePermission):
+    message = "User verification denied"
+
+    def has_permission(self, request, view):
+        from user.models import UserApiToken
+
+        user = request.user
+
+        if user.is_anonymous:
+            return False
+
+        verification_tokens = user.api_keys.filter(
+            name=UserApiToken.TEMPORARY_VERIFICATION_TOKEN
+        )
+        if not verification_tokens.exists():
+            return False
+
+        for verification_token in verification_tokens.iterator():
+            if verification_token.has_expired:
+                return False
+
+        return True

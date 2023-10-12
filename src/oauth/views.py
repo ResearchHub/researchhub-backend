@@ -1,6 +1,6 @@
-import jwt
+from datetime import datetime, timedelta
+
 import requests
-from allauth.account import app_settings
 from allauth.account.signals import user_logged_in, user_signed_up
 from allauth.socialaccount.helpers import render_authentication_error
 from allauth.socialaccount.models import SocialAccount, SocialLogin
@@ -28,7 +28,6 @@ from rest_framework.response import Response
 
 from analytics.amplitude import Amplitude
 from oauth.adapters import GoogleOAuth2AdapterIdToken
-from oauth.exceptions import LoginError
 from oauth.helpers import complete_social_login
 from oauth.serializers import SocialLoginSerializer
 from oauth.utils import get_orcid_names
@@ -43,7 +42,7 @@ from researchhub.settings import (
     SOCIALACCOUNT_PROVIDERS,
     keys,
 )
-from user.models import Author
+from user.models import Author, UserApiToken
 from user.utils import merge_author_profiles
 from utils import sentry
 from utils.http import RequestMethods, http_request
@@ -178,8 +177,16 @@ def linkedin_callback(request):
             headers={"Authorization": f"Bearer {access_token}"},
         )
         user_info_json = user_info.json()
-        request.user.linkedin_data = user_info_json
-        request.user.save()
+        user = request.user
+        user.linkedin_data = user_info_json
+        user.save(update_fields=["linkedin_data"])
+
+        expiration_date = datetime.today() + timedelta(minutes=5)
+        UserApiToken.objects.create_key(
+            user=user,
+            name=UserApiToken.TEMPORARY_VERIFICATION_TOKEN,
+            expiry_date=expiration_date,
+        )
         return Response(user_info_json)
     else:
         return Response({"error": response.text}, status=400)
@@ -208,6 +215,13 @@ def orcid_connect(request):
 
         save_orcid_author(user, orcid, response.json())
         events_api.track_account(user, request, update=True)
+
+        expiration_date = datetime.today() + timedelta(minutes=5)
+        UserApiToken.objects.create_key(
+            user=user,
+            name=UserApiToken.TEMPORARY_VERIFICATION_TOKEN,
+            expiry_date=expiration_date,
+        )
 
         success = True
         status = 201

@@ -13,6 +13,7 @@ from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from django_filters.rest_framework import DjangoFilterBackend
+from requests.exceptions import HTTPError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -50,11 +51,20 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.serializers import DynamicPostSerializer
 from review.models.review_model import Review
 from user.filters import AuthorFilter, UserFilter
-from user.models import Author, Follow, Major, University, User, Verification
+from user.models import (
+    Author,
+    Follow,
+    Major,
+    University,
+    User,
+    UserApiToken,
+    Verification,
+)
 from user.permissions import (
     Censor,
     DeleteAuthorPermission,
     DeleteUserPermission,
+    HasVerificationPermission,
     RequestorIsOwnUser,
     UpdateAuthor,
 )
@@ -75,7 +85,7 @@ from user.utils import calculate_show_referral, reset_latest_acitvity_cache
 from utils.http import POST, RequestMethods
 from utils.openalex import OpenAlex
 from utils.permissions import CreateOrUpdateIfAllowed
-from utils.sentry import log_info
+from utils.sentry import log_error, log_info
 from utils.throttles import THROTTLE_CLASSES
 
 
@@ -800,6 +810,7 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(
         detail=False,
         methods=[RequestMethods.POST],
+        permission_classes=[HasVerificationPermission],
     )
     def verify_user(self, request):
         data = request.data
@@ -809,11 +820,13 @@ class UserViewSet(viewsets.ModelViewSet):
 
         user.is_verified = True
         author_profile.openalex_id = openalex_id
-        author_profile.save(update_fields=["openalex_id"])
+        author_profile.is_verified = True
+        author_profile.save(update_fields=["openalex_id", "is_verified"])
         user.save(update_fields=["is_verified"])
         pull_openalex_author_works.apply_async(
             (user.id, openalex_id), countdown=3, priority=6
         )
+        user.api_keys.filter(name=UserApiToken.TEMPORARY_VERIFICATION_TOKEN).delete()
         return Response(status=200)
 
     @action(
@@ -952,18 +965,28 @@ class VerificationViewSet(viewsets.ModelViewSet):
     def bulk_upload(self, request):
         return Response({"message": "Deprecated"})
 
-    @action(detail=False, methods=["post"])
+    @action(
+        detail=False, methods=["post"], permission_classes=[HasVerificationPermission]
+    )
     def get_openalex_author_profiles(self, request):
         data = request.data
         user = request.user
+
+        UserApiToken.objects.get(name=UserApiToken.TEMPORARY_VERIFICATION_TOKEN)
         request_type = data.get("request_type")
         oa = OpenAlex()
 
         if request_type == "ORCID":
             author_profile = user.author_profile
             orcid_id = author_profile.orcid_id
-            author = oa.get_author_via_orcid(orcid_id)
-            res = oa._get_works_from_api_url(author)
+            try:
+                author = oa.get_author_via_orcid(orcid_id)
+                res = oa._get_works_from_api_url(author)
+            except HTTPError as e:
+                log_error(e)
+                return Response(
+                    {"error": "No profile found with associated ID"}, status=404
+                )
         elif request_type == "NAME":
             manual_name_input = data.get("name", None)
             if manual_name_input:
