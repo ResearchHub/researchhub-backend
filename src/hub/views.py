@@ -118,6 +118,16 @@ class HubViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
+        methods=[GET],
+        permission_classes=[IsAuthenticated],
+    )
+    def check_subscribed(self, request, pk=None):
+        hub = self.get_object()
+        user_is_subscribed = hub.subscribers.filter(id=request.user.id).exists()
+        return Response({"is_subscribed": user_is_subscribed})
+
+    @action(
+        detail=True,
         methods=[POST, PUT, PATCH],
         permission_classes=[IsAuthenticated & IsNotSubscribed],
     )
