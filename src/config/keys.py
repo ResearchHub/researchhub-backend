@@ -56,3 +56,5 @@ WEB3_KEYSTORE_ADDRESS = os.environ.get("WEB3_KEYSTORE_ADDRESS", "")
 
 TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", "")
 OPENALEX_KEY = os.environ.get("OPENALEX_KEY", "")
+LINKEDIN_CLIENT_ID = os.environ.get("LINKEDIN_CLIENT_ID", "")
+LINKEDIN_CLIENT_SECRET = os.environ.get("LINKEDIN_CLIENT_SECRET", "")

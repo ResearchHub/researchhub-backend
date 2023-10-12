@@ -10,7 +10,6 @@ setuptools = "^65.4.0"
 Django = "4.1"
 postgres = "^4.0"
 djangorestframework = "3.14.0"
-django-allauth = "0.48.0"
 django-contrib-comments = "1.9.2"
 flake8 = "5.0.4"
 django-cors-headers = "3.5.0"
@@ -78,6 +77,7 @@ django-elasticsearch-dsl-drf = "0.20.8"
 q5-django-inlinecss = "0.0.2"
 pdf2doi = "1.5"
 beautifulsoup4 = "4.12.2"
+django-allauth = "0.48.0"
 
 [tool.poetry.dev-dependencies]
 

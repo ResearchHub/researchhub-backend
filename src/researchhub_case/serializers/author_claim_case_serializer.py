@@ -23,8 +23,9 @@ class AuthorClaimCaseSerializer(ModelSerializer):
         moderator = User.objects.filter(id=moderator_id).first()
         requestor = User.objects.filter(id=requestor_id).first()
 
-        # An exception will be thrown if paper does not exist
-        Paper.objects.get(id=target_paper_id)
+        if target_paper_id:
+            # An exception will be thrown if paper does not exist
+            Paper.objects.get(id=target_paper_id)
 
         self.__check_uniqueness_on_create(
             requestor_id,
