@@ -123,6 +123,9 @@ class HasVerificationPermission(BasePermission):
         if user.is_anonymous:
             return False
 
+        if user.is_verified:
+            return False
+
         verification_tokens = user.api_keys.filter(
             name=UserApiToken.TEMPORARY_VERIFICATION_TOKEN
         )
