@@ -561,13 +561,9 @@ if TESTING:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 EMAIL_WHITELIST = [
-    "calvinhlee@quantfive.org",
-    "craig@quantfive.org",
-    "joey@quantfive.org",
     "leosun@quantfive.org",
     "patrick@quantfive.org",
     "patrick.lu@berkeley.edu",
-    "calvinhlee@berkeley.edu",
     "pdj7@georgetown.edu",
     "bank@researchhub.com",
     "kobeattias@gmail.com",
@@ -575,8 +571,6 @@ EMAIL_WHITELIST = [
     "kobe+1@researchhub.com",
     "contact@notesalong.com",
     "patricklu@researchhub.com",
-    "thomazvu@gmail.com",
-    "thomas@researchhub.com",
     "pat@researchhub.com",
     "lightning.lu7@gmail.com",
     "contact@notesalong.com",

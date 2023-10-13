@@ -1,22 +1,21 @@
-from oauth.models import Throttle
 from rest_framework.permissions import SAFE_METHODS
-from rest_framework.throttling import UserRateThrottle, AnonRateThrottle
+from rest_framework.throttling import AnonRateThrottle, UserRateThrottle
+
+from oauth.models import Throttle
+from researchhub.settings import EMAIL_WHITELIST
 
 THROTTLE_RATES = {
-    'user.burst': '7/min',
-    'user.sustained': '60/day',
+    "user.burst": "7/min",
+    "user.sustained": "60/day",
 }
 
-class UserCaptchaThrottle(UserRateThrottle):
 
+class UserCaptchaThrottle(UserRateThrottle):
     def get_user_ident(self, user):
         return user.pk
 
     def fmt_cache_key(self, ident):
-        return self.cache_format % {
-            'scope': self.scope,
-            'ident': ident
-        }
+        return self.cache_format % {"scope": self.scope, "ident": ident}
 
     def get_cache_key(self, request, view):
         if request.user.is_authenticated:
@@ -35,9 +34,10 @@ class UserCaptchaThrottle(UserRateThrottle):
             or (
                 request.user.is_authenticated
                 and (request.user.email is not None)
-                and request.user.email.endswith('@quantfive.org')
+                and request.user.email.endswith("@quantfive.org")
             )
             or (request.user.is_authenticated and request.user.moderator)
+            or (request.user.email in EMAIL_WHITELIST)
         ):
             return True
 
@@ -46,7 +46,7 @@ class UserCaptchaThrottle(UserRateThrottle):
             return True
 
         self.history = self.cache.get(self.key, [])
-        self.locked = self.cache.get(self.key + '_locked', False)
+        self.locked = self.cache.get(self.key + "_locked", False)
         self.now = self.timer()
 
         if self.locked:
@@ -70,7 +70,7 @@ class UserCaptchaThrottle(UserRateThrottle):
             else:
                 key = self.fmt_cache_key(ident)
 
-        self.cache.set(key + '_locked', True, None)
+        self.cache.set(key + "_locked", True, None)
         throt, created = Throttle.objects.get_or_create(throttle_key=key)
         throt.locked = True
         throt.ident = ident
@@ -92,9 +92,9 @@ class UserCaptchaThrottle(UserRateThrottle):
         """
         # unique id for requester
         key = self.get_cache_key(request, None)
-        locked = self.cache.get(key + '_locked', False)
+        locked = self.cache.get(key + "_locked", False)
         if locked:
-            self.cache.delete(key + '_locked')
+            self.cache.delete(key + "_locked")
             self.cache.delete(key)
 
             throt, created = Throttle.objects.get_or_create(throttle_key=key)
@@ -113,15 +113,19 @@ class UserCaptchaThrottle(UserRateThrottle):
     def wait(self):
         return None
 
+
 class UserBurstRateThrottle(UserCaptchaThrottle):
-    scope = 'user.burst'
+    scope = "user.burst"
+
 
 class UserSustainedRateThrottle(UserCaptchaThrottle):
-    scope = 'user.sustained'
+    scope = "user.sustained"
+
 
 def captcha_unlock(request):
     UserSustainedRateThrottle().captcha_complete(request)
     UserBurstRateThrottle().captcha_complete(request)
+
 
 THROTTLE_CLASSES = [
     UserBurstRateThrottle,
