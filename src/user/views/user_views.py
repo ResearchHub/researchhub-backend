@@ -814,19 +814,30 @@ class UserViewSet(viewsets.ModelViewSet):
     )
     def verify_user(self, request):
         data = request.data
-        openalex_id = data.get("openalex_id")
+        openalex_id = data.get("openalex_id", None)
         user = request.user
         author_profile = user.author_profile
 
-        user.is_verified = True
-        author_profile.openalex_id = openalex_id
-        author_profile.is_verified = True
-        author_profile.save(update_fields=["openalex_id", "is_verified"])
-        user.save(update_fields=["is_verified"])
-        pull_openalex_author_works.apply_async(
-            (user.id, openalex_id), countdown=3, priority=6
-        )
-        user.api_keys.filter(name=UserApiToken.TEMPORARY_VERIFICATION_TOKEN).delete()
+        if openalex_id is None:
+            return Response(status=400)
+
+        try:
+            user.is_verified = True
+            author_profile.openalex_id = openalex_id
+            author_profile.is_verified = True
+            author_profile.save(update_fields=["openalex_id", "is_verified"])
+            user.save(update_fields=["is_verified"])
+            pull_openalex_author_works.apply_async(
+                (user.id, openalex_id), countdown=3, priority=6
+            )
+        except Exception as e:
+            log_error(e)
+            raise e
+        finally:
+            user.api_keys.filter(
+                name=UserApiToken.TEMPORARY_VERIFICATION_TOKEN
+            ).delete()
+
         return Response(status=200)
 
     @action(
@@ -948,14 +959,21 @@ class VerificationViewSet(viewsets.ModelViewSet):
     throttle_classes = THROTTLE_CLASSES
 
     def create(self, request, *args, **kwargs):
+        user = request.user
         with transaction.atomic():
-            files = request.data.getlist("file[]")
-            res = super().create(request, *args, **kwargs)
-            for file in files:
-                data = {"verification": res.data["id"], "file": file}
-                serializer = VerificationFileSerializer(data=data)
-                serializer.is_valid(raise_exception=True)
-                serializer.save()
+            try:
+                files = request.data.getlist("file[]")
+                res = super().create(request, *args, **kwargs)
+                for file in files:
+                    data = {"verification": res.data["id"], "file": file}
+                    serializer = VerificationFileSerializer(data=data)
+                    serializer.is_valid(raise_exception=True)
+                    serializer.save()
+            except Exception as e:
+                user.api_keys.filter(
+                    name=UserApiToken.TEMPORARY_VERIFICATION_TOKEN
+                ).delete()
+                raise e
             return res
 
     @action(
