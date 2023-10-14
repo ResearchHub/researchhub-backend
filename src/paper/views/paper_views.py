@@ -974,6 +974,11 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
                     "uploaded_by",
                     "created_date",
                 ],
+                context={
+                    "pap_dps_get_uploaded_by": {
+                        "_include_fields": ("id", "first_name", "last_name")
+                    }
+                },
                 many=True,
             )
             duplicate_data = {"data": serializer.data}
