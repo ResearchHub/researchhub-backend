@@ -97,6 +97,12 @@ class HubViewSet(viewsets.ModelViewSet):
                 return response
         else:
             response = super().dispatch(request, *args, **kwargs)
+
+        if request.META.get("REQUEST_METHOD") in ["PUT", "PATCH", "POST"]:
+            new_request = request
+            cache_key = get_cache_key("hubs", "trending")
+            cache.delete(cache_key)
+
         return response
 
     @action(detail=True, methods=[PUT, PATCH, DELETE], permission_classes=[CensorHub])
