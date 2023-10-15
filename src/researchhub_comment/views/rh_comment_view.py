@@ -261,6 +261,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             "rhc_dcs_get_purchases": {"_include_fields": ("amount", "user")},
             "rhc_dcs_get_bounties": {
                 "_include_fields": [
+                    "bounty_type",
                     "amount",
                     "awarded_bounty_amount",
                     "created_by",
