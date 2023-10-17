@@ -1,6 +1,5 @@
 from paper.exceptions import DOINotFoundError
 from researchhub.settings import OPENALEX_KEY
-from tag.models import Concept
 from utils.retryable_requests import retryable_requests_session
 
 
@@ -55,6 +54,11 @@ class OpenAlex:
         }
         works = self._get("works", filters)
         return works
+
+    def get_concepts(self, cursor="*"):
+        filters = {"cursor": cursor}
+        concepts = self._get("concepts", filters=filters)
+        return concepts
 
     # Hydrates a list of dehydrated paper concepts with fresh and expanded data from OpenAlex
     # https://docs.openalex.org/about-the-data/concept#id
