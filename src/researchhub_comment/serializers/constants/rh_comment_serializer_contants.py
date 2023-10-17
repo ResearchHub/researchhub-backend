@@ -13,6 +13,7 @@ RH_COMMENT_FIELDS = [
     "parent",
     "thread",
     "updated_date",
+    "comment_type",
 ]
 RH_COMMENT_READ_ONLY_FIELDS = [
     "children",
