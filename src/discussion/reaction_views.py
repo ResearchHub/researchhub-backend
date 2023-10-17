@@ -381,7 +381,7 @@ def create_vote(user, item, vote_type):
 
 
 def create_automated_bounty(item):
-    if item.score >= 10 and item.hubs.filter(id=436).exists():
+    if item.score >= 5 and item.hubs.filter(id=436).exists():
         user = User.objects.get(email="community@researchhub.com")
         item_object_id = item.id
         item_content_type = ContentType.objects.get_for_model(item)
