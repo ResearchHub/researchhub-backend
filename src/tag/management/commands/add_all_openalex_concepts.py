@@ -22,12 +22,13 @@ class Command(BaseCommand):
     def _create_concepts(self, concepts):
         for concept in concepts:
             try:
+                description = concept.get("description", None)
+                if description is None:
+                    description = "No Description Available"
                 data = {
                     "openalex_id": concept["id"],
                     "display_name": concept["display_name"],
-                    "description": concept.get(
-                        "description", "No Description Available"
-                    ),
+                    "description": description,
                     "openalex_created_date": concept["created_date"],
                     "openalex_updated_date": concept["updated_date"],
                 }
