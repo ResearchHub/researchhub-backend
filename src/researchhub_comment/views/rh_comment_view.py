@@ -261,6 +261,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             "rhc_dcs_get_purchases": {"_include_fields": ("amount", "user")},
             "rhc_dcs_get_bounties": {
                 "_include_fields": [
+                    "bounty_type",
                     "amount",
                     "awarded_bounty_amount",
                     "created_by",
@@ -456,7 +457,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         )
 
     def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset().filter(parent__isnull=True))
+        queryset = self.filter_queryset(self.get_queryset())
         queryset = queryset.select_related(
             "created_by",
             "created_by__author_profile",

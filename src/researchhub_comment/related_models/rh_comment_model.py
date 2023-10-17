@@ -20,6 +20,13 @@ from researchhub_comment.constants.rh_comment_content_types import (
 from researchhub_comment.constants.rh_comment_migration_legacy_types import (
     RH_COMMENT_MIGRATION_LEGACY_TYPES,
 )
+from researchhub_comment.constants.rh_comment_thread_types import (
+    GENERIC_COMMENT,
+    INNER_CONTENT_COMMENT,
+    PEER_REVIEW,
+    RH_COMMENT_THREAD_TYPES,
+    SUMMARY,
+)
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
@@ -83,6 +90,11 @@ class RhCommentModel(
         object_id_field="object_id",
         content_type_field="content_type",
         related_query_name="rh_comment",
+    )
+    comment_type = CharField(
+        max_length=144,
+        choices=RH_COMMENT_THREAD_TYPES,
+        default=GENERIC_COMMENT,
     )
     actions = GenericRelation(
         "user.Action",

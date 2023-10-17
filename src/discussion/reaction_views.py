@@ -421,6 +421,7 @@ def create_automated_bounty(item):
             "item_content_type": comment_content_type,
             "item": comment,
             "item_object_id": comment.id,
+            "bounty_type": "REVIEW",
         }
 
         response = _create_bounty_checks(

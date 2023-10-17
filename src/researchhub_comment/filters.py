@@ -174,14 +174,14 @@ class RHCommentFilter(filters.FilterSet):
                 qs, annotation_filters=[{"bounties__status": Bounty.OPEN}]
             )
         elif value == REVIEW:
-            qs = qs.filter(thread__thread_type=REVIEW)
+            qs = qs.filter(comment_type=REVIEW)
         elif value == INNER_CONTENT_COMMENT:
-            qs = qs.filter(thread__thread_type=INNER_CONTENT_COMMENT)
+            qs = qs.filter(comment_type=INNER_CONTENT_COMMENT)
         elif value == DISCUSSION:
             qs = qs.filter(
-                (Q(thread__thread_type=GENERIC_COMMENT) & Q(bounties__isnull=True))
-                | Q(thread__thread_type=SUMMARY)
-                | Q(thread__thread_type=INNER_CONTENT_COMMENT)
+                (Q(comment_type=GENERIC_COMMENT) & Q(bounties__isnull=True))
+                | Q(comment_type=SUMMARY)
+                | Q(comment_type=INNER_CONTENT_COMMENT)
             )
 
         return qs

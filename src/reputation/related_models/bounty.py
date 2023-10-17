@@ -41,6 +41,7 @@ class Bounty(DefaultModel):
         "item_content_type",
         "item_object_id",
     )
+    bounty_type = models.CharField(max_length=64, null=True, blank=True)
     amount = models.DecimalField(default=0, decimal_places=10, max_digits=19)
     created_by = models.ForeignKey(
         "user.User", on_delete=models.CASCADE, related_name="bounties"
