@@ -23,7 +23,7 @@ class Command(BaseCommand):
         for concept in concepts:
             try:
                 data = {
-                    "openalex_id": concept["id"].split("/")[-1],
+                    "openalex_id": concept["id"],
                     "display_name": concept["display_name"],
                     "description": concept.get(
                         "description", "No Description Available"
