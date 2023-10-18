@@ -51,7 +51,8 @@ from .serializers import HubCategorySerializer, HubContributionSerializer, HubSe
 
 class CustomPageLimitPagination(PageNumberPagination):
     page_size_query_param = "page_limit"
-    max_page_size = 40
+    max_page_size = 100
+    page_size = 40
 
 
 class HubViewSet(viewsets.ModelViewSet):
