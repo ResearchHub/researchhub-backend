@@ -85,6 +85,7 @@ class RHCommentFilter(filters.FilterSet):
     privacy_type = filters.ChoiceFilter(
         choices=PRIVACY_CHOICES, method="privacy_filter", label="Privacy Filter"
     )
+    parent__isnull = filters.BooleanFilter(field_name="parent", lookup_expr="isnull")
 
     class Meta:
         model = RhCommentModel
