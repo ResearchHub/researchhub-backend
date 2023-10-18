@@ -163,16 +163,16 @@ class DocumentFilter(DefaultModel):
         self.answered = document.threads.filter(is_accepted_answer=True).exists()
 
     def update_excluded_in_feed(self, unified_document, document):
-        self.is_excluded_from_feed = True
+        self.is_excluded_in_feed = True
 
     def update_included_in_feed(self, unified_document, document):
-        self.is_excluded_from_feed = False
+        self.is_excluded_in_feed = False
 
     def update_excluded_in_hubs(self, unified_document, document):
-        self.is_excluded_from_hub = True
+        self.is_excluded_in_hub = True
 
     def update_included_in_hubs(self, unified_document, document):
-        self.is_excluded_from_hub = False
+        self.is_excluded_in_hub = False
 
     def update_author_claimed(self, unified_document, document):
         self.author_claimed = document.related_claim_cases.filter(
