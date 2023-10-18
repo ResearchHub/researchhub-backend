@@ -100,7 +100,6 @@ class HubViewSet(viewsets.ModelViewSet):
             response = super().dispatch(request, *args, **kwargs)
 
         if request.META.get("REQUEST_METHOD") in ["PUT", "PATCH", "POST"]:
-            new_request = request
             cache_key = get_cache_key("hubs", "trending")
             cache.delete(cache_key)
 

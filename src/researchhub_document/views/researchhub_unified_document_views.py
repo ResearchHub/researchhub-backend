@@ -24,7 +24,7 @@ from researchhub_document.models import (
 )
 from researchhub_document.permissions import HasDocumentCensorPermission
 from researchhub_document.related_models.constants.document_type import (
-    FILTER_EXCLUDED_FROM_FEED,
+    FILTER_EXCLUDED_IN_FEED,
     FILTER_INCLUDED_IN_FEED,
 )
 from researchhub_document.related_models.constants.filters import (
@@ -563,7 +563,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     @action(detail=True, methods=["post"], permission_classes=[IsModerator])
     def exclude_from_feed(self, request, pk=None):
         unified_document = self.get_object()
-        unified_document.update_filter(FILTER_EXCLUDED_FROM_FEED)
+        unified_document.update_filter(FILTER_EXCLUDED_IN_FEED)
 
         doc_type = get_doc_type_key(unified_document)
         hub_ids = unified_document.hubs.values_list("id", flat=True)

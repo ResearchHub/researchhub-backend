@@ -14,9 +14,11 @@ from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_CLOSED,
     FILTER_BOUNTY_EXPIRED,
     FILTER_BOUNTY_OPEN,
-    FILTER_EXCLUDED_FROM_FEED,
+    FILTER_EXCLUDED_IN_FEED,
+    FILTER_EXCLUDED_IN_HUBS,
     FILTER_HAS_BOUNTY,
     FILTER_INCLUDED_IN_FEED,
+    FILTER_INCLUDED_IN_HUBS,
     FILTER_OPEN_ACCESS,
     FILTER_PEER_REVIEWED,
     HYPOTHESIS,
@@ -41,7 +43,8 @@ class DocumentFilter(DefaultModel):
     has_bounty = models.BooleanField(default=False, db_index=True)
     open_access = models.BooleanField(default=False, db_index=True)
     peer_reviewed = models.BooleanField(default=False, db_index=True)
-    is_excluded = models.BooleanField(default=False, db_index=True)
+    is_excluded_in_feed = models.BooleanField(default=False, db_index=True)
+    is_excluded_in_hubs = models.BooleanField(default=False, db_index=True)
 
     # Sorting Fields
     bounty_expiration_date = models.DateTimeField(null=True)
@@ -93,6 +96,7 @@ class DocumentFilter(DefaultModel):
         document = unified_document.get_document()
 
         updates = []
+        update_fields = []
         if document_type == PAPER:
             if update_type == FILTER_AUTHOR_CLAIMED or update_type == FILTER_ALL:
                 updates.append(self.update_author_claimed)
@@ -140,68 +144,91 @@ class DocumentFilter(DefaultModel):
             updates.append(self.update_upvoted_date)
 
         if update_type == FILTER_INCLUDED_IN_FEED:
-            updates.append(self.update_included)
-        elif update_type == FILTER_EXCLUDED_FROM_FEED:
-            updates.append(self.update_excluded)
+            updates.append(self.update_included_in_feed)
+        elif update_type == FILTER_EXCLUDED_IN_FEED:
+            updates.append(self.update_excluded_in_feed)
+        elif update_type == FILTER_INCLUDED_IN_HUBS:
+            updates.append(self.update_included_in_hubs)
+        elif update_type == FILTER_EXCLUDED_IN_HUBS:
+            updates.append(self.update_excluded_in_hubs)
 
         for update in updates:
             try:
-                update(unified_document, document)
+                update(unified_document, document, update_fields)
             except Exception as e:
                 log_error(e)
 
-        self.save()
+        self.save(update_fields=update_fields)
 
-    def update_answered(self, unified_document, document):
+    def update_answered(self, unified_document, document, update_fields):
         self.answered = document.threads.filter(is_accepted_answer=True).exists()
+        update_fields.append("answered")
 
-    def update_excluded(self, unified_document, document):
-        self.is_excluded = True
+    def update_excluded_in_feed(self, unified_document, document, update_fields):
+        self.is_excluded_in_feed = True
+        update_fields.append("is_excluded_in_feed")
 
-    def update_included(self, unified_document, document):
-        self.is_excluded = False
+    def update_included_in_feed(self, unified_document, document, update_fields):
+        self.is_excluded_in_feed = False
+        update_fields.append("is_excluded_in_feed")
 
-    def update_author_claimed(self, unified_document, document):
+    def update_excluded_in_hubs(self, unified_document, document, update_fields):
+        self.is_excluded_in_hub = True
+        update_fields.append("is_excluded_in_hub")
+
+    def update_included_in_hubs(self, unified_document, document, update_fields):
+        self.is_excluded_in_hub = False
+        update_fields.append("is_excluded_in_hub")
+
+    def update_author_claimed(self, unified_document, document, update_fields):
         self.author_claimed = document.related_claim_cases.filter(
             status="APPROVED"
         ).exists()
+        update_fields.append("author_claimed")
 
-    def update_bounty_closed(self, unified_document, document):
+    def update_bounty_closed(self, unified_document, document, update_fields):
         self.bounty_closed = unified_document.related_bounties.filter(
             status=Bounty.CLOSED
         ).exists()
+        update_fields.append("bounty_closed")
 
-    def update_bounty_expired(self, unified_document, document):
+    def update_bounty_expired(self, unified_document, document, update_fields):
         self.bounty_expired = unified_document.related_bounties.filter(
             status=Bounty.EXPIRED
         ).exists()
+        update_fields.append("bounty_expired")
 
-    def update_bounty_open(self, unified_document, document):
+    def update_bounty_open(self, unified_document, document, update_fields):
         self.bounty_open = unified_document.related_bounties.filter(
             status=Bounty.OPEN
         ).exists()
+        update_fields.append("bounty_open")
 
-    def update_has_bounty(self, unified_document, document):
+    def update_has_bounty(self, unified_document, document, update_fields):
         self.has_bounty = unified_document.related_bounties.exists()
+        update_fields.append("has_bounty")
 
-    def update_open_access(self, unified_document, document):
+    def update_open_access(self, unified_document, document, update_fields):
         is_open_access = document.oa_status and document.oa_status != "closed"
         if is_open_access:
             self.open_access = True
         else:
             self.open_access = False
+        update_fields.append("open_access")
 
-    def update_peer_reviewed(self, unified_document, document):
+    def update_peer_reviewed(self, unified_document, document, update_fields):
         self.peer_reviewed = unified_document.reviews.exists()
+        update_fields.append("peer_reviewed")
 
-    def update_bounty_expiration_date(self, unified_document, document):
+    def update_bounty_expiration_date(self, unified_document, document, update_fields):
         bounty = unified_document.related_bounties.filter(status=Bounty.OPEN).last()
         if bounty:
             self.bounty_expiration_date = bounty.expiration_date
         else:
             self.bounty_expiration_date = None
+        update_fields.append("bounty_expiration_date")
 
-    def update_bounty_total_amount(self, unified_document, document):
+    def update_bounty_total_amount(self, unified_document, document, update_fields):
         self.bounty_total_amount = unified_document.related_bounties.aggregate(
             total=Coalesce(
                 Sum("amount", filter=Q(status=Bounty.OPEN)),
@@ -209,6 +236,7 @@ class DocumentFilter(DefaultModel):
                 output_field=DecimalField(),
             )
         ).get("total", 0)
+        update_fields.append("bounty_total_amount")
 
     def get_discussued(self, document, start_date, end_date):
         threads = document.rh_threads
@@ -224,34 +252,39 @@ class DocumentFilter(DefaultModel):
         )
         return qs.count()
 
-    def update_discussed_today(self, unified_document, document):
+    def update_discussed_today(self, unified_document, document, update_fields):
         # Same buffer as get_date_ranges_by_time_scope in researchhub_document/utils.py
         hours_buffer = 10
         now = datetime.now(pytz.UTC)
         start_date = now - timedelta(hours=(24 + hours_buffer))
         self.discussed_today = self.get_discussued(document, start_date, now)
+        update_fields.append("discussed_today")
 
-    def update_discussed_week(self, unified_document, document):
+    def update_discussed_week(self, unified_document, document, update_fields):
         now = datetime.now(pytz.UTC)
         start_date = now - timedelta(days=7)
         self.discussed_week = self.get_discussued(document, start_date, now)
+        update_fields.append("discussed_week")
 
-    def update_discussed_month(self, unified_document, document):
+    def update_discussed_month(self, unified_document, document, update_fields):
         now = datetime.now(pytz.UTC)
         start_date = now - timedelta(days=30)
         self.discussed_month = self.get_discussued(document, start_date, now)
+        update_fields.append("discussed_month")
 
-    def update_discussed_year(self, unified_document, document):
+    def update_discussed_year(self, unified_document, document, update_fields):
         now = datetime.now(pytz.UTC)
         start_date = now - timedelta(days=365)
         self.discussed_year = self.get_discussued(document, start_date, now)
+        update_fields.append("discussed_year")
 
-    def update_discussed_all(self, unified_document, document):
+    def update_discussed_all(self, unified_document, document, update_fields):
         now = datetime.now(pytz.UTC)
         start_date = datetime(year=2018, month=12, day=31, hour=0, tzinfo=pytz.UTC)
         self.discussed_all = self.get_discussued(document, start_date, now)
+        update_fields.append("discussed_all")
 
-    def update_discussed_date(self, unified_document, document):
+    def update_discussed_date(self, unified_document, document, update_fields):
         thread_ids = document.rh_threads.values_list("id")
         comments_latest_date = (
             RhCommentModel.objects.filter(thread__in=thread_ids)
@@ -264,7 +297,7 @@ class DocumentFilter(DefaultModel):
             self.discussed_date = unified_document.created_date
         else:
             self.discussed_date = comments_latest_date
-        self.discussed_date_ts = self.discussed_date.timestamp()
+        update_fields.append("discussed_date")
 
     def get_upvotes(self, document, start_date, end_date):
         votes = document.votes.filter(
@@ -279,34 +312,39 @@ class DocumentFilter(DefaultModel):
         )
         return score
 
-    def update_upvoted_today(self, unified_document, document):
+    def update_upvoted_today(self, unified_document, document, update_fields):
         # Same buffer as get_date_ranges_by_time_scope in researchhub_document/utils.py
         hours_buffer = 10
         now = datetime.now(pytz.UTC)
         start_date = now - timedelta(hours=(24 + hours_buffer))
         self.upvoted_today = self.get_upvotes(document, start_date, now)
+        update_fields.append("upvoted_today")
 
-    def update_upvoted_week(self, unified_document, document):
+    def update_upvoted_week(self, unified_document, document, update_fields):
         now = datetime.now(pytz.UTC)
         start_date = now - timedelta(days=7)
         self.upvoted_week = self.get_upvotes(document, start_date, now)
+        update_fields.append("upvoted_week")
 
-    def update_upvoted_month(self, unified_document, document):
+    def update_upvoted_month(self, unified_document, document, update_fields):
         now = datetime.now(pytz.UTC)
         start_date = now - timedelta(days=30)
         self.upvoted_month = self.get_upvotes(document, start_date, now)
+        update_fields.append("upvoted_month")
 
-    def update_upvoted_year(self, unified_document, document):
+    def update_upvoted_year(self, unified_document, document, update_fields):
         now = datetime.now(pytz.UTC)
         start_date = now - timedelta(days=365)
         self.upvoted_year = self.get_upvotes(document, start_date, now)
+        update_fields.append("upvoted_year")
 
-    def update_upvoted_all(self, unified_document, document):
+    def update_upvoted_all(self, unified_document, document, update_fields):
         now = datetime.now(pytz.UTC)
         start_date = datetime(year=2018, month=12, day=31, hour=0, tzinfo=pytz.UTC)
         self.upvoted_all = self.get_upvotes(document, start_date, now)
+        update_fields.append("upvoted_all")
 
-    def update_upvoted_date(self, unified_document, document):
+    def update_upvoted_date(self, unified_document, document, update_fields):
         latest_vote_date = (
             document.votes.order_by("-created_date")
             .values_list("created_date", flat=True)
@@ -314,3 +352,4 @@ class DocumentFilter(DefaultModel):
         )
         if latest_vote_date:
             self.upvoted_date = latest_vote_date
+        update_fields.append("upvoted_date")

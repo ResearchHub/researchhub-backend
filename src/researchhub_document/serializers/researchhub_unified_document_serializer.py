@@ -15,6 +15,7 @@ from researchhub_document.serializers import (
 )
 from tag.serializers import DynamicConceptSerializer, SimpleConceptSerializer
 from user.serializers import DynamicUserSerializer, UserSerializer
+from utils.sentry import log_error
 
 
 class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
@@ -109,7 +110,7 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
                 unified_doc.related_bounties.filter(**_filter_fields),
                 many=True,
                 context=context,
-                **_context_fields
+                **_context_fields,
             )
             return serializer.data
         return []
@@ -119,22 +120,25 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
         _context_fields = context.get("doc_duds_get_documents", {})
         context["unified_document"] = unified_doc
         doc_type = unified_doc.document_type
+        try:
+            if doc_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
+                return DynamicPostSerializer(
+                    unified_doc.posts, many=True, context=context, **_context_fields
+                ).data
+            elif doc_type == HYPOTHESIS:
+                from hypothesis.serializers import DynamicHypothesisSerializer
 
-        if doc_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
-            return DynamicPostSerializer(
-                unified_doc.posts, many=True, context=context, **_context_fields
-            ).data
-        elif doc_type == HYPOTHESIS:
-            from hypothesis.serializers import DynamicHypothesisSerializer
-
-            return DynamicHypothesisSerializer(
-                unified_doc.hypothesis, context=context, **_context_fields
-            ).data
-        elif doc_type == PAPER and unified_doc.paper:
-            return DynamicPaperSerializer(
-                unified_doc.paper, context=context, **_context_fields
-            ).data
-        else:
+                return DynamicHypothesisSerializer(
+                    unified_doc.hypothesis, context=context, **_context_fields
+                ).data
+            elif doc_type == PAPER:
+                return DynamicPaperSerializer(
+                    unified_doc.paper, context=context, **_context_fields
+                ).data
+            else:
+                return None
+        except Exception as e:
+            log_error(e, message=f"Related unified doc: {unified_doc}")
             return None
 
     def get_created_by(self, unified_doc):
@@ -177,6 +181,6 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
             many=True,
             required=False,
             context=context,
-            **_context_fields
+            **_context_fields,
         )
         return serializer.data
