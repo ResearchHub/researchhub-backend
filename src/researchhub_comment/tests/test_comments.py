@@ -146,7 +146,9 @@ class CommentViewTests(APITestCase):
     def test_filter_by_reviews(self):
         review_creator = self.user_1
         regular_creator = self.user_2
-        self._create_paper_comment(self.paper.id, review_creator, thread_type="REVIEW")
+        self._create_paper_comment(
+            self.paper.id, review_creator, thread_type="REVIEW", comment_type="REVIEW"
+        )
         self._create_paper_comment(self.paper.id, regular_creator)
 
         peer_review_res = self.client.get(
