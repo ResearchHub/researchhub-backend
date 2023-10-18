@@ -87,7 +87,7 @@ def preload_trending_documents(
 
     query_string = f"page=1&time={time_scope}&ordering={filtering}&hub_id={hub_id}&type={document_type}"
 
-    if hub_id != 0:
+    if hub_id == "":
         query_string = f"{query_string}&ignore_excluded_homepage=true"
 
     if document_type == BOUNTY.lower():
