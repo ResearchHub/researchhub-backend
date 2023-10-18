@@ -84,14 +84,20 @@ class UnifiedDocumentFilter(filters.FilterSet):
         method="subscribed_filter",
         label="Subscribed Hubs",
     )
-    ignore_excluded = filters.BooleanFilter(
-        method="exclude_filter",
+    ignore_excluded_homepage = filters.BooleanFilter(
+        method="exclude_feed_filter",
         label="Excluded documents",
     )
 
     class Meta:
         model = ResearchhubUnifiedDocument
-        fields = ["hub_id", "ordering", "subscribed_hubs", "type", "ignore_excluded"]
+        fields = [
+            "hub_id",
+            "ordering",
+            "subscribed_hubs",
+            "type",
+            "ignore_excluded_homepage",
+        ]
 
     def _map_tag_to_document_filter(self, value):
         if value == "closed":
@@ -196,8 +202,8 @@ class UnifiedDocumentFilter(filters.FilterSet):
         qs = qs.filter(queries)
         return qs
 
-    def exclude_filter(self, qs, name, values):
-        qs = qs.exclude(document_filter__is_excluded=True)
+    def exclude_feed_filter(self, qs, name, values):
+        qs = qs.exclude(document_filter__is_excluded_in_feed=True)
         return qs
 
     def ordering_filter(self, qs, name, value):

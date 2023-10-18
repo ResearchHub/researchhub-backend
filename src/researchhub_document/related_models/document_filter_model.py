@@ -14,9 +14,11 @@ from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_CLOSED,
     FILTER_BOUNTY_EXPIRED,
     FILTER_BOUNTY_OPEN,
-    FILTER_EXCLUDED_FROM_FEED,
+    FILTER_EXCLUDED_IN_FEED,
+    FILTER_EXCLUDED_IN_HUBS,
     FILTER_HAS_BOUNTY,
     FILTER_INCLUDED_IN_FEED,
+    FILTER_INCLUDED_IN_HUBS,
     FILTER_OPEN_ACCESS,
     FILTER_PEER_REVIEWED,
     HYPOTHESIS,
@@ -41,7 +43,8 @@ class DocumentFilter(DefaultModel):
     has_bounty = models.BooleanField(default=False, db_index=True)
     open_access = models.BooleanField(default=False, db_index=True)
     peer_reviewed = models.BooleanField(default=False, db_index=True)
-    is_excluded = models.BooleanField(default=False, db_index=True)
+    is_excluded_in_feed = models.BooleanField(default=False, db_index=True)
+    is_excluded_in_hubs = models.BooleanField(default=False, db_index=True)
 
     # Sorting Fields
     bounty_expiration_date = models.DateTimeField(null=True)
@@ -140,9 +143,13 @@ class DocumentFilter(DefaultModel):
             updates.append(self.update_upvoted_date)
 
         if update_type == FILTER_INCLUDED_IN_FEED:
-            updates.append(self.update_included)
-        elif update_type == FILTER_EXCLUDED_FROM_FEED:
-            updates.append(self.update_excluded)
+            updates.append(self.update_included_in_feed)
+        elif update_type == FILTER_EXCLUDED_IN_FEED:
+            updates.append(self.update_excluded_in_feed)
+        elif update_type == FILTER_INCLUDED_IN_HUBS:
+            updates.append(self.update_included_in_hubs)
+        elif update_type == FILTER_EXCLUDED_IN_HUBS:
+            updates.append(self.update_excluded_in_hubs)
 
         for update in updates:
             try:
@@ -155,11 +162,17 @@ class DocumentFilter(DefaultModel):
     def update_answered(self, unified_document, document):
         self.answered = document.threads.filter(is_accepted_answer=True).exists()
 
-    def update_excluded(self, unified_document, document):
-        self.is_excluded = True
+    def update_excluded_in_feed(self, unified_document, document):
+        self.is_excluded_from_feed = True
 
-    def update_included(self, unified_document, document):
-        self.is_excluded = False
+    def update_included_in_feed(self, unified_document, document):
+        self.is_excluded_from_feed = False
+
+    def update_excluded_in_hubs(self, unified_document, document):
+        self.is_excluded_from_hub = True
+
+    def update_included_in_hubs(self, unified_document, document):
+        self.is_excluded_from_hub = False
 
     def update_author_claimed(self, unified_document, document):
         self.author_claimed = document.related_claim_cases.filter(
