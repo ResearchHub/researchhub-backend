@@ -814,22 +814,24 @@ class UserViewSet(viewsets.ModelViewSet):
     )
     def verify_user(self, request):
         data = request.data
-        openalex_id = data.get("openalex_id", None)
+        openalex_ids = data.get("openalex_ids", [])
         user = request.user
         author_profile = user.author_profile
 
-        if openalex_id is None:
+        if openalex_ids is None:
             return Response(status=400)
 
         try:
             user.is_verified = True
-            author_profile.openalex_id = openalex_id
+            author_profile.openalex_ids = openalex_ids
             author_profile.is_verified = True
             author_profile.save(update_fields=["openalex_id", "is_verified"])
             user.save(update_fields=["is_verified"])
-            pull_openalex_author_works.apply_async(
-                (user.id, openalex_id), countdown=3, priority=6
-            )
+
+            for openalex_id in openalex_ids:
+                pull_openalex_author_works.apply_async(
+                    (user.id, openalex_id), countdown=3, priority=6
+                )
         except Exception as e:
             log_error(e)
             raise e

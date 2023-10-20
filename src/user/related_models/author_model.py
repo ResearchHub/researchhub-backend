@@ -45,8 +45,12 @@ class Author(models.Model):
     orcid_account = models.ForeignKey(
         SocialAccount, on_delete=models.SET_NULL, null=True, blank=True
     )
-    openalex_id = models.CharField(
-        max_length=128, default=None, null=True, blank=True, unique=True
+    openalex_ids = ArrayField(
+        models.CharField(
+            max_length=64, default=None, null=True, blank=True, unique=True
+        ),
+        null=False,
+        default=list,
     )
     education = ArrayField(
         JSONField(blank=True, null=True), default=list, blank=True, null=True

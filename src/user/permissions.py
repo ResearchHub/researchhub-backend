@@ -132,8 +132,8 @@ class HasVerificationPermission(BasePermission):
         if not verification_tokens.exists():
             return False
 
-        for verification_token in verification_tokens.iterator():
-            if verification_token.has_expired:
-                return False
+        if verification_tokens.count() > 5:
+            self.message = "Too many user verification attempts. Please contact us for verification"
+            return False
 
         return True
