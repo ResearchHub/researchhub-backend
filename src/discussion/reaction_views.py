@@ -381,7 +381,11 @@ def create_vote(user, item, vote_type):
 
 
 def create_automated_bounty(item):
-    if item.score >= 5 and item.hubs.filter(id=436).exists():
+    if (
+        item.score >= 5
+        and item.hubs.filter(id=436).exists()
+        and not item.automated_bounty_created
+    ):
         user = User.objects.get(email="community@researchhub.com")
         item_object_id = item.id
         item_content_type = ContentType.objects.get_for_model(item)
@@ -441,6 +445,9 @@ def create_automated_bounty(item):
             comment_content_type,
             comment.id,
         )
+
+        item.automated_bounty_created = True
+        item.save()
 
 
 @sift_track(SIFT_VOTE)
