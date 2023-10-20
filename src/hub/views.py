@@ -76,6 +76,23 @@ class HubViewSet(viewsets.ModelViewSet):
             "hub_shs_get_editor_permission_groups": {"_exclude_fields": ("source",)},
         }
 
+    def list(self, request):
+        cache_key = get_cache_key("hubs", "trending")
+        cache_hit = cache.get(cache_key)
+
+        if cache_hit:
+            return cache_hit
+        else:
+            response = super().list(request)
+            cache.set(cache_key, response, timeout=60 * 60 * 24 * 7)
+            return response
+
+    def create(self, request):
+        response = super().create(request)
+        cache_key = get_cache_key("hubs", "trending")
+        cache.delete(cache_key)
+        return response
+
     @action(detail=True, methods=[PUT, PATCH, DELETE], permission_classes=[CensorHub])
     def censor(self, request, pk=None):
         hub = self.get_object()
