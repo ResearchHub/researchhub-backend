@@ -77,15 +77,19 @@ class HubViewSet(viewsets.ModelViewSet):
         }
 
     def list(self, request):
-        cache_key = get_cache_key("hubs", "trending")
-        cache_hit = cache.get(cache_key)
+        if request.query_params.get("ordering", None) == "score":
+            cache_key = get_cache_key("hubs", "trending")
+            cache_hit = cache.get(cache_key)
 
-        if cache_hit:
-            return cache_hit
+            if cache_hit:
+                return Response(cache_hit)
+            else:
+                response = super().list(request)
+                data = response.data
+                cache.set(cache_key, data, timeout=60 * 60 * 24 * 7)
+                return Response(data)
         else:
-            response = super().list(request)
-            cache.set(cache_key, response, timeout=60 * 60 * 24 * 7)
-            return response
+            return super().list(request)
 
     def create(self, request):
         response = super().create(request)
