@@ -384,7 +384,7 @@ ACCOUNT_AUTHENTICATED_LOGIN_REDIRECTS = False
 if STAGING or PRODUCTION:
     ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
 LOGIN_REDIRECT_URL = "http://localhost:3000/orcid"
-LINKEDIN_CALLBACK_URL = "http://localhost:3005/linkedin-login"
+LINKEDIN_CALLBACK_URL = "http://localhost:3000/linkedin-login"
 if STAGING:
     LOGIN_REDIRECT_URL = "https://staging-web.researchhub.com/orcid"
 if PRODUCTION:

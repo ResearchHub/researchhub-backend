@@ -61,6 +61,7 @@ class AuthorSerializer(ModelSerializer):
     total_score = SerializerMethodField()
     university = UniversitySerializer(required=False)
     wallet = SerializerMethodField()
+    is_verified = SerializerMethodField()
 
     class Meta:
         model = Author
@@ -77,6 +78,7 @@ class AuthorSerializer(ModelSerializer):
             "total_score",
             "university",
             "wallet",
+            "is_verified",
         ]
         read_only_fields = [
             "added_as_editor_date",
@@ -94,6 +96,9 @@ class AuthorSerializer(ModelSerializer):
 
     def get_orcid_id(self, author):
         return author.orcid_id
+
+    def get_is_verified(self, author):
+        return author.user.is_verified
 
     def get_total_score(self, author):
         if author.author_score > 0:
