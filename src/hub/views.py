@@ -1,10 +1,7 @@
-from datetime import timedelta
-
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.core.paginator import Paginator
 from django.db.models import Count, F, Q
-from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -18,18 +15,14 @@ from rest_framework.permissions import (
 )
 from rest_framework.response import Response
 
-from discussion.reaction_models import Vote
 from mailing_list.models import EmailRecipient, HubSubscription
 from paper.models import Paper
 from paper.utils import get_cache_key
 from reputation.models import Contribution
-from researchhub.settings import SERIALIZER_SWITCH
 from researchhub_access_group.constants import EDITOR
 from researchhub_access_group.models import Permission
 from researchhub_document.utils import reset_unified_document_cache
-from user.models import Action, User
-from user.serializers import DynamicActionSerializer, UserActions
-from user.views.editor_views import resolve_timeframe_for_contribution
+from user.models import User
 from utils.http import DELETE, GET, PATCH, POST, PUT
 from utils.message import send_email_message
 from utils.permissions import CreateOrUpdateIfAllowed
@@ -40,7 +33,6 @@ from .models import Hub, HubCategory
 from .permissions import (
     CensorHub,
     CreateHub,
-    IsModerator,
     IsModeratorOrSuperEditor,
     IsNotSubscribed,
     IsSubscribed,
@@ -83,27 +75,6 @@ class HubViewSet(viewsets.ModelViewSet):
             },
             "hub_shs_get_editor_permission_groups": {"_exclude_fields": ("source",)},
         }
-
-    def dispatch(self, request, *args, **kwargs):
-        query_params = request.META.get("QUERY_STRING", "")
-        if "score" in query_params:
-            cache_key = get_cache_key("hubs", "trending")
-            cache_hit = cache.get(cache_key)
-            if cache_hit:
-                return cache_hit
-            else:
-                response = super().dispatch(request, *args, **kwargs)
-                response.render()
-                cache.set(cache_key, response, timeout=60 * 60 * 24 * 7)
-                return response
-        else:
-            response = super().dispatch(request, *args, **kwargs)
-
-        if request.META.get("REQUEST_METHOD") in ["PUT", "PATCH", "POST"]:
-            cache_key = get_cache_key("hubs", "trending")
-            cache.delete(cache_key)
-
-        return response
 
     @action(detail=True, methods=[PUT, PATCH, DELETE], permission_classes=[CensorHub])
     def censor(self, request, pk=None):
