@@ -825,7 +825,7 @@ class UserViewSet(viewsets.ModelViewSet):
             user.is_verified = True
             author_profile.openalex_ids = openalex_ids
             author_profile.is_verified = True
-            author_profile.save(update_fields=["openalex_id", "is_verified"])
+            author_profile.save(update_fields=["openalex_ids", "is_verified"])
             user.save(update_fields=["is_verified"])
 
             for openalex_id in openalex_ids:
