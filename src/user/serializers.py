@@ -61,7 +61,6 @@ class AuthorSerializer(ModelSerializer):
     total_score = SerializerMethodField()
     university = UniversitySerializer(required=False)
     wallet = SerializerMethodField()
-    is_verified = SerializerMethodField()
 
     class Meta:
         model = Author
@@ -87,6 +86,7 @@ class AuthorSerializer(ModelSerializer):
             "is_hub_editor_of",
             "num_posts",
             "merged_with",
+            "is_verified",
         ]
 
     def get_reputation(self, obj):
@@ -96,9 +96,6 @@ class AuthorSerializer(ModelSerializer):
 
     def get_orcid_id(self, author):
         return author.orcid_id
-
-    def get_is_verified(self, author):
-        return author.user.is_verified
 
     def get_total_score(self, author):
         if author.author_score > 0:
