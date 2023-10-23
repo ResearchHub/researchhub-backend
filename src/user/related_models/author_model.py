@@ -9,6 +9,7 @@ from researchhub_case.constants.case_constants import APPROVED
 from user.related_models.profile_image_storage import ProfileImageStorage
 from user.related_models.school_model import University
 from user.related_models.user_model import User
+from user.reputation import calculate_authorships, calculate_g_index
 
 fs = ProfileImageStorage()
 
@@ -136,3 +137,9 @@ class Author(models.Model):
             paper_scores += 2 * aggregated_discussion_count["total_score"]
 
         return paper_scores + paper_count
+
+    def calculate_authorships(self):
+        return calculate_authorships(self.orcid_id)
+
+    def calculate_g_index(self):
+        return calculate_g_index(self.orcid_id)
