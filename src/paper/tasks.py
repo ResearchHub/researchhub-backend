@@ -676,7 +676,7 @@ def pull_biorxiv_papers():
     biorxiv_works = open_alex.get_data_from_source(
         biorxiv_id,
         None,
-        cursor="IlsxMywgJ2h0dHBzOi8vb3BlbmFsZXgub3JnL1cyOTc0NDUyNjI4J10i",
+        cursor="IlsxLCAnaHR0cHM6Ly9vcGVuYWxleC5vcmcvVzMxNjQyOTI5NjInXSI=",
     )
     total_works = biorxiv_works.get("meta").get("count")
     pages = math.ceil(total_works / open_alex.per_page)
