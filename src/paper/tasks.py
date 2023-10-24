@@ -1216,6 +1216,7 @@ def pull_openalex_author_works(user_id, openalex_id):
                 paper.full_clean()
                 paper.save()
                 paper.authors.add(user_id)
+                reward_author_claim_case(user.author_profile, paper)
 
                 create_contribution.apply_async(
                     (

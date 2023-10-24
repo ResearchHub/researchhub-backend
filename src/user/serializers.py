@@ -225,14 +225,9 @@ class UserApiTokenSerializer(ModelSerializer):
 
 
 class DynamicAuthorSerializer(DynamicModelFieldSerializer):
-    is_verified = SerializerMethodField()
-
     class Meta:
         model = Author
         fields = "__all__"
-
-    def get_is_verified(self, author):
-        return author.user.is_verified
 
 
 class AuthorEditableSerializer(ModelSerializer):
