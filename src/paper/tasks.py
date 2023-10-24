@@ -5,6 +5,7 @@ import math
 import os
 import re
 import shutil
+import time
 from datetime import datetime, timedelta, timezone
 from io import BytesIO
 from subprocess import PIPE, run
@@ -688,11 +689,6 @@ def pull_biorxiv_papers():
         i += 1
         next_cursor = biorxiv_works.get("meta", {}).get("next_cursor", "*")
         print(f"{i} / {pages + 1}: {next_cursor}")
-        if i < 947:
-            biorxiv_works = open_alex.get_data_from_source(
-                biorxiv_id, None, cursor=next_cursor
-            )
-            continue
 
         with open("last_cursor.txt", "w") as f:
             f.write(str(next_cursor))
@@ -700,6 +696,7 @@ def pull_biorxiv_papers():
         with transaction.atomic():
             for result in biorxiv_works.get("results", []):
                 try:
+                    start_time = time.time()
                     doi = result.get("doi")
                     if doi is None:
                         print(f"No Doi for result: {result}")
@@ -720,16 +717,16 @@ def pull_biorxiv_papers():
                         result.get("abstract_inverted_index", {})
                     )
 
-                    doi_paper_check = Paper.objects.filter(
-                        doi_svf=SearchQuery(pure_doi)
-                    )
-                    url_paper_check = Paper.objects.filter(
-                        Q(url_svf=SearchQuery(url))
-                        | Q(pdf_url_svf=SearchQuery(oa_pdf_url))
-                    )
-                    if doi_paper_check.exists() or url_paper_check.exists():
-                        # This skips over the current iteration
-                        continue
+                    # doi_paper_check = Paper.objects.filter(
+                    #     doi_svf=SearchQuery(pure_doi)
+                    # )
+                    # url_paper_check = Paper.objects.filter(
+                    #     Q(url_svf=SearchQuery(url))
+                    #     | Q(pdf_url_svf=SearchQuery(oa_pdf_url))
+                    # )
+                    # if doi_paper_check.exists() or url_paper_check.exists():
+                    #     # This skips over the current iteration
+                    #     continue
 
                     data = {
                         "doi": pure_doi,
@@ -746,13 +743,15 @@ def pull_biorxiv_papers():
                         "open_alex_raw_json": result,
                         "score": 1,
                     }
-                    if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
+                    if oa_pdf_url:
                         data["pdf_url"] = oa_pdf_url
+
+                    end_time = time.time()
+                    elapsed_time = end_time - start_time
 
                     paper = Paper(**data)
                     paper.full_clean()
                     paper.save()
-
                     concept_names = [
                         concept.get("display_name", "other")
                         for concept in concepts
