@@ -681,6 +681,8 @@ def pull_biorxiv_papers():
     for i in range(1, pages + 1):
         print(f"{i} / {pages + 1}")
         next_cursor = biorxiv_works.get("meta", {}).get("next_cursor", "*")
+        if i < 920:
+            continue
         for result in biorxiv_works.get("results", []):
             with transaction.atomic():
                 try:

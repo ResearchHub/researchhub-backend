@@ -218,6 +218,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "uploaded_by",
                     "uploaded_date",
                     "raw_authors",
+                    "twitter_score",
                 ]
             },
             "doc_duds_get_bounties": {
@@ -694,6 +695,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "discussion_aggregates",
                     "purchases",
                     "user_vote",
+                    "twitter_score",
                 )
             },
             "doc_dps_get_bounties": {"_include_fields": bounties_context_fields},
