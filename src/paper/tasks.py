@@ -681,6 +681,7 @@ def pull_biorxiv_papers():
     pages = math.ceil(total_works / open_alex.per_page)
     hub_ids = set()
     print(pages)
+    next_cursor = biorxiv_works.get("meta", {}).get("next_cursor", "*")
     i = 1040
 
     while next_cursor is not None:
