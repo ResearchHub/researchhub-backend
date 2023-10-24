@@ -213,7 +213,12 @@ def orcid_connect(request):
         response.raise_for_status()
         user = request.user
 
-        save_orcid_author(user, orcid, response.json())
+        orcid_connected = SocialAccount.objects.filter(
+            uid=orcid, provider=OrcidProvider.id
+        ).exists()
+        if not orcid_connected:
+            save_orcid_author(user, orcid, response.json())
+
         events_api.track_account(user, request, update=True)
 
         expiration_date = datetime.today() + timedelta(minutes=5)
