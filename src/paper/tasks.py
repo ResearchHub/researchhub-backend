@@ -1134,6 +1134,8 @@ def pull_openalex_author_works(user_id, openalex_id):
     from paper.models import Paper
     from reputation.models import Contribution
     from reputation.tasks import create_contribution
+    from researchhub_case.utils.author_claim_case_utils import reward_author_claim_case
+    from user.models import User
 
     oa = OpenAlex()
     author_works = oa.get_data_from_id(openalex_id)
@@ -1162,19 +1164,39 @@ def pull_openalex_author_works(user_id, openalex_id):
                     work.get("abstract_inverted_index", {})
                 )
 
+                raw_authors = format_raw_authors(raw_authors)
+                user = User.objects.get(id=user_id)
+                raw_author_to_be_removed = None
+                for raw_author in raw_authors:
+                    if (
+                        raw_author.get("first_name", "").lower()
+                        == user.first_name.lower()
+                        and raw_author.get("last_name", "").lower()
+                        == user.last_name.lower()
+                    ):
+                        raw_author_to_be_removed = raw_author
+
+                if raw_author_to_be_removed:
+                    raw_authors.remove(raw_author_to_be_removed)
+
                 doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(pure_doi))
                 url_paper_check = Paper.objects.filter(
                     Q(url_svf=SearchQuery(url)) | Q(pdf_url_svf=SearchQuery(oa_pdf_url))
                 )
                 if doi_paper_check.exists() or url_paper_check.exists():
                     # This skips over the current iteration
+                    paper = doi_paper_check.first() or url_paper_check.first()
+                    paper.authors.add(user_id)
+                    paper.raw_authors = raw_authors
+                    paper.save(update_fields=("raw_authors",))
+                    reward_author_claim_case(user.author_profile, paper)
                     print(f"Skipping paper with doi {pure_doi}")
                     continue
 
                 data = {
                     "doi": pure_doi,
                     "url": url,
-                    "raw_authors": format_raw_authors(raw_authors),
+                    "raw_authors": raw_authors,
                     "title": title,
                     "paper_title": title,
                     "paper_publish_date": work.get("publication_date", None),
@@ -1193,6 +1215,7 @@ def pull_openalex_author_works(user_id, openalex_id):
                 paper = Paper(**data)
                 paper.full_clean()
                 paper.save()
+                paper.authors.add(user_id)
 
                 create_contribution.apply_async(
                     (

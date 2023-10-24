@@ -105,7 +105,7 @@ def send_rejection_email(case):
     )
 
 
-def reward_author_claim_case(requestor_author, paper, claim_case):
+def reward_author_claim_case(requestor_author, paper):
     vote_reward = requestor_author.calculate_score()
 
     author_pot_query = Escrow.objects.filter(
@@ -133,6 +133,5 @@ def reward_author_claim_case(requestor_author, paper, claim_case):
             total_amount_paid += vote_reward
         return total_amount_paid
     except Exception as exception:
-        print("reward_author_claim_case: ", exception)
         sentry.log_error(exception)
         return total_amount_paid
