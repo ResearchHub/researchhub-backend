@@ -222,6 +222,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "author_profile",
                     "first_name",
                     "last_name",
+                    "is_verified",
                     "editor_of",
                 )
             },
@@ -288,6 +289,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "created_date",
                     "updated_date",
                     "profile_image",
+                    "is_verified",
                 )
             },
             "usr_dus_get_editor_of": {"_include_fields": ("source",)},

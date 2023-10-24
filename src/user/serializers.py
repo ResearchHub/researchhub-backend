@@ -225,31 +225,14 @@ class UserApiTokenSerializer(ModelSerializer):
 
 
 class DynamicAuthorSerializer(DynamicModelFieldSerializer):
-    # is_hub_editor_of = SerializerMethodField()
+    is_verified = SerializerMethodField()
 
     class Meta:
         model = Author
         fields = "__all__"
 
-    # def get_is_hub_editor_of(self, author):
-    #     user = author.user
-    #     if user is None:
-    #         return None
-
-    #     context = self.context
-    #     _context_fields = context.get("usr_das_get_is_hub_editor_of", {})
-
-    #     hub_content_type = ContentType.objects.get_for_model(Hub)
-    #     target_permissions = user.permissions.filter(
-    #         access_type=EDITOR, content_type=hub_content_type
-    #     )
-    #     target_hub_ids = target_permissions.values_list("object_id", flat=True)
-    #     return DynamicHubSerializer(
-    #         Hub.objects.filter(id__in=target_hub_ids),
-    #         many=True,
-    #         context=context,
-    #         **_context_fields,
-    #     ).data
+    def get_is_verified(self, author):
+        return author.user.is_verified
 
 
 class AuthorEditableSerializer(ModelSerializer):
