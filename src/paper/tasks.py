@@ -1132,6 +1132,8 @@ def _extract_biorxiv_entry(url, retry=0):
 @app.task(queue=QUEUE_PULL_PAPERS)
 def pull_openalex_author_works(user_id, openalex_id):
     from paper.models import Paper
+    from reputation.models import Contribution
+    from reputation.tasks import create_contribution
 
     oa = OpenAlex()
     author_works = oa.get_data_from_id(openalex_id)
@@ -1191,6 +1193,18 @@ def pull_openalex_author_works(user_id, openalex_id):
                 paper = Paper(**data)
                 paper.full_clean()
                 paper.save()
+
+                create_contribution.apply_async(
+                    (
+                        Contribution.SUBMITTER,
+                        {"app_label": "paper", "model": "paper"},
+                        user_id,
+                        paper.unified_document.id,
+                        paper.id,
+                    ),
+                    priority=3,
+                    countdown=5,
+                )
 
                 concept_names = [
                     concept.get("display_name", "other")
