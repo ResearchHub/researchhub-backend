@@ -690,8 +690,8 @@ def pull_biorxiv_papers():
         with open("last_cursor.txt", "w") as f:
             f.write(str(next_cursor))
 
-        for result in biorxiv_works.get("results", []):
-            with transaction.atomic():
+        with transaction.atomic():
+            for result in biorxiv_works.get("results", []):
                 try:
                     doi = result.get("doi")
                     if doi is None:
