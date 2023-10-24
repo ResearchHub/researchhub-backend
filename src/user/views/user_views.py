@@ -992,7 +992,6 @@ class VerificationViewSet(viewsets.ModelViewSet):
         data = request.data
         user = request.user
 
-        UserApiToken.objects.get(name=UserApiToken.TEMPORARY_VERIFICATION_TOKEN)
         request_type = data.get("request_type")
         oa = OpenAlex()
 
