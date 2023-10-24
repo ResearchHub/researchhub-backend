@@ -383,13 +383,10 @@ ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_AUTHENTICATED_LOGIN_REDIRECTS = False
 if STAGING or PRODUCTION:
     ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
-LOGIN_REDIRECT_URL = "http://localhost:3000/orcid"
-LINKEDIN_CALLBACK_URL = "http://localhost:3000/linkedin-login"
-if STAGING:
-    LOGIN_REDIRECT_URL = "https://staging-web.researchhub.com/orcid"
-if PRODUCTION:
-    LOGIN_REDIRECT_URL = "https://researchhub.com/orcid"
-    LINKEDIN_CALLBACK_URL = "https://www.researchhub.com/linkedin-login"
+LOGIN_REDIRECT_URL = os.environ.get("ORCID_REDIRECT_URL", keys.ORCID_REDIRECT_URL)
+LINKEDIN_CALLBACK_URL = os.environ.get(
+    "LINKEDIN_CALLBACK_URL", keys.LINKEDIN_CALLBACK_URL
+)
 SOCIALACCOUNT_ADAPTER = "oauth.adapters.SocialAccountAdapter"
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_EMAIL_REQUIRED = False
