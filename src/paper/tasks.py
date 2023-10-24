@@ -679,10 +679,17 @@ def pull_biorxiv_papers():
     print(pages)
 
     for i in range(1, pages + 1):
-        print(f"{i} / {pages + 1}")
         next_cursor = biorxiv_works.get("meta", {}).get("next_cursor", "*")
-        if i < 920:
+        print(f"{i} / {pages + 1}: {next_cursor}")
+        if i < 947:
+            biorxiv_works = open_alex.get_data_from_source(
+                biorxiv_id, None, cursor=next_cursor
+            )
             continue
+
+        with open("last_cursor.txt", "w") as f:
+            f.write(str(next_cursor))
+
         for result in biorxiv_works.get("results", []):
             with transaction.atomic():
                 try:
@@ -715,7 +722,6 @@ def pull_biorxiv_papers():
                     )
                     if doi_paper_check.exists() or url_paper_check.exists():
                         # This skips over the current iteration
-                        print(f"Skipping paper with doi {pure_doi}")
                         continue
 
                     data = {
