@@ -1166,6 +1166,7 @@ def pull_openalex_author_works(user_id, openalex_id):
 
                 raw_authors = format_raw_authors(raw_authors)
                 user = User.objects.get(id=user_id)
+                author_profile = user.author_profile
                 raw_author_to_be_removed = None
                 for raw_author in raw_authors:
                     if (
@@ -1186,10 +1187,10 @@ def pull_openalex_author_works(user_id, openalex_id):
                 if doi_paper_check.exists() or url_paper_check.exists():
                     # This skips over the current iteration
                     paper = doi_paper_check.first() or url_paper_check.first()
-                    paper.authors.add(user_id)
+                    paper.authors.add(author_profile)
                     paper.raw_authors = raw_authors
                     paper.save(update_fields=("raw_authors",))
-                    reward_author_claim_case(user.author_profile, paper)
+                    reward_author_claim_case(author_profile, paper)
                     print(f"Skipping paper with doi {pure_doi}")
                     continue
 
@@ -1215,8 +1216,7 @@ def pull_openalex_author_works(user_id, openalex_id):
                 paper = Paper(**data)
                 paper.full_clean()
                 paper.save()
-                paper.authors.add(user_id)
-                reward_author_claim_case(user.author_profile, paper)
+                paper.authors.add(author_profile)
 
                 create_contribution.apply_async(
                     (
