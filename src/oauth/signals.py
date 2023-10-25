@@ -23,9 +23,6 @@ def check_uid_updated(update_fields):
 @receiver(pre_social_login)
 def link_to_existing_user(sender, request, sociallogin, **kwargs):
     user = request.user
-    import pdb
-
-    pdb.set_trace()
     if user:
         # If the user exists, connect this new social login to that user
         sociallogin.connect(request, user)
