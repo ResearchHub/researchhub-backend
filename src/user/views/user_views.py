@@ -806,7 +806,6 @@ class UserViewSet(viewsets.ModelViewSet):
         serialized = UserSerializer(user)
         return Response(serialized.data, status=200)
 
-    # TODO: Permissions
     @action(
         detail=False,
         methods=[RequestMethods.POST],
