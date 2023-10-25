@@ -178,8 +178,9 @@ def linkedin_callback(request):
         )
         user_info_json = user_info.json()
         user = request.user
-        user.linkedin_data = user_info_json
-        user.save(update_fields=["linkedin_data"])
+        author_profile = user.author_profile
+        author_profile.linkedin_data = user_info_json
+        author_profile.save(update_fields=["linkedin_data"])
 
         expiration_date = datetime.today() + timedelta(minutes=5)
         UserApiToken.objects.create_key(

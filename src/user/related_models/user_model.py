@@ -80,7 +80,6 @@ class User(AbstractUser):
     suspended_updated_date = models.DateTimeField(null=True)
     updated_date = models.DateTimeField(auto_now=True)
     upload_tutorial_complete = models.BooleanField(default=False)
-    linkedin_data = models.JSONField(null=True, blank=True)
 
     objects = UserManager()
 
