@@ -114,10 +114,13 @@ class CitationEntryViewSet(ModelViewSet):
         if project_id == "None" or project_id is None:
             project_id = None
 
-        handle_creating_citation_entry.apply_async(
-            (path, filename, creator_id, organization_id, project_id, use_grobid),
-            priority=5,
-            countdown=0.1,
+        handle_creating_citation_entry(
+            path,
+            filename,
+            creator_id,
+            organization_id,
+            project_id,
+            use_grobid,
         )
         return Response(status=200)
 
