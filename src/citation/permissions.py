@@ -22,10 +22,12 @@ class PDFUploadsS3CallBack(BasePermission):
     message = "Permission Denied: Endpoint restricted to S3 Lambda trigger"
 
     def has_permission(self, request, view):
-        client_ip = get_client_ip(request)
-        if client_ip not in LAMBDA_IPS:
-            return False
+        # TODO: Remove this callback permission. We should always use the callback
         return True
+        # client_ip = get_client_ip(request)
+        # if client_ip not in LAMBDA_IPS:
+        #     return False
+        # return True
 
 
 class UserCanViewCitation(BasePermission):
