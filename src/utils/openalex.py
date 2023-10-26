@@ -106,10 +106,10 @@ class OpenAlex:
         res = self._get(f"authors/{orcid_lookup}")
         return res
 
-    def search_authors_via_name(self, name):
-        filters = {"search": name}
+    def search_authors_via_name(self, name, page=1):
+        filters = {"search": name, "page": page, "per_page": 10}
         res = self._get("authors", filters=filters)
-        return res.get("results", [])
+        return res
 
     # Hydrates a list of dehydrated paper concepts with fresh and expanded data from OpenAlex
     # https://docs.openalex.org/about-the-data/concept#id

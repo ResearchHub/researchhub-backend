@@ -990,6 +990,7 @@ class VerificationViewSet(viewsets.ModelViewSet):
     def get_openalex_author_profiles(self, request):
         data = request.data
         user = request.user
+        page = int(request.query_params.get("page", 1))
 
         request_type = data.get("request_type")
         oa = OpenAlex()
@@ -1008,11 +1009,13 @@ class VerificationViewSet(viewsets.ModelViewSet):
         elif request_type == "NAME":
             manual_name_input = data.get("name", None)
             if manual_name_input:
-                authors = oa.search_authors_via_name(manual_name_input)
+                res = oa.search_authors_via_name(manual_name_input, page)
             else:
                 name = f"{user.first_name} {user.last_name}"
-                authors = oa.search_authors_via_name(name)
-            res = oa._get_works_from_api_url(authors)
+                res = oa.search_authors_via_name(name, page)
+            authors = res.get("results", [])
+            authors_and_works = oa._get_works_from_api_url(authors)
+            res["results"] = authors_and_works
         else:
             return Response(status=400)
 
