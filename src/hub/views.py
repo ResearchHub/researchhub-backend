@@ -77,7 +77,12 @@ class HubViewSet(viewsets.ModelViewSet):
         }
 
     def list(self, request):
-        if request.query_params.get("ordering", None) == "score":
+        page = request.query_params.get("page", 1)
+        ordering = request.query_params.get("ordering", None)
+
+        # only cache the first page of trending hubs,
+        # since it's the most frequently queried
+        if ordering == "-score" and page == 1:
             cache_key = get_cache_key("hubs", "trending")
             cache_hit = cache.get(cache_key)
 

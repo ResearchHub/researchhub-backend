@@ -40,7 +40,7 @@ class ScoreOrderingFilter(filters.OrderingFilter):
                 + F("paper_count")
             )
 
-            qs = qs.annotate(score=score).order_by("-score")
+            qs = qs.annotate(score=score).order_by(*value, "id")
             return qs
 
         else:
