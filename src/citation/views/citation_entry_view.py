@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 import cloudscraper
 from boto3 import session
 from bs4 import BeautifulSoup
+from django.core.files.storage import default_storage
 from django.db import transaction
 from django.utils.crypto import get_random_string
 from django_filters.rest_framework import DjangoFilterBackend
@@ -17,11 +18,15 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from analytics.amplitude import track_event
-from citation.constants import CITATION_TYPE_FIELDS
+from citation.constants import CITATION_TYPE_FIELDS, JOURNAL_ARTICLE
 from citation.filters import CitationEntryFilter
 from citation.models import CitationEntry, CitationProject
-from citation.permissions import PDFUploadsS3CallBack, UserCanViewCitation
-from citation.schema import generate_schema_for_citation
+from citation.permissions import (
+    PDFUploadsS3CallBack,
+    UserBelongsToOrganization,
+    UserCanViewCitation,
+)
+from citation.schema import generate_json_for_rh_paper, generate_schema_for_citation
 from citation.serializers import CitationEntrySerializer
 from citation.tasks import handle_creating_citation_entry
 from citation.utils import get_paper_by_doi, get_paper_by_url
@@ -51,7 +56,11 @@ class CitationEntryViewSet(ModelViewSet):
     queryset = CitationEntry.objects.all()
     filter_class = CitationEntryFilter
     filter_backends = (DjangoFilterBackend, OrderingFilter)
-    permission_classes = [IsAuthenticated, UserCanViewCitation]
+    permission_classes = [
+        IsAuthenticated,
+        UserCanViewCitation,
+        UserBelongsToOrganization,
+    ]
     serializer_class = CitationEntrySerializer
     pagination_class = CitationEntryPagination
     ordering = ("-updated_date", "-created_date")
@@ -131,9 +140,33 @@ class CitationEntryViewSet(ModelViewSet):
         )
         return Response(status=200)
 
-    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
-    def add_paper_as_citation(self, request):
-        organization = getattr(request, "organization", None)
+    @action(detail=True, methods=["post"])
+    def add_paper_as_citation(self, request, pk):
+        user = request.user
+
+        with transaction.atomic():
+            organization = getattr(request, "organization", None) or user.organization
+            paper = Paper.objects.get(id=pk)
+            json = generate_json_for_rh_paper(paper)
+
+            if file := paper.file:
+                pdf = default_storage.open(file.name)
+            else:
+                pdf = None
+
+            citation_entry_data = {
+                "citation_type": JOURNAL_ARTICLE,
+                "fields": json,
+                "created_by": user.id,
+                "organization": organization.id,
+                "attachment": pdf,
+                "doi": paper.doi,
+                "related_unified_doc": paper.unified_document.id,
+            }
+            request._mutable = True
+            request._full_data = citation_entry_data
+            request._mutable = False
+            return super().create(request)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def user_citations(self, request):
