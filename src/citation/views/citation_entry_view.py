@@ -131,6 +131,10 @@ class CitationEntryViewSet(ModelViewSet):
         )
         return Response(status=200)
 
+    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
+    def add_paper_as_citation(self, request):
+        organization = getattr(request, "organization", None)
+
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def user_citations(self, request):
         citations_query = self.filter_queryset(self.get_queryset().none()).order_by(
