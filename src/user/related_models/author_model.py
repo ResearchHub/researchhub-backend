@@ -45,6 +45,13 @@ class Author(models.Model):
     orcid_account = models.ForeignKey(
         SocialAccount, on_delete=models.SET_NULL, null=True, blank=True
     )
+    openalex_ids = ArrayField(
+        models.CharField(
+            max_length=64, default=None, null=True, blank=True, unique=True
+        ),
+        null=False,
+        default=list,
+    )
     education = ArrayField(
         JSONField(blank=True, null=True), default=list, blank=True, null=True
     )
@@ -52,8 +59,10 @@ class Author(models.Model):
     facebook = models.URLField(max_length=255, default=None, null=True, blank=True)
     twitter = models.URLField(max_length=255, default=None, null=True, blank=True)
     linkedin = models.URLField(max_length=255, default=None, null=True, blank=True)
+    linkedin_data = models.JSONField(null=True, blank=True)
     academic_verification = models.BooleanField(default=None, null=True, blank=True)
     claimed = models.BooleanField(default=True, null=True, blank=True)
+    is_verified = models.BooleanField(default=False)
     merged_with = models.ForeignKey("self", on_delete=SET_NULL, null=True, blank=True)
 
     def __str__(self):

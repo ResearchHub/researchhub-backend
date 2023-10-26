@@ -190,7 +190,13 @@ class BountyViewSet(viewsets.ModelViewSet):
             "rep_dbs_get_created_by": {"_include_fields": ("author_profile", "id")},
             "rep_dbs_get_parent": {"_include_fields": ("id",)},
             "usr_dus_get_author_profile": {
-                "_include_fields": ("id", "first_name", "last_name", "profile_image")
+                "_include_fields": (
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "profile_image",
+                    "is_verified",
+                )
             },
         }
         return context

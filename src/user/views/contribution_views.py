@@ -73,6 +73,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                     "profile_image",
                     "first_name",
                     "last_name",
+                    "is_verified",
                 ]
             },
             "usr_das_get_item": {

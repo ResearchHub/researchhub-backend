@@ -168,6 +168,7 @@ CORS_ORIGIN_WHITELIST = [
     "https://staging-web2.researchhub.com",
     "https://researchhub.com",
     "http://10.0.2.2:3000",
+    "http://127.0.0.1:3000",
     "https://word.researchhub.com",
 ]
 
@@ -206,6 +207,7 @@ INSTALLED_APPS = [
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
     "allauth.socialaccount.providers.orcid",
+    "allauth.socialaccount.providers.linkedin_oauth2",
     "rest_framework.authtoken",
     "dj_rest_auth",
     "dj_rest_auth.registration",
@@ -382,17 +384,27 @@ ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_AUTHENTICATED_LOGIN_REDIRECTS = False
 if STAGING or PRODUCTION:
     ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
-LOGIN_REDIRECT_URL = "http://localhost:3000/orcid"
-if STAGING:
-    LOGIN_REDIRECT_URL = "https://staging-web.researchhub.com/orcid"
-if PRODUCTION:
-    LOGIN_REDIRECT_URL = "https://researchhub.com/orcid"
+LOGIN_REDIRECT_URL = os.environ.get("ORCID_REDIRECT_URL", keys.ORCID_REDIRECT_URL)
+LINKEDIN_CALLBACK_URL = os.environ.get(
+    "LINKEDIN_CALLBACK_URL", keys.LINKEDIN_CALLBACK_URL
+)
 SOCIALACCOUNT_ADAPTER = "oauth.adapters.SocialAccountAdapter"
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_EMAIL_REQUIRED = False
 SOCIALACCOUNT_QUERY_EMAIL = True
 
 SOCIALACCOUNT_PROVIDERS = {
+    "linkedin_oauth2": {
+        "APP": {
+            "client_id": os.environ.get("LINKEDIN_CLIENT_ID", keys.LINKEDIN_CLIENT_ID),
+            "secret": os.environ.get(
+                "LINKEDIN_CLIENT_SECRET", keys.LINKEDIN_CLIENT_SECRET
+            ),
+            "key": os.environ.get(
+                "LINKEDIN_CLIENT_ID", keys.LINKEDIN_CLIENT_ID
+            ),  # This is equal to the client_id
+        }
+    },
     "orcid": {
         # Defaults to 'orcid.org' for the production API
         "BASE_DOMAIN": "orcid.org",
@@ -404,10 +416,11 @@ SOCIALACCOUNT_PROVIDERS = {
         # not expiring for approximately 20 years
         "ACCESS_TOKEN": os.environ.get("ORCID_ACCESS_TOKEN", keys.ORCID_ACCESS_TOKEN),
         "REFRESH_TOKEN": "",
-    }
+    },
 }
 
 GOOGLE_REDIRECT_URL = "http://localhost:8000/auth/google/login/callback/"
+LINKEDIN_REDIRECT_URL = "http://localhost:8000/auth/"
 GOOGLE_YOLO_REDIRECT_URL = "http://localhost:8000/auth/google/yolo/callback/"
 if PRODUCTION:
     GOOGLE_REDIRECT_URL = "https://backend.researchhub.com/auth/google/login/callback/"
@@ -546,13 +559,9 @@ if TESTING:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 EMAIL_WHITELIST = [
-    "calvinhlee@quantfive.org",
-    "craig@quantfive.org",
-    "joey@quantfive.org",
     "leosun@quantfive.org",
     "patrick@quantfive.org",
     "patrick.lu@berkeley.edu",
-    "calvinhlee@berkeley.edu",
     "pdj7@georgetown.edu",
     "bank@researchhub.com",
     "kobeattias@gmail.com",
@@ -560,8 +569,6 @@ EMAIL_WHITELIST = [
     "kobe+1@researchhub.com",
     "contact@notesalong.com",
     "patricklu@researchhub.com",
-    "thomazvu@gmail.com",
-    "thomas@researchhub.com",
     "pat@researchhub.com",
     "lightning.lu7@gmail.com",
     "contact@notesalong.com",

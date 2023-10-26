@@ -1,11 +1,10 @@
 from time import time
-import jwt
 
+import jwt
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
-from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.google.provider import GoogleProvider
+from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
-from google.auth.transport import requests
 
 from user.models import Author
 from user.utils import merge_author_profiles

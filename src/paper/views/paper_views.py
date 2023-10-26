@@ -49,7 +49,7 @@ from paper.serializers import (
     PaperSerializer,
     PaperSubmissionSerializer,
 )
-from paper.tasks import _get_biorxiv_tweet_counts, censored_paper_cleanup
+from paper.tasks import censored_paper_cleanup
 from paper.utils import (
     add_default_hub,
     clean_abstract,
@@ -212,6 +212,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                     "author_profile",
                     "first_name",
                     "last_name",
+                    "is_verified",
                 ]
             },
             "usr_dus_get_author_profile": {
@@ -220,6 +221,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                     "first_name",
                     "last_name",
                     "profile_image",
+                    "is_verified",
                 ]
             },
             "doc_duds_get_concepts": {

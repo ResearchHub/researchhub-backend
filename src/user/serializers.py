@@ -77,6 +77,7 @@ class AuthorSerializer(ModelSerializer):
             "total_score",
             "university",
             "wallet",
+            "is_verified",
         ]
         read_only_fields = [
             "added_as_editor_date",
@@ -85,6 +86,7 @@ class AuthorSerializer(ModelSerializer):
             "is_hub_editor_of",
             "num_posts",
             "merged_with",
+            "is_verified",
         ]
 
     def get_reputation(self, obj):
@@ -223,31 +225,9 @@ class UserApiTokenSerializer(ModelSerializer):
 
 
 class DynamicAuthorSerializer(DynamicModelFieldSerializer):
-    # is_hub_editor_of = SerializerMethodField()
-
     class Meta:
         model = Author
         fields = "__all__"
-
-    # def get_is_hub_editor_of(self, author):
-    #     user = author.user
-    #     if user is None:
-    #         return None
-
-    #     context = self.context
-    #     _context_fields = context.get("usr_das_get_is_hub_editor_of", {})
-
-    #     hub_content_type = ContentType.objects.get_for_model(Hub)
-    #     target_permissions = user.permissions.filter(
-    #         access_type=EDITOR, content_type=hub_content_type
-    #     )
-    #     target_hub_ids = target_permissions.values_list("object_id", flat=True)
-    #     return DynamicHubSerializer(
-    #         Hub.objects.filter(id__in=target_hub_ids),
-    #         many=True,
-    #         context=context,
-    #         **_context_fields,
-    #     ).data
 
 
 class AuthorEditableSerializer(ModelSerializer):
@@ -348,6 +328,7 @@ class UserSerializer(ModelSerializer):
             "has_seen_first_coin_modal",
             "has_seen_orcid_connect_modal",
             "is_suspended",
+            "is_verified",
             "moderator",
             "reputation",
             "subscribed",
@@ -365,6 +346,7 @@ class UserSerializer(ModelSerializer):
             "has_seen_first_coin_modal",
             "has_seen_orcid_connect_modal",
             "is_suspended",
+            "is_verified",
             "moderator",
             "reputation",
             "subscribed",

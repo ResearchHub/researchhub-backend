@@ -13,6 +13,7 @@ from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from django_filters.rest_framework import DjangoFilterBackend
+from requests.exceptions import HTTPError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -29,6 +30,7 @@ from discussion.serializers import DynamicThreadSerializer
 from hypothesis.related_models.hypothesis import Hypothesis
 from paper.models import Paper
 from paper.serializers import DynamicPaperSerializer
+from paper.tasks import pull_openalex_author_works
 from paper.utils import PAPER_SCORE_Q_ANNOTATION, get_cache_key
 from paper.views import PaperViewSet
 from reputation.models import Bounty, BountySolution, Contribution, Distribution
@@ -49,11 +51,20 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.serializers import DynamicPostSerializer
 from review.models.review_model import Review
 from user.filters import AuthorFilter, UserFilter
-from user.models import Author, Follow, Major, University, User, Verification
+from user.models import (
+    Author,
+    Follow,
+    Major,
+    University,
+    User,
+    UserApiToken,
+    Verification,
+)
 from user.permissions import (
     Censor,
     DeleteAuthorPermission,
     DeleteUserPermission,
+    HasVerificationPermission,
     RequestorIsOwnUser,
     UpdateAuthor,
 )
@@ -72,8 +83,9 @@ from user.serializers import (
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from user.utils import calculate_show_referral, reset_latest_acitvity_cache
 from utils.http import POST, RequestMethods
+from utils.openalex import OpenAlex
 from utils.permissions import CreateOrUpdateIfAllowed
-from utils.sentry import log_info
+from utils.sentry import log_error, log_info
 from utils.throttles import THROTTLE_CLASSES
 
 
@@ -797,6 +809,41 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(
         detail=False,
         methods=[RequestMethods.POST],
+        permission_classes=[HasVerificationPermission],
+    )
+    def verify_user(self, request):
+        data = request.data
+        openalex_ids = data.get("openalex_ids", [])
+        user = request.user
+        author_profile = user.author_profile
+
+        if openalex_ids is None:
+            return Response(status=400)
+
+        try:
+            user.is_verified = True
+            author_profile.openalex_ids = openalex_ids
+            author_profile.is_verified = True
+            author_profile.save(update_fields=["openalex_ids", "is_verified"])
+            user.save(update_fields=["is_verified"])
+
+            for openalex_id in openalex_ids:
+                pull_openalex_author_works.apply_async(
+                    (user.id, openalex_id), countdown=3, priority=6
+                )
+        except Exception as e:
+            log_error(e)
+            raise e
+        finally:
+            user.api_keys.filter(
+                name=UserApiToken.TEMPORARY_VERIFICATION_TOKEN
+            ).delete()
+
+        return Response(status=200)
+
+    @action(
+        detail=False,
+        methods=[RequestMethods.POST],
         permission_classes=[AllowAny],
     )
     def sift_check_user_content(self, request):
@@ -913,14 +960,21 @@ class VerificationViewSet(viewsets.ModelViewSet):
     throttle_classes = THROTTLE_CLASSES
 
     def create(self, request, *args, **kwargs):
+        user = request.user
         with transaction.atomic():
-            files = request.data.getlist("file[]")
-            res = super().create(request, *args, **kwargs)
-            for file in files:
-                data = {"verification": res.data["id"], "file": file}
-                serializer = VerificationFileSerializer(data=data)
-                serializer.is_valid(raise_exception=True)
-                serializer.save()
+            try:
+                files = request.data.getlist("file[]")
+                res = super().create(request, *args, **kwargs)
+                for file in files:
+                    data = {"verification": res.data["id"], "file": file}
+                    serializer = VerificationFileSerializer(data=data)
+                    serializer.is_valid(raise_exception=True)
+                    serializer.save()
+            except Exception as e:
+                user.api_keys.filter(
+                    name=UserApiToken.TEMPORARY_VERIFICATION_TOKEN
+                ).delete()
+                raise e
             return res
 
     @action(
@@ -929,6 +983,43 @@ class VerificationViewSet(viewsets.ModelViewSet):
     )
     def bulk_upload(self, request):
         return Response({"message": "Deprecated"})
+
+    @action(
+        detail=False, methods=["post"], permission_classes=[HasVerificationPermission]
+    )
+    def get_openalex_author_profiles(self, request):
+        data = request.data
+        user = request.user
+        page = int(request.query_params.get("page", 1))
+
+        request_type = data.get("request_type")
+        oa = OpenAlex()
+
+        if request_type == "ORCID":
+            author_profile = user.author_profile
+            orcid_id = author_profile.orcid_id
+            try:
+                author = oa.get_author_via_orcid(orcid_id)
+                res = oa._get_works_from_api_url(author)
+            except HTTPError as e:
+                log_error(e)
+                return Response(
+                    {"error": "No profile found with associated ID"}, status=404
+                )
+        elif request_type == "NAME":
+            manual_name_input = data.get("name", None)
+            if manual_name_input:
+                res = oa.search_authors_via_name(manual_name_input, page)
+            else:
+                name = f"{user.first_name} {user.last_name}"
+                res = oa.search_authors_via_name(name, page)
+            authors = res.get("results", [])
+            authors_and_works = oa._get_works_from_api_url(authors)
+            res["results"] = authors_and_works
+        else:
+            return Response(status=400)
+
+        return Response(res, status=200)
 
 
 class AuthorViewSet(viewsets.ModelViewSet):
