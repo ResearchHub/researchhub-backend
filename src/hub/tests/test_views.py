@@ -16,6 +16,7 @@ from utils.test_helpers import (
 from unittest import skip
 from hub.models import Hub
 
+
 class HubViewsTests(APITestCase):
 
     def setUp(self):
@@ -62,15 +63,17 @@ class HubViewsTests(APITestCase):
 
         self.assertTrue(response.status_code, 401)
 
-    @skip
-    def test_hub_order_by_score(self):
-        hub = create_hub('High Score Hub')
-        hub2 = create_hub('Low Score Hub')
+    def test_hub_order_by_paper_count(self):
+        hub = create_hub('High Paper Count Hub')
+        hub2 = create_hub('Low Paper Count Hub')
 
-        actions = create_actions(10, hub=hub)
-        actions = create_actions(5, hub=hub2)
+        paper = create_paper()
+        hub.papers.add(paper)
+        hub.paper_count = 1
+        hub.save()
 
-        url = self.base_url + '?ordering=-score'
+        # this is a specific ordering used for the front end
+        url = self.base_url + '?ordering=-paper_count,-discussion_count,id'
         response = get_get_response(url)
         response_data = response.data['results']
 
@@ -97,6 +100,60 @@ class HubViewsTests(APITestCase):
                 h1_second = True
 
         self.assertTrue(h2_first and h1_second)
+
+    def test_hub_order_by_name(self):
+        hub = create_hub('Hub A')
+        hub2 = create_hub('Hub B')
+
+        url = self.base_url + '?ordering=name'
+        response = get_get_response(url)
+        response_data = response.data['results']
+
+        h1_first = False
+        h2_second = False
+        for h in response_data:
+            if h['id'] == hub.id:
+                h1_first = True
+            elif h1_first and h['id'] == hub2.id:
+                h2_second = True
+
+        self.assertTrue(h1_first and h2_second)
+
+        url = self.base_url + '?ordering=-name'
+        response = get_get_response(url)
+        response_data = response.data['results']
+
+        h2_first = False
+        h1_second = False
+        for h in response_data:
+            if h['id'] == hub2.id:
+                h2_first = True
+            elif h2_first and h['id'] == hub.id:
+                h1_second = True
+
+        self.assertTrue(h2_first and h1_second)
+
+    def test_hub_is_paginated(self):
+        for x in range(11):
+            create_hub(name=f'Hub {x}')
+
+        page = 1
+        url = self.base_url + f'?page={page}&page_limit=10'
+        response = get_get_response(url)
+        result_count = len(response.data['results'])
+        page1_ids = [h['id'] for h in response.data['results']]
+
+        self.assertEqual(result_count, 10)
+
+        page = 2
+        url = self.base_url + f'?page={page}&page_limit=10'
+        response = get_get_response(url)
+        result_count = len(response.data['results'])
+        page2_ids = [h['id'] for h in response.data['results']]
+
+        self.assertLess(result_count, 10)
+        for id in page1_ids:
+            self.assertNotIn(id, page2_ids)
 
     def test_can_subscribe_to_hub(self):
         start_state = self.is_subscribed(self.user, self.hub)
