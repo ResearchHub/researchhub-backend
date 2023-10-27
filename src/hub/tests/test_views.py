@@ -63,16 +63,17 @@ class HubViewsTests(APITestCase):
 
         self.assertTrue(response.status_code, 401)
 
-    def test_hub_order_by_score(self):
-        hub = create_hub('High Score Hub')
-        hub2 = create_hub('Low Score Hub')
+    def test_hub_order_by_paper_count(self):
+        hub = create_hub('High Paper Count Hub')
+        hub2 = create_hub('Low Paper Count Hub')
 
         paper = create_paper()
         hub.papers.add(paper)
         hub.paper_count = 1
         hub.save()
 
-        url = self.base_url + '?ordering=-score'
+        # this is a specific ordering used for the front end
+        url = self.base_url + '?ordering=-paper_count,-discussion_count,id'
         response = get_get_response(url)
         response_data = response.data['results']
 

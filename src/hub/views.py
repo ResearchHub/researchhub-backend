@@ -82,7 +82,7 @@ class HubViewSet(viewsets.ModelViewSet):
 
         # only cache the first page of trending hubs,
         # since it's the most frequently queried
-        if ordering == "-score" and page == 1:
+        if ordering == "-paper_count,-discussion_count,id" and page == 1:
             cache_key = get_cache_key("hubs", "trending")
             cache_hit = cache.get(cache_key)
 
