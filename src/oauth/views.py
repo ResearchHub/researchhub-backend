@@ -190,7 +190,7 @@ def linkedin_callback(request):
         )
         return Response(user_info_json)
     else:
-        return Response({"error": response.text}, status=400)
+        return Response({"error": response.text, "body": body}, status=400)
 
 
 @api_view([RequestMethods.POST])
