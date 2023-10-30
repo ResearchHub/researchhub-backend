@@ -29,11 +29,7 @@ from paper.models import (
     Paper,
     PaperSubmission,
 )
-from paper.tasks import (  # celery_calculate_paper_twitter_score,
-    add_orcid_authors,
-    celery_extract_pdf_sections,
-    download_pdf,
-)
+from paper.tasks import add_orcid_authors, celery_extract_pdf_sections, download_pdf
 from paper.utils import (
     check_file_is_url,
     check_pdf_title,
