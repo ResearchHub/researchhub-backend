@@ -123,8 +123,8 @@ class HasVerificationPermission(BasePermission):
         if user.is_anonymous:
             return False
 
-        if user.is_verified:
-            return False
+        # if user.is_verified:
+        #     return False
 
         verification_tokens = user.api_keys.filter(
             name=UserApiToken.TEMPORARY_VERIFICATION_TOKEN
@@ -132,7 +132,7 @@ class HasVerificationPermission(BasePermission):
         if not verification_tokens.exists():
             return False
 
-        if verification_tokens.count() > 10:
+        if verification_tokens.count() > 100:
             self.message = "Too many user verification attempts. Please contact us for verification"
             return False
 

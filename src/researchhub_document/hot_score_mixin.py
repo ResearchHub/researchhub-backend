@@ -1,10 +1,8 @@
 import datetime
 import math
 
-import numpy as np
-from django.db.models import Count, Q
+from django.db.models import Q
 
-from discussion.models import Vote
 from reputation.related_models.bounty import Bounty
 from researchhub_document.related_models.constants.document_type import PAPER
 
@@ -19,18 +17,13 @@ class HotScoreMixin:
             return -1
 
     def _count_doc_comment_votes(self, doc):
-        vote_total = 0
-        try:
-            for t in doc.threads.filter(is_removed=False).iterator():
-                vote_total += max(0, t.calculate_score())
-                for c in t.comments.filter(is_removed=False).iterator():
-                    vote_total += max(0, c.calculate_score())
-                    for r in c.replies.filter(is_removed=False).iterator():
-                        vote_total += max(0, r.calculate_score())
-        except Exception as e:
-            print(e)
-
-        return vote_total
+        return doc.rh_threads.filter(
+            (Q(rh_comments__is_removed=False) & Q(rh_comments__parent__isnull=True))
+            | (
+                Q(rh_comments__parent__is_removed=False)
+                & Q(rh_comments__parent__isnull=False)
+            )
+        )
 
     def _get_time_score(self, date):
         num_seconds_in_half_day = 43000
@@ -66,7 +59,7 @@ class HotScoreMixin:
         doc = self.get_document()
 
         if self.document_type == PAPER:
-            social_media_score = math.log(doc.twitter_score + 1, 5)
+            social_media_score = math.log(doc.twitter_score + 1, 4)
 
         return social_media_score
 
