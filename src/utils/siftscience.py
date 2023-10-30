@@ -107,7 +107,7 @@ class DecisionsApi:
         self, content_creator, content_id, source="AUTOMATED_RULE", reporter=None
     ):
         if content_creator is None:
-            # This can happen if a moderator removes an auto uploaded paepr
+            # This can happen if a moderator removes an auto uploaded paper
             return
 
         applyDecisionRequest = {
