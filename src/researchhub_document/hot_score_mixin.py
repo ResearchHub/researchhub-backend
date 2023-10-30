@@ -23,7 +23,7 @@ class HotScoreMixin:
                 Q(rh_comments__parent__is_removed=False)
                 & Q(rh_comments__parent__isnull=False)
             )
-        )
+        ).count()
 
     def _get_time_score(self, date):
         num_seconds_in_half_day = 43000
