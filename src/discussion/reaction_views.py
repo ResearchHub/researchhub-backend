@@ -17,6 +17,7 @@ from discussion.reaction_serializers import (
     FlagSerializer,
     VoteSerializer,
 )
+from paper.models import Paper
 from purchase.models import RscExchangeRate
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
@@ -382,8 +383,9 @@ def create_vote(user, item, vote_type):
 
 def create_automated_bounty(item):
     if (
-        item.score >= 5
-        and item.hubs.filter(id=436).exists()
+        isinstance(item, Paper)
+        and item.score >= 5
+        and item.hubs.filter(id=436).exists()  # Hardcoded Biorxiv Hub
         and not item.automated_bounty_created
     ):
         user = User.objects.get(email="community@researchhub.com")

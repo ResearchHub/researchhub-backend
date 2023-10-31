@@ -212,7 +212,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "authors",
                     "preview_img",
                     "renderable_text",
-                    "score",
                     "slug",
                     "title",
                     "uploaded_by",
