@@ -141,12 +141,23 @@ CITATION_TO_PAPER_MAPPING = {
 
 OPENALEX_JOURNAL_MAPPING = {
     "DOI": "doi",
+    "ISSN": "issn_l",
     "author": "authorships",
     "title": "title",
     "issued": "publication_date",
     "abstract": "abstract",
     "container-title": "",
     "journalAbbreviation": "",
+}
+
+OPENALEX_TO_CSL_FORMAT = {
+    "publication_date": "issued",
+    "primary_location": {
+        "source": {
+            "display_name": "journal_name",
+            "issn_l": "issn_l",
+        }
+    },
 }
 
 

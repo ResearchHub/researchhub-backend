@@ -155,6 +155,7 @@ CITATION_TYPE_FIELDS = {
         "call-number",
         "issued",
         "note",
+        "journal-name",
     ],
     ARTWORK: [
         "title",
