@@ -21,9 +21,10 @@ class CitationEntryDocumentView(DocumentViewSet):
         FilteringFilterBackend,
         SearchFilterBackend,
     ]
-    search_fields = ("title", "authors", "doi")
+    search_fields = ("title", "authors", "doi", "fields", "journal_name")
     search_nested_fields = {
         "title": {"path": "fields", "fields": ["title"]},
+        "journal_name": {"path": "fields", "fields": ["journal-name"]},
         "authors": {
             "path": "fields",
             "fields": ["author.given", "author.family"],
