@@ -2,6 +2,7 @@ import math
 
 from paper.exceptions import DOINotFoundError
 from researchhub.settings import OPENALEX_KEY
+from utils.parsers import rebuild_sentence_from_inverted_index
 from utils.retryable_requests import retryable_requests_session
 
 
@@ -71,15 +72,19 @@ class OpenAlex:
         for key, value in input_json.items():
             # Check if the current key is in the mapping
             if key in mapping:
+                print(key)
                 mapped_key = mapping[key]
 
                 # If the mapped key is a dictionary, recursively apply mapping to the input JSON value
                 if isinstance(mapped_key, dict) and isinstance(value, dict):
-                    print(value)
                     output_json.update(self.map_to_csl_format(value, mapped_key))
                 else:
-                    print(mapped_key)
-                    output_json[mapped_key] = value
+                    if key == "abstract_inverted_index" or key == "abstract":
+                        output_json[mapped_key] = rebuild_sentence_from_inverted_index(
+                            value
+                        )
+                    else:
+                        output_json[mapped_key] = value
             else:
                 output_json[key] = value
 

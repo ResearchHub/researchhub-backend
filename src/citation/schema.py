@@ -145,13 +145,15 @@ OPENALEX_JOURNAL_MAPPING = {
     "author": "authorships",
     "title": "title",
     "issued": "publication_date",
-    "abstract": "abstract",
+    "abstract_inverted_index": "abstract",
     "container-title": "",
     "journalAbbreviation": "",
 }
 
 OPENALEX_TO_CSL_FORMAT = {
     "publication_date": "issued",
+    "abstract_inverted_index": "abstract",
+    "abstract": "abstract",
     "primary_location": {
         "source": {
             "display_name": "journal_name",
