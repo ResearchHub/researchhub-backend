@@ -2,6 +2,7 @@ import math
 
 from paper.exceptions import DOINotFoundError
 from researchhub.settings import OPENALEX_KEY
+from utils.parsers import rebuild_sentence_from_inverted_index
 from utils.retryable_requests import retryable_requests_session
 
 
@@ -50,6 +51,47 @@ class OpenAlex:
                 response.raise_for_status()
                 data["works"] = response.json().get("results", [])
         return data
+
+    def map_to_csl_format(self, input_json, mapping=None):
+        """
+        Maps fields in the input_json based on the given mapping.
+
+        Args:
+            input_json (dict): JSON whose fields need to be mapped.
+            mapping (dict): Mapping of fields in input_json to desired fields.
+
+        Returns:
+            dict: JSON with mapped fields.
+        """
+        from citation.schema import OPENALEX_TO_CSL_FORMAT
+
+        output_json = {}
+        if not mapping:
+            mapping = OPENALEX_TO_CSL_FORMAT
+
+        for key, value in input_json.items():
+            # Check if the current key is in the mapping
+            if key in mapping:
+                print(key)
+                mapped_key = mapping[key]
+
+                # If the mapped key is a dictionary, recursively apply mapping to the input JSON value
+                if isinstance(mapped_key, dict) and isinstance(value, dict):
+                    output_json.update(self.map_to_csl_format(value, mapped_key))
+                else:
+                    if key == "abstract_inverted_index" or key == "abstract":
+                        if isinstance(value, str):
+                            output_json[mapped_key] = value
+                        else:
+                            output_json[
+                                mapped_key
+                            ] = rebuild_sentence_from_inverted_index(value)
+                    else:
+                        output_json[mapped_key] = value
+            else:
+                output_json[key] = value
+
+        return output_json
 
     def get_data_from_doi(self, doi):
         filters = {"filter": f"doi:{doi}"}
