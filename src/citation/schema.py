@@ -154,9 +154,10 @@ OPENALEX_TO_CSL_FORMAT = {
     "publication_date": "issued",
     "abstract_inverted_index": "abstract",
     "abstract": "abstract",
+    "landing_page_url": "url",
     "primary_location": {
         "source": {
-            "display_name": "journal_name",
+            "display_name": "source",
             "issn_l": "issn_l",
         }
     },

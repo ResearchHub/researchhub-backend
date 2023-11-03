@@ -165,7 +165,8 @@ class CitationEntryViewSet(ModelViewSet):
             result = PaperCitationSerializer(paper).data
         except Paper.DoesNotExist:
             open_alex = OpenAlex()
-            result = open_alex.get_data_from_doi(doi_string)
+            open_alex_json = open_alex.get_data_from_doi(doi_string)
+            result = open_alex.map_to_csl_format(open_alex_json)
         return Response(result, status=200)
 
     @track_event
