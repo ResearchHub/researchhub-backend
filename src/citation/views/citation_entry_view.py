@@ -205,7 +205,6 @@ class CitationEntryViewSet(ModelViewSet):
                     open_alex = OpenAlex()
                     open_alex_json = open_alex.get_data_from_doi(doi)
                     result = open_alex.map_to_csl_format(open_alex_json)
-                    print(result)
 
                 return Response(result, status=200)
             return Response({"result": "DOI / URL not found"}, status=400)
