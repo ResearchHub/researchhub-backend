@@ -711,7 +711,8 @@ def pull_biorxiv_papers():
                     oa = result.get("open_access", {})
                     oa_pdf_url = oa.get("oa_url", None)
                     url = primary_location.get("landing_page_url", None)
-                    title = normalize("NFKD", result.get("title", ""))
+                    raw_title = result.get("title", "") or ""
+                    title = normalize("NFKD", raw_title)
                     raw_authors = result.get("authorships", [])
                     concepts = result.get("concepts", [])
                     abstract = rebuild_sentence_from_inverted_index(
@@ -1158,7 +1159,8 @@ def pull_openalex_author_works(user_id, openalex_id):
                 oa = work.get("open_access", {})
                 oa_pdf_url = oa.get("oa_url", None)
                 url = primary_location.get("landing_page_url", None)
-                title = normalize("NFKD", work.get("title", ""))
+                raw_title = work.get("title", "") or ""
+                title = normalize("NFKD", raw_title)
                 raw_authors = work.get("authorships", [])
                 concepts = work.get("concepts", [])
                 abstract = rebuild_sentence_from_inverted_index(
