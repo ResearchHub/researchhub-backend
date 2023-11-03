@@ -82,21 +82,8 @@ The backend will now run at localhost:8000
     PASS = 'not_secure'  # replace as needed
     ```
 
-    Create a local postgres db called `researchhub`. Alternatively, to use docker for local development (recommended), run the following:
+ * Use [posgres.app](https://postgres.app/) to install Posgres DB. The latest available DB version should be fine.
 
-    ```shell
-    # https://docs.docker.com/samples/library/postgres/
-    docker run \
-    --rm \
-    --name researchhub_db \
-    --env POSTGRES_DB=researchhub \
-    --env POSTGRES_USER=rh_developer \
-    --env POSTGRES_PASSWORD=not_secure \
-    --volume "$(pwd)"/database:/var/lib/postgresql/data \
-    --publish 5432:5432 \
-    --detach \
-    postgres:12
-    ```
 
   > Good UI tool for interacting with PostgreSQ: [Postico](https://eggerapps.at/postico2/)
 
