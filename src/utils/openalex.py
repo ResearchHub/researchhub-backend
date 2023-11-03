@@ -80,9 +80,12 @@ class OpenAlex:
                     output_json.update(self.map_to_csl_format(value, mapped_key))
                 else:
                     if key == "abstract_inverted_index" or key == "abstract":
-                        output_json[mapped_key] = rebuild_sentence_from_inverted_index(
-                            value
-                        )
+                        if isinstance(value, str):
+                            output_json[mapped_key] = value
+                        else:
+                            output_json[
+                                mapped_key
+                            ] = rebuild_sentence_from_inverted_index(value)
                     else:
                         output_json[mapped_key] = value
             else:
