@@ -54,6 +54,7 @@ class UserBelongsToOrganization(BasePermission):
             RequestMethods.PATCH,
             RequestMethods.PUT,
             RequestMethods.DELETE,
+            RequestMethods.GET,
         ):
             organization = getattr(request, "organization", None)
             if not organization:

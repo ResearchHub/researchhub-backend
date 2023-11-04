@@ -168,6 +168,21 @@ class CitationEntryViewSet(ModelViewSet):
             request._mutable = False
             return super().create(request)
 
+    @action(
+        detail=True,
+        methods=["get"],
+        permission_classes=[IsAuthenticated, UserBelongsToOrganization],
+    )
+    def check_paper_in_reference_manager(self, request, pk=None):
+        user = request.user
+        organization = getattr(request, "organization", None) or user.organization
+        organization_references = organization.created_citations
+        paper_in_references = organization_references.filter(related_unified_doc=pk)
+
+        if paper_in_references.exists():
+            return Response({"detail": True}, status=200)
+        return Response({"detail": False}, status=404)
+
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def user_citations(self, request):
         citations_query = self.filter_queryset(self.get_queryset().none()).order_by(
