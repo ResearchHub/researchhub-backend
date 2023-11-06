@@ -81,7 +81,12 @@ def update_user_risk_score(user, tracked_content):
 
 def check_user_risk(user):
     sift_risk_score = user.sift_risk_score
-    if sift_risk_score and sift_risk_score > 90 and user.id not in (34581,):
+    if (
+        sift_risk_score
+        and sift_risk_score > 90
+        and user.id not in (34581,)
+        and not user.is_verified
+    ):
         user.set_suspended(is_manual=False)
 
 
