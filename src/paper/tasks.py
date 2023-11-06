@@ -62,6 +62,7 @@ from researchhub.celery import (
 from researchhub.settings import APP_ENV, PRODUCTION
 from researchhub_document.related_models.constants.filters import NEW
 from researchhub_document.utils import reset_unified_document_cache
+from tag.models import Concept
 from utils import sentry
 from utils.arxiv.categories import get_category_name
 from utils.http import check_url_contains_pdf
@@ -710,7 +711,8 @@ def pull_biorxiv_papers():
                     oa = result.get("open_access", {})
                     oa_pdf_url = oa.get("oa_url", None)
                     url = primary_location.get("landing_page_url", None)
-                    title = normalize("NFKD", result.get("title", ""))
+                    raw_title = result.get("title", "") or ""
+                    title = normalize("NFKD", raw_title)
                     raw_authors = result.get("authorships", [])
                     concepts = result.get("concepts", [])
                     abstract = rebuild_sentence_from_inverted_index(
@@ -1157,7 +1159,8 @@ def pull_openalex_author_works(user_id, openalex_id):
                 oa = work.get("open_access", {})
                 oa_pdf_url = oa.get("oa_url", None)
                 url = primary_location.get("landing_page_url", None)
-                title = normalize("NFKD", work.get("title", ""))
+                raw_title = work.get("title", "") or ""
+                title = normalize("NFKD", raw_title)
                 raw_authors = work.get("authorships", [])
                 concepts = work.get("concepts", [])
                 abstract = rebuild_sentence_from_inverted_index(
@@ -1230,20 +1233,26 @@ def pull_openalex_author_works(user_id, openalex_id):
                     countdown=5,
                 )
 
-                concept_names = [
-                    concept.get("display_name", "other")
-                    for concept in concepts
-                    if concept.get("level", 0) == 0
-                ]
                 potential_hubs = []
-                for concept_name in concept_names:
-                    potential_hub = Hub.objects.filter(name__icontains=concept_name)
-                    if potential_hub.exists():
-                        potential_hub = potential_hub.first()
-                        potential_hubs.append(potential_hub)
-                        hub_ids.add(potential_hub.id)
+                try:
+                    for concept in concepts:
+                        concept_openalex_id = concept.get("id")
+                        display_name = concept.get("display_name")
+                        concept_obj, created = Concept.objects.get_or_create(
+                            openalex_id=concept_openalex_id, display_name=display_name
+                        )
+                        if created:
+                            # This creates the hub if a new concept is created
+                            concept_obj.save()
+                        hub = concept_obj.hub
+                        potential_hubs.append(hub.id)
+                        hub_ids.add(hub.id)
+                except Exception as e:
+                    sentry.log_error(e)
+
                 paper.hubs.add(*potential_hubs)
-                paper.unified_document.hubs.add(*hub_ids)
+                paper.unified_document.hubs.add(*potential_hubs)
+
                 download_pdf.apply_async((paper.id,), priority=4, countdown=4)
             except Exception as e:
                 sentry.log_error(e)

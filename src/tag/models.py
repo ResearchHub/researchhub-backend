@@ -53,7 +53,7 @@ class Concept(DefaultModel):
         return self.display_name
 
     def save(self, *args, **kwargs):
-        is_new_concept = not self.pk
+        is_new_concept = not self.pk or not hasattr(self, "hub")
         super().save(*args, **kwargs)
 
         # Do not update hub props when concept is updated to avoid
