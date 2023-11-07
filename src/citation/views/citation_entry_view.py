@@ -185,7 +185,7 @@ class CitationEntryViewSet(ModelViewSet):
             return Response(
                 {
                     "detail": True,
-                    "citations": [paper_in_references.values_list("id", flat=True)],
+                    "citations": paper_in_references.values_list("id", flat=True),
                 },
                 status=200,
             )
