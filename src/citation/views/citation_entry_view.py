@@ -146,6 +146,7 @@ class CitationEntryViewSet(ModelViewSet):
 
         with transaction.atomic():
             organization = getattr(request, "organization", None) or user.organization
+            project_id = request.data.get("project_id", None)
             paper = Paper.objects.get(id=pk)
             json = generate_json_for_rh_paper(paper)
 
@@ -162,6 +163,7 @@ class CitationEntryViewSet(ModelViewSet):
                 "attachment": pdf,
                 "doi": paper.doi,
                 "related_unified_doc": paper.unified_document.id,
+                "project_id": project_id,
             }
             request._mutable = True
             request._full_data = citation_entry_data
