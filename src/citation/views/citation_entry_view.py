@@ -182,7 +182,13 @@ class CitationEntryViewSet(ModelViewSet):
         paper_in_references = organization_references.filter(related_unified_doc=pk)
 
         if paper_in_references.exists():
-            return Response({"detail": True}, status=200)
+            return Response(
+                {
+                    "detail": True,
+                    "citations": [paper_in_references.values_list("id", flat=True)],
+                },
+                status=200,
+            )
         return Response({"detail": False}, status=404)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
@@ -277,7 +283,7 @@ class CitationEntryViewSet(ModelViewSet):
     @action(
         detail=False,
         methods=["POST", "DELETE"],
-        permission_classes=[IsAuthenticated],
+        permission_classes=[IsAuthenticated, UserBelongsToOrganization],
     )
     def remove(self, request, *args, **kwargs):
         with transaction.atomic():
