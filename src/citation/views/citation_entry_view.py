@@ -5,7 +5,6 @@ from urllib.parse import urlparse
 import cloudscraper
 from boto3 import session
 from bs4 import BeautifulSoup
-from django.core.files.storage import default_storage
 from django.db import transaction
 from django.utils.crypto import get_random_string
 from django_filters.rest_framework import DjangoFilterBackend
@@ -28,7 +27,7 @@ from citation.permissions import (
 )
 from citation.schema import generate_json_for_rh_paper, generate_schema_for_citation
 from citation.serializers import CitationEntrySerializer
-from citation.tasks import handle_creating_citation_entry
+from citation.tasks import add_pdf_to_citation, handle_creating_citation_entry
 from citation.utils import get_paper_by_doi, get_paper_by_url
 from paper.exceptions import DOINotFoundError
 from paper.models import Paper
@@ -43,6 +42,7 @@ from researchhub.settings import (
 from utils.openalex import OpenAlex
 from utils.parsers import clean_filename
 from utils.sentry import log_error
+from utils.throttles import THROTTLE_CLASSES
 
 
 class CitationEntryPagination(PageNumberPagination):
@@ -63,6 +63,7 @@ class CitationEntryViewSet(ModelViewSet):
     ]
     serializer_class = CitationEntrySerializer
     pagination_class = CitationEntryPagination
+    throttle_classes = THROTTLE_CLASSES
     ordering = ("-updated_date", "-created_date")
     ordering_fields = ("updated_date", "created_date")
 
@@ -150,25 +151,25 @@ class CitationEntryViewSet(ModelViewSet):
             paper = Paper.objects.get(id=pk)
             json = generate_json_for_rh_paper(paper)
 
-            if file := paper.file:
-                pdf = default_storage.open(file.name)
-            else:
-                pdf = None
-
             citation_entry_data = {
                 "citation_type": JOURNAL_ARTICLE,
                 "fields": json,
                 "created_by": user.id,
                 "organization": organization.id,
-                "attachment": pdf,
                 "doi": paper.doi,
                 "related_unified_doc": paper.unified_document.id,
-                "project_id": project_id,
+                "project": project_id,
             }
             request._mutable = True
             request._full_data = citation_entry_data
             request._mutable = False
-            return super().create(request)
+            res = super().create(request)
+
+            if file := paper.file:
+                add_pdf_to_citation.apply_async(
+                    (res.data["id"], file.name), countdown=3, priority=6
+                )
+            return res
 
     @action(
         detail=True,
@@ -177,19 +178,22 @@ class CitationEntryViewSet(ModelViewSet):
     )
     def check_paper_in_reference_manager(self, request, pk=None):
         user = request.user
+        project_ids = request.query_params.get("project_ids", None)
         organization = getattr(request, "organization", None) or user.organization
         organization_references = organization.created_citations
-        paper_in_references = organization_references.filter(related_unified_doc=pk)
 
-        if paper_in_references.exists():
-            return Response(
-                {
-                    "detail": True,
-                    "citations": paper_in_references.values_list("id", flat=True),
-                },
-                status=200,
-            )
-        return Response({"detail": False}, status=404)
+        if not project_ids:
+            project_ids = [None]
+        else:
+            project_ids = list(map(int, project_ids.split(",")))
+
+        def _check_if_citation_exists(project_id):
+            return organization_references.filter(
+                related_unified_doc=pk, project=project_id
+            ).values_list("id", flat=True)
+
+        res = dict(zip(project_ids, map(_check_if_citation_exists, project_ids)))
+        return Response(res, status=200)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def user_citations(self, request):
