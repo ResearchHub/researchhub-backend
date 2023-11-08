@@ -16,6 +16,7 @@ from citation.schema import CSL_SCHEMA, generate_schema_for_citation
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 from user.serializers import DynamicOrganizationSerializer, DynamicUserSerializer
+from utils.http import remove_origin_from_url
 from utils.serializers import DefaultAuthenticatedSerializer
 
 
@@ -50,6 +51,9 @@ class CitationEntrySerializer(DefaultAuthenticatedSerializer):
                 attachment=cleaned_attachment,
                 attachment_name=attachment_name,
             )
+            pdf_url = citation_entry.fields.get("pdf_url")
+            if pdf_url and "uploads/citation_entry/attachment" in pdf_url:
+                citation_entry.attachment = remove_origin_from_url(pdf_url)
             return citation_entry
 
     def update(self, instance, validated_data):

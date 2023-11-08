@@ -11,7 +11,6 @@ from utils.models import DefaultAuthenticatedModel
 
 
 class CitationEntry(DefaultAuthenticatedModel):
-
     """--- MODEL FIELDS ---"""
 
     attachment = models.FileField(

@@ -59,8 +59,12 @@ def upload_to_s3(data, folder):
     else:
         file_path = default_storage.save(path, data)
         url = default_storage.url(file_path)
-    url = url.split("?AWSAccessKeyId")[0]
-    return url
+    return {
+        "url": url.split("?AWSAccessKeyId")[0],
+        "full_url": url,
+        "filename": filename,
+        "path": path,
+    }
 
 
 def lambda_compress_and_linearize_pdf(key, file_name):
