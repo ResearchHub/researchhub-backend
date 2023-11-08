@@ -3,7 +3,7 @@ from datetime import datetime
 import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Case, Count, F, Q, Sum, Value, When
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
@@ -12,6 +12,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from citation.models import CitationProject
 from invite.models import OrganizationInvitation
 from invite.serializers import DynamicOrganizationInvitationSerializer
 from note.models import Note, NoteTemplate
@@ -62,31 +63,40 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         return obj
 
     def create(self, request, *args, **kwargs):
-        user = request.user
-        data = request.data
-        description = data.get("description", "")
-        name = data.get("name", None)
-        image = data.get("image", None)
+        with transaction.atomic():
+            user = request.user
+            data = request.data
+            description = data.get("description", "")
+            name = data.get("name", None)
+            image = data.get("image", None)
 
-        if Organization.objects.filter(name=name).exists():
-            return Response({"data": "Name is already in use."}, status=409)
+            if Organization.objects.filter(name=name).exists():
+                return Response({"data": "Name is already in use."}, status=409)
 
-        organization = Organization.objects.create(
-            description=description,
-            name=name,
-        )
-        self._create_permissions(user, organization)
+            organization = Organization.objects.create(
+                description=description,
+                name=name,
+            )
+            CitationProject.objects.create(
+                is_public=True,
+                slug="my-library",
+                project_name="My Library",
+                parent_names={"names": ["My Library"], "slugs": ["my-library"]},
+                organization=organization,
+                created_by=user,
+            )
+            self._create_permissions(user, organization)
 
-        if image:
-            file_name, file = self._create_image_file(image, organization, user)
-            organization.cover_image.save(file_name, file)
+            if image:
+                file_name, file = self._create_image_file(image, organization, user)
+                organization.cover_image.save(file_name, file)
 
-        context = self.get_serializer_context()
-        context["request"] = request
+            context = self.get_serializer_context()
+            context["request"] = request
 
-        serializer = self.serializer_class(organization, context=context)
-        data = serializer.data
-        return Response(data, status=200)
+            serializer = self.serializer_class(organization, context=context)
+            data = serializer.data
+            return Response(data, status=200)
 
     def _create_permissions(self, user, organization):
         content_type = ContentType.objects.get_for_model(Organization)
