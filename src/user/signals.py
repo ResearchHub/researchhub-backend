@@ -11,6 +11,7 @@ from django.utils.text import slugify
 
 from bullet_point.models import BulletPoint
 from bullet_point.models import Vote as BulletPointVote
+from citation.models import CitationProject
 from discussion.models import Vote as GrmVote
 from hypothesis.models import Hypothesis
 from mailing_list.tasks import build_notification_context
@@ -234,6 +235,16 @@ def create_user_organization(sender, instance, created, **kwargs):
             organization=org,
             user=instance,
         )
+
+        project = CitationProject.objects.create(
+            is_public=True,
+            slug="my-library",
+            project_name="My Library",
+            parent_names={"names": ["My Library"], "slugs": ["my-library"]},
+            organization=organization,
+            created_by=instance,
+        )
+        project.set_creator_as_admin()
 
         profile_image = instance.author_profile.profile_image
         try:
