@@ -241,7 +241,7 @@ def create_user_organization(sender, instance, created, **kwargs):
             slug="my-library",
             project_name="My Library",
             parent_names={"names": ["My Library"], "slugs": ["my-library"]},
-            organization=organization,
+            organization=org,
             created_by=instance,
         )
         project.set_creator_as_admin()
