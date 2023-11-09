@@ -156,7 +156,7 @@ OPENALEX_TO_CSL_FORMAT = {
     "abstract": "abstract",
     "landing_page_url": "url",
     "primary_location": {
-        "pdf_url": "pdf_url",
+        "pdf_url": "custom.pdf_url",
         "source": {
             "display_name": "source",
             "issn_l": "issn_l",

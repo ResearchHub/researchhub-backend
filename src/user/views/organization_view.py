@@ -77,7 +77,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 description=description,
                 name=name,
             )
-            CitationProject.objects.create(
+            project = CitationProject.objects.create(
                 is_public=True,
                 slug="my-library",
                 project_name="My Library",
@@ -85,6 +85,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 organization=organization,
                 created_by=user,
             )
+            project.set_creator_as_admin()
             self._create_permissions(user, organization)
 
             if image:

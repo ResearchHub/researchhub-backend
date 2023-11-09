@@ -110,6 +110,20 @@ class OpenAlex:
                 # If the mapped key is a dictionary, recursively apply mapping to the input JSON value
                 if isinstance(mapped_key, dict) and isinstance(value, dict):
                     output_json.update(self.map_to_csl_format(value, mapped_key))
+                elif "." in mapped_key:
+                    # Split on the '.' and assign to a nested dictionary
+                    outer_key, inner_key = mapped_key.split(".")
+                    if outer_key not in output_json:
+                        output_json[outer_key] = {}
+
+                    if key == "pdf_url":
+                        urls = download_pdf(value)
+
+                    if urls:
+                        output_json[outer_key][inner_key] = urls.get("url")
+                        output_json["signed_pdf_url"] = urls.get("signed_url")
+
+                    output_json[outer_key][inner_key] = value
                 else:
                     if key == "abstract_inverted_index" or key == "abstract":
                         if isinstance(value, str):
@@ -118,13 +132,6 @@ class OpenAlex:
                             output_json[
                                 mapped_key
                             ] = rebuild_sentence_from_inverted_index(value)
-                    elif key == "pdf_url":
-                        urls = download_pdf(value)
-                        if urls:
-                            output_json[mapped_key] = urls.get("url")
-                            output_json["signed_pdf_url"] = urls.get("signed_url")
-                        else:
-                            output_json[mapped_key] = value
                     else:
                         output_json[mapped_key] = value
             else:
