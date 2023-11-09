@@ -50,8 +50,7 @@ class IsModeratorOrVerifiedAuthor(AuthorizationBasedPermission):
         if request.user.moderator:
             return True
         else:
-            author = Author.objects.get(user=request.user)
-            return author in obj.authors.all()
+            return obj.authors.filter(user=request.user).exists()
 
 
 class IsAuthor(AuthorizationBasedPermission):
