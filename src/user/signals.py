@@ -217,7 +217,7 @@ def attach_author_and_email_preference(sender, instance, created, *args, **kwarg
 def create_user_organization(sender, instance, created, **kwargs):
     if created:
         suffix = get_random_string(length=32)
-        name = f"{instance.first_name} {instance.last_name}'s Notebook"
+        name = f"{instance.first_name} {instance.last_name}'s Org"
         slug = slugify(name)
         if not slug:
             slug += suffix
