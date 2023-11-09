@@ -58,7 +58,7 @@ class HubDocument(BaseDocument):
         return data
 
     def should_remove_from_index(self, obj):
-        if obj.is_removed or obj.is_locked:
+        if obj.is_removed:
             return True
 
         return False
