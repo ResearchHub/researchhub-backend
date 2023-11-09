@@ -1,5 +1,25 @@
+from urllib.parse import urlparse, urlunparse
+
 import cloudscraper
 import requests
+
+
+def remove_origin_from_url(url):
+    # Parse the URL into components
+    parsed_url = urlparse(url)
+
+    # Remove the leading slash from the path if it exists
+    path = parsed_url.path
+    if path.startswith("/"):
+        path = path[1:]
+
+    # Reconstruct the URL without the scheme and netloc, and with the modified path
+    non_origin_url = urlunparse(
+        ("", "", path, parsed_url.params, parsed_url.query, parsed_url.fragment)
+    )
+
+    return non_origin_url
+
 
 # TODO: Use contstants instead of class
 GET = "GET"

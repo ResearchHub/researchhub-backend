@@ -156,6 +156,7 @@ CITATION_TYPE_FIELDS = {
         "issued",
         "note",
         "journal-name",
+        "custom",
     ],
     ARTWORK: [
         "title",

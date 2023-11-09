@@ -229,8 +229,11 @@ class CitationEntryViewSet(ModelViewSet):
                         target_ref = target_ref.first()
                         if target_ref.is_user_allowed_to_edit(current_user):
                             target_ref.delete()
+                        else:
+                            return Response(status=403)
                 return Response(target_citation_ids, status=status.HTTP_200_OK)
 
             except Exception as error:
+                print(error)
                 log_error(error)
                 return Response(status=status.HTTP_400_BAD_REQUEST)

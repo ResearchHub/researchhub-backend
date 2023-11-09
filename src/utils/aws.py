@@ -14,6 +14,8 @@ from researchhub.settings import (
     AWS_SECRET_ACCESS_KEY,
     AWS_STORAGE_BUCKET_NAME,
 )
+from utils.http import check_url_contains_pdf
+from utils.sentry import log_error
 
 
 def get_s3_url(bucket, key, with_credentials=False):
@@ -59,8 +61,12 @@ def upload_to_s3(data, folder):
     else:
         file_path = default_storage.save(path, data)
         url = default_storage.url(file_path)
-    url = url.split("?AWSAccessKeyId")[0]
-    return url
+    return {
+        "url": url.split("?AWSAccessKeyId")[0],
+        "full_url": url,
+        "filename": filename,
+        "path": path,
+    }
 
 
 def lambda_compress_and_linearize_pdf(key, file_name):
@@ -88,3 +94,31 @@ def lambda_compress_and_linearize_pdf(key, file_name):
         Payload=data_bytes,
     )
     return response
+
+
+def download_pdf(url):
+    pdf_url_contains_pdf = check_url_contains_pdf(url)
+
+    if pdf_url_contains_pdf:
+        pdf_url = url
+        try:
+            pdf = get_pdf_from_url(pdf_url)
+            pdf.content_type = "application/pdf"
+            filename = pdf_url.split("/").pop()
+            if not filename.endswith(".pdf"):
+                filename += ".pdf"
+            pdf.name = filename
+            today = datetime.datetime.now()
+            year = today.year
+            month = today.month
+            day = today.day
+            folder = f"uploads/citation_entry/attachment/{year}/{month}/{day}"
+            s3_data = upload_to_s3(pdf, folder)
+            lambda_compress_and_linearize_pdf(s3_data["path"], s3_data["filename"])
+            return {"url": s3_data["url"], "signed_url": s3_data["full_url"]}
+        except Exception as e:
+            print(e)
+            log_error(e)
+            return None
+
+    return None
