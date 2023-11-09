@@ -64,6 +64,8 @@ class PaperSubmission(DefaultModel):
         "user.User",
         related_name="paper_submissions",
         on_delete=models.CASCADE,
+        null=True,
+        blank=True,
         help_text="""
             RH User account that submitted this paper.
             NOTE: user didnt necessarily had to be the author.
@@ -113,6 +115,8 @@ class PaperSubmission(DefaultModel):
         self.set_status(self.FAILED_DOI, save)
 
     def notify_status(self, **kwargs):
+        if not self.uploaded_by:
+            return
         user_id = self.uploaded_by.id
         room = f"{user_id}_paper_submissions"
         channel_layer = get_channel_layer()
