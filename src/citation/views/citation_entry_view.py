@@ -1,4 +1,5 @@
 import re
+import logging
 from collections import Counter
 from urllib.parse import urlparse
 
@@ -27,8 +28,13 @@ from citation.permissions import (
 )
 from citation.schema import generate_json_for_rh_paper, generate_schema_for_citation
 from citation.serializers import CitationEntrySerializer
+<<<<<<< HEAD
 from citation.tasks import add_pdf_to_citation, handle_creating_citation_entry
 from citation.utils import get_paper_by_doi, get_paper_by_url
+=======
+from citation.tasks import handle_creating_citation_entry
+from citation.utils import get_paper_by_doi, get_paper_by_url, create_citation_entry_from_bibtex_entry_if_not_exists
+>>>>>>> 2a1feafd (Implement BibTeX (.bib) Library Upload in Reference Manager)
 from paper.exceptions import DOINotFoundError
 from paper.models import Paper
 from paper.serializers import PaperCitationSerializer
@@ -42,7 +48,11 @@ from researchhub.settings import (
 from utils.openalex import OpenAlex
 from utils.parsers import clean_filename
 from utils.sentry import log_error
+<<<<<<< HEAD
 from utils.throttles import THROTTLE_CLASSES
+=======
+from utils.bibtex import BibTeXParser
+>>>>>>> 2a1feafd (Implement BibTeX (.bib) Library Upload in Reference Manager)
 
 
 class CitationEntryPagination(PageNumberPagination):
@@ -194,6 +204,75 @@ class CitationEntryViewSet(ModelViewSet):
 
         res = dict(zip(project_ids, map(_check_if_citation_exists, project_ids)))
         return Response(res, status=200)
+    
+    
+    @track_event
+    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
+    def upload_library(self, request):
+        """
+        Upload and process bulk library imports.
+        Currently only supports .bib files.
+        """
+        data = request.data
+        file_type = data.get('type')
+        organization_id = data.get("organization_id")
+        project_id = data.get("project_id")
+        creator_id = data.get("creator_id")
+        if not file_type:
+            # assume it's bib for now
+            file_type = 'bibtex'
+
+        if file_type != 'bibtex':
+            return Response({'error': 'Invalid file type specified. Only "bibtex" is allowed.'}, status=400)
+
+        if not request.FILES:
+            return Response({'error': 'No files provided.'}, status=400)
+
+        files = request.FILES.getlist('file')
+        bibtex_entries = []
+
+        # Parse and decode all files (just .bib for now)
+        for uploaded_file in files:
+            # Check the file extension
+            file_name = uploaded_file.name
+            if not file_name.endswith('.bib'):
+                # ignore non-bib files
+                logging.warning(f'Ignoring file type in reference library import: {file_name}')
+
+            try:
+                # `uploaded_file` is in binary format, so we need to decode it
+                contents = uploaded_file.read().decode('utf-8')
+                entries = BibTeXParser.parse_bibtext_as_string(contents)
+                bibtex_entries.extend(entries)
+            except Exception as e:
+                log_error(e)
+                return Response({'error': f'Error parsing file: {file_name}'}, status=400)
+
+        # Create citation entries for each of the parsed entries
+        created_entries = []
+        errors = []
+        for entry in bibtex_entries:
+            e, already_exists, error_message = create_citation_entry_from_bibtex_entry_if_not_exists(
+                bibtex_entry=entry,
+                user_id=creator_id,
+                organization_id=organization_id,
+                project_id=project_id,
+            )
+            if not already_exists:
+                created_entries.append(e)
+
+            if error_message:
+                errors.append({
+                    'citation_id': e.id,
+                    'error': error_message,
+                })
+
+        citations = self.get_serializer(created_entries, many=True).data
+
+        return Response({
+            'citations': citations,
+            'errors': errors,
+        }, status=200)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def user_citations(self, request):

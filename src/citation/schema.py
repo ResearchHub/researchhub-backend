@@ -3,7 +3,14 @@ import re
 from utils.openalex import OpenAlex
 from utils.parsers import json_serial
 
-from .constants import CITATION_TYPE_FIELDS, JOURNAL_ARTICLE
+from .constants import (
+  CITATION_TYPE_FIELDS,
+  JOURNAL_ARTICLE,
+  BIBTEX_TO_CITATION_TYPES,
+  BIBTEX_TYPE_TO_CSL_MAPPING,
+  ARTICLE_JOURNAL
+)
+from utils.bibtex import BibTeXParser, BibTeXEntry
 
 # https://www.zotero.org/support/kb/item_types_and_fields
 
@@ -107,6 +114,77 @@ def generate_json_for_pdf(filename):
     return json_dict
 
 
+def generate_json_for_bibtex_entry(bib_entry: BibTeXEntry):
+    """
+    Generate a json object of CSL schema format from a BibTeX entry.
+    """
+    json_dict = {}
+    entry_type = bib_entry.get("entry_type", "")
+    citation_type = BIBTEX_TO_CITATION_TYPES.get(entry_type, JOURNAL_ARTICLE)
+    schema = generate_schema_for_citation(citation_type)
+
+    json_dict['type'] = BIBTEX_TYPE_TO_CSL_MAPPING.get(entry_type, '') or ARTICLE_JOURNAL
+    json_dict['id'] = bib_entry.get('key', None)
+
+    for field in schema["required"]:
+        mapping_value = BIBTEX_MAPPING.get(field, "")
+        entry_fields = bib_entry.get('fields_dict', {})
+
+        if mapping_value:
+            if field == "author" or field == "editor":
+                authors = entry_fields.get(mapping_value, "")
+                json_dict[field] = BibTeXParser.parse_authors_to_json(authors)
+            elif field == "accessed":
+                date = entry_fields.get(mapping_value, "")
+                if date:
+                    json_dict[field] = {
+                        "date-parts": [date_string_to_parts(date)]
+                    }
+            elif field == "issued":
+                # get the year, month, and day from the bib entry
+                year = entry_fields.get("year", "")
+                month = entry_fields.get("month", "")
+                day = entry_fields.get("day", "")
+
+                date_parts = BibTeXParser.parse_date_parts_from_date(year, month, day)
+
+                if date_parts:
+                    json_dict[field] = {
+                        "date-parts": [date_parts]
+                    }
+            else:
+                # if there's multiple fields that map to it, concatenate them with ';'
+                if isinstance(mapping_value, list) and len(mapping_value) > 1:
+                    parsed = ""
+                    for matching_field in mapping_value:
+                        value = entry_fields.get(matching_field, "")
+                        if value:
+                            if parsed:
+                                parsed += "; "
+                            parsed += BibTeXParser.parse_string(value)
+                    json_dict[field] = parsed
+                else:
+                    json_dict[field] = BibTeXParser.parse_string(
+                        entry_fields.get(mapping_value, "")
+                    )
+        else:
+            json_dict[field] = ""
+    return json_dict
+
+
+def merge_jsons(json1, json2):
+    """
+    Merge two json objects of CSL schema format into one.
+    Using the fields of json2 to fill in the missing/null fields of json1.
+    """
+    for key, value in json2.items():
+        if key not in json1 or not json1[key]:
+            json1[key] = value
+        elif isinstance(value, dict):
+            merge_jsons(json1[key], value)
+    return json1
+
+
 def generate_schema_for_citation(citation_type):
     citation_fields = CITATION_TYPE_FIELDS[citation_type]
     citation_field_properties = {
@@ -164,6 +242,51 @@ OPENALEX_TO_CSL_FORMAT = {
     },
 }
 
+# BibTeX fields: https://www.bibtex.com/format/fields/
+# Zotero also adds some extra fields: https://retorque.re/zotero-better-bibtex/exporting/extra-fields/
+# Mapping of CSL field to BibTeX field(s).
+# There's lists because some CSL fields can potentially be populated by multiple BibTeX fields.
+BIBTEX_MAPPING = {
+    "title": "title",
+    "abstract": "abstract",
+    "container-title": ["journal", "booktitle"],
+    "container-author": "bookauthor",
+    "author": "author",
+    "editor": "editor",
+    "volume": "volume",
+    "edition": "edition",
+    "issue": "number",
+    "number": "number",
+    "section": "number",
+    "version": "version",
+    "authority": "",
+    "references": "",
+    "page": "pages",
+    "medium": ["medium", "howpublished"],
+    "dimensions": "",
+    "number-of-volumes": "",
+    "collection-title": "series",
+    "collection-number": "",
+    "chapter-number": "chapter",
+    "journalAbbreviation": "journalAbbreviation",
+    "container-title-short": "journalAbbreviation",
+    "language": "language",
+    "DOI": "doi",
+    "ISSN": "issn",
+    "ISBN": "isbn",
+    "title-short": "shorttitle",
+    "URL": "url",
+    "archive": ["archive", "publisher", "journal"],
+    "archive_location": ["archive_location", "archivelocation"],
+    "source": ["source", "publisher", "journal"],
+    "publisher": ["publisher", "organization", "institution"],
+    "publisher-place": "address",
+    "call-number": "callnumber",
+    "issued": ["year", "month", "day"],
+    "note": "note",
+    "annote": "annote",
+    "genre": "type",
+}
 
 # Taken from https://raw.githubusercontent.com/citation-style-language/schema/master/schemas/input/csl-data.json
 CSL_SCHEMA = {
