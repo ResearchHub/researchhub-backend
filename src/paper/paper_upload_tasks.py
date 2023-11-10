@@ -55,14 +55,16 @@ def celery_process_paper(self, submission_id):
     paper_submission = PaperSubmission.objects.get(id=submission_id)
     paper_submission.set_processing_status()
     paper_submission.notify_status()
-    uploaded_by = paper_submission.uploaded_by
+    uploaded_by_id = None
+    if paper_submission.uploaded_by:
+        uploaded_by_id = paper_submission.uploaded_by.id
     url = paper_submission.url
     doi = paper_submission.doi
     citation = paper_submission.citation
 
     celery_data = {
         "url": url,
-        "uploaded_by_id": uploaded_by.id,
+        "uploaded_by_id": uploaded_by_id,
         "submission_id": submission_id,
     }
     if citation is not None:
@@ -613,28 +615,31 @@ def celery_create_paper(self, celery_data):
 
         uploaded_by = paper_submission.uploaded_by
 
-        from discussion.models import Vote as GrmVote
+        if uploaded_by:
+            from discussion.models import Vote as GrmVote
 
-        GrmVote.objects.create(
-            content_type=get_content_type_for_model(paper),
-            created_by=uploaded_by,
-            object_id=paper.id,
-            vote_type=GrmVote.UPVOTE,
-        )
+            GrmVote.objects.create(
+                content_type=get_content_type_for_model(paper),
+                created_by=uploaded_by,
+                object_id=paper.id,
+                vote_type=GrmVote.UPVOTE,
+            )
         paper.unified_document.update_filter(FILTER_OPEN_ACCESS)
         download_pdf.apply_async((paper_id,), priority=3, countdown=5)
         add_orcid_authors.apply_async((paper_id,), priority=5, countdown=5)
-        create_contribution.apply_async(
-            (
-                Contribution.SUBMITTER,
-                {"app_label": "paper", "model": "paper"},
-                uploaded_by.id,
-                paper.unified_document.id,
-                paper_id,
-            ),
-            priority=2,
-            countdown=3,
-        )
+
+        if uploaded_by:
+            create_contribution.apply_async(
+                (
+                    Contribution.SUBMITTER,
+                    {"app_label": "paper", "model": "paper"},
+                    uploaded_by.id,
+                    paper.unified_document.id,
+                    paper_id,
+                ),
+                priority=2,
+                countdown=3,
+            )
     except ValidationError as e:
         raise e
     except Exception as e:

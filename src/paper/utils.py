@@ -302,7 +302,6 @@ def get_csl_item(url) -> dict:
     from manubot.cite.citekey import citekey_to_csl_item, url_to_citekey
 
     try:
-
         citekey = url_to_citekey(url)
         citekey = RHCiteKey(citekey)
         csl_item = citekey_to_csl_item(citekey)
@@ -374,12 +373,16 @@ def download_pdf(url):
         pdf = get_pdf_from_url(url)
         filename = url.split("/").pop()
         return pdf, filename
+    return None, None
 
 
 def get_pdf_from_url(url):
     scraper = cloudscraper.create_scraper()
     response = scraper.get(url, timeout=3)
-    pdf = ContentFile(response.content)
+    filename = url.split("/").pop()
+    if not filename.endswith(".pdf"):
+        filename += ".pdf"
+    pdf = ContentFile(response.content, name=filename)
     return pdf
 
 

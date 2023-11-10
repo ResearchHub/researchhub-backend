@@ -78,6 +78,7 @@ q5-django-inlinecss = "0.0.2"
 pdf2doi = "1.5"
 beautifulsoup4 = "4.12.2"
 django-allauth = "0.48.0"
+bibtexparser = {version = "^2.0.0b3", allow-prereleases = true}
 
 [tool.poetry.dev-dependencies]
 

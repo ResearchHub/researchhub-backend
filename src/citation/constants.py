@@ -95,6 +95,41 @@ ZOTERO_TO_CSL_MAPPING = {
 
 CSL_TO_ZOTERO_MAPPING = {value: key for key, value in ZOTERO_TO_CSL_MAPPING.items()}
 
+# BibTeX Entry Types: https://www.bibtex.com/e/entry-types/
+BIBTEX_TO_CITATION_TYPES = {
+    "article": JOURNAL_ARTICLE,
+    "book": BOOK,
+    "booklet": BOOK,
+    "conference": CONFERENCE_PAPER,
+    "inbook": BOOK_SECTION,
+    "incollection": BOOK_SECTION,
+    "inproceedings": CONFERENCE_PAPER,
+    "manual": DOCUMENT,
+    "masterthesis": THESIS,
+    "misc": DOCUMENT,
+    "phdthesis": THESIS,
+    "proceedings": CONFERENCE_PAPER,
+    "techreport": REPORT,
+    "unpublished": DOCUMENT,
+}
+BIBTEX_TYPE_TO_CSL_MAPPING = {
+    "article": ARTICLE_JOURNAL.lower(),
+    "book": BOOK.lower(),
+    "booklet": BOOK.lower(),
+    "conference": PAPER_CONFERENCE.lower(),
+    "inbook": CHAPTER.lower(),
+    "incollection": CHAPTER.lower(),
+    "inproceedings": PAPER_CONFERENCE.lower(),
+    "manual": REPORT.lower(),
+    "mastersthesis": THESIS.lower(),
+    "misc": DOCUMENT.lower(),
+    "phdthesis": THESIS.lower(),
+    "proceedings": PAPER_CONFERENCE.lower(),
+    "techreport": REPORT.lower(),
+    "unpublished": ARTICLE.lower(),
+    "online": WEBPAGE.lower(),
+}
+
 CITATION_TYPE_CHOICES = (
     (ARTWORK, ARTWORK),
     (AUDIO_RECORDING, AUDIO_RECORDING),
