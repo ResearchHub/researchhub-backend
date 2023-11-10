@@ -134,6 +134,8 @@ CITATION_TYPE_CHOICES = (
 )
 
 
+# These need to be CSL compliant
+# https://docs.citationstyles.org/en/stable/specification.html#appendix-iii-types
 CITATION_TYPE_FIELDS = {
     JOURNAL_ARTICLE: [
         "title",
@@ -155,7 +157,6 @@ CITATION_TYPE_FIELDS = {
         "call-number",
         "issued",
         "note",
-        "journal-name",
         "custom",
     ],
     ARTWORK: [

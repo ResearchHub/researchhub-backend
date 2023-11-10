@@ -17,13 +17,17 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from analytics.amplitude import track_event
-from citation.constants import CITATION_TYPE_FIELDS
+from citation.constants import CITATION_TYPE_FIELDS, JOURNAL_ARTICLE
 from citation.filters import CitationEntryFilter
 from citation.models import CitationEntry, CitationProject
-from citation.permissions import PDFUploadsS3CallBack, UserCanViewCitation
-from citation.schema import generate_schema_for_citation
+from citation.permissions import (
+    PDFUploadsS3CallBack,
+    UserBelongsToOrganization,
+    UserCanViewCitation,
+)
+from citation.schema import generate_json_for_rh_paper, generate_schema_for_citation
 from citation.serializers import CitationEntrySerializer
-from citation.tasks import handle_creating_citation_entry
+from citation.tasks import add_pdf_to_citation, handle_creating_citation_entry
 from citation.utils import get_paper_by_doi, get_paper_by_url
 from paper.exceptions import DOINotFoundError
 from paper.models import Paper
@@ -38,6 +42,7 @@ from researchhub.settings import (
 from utils.openalex import OpenAlex
 from utils.parsers import clean_filename
 from utils.sentry import log_error
+from utils.throttles import THROTTLE_CLASSES
 
 
 class CitationEntryPagination(PageNumberPagination):
@@ -51,9 +56,14 @@ class CitationEntryViewSet(ModelViewSet):
     queryset = CitationEntry.objects.all()
     filter_class = CitationEntryFilter
     filter_backends = (DjangoFilterBackend, OrderingFilter)
-    permission_classes = [IsAuthenticated, UserCanViewCitation]
+    permission_classes = [
+        IsAuthenticated,
+        UserCanViewCitation,
+        UserBelongsToOrganization,
+    ]
     serializer_class = CitationEntrySerializer
     pagination_class = CitationEntryPagination
+    throttle_classes = THROTTLE_CLASSES
     ordering = ("-updated_date", "-created_date")
     ordering_fields = ("updated_date", "created_date")
 
@@ -130,6 +140,60 @@ class CitationEntryViewSet(ModelViewSet):
             use_grobid,
         )
         return Response(status=200)
+
+    @action(detail=True, methods=["post"])
+    def add_paper_as_citation(self, request, pk):
+        user = request.user
+
+        with transaction.atomic():
+            organization = getattr(request, "organization", None) or user.organization
+            project_id = request.data.get("project_id", None)
+            paper = Paper.objects.get(id=pk)
+            json = generate_json_for_rh_paper(paper)
+
+            citation_entry_data = {
+                "citation_type": JOURNAL_ARTICLE,
+                "fields": json,
+                "created_by": user.id,
+                "organization": organization.id,
+                "doi": paper.doi,
+                "related_unified_doc": paper.unified_document.id,
+                "project": project_id,
+            }
+            request._mutable = True
+            request._full_data = citation_entry_data
+            request._mutable = False
+            res = super().create(request)
+
+            if file := paper.file:
+                add_pdf_to_citation.apply_async(
+                    (res.data["id"], file.name), countdown=3, priority=6
+                )
+            return res
+
+    @action(
+        detail=True,
+        methods=["get"],
+        permission_classes=[IsAuthenticated, UserBelongsToOrganization],
+    )
+    def check_paper_in_reference_manager(self, request, pk=None):
+        user = request.user
+        project_ids = request.query_params.get("project_ids", None)
+        organization = getattr(request, "organization", None) or user.organization
+        organization_references = organization.created_citations
+
+        if not project_ids:
+            project_ids = [None]
+        else:
+            project_ids = list(map(int, project_ids.split(",")))
+
+        def _check_if_citation_exists(project_id):
+            return organization_references.filter(
+                related_unified_doc=pk, project=project_id
+            ).values_list("id", flat=True)
+
+        res = dict(zip(project_ids, map(_check_if_citation_exists, project_ids)))
+        return Response(res, status=200)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def user_citations(self, request):
@@ -223,7 +287,7 @@ class CitationEntryViewSet(ModelViewSet):
     @action(
         detail=False,
         methods=["POST", "DELETE"],
-        permission_classes=[IsAuthenticated],
+        permission_classes=[IsAuthenticated, UserBelongsToOrganization],
     )
     def remove(self, request, *args, **kwargs):
         with transaction.atomic():

@@ -25,7 +25,7 @@ class CitationEntryDocumentView(DocumentViewSet):
     search_nested_fields = {
         "title": {"path": "fields", "fields": ["title"]},
         "source": {"path": "fields", "fields": ["source"]},
-        "journal_name": {"path": "fields", "fields": ["journal-name"]},
+        "journal_name": {"path": "fields", "fields": ["container-title"]},
         "authors": {
             "path": "fields",
             "fields": ["author.given", "author.family"],
