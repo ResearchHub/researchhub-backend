@@ -488,10 +488,10 @@ class PaperSerializer(BasePaperSerializer):
             raise error
 
     def update(self, instance, validated_data):
-        authors = validated_data.pop("authors", [None])
+        validated_data.pop("authors", [None])
         file = validated_data.pop("file", None)
         hubs = validated_data.pop("hubs", [None])
-        raw_authors = validated_data.pop("raw_authors", [])
+        validated_data.pop("raw_authors", [])
         request = self.context.get("request", None)
 
         try:
@@ -535,20 +535,6 @@ class PaperSerializer(BasePaperSerializer):
                     paper.hubs.add(*hubs)
                     unified_doc.hubs.remove(*remove_hubs)
                     unified_doc.hubs.add(*hubs)
-
-                if authors:
-                    current_authors = paper.authors.all()
-                    remove_authors = []
-                    for author in current_authors:
-                        if author not in authors:
-                            remove_authors.append(author)
-
-                    new_authors = []
-                    for author in authors:
-                        if author not in current_authors:
-                            new_authors.append(author)
-                    paper.authors.remove(*remove_authors)
-                    paper.authors.add(*new_authors)
 
                 paper.set_paper_completeness()
 

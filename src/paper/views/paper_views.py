@@ -60,6 +60,7 @@ from paper.utils import (
 from purchase.models import Purchase
 from reputation.models import Contribution
 from researchhub.lib import get_document_id_from_path
+from researchhub.permissions import IsObjectOwnerOrModerator
 from researchhub_document.permissions import HasDocumentCensorPermission
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
@@ -805,6 +806,22 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         )
         return Response(status=status.HTTP_200_OK)
 
+    @action(
+        detail=True,
+        methods=["patch"],
+        permission_classes=[IsAuthenticated, IsModeratorOrVerifiedAuthor],
+    )
+    def update_paper_authors(self, request, pk=None):
+        data = request.data
+        paper = self.get_object()
+
+        authors_to_add = data.get("add", [])
+        authors_to_remove = data.get("remove", [])
+        paper.authors.add(*authors_to_add)
+        paper.authors.remove(*authors_to_remove)
+
+        return Response(status=status.HTTP_200_OK)
+
 
 class AdditionalFileViewSet(viewsets.ModelViewSet):
     queryset = AdditionalFile.objects.all()
@@ -825,7 +842,7 @@ class FigureViewSet(viewsets.ModelViewSet):
     serializer_class = FigureSerializer
     throttle_classes = THROTTLE_CLASSES
 
-    permission_classes = [IsModeratorOrVerifiedAuthor]
+    permission_classes = [IsObjectOwnerOrModerator]
 
     def get_queryset(self):
         return self.queryset
@@ -856,7 +873,7 @@ class FigureViewSet(viewsets.ModelViewSet):
         if request.query_params.get("created_location") == "progress":
             created_location = Figure.CREATED_LOCATION_PROGRESS
 
-        paper = Paper.objects.get(id=pk)
+        paper = self.get_object()
         figures = request.FILES.values()
         figure_type = request.data.get("figure_type")
         urls = []
