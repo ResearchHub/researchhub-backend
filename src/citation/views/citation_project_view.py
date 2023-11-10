@@ -32,8 +32,8 @@ class CitationProjectViewSet(ModelViewSet):
             response = super().create(request, *args, **kwargs)
             project = self.get_queryset().get(id=response.data.get("id"))
             project.set_creator_as_admin()
-            project.add_editors(upserted_collaborators.get("editors", []))
-            project.add_viewers(upserted_collaborators.get("viewers", []))
+            # project.add_editors(upserted_collaborators.get("editors", []))
+            # project.add_viewers(upserted_collaborators.get("viewers", []))
             suffix = get_random_string(length=32)
             slug = slugify(project.project_name)
             if not slug:
