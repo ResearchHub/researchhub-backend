@@ -210,7 +210,11 @@ class CitationEntryViewSet(ModelViewSet):
         """
         data = request.data
         file_type = data.get("type")
-        organization_id = data.get("organization_id")
+        organization = getattr(request, "organization", None) or request.user.organization
+        if organization:
+            organization_id = organization.id
+        else:
+            organization_id = None
         project_id = data.get("project_id")
         creator_id = data.get("creator_id")
         if not file_type:
