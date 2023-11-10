@@ -16,6 +16,7 @@ class CitationProject(DefaultAuthenticatedModel):
         default=True,
         null=False,
     )
+    status = models.CharField(null=False, default="full_access", max_length=32)
     slug = models.SlugField(
         max_length=1024,
         blank=True,

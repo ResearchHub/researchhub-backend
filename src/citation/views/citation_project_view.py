@@ -94,17 +94,24 @@ class CitationProjectViewSet(ModelViewSet):
         if not org.org_has_user(user=user):
             raise PermissionError("Current user not allowed")
 
-        public_projects_query = Q(organization=org, is_public=True, parent=None)
+        public_projects_query = Q(organization=org, parent=None, is_public=True) & ~Q(
+            status="no_access"
+        )
         non_public_accessible_projs_query = Q(
             is_public=False,
             organization=org,
             parent=None,
             permissions__user=user,
         )
+        my_no_access_queries = Q(
+            organization=org, parent=None, status="no_access", created_by=user
+        )
         final_citation_proj_qs = (
             self.filter_queryset(
                 self.get_queryset().filter(
-                    public_projects_query | non_public_accessible_projs_query
+                    public_projects_query
+                    | non_public_accessible_projs_query
+                    | my_no_access_queries
                 )
             )
             .order_by(*self.ordering_fields)
