@@ -9,7 +9,7 @@ from paper.tasks import download_pdf
 class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument("--start_date", help="Perform for date starting")
-        parser.add_argument("--end_date", help="Perform for date starting")
+        parser.add_argument("--end_date", help="End date")
 
     def handle(self, *args, **options):
         start_date = parser.parse(options["start_date"])
