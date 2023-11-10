@@ -1,5 +1,7 @@
 from django.test import TestCase
+
 from utils.bibtex import BibTeXParser
+
 from ..schema import generate_json_for_bibtex_entry
 
 
@@ -27,18 +29,23 @@ class SchemaTests(TestCase):
 
         result = generate_json_for_bibtex_entry(entries[0])
 
-        self.assertEqual(result['title'], 'ImageNet: A large-scale hierarchical image database')
-        self.assertEqual(result['publisher-place'], 'Miami, FL')
-        self.assertEqual(result['publisher'], 'IEEE')
-        self.assertEqual(result['type'], 'paper-conference')
-        self.assertEqual(result['page'], '248–255')
-        self.assertEqual(result['container-title'], '2009 IEEE Conference on Computer Vision and Pattern Recognition')
-        self.assertEqual(result['DOI'], '10.1109/CVPR.2009.5206848')
-        self.assertEqual(result['author'][0]['family'], 'Deng')
-        self.assertEqual(result['author'][0]['given'], 'Jia')
+        self.assertEqual(
+            result["title"], "ImageNet: A large-scale hierarchical image database"
+        )
+        self.assertEqual(result["publisher-place"], "Miami, FL")
+        self.assertEqual(result["publisher"], "IEEE")
+        self.assertEqual(result["type"], "paper-conference")
+        self.assertEqual(result["page"], "248–255")
+        self.assertEqual(
+            result["container-title"],
+            "2009 IEEE Conference on Computer Vision and Pattern Recognition",
+        )
+        self.assertEqual(result["DOI"], "10.1109/CVPR.2009.5206848")
+        self.assertEqual(result["author"][0]["family"], "Deng")
+        self.assertEqual(result["author"][0]["given"], "Jia")
 
-        self.assertEqual(result['issued']['date-parts'][0][0], 2009)
-        self.assertEqual(result['issued']['date-parts'][0][1], 6)
+        self.assertEqual(result["issued"]["date-parts"][0][0], 2009)
+        self.assertEqual(result["issued"]["date-parts"][0][1], 6)
 
     def test_generate_json_for_bibtex_entry_journal_article(self):
         """
@@ -68,14 +75,17 @@ year = {2018}
 
         result = generate_json_for_bibtex_entry(entries[0])
 
-        self.assertEqual(result['type'], 'article-journal')
-        self.assertEqual(result['volume'], '64')
-        self.assertEqual(result['issue'], 's1')
-        self.assertEqual(result['URL'], 'https://www.medra.org/servlet/aliasResolver?alias=iospress&doi=10.3233/JAD-179935')
+        self.assertEqual(result["type"], "article-journal")
+        self.assertEqual(result["volume"], "64")
+        self.assertEqual(result["issue"], "s1")
+        self.assertEqual(
+            result["URL"],
+            "https://www.medra.org/servlet/aliasResolver?alias=iospress&doi=10.3233/JAD-179935",
+        )
         # author with first name Mauro has a LaTeX accent in their last name
-        for author in result['author']:
-            if author['given'] == 'Mauro':
-                self.assertEqual(author['family'], 'Fà')
+        for author in result["author"]:
+            if author["given"] == "Mauro":
+                self.assertEqual(author["family"], "Fà")
                 break
 
     # Test for other types of entries to ensure our schema is robust
@@ -94,10 +104,10 @@ year = {2018}
 
         result = generate_json_for_bibtex_entry(entries[0])
 
-        self.assertEqual(result['type'], 'book')
-        self.assertEqual(result['title'], 'The TeXbook')
-        self.assertEqual(result['publisher'], 'Addison-Wesley')
-        self.assertEqual(result['issued']['date-parts'][0][0], 1984)
+        self.assertEqual(result["type"], "book")
+        self.assertEqual(result["title"], "The TeXbook")
+        self.assertEqual(result["publisher"], "Addison-Wesley")
+        self.assertEqual(result["issued"]["date-parts"][0][0], 1984)
 
     def test_generate_json_for_bibtex_entry_online(self):
         bib_string = """
@@ -113,10 +123,12 @@ year = {2018}
 
         result = generate_json_for_bibtex_entry(entries[0])
 
-        self.assertEqual(result['type'], 'webpage')
-        self.assertEqual(result['title'], 'Page with multiple special characters')
-        self.assertEqual(result['URL'], 'https://example.com/path?query=parameter#section')
-        self.assertEqual(result['issued']['date-parts'][0][0], 2021)
+        self.assertEqual(result["type"], "webpage")
+        self.assertEqual(result["title"], "Page with multiple special characters")
+        self.assertEqual(
+            result["URL"], "https://example.com/path?query=parameter#section"
+        )
+        self.assertEqual(result["issued"]["date-parts"][0][0], 2021)
 
     def test_generate_json_for_bibtex_entry_misc(self):
         bib_string = """
@@ -133,7 +145,10 @@ year = {2018}
 
         result = generate_json_for_bibtex_entry(entries[0])
 
-        self.assertEqual(result['type'], 'document')
-        self.assertEqual(result['title'], 'BibTeX — Wikipedia, The Free Encyclopedia')
-        self.assertEqual(result['URL'], 'https://en.wikipedia.org/w/index.php?title=BibTeX&oldid=957077279')
-        self.assertEqual(result['issued']['date-parts'][0][0], 2020)
+        self.assertEqual(result["type"], "document")
+        self.assertEqual(result["title"], "BibTeX — Wikipedia, The Free Encyclopedia")
+        self.assertEqual(
+            result["URL"],
+            "https://en.wikipedia.org/w/index.php?title=BibTeX&oldid=957077279",
+        )
+        self.assertEqual(result["issued"]["date-parts"][0][0], 2020)

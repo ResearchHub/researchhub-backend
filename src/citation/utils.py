@@ -3,37 +3,40 @@ from urllib.parse import urlparse
 import pdf2doi
 import requests
 from django.contrib.postgres.search import SearchQuery
+from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db import transaction
 from django.db.models import Q
 from django.http.request import HttpRequest
 from rest_framework.request import Request
-from django.core.files.base import ContentFile
 
-from citation.constants import JOURNAL_ARTICLE, BIBTEX_TO_CITATION_TYPES
+from citation.constants import BIBTEX_TO_CITATION_TYPES, JOURNAL_ARTICLE
 from citation.exceptions import GrobidProcessingError
 from citation.models import CitationEntry
 from citation.schema import (
+    generate_json_for_bibtex_entry,
     generate_json_for_doi_via_oa,
     generate_json_for_pdf,
     generate_json_for_rh_paper,
-    generate_json_for_bibtex_entry,
     merge_jsons,
 )
 from citation.serializers import CitationEntrySerializer
 from paper.models import Paper
 from paper.paper_upload_tasks import (
-  celery_process_paper, celery_openalex, celery_combine_paper_data, celery_create_paper
+    celery_combine_paper_data,
+    celery_create_paper,
+    celery_openalex,
+    celery_process_paper,
 )
-from paper.utils import download_pdf
 from paper.serializers import PaperSubmissionSerializer
+from paper.utils import download_pdf
 from researchhub.settings import AWS_STORAGE_BUCKET_NAME, GROBID_SERVER
 from user.models import User
 from utils.aws import lambda_compress_and_linearize_pdf
-from utils.parsers import get_pure_doi
-from utils.sentry import log_error
 from utils.bibtex import BibTeXEntry
 from utils.openalex import OpenAlex
+from utils.parsers import get_pure_doi
+from utils.sentry import log_error
 
 
 def get_pdf_header_data(path):
@@ -128,8 +131,7 @@ def get_citation_entry_from_pdf(
 
 
 def create_citation_entry_from_bibtex_entry_if_not_exists(
-    bibtex_entry: BibTeXEntry,
-    user_id, organization_id, project_id
+    bibtex_entry: BibTeXEntry, user_id, organization_id, project_id
 ):
     """
     Creates a citation entry from a bibtex entry if it doesn't already exist.
@@ -153,7 +155,9 @@ def create_citation_entry_from_bibtex_entry_if_not_exists(
         request.user = User.objects.get(id=user_id)
 
         json = generate_json_for_bibtex_entry(bibtex_entry)
-        citation_type = BIBTEX_TO_CITATION_TYPES.get(bibtex_entry.entry_type, JOURNAL_ARTICLE)
+        citation_type = BIBTEX_TO_CITATION_TYPES.get(
+            bibtex_entry.entry_type, JOURNAL_ARTICLE
+        )
 
         # see if we can find a paper with the same doi or url,
         # if so we can supplement the json with the paper's data
@@ -193,7 +197,9 @@ def create_citation_entry_from_bibtex_entry_if_not_exists(
             open_alex = OpenAlex()
             oa_work = open_alex.get_data_from_doi(doi)
             if oa_work:
-                loc = oa_work.get("best_oa_location", None) or oa_work.get("primary_location", None)
+                loc = oa_work.get("best_oa_location", None) or oa_work.get(
+                    "primary_location", None
+                )
                 if loc:
                     pdf_url = loc.get("pdf_url", None)
                 if pdf_url is None:
@@ -262,10 +268,7 @@ def create_paper_from_citation(citation):
     else:
         print("duplicate paper with doi {}".format(citation.doi))
 
-    return {
-        "duplicate": duplicate_papers is not None,
-        "process_id": process_id
-    }
+    return {"duplicate": duplicate_papers is not None, "process_id": process_id}
 
 
 def get_paper_by_svf(key, query):

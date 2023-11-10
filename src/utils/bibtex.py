@@ -1,7 +1,8 @@
+import re
+from dataclasses import dataclass, fields
+
 import bibtexparser
 from pylatexenc.latex2text import LatexNodes2Text
-from dataclasses import dataclass, fields
-import re
 
 
 @dataclass
@@ -45,7 +46,7 @@ class BibTeXFields:
 
     def __getitem__(self, key, default=None):
         return getattr(self, key, default)
-    
+
     def get(self, key, default=None):
         return getattr(self, key, default)
 
@@ -92,7 +93,9 @@ class BibTeXParser:
     # - \\usepackage{hyperref}
     # - See section 10.2.3/4 for details.
     # - @article{key, author = "Doe, J.", title = "Title", doi = "10.1000/xyz123"}
-    url_pattern = re.compile(r'\bhttps?://[^\s()<>]+(?:\([\w\d]+\)|[^\s`!()\[\]{};:\'".,<>?«»“”‘’])*')
+    url_pattern = re.compile(
+        r'\bhttps?://[^\s()<>]+(?:\([\w\d]+\)|[^\s`!()\[\]{};:\'".,<>?«»“”‘’])*'
+    )
 
     @staticmethod
     def parse_bibtext_as_string(bibtex_string):
@@ -108,14 +111,14 @@ class BibTeXParser:
 
         for entry in bib.entries:
             # Filter out fields not defined in the dataclass and convert field names to lowercase
-            filtered_fields = {k.lower(): v for k, v in entry.items() if k.lower() in defined_fields}
+            filtered_fields = {
+                k.lower(): v for k, v in entry.items() if k.lower() in defined_fields
+            }
 
             fields_dict = BibTeXFields(**filtered_fields)
             # Create an instance of BibTeXEntry with the key, entry type, and fields
             bib_entry = BibTeXEntry(
-                key=entry.key,
-                entry_type=entry.entry_type,
-                fields_dict=fields_dict
+                key=entry.key, entry_type=entry.entry_type, fields_dict=fields_dict
             )
 
             entries.append(bib_entry)
@@ -131,22 +134,24 @@ class BibTeXParser:
         for author in split_names(author_string):
             first, von, last, jr = parse_name(author)
             csl_parts = {}
-            for part, csl_label in [(first, 'given'),
-                                    (von, 'non-dropping-particle'),
-                                    (last, 'family'),
-                                    (jr, 'suffix')]:
+            for part, csl_label in [
+                (first, "given"),
+                (von, "non-dropping-particle"),
+                (last, "family"),
+                (jr, "suffix"),
+            ]:
                 if part is not None:
                     csl_parts[csl_label] = LatexNodes2Text().latex_to_text(part)
 
             csl_author = {}
-            if 'family' in csl_parts:
-                csl_author['family'] = csl_parts['family']
-            if 'given' in csl_parts:
-                csl_author['given'] = csl_parts['given']
-            if 'non-dropping-particle' in csl_parts:
-                csl_author['non-dropping-particle'] = csl_parts['non-dropping-particle']
-            if 'suffix' in csl_parts:
-                csl_author['suffix'] = csl_parts['suffix']
+            if "family" in csl_parts:
+                csl_author["family"] = csl_parts["family"]
+            if "given" in csl_parts:
+                csl_author["given"] = csl_parts["given"]
+            if "non-dropping-particle" in csl_parts:
+                csl_author["non-dropping-particle"] = csl_parts["non-dropping-particle"]
+            if "suffix" in csl_parts:
+                csl_author["suffix"] = csl_parts["suffix"]
             csl_authors.append(csl_author)
         return csl_authors
 
@@ -155,34 +160,35 @@ class BibTeXParser:
         """
         Parse a BibTeX string into a readable string.
         """
+
         def make_string(string, top_level_group=False):
             # Skip latex processing if it's a URL
             # since LatexNodes2Text().latex_to_text() will mess up URLs
             if BibTeXParser.url_pattern.search(string):
                 return string
-            
+
             unlatexed = LatexNodes2Text().latex_to_text(string)
             # fixed_case = top_level_group and not string.startswith('\\')
             return unlatexed
-        
+
         if bibtex_string is None:
             return None
 
-        output = ''
+        output = ""
         level = 0
-        string = ''
+        string = ""
         for char in bibtex_string:
-            if char == '{':
+            if char == "{":
                 if level == 0:
                     if string:
                         output += make_string(string)
-                        string = ''
+                        string = ""
                 level += 1
-            elif char == '}':
+            elif char == "}":
                 level -= 1
                 if level == 0:
                     output += make_string(string, True)
-                    string = ''
+                    string = ""
             else:
                 string += char
         if level != 0:
@@ -202,12 +208,12 @@ class BibTeXParser:
         Parse a BibTeX date string into a list of date parts.
         e.g. 2019, Jun 01 -> [2019, 6, 1]
         """
-        if year is None or year == '':
+        if year is None or year == "":
             return None
 
         date_parts = [int(year)]
 
-        if month is not None and month != '':
+        if month is not None and month != "":
             # convert month to number
             month = month.lower()
             if month not in MONTH_TO_NUMBER:
@@ -215,36 +221,36 @@ class BibTeXParser:
 
             date_parts.append(MONTH_TO_NUMBER[month])
 
-            if day is not None and day != '':
+            if day is not None and day != "":
                 date_parts.append(int(day))
 
         return date_parts
 
 
 MONTH_TO_NUMBER = {
-    'jan': 1,
-    'january': 1,
-    'feb': 2,
-    'february': 2,
-    'mar': 3,
-    'march': 3,
-    'apr': 4,
-    'april': 4,
-    'may': 5,
-    'jun': 6,
-    'june': 6,
-    'jul': 7,
-    'july': 7,
-    'aug': 8,
-    'august': 8,
-    'sep': 9,
-    'september': 9,
-    'oct': 10,
-    'october': 10,
-    'nov': 11,
-    'november': 11,
-    'dec': 12,
-    'december': 12,
+    "jan": 1,
+    "january": 1,
+    "feb": 2,
+    "february": 2,
+    "mar": 3,
+    "march": 3,
+    "apr": 4,
+    "april": 4,
+    "may": 5,
+    "jun": 6,
+    "june": 6,
+    "jul": 7,
+    "july": 7,
+    "aug": 8,
+    "august": 8,
+    "sep": 9,
+    "september": 9,
+    "oct": 10,
+    "october": 10,
+    "nov": 11,
+    "november": 11,
+    "dec": 12,
+    "december": 12,
 }
 
 
@@ -258,7 +264,7 @@ MONTH_TO_NUMBER = {
 #  - Tame the BeaST by Nicolas Markey
 #    (http://tug.ctan.org/info/bibtex/tamethebeast/ttb_en.pdf)
 
-AND = ' and '
+AND = " and "
 
 
 def split_names(string):
@@ -271,9 +277,9 @@ def split_names(string):
         if brace_level == 0 and string[i:].startswith(AND):
             names.append(string[last_index:i])
             last_index = i + len(AND)
-        elif char == '{':
+        elif char == "{":
             brace_level += 1
-        elif char == '}':
+        elif char == "}":
             brace_level -= 1
     last_name = string[last_index:]
     if last_name:
@@ -286,8 +292,8 @@ def parse_name(name):
     parts.
     """
     parts = split_name(name)
-    if len(parts) == 1:       # First von Last
-        first_von_last, = parts
+    if len(parts) == 1:  # First von Last
+        (first_von_last,) = parts
         index = 0
         first, jr = [], []
         for word in first_von_last[:-1]:
@@ -296,13 +302,13 @@ def parse_name(name):
             first.append(word)
             index += 1
         von_last = first_von_last[index:]
-    elif len(parts) == 2:     # von Last, First
+    elif len(parts) == 2:  # von Last, First
         jr = []
         von_last, first = parts
-    elif len(parts) == 3:     # von Last, Jr, First
+    elif len(parts) == 3:  # von Last, Jr, First
         von_last, jr, first = parts
     von, last = split_von_last(von_last)
-    join = ' '.join
+    join = " ".join
     return join(first) or None, join(von) or None, join(last), join(jr) or None
 
 
@@ -315,20 +321,20 @@ def split_name(name):
     brace_level = 0
     parts = []
     current_part = []
-    word = ''
+    word = ""
     for char in name:
-        if char in ' \t,':
+        if char in " \t,":
             if brace_level == 0:
                 if word:
                     current_part.append(word)
-                    word = ''
-                if char == ',':
+                    word = ""
+                if char == ",":
                     parts.append(current_part)
                     current_part = []
                 continue
-        elif char == '{':
+        elif char == "{":
             brace_level += 1
-        elif char == '}':
+        elif char == "}":
             brace_level -= 1
         word += char
     if word:
@@ -347,11 +353,11 @@ def is_capitalized(string):
     for char, next_char in lookahead_iter(string):
         if (brace_level == 0 or special_char) and char.isalpha():
             return char.isupper()
-        elif char == '{':
+        elif char == "{":
             brace_level += 1
-            if brace_level == 1 and next_char == '\\':
+            if brace_level == 1 and next_char == "\\":
                 special_char = True
-        elif char == '}':
+        elif char == "}":
             brace_level -= 1
             if brace_level == 0:
                 special_char = False
@@ -363,7 +369,7 @@ def split_von_last(words):
     if len(words) > 1 and is_capitalized(words[0]) is False:
         for j, word in enumerate(reversed(words[:-1])):
             if is_capitalized(word) not in (True, None):
-                return words[:-j - 1], words[-j - 1:]
+                return words[: -j - 1], words[-j - 1 :]
     return [], words
 
 
