@@ -19,7 +19,7 @@ from rest_framework.viewsets import ModelViewSet
 from analytics.amplitude import track_event
 from citation.constants import CITATION_TYPE_FIELDS
 from citation.filters import CitationEntryFilter
-from citation.models import CitationEntry
+from citation.models import CitationEntry, CitationProject
 from citation.permissions import PDFUploadsS3CallBack, UserCanViewCitation
 from citation.schema import generate_schema_for_citation
 from citation.serializers import CitationEntrySerializer
@@ -70,6 +70,13 @@ class CitationEntryViewSet(ModelViewSet):
         organization_id = data.get("organization_id")
         project_id = data.get("project_id")
         filename = data.get("filename")
+        project = CitationProject.objects.get(id=project_id)
+        can_upload = (
+            project.status == "full_access" or project.created_by == request.user
+        )
+
+        if not can_upload:
+            return Response(status=403)
 
         cleaned_filename = clean_filename(f"{get_random_string(8)}_{filename}")
         user_key = f"user_{request.user.id}"
