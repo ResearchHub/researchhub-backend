@@ -5,6 +5,7 @@ from django_elasticsearch_dsl_drf.filter_backends import (
 from django_elasticsearch_dsl_drf.pagination import LimitOffsetPagination
 from django_elasticsearch_dsl_drf.viewsets import DocumentViewSet
 from elasticsearch_dsl import Search
+from elasticsearch_dsl.query import SF, FunctionScore, Q
 
 from search.backends.multi_match_filter import MultiMatchSearchFilterBackend
 from search.documents.hub import HubDocument
@@ -23,7 +24,8 @@ class HubSuggesterDocumentView(DocumentViewSet):
         SuggesterFilterBackend,
         OrderingFilterBackend,
     ]
-    ordering = ("-id",)
+
+    ordering = ("id",)
     ordering_fields = {
         "id": "id",
     }
@@ -38,7 +40,7 @@ class HubSuggesterDocumentView(DocumentViewSet):
             "field": "name_suggest",
             "suggesters": ["completion"],
             "options": {
-                "size": 5,
+                "size": 15,
             },
         },
     }
