@@ -25,10 +25,8 @@ class HubSuggesterDocumentView(DocumentViewSet):
         OrderingFilterBackend,
     ]
 
-    ordering = ("id",)
-    ordering_fields = {
-        "id": "id",
-    }
+    ordering = ("-paper_count",)
+    ordering_fields = {"id": "id", "name": "name", "paper_count": "paper_count"}
     filter_fields = {
         "name": {"field": "name", "lookups": ["match"]},
     }
@@ -40,7 +38,7 @@ class HubSuggesterDocumentView(DocumentViewSet):
             "field": "name_suggest",
             "suggesters": ["completion"],
             "options": {
-                "size": 15,
+                "size": 25,
             },
         },
     }
