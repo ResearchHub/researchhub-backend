@@ -51,16 +51,3 @@ def handle_creating_citation_entry(
             "type": "send_upload_complete",
         },
     )
-
-
-@app.task(queue=QUEUE_CERMINE)
-def add_pdf_to_citation(citation_id, file_key):
-    CitationEntry = apps.get_model("citation.CitationEntry")
-
-    try:
-        citation = CitationEntry.objects.get(id=citation_id)
-        pdf = default_storage.open(file_key)
-        filename = slugify(file_key.split("/")[-1])
-        citation.attachment.save(filename, pdf)
-    except Exception as e:
-        log_error(e)
