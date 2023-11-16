@@ -109,7 +109,8 @@ def check_url_contains_pdf(url) -> bool:
 
         headers = resp.headers
         content_type = headers.get("content-type", "")
-        return "application/pdf" in content_type
+        filename = headers.get("filename", "")
+        return "application/pdf" in content_type or ".pdf" in filename
     except Exception:
         return False
 
