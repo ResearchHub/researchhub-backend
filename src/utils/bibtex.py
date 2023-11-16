@@ -269,6 +269,9 @@ AND = " and "
 
 def split_names(string):
     """Split a string of names separated by 'and' into a list of names."""
+    if not string:
+        return []
+
     brace_level = 0
     names = []
     last_index = 0
