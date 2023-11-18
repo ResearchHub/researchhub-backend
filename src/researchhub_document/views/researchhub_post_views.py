@@ -230,7 +230,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
     def create_unified_doc(self, request):
         try:
             request_data = request.data
-            hubs = Hub.objects.filter(id__in=request_data.get("hubs")).all()
+            hubs = Hub.objects.filter(id__in=request_data.get("hubs", [])).all()
             uni_doc = ResearchhubUnifiedDocument.objects.create(
                 document_type=request_data.get("document_type"),
             )
