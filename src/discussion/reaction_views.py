@@ -388,7 +388,7 @@ def create_automated_bounty(item):
         and item.hubs.filter(id=436).exists()  # Hardcoded Biorxiv Hub
         and not item.automated_bounty_created
     ):
-        user = User.objects.get(email="community@researchhub.com")
+        user = User.objects.get(email="main@researchhub.foundation")
         item_object_id = item.id
         item_content_type = ContentType.objects.get_for_model(item)
         usd_amount_for_bounty = 150
