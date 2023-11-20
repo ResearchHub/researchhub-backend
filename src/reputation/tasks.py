@@ -1,4 +1,5 @@
 import json
+import time
 from datetime import datetime, timedelta
 
 import pytz
@@ -10,10 +11,12 @@ from django.db.models.functions import Cast
 
 from mailing_list.lib import base_email_context
 from notification.models import Notification
+from reputation.distributions import Distribution as Dist
+from reputation.distributor import Distributor
 from reputation.lib import check_hotwallet, check_pending_withdrawal
-from reputation.models import Bounty, Contribution
+from reputation.models import Bounty, Contribution, Deposit
 from researchhub.celery import QUEUE_BOUNTIES, QUEUE_CONTRIBUTIONS, QUEUE_PURCHASES, app
-from researchhub.settings import PRODUCTION
+from researchhub.settings import PRODUCTION, w3
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     ALL,
@@ -24,7 +27,7 @@ from researchhub_document.related_models.constants.document_type import (
 from researchhub_document.utils import reset_unified_document_cache
 from user.models import User
 from utils.message import send_email_message
-from utils.sentry import log_info
+from utils.sentry import log_error, log_info
 
 DEFAULT_REWARD = 1000000
 
@@ -80,6 +83,41 @@ def create_author_contribution(contribution_type, user_id, unified_doc_id, objec
 
             contributions.append(Contribution(**data))
     Contribution.objects.bulk_create(contributions)
+
+
+def check_transaction_success(transaction_hash):
+    # Check if connected successfully
+    if not w3.is_connected():
+        return "Failed to connect to Ethereum node."
+
+    try:
+        # Get transaction receipt
+        tx_receipt = w3.eth.get_transaction_receipt(transaction_hash)
+
+        # Check if transaction was successful
+        return tx_receipt.status == 1
+    except Exception as e:
+        log_error(e)
+        print(e)
+        return False
+
+
+@periodic_task(
+    run_every=crontab(minute="*/5"),
+    priority=4,
+    queue=QUEUE_PURCHASES,
+)
+def check_deposits():
+    deposits = Deposit.objects.filter(paid_status=None)
+    for deposit in deposits.iterator():
+        amt = deposit.amount
+        user = deposit.user
+        transaction_successful = check_transaction_success(deposit.transaction_hash)
+        if transaction_successful:
+            distribution = Dist("DEPOSIT", amt, give_rep=False)
+            distributor = Distributor(distribution, user, user, time.time(), user)
+            distributor.distribute()
+            deposit.set_paid()
 
 
 @periodic_task(
@@ -176,7 +214,9 @@ def check_open_bounties():
 )
 def send_bounty_hub_notifications():
     action_user = User.objects.get_community_account()
-    open_bounties = Bounty.objects.filter(status=Bounty.OPEN,).annotate(
+    open_bounties = Bounty.objects.filter(
+        status=Bounty.OPEN,
+    ).annotate(
         time_left=Cast(
             F("expiration_date") - datetime.now(pytz.UTC),
             DurationField(),
