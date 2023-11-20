@@ -184,7 +184,6 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         rsc_to_eth_ratio = rsc_price / eth_price
         return math.ceil(amount * rsc_to_eth_ratio)
         """
-        rsc_price = RscExchangeRate.objects.filter(price_source="COIN_GECKO").last()
         res = requests.get(
             f"https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey={ETHERSCAN_API_KEY}"
         )
