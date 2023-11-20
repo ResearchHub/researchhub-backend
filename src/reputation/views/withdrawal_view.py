@@ -185,14 +185,15 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         return math.ceil(amount * rsc_to_eth_ratio)
         """
         res = requests.get(
-            f"https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey={ETHERSCAN_API_KEY}"
+            f"https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey={ETHERSCAN_API_KEY}",
+            timeout=10,
         )
         json = res.json()
         gas_price = json.get("result", {}).get("SafeGasPrice", 40)
         gas_limit = 120000
         gas_fee_in_eth = gwei_to_eth(int(gas_price) * gas_limit)
         rsc = RscExchangeRate.eth_to_rsc(gas_fee_in_eth)
-        return Response(rsc, status=200)
+        return Response(int(rsc), status=200)
 
     def _create_balance_record(self, withdrawal, amount):
         source_type = ContentType.objects.get_for_model(withdrawal)
