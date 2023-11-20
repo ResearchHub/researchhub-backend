@@ -99,6 +99,11 @@ def check_transaction_success(transaction_hash):
         return False
 
 
+@periodic_task(
+    run_every=crontab(minute="*/5"),
+    priority=4,
+    queue=QUEUE_PURCHASES,
+)
 def check_deposits():
     deposits = Deposit.objects.filter(paid_status=None)
     for deposit in deposits:
