@@ -114,6 +114,7 @@ def check_deposits():
             distribution = Dist("DEPOSIT", amt, give_rep=False)
             distributor = Distributor(distribution, user, user, time.time(), user)
             distributor.distribute()
+            deposit.set_paid()
 
 
 @periodic_task(
