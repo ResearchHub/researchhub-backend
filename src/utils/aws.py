@@ -1,11 +1,13 @@
 import hashlib
 import json
+from datetime import datetime
 from urllib.parse import urlparse
 
 from boto3.session import Session
 from django.core.files.storage import default_storage
 from django.utils.text import slugify
 
+from paper.utils import get_pdf_from_url
 from researchhub.settings import (
     AWS_ACCESS_KEY_ID,
     AWS_GHOSTSCRIPT_LAMBDA,
@@ -16,6 +18,11 @@ from researchhub.settings import (
 )
 from utils.http import check_url_contains_pdf
 from utils.sentry import log_error
+
+
+def get_s3_object_name(key):
+    parts = key.split("/")
+    return parts[-1]
 
 
 def get_s3_url(bucket, key, with_credentials=False):
@@ -108,10 +115,10 @@ def download_pdf(url):
             if not filename.endswith(".pdf"):
                 filename += ".pdf"
             pdf.name = filename
-            today = datetime.datetime.now()
-            year = today.year
-            month = today.month
-            day = today.day
+            today = datetime.now()
+            year = today.strftime("%Y")
+            month = today.strftime("%m")
+            day = today.strftime("%d")
             folder = f"uploads/citation_entry/attachment/{year}/{month}/{day}"
             s3_data = upload_to_s3(pdf, folder)
             lambda_compress_and_linearize_pdf(s3_data["path"], s3_data["filename"])

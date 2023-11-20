@@ -1,6 +1,7 @@
 import logging
 import re
 from collections import Counter
+from datetime import datetime
 from urllib.parse import urlparse
 
 import cloudscraper
@@ -28,7 +29,7 @@ from citation.permissions import (
 )
 from citation.schema import generate_json_for_rh_paper, generate_schema_for_citation
 from citation.serializers import CitationEntrySerializer
-from citation.tasks import add_pdf_to_citation, handle_creating_citation_entry
+from citation.tasks import handle_creating_citation_entry
 from citation.utils import (
     create_citation_entry_from_bibtex_entry_if_not_exists,
     get_paper_by_doi,
@@ -44,6 +45,7 @@ from researchhub.settings import (
     AWS_SECRET_ACCESS_KEY,
     AWS_STORAGE_BUCKET_NAME,
 )
+from utils.aws import get_s3_object_name
 from utils.bibtex import BibTeXParser
 from utils.openalex import OpenAlex
 from utils.parsers import clean_filename
@@ -156,6 +158,30 @@ class CitationEntryViewSet(ModelViewSet):
             project_id = request.data.get("project_id", None)
             paper = Paper.objects.get(id=pk)
             json = generate_json_for_rh_paper(paper)
+            key = None
+
+            if file := paper.file:
+                # Creates a copy of the file in S3
+                today = datetime.now()
+                year = today.strftime("%Y")
+                month = today.strftime("%m")
+                day = today.strftime("%d")
+                bucket = f"uploads/citation_entry/attachment/{year}/{month}/{day}"
+                filename = clean_filename(
+                    f"{get_random_string(8)}_{get_s3_object_name(file.name)}"
+                )
+                key = f"{bucket}/{filename}"
+                boto3_session = session.Session()
+                s3_client = boto3_session.client(
+                    "s3",
+                    aws_access_key_id=AWS_ACCESS_KEY_ID,
+                    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+                )
+                s3_client.copy(
+                    {"Bucket": AWS_STORAGE_BUCKET_NAME, "Key": file.name},
+                    AWS_STORAGE_BUCKET_NAME,
+                    key,
+                )
 
             citation_entry_data = {
                 "citation_type": JOURNAL_ARTICLE,
@@ -171,10 +197,10 @@ class CitationEntryViewSet(ModelViewSet):
             request._mutable = False
             res = super().create(request)
 
-            if file := paper.file:
-                add_pdf_to_citation.apply_async(
-                    (res.data["id"], file.name), countdown=3, priority=6
-                )
+            if key and res.status_code == 201:
+                citation = CitationEntry.objects.get(id=res.data["id"])
+                citation.attachment = key
+                citation.save(update_fields=["attachment"])
             return res
 
     @action(
@@ -210,7 +236,9 @@ class CitationEntryViewSet(ModelViewSet):
         """
         data = request.data
         file_type = data.get("type")
-        organization = getattr(request, "organization", None) or request.user.organization
+        organization = (
+            getattr(request, "organization", None) or request.user.organization
+        )
         if organization:
             organization_id = organization.id
         else:
