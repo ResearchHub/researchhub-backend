@@ -1,4 +1,5 @@
 import json
+import time
 from datetime import datetime, timedelta
 
 import pytz
@@ -10,6 +11,8 @@ from django.db.models.functions import Cast
 
 from mailing_list.lib import base_email_context
 from notification.models import Notification
+from reputation.distributions import Distribution as Dist
+from reputation.distributor import Distributor
 from reputation.lib import check_hotwallet, check_pending_withdrawal
 from reputation.models import Bounty, Contribution, Deposit
 from researchhub.celery import QUEUE_BOUNTIES, QUEUE_CONTRIBUTIONS, QUEUE_PURCHASES, app
