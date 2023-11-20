@@ -106,7 +106,7 @@ def check_transaction_success(transaction_hash):
 )
 def check_deposits():
     deposits = Deposit.objects.filter(paid_status=None)
-    for deposit in deposits:
+    for deposit in deposits.iterator():
         amt = deposit.amount
         user = deposit.user
         transaction_successful = check_transaction_success(deposit.transaction_hash)
