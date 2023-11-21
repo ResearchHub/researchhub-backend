@@ -48,18 +48,11 @@ class HubDocument(BaseDocument):
         ]
 
     # Used specifically for "autocomplete" style suggest feature
-    # def prepare_name_suggest(self, instance):
-    #     return {
-    #         "input": instance.name.split() + [instance.name],
-    #         "weight": 1,
-    #     }
-
     def prepare_name_suggest(self, instance):
         cleaned_name = re.sub(r"[^\w\s]", "", instance.name)
         words = cleaned_name.split()
-        weight = 1000 - len(
-            words
-        )  # Prioritize results with less words: "Computer Science" > "Computer Science and Engineering"
+        # Prioritize results with less words: "Computer Science" > "Computer Science and Engineering"
+        weight = 1000 - len(words)
         permutations = itertools.permutations(words)
         input_variations = [" ".join(permutation) for permutation in permutations]
 
@@ -67,14 +60,6 @@ class HubDocument(BaseDocument):
             "input": input_variations,
             "weight": max(weight, 1),
         }
-
-        # name_without_special_chars = re.sub(r'[^\w\s]', '', instance.name)
-
-        # weight = 1000 - len(name_without_special_chars)
-        # return {
-        #     "input": name_without_special_chars.split() + [name_without_special_chars],
-        #     "weight": max(weight, 1),
-        # }
 
     def prepare(self, instance):
         data = super().prepare(instance)
