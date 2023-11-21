@@ -1,3 +1,6 @@
+import itertools
+import re
+
 from django_elasticsearch_dsl import fields as es_fields
 from django_elasticsearch_dsl.registries import registry
 from elasticsearch_dsl import analyzer, token_filter, tokenizer
@@ -46,9 +49,16 @@ class HubDocument(BaseDocument):
 
     # Used specifically for "autocomplete" style suggest feature
     def prepare_name_suggest(self, instance):
+        cleaned_name = re.sub(r"[^\w\s]", "", instance.name)
+        words = cleaned_name.split()
+        # Prioritize results with less words: "Computer Science" > "Computer Science and Engineering"
+        weight = 1000 - len(words)
+        permutations = itertools.permutations(words)
+        input_variations = [" ".join(permutation) for permutation in permutations]
+
         return {
-            "input": instance.name.split() + [instance.name],
-            "weight": 1,
+            "input": input_variations,
+            "weight": max(weight, 1),
         }
 
     def prepare(self, instance):
