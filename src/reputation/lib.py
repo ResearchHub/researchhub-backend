@@ -468,3 +468,7 @@ def check_hotwallet():
             context,
             html_template="general_email_message.html",
         )
+
+
+def gwei_to_eth(gwei):
+    return gwei * 0.000000001

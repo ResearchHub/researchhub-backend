@@ -44,6 +44,13 @@ class RscExchangeRate(DefaultModel):
     )
 
     @staticmethod
+    def eth_to_rsc(eth_amount):
+        from user.rsc_exchange_rate_record_tasks import get_rsc_eth_conversion
+
+        eth_to_rsc_conversion = get_rsc_eth_conversion().get("rate")
+        return eth_amount / eth_to_rsc_conversion
+
+    @staticmethod
     def usd_to_rsc(usd_amount):
         latest_exchange_rate = RscExchangeRate.objects.last().rate
         return usd_amount / latest_exchange_rate

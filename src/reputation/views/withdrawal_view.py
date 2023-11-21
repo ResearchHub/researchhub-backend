@@ -5,11 +5,14 @@ import os
 from datetime import datetime, timedelta
 
 import pytz
+import requests
 import sentry_sdk
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -17,12 +20,16 @@ from rest_framework.response import Response
 from web3 import Web3
 
 from notification.models import Notification
-from purchase.models import Balance
+from purchase.models import Balance, RscExchangeRate
 from reputation.exceptions import WithdrawalError
-from reputation.lib import WITHDRAWAL_MINIMUM, PendingWithdrawal
+from reputation.lib import WITHDRAWAL_MINIMUM, PendingWithdrawal, gwei_to_eth
 from reputation.models import PaidStatusModelMixin, Webhook, Withdrawal
 from reputation.serializers import WithdrawalSerializer
-from researchhub.settings import WEB3_KEYSTORE_ADDRESS, WEB3_RSC_ADDRESS
+from researchhub.settings import (
+    ETHERSCAN_API_KEY,
+    WEB3_KEYSTORE_ADDRESS,
+    WEB3_RSC_ADDRESS,
+)
 from user.models import Action
 from user.serializers import UserSerializer
 from utils import sentry
@@ -164,6 +171,8 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         ).data
         return resp
 
+    # 5 minute cache
+    @method_decorator(cache_page(60 * 5))
     @action(detail=False, methods=["get"], permission_classes=[])
     def transaction_fee(self, request):
         amount = request.query_params.get("amount", 1)
@@ -175,8 +184,16 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         rsc_to_eth_ratio = rsc_price / eth_price
         return math.ceil(amount * rsc_to_eth_ratio)
         """
-
-        return Response(TRANSACTION_FEE, status=200)
+        res = requests.get(
+            f"https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey={ETHERSCAN_API_KEY}",
+            timeout=10,
+        )
+        json = res.json()
+        gas_price = json.get("result", {}).get("SafeGasPrice", 40)
+        gas_limit = 120000
+        gas_fee_in_eth = gwei_to_eth(int(gas_price) * gas_limit)
+        rsc = RscExchangeRate.eth_to_rsc(gas_fee_in_eth)
+        return Response(int(rsc), status=200)
 
     def _create_balance_record(self, withdrawal, amount):
         source_type = ContentType.objects.get_for_model(withdrawal)
