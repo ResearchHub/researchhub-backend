@@ -49,11 +49,11 @@ def add_organization_slug(sender, instance, update_fields, **kwargs):
         instance.slug = slug
 
 
-@receiver(post_save, sender=User, dispatch_uid="handle_spam_user")
-def handle_spam_user(sender, instance, created, update_fields, **kwargs):
-    # TODO: move this to overriding the save method of the model instead of post_save here
-    if instance.probable_spammer and not NO_ELASTIC:
-        handle_spam_user_task.apply_async((instance.id,), priority=3)
+# @receiver(post_save, sender=User, dispatch_uid="handle_spam_user")
+# def handle_spam_user(sender, instance, created, update_fields, **kwargs):
+#     # TODO: move this to overriding the save method of the model instead of post_save here
+#     if instance.probable_spammer and not NO_ELASTIC:
+#         handle_spam_user_task.apply_async((instance.id,), priority=3)
 
 
 @receiver(post_save, sender=Author, dispatch_uid="link_author_to_papers")
