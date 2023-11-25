@@ -116,7 +116,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         user = request.user
         amount = decimal.Decimal(request.data["amount"])
-        transaction_fee = TRANSACTION_FEE
+        transaction_fee = self.calculate_transaction_fee()
         to_address = request.data.get("to_address")
 
         pending_tx = Withdrawal.objects.filter(
@@ -171,11 +171,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         ).data
         return resp
 
-    # 5 minute cache
-    @method_decorator(cache_page(60 * 5))
-    @action(detail=False, methods=["get"], permission_classes=[])
-    def transaction_fee(self, request):
-        amount = request.query_params.get("amount", 1)
+    def calculate_transaction_fee(self):
         """
         rsc_to_usd_url = 'https://api.coinbase.com/v2/prices/RSC-USD/spot'
         eth_to_usd_url = 'https://api.coinbase.com/v2/prices/ETH-USD/spot'
@@ -189,11 +185,19 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             timeout=10,
         )
         json = res.json()
+        print(json)
         gas_price = json.get("result", {}).get("SafeGasPrice", 40)
         gas_limit = 120000
         gas_fee_in_eth = gwei_to_eth(int(gas_price) * gas_limit)
         rsc = RscExchangeRate.eth_to_rsc(gas_fee_in_eth)
-        return Response(int(rsc), status=200)
+        return int(rsc)
+
+    # 5 minute cache
+    @method_decorator(cache_page(60 * 5))
+    @action(detail=False, methods=["get"], permission_classes=[])
+    def transaction_fee(self, request):
+        fee = self.calculate_transaction_fee()
+        return Response(fee, status=200)
 
     def _create_balance_record(self, withdrawal, amount):
         source_type = ContentType.objects.get_for_model(withdrawal)
