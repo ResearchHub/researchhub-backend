@@ -61,6 +61,7 @@ class AuthorSerializer(ModelSerializer):
     total_score = SerializerMethodField()
     university = UniversitySerializer(required=False)
     wallet = SerializerMethodField()
+    status = SerializerMethodField()
 
     class Meta:
         model = Author
@@ -73,6 +74,7 @@ class AuthorSerializer(ModelSerializer):
             "num_posts",
             "orcid_id",
             "reputation",
+            "status",
             "sift_link",
             "total_score",
             "university",
@@ -147,6 +149,12 @@ class AuthorSerializer(ModelSerializer):
         if user:
             return ResearchhubPost.objects.filter(created_by=user).count()
         return 0
+
+    def get_status(self, author):
+        return {
+            "probable_spammer": author.user.probable_spammer,
+            "is_suspended": author.user.is_suspended,
+        }
 
     def get_added_as_editor_date(self, author):
         user = author.user
