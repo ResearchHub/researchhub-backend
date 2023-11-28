@@ -105,12 +105,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             action.save()
 
         doc_type = get_doc_type_key(doc)
-        hub_ids = doc.hubs.values_list("id", flat=True)
         reset_unified_document_cache(
-            hub_ids,
             document_type=[doc_type, "all"],
             filters=[NEW, UPVOTED, HOT, DISCUSSED, MOST_RSC, EXPIRING_SOON],
-            with_default_hub=True,
         )
         return Response(self.get_serializer(instance=doc).data, status=200)
 
@@ -139,9 +136,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             action.save()
 
         doc_type = get_doc_type_key(doc)
-        hub_ids = doc.hubs.values_list("id", flat=True)
         reset_unified_document_cache(
-            hub_ids,
             document_type=[doc_type, "all"],
             filters=[NEW, UPVOTED, HOT, DISCUSSED, MOST_RSC, EXPIRING_SOON],
         )
@@ -182,7 +177,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         doc = self.get_object()
         doc_type = get_doc_type_key(doc)
         reset_unified_document_cache(
-            hub_ids,
             document_type=[doc_type, "all"],
             filters=[NEW, UPVOTED, HOT, DISCUSSED],
         )
@@ -346,7 +340,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         self, document_type, filtering, hub_id, page_number, time_scope
     ):
         cache_hit = None
-        if page_number == 1:
+        if page_number == 1 and hub_id == 0:
             cache_pk = f"{document_type}_{hub_id}_{filtering}_{time_scope}"
             cache_key_hub = get_cache_key("hub", cache_pk)
             cache_hit = cache.get(cache_key_hub)
@@ -413,13 +407,10 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             cache_hit = self._cache_hit_with_latest_metadata(cache_hit)
             return Response(cache_hit)
         elif not cache_hit and page_number == 1:
-            with_default_hub = True if hub_id == 0 else False
             reset_unified_document_cache(
-                hub_ids=[hub_id],
                 document_type=[document_request_type],
                 filters=[filtering],
                 date_ranges=[time_scope],
-                with_default_hub=with_default_hub,
             )
 
         documents = self.get_filtered_queryset()
@@ -577,12 +568,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         unified_document.update_filter(FILTER_EXCLUDED_IN_FEED)
 
         doc_type = get_doc_type_key(unified_document)
-        hub_ids = unified_document.hubs.values_list("id", flat=True)
         reset_unified_document_cache(
-            hub_ids,
             document_type=["all", doc_type],
             filters=[UPVOTED, HOT, DISCUSSED],
-            with_default_hub=True,
         )
 
         return Response(status=status.HTTP_200_OK)
@@ -604,12 +592,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     unified_document=unified_document, hub_id=hub_id
                 )
 
-        hub_ids.append(0)
         reset_unified_document_cache(
-            hub_ids,
             document_type=["all", doc_type],
             filters=[HOT],
-            with_default_hub=True,
         )
 
         return Response(status=status.HTTP_200_OK)
@@ -618,16 +603,12 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     def remove_from_featured(self, request, pk=None):
         unified_document = self.queryset.get(id=pk)
         doc_type = get_doc_type_key(unified_document)
-        hub_ids = list(unified_document.hubs.values_list("id", flat=True))
-        hub_ids.append(0)
 
         FeaturedContent.objects.filter(unified_document=unified_document).delete()
 
         reset_unified_document_cache(
-            hub_ids,
             document_type=["all", doc_type],
             filters=[HOT],
-            with_default_hub=True,
         )
 
         return Response(status=status.HTTP_200_OK)

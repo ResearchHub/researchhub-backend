@@ -678,7 +678,7 @@ else:
     CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.redis.RedisCache",
-            "LOCATION": f"redis://{REDIS_HOST}:{REDIS_PORT}",
+            "LOCATION": f"redis://{REDIS_HOST}:{REDIS_PORT}/1",
             "KEY_PREFIX": APP_ENV,
         },
     }
@@ -698,7 +698,7 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_TASK_DEFAULT_QUEUE = "default"
 CELERY_TASK_IGNORE_RESULT = True
 
-REDBEAT_REDIS_URL = "redis://{}:{}/0".format(REDIS_HOST, REDIS_PORT)
+REDBEAT_REDIS_URL = "redis://{}:{}/2".format(REDIS_HOST, REDIS_PORT)
 REDBEAT_KEY_PREFIX = f"{APP_ENV}_redbeat_"
 
 # Django Channels

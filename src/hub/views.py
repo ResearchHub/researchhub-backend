@@ -115,7 +115,7 @@ class HubViewSet(viewsets.ModelViewSet):
         hub.is_removed = True
 
         hub.save(update_fields=["is_removed", "paper_count", "discussion_count"])
-        reset_unified_document_cache(with_default_hub=True)
+        reset_unified_document_cache()
 
         return Response(self.get_serializer(instance=hub).data, status=200)
 

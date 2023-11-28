@@ -1,5 +1,3 @@
-from celery.decorators import periodic_task
-from celery.task.schedules import crontab
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.http.request import HttpRequest, QueryDict
@@ -135,34 +133,6 @@ def preload_trending_documents(
     cache.set(cache_key_hub, paginated_response.data, timeout=None)
 
     return paginated_response.data
-
-
-@periodic_task(
-    run_every=crontab(minute="*/30"),
-    priority=1,
-    queue=QUEUE_CACHES,
-)
-def preload_homepage_feed():
-    return True
-    from researchhub_document.utils import reset_unified_document_cache
-
-    reset_unified_document_cache(with_default_hub=True)
-
-
-@periodic_task(
-    run_every=crontab(hour=12),
-    priority=2,
-    queue=QUEUE_CACHES,
-)
-def preload_hub_feeds():
-    from hub.views import HubViewSet
-    from researchhub_document.utils import reset_unified_document_cache
-
-    view = HubViewSet()
-    qs = view.get_ordered_queryset("score")
-    ids = qs.values_list("id", flat=True)
-
-    reset_unified_document_cache(hub_ids=ids, document_type=["all"])
 
 
 @app.task(queue=QUEUE_ELASTIC_SEARCH)

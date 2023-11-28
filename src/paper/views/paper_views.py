@@ -373,7 +373,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         unified_doc = paper.unified_document
         cache_key = get_cache_key("paper", paper_id)
         cache.delete(cache_key)
-        hub_ids = list(paper.hubs.values_list("id", flat=True))
 
         content_id = f"{type(paper).__name__}_{paper_id}"
         user = request.user
@@ -397,10 +396,8 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         unified_document.save()
 
         reset_unified_document_cache(
-            hub_ids,
             filters=[HOT, UPVOTED, DISCUSSED, NEW],
             document_type=["all", "paper"],
-            with_default_hub=True,
         )
 
         return Response("Paper was deleted.", status=200)
@@ -458,9 +455,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         # Commenting out paper cache
         # paper.reset_cache(use_celery=False)
 
-        hub_ids = paper.hubs.values_list("id", flat=True)
         reset_unified_document_cache(
-            hub_ids,
             filters=[HOT, UPVOTED, DISCUSSED, NEW],
             document_type=["all", "paper"],
         )

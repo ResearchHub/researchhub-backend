@@ -40,7 +40,7 @@ from purchase.tasks import send_support_email
 from purchase.utils import distribute_support_to_authors
 from reputation.distributions import Distribution, create_purchase_distribution
 from reputation.distributor import Distributor
-from reputation.models import Contribution, Escrow
+from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from researchhub.settings import ASYNC_SERVICE_HOST, BASE_FRONTEND_URL
 from researchhub_document.models import ResearchhubPost
@@ -191,9 +191,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
 
                 distribute_support_to_authors(paper, purchase, amount)
 
-                hub_ids = paper.hubs.values_list("id", flat=True)
                 reset_unified_document_cache(
-                    hub_ids,
                     document_type=["all", "paper"],
                     filters=[HOT],
                 )
@@ -207,9 +205,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 recipient = item.created_by
                 unified_doc = item.unified_document
 
-                hub_ids = unified_doc.hubs.values_list("id", flat=True)
                 reset_unified_document_cache(
-                    hub_ids,
                     document_type=["all", "posts"],
                     filters=[HOT],
                 )
