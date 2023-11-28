@@ -167,18 +167,15 @@ class DynamicHubSerializer(DynamicModelFieldSerializer):
         ).data
 
     def get_relevancy_score(self, hub_instance):
-        from researchhub_document.models import UnifiedDocumentConcepts
+        concept = hub_instance.concept
+
+        if not concept:
+            return 0
 
         unified_document = self.context.get("unified_document", None)
-        relevancy_score = 0
+        related_concept_membership = concept.through_unified_document.filter(
+            unified_document=unified_document
+        )
 
-        concept = getattr(hub_instance, "concept", None)
-        if unified_document and concept:
-            concept_with_relevancy = UnifiedDocumentConcepts.objects.filter(
-                unified_document=unified_document, concept=concept.id
-            ).first()
-
-            if concept_with_relevancy:
-                return concept_with_relevancy.relevancy_score
-
-        return relevancy_score
+        if related_concept_membership.exists():
+            return related_concept_membership.first().relevancy_score

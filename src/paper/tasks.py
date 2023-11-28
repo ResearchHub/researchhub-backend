@@ -897,6 +897,9 @@ def pull_arxiv_papers_directly():
                         potential_hub = potential_hub.first()
                         potential_hubs.append(potential_hub)
                         hub_ids.add(potential_hub.id)
+                        paper.unified_document.concepts.add(
+                            potential_hub.concept,
+                        )
                 paper.hubs.add(*potential_hubs)
                 download_pdf.apply_async((paper.id,), priority=4, countdown=4)
             except Exception as e:
@@ -1244,6 +1247,15 @@ def pull_openalex_author_works(user_id, openalex_id):
                         if created:
                             # This creates the hub if a new concept is created
                             concept_obj.save()
+
+                        paper.unified_document.concepts.add(
+                            concept,
+                            through_defaults={
+                                "relevancy_score": concept["score"],
+                                "level": concept["level"],
+                            },
+                        )
+
                         hub = concept_obj.hub
                         potential_hubs.append(hub.id)
                         hub_ids.add(hub.id)

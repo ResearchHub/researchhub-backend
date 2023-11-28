@@ -660,14 +660,12 @@ def celery_create_paper(self, celery_data):
 
 @app.task(queue=QUEUE_PAPER_METADATA)
 def create_paper_concepts_and_hubs(paper_id, paper_concepts):
-    concept_ids = []
     for paper_concept in paper_concepts:
         try:
             logger.info(f"concepts in celery_create_paper: {paper_concepts}")
 
             # Every time a concept is created, an associated hub is also created
             concept = Concept.create_or_update(paper_concept)
-            concept_ids.append(concept.id)
         except Exception as e:
             print("Failed to save concepts fo paper" + str(paper_id))
             print(
@@ -685,25 +683,29 @@ def create_paper_concepts_and_hubs(paper_id, paper_concepts):
             )
 
         associate_hubs_with_paper.apply_async(
-            (
-                paper_id,
-                concept_ids,
-            ),
+            (paper_id, concept.id, paper_concept),
             priority=2,
             countdown=1,
         )
 
 
 @app.task(queue=QUEUE_PAPER_METADATA)
-def associate_hubs_with_paper(paper_id, concept_ids):
+def associate_hubs_with_paper(paper_id, concept_id, paper_concept):
     from paper.models import Paper
 
     paper = Paper.objects.get(id=paper_id)
-    hubs = Hub.objects.filter(concept__id__in=concept_ids)
+    hubs = Hub.objects.filter(concept__id=concept_id)
 
-    if len(hubs) > 0:
-        paper.unified_document.hubs.add(*hubs)
+    if hubs.count() > 0:
         paper.hubs.add(*hubs)
+        paper.unified_document.hubs.add(*hubs)
+        paper.unified_document.concepts.add(
+            concept_id,
+            through_defaults={
+                "relevancy_score": paper_concept["score"],
+                "level": paper_concept["level"],
+            },
+        )
 
 
 @app.task(queue=QUEUE_PAPER_METADATA)

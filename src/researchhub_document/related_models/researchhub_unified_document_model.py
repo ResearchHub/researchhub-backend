@@ -205,7 +205,10 @@ class UnifiedDocumentConcepts(DefaultModel):
     )
 
     concept = models.ForeignKey(
-        "tag.Concept", related_name="concept", blank=True, on_delete=models.CASCADE
+        "tag.Concept",
+        related_name="through_unified_document",
+        blank=True,
+        on_delete=models.CASCADE,
     )
 
     relevancy_score = models.FloatField(

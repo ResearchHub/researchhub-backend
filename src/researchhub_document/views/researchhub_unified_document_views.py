@@ -202,7 +202,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "first_preview",
                     "has_accepted_answer",
                     "hot_score",
-                    "hubs",
                     "id",
                     "external_source",
                     "boost_amount",
@@ -232,6 +231,22 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "status",
                 ],
             },
+            "doc_duds_get_hubs": {
+                "_include_fields": [
+                    "id",
+                    "name",
+                    "is_locked",
+                    "slug",
+                    "is_removed",
+                    "hub_image",
+                ],
+                "_filter_fields": {
+                    "concept__through_unified_document__unified_document": None
+                },
+                "_order_fields": [
+                    "-concept__through_unified_document__relevancy_score"
+                ],
+            },
             "doc_dps_get_hubs": {
                 "_include_fields": [
                     "id",
@@ -240,7 +255,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "slug",
                     "is_removed",
                     "hub_image",
-                    "relevancy_score",
                 ]
             },
             "pap_dps_get_hubs": {
@@ -251,7 +265,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "slug",
                     "is_removed",
                     "hub_image",
-                    "relevancy_score",
                 ]
             },
             "pap_dps_get_unified_document": {
@@ -358,11 +371,10 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "documents",
             "document_type",
             "hot_score",
-            "hot_score_v2",
+            "hubs",
             "reviews",
             "score",
             "bounties",
-            "concepts",
         ]
         serializer = self.dynamic_serializer_class(
             page,
@@ -422,11 +434,10 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "documents",
                 "document_type",
                 "hot_score",
-                "hot_score_v2",
+                "hubs",
                 "reviews",
                 "score",
                 "bounties",
-                "concepts",
             ],
             many=True,
             context=context,
@@ -449,7 +460,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "documents",
                 "document_type",
                 "hot_score",
-                "hot_score_v2",
+                "hubs",
                 "reviews",
                 "score",
                 "bounties",
@@ -518,7 +529,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "documents",
                     "document_type",
                     "hot_score",
-                    "hot_score_v2",
+                    "hubs",
                     "reviews",
                     "score",
                     "bounties",
@@ -681,11 +692,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         discussion_context_fields = ("id", "comment_count", "thread_type")
         purchase_context_fields = ("id", "amount", "user")
         purchase_select_related_fields = ("user", "user__author_profile")
-        authors_context_fields = (
-            "id",
-            "first_name",
-            "last_name",
-        )
         metadata_context = {
             **context,
             "doc_duds_get_documents": {
@@ -734,7 +740,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "id",
                     "name",
                     "slug",
-                    "relevancy_score",
                     "created_date",
                 ]
             },

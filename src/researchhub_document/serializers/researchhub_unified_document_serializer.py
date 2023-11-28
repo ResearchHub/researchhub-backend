@@ -158,11 +158,18 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
 
     def get_hubs(self, unified_doc):
         context = self.context
-        context["unified_document"] = unified_doc
-
         _context_fields = context.get("doc_duds_get_hubs", {})
+        _filter_fields = _context_fields.get("_filter_fields", {})
+        _order_fields = _context_fields.get("_order_fields", {})
+
+        if "concept__through_unified_document__unified_document" in _filter_fields:
+            _filter_fields[
+                "concept__through_unified_document__unified_document"
+            ] = unified_doc
+
+        hubs = unified_doc.hubs.filter(**_filter_fields).order_by(*_order_fields)
         serializer = DynamicHubSerializer(
-            unified_doc.hubs, many=True, context=context, **_context_fields
+            hubs, many=True, context=context, **_context_fields
         )
         return serializer.data
 
