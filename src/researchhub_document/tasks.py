@@ -117,7 +117,7 @@ def preload_trending_documents(
             "documents",
             "document_type",
             "hot_score",
-            "hot_score_v2",
+            "hubs",
             "reviews",
             "score",
             "bounties",
