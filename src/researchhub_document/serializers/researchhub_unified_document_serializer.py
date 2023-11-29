@@ -1,3 +1,5 @@
+import copy
+
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
@@ -170,21 +172,31 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
     def get_hubs(self, unified_doc):
         context = self.context
         _context_fields = context.get("doc_duds_get_hubs", {})
-        _filter_fields = _context_fields.get("_filter_fields", {})
-        _order_fields = _context_fields.get("_order_fields", {})
+        _filter_fields = copy.deepcopy(_context_fields.get("_filter_fields", {}))
+        _order_fields = copy.deepcopy(_context_fields.get("_order_fields", []))
 
         # Special logic here to order only papers' hubs
         # based off their concept's relevancy score
         # since posts have hubs but no attached concepts
-        if (
-            "concept__through_unified_document__unified_document" in _filter_fields
-            and unified_doc.document_type == PAPER
-        ):
-            _filter_fields[
-                "concept__through_unified_document__unified_document"
-            ] = unified_doc
+        if "concept__through_unified_document__unified_document" in _filter_fields:
+            if unified_doc.document_type == PAPER:
+                _filter_fields[
+                    "concept__through_unified_document__unified_document"
+                ] = unified_doc
+            else:
+                _filter_fields.pop(
+                    "concept__through_unified_document__unified_document"
+                )
+                _order_fields.remove(
+                    "-concept__through_unified_document__relevancy_score"
+                )
 
-        hubs = unified_doc.hubs.filter(**_filter_fields).order_by(*_order_fields)
+        hubs = unified_doc.hubs
+        if _filter_fields:
+            hubs = hubs.filter(**_filter_fields)
+        if _order_fields:
+            hubs = hubs.order_by(*_order_fields)
+
         serializer = DynamicHubSerializer(
             hubs, many=True, context=context, **_context_fields
         )
@@ -194,11 +206,6 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
         if not unified_doc.reviews.exists():
             return {"avg": 0, "count": 0}
         return unified_doc.get_review_details()
-        # context = self.context
-        # get_reviews = context.get("doc_duds_get_reviews", None)
-        # if get_reviews:
-        #     return unified_doc.get_review_details()
-        # return None
 
     def get_concepts(self, unified_doc):
         context = self.context

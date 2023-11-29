@@ -901,12 +901,12 @@ class DynamicPaperSerializer(
         context = self.context
         _context_fields = context.get("pap_dps_get_first_preview", {})
         if paper.figures.exists():
-            figure = paper.figures.filter(figure_type=Figure.PREVIEW).first()
-            if figure:
-                serializer = DynamicFigureSerializer(
-                    figure, context=context, **_context_fields
-                )
-                return serializer.data
+            # Using prefetches to filter by figure preview
+            # Slicing with [0] because .first() does not use prefetch cache
+            serializer = DynamicFigureSerializer(
+                paper.figures.all()[0], context=context, **_context_fields
+            )
+            return serializer.data
         return None
 
     def get_purchases(self, paper):

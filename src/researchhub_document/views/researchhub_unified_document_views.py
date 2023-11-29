@@ -194,11 +194,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "discussion_count",
                     "file",
                     "first_preview",
-                    "has_accepted_answer",
                     "hot_score",
                     "id",
                     "external_source",
-                    "boost_amount",
                     "paper_publish_date",
                     "paper_title",
                     "pdf_url",
@@ -243,6 +241,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             },
             "doc_duds_get_document_filter": {
                 "_include_fields": [
+                    "answered",
                     "bounty_open",
                     "bounty_total_amount",
                 ]
