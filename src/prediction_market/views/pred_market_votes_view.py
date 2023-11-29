@@ -71,6 +71,14 @@ class PredictionMarketVoteViewSet(viewsets.ModelViewSet):
         create_new_contribution = False
 
         if prev_vote is not None:
+            if prev_vote.vote == vote and prev_vote.bet_amount == bet_amount:
+                # no change in vote
+                context = self._get_retrieve_context()
+                data = DynamicPredictionMarketVoteSerializer(
+                    prev_vote, context=context
+                ).data
+                return Response(data, status=200)
+
             prev_vote_value = prev_vote.vote
             prev_bet_amount = prev_vote.bet_amount
 
@@ -128,7 +136,6 @@ class PredictionMarketVoteViewSet(viewsets.ModelViewSet):
                     prediction_market_vote.id,
                 ),
                 priority=1,
-                countdown=10,
             )
 
         context = self._get_retrieve_context()
