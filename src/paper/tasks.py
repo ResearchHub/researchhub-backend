@@ -765,6 +765,7 @@ def pull_biorxiv_papers():
                             potential_hub = potential_hub.first()
                             potential_hubs.append(potential_hub)
                     paper.hubs.add(*potential_hubs)
+                    paper.unified_document.hubs.add(*potential_hubs)
 
                     download_pdf.apply_async((paper.id,), priority=4, countdown=4)
                     if "biorxiv" in paper.url:
@@ -896,6 +897,7 @@ def pull_arxiv_papers_directly():
                             potential_hub.concept,
                         )
                 paper.hubs.add(*potential_hubs)
+                paper.unified_document.hubs.add(*potential_hubs)
                 download_pdf.apply_async((paper.id,), priority=4, countdown=4)
             except Exception as e:
                 sentry.log_error(e)

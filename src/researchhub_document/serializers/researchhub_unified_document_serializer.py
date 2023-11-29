@@ -91,6 +91,7 @@ class ContributionUnifiedDocumentSerializer(ResearchhubUnifiedDocumentSerializer
 class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
     bounties = SerializerMethodField()
     documents = SerializerMethodField()
+    document_filter = SerializerMethodField()
     created_by = SerializerMethodField()
     access_group = SerializerMethodField()
     hubs = SerializerMethodField()
@@ -144,6 +145,16 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
             log_error(e, message=f"Related unified doc: {unified_doc}")
             return None
 
+    def get_document_filter(self, unified_doc):
+        from researchhub_document.serializers import DynamicDocumentFilterSerializer
+
+        context = self.context
+        _context_fields = context.get("doc_duds_get_document_filter", {})
+        serializer = DynamicDocumentFilterSerializer(
+            unified_doc.document_filter, context=context, **_context_fields
+        )
+        return serializer.data
+
     def get_created_by(self, unified_doc):
         context = self.context
         _context_fields = context.get("doc_duds_get_created_by", {})
@@ -162,7 +173,13 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
         _filter_fields = _context_fields.get("_filter_fields", {})
         _order_fields = _context_fields.get("_order_fields", {})
 
-        if "concept__through_unified_document__unified_document" in _filter_fields:
+        # Special logic here to order only papers' hubs
+        # based off their concept's relevancy score
+        # since posts have hubs but no attached concepts
+        if (
+            "concept__through_unified_document__unified_document" in _filter_fields
+            and unified_doc.document_type == PAPER
+        ):
             _filter_fields[
                 "concept__through_unified_document__unified_document"
             ] = unified_doc

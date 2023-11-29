@@ -113,6 +113,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
     def document_type_filter(self, qs, name, value):
         value = value.upper()
         selects = (
+            "document_filter",
             "paper",
             "paper__uploaded_by",
             "paper__uploaded_by__author_profile",
@@ -136,6 +137,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
         if value == PAPER:
             qs = qs.filter(document_type=PAPER)
             selects = (
+                "document_filter",
                 "paper",
                 "paper__uploaded_by",
                 "paper__uploaded_by__author_profile",
@@ -151,7 +153,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
             )
         elif value == POSTS:
             qs = qs.filter(document_type__in=[DISCUSSION, ELN])
-            selects = []
+            selects = ["document_filter"]
             prefetches = [
                 "hubs",
                 "reviews",
@@ -163,10 +165,11 @@ class UnifiedDocumentFilter(filters.FilterSet):
             ]
         elif value == QUESTION:
             qs = qs.filter(document_type=QUESTION)
-            selects = []
+            selects = ["document_filter"]
         elif value == HYPOTHESIS:
             qs = qs.filter(document_type=HYPOTHESIS)
             selects = (
+                "document_filter",
                 "hypothesis",
                 "hypothesis__created_by",
                 "hypothesis__created_by__author_profile",

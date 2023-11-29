@@ -437,6 +437,7 @@ class PaperSerializer(BasePaperSerializer):
 
                 self._add_orcid_authors(paper)
                 paper.hubs.add(*hubs)
+                paper.unified_document.hubs.add(*hubs)
 
                 try:
                     file = paper.file

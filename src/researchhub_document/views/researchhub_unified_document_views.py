@@ -241,6 +241,12 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "-concept__through_unified_document__relevancy_score"
                 ],
             },
+            "doc_duds_get_document_filter": {
+                "_include_fields": [
+                    "bounty_open",
+                    "bounty_total_amount",
+                ]
+            },
             "doc_dps_get_hubs": {
                 "_include_fields": [
                     "id",
@@ -363,12 +369,12 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "id",
             "created_date",
             "documents",
+            "document_filter",
             "document_type",
             "hot_score",
             "hubs",
             "reviews",
             "score",
-            "bounties",
         ]
         serializer = self.dynamic_serializer_class(
             page,
@@ -417,18 +423,22 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         context = self._get_serializer_context()
         context["hub_id"] = hub_id
         page = self.paginate_queryset(documents)
+
+        # Don't forget to update the _include_fields in
+        # the preload_trending_documents helper function
+        # if these _include_fields fields are being updated
         serializer = self.dynamic_serializer_class(
             page,
             _include_fields=[
                 "id",
                 "created_date",
                 "documents",
+                "document_filter",
                 "document_type",
                 "hot_score",
                 "hubs",
                 "reviews",
                 "score",
-                "bounties",
             ],
             many=True,
             context=context,

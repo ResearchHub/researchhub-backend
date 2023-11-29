@@ -112,15 +112,15 @@ def preload_trending_documents(
     serializer = DynamicUnifiedDocumentSerializer(
         page,
         _include_fields=[
-            "created_date",
             "id",
+            "created_date",
             "documents",
+            "document_filter",
             "document_type",
             "hot_score",
             "hubs",
             "reviews",
             "score",
-            "bounties",
         ],
         many=True,
         context=context,
