@@ -139,7 +139,6 @@ class UnifiedDocumentFilter(filters.FilterSet):
             "posts__created_by__author_profile",
             "posts__purchases",
             "posts__threads",
-            # "reviews",
             Prefetch("reviews", queryset=Review.objects.filter(is_removed=False)),
             "related_bounties",
         )
@@ -160,7 +159,6 @@ class UnifiedDocumentFilter(filters.FilterSet):
                     "paper__figures",
                     queryset=Figure.objects.filter(figure_type=Figure.PREVIEW),
                 ),
-                # "reviews",
                 Prefetch("reviews", queryset=Review.objects.filter(is_removed=False)),
                 "related_bounties",
                 "paper__hubs",
@@ -172,7 +170,6 @@ class UnifiedDocumentFilter(filters.FilterSet):
             selects = ["document_filter"]
             prefetches = [
                 "hubs",
-                # "reviews",
                 Prefetch("reviews", queryset=Review.objects.filter(is_removed=False)),
                 "related_bounties",
                 "posts",
@@ -201,7 +198,6 @@ class UnifiedDocumentFilter(filters.FilterSet):
         elif value == BOUNTY:
             prefetches = (
                 "hubs",
-                # "reviews",
                 Prefetch("reviews", queryset=Review.objects.filter(is_removed=False)),
                 "related_bounties",
             )
