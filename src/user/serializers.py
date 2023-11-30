@@ -151,10 +151,14 @@ class AuthorSerializer(ModelSerializer):
         return 0
 
     def get_suspended_status(self, author):
-        return {
-            "probable_spammer": author.user.probable_spammer,
-            "is_suspended": author.user.is_suspended,
-        }
+        user = author.user
+
+        if user:
+            return {
+                "probable_spammer": author.user.probable_spammer,
+                "is_suspended": author.user.is_suspended,
+            }
+        return {"probable_spammer": False, "is_suspended": False}
 
     def get_added_as_editor_date(self, author):
         user = author.user
