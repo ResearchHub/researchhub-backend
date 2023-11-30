@@ -57,8 +57,8 @@ def censor(requestor, item):
     else:
         item.unified_document.delete(soft=True)
 
-    if review := getattr(item, "review", None):
-        review.delete(soft=True)
+    if reviews := getattr(item, "reviews", None):
+        reviews.all().delete()
 
     if action := getattr(item, "actions", None):
         if action.exists():
