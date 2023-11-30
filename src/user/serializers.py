@@ -155,8 +155,8 @@ class AuthorSerializer(ModelSerializer):
 
         if user:
             return {
-                "probable_spammer": author.user.probable_spammer,
-                "is_suspended": author.user.is_suspended,
+                "probable_spammer": user.probable_spammer,
+                "is_suspended": user.is_suspended,
             }
         return {"probable_spammer": False, "is_suspended": False}
 
