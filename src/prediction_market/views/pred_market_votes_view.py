@@ -157,13 +157,12 @@ class PredictionMarketVoteViewSet(viewsets.ModelViewSet):
 
     def _get_retrieve_context(self):
         context = {
-            "rhc_dcs_get_created_by": {
+            "pm_dpmvs_get_created_by": {
                 "_include_fields": (
                     "id",
                     "author_profile",
                     "first_name",
                     "last_name",
-                    "editor_of",
                 )
             },
             "usr_dus_get_author_profile": {
@@ -176,10 +175,6 @@ class PredictionMarketVoteViewSet(viewsets.ModelViewSet):
                     "profile_image",
                     "is_verified",
                 )
-            },
-            "usr_dus_get_editor_of": {"_include_fields": ("source",)},
-            "rag_dps_get_source": {
-                "_include_fields": ("id", "name", "hub_image", "slug")
             },
         }
         return context
