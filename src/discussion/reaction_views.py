@@ -403,7 +403,7 @@ def create_automated_bounty(item):
                         {
                             "insert": "The ResearchHub Foundation is assigning a peer review bounty of $150 in ResearchCoin to incentivize the peer review of this Biorxiv preprint. This will be awarded to an individual who performs a high quality peer review. Anyone can perform a peer review and receive rewards from upvotes/tips, but only those who provide a high quality thorough peer review are eligible for the bounty.\n\n"
                         },
-                        {"insert": "Requirements: ", "attributes": {"bold": true}},
+                        {"insert": "Requirements: ", "attributes": {"bold": True}},
                         {
                             "insert": "\n\n30 day turnaround time from the date of this bounty"
                         },
@@ -471,6 +471,7 @@ def create_automated_bounty(item):
             current_bounty_fee,
             comment_content_type,
             comment.id,
+            False,
         )
 
         item.automated_bounty_created = True
