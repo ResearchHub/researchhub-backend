@@ -1,0 +1,2 @@
+from .related_models.prediction_market_model import PredictionMarket
+from .related_models.prediction_market_vote_model import PredictionMarketVote

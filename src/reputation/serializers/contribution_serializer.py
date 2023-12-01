@@ -111,6 +111,7 @@ class DynamicContributionSerializer(DynamicModelFieldSerializer):
     def get_source(self, contribution):
         from hypothesis.serializers import DynamicHypothesisSerializer
         from paper.serializers import DynamicPaperSerializer
+        from prediction_market.serializers import DynamicPredictionMarketVoteSerializer
         from purchase.serializers import DynamicPurchaseSerializer
         from researchhub_comment.serializers import DynamicRhCommentSerializer
         from researchhub_document.serializers import DynamicPostSerializer
@@ -167,6 +168,10 @@ class DynamicContributionSerializer(DynamicModelFieldSerializer):
             )
         elif model_name == "bounty solution":
             serializer = DynamicBountySolutionSerializer(
+                obj, context=context, **_context_fields
+            )
+        elif model_name == "prediction market vote":
+            serializer = DynamicPredictionMarketVoteSerializer(
                 obj, context=context, **_context_fields
             )
 
