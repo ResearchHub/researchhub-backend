@@ -174,7 +174,12 @@ class PredictionMarketVoteViewSet(viewsets.ModelViewSet):
                     "created_date",
                     "updated_date",
                     "profile_image",
+                    "is_verified",
                 )
+            },
+            "usr_dus_get_editor_of": {"_include_fields": ("source",)},
+            "rag_dps_get_source": {
+                "_include_fields": ("id", "name", "hub_image", "slug")
             },
         }
         return context
