@@ -84,6 +84,7 @@ class RhCommentModel(
         "reputation.Bounty",
         content_type_field="item_content_type",
         object_id_field="item_object_id",
+        related_query_name="rh_comment",
     )
     bounty_solution = GenericRelation(
         "reputation.BountySolution",

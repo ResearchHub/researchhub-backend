@@ -5,6 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.pagination import CursorPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 
+from user.filters import ContributionFilter
 from user.models import Action
 from user.serializers import DynamicActionSerializer
 
@@ -20,6 +21,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
     pagination_class = CursorSetPagination
     filter_backends = (DjangoFilterBackend,)
+    filter_class = ContributionFilter
     filterset_fields = ("hubs",)
     order_fields = ("created_date",)
 
