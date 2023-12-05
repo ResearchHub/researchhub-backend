@@ -29,8 +29,9 @@ class CustomUserAdmin(UserAdmin):
         user = request.user
         changed_spam_status = "probable_spammer" in form.changed_data
         changed_suspended_status = "is_suspended" in form.changed_data
-        if changed_spam_status or changed_suspended_status:
+        if changed_spam_status:
             user.set_probable_spammer(obj.probable_spammer)
+        if changed_suspended_status:
             user.set_suspended(obj.is_suspended)
         super().save_model(request, obj, form, change)
 

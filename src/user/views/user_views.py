@@ -229,7 +229,7 @@ class UserViewSet(viewsets.ModelViewSet):
         user_to_censor = User.objects.get(author_profile__id=author_id)
         user_to_censor.set_probable_spammer()
         user_to_censor.set_suspended()
-        handle_spam_user_task(user_to_censor.id)
+        handle_spam_user_task(user_to_censor.id, request.user)
 
         return Response({"message": "User is Censored"}, status=200)
 
