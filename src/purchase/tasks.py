@@ -27,7 +27,7 @@ def update_purchases():
         if purchase.content_type == PAPER_CONTENT_TYPE:
             paper = PAPER_CONTENT_TYPE.get_object_for_this_type(id=purchase.object_id)
             paper.calculate_hot_score()
-    reset_unified_document_cache(with_default_hub=True)
+    reset_unified_document_cache()
 
 
 @app.task(queue=QUEUE_NOTIFICATION)
@@ -44,7 +44,6 @@ def send_support_email(
     object_id,
     paper_id=None,
 ):
-
     paper_data = {}
     object_supported = "profile"
     if content_type == "paper":

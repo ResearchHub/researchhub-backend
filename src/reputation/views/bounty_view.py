@@ -288,11 +288,8 @@ class BountyViewSet(viewsets.ModelViewSet):
                     SORT_BOUNTY_TOTAL_AMOUNT,
                 )
             )
-            hubs = list(unified_document.hubs.all().values_list("id", flat=True))
             reset_unified_document_cache(
-                hub_ids=hubs,
                 document_type=[ALL.lower(), BOUNTY.lower()],
-                with_default_hub=True,
             )
             return Response(serializer.data, status=201)
 
@@ -375,11 +372,8 @@ class BountyViewSet(viewsets.ModelViewSet):
                 )
             )
 
-            hubs = list(unified_document.hubs.all().values_list("id", flat=True))
             reset_unified_document_cache(
-                hub_ids=hubs,
                 document_type=[ALL.lower(), BOUNTY.lower()],
-                with_default_hub=True,
             )
             context = self._get_create_context()
             serializer = DynamicBountySerializer(
@@ -425,11 +419,8 @@ class BountyViewSet(viewsets.ModelViewSet):
                 )
             )
 
-            hubs = list(unified_document.hubs.all().values_list("id", flat=True))
             reset_unified_document_cache(
-                hub_ids=hubs,
                 document_type=[ALL.lower(), BOUNTY.lower()],
-                with_default_hub=True,
             )
 
             if bounty_cancelled:

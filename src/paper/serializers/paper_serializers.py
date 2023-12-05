@@ -62,7 +62,6 @@ from user.serializers import (
     UserSerializer,
 )
 from utils.http import check_url_contains_pdf, get_user_from_request
-from utils.siftscience import events_api, update_user_risk_score
 
 
 class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
@@ -438,6 +437,7 @@ class PaperSerializer(BasePaperSerializer):
 
                 self._add_orcid_authors(paper)
                 paper.hubs.add(*hubs)
+                paper.unified_document.hubs.add(*hubs)
 
                 try:
                     file = paper.file
@@ -469,14 +469,10 @@ class PaperSerializer(BasePaperSerializer):
                 #     (paper_id,), priority=5, countdown=10
                 # )
 
-                hub_ids = unified_doc.hubs.values_list("id", flat=True)
-                if hub_ids.exists():
-                    reset_unified_document_cache(
-                        hub_ids,
-                        document_type=["paper", "all"],
-                        filters=[NEW],
-                        with_default_hub=True,
-                    )
+                reset_unified_document_cache(
+                    document_type=["paper", "all"],
+                    filters=[NEW],
+                )
                 paper.save()
                 return paper
         except IntegrityError as e:
@@ -541,14 +537,10 @@ class PaperSerializer(BasePaperSerializer):
                 if file:
                     self._add_file(paper, file)
 
-                updated_hub_ids = list(map(lambda hub: hub.id, remove_hubs + new_hubs))
-                if len(updated_hub_ids) > 0:
-                    reset_unified_document_cache(
-                        hub_ids=updated_hub_ids,
-                        document_type=["paper", "all"],
-                        filters=[NEW, UPVOTED, HOT, DISCUSSED],
-                        with_default_hub=True,
-                    )
+                reset_unified_document_cache(
+                    document_type=["paper", "all"],
+                    filters=[NEW, UPVOTED, HOT, DISCUSSED],
+                )
 
                 return paper
         except Exception as e:
@@ -909,12 +901,12 @@ class DynamicPaperSerializer(
         context = self.context
         _context_fields = context.get("pap_dps_get_first_preview", {})
         if paper.figures.exists():
-            figure = paper.figures.filter(figure_type=Figure.PREVIEW).first()
-            if figure:
-                serializer = DynamicFigureSerializer(
-                    figure, context=context, **_context_fields
-                )
-                return serializer.data
+            # Using prefetches to filter by figure preview
+            # Slicing with [0] because .first() does not use prefetch cache
+            serializer = DynamicFigureSerializer(
+                paper.figures.all()[0], context=context, **_context_fields
+            )
+            return serializer.data
         return None
 
     def get_purchases(self, paper):

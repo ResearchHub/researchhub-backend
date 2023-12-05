@@ -6,7 +6,6 @@ from datetime import timedelta
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from hub.models import Hub
 from paper.models import Paper
 from paper.tasks import censored_paper_cleanup
 from researchhub_document.utils import reset_unified_document_cache
@@ -25,10 +24,4 @@ class Command(BaseCommand):
             print(f"Paper: {paper.id} - {i + 1}/{count}")
             if not paper.doi:
                 censored_paper_cleanup(paper.id)
-        hub_ids = list(
-            Hub.objects.filter(papers__in=list(papers.values_list(flat=True)))
-            .values_list(flat=True)
-            .distinct()
-        )
-        print(hub_ids)
-        reset_unified_document_cache(hub_ids)
+        reset_unified_document_cache()

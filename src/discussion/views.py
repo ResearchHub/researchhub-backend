@@ -122,7 +122,6 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             created_thread.save()
 
         unified_document.update_filter(SORT_DISCUSSED)
-        hubs = list(unified_document.hubs.all().values_list("id", flat=True))
         discussion_id = response.data["id"]
 
         self.sift_track_create_content_comment(
@@ -142,10 +141,8 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
         doc_type = get_doc_type_key(unified_document)
         reset_unified_document_cache(
-            hub_ids=hubs,
             document_type=[doc_type, "all"],
             filters=[DISCUSSED, HOT],
-            with_default_hub=True,
         )
 
         return Response(
@@ -227,8 +224,11 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             hypothesis_id = get_document_id_from_path(self.request)
             threads = Thread.objects.filter(
                 Q(hypothesis=hypothesis_id)
-                | Q(citation_id__in=Citation.objects.filter(
-                    hypothesis=hypothesis_id).values_list('id', flat=True))
+                | Q(
+                    citation_id__in=Citation.objects.filter(
+                        hypothesis=hypothesis_id
+                    ).values_list("id", flat=True)
+                )
             )
         elif document_type == "citation":
             citation_id = get_document_id_from_path(self.request)
@@ -308,13 +308,10 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             )
         )
         unified_document = target_thread.unified_document
-        hubs = list(unified_document.hubs.all().values_list("id", flat=True))
         doc_type = get_doc_type_key(unified_document)
         reset_unified_document_cache(
-            hub_ids=hubs,
             document_type=[doc_type],
             filters=[EXPIRING_SOON, MOST_RSC],
-            with_default_hub=True,
         )
         return Response({"thread_id": target_thread.id}, status=200)
         # except Exception as exception:
@@ -361,7 +358,6 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         response = super().create(request, *args, **kwargs)
         response = self.get_self_upvote_response(request, response, Comment)
         unified_document.update_filter(SORT_DISCUSSED)
-        hubs = list(unified_document.hubs.all().values_list("id", flat=True))
         self.sift_track_create_content_comment(request, response, Comment)
 
         discussion_id = response.data["id"]
@@ -379,10 +375,8 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
         doc_type = get_doc_type_key(unified_document)
         reset_unified_document_cache(
-            hub_ids=hubs,
             document_type=[doc_type, "all"],
             filters=[DISCUSSED, HOT],
-            with_default_hub=True,
         )
 
         return response
@@ -440,17 +434,12 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             )
         )
         unified_document = comment.unified_document
-        hubs = list(unified_document.hubs.all().values_list("id", flat=True))
         doc_type = get_doc_type_key(unified_document)
         reset_unified_document_cache(
-            hub_ids=hubs,
             document_type=[doc_type],
             filters=[EXPIRING_SOON, MOST_RSC],
-            with_default_hub=True,
         )
         return Response({"comment_id": comment.id}, status=200)
-        # except Exception as exception:
-        #     return Response(str(exception), status=400)
 
     @action(
         detail=True,
@@ -530,7 +519,6 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
         response = super().create(request, *args, **kwargs)
         unified_document.update_filter(SORT_DISCUSSED)
-        hubs = list(unified_document.hubs.all().values_list("id", flat=True))
         self.sift_track_create_content_comment(request, response, Reply)
 
         discussion_id = response.data["id"]
@@ -548,10 +536,8 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
 
         doc_type = get_doc_type_key(unified_document)
         reset_unified_document_cache(
-            hub_ids=hubs,
             document_type=[doc_type, "all"],
             filters=[DISCUSSED, HOT],
-            with_default_hub=True,
         )
 
         return self.get_self_upvote_response(request, response, Reply)

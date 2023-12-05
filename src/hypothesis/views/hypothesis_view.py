@@ -49,12 +49,9 @@ class HypothesisViewSet(ReactionViewActionMixin, ModelViewSet):
         serializer = HypothesisSerializer(hypo)
         data = serializer.data
 
-        hub_ids = unified_doc.hubs.values_list("id", flat=True)
         reset_unified_document_cache(
-            hub_ids,
             document_type=["all", "hypothesis"],
             filters=[NEW],
-            with_default_hub=True,
         )
         return Response(data, status=200)
 

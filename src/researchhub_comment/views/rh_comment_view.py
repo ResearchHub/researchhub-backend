@@ -335,13 +335,10 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 )
 
                 unified_document.update_filter(SORT_DISCUSSED)
-                hubs = list(unified_document.hubs.all().values_list("id", flat=True))
                 doc_type = get_doc_type_key(unified_document)
                 reset_unified_document_cache(
-                    hub_ids=hubs,
                     document_type=[doc_type, "all"],
                     filters=[DISCUSSED, HOT],
-                    with_default_hub=True,
                 )
 
             context = self._get_retrieve_context()
@@ -423,11 +420,8 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     SORT_BOUNTY_TOTAL_AMOUNT,
                 )
             )
-            hubs = list(unified_document.hubs.all().values_list("id", flat=True))
             reset_unified_document_cache(
-                hub_ids=hubs,
                 document_type=[ALL.lower(), BOUNTY.lower()],
-                with_default_hub=True,
             )
 
             rh_comment = self.get_queryset().get(id=item_object_id)
@@ -634,13 +628,10 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 )
             )
             unified_document = comment.unified_document
-            hubs = list(unified_document.hubs.all().values_list("id", flat=True))
             doc_type = get_doc_type_key(unified_document)
             reset_unified_document_cache(
-                hub_ids=hubs,
                 document_type=[doc_type],
                 filters=[EXPIRING_SOON, MOST_RSC],
-                with_default_hub=True,
             )
             return Response({"comment_id": comment.id}, status=200)
 

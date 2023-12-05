@@ -56,13 +56,7 @@ def handle_spam_user_task(user_id, requestor=None):
 
                 censor(requestor, comment)
 
-        hub_ids = list(
-            Hub.objects.filter(papers__in=list(user.papers.values_list(flat=True)))
-            .values_list(flat=True)
-            .distinct()
-        )
-
-    reset_unified_document_cache(hub_ids)
+        reset_unified_document_cache()
 
 
 @app.task
@@ -80,13 +74,7 @@ def reinstate_user_task(user_id):
         is_removed=False
     )
 
-    hub_ids = list(
-        Hub.objects.filter(papers__in=list(user.papers.values_list(flat=True)))
-        .values_list(flat=True)
-        .distinct()
-    )
-
-    reset_unified_document_cache(hub_ids, {}, None)
+    reset_unified_document_cache()
 
 
 @app.task(queue=QUEUE_PAPER_MISC)

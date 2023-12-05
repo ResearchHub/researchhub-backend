@@ -1,7 +1,8 @@
-from django.db.models import Count, Q
+from django.db.models import Prefetch, Q
 from django_filters import rest_framework as filters
 
 from hub.models import Hub
+from paper.models import Figure
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     BOUNTY,
@@ -22,6 +23,7 @@ from researchhub_document.related_models.constants.filters import (
     UPVOTED,
 )
 from researchhub_document.utils import get_date_ranges_by_time_scope
+from review.models import Review
 
 DOC_CHOICES = (
     ("all", "All"),
@@ -113,6 +115,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
     def document_type_filter(self, qs, name, value):
         value = value.upper()
         selects = (
+            "document_filter",
             "paper",
             "paper__uploaded_by",
             "paper__uploaded_by__author_profile",
@@ -122,21 +125,28 @@ class UnifiedDocumentFilter(filters.FilterSet):
         )
         prefetches = (
             "hubs",
+            "paper__authors",
+            Prefetch(
+                "paper__figures",
+                queryset=Figure.objects.filter(figure_type=Figure.PREVIEW),
+            ),
             "paper__hubs",
             "paper__purchases",
             "paper__figures",
             "posts",
+            "posts__authors",
             "posts__created_by",
             "posts__created_by__author_profile",
             "posts__purchases",
-            "reviews",
+            "posts__threads",
+            Prefetch("reviews", queryset=Review.objects.filter(is_removed=False)),
             "related_bounties",
-            "concepts",
         )
 
         if value == PAPER:
             qs = qs.filter(document_type=PAPER)
             selects = (
+                "document_filter",
                 "paper",
                 "paper__uploaded_by",
                 "paper__uploaded_by__author_profile",
@@ -144,31 +154,37 @@ class UnifiedDocumentFilter(filters.FilterSet):
             prefetches = (
                 "hubs",
                 "paper",
-                "reviews",
+                "paper__authors",
+                Prefetch(
+                    "paper__figures",
+                    queryset=Figure.objects.filter(figure_type=Figure.PREVIEW),
+                ),
+                Prefetch("reviews", queryset=Review.objects.filter(is_removed=False)),
                 "related_bounties",
                 "paper__hubs",
                 "paper__figures",
                 "paper__purchases",
-                "concepts",
             )
         elif value == POSTS:
             qs = qs.filter(document_type__in=[DISCUSSION, ELN])
-            selects = []
+            selects = ["document_filter"]
             prefetches = [
                 "hubs",
-                "reviews",
+                Prefetch("reviews", queryset=Review.objects.filter(is_removed=False)),
                 "related_bounties",
                 "posts",
+                "posts__authors",
                 "posts__created_by",
                 "posts__created_by__author_profile",
                 "posts__purchases",
             ]
         elif value == QUESTION:
             qs = qs.filter(document_type=QUESTION)
-            selects = []
+            selects = ["document_filter"]
         elif value == HYPOTHESIS:
             qs = qs.filter(document_type=HYPOTHESIS)
             selects = (
+                "document_filter",
                 "hypothesis",
                 "hypothesis__created_by",
                 "hypothesis__created_by__author_profile",
@@ -182,7 +198,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
         elif value == BOUNTY:
             prefetches = (
                 "hubs",
-                "reviews",
+                Prefetch("reviews", queryset=Review.objects.filter(is_removed=False)),
                 "related_bounties",
             )
             qs = qs.filter(document_filter__has_bounty=True)
