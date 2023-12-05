@@ -115,27 +115,27 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 title = data.get("title", "")
                 assign_doi = data.get("assign_doi", False)
                 peer_review_is_requested = data.get("request_peer_review", False)
-                amount = data.pop("amount", None)
+                # amount = data.pop("amount", None)
                 doi = generate_doi() if assign_doi else None
 
                 if assign_doi and created_by.get_balance() - CROSSREF_DOI_RSC_FEE < 0:
                     return Response("Insufficient Funds", status=402)
 
-                if amount:
-                    item_content_type = ResearchhubPost.__name__.lower()
-                    response = _create_bounty_checks(
-                        created_by, amount, item_content_type
-                    )
-                    if not isinstance(response, tuple):
-                        return response
-                    else:
-                        (
-                            amount,
-                            fee_amount,
-                            rh_fee,
-                            dao_fee,
-                            current_bounty_fee,
-                        ) = response
+                # if amount:
+                #     item_content_type = ResearchhubPost.__name__.lower()
+                #     response = _create_bounty_checks(
+                #         created_by, amount, item_content_type
+                #     )
+                #     if not isinstance(response, tuple):
+                #         return response
+                #     else:
+                #         (
+                #             amount,
+                #             fee_amount,
+                #             rh_fee,
+                #             dao_fee,
+                #             current_bounty_fee,
+                #         ) = response
 
                 # logical ordering & not using signals to avoid race-conditions
                 access_group = self.create_access_group(request)
@@ -164,25 +164,25 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 rh_post.authors.set(authors)
                 self.add_upvote(created_by, rh_post)
 
-                if amount:
-                    bounty_data = {
-                        "item_content_type": item_content_type,
-                        "item": rh_post,
-                        "item_object_id": rh_post.id,
-                        "bounty_type": "ANSWER",
-                    }
-                    _deduct_fees(
-                        created_by, fee_amount, rh_fee, dao_fee, current_bounty_fee
-                    )
-                    _create_bounty(
-                        created_by,
-                        bounty_data,
-                        amount,
-                        fee_amount,
-                        current_bounty_fee,
-                        item_content_type,
-                        rh_post.id,
-                    )
+                # if amount:
+                #     bounty_data = {
+                #         "item_content_type": item_content_type,
+                #         "item": rh_post,
+                #         "item_object_id": rh_post.id,
+                #         "bounty_type": "ANSWER",
+                #     }
+                #     _deduct_fees(
+                #         created_by, fee_amount, rh_fee, dao_fee, current_bounty_fee
+                #     )
+                #     _create_bounty(
+                #         created_by,
+                #         bounty_data,
+                #         amount,
+                #         fee_amount,
+                #         current_bounty_fee,
+                #         item_content_type,
+                #         rh_post.id,
+                #     )
 
                 if not TESTING:
                     if document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
