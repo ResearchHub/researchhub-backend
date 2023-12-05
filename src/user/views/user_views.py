@@ -1328,6 +1328,13 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 ]
             },
             "doc_duds_get_bounties": {"_include_fields": ["id"]},
+            "doc_duds_get_document_filter": {
+                "_include_fields": [
+                    "answered",
+                    "bounty_open",
+                    "bounty_total_amount",
+                ]
+            },
             "rep_dcs_get_author": {
                 "_include_fields": [
                     "id",
@@ -1342,6 +1349,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     "document_type",
                     "documents",
                     "hubs",
+                    "document_filter",
                 ]
             },
             "rep_dcs_get_source": {
