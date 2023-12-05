@@ -175,9 +175,29 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
         _filter_fields = copy.deepcopy(_context_fields.get("_filter_fields", {}))
         _order_fields = copy.deepcopy(_context_fields.get("_order_fields", []))
 
+        # Special logic here to order only papers' hubs
+        # based off their concept's relevancy score
+        # since posts have hubs but no attached concepts
+        if "concept__through_unified_document__unified_document" in _filter_fields:
+            if unified_doc.document_type == PAPER:
+                _filter_fields[
+                    "concept__through_unified_document__unified_document"
+                ] = unified_doc
+            else:
+                _filter_fields.pop(
+                    "concept__through_unified_document__unified_document"
+                )
+                _order_fields.remove(
+                    "-concept__through_unified_document__relevancy_score"
+                )
+
         hubs = unified_doc.hubs
         if _filter_fields:
-            hubs = hubs.filter(**_filter_fields)
+            filtered_hubs = hubs.filter(**_filter_fields)
+            if filtered_hubs.exists():
+                hubs = filtered_hubs
+            else:
+                _order_fields = []
         if _order_fields:
             hubs = hubs.order_by(*_order_fields)
 
