@@ -8,6 +8,7 @@ from .constants import (
     ARTICLE_JOURNAL,
     BIBTEX_TO_CITATION_TYPES,
     BIBTEX_TYPE_TO_CSL_MAPPING,
+    BLOG_POST,
     CITATION_TYPE_FIELDS,
     JOURNAL_ARTICLE,
 )
@@ -53,6 +54,54 @@ def generate_json_for_doi_via_oa(doi):
                 json_dict[field] = cur_json
         else:
             json_dict[field] = ""
+    return json_dict
+
+
+def generate_json_for_rh_post(post):
+    json_dict = {}
+    schema = generate_schema_for_citation(BLOG_POST)
+    print(schema["required"])
+    for field in schema["required"]:
+        mapping_field = CITATION_TO_POST_MAPPING.get(field, "")
+        if mapping_field:
+            if mapping_field == "paper_publish_date":
+                date_parts = {}
+                publish_date = getattr(post, mapping_field)
+                if publish_date:
+                    date_parts = {
+                        "date-parts": [date_string_to_parts(publish_date.isoformat())]
+                    }
+                json_dict[field] = date_parts
+            else:
+                json_dict[field] = json_serial(
+                    getattr(post, mapping_field, ""), ignore_errors=True
+                )
+        else:
+            value = ""
+            if field == "author":
+                authors = post.authors.all()
+                author_array = []
+                for author in authors.iterator():
+                    author_array.append(
+                        {
+                            "given": author.first_name,
+                            "family": author.last_name,
+                        }
+                    )
+                value = author_array
+            elif field == "abstract":
+                value = post.renderable_text[0:255]
+                if len(post.renderable_text) > 255:
+                    value += "..."
+            elif field == "genre":
+                hub_names = post.hubs.values_list("name", flat=True)
+                hub_names_string = ", ".join(hub_names)
+                value = hub_names_string
+            elif field == "URL":
+                value = "www.researchhub.com/"
+            elif field == "language":
+                value = "English"
+            json_dict[field] = value
     return json_dict
 
 
@@ -213,6 +262,14 @@ CITATION_TO_PAPER_MAPPING = {
     "container-title": "paper_title",
     "journalAbbreviation": "external_source",
     "url": "url",
+}
+
+CITATION_TO_POST_MAPPING = {
+    "DOI": "doi",
+    "title": "title",
+    "issued": "created_date",
+    "container-title": "title",
+    "title-short": "title",
 }
 
 OPENALEX_JOURNAL_MAPPING = {
