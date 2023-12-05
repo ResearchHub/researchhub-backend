@@ -23,7 +23,14 @@ from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from reputation.views.bounty_view import _create_bounty, _create_bounty_checks
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
-from researchhub_document.related_models.constants.document_type import SORT_UPVOTED
+from researchhub_document.related_models.constants.document_type import (
+    FILTER_BOUNTY_OPEN,
+    FILTER_HAS_BOUNTY,
+    SORT_BOUNTY_EXPIRATION_DATE,
+    SORT_BOUNTY_TOTAL_AMOUNT,
+    SORT_DISCUSSED,
+    SORT_UPVOTED,
+)
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
     HOT,
@@ -386,88 +393,101 @@ def create_automated_bounty(item):
         and item.hubs.filter(id=436).exists()  # Hardcoded Biorxiv Hub
         and not item.automated_bounty_created
     ):
-        user = User.objects.get(email="main@researchhub.foundation")
-        item_object_id = item.id
-        item_content_type = ContentType.objects.get_for_model(item)
-        usd_amount_for_bounty = 150
+        with transaction.atomic():
+            user = User.objects.get(email="main@researchhub.foundation")
+            item_object_id = item.id
+            item_content_type = ContentType.objects.get_for_model(item)
+            usd_amount_for_bounty = 150
 
-        # Round the number to nearest 10, then turn it into a string
-        amount = str(RscExchangeRate.usd_to_rsc(usd_amount_for_bounty) // 10 * 10)
-        bypass_user_balance = True
-        json_content = {
-            "ops": [
-                {
-                    "insert": "The ResearchHub Foundation is assigning a peer review bounty of $150 in ResearchCoin to incentivize the peer review of this Biorxiv preprint. This will be awarded to an individual who performs a high quality peer review. Anyone can perform a peer review and receive rewards from upvotes/tips, but only those who provide a high quality thorough peer review are eligible for the bounty.\n\n"
-                },
-                {"insert": "Requirements: ", "attributes": {"bold": True}},
-                {"insert": "\n\n30 day turnaround time from the date of this bounty"},
-                {"insert": "\n", "attributes": {"list": "bullet"}},
-                {
-                    "insert": 'Use the rating system in the "Peer Reviews" tab for all 5 criteria (overall, impact, methods, results, discussion) but the content within each is flexible (in-line comments can be used here instead of a block of text in each section, but a star rating should still be made in the "Peer Review" Tab)'
-                },
-                {"insert": "\n", "attributes": {"list": "bullet"}},
-                {
-                    "insert": "Include a section at the end for areas you may be deficient in, so the readers have context around your peer review"
-                },
-                {"insert": "\n", "attributes": {"list": "bullet"}},
-                {
-                    "insert": "Blatant use of AI generation will not be tolerated, but can be used in conjunction with your detailed human feedback"
-                },
-                {"insert": "\n", "attributes": {"list": "bullet"}},
-                {
-                    "insert": "Comment within this thread in the bounty section in order to be awarded the peer review bounty upon completion"
-                },
-                {"insert": "\n", "attributes": {"list": "bullet"}},
-            ]
-        }
-        thread = RhCommentThreadModel.objects.create(
-            thread_type="GENERIC_COMMENT",
-            content_type_id=item_content_type.id,
-            created_by=user,
-            updated_by=user,
-            object_id=item_object_id,
-        )
-
-        comment, _ = RhCommentModel.create_from_data(
-            {
-                "updated_by": user.id,
-                "created_by": user.id,
-                "comment_content_type": "QUILL_EDITOR",
-                "thread": thread.id,
-                "comment_content_json": json_content,
+            # Round the number to nearest 10, then turn it into a string
+            amount = str(RscExchangeRate.usd_to_rsc(usd_amount_for_bounty) // 10 * 10)
+            bypass_user_balance = True
+            json_content = {
+                "ops": [
+                    {
+                        "insert": "The ResearchHub Foundation is assigning a peer review bounty of $150 in ResearchCoin to incentivize the peer review of this Biorxiv preprint. This will be awarded to an individual who performs a high quality peer review. Anyone can perform a peer review and receive rewards from upvotes/tips, but only those who provide a high quality thorough peer review are eligible for the bounty.\n\n"
+                    },
+                    {"insert": "Requirements: ", "attributes": {"bold": True}},
+                    {
+                        "insert": "\n\n30 day turnaround time from the date of this bounty"
+                    },
+                    {"insert": "\n", "attributes": {"list": "bullet"}},
+                    {
+                        "insert": 'Use the rating system in the "Peer Reviews" tab for all 5 criteria (overall, impact, methods, results, discussion) but the content within each is flexible (in-line comments can be used here instead of a block of text in each section, but a star rating should still be made in the "Peer Review" Tab)'
+                    },
+                    {"insert": "\n", "attributes": {"list": "bullet"}},
+                    {
+                        "insert": "Include a section at the end for areas you may be deficient in, so the readers have context around your peer review"
+                    },
+                    {"insert": "\n", "attributes": {"list": "bullet"}},
+                    {
+                        "insert": "Blatant use of AI generation will not be tolerated, but can be used in conjunction with your detailed human feedback"
+                    },
+                    {"insert": "\n", "attributes": {"list": "bullet"}},
+                    {
+                        "insert": "Comment within this thread in the bounty section in order to be awarded the peer review bounty upon completion"
+                    },
+                    {"insert": "\n", "attributes": {"list": "bullet"}},
+                ]
             }
-        )
+            thread = RhCommentThreadModel.objects.create(
+                thread_type="GENERIC_COMMENT",
+                content_type_id=item_content_type.id,
+                created_by=user,
+                updated_by=user,
+                object_id=item_object_id,
+            )
 
-        comment_content_type = RhCommentModel.__name__.lower()
+            comment, _ = RhCommentModel.create_from_data(
+                {
+                    "updated_by": user.id,
+                    "created_by": user.id,
+                    "comment_content_type": "QUILL_EDITOR",
+                    "thread": thread.id,
+                    "comment_content_json": json_content,
+                }
+            )
 
-        data = {
-            "item_content_type": comment_content_type,
-            "item": comment,
-            "item_object_id": comment.id,
-            "bounty_type": "REVIEW",
-        }
+            comment_content_type = RhCommentModel.__name__.lower()
 
-        response = _create_bounty_checks(
-            user, amount, comment_content_type, bypass_user_balance
-        )
-        if not isinstance(response, tuple):
-            return response
-        else:
-            amount, fee_amount, rh_fee, dao_fee, current_bounty_fee = response
+            data = {
+                "item_content_type": comment_content_type,
+                "item": comment,
+                "item_object_id": comment.id,
+                "bounty_type": "REVIEW",
+            }
 
-        bounty = _create_bounty(
-            user,
-            data,
-            amount,
-            fee_amount,
-            current_bounty_fee,
-            comment_content_type,
-            comment.id,
-            False,
-        )
+            response = _create_bounty_checks(
+                user, amount, comment_content_type, bypass_user_balance
+            )
+            if not isinstance(response, tuple):
+                return response
+            else:
+                amount, fee_amount, rh_fee, dao_fee, current_bounty_fee = response
 
-        item.automated_bounty_created = True
-        item.save()
+            bounty = _create_bounty(
+                user,
+                data,
+                amount,
+                fee_amount,
+                current_bounty_fee,
+                comment_content_type,
+                comment.id,
+                False,
+            )
+            unified_document = bounty.unified_document
+            unified_document.update_filters(
+                (
+                    FILTER_BOUNTY_OPEN,
+                    FILTER_HAS_BOUNTY,
+                    SORT_BOUNTY_EXPIRATION_DATE,
+                    SORT_BOUNTY_TOTAL_AMOUNT,
+                    SORT_DISCUSSED,
+                )
+            )
+
+            item.automated_bounty_created = True
+            item.save(update_fields=["automated_bounty_created"])
 
 
 @sift_track(SIFT_VOTE)
