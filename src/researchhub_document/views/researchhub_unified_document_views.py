@@ -232,9 +232,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "is_removed",
                     "hub_image",
                 ],
-                "_filter_fields": {
-                    "concept__through_unified_document__unified_document": None
-                },
                 "_order_fields": [
                     "-concept__through_unified_document__relevancy_score"
                 ],
