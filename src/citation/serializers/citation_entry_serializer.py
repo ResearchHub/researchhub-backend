@@ -60,6 +60,9 @@ class CitationEntrySerializer(DefaultAuthenticatedSerializer):
                         pdf_without_query_string
                     )
                     citation_entry.save()
+            from citation.utils import create_paper_from_citation
+
+            create_paper_from_citation(citation_entry)
             return citation_entry
 
     def update(self, instance, validated_data):
