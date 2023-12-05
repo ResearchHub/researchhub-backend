@@ -165,12 +165,18 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 self.add_upvote(created_by, rh_post)
 
                 if amount:
+                    bounty_data = {
+                        "item_content_type": item_content_type,
+                        "item": rh_post,
+                        "item_object_id": rh_post.id,
+                        "bounty_type": "ANSWER",
+                    }
                     _deduct_fees(
                         created_by, fee_amount, rh_fee, dao_fee, current_bounty_fee
                     )
                     _create_bounty(
                         created_by,
-                        data,
+                        bounty_data,
                         amount,
                         fee_amount,
                         current_bounty_fee,
