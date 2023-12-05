@@ -121,7 +121,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 if assign_doi and created_by.get_balance() - CROSSREF_DOI_RSC_FEE < 0:
                     return Response("Insufficient Funds", status=402)
 
-                if amount and amount > 0:
+                if amount:
                     item_content_type = ResearchhubPost.__name__.lower()
                     response = _create_bounty_checks(
                         created_by, amount, item_content_type
