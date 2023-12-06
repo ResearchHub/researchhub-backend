@@ -170,7 +170,7 @@ class RhCommentModel(
         related_document = thread.unified_document.get_document()
         if hasattr(related_document, "discussion_count"):
             related_document.discussion_count += amount
-            related_document.save()
+            related_document.save(update_fields=["discussion_count"])
 
     def increment_discussion_count(self):
         self._update_related_discussion_count(1)

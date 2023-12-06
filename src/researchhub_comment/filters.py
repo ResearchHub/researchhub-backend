@@ -87,7 +87,9 @@ class RHCommentFilter(filters.FilterSet):
     privacy_type = filters.ChoiceFilter(
         choices=PRIVACY_CHOICES, method="privacy_filter", label="Privacy Filter"
     )
-    parent__isnull = filters.BooleanFilter(field_name="parent", lookup_expr="isnull")
+    parent__isnull = filters.BooleanFilter(
+        field_name="parent__isnull", method="filtering_parent"
+    )
 
     class Meta:
         model = RhCommentModel
@@ -225,3 +227,8 @@ class RHCommentFilter(filters.FilterSet):
             # Public comments
             qs = qs.filter(thread__permissions__isnull=True)
         return qs
+
+    def filtering_parent(self, qs, name, value):
+        if self._is_on_child_queryset():
+            return qs
+        return qs.filter(**{name: value})

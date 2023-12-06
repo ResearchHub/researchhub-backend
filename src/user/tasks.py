@@ -21,7 +21,6 @@ from discussion.lib import (
 )
 from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as GrmVote
-from hub.models import Hub
 from paper.models import Paper
 from paper.utils import get_cache_key
 from reputation.models import Contribution
@@ -56,6 +55,7 @@ def handle_spam_user_task(user_id, requestor=None):
 
                 censor(requestor, comment)
 
+        user.actions.update(display=False, is_removed=True)
         reset_unified_document_cache()
 
 
