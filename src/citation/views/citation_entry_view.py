@@ -171,16 +171,19 @@ class CitationEntryViewSet(ModelViewSet):
                 "created_by": user.id,
                 "organization": organization.id,
                 "doi": post.doi,
-                "related_unified_doc": post.unified_document.id,
+                "related_unified_doc_id": post.unified_document.id,
                 "project": project_id,
             }
+            print(citation_entry_data)
             request._mutable = True
             request._full_data = citation_entry_data
             request._mutable = False
             res = super().create(request)
+            citation = CitationEntry.objects.get(id=res.data["id"])
+            citation.related_unified_doc_id = post.unified_document.id
+            citation.save(update_fields=["related_unified_doc_id"])
 
             if file and res.status_code == 201:
-                citation = CitationEntry.objects.get(id=res.data["id"])
                 citation.attachment = file
                 citation.save(update_fields=["attachment"])
             return res
