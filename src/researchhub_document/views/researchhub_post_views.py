@@ -6,6 +6,7 @@ from datetime import datetime
 import requests
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
+from django.db import transaction
 from django.template.loader import render_to_string
 from django.utils.text import slugify
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
@@ -18,6 +19,11 @@ from hub.models import Hub
 from note.models import NoteContent
 from peer_review.serializers import PeerReviewRequestSerializer
 from purchase.models import Balance, Purchase
+from reputation.views.bounty_view import (
+    _create_bounty,
+    _create_bounty_checks,
+    _deduct_fees,
+)
 from researchhub.settings import (
     BASE_FRONTEND_URL,
     CROSSREF_API_URL,
@@ -33,9 +39,13 @@ from researchhub_document.permissions import HasDocumentEditingPermission
 from researchhub_document.related_models.constants.document_type import (
     ALL,
     BOUNTY,
+    FILTER_BOUNTY_OPEN,
+    FILTER_HAS_BOUNTY,
     POSTS,
     QUESTION,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
+    SORT_BOUNTY_EXPIRATION_DATE,
+    SORT_BOUNTY_TOTAL_AMOUNT,
 )
 from researchhub_document.related_models.constants.editor_type import CK_EDITOR
 from researchhub_document.related_models.constants.filters import (
@@ -95,72 +105,119 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
     @sift_track(SIFT_POST)
     def create_researchhub_post(self, request):
         try:
-            data = request.data
-            created_by = request.user
-            document_type = data.get("document_type")
-            editor_type = data.get("editor_type")
-            authors = data.get("authors", [])
-            note_id = data.get("note_id", None)
-            title = data.get("title", "")
-            assign_doi = data.get("assign_doi", False)
-            peer_review_is_requested = data.get("request_peer_review", False)
-            doi = generate_doi() if assign_doi else None
+            with transaction.atomic():
+                data = request.data
+                created_by = request.user
+                document_type = data.get("document_type")
+                editor_type = data.get("editor_type")
+                authors = data.get("authors", [])
+                note_id = data.get("note_id", None)
+                title = data.get("title", "")
+                assign_doi = data.get("assign_doi", False)
+                peer_review_is_requested = data.get("request_peer_review", False)
+                # amount = data.pop("amount", None)
+                doi = generate_doi() if assign_doi else None
 
-            if assign_doi and created_by.get_balance() - CROSSREF_DOI_RSC_FEE < 0:
-                return Response("Insufficient Funds", status=402)
+                if assign_doi and created_by.get_balance() - CROSSREF_DOI_RSC_FEE < 0:
+                    return Response("Insufficient Funds", status=402)
 
-            # logical ordering & not using signals to avoid race-conditions
-            access_group = self.create_access_group(request)
-            unified_document = self.create_unified_doc(request)
-            if access_group is not None:
-                unified_document.access_groups = access_group
-                unified_document.save()
+                # if amount:
+                #     item_content_type = ResearchhubPost.__name__.lower()
+                #     response = _create_bounty_checks(
+                #         created_by, amount, item_content_type
+                #     )
+                #     if not isinstance(response, tuple):
+                #         return response
+                #     else:
+                #         (
+                #             amount,
+                #             fee_amount,
+                #             rh_fee,
+                #             dao_fee,
+                #             current_bounty_fee,
+                #         ) = response
 
-            slug = slugify(title)
-            rh_post = ResearchhubPost.objects.create(
-                created_by=created_by,
-                document_type=document_type,
-                doi=doi,
-                slug=slug,
-                editor_type=CK_EDITOR if editor_type is None else editor_type,
-                note_id=note_id,
-                prev_version=None,
-                preview_img=data.get("preview_img"),
-                renderable_text=data.get("renderable_text"),
-                title=title,
-                bounty_type=data.get("bounty_type"),
-                unified_document=unified_document,
-            )
-            file_name = f"RH-POST-{document_type}-USER-{created_by.id}.txt"
-            full_src_file = ContentFile(data["full_src"].encode())
-            rh_post.authors.set(authors)
-            self.add_upvote(created_by, rh_post)
+                # logical ordering & not using signals to avoid race-conditions
+                access_group = self.create_access_group(request)
+                unified_document = self.create_unified_doc(request)
+                if access_group is not None:
+                    unified_document.access_groups = access_group
+                    unified_document.save()
 
-            if not TESTING:
-                if document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
-                    rh_post.discussion_src.save(file_name, full_src_file)
-                else:
-                    rh_post.eln_src.save(file_name, full_src_file)
+                slug = slugify(title)
+                rh_post = ResearchhubPost.objects.create(
+                    created_by=created_by,
+                    document_type=document_type,
+                    doi=doi,
+                    slug=slug,
+                    editor_type=CK_EDITOR if editor_type is None else editor_type,
+                    note_id=note_id,
+                    prev_version=None,
+                    preview_img=data.get("preview_img"),
+                    renderable_text=data.get("renderable_text"),
+                    title=title,
+                    bounty_type=data.get("bounty_type"),
+                    unified_document=unified_document,
+                )
+                file_name = f"RH-POST-{document_type}-USER-{created_by.id}.txt"
+                full_src_file = ContentFile(data["full_src"].encode())
+                rh_post.authors.set(authors)
+                self.add_upvote(created_by, rh_post)
 
-            reset_unified_document_cache(
-                document_type=[
-                    ALL.lower(),
-                    POSTS.lower(),
-                    QUESTION.lower(),
-                    BOUNTY.lower(),
-                ],
-                filters=[NEW, MOST_RSC],
-            )
+                # if amount:
+                #     bounty_data = {
+                #         "item_content_type": item_content_type,
+                #         "item": rh_post,
+                #         "item_object_id": rh_post.id,
+                #         "bounty_type": "ANSWER",
+                #     }
+                #     _deduct_fees(
+                #         created_by, fee_amount, rh_fee, dao_fee, current_bounty_fee
+                #     )
+                #     _create_bounty(
+                #         created_by,
+                #         bounty_data,
+                #         amount,
+                #         fee_amount,
+                #         current_bounty_fee,
+                #         item_content_type,
+                #         rh_post.id,
+                #     )
 
-            if assign_doi:
-                crossref_response = register_doi(created_by, title, doi, rh_post)
-                if crossref_response.status_code != 200:
-                    return Response("Crossref API Failure", status=400)
-                charge_doi_fee(created_by, rh_post)
+                if not TESTING:
+                    if document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
+                        rh_post.discussion_src.save(file_name, full_src_file)
+                    else:
+                        rh_post.eln_src.save(file_name, full_src_file)
 
-            if peer_review_is_requested and note_id:
-                request_peer_review(
-                    request=request, requested_by=request.user, post=rh_post
+                if assign_doi:
+                    crossref_response = register_doi(created_by, title, doi, rh_post)
+                    if crossref_response.status_code != 200:
+                        return Response("Crossref API Failure", status=400)
+                    charge_doi_fee(created_by, rh_post)
+
+                if peer_review_is_requested and note_id:
+                    request_peer_review(
+                        request=request, requested_by=created_by, post=rh_post
+                    )
+
+                reset_unified_document_cache(
+                    document_type=[
+                        ALL.lower(),
+                        POSTS.lower(),
+                        QUESTION.lower(),
+                        BOUNTY.lower(),
+                    ],
+                    filters=[NEW, MOST_RSC],
+                )
+
+                unified_document.update_filters(
+                    (
+                        FILTER_BOUNTY_OPEN,
+                        FILTER_HAS_BOUNTY,
+                        SORT_BOUNTY_EXPIRATION_DATE,
+                        SORT_BOUNTY_TOTAL_AMOUNT,
+                    )
                 )
 
             return Response(ResearchhubPostSerializer(rh_post).data, status=200)

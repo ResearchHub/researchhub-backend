@@ -22,10 +22,7 @@ from researchhub_comment.constants.rh_comment_migration_legacy_types import (
 )
 from researchhub_comment.constants.rh_comment_thread_types import (
     GENERIC_COMMENT,
-    INNER_CONTENT_COMMENT,
-    PEER_REVIEW,
     RH_COMMENT_THREAD_TYPES,
-    SUMMARY,
 )
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
@@ -84,6 +81,7 @@ class RhCommentModel(
         "reputation.Bounty",
         content_type_field="item_content_type",
         object_id_field="item_object_id",
+        related_query_name="rh_comment",
     )
     bounty_solution = GenericRelation(
         "reputation.BountySolution",
@@ -126,6 +124,12 @@ class RhCommentModel(
     @property
     def unified_document(self):
         return self.thread.unified_document
+
+    @property
+    def is_public_comment(self):
+        from citation.models import CitationEntry
+
+        return not isinstance(self.thread.content_object, CitationEntry)
 
     @property
     def plain_text(self):

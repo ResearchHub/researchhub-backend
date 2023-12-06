@@ -67,6 +67,20 @@ class CitationEntry(DefaultAuthenticatedModel):
         # For Elasticsearch indexing
         return {"id": self.organization.id, "name": self.organization.name}
 
+    @property
+    def unified_document(self):
+        # Not all citations have a unified document
+        if unified_document := self.related_unified_doc:
+            return unified_document
+        return None
+
+    @property
+    def unified_document_id(self):
+        # Not all citations have a unified document
+        if unified_document := self.unified_document:
+            return unified_document.id
+        return None
+
     """--- METHODS ---"""
 
     def is_user_allowed_to_edit(self, user):
