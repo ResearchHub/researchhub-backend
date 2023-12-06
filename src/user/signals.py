@@ -128,9 +128,11 @@ def create_action(sender, instance, created, **kwargs):
             if (
                 sender in vote_types
                 or sender == PaperSubmission
-                or sender != GrmVote
+                or (
+                    sender != GrmVote
+                    and (hasattr(instance, "is_removed") and instance.is_removed)
+                )
                 or (sender == RhCommentModel and not instance.is_public)
-                and (hasattr(instance, "is_removed") and instance.is_removed)
             )
             else True
         )

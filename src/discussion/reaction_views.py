@@ -72,12 +72,15 @@ def censor(requestor, item):
             action = action.first()
             action.is_removed = True
             action.display = False
-            action.save()
+            action.save(update_fields=["is_removed", "display"])
+
+    if purchases := getattr(item, "purchases", None):
+        for purchase in purchases.iterator():
+            purchase.actions.update(is_removed=True, display=False)
 
     if hasattr(item, "unified_document"):
         doc = item.unified_document
         doc_type = get_doc_type_key(doc)
-        hubs = list(doc.hubs.all().values_list("id", flat=True))
 
         reset_unified_document_cache(
             document_type=[doc_type, "all"],
