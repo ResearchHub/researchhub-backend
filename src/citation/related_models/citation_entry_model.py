@@ -74,6 +74,11 @@ class CitationEntry(DefaultAuthenticatedModel):
             return unified_document
         return None
 
+    @property
+    def unified_document_id(self):
+        # Not all citations have a unified document
+        return self.unified_document.id
+
     """--- METHODS ---"""
 
     def is_user_allowed_to_edit(self, user):

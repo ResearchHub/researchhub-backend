@@ -22,10 +22,7 @@ from researchhub_comment.constants.rh_comment_migration_legacy_types import (
 )
 from researchhub_comment.constants.rh_comment_thread_types import (
     GENERIC_COMMENT,
-    INNER_CONTENT_COMMENT,
-    PEER_REVIEW,
     RH_COMMENT_THREAD_TYPES,
-    SUMMARY,
 )
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
@@ -127,6 +124,12 @@ class RhCommentModel(
     @property
     def unified_document(self):
         return self.thread.unified_document
+
+    @property
+    def is_public_comment(self):
+        from citation.models import CitationEntry
+
+        return not isinstance(self.thread.content_object, CitationEntry)
 
     @property
     def plain_text(self):
