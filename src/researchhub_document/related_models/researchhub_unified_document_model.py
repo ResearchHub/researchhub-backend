@@ -1,5 +1,3 @@
-from statistics import mean
-
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models import Avg, Count, Q
@@ -172,7 +170,7 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
 
     def get_review_details(self):
         details = {"avg": 0, "count": 0}
-        reviews = self.reviews.filter(is_removed=False)
+        reviews = self.reviews
         if reviews.exists():
             details = reviews.aggregate(avg=Avg("score"), count=Count("id"))
         return details
@@ -205,7 +203,10 @@ class UnifiedDocumentConcepts(DefaultModel):
     )
 
     concept = models.ForeignKey(
-        "tag.Concept", related_name="concept", blank=True, on_delete=models.CASCADE
+        "tag.Concept",
+        related_name="through_unified_document",
+        blank=True,
+        on_delete=models.CASCADE,
     )
 
     relevancy_score = models.FloatField(

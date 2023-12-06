@@ -219,9 +219,7 @@ def check_open_bounties():
             log_info(f"Failed to refund bounties: {ids}")
 
     reset_unified_document_cache(
-        hub_ids=[0],
         document_type=[ALL.lower(), BOUNTY.lower()],
-        with_default_hub=True,
     )
 
 

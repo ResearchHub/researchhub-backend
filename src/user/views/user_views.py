@@ -229,7 +229,7 @@ class UserViewSet(viewsets.ModelViewSet):
         user_to_censor = User.objects.get(author_profile__id=author_id)
         user_to_censor.set_probable_spammer()
         user_to_censor.set_suspended()
-        handle_spam_user_task(user_to_censor.id)
+        handle_spam_user_task(user_to_censor.id, request.user)
 
         return Response({"message": "User is Censored"}, status=200)
 
@@ -1328,6 +1328,13 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 ]
             },
             "doc_duds_get_bounties": {"_include_fields": ["id"]},
+            "doc_duds_get_document_filter": {
+                "_include_fields": [
+                    "answered",
+                    "bounty_open",
+                    "bounty_total_amount",
+                ]
+            },
             "rep_dcs_get_author": {
                 "_include_fields": [
                     "id",
@@ -1342,6 +1349,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     "document_type",
                     "documents",
                     "hubs",
+                    "document_filter",
                 ]
             },
             "rep_dcs_get_source": {

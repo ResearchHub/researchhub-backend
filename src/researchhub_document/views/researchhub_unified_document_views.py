@@ -105,12 +105,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             action.save()
 
         doc_type = get_doc_type_key(doc)
-        hub_ids = doc.hubs.values_list("id", flat=True)
         reset_unified_document_cache(
-            hub_ids,
             document_type=[doc_type, "all"],
             filters=[NEW, UPVOTED, HOT, DISCUSSED, MOST_RSC, EXPIRING_SOON],
-            with_default_hub=True,
         )
         return Response(self.get_serializer(instance=doc).data, status=200)
 
@@ -139,9 +136,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             action.save()
 
         doc_type = get_doc_type_key(doc)
-        hub_ids = doc.hubs.values_list("id", flat=True)
         reset_unified_document_cache(
-            hub_ids,
             document_type=[doc_type, "all"],
             filters=[NEW, UPVOTED, HOT, DISCUSSED, MOST_RSC, EXPIRING_SOON],
         )
@@ -182,7 +177,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         doc = self.get_object()
         doc_type = get_doc_type_key(doc)
         reset_unified_document_cache(
-            hub_ids,
             document_type=[doc_type, "all"],
             filters=[NEW, UPVOTED, HOT, DISCUSSED],
         )
@@ -200,12 +194,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "discussion_count",
                     "file",
                     "first_preview",
-                    "has_accepted_answer",
                     "hot_score",
-                    "hubs",
                     "id",
                     "external_source",
-                    "boost_amount",
                     "paper_publish_date",
                     "paper_title",
                     "pdf_url",
@@ -232,6 +223,29 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "status",
                 ],
             },
+            "doc_duds_get_hubs": {
+                "_include_fields": [
+                    "id",
+                    "name",
+                    "is_locked",
+                    "slug",
+                    "is_removed",
+                    "hub_image",
+                ],
+                "_filter_fields": {
+                    "concept__through_unified_document__unified_document": None
+                },
+                "_order_fields": [
+                    "-concept__through_unified_document__relevancy_score"
+                ],
+            },
+            "doc_duds_get_document_filter": {
+                "_include_fields": [
+                    "answered",
+                    "bounty_open",
+                    "bounty_total_amount",
+                ]
+            },
             "doc_dps_get_hubs": {
                 "_include_fields": [
                     "id",
@@ -240,7 +254,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "slug",
                     "is_removed",
                     "hub_image",
-                    "relevancy_score",
                 ]
             },
             "pap_dps_get_hubs": {
@@ -251,7 +264,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "slug",
                     "is_removed",
                     "hub_image",
-                    "relevancy_score",
                 ]
             },
             "pap_dps_get_unified_document": {
@@ -333,7 +345,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         self, document_type, filtering, hub_id, page_number, time_scope
     ):
         cache_hit = None
-        if page_number == 1:
+        if page_number == 1 and hub_id == 0:
             cache_pk = f"{document_type}_{hub_id}_{filtering}_{time_scope}"
             cache_key_hub = get_cache_key("hub", cache_pk)
             cache_hit = cache.get(cache_key_hub)
@@ -356,13 +368,12 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "id",
             "created_date",
             "documents",
+            "document_filter",
             "document_type",
             "hot_score",
-            "hot_score_v2",
+            "hubs",
             "reviews",
             "score",
-            "bounties",
-            "concepts",
         ]
         serializer = self.dynamic_serializer_class(
             page,
@@ -401,32 +412,32 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             cache_hit = self._cache_hit_with_latest_metadata(cache_hit)
             return Response(cache_hit)
         elif not cache_hit and page_number == 1:
-            with_default_hub = True if hub_id == 0 else False
             reset_unified_document_cache(
-                hub_ids=[hub_id],
                 document_type=[document_request_type],
                 filters=[filtering],
                 date_ranges=[time_scope],
-                with_default_hub=with_default_hub,
             )
 
         documents = self.get_filtered_queryset()
         context = self._get_serializer_context()
         context["hub_id"] = hub_id
         page = self.paginate_queryset(documents)
+
+        # Don't forget to update the _include_fields in
+        # the preload_trending_documents helper function
+        # if these _include_fields fields are being updated
         serializer = self.dynamic_serializer_class(
             page,
             _include_fields=[
                 "id",
                 "created_date",
                 "documents",
+                "document_filter",
                 "document_type",
                 "hot_score",
-                "hot_score_v2",
+                "hubs",
                 "reviews",
                 "score",
-                "bounties",
-                "concepts",
             ],
             many=True,
             context=context,
@@ -449,7 +460,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "documents",
                 "document_type",
                 "hot_score",
-                "hot_score_v2",
+                "hubs",
                 "reviews",
                 "score",
                 "bounties",
@@ -518,7 +529,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "documents",
                     "document_type",
                     "hot_score",
-                    "hot_score_v2",
+                    "hubs",
                     "reviews",
                     "score",
                     "bounties",
@@ -566,12 +577,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         unified_document.update_filter(FILTER_EXCLUDED_IN_FEED)
 
         doc_type = get_doc_type_key(unified_document)
-        hub_ids = unified_document.hubs.values_list("id", flat=True)
         reset_unified_document_cache(
-            hub_ids,
             document_type=["all", doc_type],
             filters=[UPVOTED, HOT, DISCUSSED],
-            with_default_hub=True,
         )
 
         return Response(status=status.HTTP_200_OK)
@@ -593,12 +601,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     unified_document=unified_document, hub_id=hub_id
                 )
 
-        hub_ids.append(0)
         reset_unified_document_cache(
-            hub_ids,
             document_type=["all", doc_type],
             filters=[HOT],
-            with_default_hub=True,
         )
 
         return Response(status=status.HTTP_200_OK)
@@ -607,16 +612,12 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     def remove_from_featured(self, request, pk=None):
         unified_document = self.queryset.get(id=pk)
         doc_type = get_doc_type_key(unified_document)
-        hub_ids = list(unified_document.hubs.values_list("id", flat=True))
-        hub_ids.append(0)
 
         FeaturedContent.objects.filter(unified_document=unified_document).delete()
 
         reset_unified_document_cache(
-            hub_ids,
             document_type=["all", doc_type],
             filters=[HOT],
-            with_default_hub=True,
         )
 
         return Response(status=status.HTTP_200_OK)
@@ -681,11 +682,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         discussion_context_fields = ("id", "comment_count", "thread_type")
         purchase_context_fields = ("id", "amount", "user")
         purchase_select_related_fields = ("user", "user__author_profile")
-        authors_context_fields = (
-            "id",
-            "first_name",
-            "last_name",
-        )
         metadata_context = {
             **context,
             "doc_duds_get_documents": {
@@ -734,7 +730,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "id",
                     "name",
                     "slug",
-                    "relevancy_score",
                     "created_date",
                 ]
             },

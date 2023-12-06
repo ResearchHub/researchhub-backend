@@ -35,6 +35,10 @@ class SoftDeletableManagerMixin:
 
         return self._queryset_class(**kwargs).filter(is_removed=False)
 
+    def get_all_queryset(self):
+        kwargs = {"model": self.model, "using": self._db}
+        return self._queryset_class(**kwargs)
+
 
 class SoftDeletableManager(SoftDeletableManagerMixin, models.Manager):
     pass

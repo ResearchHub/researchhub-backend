@@ -41,19 +41,22 @@ from utils.sentry import log_info
 
 
 @app.task
-def handle_spam_user_task(user_id):
+def handle_spam_user_task(user_id, requestor=None):
     User = apps.get_model("user.User")
     user = User.objects.filter(id=user_id).first()
+    from researchhub_comment.views.rh_comment_view import censor_comment
+
     if user:
         user.papers.update(is_removed=True)
+        comments = user.created_researchhub_comment_rhcommentmodel.all()
+        for comment in comments.iterator():
+            censor_comment(comment)
+            if requestor:
+                from discussion.reaction_views import censor
 
-        hub_ids = list(
-            Hub.objects.filter(papers__in=list(user.papers.values_list(flat=True)))
-            .values_list(flat=True)
-            .distinct()
-        )
+                censor(requestor, comment)
 
-    reset_unified_document_cache(hub_ids)
+        reset_unified_document_cache()
 
 
 @app.task
@@ -71,13 +74,7 @@ def reinstate_user_task(user_id):
         is_removed=False
     )
 
-    hub_ids = list(
-        Hub.objects.filter(papers__in=list(user.papers.values_list(flat=True)))
-        .values_list(flat=True)
-        .distinct()
-    )
-
-    reset_unified_document_cache(hub_ids, {}, None)
+    reset_unified_document_cache()
 
 
 @app.task(queue=QUEUE_PAPER_MISC)

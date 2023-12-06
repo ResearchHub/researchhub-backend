@@ -49,7 +49,7 @@ class Command(BaseCommand):
             return
 
         num_papers = papers.count()
-        for i, paper in enumerate(papers):
+        for i, paper in enumerate(papers.iterator()):
             try:
                 print(
                     "Fetching concepts from OA for paper: "

@@ -681,7 +681,6 @@ def pull_biorxiv_papers():
     )
     total_works = biorxiv_works.get("meta").get("count")
     pages = math.ceil(total_works / open_alex.per_page)
-    hub_ids = set()
     print(pages)
     next_cursor = biorxiv_works.get("meta", {}).get("next_cursor", "*")
     i = 1040
@@ -765,8 +764,8 @@ def pull_biorxiv_papers():
                         if potential_hub.exists():
                             potential_hub = potential_hub.first()
                             potential_hubs.append(potential_hub)
-                            hub_ids.add(potential_hub.id)
                     paper.hubs.add(*potential_hubs)
+                    paper.unified_document.hubs.add(*potential_hubs)
 
                     download_pdf.apply_async((paper.id,), priority=4, countdown=4)
                     if "biorxiv" in paper.url:
@@ -786,7 +785,6 @@ def pull_biorxiv_papers():
             biorxiv_id, None, cursor=next_cursor
         )
     reset_unified_document_cache(
-        hub_ids=hub_ids,
         document_type=["paper"],
         filters=[NEW],
     )
@@ -825,7 +823,6 @@ def pull_arxiv_papers_directly():
         "stat",
     ]
     total_works = 0
-    hub_ids = set()
 
     for category in categories:
         url = "https://export.arxiv.org/rss/{}".format(category)
@@ -896,13 +893,15 @@ def pull_arxiv_papers_directly():
                     if potential_hub.exists():
                         potential_hub = potential_hub.first()
                         potential_hubs.append(potential_hub)
-                        hub_ids.add(potential_hub.id)
+                        paper.unified_document.concepts.add(
+                            potential_hub.concept,
+                        )
                 paper.hubs.add(*potential_hubs)
+                paper.unified_document.hubs.add(*potential_hubs)
                 download_pdf.apply_async((paper.id,), priority=4, countdown=4)
             except Exception as e:
                 sentry.log_error(e)
     reset_unified_document_cache(
-        hub_ids=hub_ids,
         document_type=["paper"],
         filters=[NEW],
     )
@@ -1117,7 +1116,6 @@ def _extract_biorxiv_entry(url, retry=0):
         paper.unified_document.hubs.add(*hub_ids)
 
         reset_unified_document_cache(
-            hub_ids=hub_ids,
             document_type=["paper"],
             filters=[NEW],
         )
@@ -1141,7 +1139,6 @@ def pull_openalex_author_works(user_id, openalex_id):
 
     oa = OpenAlex()
     author_works = oa.get_data_from_id(openalex_id)
-    hub_ids = set()
 
     for work in author_works:
         with transaction.atomic():
@@ -1244,9 +1241,17 @@ def pull_openalex_author_works(user_id, openalex_id):
                         if created:
                             # This creates the hub if a new concept is created
                             concept_obj.save()
+
+                        paper.unified_document.concepts.add(
+                            concept,
+                            through_defaults={
+                                "relevancy_score": concept["score"],
+                                "level": concept["level"],
+                            },
+                        )
+
                         hub = concept_obj.hub
                         potential_hubs.append(hub.id)
-                        hub_ids.add(hub.id)
                 except Exception as e:
                     sentry.log_error(e)
 
@@ -1258,7 +1263,6 @@ def pull_openalex_author_works(user_id, openalex_id):
                 sentry.log_error(e)
 
     reset_unified_document_cache(
-        hub_ids=hub_ids,
         document_type=["paper"],
         filters=[NEW],
     )

@@ -28,7 +28,7 @@ class DynamicPredictionMarketVoteSerializer(DynamicModelFieldSerializer):
 
     def get_created_by(self, obj):
         context = self.context
-        _context_fields = context.get("rhc_dcs_get_created_by", {})
+        _context_fields = context.get("pm_dpmvs_get_created_by", {})
         serializer = DynamicUserSerializer(
             obj.created_by, context=context, **_context_fields
         )

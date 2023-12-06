@@ -57,8 +57,8 @@ def censor(requestor, item):
     else:
         item.unified_document.delete(soft=True)
 
-    if review := getattr(item, "review", None):
-        review.delete(soft=True)
+    if reviews := getattr(item, "reviews", None):
+        reviews.all().delete()
 
     if action := getattr(item, "actions", None):
         if action.exists():
@@ -73,7 +73,6 @@ def censor(requestor, item):
         hubs = list(doc.hubs.all().values_list("id", flat=True))
 
         reset_unified_document_cache(
-            hub_ids=hubs,
             document_type=[doc_type, "all"],
             filters=[DISCUSSED, HOT],
         )
@@ -479,12 +478,8 @@ def update_or_create_vote(request, user, item, vote_type):
     if isinstance(item, RhCommentModel):
         cache_filters_to_reset = [HOT]
 
-    hub_ids = [0]
     # NOTE: Hypothesis citations do not have a unified document attached
     has_unified_doc = hasattr(item, "unified_document")
-
-    if has_unified_doc:
-        hub_ids += list(item.unified_document.hubs.values_list("id", flat=True))
 
     """UPDATE VOTE"""
     vote = retrieve_vote(user, item)
@@ -515,7 +510,6 @@ def update_or_create_vote(request, user, item, vote_type):
         if has_unified_doc:
             update_relavent_doc_caches_on_vote(
                 cache_filters_to_reset=cache_filters_to_reset,
-                hub_ids=hub_ids,
                 target_vote=vote,
             )
 
@@ -526,7 +520,6 @@ def update_or_create_vote(request, user, item, vote_type):
     if has_unified_doc:
         update_relavent_doc_caches_on_vote(
             cache_filters_to_reset=cache_filters_to_reset,
-            hub_ids=hub_ids,
             target_vote=vote,
         )
 
@@ -553,11 +546,11 @@ def update_or_create_vote(request, user, item, vote_type):
     return get_vote_response(vote, 201)
 
 
-def update_relavent_doc_caches_on_vote(cache_filters_to_reset, hub_ids, target_vote):
+def update_relavent_doc_caches_on_vote(cache_filters_to_reset, target_vote):
     item = target_vote.item
     doc_type = get_doc_type_key(item.unified_document)
     reset_unified_document_cache(
-        hub_ids, document_type=[doc_type, "all"], filters=cache_filters_to_reset
+        document_type=[doc_type, "all"], filters=cache_filters_to_reset
     )
 
     # Commenting out paper cache

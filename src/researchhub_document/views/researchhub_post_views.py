@@ -142,10 +142,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 else:
                     rh_post.eln_src.save(file_name, full_src_file)
 
-            hub_ids = list(unified_document.hubs.values_list("id", flat=True))
-
             reset_unified_document_cache(
-                hub_ids,
                 document_type=[
                     ALL.lower(),
                     POSTS.lower(),
@@ -153,7 +150,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     BOUNTY.lower(),
                 ],
                 filters=[NEW, MOST_RSC],
-                with_default_hub=True,
             )
 
             if assign_doi:
@@ -208,10 +204,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             unified_doc = post.unified_document
             unified_doc.hubs.set(hubs)
 
-        hub_ids = list(rh_post.unified_document.hubs.values_list("id", flat=True))
-
         reset_unified_document_cache(
-            hub_ids,
             document_type=[ALL.lower(), POSTS.lower(), QUESTION.lower()],
             filters=[NEW, DISCUSSED, UPVOTED, HOT],
         )
