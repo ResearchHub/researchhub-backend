@@ -161,7 +161,7 @@ class CitationEntryViewSet(ModelViewSet):
         with transaction.atomic():
             organization = getattr(request, "organization", None) or user.organization
             project_id = request.data.get("project_id", None)
-            paper = ResearchhubPost.objects.get(id=pk)
+            post = ResearchhubPost.objects.get(id=pk)
             json = generate_json_for_rh_post(post)
             file = post.discussion_src
 
