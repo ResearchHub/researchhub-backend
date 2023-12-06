@@ -77,7 +77,9 @@ class CitationEntry(DefaultAuthenticatedModel):
     @property
     def unified_document_id(self):
         # Not all citations have a unified document
-        return self.unified_document.id
+        if unified_document := self.unified_document:
+            return unified_document.id
+        return None
 
     """--- METHODS ---"""
 
