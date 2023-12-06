@@ -51,18 +51,28 @@ class CitationEntrySerializer(DefaultAuthenticatedSerializer):
                 attachment=cleaned_attachment,
                 attachment_name=attachment_name,
             )
-            pdf_url = citation_entry.fields.get("pdf_url")
-            if pdf_url and "uploads/citation_entry/attachment" in pdf_url:
-                citation_entry.attachment = remove_origin_from_url(pdf_url)
+            custom_fields = citation_entry.fields.get("custom")
+            if custom_fields:
+                pdf_url = custom_fields.get("attachment")
+                if pdf_url and "uploads/citation_entry/attachment" in pdf_url:
+                    pdf_without_query_string = pdf_url.split("?")[0]
+                    citation_entry.attachment = remove_origin_from_url(
+                        pdf_without_query_string
+                    )
+                    citation_entry.save()
+            from citation.utils import create_paper_from_citation
+
+            create_paper_from_citation(citation_entry)
             return citation_entry
 
     def update(self, instance, validated_data):
+        entry = super().update(instance, validated_data)
         with transaction.atomic():
             cleaned_attachment, attachment_name = self._get_cleaned_up_attachment(
                 validated_data
             )
             citation_entry = self._add_attachment(
-                citation_entry=super().update(instance, validated_data),
+                citation_entry=entry,
                 attachment=cleaned_attachment,
                 attachment_name=attachment_name,
             )

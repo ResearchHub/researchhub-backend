@@ -70,14 +70,18 @@ class CitationEntry(DefaultAuthenticatedModel):
     """--- METHODS ---"""
 
     def is_user_allowed_to_edit(self, user):
-        belonging_project = self.project
-        if belonging_project is None:
-            org_permissions = self.organization.permissions
-            return org_permissions.has_editor_user(
-                user
-            ) or org_permissions.has_admin_user(user)
-        else:
-            project_permissions = belonging_project.permissions
-            return project_permissions.has_editor_user(
-                user
-            ) or project_permissions.has_admin_user(user)
+        return self.project.created_by == user or {"full_access": True}.get(
+            self.project.status
+        )
+        # return True
+        # belonging_project = self.project
+        # if belonging_project is None:
+        #     org_permissions = self.organization.permissions
+        #     return org_permissions.has_editor_user(
+        #         user
+        #     ) or org_permissions.has_admin_user(user)
+        # else:
+        #     project_permissions = belonging_project.permissions
+        #     return project_permissions.has_editor_user(
+        #         user
+        #     ) or project_permissions.has_admin_user(user)

@@ -16,7 +16,7 @@ class UserIsAdminOfProject(BasePermission):
 
     def has_object_permission(self, request, view, obj):
         requestor = request.user
-        return obj.get_is_user_admin(requestor)
+        return obj.get_is_user_admin(requestor) or obj.user == requestor
 
 
 class PDFUploadsS3CallBack(BasePermission):

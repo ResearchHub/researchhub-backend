@@ -423,7 +423,9 @@ class CitationEntryViewSet(ModelViewSet):
                         if target_ref.is_user_allowed_to_edit(current_user):
                             target_ref.delete()
                         else:
-                            return Response(status=403)
+                            return Response(
+                                {"message": "User is not allowed to edit"}, status=403
+                            )
                 return Response(target_citation_ids, status=status.HTTP_200_OK)
 
             except Exception as error:

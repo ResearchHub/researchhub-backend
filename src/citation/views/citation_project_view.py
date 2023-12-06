@@ -67,17 +67,20 @@ class CitationProjectViewSet(ModelViewSet):
             response = super().update(request, *args, **kwargs)
             project = self.get_queryset().get(id=response.data.get("id"))
 
-            removed_editors = project.permissions.filter(
-                Q(access_type=EDITOR)
-            ).values_list("user", flat=True)
-            removed_viewers = project.permissions.filter(
-                Q(access_type=VIEWER)
-            ).values_list("user", flat=True)
+            # removed_editors = project.permissions.filter(
+            #     Q(access_type=EDITOR)
+            # ).values_list("user", flat=True)
+            # removed_viewers = project.permissions.filter(
+            #     Q(access_type=VIEWER)
+            # ).values_list("user", flat=True)
 
-            project.remove_editors(removed_editors)
-            project.remove_viewers(removed_viewers)
+            # project.remove_editors(removed_editors)
+            # project.remove_viewers(removed_viewers)
             # project.add_editors(upserted_editors)
             # project.add_viewers(upserted_viewers)
+            parent_names = project.get_parent_name(project, [], [])
+            project.parent_names = parent_names
+            project.save()
 
             project.refresh_from_db()
             return Response(
