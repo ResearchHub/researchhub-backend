@@ -87,15 +87,20 @@ class Distributor:
             sentry.log_error(error)
             print(error_message, e)
 
-        try:
-            self._record_referral_distribution_if_applicable(record)
-        except Exception as error:
-            sentry.log_error(error)
-            print(error)
+        # Kobe 12-07-2023
+        # Turning off referral program bonus until further notice
+        # try:
+        #     self._record_referral_distribution_if_applicable(record)
+        # except Exception as error:
+        #     sentry.log_error(error)
+        #     print(error)
 
         return record
 
     def _record_referral_distribution_if_applicable(self, original_distribution):
+        # Kobe 12-07-2023
+        # Turning off referral program bonus until further notice
+        return False
 
         if not original_distribution.recipient.invited_by:
             return False
