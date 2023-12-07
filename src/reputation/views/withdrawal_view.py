@@ -129,6 +129,12 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
+        if user.reputation < 120:
+            return Response(
+                "Your reputation is too low to withdraw. Please contribute to the platform.",
+                status=400,
+            )
+
         valid, message = self._check_meets_withdrawal_minimum(amount)
         # if valid:
         #     valid, message = self._check_agreed_to_terms(user, request)
