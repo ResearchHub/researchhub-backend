@@ -21,7 +21,7 @@ from utils.http import RequestMethods, http_request
 from utils.message import send_email_message
 from utils.sentry import log_error
 
-WITHDRAWAL_MINIMUM = int(os.environ.get("WITHDRAWAL_MINIMUM", 100))
+WITHDRAWAL_MINIMUM = int(os.environ.get("WITHDRAWAL_MINIMUM", 500))
 WITHDRAWAL_PER_TWO_WEEKS = 100000
 
 contract_abi = [
