@@ -1,5 +1,6 @@
 import time
 from datetime import datetime, timedelta
+from unittest import skip
 
 from django.utils import timezone
 from rest_framework import status
@@ -73,6 +74,7 @@ class ReferralTests(APITestCase):
 
         self.post = doc_response.data
 
+    @skip("Temprorarily turning off referral program")
     def test_referrer_earns_commission_when_invited_receives_upvotes(self):
         # Invited user created a comment
         comment = create_rh_comment(
@@ -94,6 +96,7 @@ class ReferralTests(APITestCase):
         self.assertEqual(res.exists(), True)
         self.assertEqual(res.count(), 1)
 
+    @skip("Temprorarily turning off referral program")
     def test_referrer_stop_earning_commission_after_eligiblity_expires(self):
         # set up invited user
         invited_user = create_user(email="invited2@example.com")
@@ -123,6 +126,7 @@ class ReferralTests(APITestCase):
         self.assertEqual(res.exists(), False)
         self.assertEqual(res.count(), 0)
 
+    @skip("Temprorarily turning off referral program")
     def test_referrer_earns_specific_commission(self):
         # Invited user created a comment
         comment = create_rh_comment(
@@ -147,6 +151,7 @@ class ReferralTests(APITestCase):
             dist.amount,
         )
 
+    @skip("Temprorarily turning off referral program")
     def test_if_referrer_is_giver_no_commission_is_earned(self):
         # Invited user created a comment
         comment = create_rh_comment(
@@ -166,6 +171,7 @@ class ReferralTests(APITestCase):
         )
         self.assertEqual(dist.exists(), False)
 
+    @skip("Temprorarily turning off referral program")
     def test_is_able_to_invite_others_to_answer_bounty(self):
         self.client.force_authenticate(self.referrer_user)
 
@@ -181,6 +187,7 @@ class ReferralTests(APITestCase):
         self.assertIsNotNone(response.data["id"])
         self.assertEqual(response.data["invite_type"], "BOUNTY")
 
+    @skip("Temprorarily turning off referral program")
     def test_is_able_to_invite_others_to_researchhub(self):
         self.client.force_authenticate(self.referrer_user)
 
@@ -195,6 +202,7 @@ class ReferralTests(APITestCase):
         self.assertIsNotNone(response.data["id"])
         self.assertEqual(response.data["invite_type"], "JOIN_RH")
 
+    @skip("Temprorarily turning off referral program")
     def test_cannot_invite_multiple_times(self):
         self.client.force_authenticate(self.referrer_user)
         self.random_user = create_user(email="existing_user@example.com")
@@ -218,6 +226,7 @@ class ReferralTests(APITestCase):
 
         self.assertEqual(invite_twice.status_code, status.HTTP_409_CONFLICT)
 
+    @skip("Temprorarily turning off referral program")
     def test_cannot_invite_an_existing_user(self):
         self.client.force_authenticate(self.referrer_user)
         self.random_user = create_user(email="existing_user@example.com")
