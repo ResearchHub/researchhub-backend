@@ -113,7 +113,10 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         if LogEntry.objects.filter(
             object_repr="WITHDRAWAL_SWITCH", action_flag=3
         ).exists():
-            return Response(status=503)
+            return Response(
+                "Withdrawals are suspended for the time being. Please be patient as we work to turn withdrawals back on",
+                status=400,
+            )
 
         user = request.user
         amount = decimal.Decimal(request.data["amount"])
