@@ -16,6 +16,7 @@ from researchhub_document.related_models.constants.document_type import (
     PAPER,
     POSTS,
     QUESTION,
+    PREREGISTRATION,
 )
 from researchhub_document.related_models.document_filter_model import DocumentFilter
 from researchhub_document.tasks import update_elastic_registry
@@ -146,6 +147,8 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
             return self.posts.first()
         elif self.document_type == BOUNTY:
             return self.posts.first()
+        elif self.document_type == PREREGISTRATION:
+            return self.posts.first()
         else:
             raise Exception(f"Unrecognized document_type: {self.document_type}")
 
@@ -178,7 +181,7 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
     def frontend_view_link(self):
         doc = self.get_document()
         document_type = self.document_type
-        if document_type in (QUESTION, DISCUSSION, POSTS, BOUNTY):
+        if document_type in (QUESTION, DISCUSSION, POSTS, BOUNTY, PREREGISTRATION):
             document_type = "post"
         url = f"{BASE_FRONTEND_URL}/{document_type.lower()}/{doc.id}/{doc.slug}"
         return url

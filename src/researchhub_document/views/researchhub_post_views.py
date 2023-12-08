@@ -41,6 +41,7 @@ from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_OPEN,
     FILTER_HAS_BOUNTY,
     POSTS,
+    PREREGISTRATION,
     QUESTION,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
     SORT_BOUNTY_EXPIRATION_DATE,
@@ -204,6 +205,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     document_type=[
                         ALL.lower(),
                         POSTS.lower(),
+                        PREREGISTRATION.lower(),
                         QUESTION.lower(),
                         BOUNTY.lower(),
                     ],
@@ -261,7 +263,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             unified_doc.hubs.set(hubs)
 
         reset_unified_document_cache(
-            document_type=[ALL.lower(), POSTS.lower(), QUESTION.lower()],
+            document_type=[ALL.lower(), POSTS.lower(), PREREGISTRATION.lower(), QUESTION.lower()],
             filters=[NEW, DISCUSSED, UPVOTED, HOT],
         )
 

@@ -13,6 +13,7 @@ from researchhub_document.related_models.constants.document_type import (
     PAPER,
     POSTS,
     QUESTION,
+    PREREGISTRATION,
 )
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
@@ -180,6 +181,9 @@ class UnifiedDocumentFilter(filters.FilterSet):
             ]
         elif value == QUESTION:
             qs = qs.filter(document_type=QUESTION)
+            selects = ["document_filter"]
+        elif value == PREREGISTRATION:
+            qs = qs.filter(document_type=PREREGISTRATION)
             selects = ["document_filter"]
         elif value == HYPOTHESIS:
             qs = qs.filter(document_type=HYPOTHESIS)
