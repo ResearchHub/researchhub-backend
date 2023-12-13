@@ -4,12 +4,13 @@ from rest_framework.test import APITestCase
 
 from paper.tests.helpers import create_paper
 from purchase.models import Balance
-from reputation.models import Escrow
+from reputation.models import Escrow, BountyFee
 from user.related_models.gatekeeper_model import Gatekeeper
 from user.tests.helpers import (
     create_moderator,
     create_random_authenticated_user,
     create_random_default_user,
+    create_user,
 )
 from utils.test_helpers import (
     IntegrationTestHelper,
@@ -24,6 +25,8 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
     balance_amount = 50
 
     def setUp(self):
+        self.bank_user = create_user(email="bank@researchhub.com")
+        self.bountyFee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
         self.recipient = create_random_default_user("recipient")
 
     def test_regular_user_send_rsc(self):
