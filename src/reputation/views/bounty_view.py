@@ -1,5 +1,4 @@
 import decimal
-import time
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
@@ -12,11 +11,6 @@ from rest_framework.response import Response
 
 from analytics.amplitude import track_event
 from purchase.models import Balance
-from reputation.distributions import (
-    create_bounty_dao_fee_distribution,
-    create_bounty_rh_fee_distribution,
-)
-from reputation.distributor import Distributor
 from reputation.models import Bounty, BountyFee, Contribution, Escrow
 from reputation.permissions import UserCanApproveBounty, UserCanCancelBounty
 from reputation.serializers import (
@@ -36,7 +30,7 @@ from researchhub_document.related_models.constants.document_type import (
     SORT_BOUNTY_TOTAL_AMOUNT,
 )
 from researchhub_document.utils import reset_unified_document_cache
-from user.models import User
+from reputation.utils import calculate_fees, deduct_fees
 from utils.permissions import PostOnly
 from utils.sentry import log_error
 
@@ -49,7 +43,7 @@ def _create_bounty_checks(user, amount, item_content_type, bypass_user_balance=F
         return Response({"detail": "Invalid amount"}, status=400)
 
     user_balance = user.get_balance()
-    fee_amount, rh_fee, dao_fee, current_bounty_fee = _calculate_fees(amount)
+    fee_amount, rh_fee, dao_fee, current_bounty_fee = calculate_fees(amount)
     if (
         amount <= 0
         or user_balance - (amount + fee_amount) < 0
@@ -63,44 +57,6 @@ def _create_bounty_checks(user, amount, item_content_type, bypass_user_balance=F
         return Response({"detail": "Invalid content type"}, status=400)
 
     return (amount, fee_amount, rh_fee, dao_fee, current_bounty_fee)
-
-
-def _calculate_fees(gross_amount):
-    current_bounty_fee = BountyFee.objects.last()
-    rh_pct = current_bounty_fee.rh_pct
-    dao_pct = current_bounty_fee.dao_pct
-    rh_fee = gross_amount * rh_pct
-    dao_fee = gross_amount * dao_pct
-    fee = rh_fee + dao_fee
-
-    return fee, rh_fee, dao_fee, current_bounty_fee
-
-
-def _deduct_fees(user, fee, rh_fee, dao_fee, current_bounty_fee):
-    rh_recipient = User.objects.get_revenue_account()
-    dao_recipient = User.objects.get_community_account()
-    rh_fee_distribution = create_bounty_rh_fee_distribution(rh_fee)
-    dao_fee_distribution = create_bounty_dao_fee_distribution(dao_fee)
-    rh_inc_distributor = Distributor(
-        rh_fee_distribution,
-        rh_recipient,
-        current_bounty_fee,
-        time.time(),
-        giver=user,
-    )
-    rh_inc_record = rh_inc_distributor.distribute()
-    rh_dao_distributor = Distributor(
-        dao_fee_distribution,
-        dao_recipient,
-        current_bounty_fee,
-        time.time(),
-        giver=user,
-    )
-    rh_dao_record = rh_dao_distributor.distribute()
-
-    if not (rh_inc_record and rh_dao_record):
-        raise Exception("Failed to deduct fee")
-    return True
 
 
 def _create_bounty(
@@ -242,7 +198,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             amount, fee_amount, rh_fee, dao_fee, current_bounty_fee = response
 
         with transaction.atomic():
-            _deduct_fees(user, fee_amount, rh_fee, dao_fee, current_bounty_fee)
+            deduct_fees(user, fee_amount, rh_fee, dao_fee, current_bounty_fee)
             bounty = _create_bounty(
                 user,
                 data,
