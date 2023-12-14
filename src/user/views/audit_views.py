@@ -385,11 +385,14 @@ class AuditViewSet(viewsets.GenericViewSet):
                 flag.save()
 
                 self._remove_flagged_content(flag)
-                self._send_notification_to_content_creator(
-                    remover=flagger,
-                    send_email=data.get("send_email", True),
-                    verdict=verdict,
-                )
+                try:
+                    self._send_notification_to_content_creator(
+                        remover=flagger,
+                        send_email=data.get("send_email", True),
+                        verdict=verdict,
+                    )
+                except Exception as e:
+                    sentry.log_error(e, message="Content Removal notification not sent")
 
             return Response(
                 {},
