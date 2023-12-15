@@ -174,7 +174,6 @@ class CitationEntryViewSet(ModelViewSet):
                 "related_unified_doc_id": post.unified_document.id,
                 "project": project_id,
             }
-            print(citation_entry_data)
             request._mutable = True
             request._full_data = citation_entry_data
             request._mutable = False

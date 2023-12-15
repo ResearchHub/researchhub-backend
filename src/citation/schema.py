@@ -60,7 +60,6 @@ def generate_json_for_doi_via_oa(doi):
 def generate_json_for_rh_post(post):
     json_dict = {}
     schema = generate_schema_for_citation(BLOG_POST)
-    print(schema["required"])
     for field in schema["required"]:
         mapping_field = CITATION_TO_POST_MAPPING.get(field, "")
         if mapping_field:
@@ -81,11 +80,19 @@ def generate_json_for_rh_post(post):
             if field == "author":
                 authors = post.authors.all()
                 author_array = []
-                for author in authors.iterator():
+                if authors.count():
+                    for author in authors.iterator():
+                        author_array.append(
+                            {
+                                "given": author.first_name,
+                                "family": author.last_name,
+                            }
+                        )
+                else:
                     author_array.append(
                         {
-                            "given": author.first_name,
-                            "family": author.last_name,
+                            "given": post.created_by.first_name,
+                            "family": post.created_by.last_name,
                         }
                     )
                 value = author_array
