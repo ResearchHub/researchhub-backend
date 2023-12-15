@@ -22,7 +22,6 @@ from purchase.models import Balance, Purchase
 from reputation.views.bounty_view import (
     _create_bounty,
     _create_bounty_checks,
-    _deduct_fees,
 )
 from researchhub.settings import (
     BASE_FRONTEND_URL,
