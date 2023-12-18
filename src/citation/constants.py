@@ -199,12 +199,10 @@ CITATION_TYPE_FIELDS = {
     ARTICLE: [
         "title",
         "abstract",
-        "container-title",
         "DOI",
         "genre",
         "URL",
         "language",
-        "title-short",
         "issued",
         "note",
         "custom",
