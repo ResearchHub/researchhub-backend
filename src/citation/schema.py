@@ -105,7 +105,7 @@ def generate_json_for_rh_post(post):
                 hub_names_string = ", ".join(hub_names)
                 value = hub_names_string
             elif field == "URL":
-                value = "www.researchhub.com/"
+                value = f"www.researchhub.com/{post.get_document_slug_type()}/{post.id}/{post.slug}"
             elif field == "language":
                 value = "English"
             json_dict[field] = value

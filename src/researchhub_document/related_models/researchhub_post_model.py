@@ -181,6 +181,16 @@ class ResearchhubPost(AbstractGenericReactionModel):
 
         return authors
 
+    def get_document_slug_type(self):
+        if self.document_type == "BOUNTY":
+            return "bounty"
+        elif self.document_type == "DISCUSSION":
+            return "post"
+        elif self.document_type == "QUESTION":
+            return "question"
+
+        return "post"
+
     def get_accepted_answer(self):
         return self.threads.filter(
             is_accepted_answer=True, discussion_post_type="ANSWER"

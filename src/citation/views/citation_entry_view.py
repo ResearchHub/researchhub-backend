@@ -19,7 +19,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from analytics.amplitude import track_event
-from citation.constants import BLOG_POST, CITATION_TYPE_FIELDS, JOURNAL_ARTICLE
+from citation.constants import ARTICLE, CITATION_TYPE_FIELDS, JOURNAL_ARTICLE
 from citation.filters import CitationEntryFilter
 from citation.models import CitationEntry, CitationProject
 from citation.permissions import (
@@ -166,7 +166,7 @@ class CitationEntryViewSet(ModelViewSet):
             file = post.discussion_src
 
             citation_entry_data = {
-                "citation_type": BLOG_POST,
+                "citation_type": ARTICLE,
                 "fields": json,
                 "created_by": user.id,
                 "organization": organization.id,
