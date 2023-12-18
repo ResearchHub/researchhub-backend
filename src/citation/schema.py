@@ -1,5 +1,6 @@
 import re
 
+from researchhub.settings import BASE_FRONTEND_URL
 from utils.bibtex import BibTeXEntry, BibTeXParser
 from utils.openalex import OpenAlex
 from utils.parsers import json_serial
@@ -105,7 +106,7 @@ def generate_json_for_rh_post(post):
                 hub_names_string = ", ".join(hub_names)
                 value = hub_names_string
             elif field == "URL":
-                value = f"www.researchhub.com/{post.get_document_slug_type()}/{post.id}/{post.slug}"
+                value = f"{BASE_FRONTEND_URL}/{post.get_document_slug_type()}/{post.id}/{post.slug}"
             elif field == "language":
                 value = "English"
             json_dict[field] = value

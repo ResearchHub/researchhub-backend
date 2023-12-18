@@ -53,7 +53,7 @@ else:
 if DEVELOPMENT or TESTING:
     BASE_FRONTEND_URL = "http://localhost:3000"
 elif PRODUCTION:
-    BASE_FRONTEND_URL = "https://researchhub.com"
+    BASE_FRONTEND_URL = "https://www.researchhub.com"
 elif CLOUD:
     BASE_FRONTEND_URL = "https://staging-web.researchhub.com"
 

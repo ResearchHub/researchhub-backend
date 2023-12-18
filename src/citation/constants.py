@@ -198,7 +198,6 @@ CITATION_TYPE_FIELDS = {
     ],
     ARTICLE: [
         "title",
-        "abstract",
         "DOI",
         "genre",
         "URL",
