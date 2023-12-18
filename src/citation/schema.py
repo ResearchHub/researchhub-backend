@@ -6,10 +6,10 @@ from utils.openalex import OpenAlex
 from utils.parsers import json_serial
 
 from .constants import (
+    ARTICLE,
     ARTICLE_JOURNAL,
     BIBTEX_TO_CITATION_TYPES,
     BIBTEX_TYPE_TO_CSL_MAPPING,
-    BLOG_POST,
     CITATION_TYPE_FIELDS,
     JOURNAL_ARTICLE,
 )
@@ -60,7 +60,7 @@ def generate_json_for_doi_via_oa(doi):
 
 def generate_json_for_rh_post(post):
     json_dict = {}
-    schema = generate_schema_for_citation(BLOG_POST)
+    schema = generate_schema_for_citation(ARTICLE)
     for field in schema["required"]:
         mapping_field = CITATION_TO_POST_MAPPING.get(field, "")
         if mapping_field:
