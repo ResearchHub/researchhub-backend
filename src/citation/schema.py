@@ -64,12 +64,17 @@ def generate_json_for_rh_post(post):
     for field in schema["required"]:
         mapping_field = CITATION_TO_POST_MAPPING.get(field, "")
         if mapping_field:
-            if mapping_field == "paper_publish_date":
+            if mapping_field == "created_date":
                 date_parts = {}
                 publish_date = getattr(post, mapping_field)
                 if publish_date:
+                    year_month_day_format = "%Y-%m-%d"
                     date_parts = {
-                        "date-parts": [date_string_to_parts(publish_date.isoformat())]
+                        "date-parts": [
+                            date_string_to_parts(
+                                publish_date.strftime(year_month_day_format)
+                            )
+                        ]
                     }
                 json_dict[field] = date_parts
             else:

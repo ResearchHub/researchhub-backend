@@ -68,6 +68,19 @@ class CitationEntry(DefaultAuthenticatedModel):
         return {"id": self.organization.id, "name": self.organization.name}
 
     @property
+    def unified_document_indexing(self):
+        if self.related_unified_doc:
+            doc = {
+                "id": self.related_unified_doc.id,
+                "documents": [
+                    {
+                        "id": self.related_unified_doc.posts.last().id,
+                    }
+                ],
+            }
+            return doc
+
+    @property
     def unified_document(self):
         # Not all citations have a unified document
         if unified_document := self.related_unified_doc:

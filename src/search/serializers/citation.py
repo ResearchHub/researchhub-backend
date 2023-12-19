@@ -16,4 +16,5 @@ class CitationEntryDocumentSerializer(DocumentSerializer):
             "organization",
             "title",
             "attachment",
+            "related_unified_doc",
         )

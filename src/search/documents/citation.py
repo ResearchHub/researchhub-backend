@@ -22,6 +22,15 @@ class CitationEntryDocument(BaseDocument):
             "full_name": es_fields.TextField(),
         },
     )
+    related_unified_doc = es_fields.NestedField(
+        attr="unified_document_indexing",
+        properties={
+            "id": es_fields.IntegerField(),
+            "documents": es_fields.ObjectField(
+                properties={"id": es_fields.IntegerField()}
+            ),
+        },
+    )
     created_date = es_fields.DateField(attr="created_date")
     organization = es_fields.ObjectField(
         attr="organization_indexing",
