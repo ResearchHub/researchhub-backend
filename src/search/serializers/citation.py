@@ -15,4 +15,5 @@ class CitationEntryDocumentSerializer(DocumentSerializer):
             "fields",
             "organization",
             "title",
+            "attachment",
         )

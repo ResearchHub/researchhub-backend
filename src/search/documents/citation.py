@@ -12,6 +12,7 @@ class CitationEntryDocument(BaseDocument):
     fields = es_fields.NestedField(attr="fields")
     doi = es_fields.TextField(attr="doi")
     citation_type = es_fields.TextField(attr="citation_type")
+    attachment = es_fields.FileField(attr="attachment")
     created_by = es_fields.ObjectField(
         attr="created_by_indexing",
         properties={
