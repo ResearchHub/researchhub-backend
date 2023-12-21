@@ -19,7 +19,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from analytics.amplitude import track_event
-from citation.constants import CITATION_TYPE_FIELDS, JOURNAL_ARTICLE
+from citation.constants import ARTICLE, CITATION_TYPE_FIELDS, JOURNAL_ARTICLE
 from citation.filters import CitationEntryFilter
 from citation.models import CitationEntry, CitationProject
 from citation.permissions import (
@@ -27,7 +27,11 @@ from citation.permissions import (
     UserBelongsToOrganization,
     UserCanViewCitation,
 )
-from citation.schema import generate_json_for_rh_paper, generate_schema_for_citation
+from citation.schema import (
+    generate_json_for_rh_paper,
+    generate_json_for_rh_post,
+    generate_schema_for_citation,
+)
 from citation.serializers import CitationEntrySerializer
 from citation.tasks import handle_creating_citation_entry
 from citation.utils import (
@@ -45,6 +49,7 @@ from researchhub.settings import (
     AWS_SECRET_ACCESS_KEY,
     AWS_STORAGE_BUCKET_NAME,
 )
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from utils.aws import get_s3_object_name
 from utils.bibtex import BibTeXParser
 from utils.openalex import OpenAlex
@@ -148,6 +153,39 @@ class CitationEntryViewSet(ModelViewSet):
             use_grobid,
         )
         return Response(status=200)
+
+    @action(detail=True, methods=["post"])
+    def add_post_as_citation(self, request, pk):
+        user = request.user
+
+        with transaction.atomic():
+            organization = getattr(request, "organization", None) or user.organization
+            project_id = request.data.get("project_id", None)
+            post = ResearchhubPost.objects.get(id=pk)
+            json = generate_json_for_rh_post(post)
+            file = post.discussion_src
+
+            citation_entry_data = {
+                "citation_type": ARTICLE,
+                "fields": json,
+                "created_by": user.id,
+                "organization": organization.id,
+                "doi": post.doi,
+                "related_unified_doc_id": post.unified_document.id,
+                "project": project_id,
+            }
+            request._mutable = True
+            request._full_data = citation_entry_data
+            request._mutable = False
+            res = super().create(request)
+            citation = CitationEntry.objects.get(id=res.data["id"])
+            citation.related_unified_doc_id = post.unified_document.id
+            citation.save(update_fields=["related_unified_doc_id"])
+
+            if file and res.status_code == 201:
+                citation.attachment = file
+                citation.save(update_fields=["attachment"])
+            return res
 
     @action(detail=True, methods=["post"])
     def add_paper_as_citation(self, request, pk):

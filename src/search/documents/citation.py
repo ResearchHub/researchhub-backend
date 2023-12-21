@@ -12,6 +12,7 @@ class CitationEntryDocument(BaseDocument):
     fields = es_fields.NestedField(attr="fields")
     doi = es_fields.TextField(attr="doi")
     citation_type = es_fields.TextField(attr="citation_type")
+    attachment = es_fields.FileField(attr="attachment")
     created_by = es_fields.ObjectField(
         attr="created_by_indexing",
         properties={
@@ -19,6 +20,15 @@ class CitationEntryDocument(BaseDocument):
             "first_name": es_fields.TextField(),
             "last_name": es_fields.TextField(),
             "full_name": es_fields.TextField(),
+        },
+    )
+    related_unified_doc = es_fields.NestedField(
+        attr="unified_document_indexing",
+        properties={
+            "id": es_fields.IntegerField(),
+            "documents": es_fields.ObjectField(
+                properties={"id": es_fields.IntegerField()}
+            ),
         },
     )
     created_date = es_fields.DateField(attr="created_date")

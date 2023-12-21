@@ -56,6 +56,7 @@ VIDEO_RECORDING = "VIDEO_RECORDING"
 WEBPAGE = "WEBPAGE"
 
 ZOTERO_TO_CSL_MAPPING = {
+    ARTICLE: ARTICLE.lower(),
     ARTWORK: GRAPHIC.lower(),
     AUDIO_RECORDING: SONG.lower(),
     BILL: BILL.lower(),
@@ -131,6 +132,7 @@ BIBTEX_TYPE_TO_CSL_MAPPING = {
 }
 
 CITATION_TYPE_CHOICES = (
+    (ARTICLE, ARTICLE),
     (ARTWORK, ARTWORK),
     (AUDIO_RECORDING, AUDIO_RECORDING),
     (BILL, BILL),
@@ -190,6 +192,16 @@ CITATION_TYPE_FIELDS = {
         "archive_location",
         "source",
         "call-number",
+        "issued",
+        "note",
+        "custom",
+    ],
+    ARTICLE: [
+        "title",
+        "DOI",
+        "genre",
+        "URL",
+        "language",
         "issued",
         "note",
         "custom",
