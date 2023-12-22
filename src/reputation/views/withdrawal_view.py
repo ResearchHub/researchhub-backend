@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 import pytz
 import requests
 import sentry_sdk
+from django.contrib.admin.models import LogEntry
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
@@ -109,9 +110,12 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         return Response(200)
 
     def create(self, request):
-        if timezone.now() < timezone.make_aware(timezone.datetime(2020, 9, 1)):
+        if LogEntry.objects.filter(
+            object_repr="WITHDRAWAL_SWITCH", action_flag=3
+        ).exists():
             return Response(
-                "Withdrawals are disabled until September 1, 2020", status=400
+                "Withdrawals are suspended for the time being. Please be patient as we work to turn withdrawals back on",
+                status=400,
             )
 
         user = request.user

@@ -1,22 +1,9 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from django.utils.crypto import get_random_string
-from django.utils.text import slugify
 
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from researchhub_document.models import ResearchhubPost
-
-
-@receiver(post_save, sender=ResearchhubPost, dispatch_uid="add_paper_slug")
-def add_paper_slug(sender, instance, created, update_fields, **kwargs):
-    if created:
-        suffix = get_random_string(length=32)
-        slug = slugify(instance.title)
-        if not slug:
-            slug += suffix
-        instance.slug = slug
-        instance.save()
 
 
 @receiver(

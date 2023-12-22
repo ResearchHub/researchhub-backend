@@ -6,7 +6,7 @@ from django.db import models
 from django.db.models import Avg, Count, IntegerField, Q, Sum
 from django.db.models.functions import Cast, Extract
 
-from discussion.reaction_models import AbstractGenericReactionModel
+from discussion.reaction_models import AbstractGenericReactionModel, Vote
 from hub.serializers import HubSerializer
 from paper.utils import paper_piecewise_log
 from purchase.models import Purchase
@@ -117,6 +117,9 @@ class ResearchhubPost(AbstractGenericReactionModel):
         content_type_field="content_type",
         related_query_name="posts",
     )
+    # This is already inherited from the base class
+    # but is required to set the related lookup name
+    votes = GenericRelation(Vote, related_query_name="related_post")
     slug = models.SlugField(max_length=1024)
     doi = models.CharField(
         max_length=255, default=None, null=True, blank=True, unique=True

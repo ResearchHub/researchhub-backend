@@ -4,6 +4,7 @@ import json
 import time
 
 import stripe
+from django.contrib.admin.models import LogEntry
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db import transaction
@@ -103,6 +104,19 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
             distributor.distribute()
 
         return Response({"message": "RSC Sent!"})
+
+    @action(
+        detail=False,
+        methods=["POST"],
+        permission_classes=[IsAuthenticated, IsModerator],
+    )
+    def update_withdrawal_switch(self, request):
+        data = request.data
+        switch = data.get("switch")
+        status = LogEntry.objects.filter(object_repr="WITHDRAWAL_SWITCH").update(
+            action_flag=switch
+        )
+        return Response({"message": status})
 
 
 class PurchaseViewSet(viewsets.ModelViewSet):
