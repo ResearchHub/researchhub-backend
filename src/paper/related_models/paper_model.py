@@ -18,7 +18,7 @@ from manubot.cite.doi import get_doi_csl_item
 from manubot.cite.unpaywall import Unpaywall
 
 import utils.sentry as sentry
-from discussion.reaction_models import AbstractGenericReactionModel
+from discussion.reaction_models import AbstractGenericReactionModel, Vote
 from hub.serializers import HubSerializer
 from paper.lib import journal_hosts
 from paper.tasks import (
@@ -252,6 +252,9 @@ class Paper(AbstractGenericReactionModel):
         content_type_field="content_type",
         related_query_name="paper",
     )
+    # This is already inherited from the base class
+    # but is required to set the related lookup name
+    votes = GenericRelation(Vote, related_query_name="related_paper")
 
     actions = GenericRelation(
         "user.Action",
