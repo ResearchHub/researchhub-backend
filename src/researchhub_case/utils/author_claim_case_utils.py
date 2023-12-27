@@ -43,6 +43,7 @@ def send_validation_email(case):
     validation_token = case.validation_token
     requestor = case.requestor
     requestor_name = f"{requestor.first_name} {requestor.last_name}"
+
     email_context = {
         **base_email_context,
         "requestor_name": requestor_name,

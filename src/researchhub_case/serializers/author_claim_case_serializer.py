@@ -1,3 +1,4 @@
+from django.db.models import Q
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
 from paper.models import Paper
@@ -19,6 +20,7 @@ class AuthorClaimCaseSerializer(ModelSerializer):
         moderator_id = request_data.get("moderator")
         requestor_id = request_data.get("requestor")
         target_paper_id = request_data.get("target_paper_id")
+        target_paper_doi = request_data.get("target_paper_doi")
         target_author_name = request_data.get("target_author_name")
         moderator = User.objects.filter(id=moderator_id).first()
         requestor = User.objects.filter(id=requestor_id).first()
@@ -31,6 +33,7 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             requestor_id,
             target_paper_id,
             target_author_name,
+            target_paper_doi,
         )
 
         case = AuthorClaimCase.objects.create(
@@ -69,13 +72,21 @@ class AuthorClaimCaseSerializer(ModelSerializer):
         return None
 
     def __check_uniqueness_on_create(
-        self, requestor_id, target_paper_id, target_author_name
+        self, requestor_id, target_paper_id, target_author_name, target_paper_doi
     ):
         has_open_case = AuthorClaimCase.objects.filter(
-            requestor__id=requestor_id,
-            target_author_name=target_author_name,
-            target_paper_id=target_paper_id,
-            status__in=["OPEN", "INITIATED"],
+            Q(
+                requestor__id=requestor_id,
+                target_author_name=target_author_name,
+                target_paper_id=target_paper_id,
+                status__in=["OPEN", "INITIATED"],
+            )
+            | Q(
+                requestor__id=requestor_id,
+                target_author_name=target_author_name,
+                target_paper_doi=target_paper_doi,
+                status__in=["OPEN", "INITIATED"],
+            )
         ).exists()
 
         if has_open_case:
@@ -84,10 +95,18 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             )
 
         already_claimed = AuthorClaimCase.objects.filter(
-            requestor__id=requestor_id,
-            target_author_name=target_author_name,
-            target_paper_id=target_paper_id,
-            status__in=["APPROVED"],
+            Q(
+                requestor__id=requestor_id,
+                target_author_name=target_author_name,
+                target_paper_id=target_paper_id,
+                status__in=["APPROVED"],
+            )
+            | Q(
+                requestor__id=requestor_id,
+                target_author_name=target_author_name,
+                target_paper_doi=target_paper_doi,
+                status__in=["APPROVED"],
+            )
         ).exists()
 
         if already_claimed:
@@ -105,6 +124,8 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             "validation_attempt_count",
             "validation_token",
             "paper",
+            "target_paper_doi",
+            "target_paper_title",
             "target_author_name",
         ]
         read_only_fields = [
