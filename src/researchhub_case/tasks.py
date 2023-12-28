@@ -39,32 +39,44 @@ def trigger_email_validation_flow(
             instance.validation_token = token
             # Note: intentionally sending email before incrementing attempt
             send_validation_email(instance)
+
+            print("instance", instance)
+
             instance.validation_attempt_count += 1
             instance.save()
         except Exception as exception:
-            print("exception", exception)
             sentry.log_error(exception)
 
 
 @app.task(queue=QUEUE_AUTHOR_CLAIM)
 def after_approval_flow(case_id):
     instance = AuthorClaimCase.objects.get(id=case_id)
-    if instance.status == APPROVED:
-        try:
-            requestor_author = instance.requestor.author_profile
 
-            total_amount_paid = reward_author_claim_case(
-                requestor_author, instance.target_paper
-            )
-            if instance.target_paper is None:
-                raise Exception("Cannot approve claim because paper was not found")
+    if instance.status != APPROVED:
+        return
+    if instance.target_paper is None and instance.target_paper_doi is None:
+        raise Exception("Cannot approve claim because paper was not found")
 
-            send_approval_email(
-                instance, context={"total_amount_paid": total_amount_paid}
-            )
+    requestor = instance.requestor
+    try:
+        total_amount_paid = 0
+
+        # Set author profile to verified
+        requestor.is_verified = True
+        requestor.author_profile.is_verified = True
+        requestor.author_profile.save(update_fields=["is_verified"])
+        requestor.save(update_fields=["is_verified"])
+
+        if instance.target_paper:
+            reward_author_claim_case(requestor.author_profile, instance.target_paper)
+
+            # Clear caches associated with paper
             instance.target_paper.unified_document.update_filter(FILTER_AUTHOR_CLAIMED)
-        except Exception as exception:
-            sentry.log_error(exception)
+
+        send_approval_email(instance, context={"total_amount_paid": total_amount_paid})
+    except Exception as exception:
+        print("exception", exception)
+        sentry.log_error(exception)
 
 
 @app.task(queue=QUEUE_AUTHOR_CLAIM)
