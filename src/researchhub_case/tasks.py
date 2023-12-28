@@ -2,6 +2,7 @@ import json
 
 from boto3.session import Session
 
+from notification.models import Notification
 from researchhub.celery import QUEUE_AUTHOR_CLAIM, app
 from researchhub.settings import (
     AWS_ACCESS_KEY_ID,
@@ -62,13 +63,23 @@ def after_approval_flow(case_id):
     try:
         total_amount_paid = 0
 
-        if requestor.is_verified is False:
-            # Set author profile to verified
-            requestor.is_verified = True
-            requestor.author_profile.is_verified = True
-            requestor.author_profile.save(update_fields=["is_verified"])
-            requestor.save(update_fields=["is_verified"])
-            send_verification_email(instance, context={})
+        # if requestor.is_verified is False:
+        # Set author profile to verified
+        requestor.is_verified = True
+        requestor.author_profile.is_verified = True
+        requestor.author_profile.save(update_fields=["is_verified"])
+        requestor.save(update_fields=["is_verified"])
+        print("1131u23u28")
+        notification = Notification.objects.create(
+            item=instance,
+            notification_type=Notification.ACCOUNT_VERIFIED,
+            recipient=requestor,
+            action_user=requestor,
+        )
+        print("1131u23u28222")
+        print(notification)
+        notification.send_notification()
+        send_verification_email(instance, context={})
 
         if instance.target_paper:
             reward_author_claim_case(requestor.author_profile, instance.target_paper)

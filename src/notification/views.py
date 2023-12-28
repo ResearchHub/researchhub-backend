@@ -50,6 +50,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
                 "created_date",
                 "id",
                 "navigation_url",
+                "notification_type",
                 "read",
                 "read_date",
                 "recipient",
