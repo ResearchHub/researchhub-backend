@@ -17,6 +17,7 @@ from researchhub_case.utils.author_claim_case_utils import (
     send_approval_email,
     send_rejection_email,
     send_validation_email,
+    send_verification_email,
 )
 from researchhub_document.related_models.constants.document_type import (
     FILTER_AUTHOR_CLAIMED,
@@ -61,11 +62,13 @@ def after_approval_flow(case_id):
     try:
         total_amount_paid = 0
 
-        # Set author profile to verified
-        requestor.is_verified = True
-        requestor.author_profile.is_verified = True
-        requestor.author_profile.save(update_fields=["is_verified"])
-        requestor.save(update_fields=["is_verified"])
+        if requestor.is_verified is False:
+            # Set author profile to verified
+            requestor.is_verified = True
+            requestor.author_profile.is_verified = True
+            requestor.author_profile.save(update_fields=["is_verified"])
+            requestor.save(update_fields=["is_verified"])
+            send_verification_email(instance, context={})
 
         if instance.target_paper:
             reward_author_claim_case(requestor.author_profile, instance.target_paper)

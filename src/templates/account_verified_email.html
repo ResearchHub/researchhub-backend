@@ -1,0 +1,122 @@
+{% load inlinecss %}
+{% load l10n %}
+<html>
+  <link rel="stylesheet" href="../stylesheets/support_receipt.css">
+  <head>
+      <meta charset="UTF-8">
+      <title></title>
+      <link href="https://fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet">
+      <style type="text/css">
+        .verify-button {
+          padding: 8px 0 0;
+          background: #3971ff;
+          border-radius: 4px;
+          color: #fff;
+          font-weight: 500;
+          height: 28px;
+          margin-top: 24px;
+          width: 205px;
+          text-align: center;
+          margin: 0 auto;
+          font-size: 14px;
+          font-weight: bold;
+        }
+
+        .link {
+          text-decoration: none;
+        }
+
+        .header-container {
+          border-top: 1px solid #ddd;
+          border-bottom: 1px solid #ddd;
+          margin-top: 25px;
+          margin-bottom: 20px;
+          padding-top: 35px;
+          padding-bottom: 35px;
+          letter-spacing: 0.6px;
+          box-sizing: border-box;
+          line-height: 23px;
+          text-align: left;
+        }
+
+        .header-2 {
+          display: block;
+          font-size: 20px;
+          font-weight: 500;
+          color: #241F3A;
+        }
+
+
+        .header-message-2 {
+          font-size: 16px;
+          font-weight: 400;
+          line-height: 20px;
+          opacity: 0.8;
+          margin: 20px 0px 0px 0px;
+          text-align: left;
+        }
+
+        .bold-name {
+          font-weight: bold;
+        }
+
+        @media only screen and (max-width: 767px) {
+          body {
+            width: 100%;
+            box-sizing: border-box;
+          }
+
+          .email-container {
+            width: 90%!important;
+            box-sizing: border-box;
+          }
+
+          .footer {
+            width: 90%!important;
+            box-sizing: border-box;
+          }
+        }
+        .badge {
+            width: 20px;
+            height: 20px;
+            display: inline-block;
+            vertical-align: middle;
+        }
+      </style>
+  </head>
+  {% inlinecss "support_receipt.css" %}
+  <body>
+    <div class="email-container">
+      <div class="email-header">
+        <img class="img-logo" src="https://rh-email-assets.s3-us-west-2.amazonaws.com/researchlogo.png" />
+        <div class="header-container">
+          <div class="header-2">
+            Hello {{ requestor_name }},
+          </div>
+          <p class="header-message-2">
+            <div>
+                <p>
+                    Congratulations, Your account is officially verified!
+                    A verified badge <img class="badge" src="https://rh-email-assets.s3-us-west-2.amazonaws.com/badge.png" /> will appear next to your name.
+                </p>
+                <p>
+                    Thank you for being part of the ResearchHub community and helping us accelerate science.
+                </p>
+            </div>
+            <br/>
+            <a class="link" href="https://researchhub.com" target="__blank">
+              <div class="verify-button">Visit ResearchHub</div>
+            </a>
+          </p>
+        </div>
+      </div>
+    </div>
+    <div class="footer">
+      <a class="footer-link" href="{{opt_out}}">Unsubscribe from this list</a>
+      <a class="footer-link" href="{{update_subscription}}">Update subscription preferences</a>
+    </div>
+    <div style="display: none">{% now "U" %}</div>
+  </body>
+</html>
+
+{% endinlinecss %}

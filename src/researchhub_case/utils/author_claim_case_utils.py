@@ -75,6 +75,24 @@ def send_validation_email(case):
     )
 
 
+def send_verification_email(case, context):
+    requestor = case.requestor
+    requestor_name = f"{requestor.first_name} {requestor.last_name}"
+
+    email_context = {
+        **base_email_context,
+        "requestor_name": requestor_name,
+    }
+    send_email_message(
+        [case.provided_email],
+        "account_verified_email.txt",
+        "Your paper claim request has been approved",
+        email_context,
+        "account_verified_email.html",
+        "ResearchHub <noreply@researchhub.com>",
+    )
+
+
 def send_approval_email(case, context):
     requestor = case.requestor
     requestor_author = requestor.author_profile
