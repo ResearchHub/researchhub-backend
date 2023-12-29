@@ -54,6 +54,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
                 "read",
                 "read_date",
                 "recipient",
+                "unified_document",
             ],
             context=context,
             many=True,

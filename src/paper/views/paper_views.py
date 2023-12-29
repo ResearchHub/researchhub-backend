@@ -720,7 +720,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             open_alex = OpenAlex()
             open_alex_json = open_alex.get_data_from_doi(doi_string)
         except Exception as e:
-            print(e)
             return Response(status=404)
 
         return Response(open_alex_json, status=200)
