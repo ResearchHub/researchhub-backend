@@ -66,10 +66,7 @@ class Command(BaseCommand):
                 ).first()
 
                 # Set author profile to verified
-                user.is_verified = True
-                user.author_profile.is_verified = True
-                user.author_profile.save(update_fields=["is_verified"])
-                user.save(update_fields=["is_verified"])
+                user.set_verified(is_verified=True)
 
                 # In-app notification about verification approval
                 verification_notification = Notification.objects.create(
@@ -78,6 +75,7 @@ class Command(BaseCommand):
                     recipient=user,
                     action_user=user,
                 )
+
                 verification_notification.send_notification()
                 send_verification_email(first_user_claim, context={})
 

@@ -114,6 +114,7 @@ def track_event(func):
     def inner(*args, **kwargs):
         res = func(*args, **kwargs)
         amp = None
+
         try:
             if res.status_code >= 200 and res.status_code <= 299 and not DEVELOPMENT:
                 amp = Amplitude()

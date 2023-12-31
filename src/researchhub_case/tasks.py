@@ -65,10 +65,7 @@ def after_approval_flow(case_id):
 
         if requestor.is_verified is False:
             # Set author profile to verified
-            requestor.is_verified = True
-            requestor.author_profile.is_verified = True
-            requestor.author_profile.save(update_fields=["is_verified"])
-            requestor.save(update_fields=["is_verified"])
+            requestor.set_verified(is_verified=True)
 
             # In-app notification about verification approval
             verification_notification = Notification.objects.create(
