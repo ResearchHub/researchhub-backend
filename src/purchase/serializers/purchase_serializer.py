@@ -15,10 +15,7 @@ from discussion.serializers import (
     ThreadSerializer,
 )
 from paper.serializers import BasePaperSerializer, DynamicPaperSerializer
-from purchase.models import (
-    AggregatePurchase,
-    Purchase,
-)
+from purchase.models import AggregatePurchase, Purchase
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.serializers import ResearchhubPostSerializer
 from researchhub_document.serializers.researchhub_post_serializer import (
@@ -27,7 +24,6 @@ from researchhub_document.serializers.researchhub_post_serializer import (
 from summary.serializers import SummarySerializer
 from user.serializers import DynamicUserSerializer
 from utils import sentry
-
 
 
 class PurchaseSerializer(serializers.ModelSerializer):
@@ -138,6 +134,9 @@ class DynamicPurchaseSerializer(DynamicModelFieldSerializer):
                 item = model_class.objects.get(id=object_id)
                 serializer = None
             elif model_name == "bullet_point":
+                item = model_class.objects.get(id=object_id)
+                serializer = None
+            elif model_name == "fundraise":
                 item = model_class.objects.get(id=object_id)
                 serializer = None
 

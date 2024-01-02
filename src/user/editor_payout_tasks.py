@@ -8,7 +8,8 @@ from django.apps import apps
 from django.contrib.contenttypes.models import ContentType
 
 from hub.models import Hub
-from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO, USD
+from purchase.related_models.constants.currency import USD
+from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import Distribution  # this is NOT the model
 from reputation.related_models.distribution import Distribution as DistributionModel

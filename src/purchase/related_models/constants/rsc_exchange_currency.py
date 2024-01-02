@@ -1,5 +1,4 @@
-USD = "USD"
-ETHER = "ETHER"
+from .currency import ETHER, USD
 
 RSC_EXCHANGE_CURRENCY = ((USD, USD), (ETHER, ETHER))
 

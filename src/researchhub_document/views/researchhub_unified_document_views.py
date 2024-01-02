@@ -328,6 +328,26 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "plain_text",
                 ]
             },
+            "doc_duds_get_fundraise": {
+                "_include_fields": [
+                    "id",
+                    "status",
+                    "goal_amount",
+                    "goal_currency",
+                    "start_date",
+                    "end_date",
+                    "amount_raised",
+                    "contributors",
+                ]
+            },
+            "pch_dfs_get_contributors": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
+                    "first_name",
+                    "last_name",
+                ]
+            },
         }
         return context
 
@@ -374,6 +394,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "hubs",
             "reviews",
             "score",
+            "fundraise",
         ]
         serializer = self.dynamic_serializer_class(
             page,
@@ -438,6 +459,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "hubs",
                 "reviews",
                 "score",
+                "fundraise",
             ],
             many=True,
             context=context,
@@ -464,6 +486,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "reviews",
                 "score",
                 "bounties",
+                "fundraise",
             ],
             many=True,
             context=context,
@@ -533,6 +556,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "reviews",
                     "score",
                     "bounties",
+                    "fundraise",
                 ],
                 many=True,
                 context=context,
@@ -733,6 +757,26 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "created_date",
                 ]
             },
+            "doc_duds_get_fundraise": {
+                "_include_fields": [
+                    "id",
+                    "status",
+                    "goal_amount",
+                    "goal_currency",
+                    "start_date",
+                    "end_date",
+                    "amount_raised",
+                    "contributors",
+                ]
+            },
+            "pch_dfs_get_contributors": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
+                    "first_name",
+                    "last_name",
+                ]
+            },
         }
 
         return metadata_context
@@ -751,6 +795,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "score",
                 "hubs",
                 "prediction_market",
+                "fundraise",
             ),
             context=metadata_context,
         )

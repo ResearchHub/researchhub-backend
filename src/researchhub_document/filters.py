@@ -12,8 +12,8 @@ from researchhub_document.related_models.constants.document_type import (
     NOTE,
     PAPER,
     POSTS,
-    QUESTION,
     PREREGISTRATION,
+    QUESTION,
 )
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
@@ -33,6 +33,7 @@ DOC_CHOICES = (
     ("hypothesis", "Hypothesis"),
     ("question", "Questions"),
     ("bounty", "Bounty"),
+    ("preregistration", "Preregistration"),
 )
 TAG_CHOICES = (
     ("answered", "Answered"),

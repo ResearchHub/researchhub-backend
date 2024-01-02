@@ -1,0 +1,3 @@
+USD = "USD"
+ETHER = "ETHER"
+RSC = "RSC"
