@@ -95,6 +95,8 @@ def create_upvote_distribution(vote_type, paper=None, vote=None):
 
     distribution_amount = calculate_rsc_per_upvote()
 
+    print("here1111")
+
     if paper:
         from reputation.distributor import Distributor
         from researchhub_case.models import AuthorClaimCase

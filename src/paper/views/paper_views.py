@@ -70,6 +70,7 @@ from researchhub_document.related_models.constants.filters import (
 )
 from researchhub_document.utils import reset_unified_document_cache
 from utils.http import GET, POST, check_url_contains_pdf
+from utils.openalex import OpenAlex
 from utils.permissions import CreateOrUpdateIfAllowed, HasAPIKey, PostOnly
 from utils.sentry import log_error
 from utils.siftscience import SIFT_PAPER, decisions_api, events_api, sift_track
@@ -709,6 +710,19 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             data["search"] = [hit.to_dict() for hit in search.hits]
 
         return Response(data, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
+    def doi_search_via_openalex(self, request):
+        doi_string = request.query_params.get("doi", None)
+        if doi_string is None:
+            return Response(status=404)
+        try:
+            open_alex = OpenAlex()
+            open_alex_json = open_alex.get_data_from_doi(doi_string)
+        except Exception as e:
+            return Response(status=404)
+
+        return Response(open_alex_json, status=200)
 
     def calculate_paper_ordering(self, papers, ordering, start_date, end_date):
         if "hot_score" in ordering:

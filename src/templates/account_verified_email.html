@@ -22,7 +22,7 @@
           font-weight: bold;
         }
 
-        .verification-link {
+        .link {
           text-decoration: none;
         }
 
@@ -76,6 +76,12 @@
             box-sizing: border-box;
           }
         }
+        .badge {
+            width: 20px;
+            height: 20px;
+            display: inline-block;
+            vertical-align: middle;
+        }
       </style>
   </head>
   {% inlinecss "support_receipt.css" %}
@@ -89,8 +95,21 @@
           </div>
           <p class="header-message-2">
             <div>
-              Your claim request for paper <a class="link" href="{{paper_url}}" target="__blank">{{ paper_title }}</a> has been rejected. If you believe this is a mistake, please contact us at verification@researchhub.com.
+                <p>
+                    Congratulations, Your account is officially verified!
+                    <img class="badge" src="https://rh-email-assets.s3-us-west-2.amazonaws.com/badge.png" /> A verified badge will appear next to your name.
+                </p>
+                <p>
+                  We have verified your account due to a recent paper that was claimed by you on ResearchHub. The claim was for the paper "{{paper_title}}"".
+                </p>
+                <p>
+                    Thank you for being part of the ResearchHub community and helping us accelerate science.
+                </p>
             </div>
+            <br/>
+            <a class="link" href="https://researchhub.com" target="__blank">
+              <div class="verify-button">Visit ResearchHub</div>
+            </a>
           </p>
         </div>
       </div>

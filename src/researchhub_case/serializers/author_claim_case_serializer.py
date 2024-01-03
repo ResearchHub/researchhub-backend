@@ -1,10 +1,15 @@
+from django.db.models import Q
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
+from citation.utils import get_paper_by_doi_url
 from paper.models import Paper
+from paper.paper_upload_tasks import celery_process_paper
+from paper.serializers.paper_serializers import PaperSubmissionSerializer
 from researchhub_case.models import AuthorClaimCase
 from researchhub_case.tasks import trigger_email_validation_flow
 from user.models import User
 from user.serializers import UserSerializer
+from utils.parsers import get_pure_doi
 
 from .researchhub_case_abstract_serializer import EXPOSABLE_FIELDS
 
@@ -19,6 +24,7 @@ class AuthorClaimCaseSerializer(ModelSerializer):
         moderator_id = request_data.get("moderator")
         requestor_id = request_data.get("requestor")
         target_paper_id = request_data.get("target_paper_id")
+        target_paper_doi = request_data.get("target_paper_doi")
         target_author_name = request_data.get("target_author_name")
         moderator = User.objects.filter(id=moderator_id).first()
         requestor = User.objects.filter(id=requestor_id).first()
@@ -31,6 +37,7 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             requestor_id,
             target_paper_id,
             target_author_name,
+            target_paper_doi,
         )
 
         case = AuthorClaimCase.objects.create(
@@ -39,6 +46,22 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             moderator=moderator,
             requestor=requestor,
         )
+
+        # Paper not on ResearchHub yet, upload it
+        if case.target_paper is None:
+            try:
+                pure_doi = get_pure_doi(target_paper_doi)
+                duplicate_paper = get_paper_by_doi_url(target_paper_doi)
+            except Paper.DoesNotExist:
+                # Paper is not on ResearchHub yet, upload it
+                data = {
+                    "uploaded_by": None,
+                    "doi": pure_doi,
+                }
+                submission = PaperSubmissionSerializer(data=data)
+                if submission.is_valid():
+                    submission = submission.save()
+                    celery_process_paper(submission.id)
 
         trigger_email_validation_flow.apply_async((case.id,), priority=2, countdown=5)
 
@@ -69,13 +92,21 @@ class AuthorClaimCaseSerializer(ModelSerializer):
         return None
 
     def __check_uniqueness_on_create(
-        self, requestor_id, target_paper_id, target_author_name
+        self, requestor_id, target_paper_id, target_author_name, target_paper_doi
     ):
         has_open_case = AuthorClaimCase.objects.filter(
-            requestor__id=requestor_id,
-            target_author_name=target_author_name,
-            target_paper_id=target_paper_id,
-            status__in=["OPEN", "INITIATED"],
+            Q(
+                requestor__id=requestor_id,
+                target_author_name=target_author_name,
+                target_paper_id=target_paper_id,
+                status__in=["OPEN", "INITIATED"],
+            )
+            | Q(
+                requestor__id=requestor_id,
+                target_author_name=target_author_name,
+                target_paper_doi=target_paper_doi,
+                status__in=["OPEN", "INITIATED"],
+            )
         ).exists()
 
         if has_open_case:
@@ -84,10 +115,18 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             )
 
         already_claimed = AuthorClaimCase.objects.filter(
-            requestor__id=requestor_id,
-            target_author_name=target_author_name,
-            target_paper_id=target_paper_id,
-            status__in=["APPROVED"],
+            Q(
+                requestor__id=requestor_id,
+                target_author_name=target_author_name,
+                target_paper_id=target_paper_id,
+                status__in=["APPROVED"],
+            )
+            | Q(
+                requestor__id=requestor_id,
+                target_author_name=target_author_name,
+                target_paper_doi=target_paper_doi,
+                status__in=["APPROVED"],
+            )
         ).exists()
 
         if already_claimed:
@@ -105,6 +144,8 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             "validation_attempt_count",
             "validation_token",
             "paper",
+            "target_paper_doi",
+            "target_paper_title",
             "target_author_name",
         ]
         read_only_fields = [

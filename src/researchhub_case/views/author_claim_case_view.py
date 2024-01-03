@@ -129,16 +129,15 @@ class AuthorClaimCaseViewSet(ModelViewSet):
             case = AuthorClaimCase.objects.get(id=case_id, status=OPEN)
 
             if update_status == APPROVED:
-                if case.target_paper is None:
-                    return Response("Cannot approve. No paper id found.", status=500)
-                else:
-                    move_paper_to_author(
-                        case.target_paper, case.requestor.author_profile
+                if case.target_paper is None and case.target_paper_doi is None:
+                    return Response(
+                        "Cannot approve. No paper id or DOI found.", status=400
                     )
-                    case.status = update_status
-                    case.save()
-                    after_approval_flow.apply((case_id,), priority=2, countdown=5)
-                    return Response("Success", status=200)
+
+                case.status = update_status
+                case.save()
+                after_approval_flow.apply((case_id,), priority=2, countdown=5)
+                return Response("Success", status=200)
             elif update_status == DENIED:
                 notify_user = request_data["notify_user"]
                 after_rejection_flow.apply_async(

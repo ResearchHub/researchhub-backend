@@ -34,6 +34,8 @@ class AuthorClaimCase(AbstractResearchhubCase):
         on_delete=models.CASCADE,
         related_name="related_claim_cases",
     )
+    target_paper_doi = models.CharField(max_length=255, null=True)
+    target_paper_title = models.CharField(max_length=1024, null=True)
     token_generated_time = models.IntegerField(
         blank=True,
         default=None,

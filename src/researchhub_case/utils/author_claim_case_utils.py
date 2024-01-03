@@ -43,11 +43,25 @@ def send_validation_email(case):
     validation_token = case.validation_token
     requestor = case.requestor
     requestor_name = f"{requestor.first_name} {requestor.last_name}"
+
+    # Determine paper_title
+    paper_title = (
+        case.target_paper_title
+        or (case.target_paper.title if case.target_paper else None)
+        or case.target_paper_doi
+    )
+
+    # Determine paper_url
+    if case.target_paper:
+        paper_url = get_paper_url(case.target_paper)
+    else:
+        paper_url = f"https://doi.org/{case.target_paper_doi}"
+
     email_context = {
         **base_email_context,
         "requestor_name": requestor_name,
-        "paper_title": case.target_paper.title,
-        "paper_url": get_paper_url(case.target_paper),
+        "paper_title": paper_title,
+        "paper_url": paper_url,
         "target_author_name": case.target_author_name,
         "validation_url": get_client_validation_url(validation_token),
     }
@@ -61,15 +75,54 @@ def send_validation_email(case):
     )
 
 
+def send_verification_email(case, context):
+    requestor = case.requestor
+    requestor_name = f"{requestor.first_name} {requestor.last_name}"
+
+    paper_title = (
+        case.target_paper_title
+        or (case.target_paper.title if case.target_paper else None)
+        or case.target_paper_doi
+    )
+
+    email_context = {
+        **base_email_context,
+        "requestor_name": requestor_name,
+        "paper_title": paper_title,
+    }
+    send_email_message(
+        [case.provided_email],
+        "account_verified_email.txt",
+        "Your account has been verified",
+        email_context,
+        "account_verified_email.html",
+        "ResearchHub <noreply@researchhub.com>",
+    )
+
+
 def send_approval_email(case, context):
     requestor = case.requestor
     requestor_author = requestor.author_profile
     requestor_name = f"{requestor.first_name} {requestor.last_name}"
     vote_reward = context.get("total_amount_paid", 0)
+
+    # Determine paper_title
+    paper_title = (
+        case.target_paper_title
+        or (case.target_paper.title if case.target_paper else None)
+        or case.target_paper_doi
+    )
+
+    # Determine paper_url
+    if case.target_paper:
+        paper_url = get_paper_url(case.target_paper)
+    else:
+        paper_url = f"https://doi.org/{case.target_paper_doi}"
+
     email_context = {
         **base_email_context,
-        "paper_title": case.target_paper.title,
-        "paper_url": get_paper_url(case.target_paper),
+        "paper_title": paper_title,
+        "paper_url": paper_url,
         "profile_url": get_client_profile_url(requestor_author),
         "authored_papers_url": get_authored_papers_url(requestor_author),
         "target_author_name": case.target_author_name,
