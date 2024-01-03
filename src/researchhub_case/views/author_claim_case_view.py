@@ -133,10 +133,6 @@ class AuthorClaimCaseViewSet(ModelViewSet):
                     return Response(
                         "Cannot approve. No paper id or DOI found.", status=400
                     )
-                elif case.target_paper is not None:
-                    move_paper_to_author(
-                        case.target_paper, case.requestor.author_profile
-                    )
 
                 case.status = update_status
                 case.save()

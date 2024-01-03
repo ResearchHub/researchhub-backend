@@ -2,7 +2,11 @@ import json
 
 from boto3.session import Session
 
+from citation.utils import get_paper_by_doi_url
 from notification.models import Notification
+from paper.paper_upload_tasks import celery_process_paper
+from paper.related_models.paper_model import Paper
+from paper.serializers.paper_serializers import PaperSubmissionSerializer
 from researchhub.celery import QUEUE_AUTHOR_CLAIM, app
 from researchhub.settings import (
     AWS_ACCESS_KEY_ID,
@@ -25,7 +29,9 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from rh_scholarly.lambda_handler import AUTHOR_PROFILE_LOOKUP
 from user.models import Author, AuthorCitation
+from user.utils import move_paper_to_author
 from utils import sentry
+from utils.parsers import get_pure_doi
 
 
 @app.task(queue=QUEUE_AUTHOR_CLAIM)
@@ -92,6 +98,24 @@ def after_approval_flow(case_id):
                 action_user=requestor,
             )
             claim_notification.send_notification()
+        else:
+            # Paper not associated with case. Likely because user claimed via DOI and not via paper ID.
+            # We have a process to try and upload a paper that is claimed via DOI in case it does not exist.
+            # Let's fetch it and
+
+            try:
+                doi = get_pure_doi(instance.target_paper_doi)
+                paper = Paper.objects.get(doi=doi)
+                instance.target_paper = paper
+                instance.save()
+            except Exception as e:
+                # Paper does not exist
+                pass
+
+        if instance.target_paper:
+            move_paper_to_author(
+                instance.target_paper, instance.requestor.author_profile
+            )
 
         send_approval_email(instance, context={"total_amount_paid": total_amount_paid})
     except Exception as exception:
