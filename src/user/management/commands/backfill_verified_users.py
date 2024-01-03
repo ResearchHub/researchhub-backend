@@ -44,11 +44,7 @@ class Command(BaseCommand):
             user = User.objects.get(pk=user_id)
 
             if not user.is_verified:
-                approved_unique_users_which_arent_verified.append(
-                    [
-                        user,
-                    ]
-                )
+                approved_unique_users_which_arent_verified.append(user)
                 print(
                     "Name: "
                     + user.first_name
