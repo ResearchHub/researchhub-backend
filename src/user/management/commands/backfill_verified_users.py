@@ -2,7 +2,6 @@ from django.core.management.base import BaseCommand, CommandError
 
 from notification.models import Notification
 from researchhub_case.models import AuthorClaimCase
-from researchhub_case.tasks import after_approval_flow
 from researchhub_case.utils.author_claim_case_utils import send_verification_email
 from user.models import User
 
@@ -13,13 +12,19 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         # Add the --save argument
         parser.add_argument(
-            "--save-and-notify",
+            "--save",
             action="store_true",
             help="Save the changes to the database",
         )
+        parser.add_argument(
+            "--notify",
+            action="store_true",
+            help="Notify users about being verified",
+        )
 
     def handle(self, *args, **options):
-        save_and_notify = options.get("save-and-notify", False)
+        should_save = options.get("save", False)
+        should_notify = options.get("notify", False)
 
         approved_claims = AuthorClaimCase.objects.filter(status="APPROVED")
         approved_unique_user_ids = approved_claims.values_list(
@@ -57,7 +62,7 @@ class Command(BaseCommand):
 
         self.stdout.write("--------------------------")
 
-        if save_and_notify:
+        if should_save:
             self.stdout.write(self.style.SUCCESS("Saving changes..."))
 
             for user in approved_unique_users_which_arent_verified:
@@ -68,15 +73,16 @@ class Command(BaseCommand):
                 # Set author profile to verified
                 user.set_verified(is_verified=True)
 
-                # In-app notification about verification approval
-                verification_notification = Notification.objects.create(
-                    item=first_user_claim,
-                    notification_type=Notification.ACCOUNT_VERIFIED,
-                    recipient=user,
-                    action_user=user,
-                )
+                if should_notify:
+                    # In-app notification about verification approval
+                    verification_notification = Notification.objects.create(
+                        item=first_user_claim,
+                        notification_type=Notification.ACCOUNT_VERIFIED,
+                        recipient=user,
+                        action_user=user,
+                    )
 
-                verification_notification.send_notification()
-                send_verification_email(first_user_claim, context={})
+                    verification_notification.send_notification()
+                    send_verification_email(first_user_claim, context={})
 
         self.stdout.write(self.style.SUCCESS("Backfill operation completed."))
