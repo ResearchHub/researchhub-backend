@@ -1,5 +1,7 @@
 from rest_framework.test import APITestCase
 from django.contrib.contenttypes.models import ContentType
+from datetime import datetime, timedelta
+import pytz
 
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
@@ -7,8 +9,8 @@ from user.tests.helpers import (
     create_random_authenticated_user,
     create_user
 )
-from purchase.models import Balance, RscExchangeRate, Purchase
-from reputation.models import Escrow, BountyFee
+from purchase.models import Balance, RscExchangeRate, Purchase, Fundraise
+from reputation.models import BountyFee
 
 
 class FundraiseViewTests(APITestCase):
@@ -217,3 +219,36 @@ class FundraiseViewTests(APITestCase):
         owner_balance = Balance.objects.filter(user=self.user)
         self.assertEqual(owner_balance.count(), 1)
         self.assertEqual(float(owner_balance.first().amount), 200.0)
+
+    def test_create_contribution_expired_fundraise(self):
+        fundraise = self._create_fundraise(self.post.id, goal_amount=100)
+        fundraise_id = fundraise.data["id"]
+
+        # update fundraise end_date to 1 day ago
+        fundraise = Fundraise.objects.get(id=fundraise_id)
+        fundraise.end_date = datetime.now(pytz.UTC) - timedelta(days=1)
+        fundraise.save()
+        
+        user = create_random_authenticated_user("fundraise_views")
+        self._give_user_balance(user, 1000)
+        response = self._create_contribution(fundraise_id, user, amount=200)
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_create_contribution_closed_fundraise(self):
+        fundraise = self._create_fundraise(self.post.id, goal_amount=100)
+        fundraise_id = fundraise.data["id"]
+
+        user = create_random_authenticated_user("fundraise_views")
+        self._give_user_balance(user, 1000)
+        response = self._create_contribution(fundraise_id, user, amount=200)
+
+        self.assertEqual(response.status_code, 200)
+
+        updated_fundraise = response.data
+        # make sure fundraise is closed
+        self.assertEqual(updated_fundraise["status"], "CLOSED")
+
+        response = self._create_contribution(fundraise_id, user, amount=200)
+
+        self.assertEqual(response.status_code, 400)
