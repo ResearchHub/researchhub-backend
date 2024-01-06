@@ -122,7 +122,7 @@ def check_transaction_success(transaction_hash):
 
 @periodic_task(
     run_every=crontab(minute="*/5"),
-    priority=4,
+    priority=3,
     queue=QUEUE_PURCHASES,
 )
 def check_deposits():
