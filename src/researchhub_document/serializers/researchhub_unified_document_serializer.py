@@ -100,6 +100,7 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
     reviews = SerializerMethodField()
     concepts = SerializerMethodField()
     prediction_market = SerializerMethodField()
+    fundraise = SerializerMethodField()
 
     class Meta:
         model = ResearchhubUnifiedDocument
@@ -238,4 +239,21 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
             return None
 
         serializer = DynamicPredictionMarketSerializer(prediction_market)
+        return serializer.data
+
+    def get_fundraise(self, unified_doc):
+        if not unified_doc.fundraises.exists():
+            return None
+
+        fundraiser = unified_doc.fundraises.first()
+        if not fundraiser:
+            return None
+
+        from purchase.serializers import DynamicFundraiseSerializer
+
+        context = self.context
+        _context_fields = context.get("doc_duds_get_fundraise", {})
+        serializer = DynamicFundraiseSerializer(
+            fundraiser, context=context, **_context_fields
+        )
         return serializer.data

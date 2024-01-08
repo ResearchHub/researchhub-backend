@@ -9,6 +9,7 @@ from researchhub_document.related_models.constants.document_type import (
     PAPER,
     POSTS,
     QUESTION,
+    PREREGISTRATION,
 )
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
@@ -75,6 +76,7 @@ def reset_unified_document_cache(
     document_type=[
         ALL.lower(),
         POSTS.lower(),
+        PREREGISTRATION.lower(),
         PAPER.lower(),
         HYPOTHESIS.lower(),
         QUESTION.lower(),

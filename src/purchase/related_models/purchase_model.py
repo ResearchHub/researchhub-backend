@@ -16,6 +16,7 @@ class Purchase(PaidStatusModelMixin):
 
     BOOST = "BOOST"
     DOI = "DOI"
+    FUNDRAISE_CONTRIBUTION = "FUNDRAISE_CONTRIBUTION"
 
     PURCHASE_METHOD_CHOICES = [
         (OFF_CHAIN, OFF_CHAIN),
@@ -25,6 +26,7 @@ class Purchase(PaidStatusModelMixin):
     PURCHASE_TYPE_CHOICES = [
         (BOOST, BOOST),
         (DOI, DOI),
+        (FUNDRAISE_CONTRIBUTION, FUNDRAISE_CONTRIBUTION),
     ]
 
     user = models.ForeignKey(
@@ -45,7 +47,7 @@ class Purchase(PaidStatusModelMixin):
         choices=PURCHASE_METHOD_CHOICES,
         max_length=16,
     )
-    purchase_type = models.CharField(choices=PURCHASE_TYPE_CHOICES, max_length=16)
+    purchase_type = models.CharField(choices=PURCHASE_TYPE_CHOICES, max_length=32)
 
     transaction_hash = models.CharField(max_length=255, blank=True, null=True)
 

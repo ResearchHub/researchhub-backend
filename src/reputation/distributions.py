@@ -219,6 +219,21 @@ def create_purchase_distribution(user, amount):
     return Distribution("PURCHASE", amount, False)
 
 
+def create_fundraise_rh_fee_distribution(amount):
+    distribution = Distribution("FUNDRAISE_RH_FEE", amount, give_rep=False)
+    return distribution
+
+
+def create_fundraise_dao_fee_distribution(amount):
+    distribution = Distribution("FUNDRAISE_DAO_FEE", amount, give_rep=False)
+    return distribution
+
+
+def create_fundraise_distribution(amount):
+    distribution = Distribution("FUNDRAISE_PAYOUT", amount, give_rep=False)
+    return distribution
+
+
 def create_bounty_rh_fee_distribution(amount):
     distribution = Distribution("BOUNTY_RH_FEE", amount, give_rep=False)
     return distribution

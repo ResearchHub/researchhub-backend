@@ -7,6 +7,7 @@ from django.db import models
 from reputation.distributions import (
     create_bounty_distriution,
     create_bounty_refund_distribution,
+    create_fundraise_distribution,
     create_stored_paper_pot,
 )
 from utils.models import DefaultModel
@@ -28,9 +29,11 @@ def get_current_bounty_fee():
 class Escrow(DefaultModel):
     BOUNTY = "BOUNTY"
     AUTHOR_RSC = "AUTHOR_RSC"
+    FUNDRAISE = "FUNDRAISE"
     hold_type_choices = (
         (BOUNTY, BOUNTY),
         (AUTHOR_RSC, AUTHOR_RSC),
+        (FUNDRAISE, FUNDRAISE),
     )
 
     PAID = "PAID"
@@ -114,6 +117,8 @@ class Escrow(DefaultModel):
 
         if self.hold_type == self.BOUNTY:
             distribution = create_bounty_distriution(payout_amount)
+        if self.hold_type == self.FUNDRAISE:
+            distribution = create_fundraise_distribution(payout_amount)
         else:
             distribution = create_stored_paper_pot(payout_amount)
 
@@ -141,6 +146,16 @@ class Escrow(DefaultModel):
                 action_user=self.created_by,
                 item=self,
                 notification_type=Notification.BOUNTY_PAYOUT,
+            )
+            notification.send_notification()
+        elif self.hold_type == self.FUNDRAISE:
+            unified_document = self.item.unified_document
+            notification = Notification.objects.create(
+                unified_document=unified_document,
+                recipient=recipient,
+                action_user=self.created_by,
+                item=self,
+                notification_type=Notification.FUNDRAISE_PAYOUT,
             )
             notification.send_notification()
         return True

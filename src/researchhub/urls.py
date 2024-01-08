@@ -235,6 +235,8 @@ router.register(
     basename="prediction_market_vote",
 )
 
+router.register(r"fundraise", purchase.views.FundraiseViewSet, basename="fundraise")
+
 urlpatterns = [
     path("admin/", admin.site.urls),
     re_path(r"^api/", include(router.urls)),

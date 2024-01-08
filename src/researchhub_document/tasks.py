@@ -121,6 +121,7 @@ def preload_trending_documents(
             "hubs",
             "reviews",
             "score",
+            "fundraise",
         ],
         many=True,
         context=context,

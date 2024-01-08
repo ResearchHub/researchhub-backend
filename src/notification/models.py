@@ -29,6 +29,7 @@ class Notification(models.Model):
     BOUNTY_PAYOUT = "BOUNTY_PAYOUT"
     PAPER_CLAIMED = "PAPER_CLAIMED"
     ACCOUNT_VERIFIED = "ACCOUNT_VERIFIED"
+    FUNDRAISE_PAYOUT = "FUNDRAISE_PAYOUT"
 
     NOTIFICATION_TYPE_CHOICES = (
         (DEPRECATED, DEPRECATED),
@@ -44,6 +45,7 @@ class Notification(models.Model):
         (BOUNTY_PAYOUT, BOUNTY_PAYOUT),
         (ACCOUNT_VERIFIED, ACCOUNT_VERIFIED),
         (PAPER_CLAIMED, PAPER_CLAIMED),
+        (FUNDRAISE_PAYOUT, FUNDRAISE_PAYOUT),
     )
 
     notification_type = models.CharField(
@@ -508,3 +510,26 @@ class Notification(models.Model):
                 "extra": '["link"]',
             },
         ], comments_url
+
+    def _format_fundraise_payout(self):
+        item = self.item
+        amount = item.amount_paid
+        unified_document = self.unified_document
+        base_url = unified_document.frontend_view_link()
+
+        # round to 2 decimal places
+        amount = round(amount, 2)
+
+        return [
+            {"type": "text", "value": "Congratulations! 🎉 Your "},
+            {
+                "type": "link",
+                "value": "fundraise",
+                "link": base_url,
+                "extra": '["link"]',
+            },
+            {
+                "type": "text",
+                "value": f" has been fulfilled and you have received {amount} RSC",
+            },
+        ], base_url

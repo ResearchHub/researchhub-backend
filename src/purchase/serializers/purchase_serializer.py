@@ -1,15 +1,11 @@
 import datetime
 
-import pandas as pd
 import rest_framework.serializers as serializers
-from django.contrib.contenttypes.models import ContentType
 from django.db.models import CharField, Count, F, Func, IntegerField, Sum, Value
 from django.db.models.functions import Cast
 
 from analytics.models import INTERACTIONS, PaperEvent
-from analytics.serializers import PaperEventSerializer
 from bullet_point.serializers import BulletPointSerializer
-from discussion.models import Thread
 from discussion.serializers import (
     CommentSerializer,
     DynamicCommentSerializer,
@@ -19,22 +15,8 @@ from discussion.serializers import (
     ThreadSerializer,
 )
 from paper.serializers import BasePaperSerializer, DynamicPaperSerializer
-from purchase.models import (
-    AggregatePurchase,
-    Balance,
-    Purchase,
-    RscExchangeRate,
-    Support,
-    Wallet,
-)
-from reputation.models import Bounty, Distribution, Withdrawal
-from reputation.serializers import (
-    BountySerializer,
-    DistributionSerializer,
-    WithdrawalSerializer,
-)
+from purchase.models import AggregatePurchase, Purchase
 from researchhub.serializers import DynamicModelFieldSerializer
-from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.serializers import ResearchhubPostSerializer
 from researchhub_document.serializers.researchhub_post_serializer import (
     DynamicPostSerializer,
@@ -42,82 +24,6 @@ from researchhub_document.serializers.researchhub_post_serializer import (
 from summary.serializers import SummarySerializer
 from user.serializers import DynamicUserSerializer
 from utils import sentry
-
-
-class BalanceSourceRelatedField(serializers.RelatedField):
-    """
-    A custom field to use for the `source` generic relationship.
-    """
-
-    def to_representation(self, value):
-        """
-        Serialize tagged objects to a simple textual representation.
-        """
-        if isinstance(value, Distribution):
-            return DistributionSerializer(value, context={"exclude_stats": True}).data
-        elif isinstance(value, Purchase):
-            return PurchaseSerializer(value, context={"exclude_stats": True}).data
-        elif isinstance(value, Withdrawal):
-            return WithdrawalSerializer(value, context={"exclude_stats": True}).data
-        elif isinstance(value, Bounty):
-            return BountySerializer(value).data
-
-        sentry.log_info("No representation for " + str(value))
-        return None
-
-
-class BalanceSerializer(serializers.ModelSerializer):
-    source = BalanceSourceRelatedField(read_only=True)
-    readable_content_type = serializers.SerializerMethodField()
-    content_title = serializers.SerializerMethodField()
-    content_id = serializers.SerializerMethodField()
-    content_slug = serializers.SerializerMethodField()
-
-    def get_content_title(self, balance):
-        if balance.content_type == ContentType.objects.get_for_model(Bounty):
-            source_item = balance.source.item
-            if isinstance(source_item, ResearchhubUnifiedDocument):
-                return source_item.get_document().title
-            elif isinstance(source_item, Thread):
-                return source_item.unified_document.get_document().title
-            return None
-
-    def get_content_id(self, balance):
-        if balance.content_type == ContentType.objects.get_for_model(Bounty):
-            source_item = balance.source.item
-            if isinstance(source_item, ResearchhubUnifiedDocument):
-                return source_item.get_document().id
-            elif isinstance(source_item, Thread):
-                return source_item.unified_document.get_document().id
-            return None
-
-    def get_content_slug(self, balance):
-        if balance.content_type == ContentType.objects.get_for_model(Bounty):
-            source_item = balance.source.item
-            if isinstance(source_item, ResearchhubUnifiedDocument):
-                return source_item.get_document().slug
-            elif isinstance(source_item, Thread):
-                return source_item.unified_document.get_document().slug
-            return None
-
-    def get_readable_content_type(self, balance):
-        return balance.content_type.model
-
-    class Meta:
-        model = Balance
-        fields = "__all__"
-
-
-class WalletSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Wallet
-        fields = "__all__"
-
-
-class SupportSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Support
-        fields = "__all__"
 
 
 class PurchaseSerializer(serializers.ModelSerializer):
@@ -228,6 +134,9 @@ class DynamicPurchaseSerializer(DynamicModelFieldSerializer):
                 item = model_class.objects.get(id=object_id)
                 serializer = None
             elif model_name == "bullet_point":
+                item = model_class.objects.get(id=object_id)
+                serializer = None
+            elif model_name == "fundraise":
                 item = model_class.objects.get(id=object_id)
                 serializer = None
 
@@ -363,9 +272,3 @@ class AggregatePurchaseSerializer(serializers.ModelSerializer):
             "end_date": end_date,
         }
         return stats
-
-
-class RscExchangeRateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = RscExchangeRate
-        fields = "__all__"

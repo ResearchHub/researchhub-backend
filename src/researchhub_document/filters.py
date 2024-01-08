@@ -12,6 +12,7 @@ from researchhub_document.related_models.constants.document_type import (
     NOTE,
     PAPER,
     POSTS,
+    PREREGISTRATION,
     QUESTION,
 )
 from researchhub_document.related_models.constants.filters import (
@@ -32,6 +33,7 @@ DOC_CHOICES = (
     ("hypothesis", "Hypothesis"),
     ("question", "Questions"),
     ("bounty", "Bounty"),
+    ("preregistration", "Preregistration"),
 )
 TAG_CHOICES = (
     ("answered", "Answered"),
@@ -180,6 +182,9 @@ class UnifiedDocumentFilter(filters.FilterSet):
             ]
         elif value == QUESTION:
             qs = qs.filter(document_type=QUESTION)
+            selects = ["document_filter"]
+        elif value == PREREGISTRATION:
+            qs = qs.filter(document_type=PREREGISTRATION)
             selects = ["document_filter"]
         elif value == HYPOTHESIS:
             qs = qs.filter(document_type=HYPOTHESIS)

@@ -2,7 +2,8 @@ import json
 
 import requests
 
-from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO, USD
+from purchase.related_models.constants.currency import USD
+from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from utils.sentry import log_error
 
