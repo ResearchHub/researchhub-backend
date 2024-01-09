@@ -12,7 +12,7 @@ from purchase.related_models.constants.currency import RSC, USD
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.purchase_serializer import DynamicPurchaseSerializer
 from reputation.models import BountyFee, Escrow
-from reputation.utils import calculate_fees, deduct_fees
+from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.constants.filters import HOT
@@ -258,7 +258,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             )
 
         # Calculate fees
-        fee, rh_fee, dao_fee, fee_object = calculate_fees(amount)
+        fee, rh_fee, dao_fee, fee_object = calculate_bounty_fees(amount)
 
         # Check if user has enough balance in their wallet
         user_balance = user.get_balance()
@@ -280,7 +280,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             )
 
             # Deduct fees
-            deduct_fees(user, fee, rh_fee, dao_fee, fee_object)
+            deduct_bounty_fees(user, fee, rh_fee, dao_fee, fee_object)
 
             # Create balance objects
             amount_str = amount.to_eng_string()

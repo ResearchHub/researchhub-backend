@@ -30,7 +30,7 @@ from researchhub_document.related_models.constants.document_type import (
     SORT_BOUNTY_TOTAL_AMOUNT,
 )
 from researchhub_document.utils import reset_unified_document_cache
-from reputation.utils import calculate_fees, deduct_fees
+from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
 from utils.permissions import PostOnly
 from utils.sentry import log_error
 
@@ -43,7 +43,7 @@ def _create_bounty_checks(user, amount, item_content_type, bypass_user_balance=F
         return Response({"detail": "Invalid amount"}, status=400)
 
     user_balance = user.get_balance()
-    fee_amount, rh_fee, dao_fee, current_bounty_fee = calculate_fees(amount)
+    fee_amount, rh_fee, dao_fee, current_bounty_fee = calculate_bounty_fees(amount)
     if (
         amount <= 0
         or user_balance - (amount + fee_amount) < 0
@@ -198,7 +198,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             amount, fee_amount, rh_fee, dao_fee, current_bounty_fee = response
 
         with transaction.atomic():
-            deduct_fees(user, fee_amount, rh_fee, dao_fee, current_bounty_fee)
+            deduct_bounty_fees(user, fee_amount, rh_fee, dao_fee, current_bounty_fee)
             bounty = _create_bounty(
                 user,
                 data,

@@ -234,6 +234,16 @@ def create_fundraise_distribution(amount):
     return distribution
 
 
+def create_support_rh_fee_distribution(amount):
+    distribution = Distribution("SUPPORT_RH_FEE", amount, give_rep=False)
+    return distribution
+
+
+def create_support_dao_fee_distribution(amount):
+    distribution = Distribution("SUPPORT_DAO_FEE", amount, give_rep=False)
+    return distribution
+
+
 def create_bounty_rh_fee_distribution(amount):
     distribution = Distribution("BOUNTY_RH_FEE", amount, give_rep=False)
     return distribution
