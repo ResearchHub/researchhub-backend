@@ -1,6 +1,7 @@
 # flake8: noqa
 from reputation.related_models.bounty import Bounty, BountySolution
 from reputation.related_models.bounty_fee import BountyFee
+from reputation.related_models.support_fee import SupportFee
 from reputation.related_models.contribution import Contribution
 from reputation.related_models.deposit import Deposit
 from reputation.related_models.distribution import Distribution

@@ -29,9 +29,9 @@ from purchase.tasks import send_support_email
 from purchase.utils import distribute_support_to_authors
 from reputation.distributions import create_purchase_distribution
 from reputation.distributor import Distributor
-from reputation.models import Contribution, BountyFee
+from reputation.models import Contribution, SupportFee
 from reputation.tasks import create_contribution
-from reputation.utils import calculate_fees, deduct_fees
+from reputation.utils import calculate_support_fees, deduct_support_fees
 from researchhub.settings import ASYNC_SERVICE_HOST, BASE_FRONTEND_URL
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.filters import HOT
@@ -89,14 +89,14 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 purchase_data["purchase_method"] = Purchase.ON_CHAIN
             else:
                 user_balance = user.get_balance()
-                total_fee, rh_fee, dao_fee, current_bounty_fee = calculate_fees(
+                total_fee, rh_fee, dao_fee, current_support_fee = calculate_support_fees(
                     decimal_amount
                 )
                 if user_balance - (decimal_amount + total_fee) < 0:
                     return Response("Insufficient Funds", status=402)
                 
                 # Deduct fees from the gross amount of the purchase.
-                deduct_fees(user, total_fee, rh_fee, dao_fee, current_bounty_fee)
+                deduct_support_fees(user, total_fee, rh_fee, dao_fee, current_support_fee)
 
                 # Create a purchase object with the pre-fees amount
                 purchase_data["purchase_method"] = Purchase.OFF_CHAIN
@@ -111,8 +111,8 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 fee_str = total_fee.to_eng_string()
                 Balance.objects.create(
                     user=user,
-                    content_type=ContentType.objects.get_for_model(BountyFee),
-                    object_id=current_bounty_fee.id,
+                    content_type=ContentType.objects.get_for_model(SupportFee),
+                    object_id=current_support_fee.id,
                     amount=f"-{fee_str}",
                 )
                 Balance.objects.create(

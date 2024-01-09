@@ -6,7 +6,7 @@ from paper.tests.helpers import create_paper
 from researchhub_document.helpers import create_post
 from discussion.tests.helpers import create_rh_comment
 from purchase.models import Balance
-from reputation.models import Escrow, BountyFee
+from reputation.models import Escrow, BountyFee, SupportFee
 from user.related_models.gatekeeper_model import Gatekeeper
 from user.tests.helpers import (
     create_moderator,
@@ -28,6 +28,7 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
     def setUp(self):
         self.bank_user = create_user(email="bank@researchhub.com")
         self.bountyFee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
+        self.supportFee = SupportFee.objects.create(rh_pct=0.02, dao_pct=0.01)
         self.recipient = create_random_default_user("recipient")
 
     def test_regular_user_send_rsc(self):
@@ -90,7 +91,7 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
         post = create_post(created_by=poster)
 
         tip_amount = 100
-        fee_amount = 9 # latest `BountyFee` is 7% RH, 2% DAO as of 2023-12-14
+        fee_amount = 3 # latest `SupportFee` is 2% RH, 1% DAO as of 2024-01-08
 
         # give the user 10,000 RSC
         DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model="distribution")
@@ -104,7 +105,7 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
         # fee and balance deducted from user
         fee_balance_entry = Balance.objects.filter(
             user=user,
-            content_type=ContentType.objects.get_for_model(BountyFee),
+            content_type=ContentType.objects.get_for_model(SupportFee),
         )
         self.assertTrue(fee_balance_entry.exists())
         balance_fee_amount = float(fee_balance_entry.first().amount)
@@ -133,7 +134,7 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
         comment = create_rh_comment(created_by=poster, post=post)
 
         tip_amount = 100
-        fee_amount = 9
+        fee_amount = 3
 
         # give the user 10,000 RSC
         DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model="distribution")
@@ -147,7 +148,7 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
         # fee and balance deducted from user
         fee_balance_entry = Balance.objects.filter(
             user=user,
-            content_type=ContentType.objects.get_for_model(BountyFee),
+            content_type=ContentType.objects.get_for_model(SupportFee),
         )
         self.assertTrue(fee_balance_entry.exists())
         balance_fee_amount = float(fee_balance_entry.first().amount)

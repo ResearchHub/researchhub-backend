@@ -24,7 +24,7 @@ from reputation.views.bounty_view import (
     _create_bounty,
     _create_bounty_checks,
 )
-from reputation.utils import deduct_fees
+from reputation.utils import deduct_bounty_fees
 from researchhub.pagination import FasterDjangoPaginator
 from researchhub.permissions import IsObjectOwner, IsObjectOwnerOrModerator
 from researchhub.settings import TESTING
@@ -388,7 +388,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             if expiration_date:
                 data["expiration_date"] = expiration_date
 
-            deduct_fees(user, fee_amount, rh_fee, dao_fee, current_bounty_fee)
+            deduct_bounty_fees(user, fee_amount, rh_fee, dao_fee, current_bounty_fee)
             bounty = _create_bounty(
                 user,
                 data,
