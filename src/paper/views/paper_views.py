@@ -296,6 +296,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 "pdf_file_extract",
                 "pdf_license",
                 "pdf_url",
+                "pdf_copyright_allows_display",
                 "purchases",
                 "raw_authors",
                 "score",

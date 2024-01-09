@@ -200,6 +200,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "paper_publish_date",
                     "paper_title",
                     "pdf_url",
+                    "pdf_copyright_allows_display",
                     "authors",
                     "preview_img",
                     "renderable_text",
