@@ -384,6 +384,9 @@ class PaperSerializer(BasePaperSerializer):
             "users_who_bookmarked",
             "views",
         ]
+        moderator_only_update_fields = [
+            "pdf_license",
+        ]
 
         patch_read_only_fields = ["uploaded_by"]
         model = Paper
@@ -514,11 +517,19 @@ class PaperSerializer(BasePaperSerializer):
             raise error
 
     def update(self, instance, validated_data):
+        request = self.context.get("request", None)
+        
+        # Check permissions
+        if not request.user.moderator:
+            for field in self.Meta.moderator_only_update_fields:
+                if field in validated_data:
+                    validated_data.pop(field, None)
+
         validated_data.pop("authors", [None])
         file = validated_data.pop("file", None)
         hubs = validated_data.pop("hubs", [None])
+        pdf_license = validated_data.get("pdf_license", None)
         validated_data.pop("raw_authors", [])
-        request = self.context.get("request", None)
 
         try:
             with transaction.atomic():
@@ -561,6 +572,10 @@ class PaperSerializer(BasePaperSerializer):
                     paper.hubs.add(*hubs)
                     unified_doc.hubs.remove(*remove_hubs)
                     unified_doc.hubs.add(*hubs)
+
+                if pdf_license:
+                    paper.pdf_license = pdf_license
+                    paper.save(update_fields=["pdf_license"])
 
                 paper.set_paper_completeness()
 
