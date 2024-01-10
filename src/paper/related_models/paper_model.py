@@ -59,6 +59,7 @@ ARXIV_IDENTIFIER = "arXiv:"
 HOT_SCORE_WEIGHT = 5
 HELP_TEXT_IS_PUBLIC = "Hides the paper from the public."
 HELP_TEXT_IS_REMOVED = "Hides the paper because it is not allowed."
+HELP_TEXT_IS_PDF_REMOVED = "Hides the PDF because it infringes Copyright."
 
 
 class Paper(AbstractGenericReactionModel):
@@ -94,6 +95,7 @@ class Paper(AbstractGenericReactionModel):
     is_removed_by_user = models.BooleanField(
         default=False, help_text=HELP_TEXT_IS_REMOVED
     )
+    is_pdf_removed_by_moderator = models.BooleanField(default=False, help_text=HELP_TEXT_IS_PDF_REMOVED)
     bullet_low_quality = models.BooleanField(default=False)
     summary_low_quality = models.BooleanField(default=False)
     discussion_count = models.IntegerField(default=0, db_index=True)

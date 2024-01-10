@@ -308,6 +308,8 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
         return paper.get_boost_amount()
     
     def get_pdf_copyright_allows_display(self, paper):
+        if paper.is_pdf_removed_by_moderator:
+            return False
         return can_display_paper_pdf(paper.oa_status, paper.pdf_license)
 
     def get_file(self, paper):
@@ -997,6 +999,8 @@ class DynamicPaperSerializer(
         return serializer.data
     
     def get_pdf_copyright_allows_display(self, paper):
+        if paper.is_pdf_removed_by_moderator:
+            return False
         return can_display_paper_pdf(paper.oa_status, paper.pdf_license)
 
     def get_file(self, paper):
