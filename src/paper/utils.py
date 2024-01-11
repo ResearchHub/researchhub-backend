@@ -26,7 +26,6 @@ from paper.lib import (
     journal_pdf_to_url,
     journal_url_to_pdf,
 )
-from paper.models import Paper
 from paper.manubot import RHCiteKey
 from utils import sentry
 from utils.http import RequestMethods as methods
@@ -724,14 +723,14 @@ def clean_dois(parsed_url, dois):
     return dois
 
 
-def pdf_copyright_allows_display(paper: Paper):
+def pdf_copyright_allows_display(paper):
     """
     Returns True if the paper can be displayed on our site.
     E.g. if the paper is open-access and has a license that allows for commercial use.
     """
     oa_status = (paper.oa_status or '').lower() # Type from https://api.openalex.org/works?group_by=oa_status:include_unknown
-    license = (paper.license or '').lower() # Type from https://api.openalex.org/works?group_by=primary_location.license:include_unknown
-    is_pdf_removed_by_moderator = paper.is_removed_by_moderator
+    license = (paper.pdf_license or '').lower() # Type from https://api.openalex.org/works?group_by=primary_location.license:include_unknown
+    is_pdf_removed_by_moderator = paper.is_pdf_removed_by_moderator
 
     # we're going to assume that if a moderator removed it,
     # it was because of copyright issues
