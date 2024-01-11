@@ -37,7 +37,7 @@ from paper.utils import (
     clean_abstract,
     convert_journal_url_to_pdf_url,
     convert_pdf_url_to_journal_url,
-    can_display_paper_pdf,
+    pdf_copyright_allows_display,
 )
 from purchase.models import Purchase
 from reputation.models import Contribution
@@ -308,9 +308,7 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
         return paper.get_boost_amount()
     
     def get_pdf_copyright_allows_display(self, paper):
-        if paper.is_pdf_removed_by_moderator:
-            return False
-        return can_display_paper_pdf(paper.oa_status, paper.pdf_license)
+        return pdf_copyright_allows_display(paper)
 
     def get_file(self, paper):
         file = paper.file
@@ -1014,9 +1012,7 @@ class DynamicPaperSerializer(
         return serializer.data
     
     def get_pdf_copyright_allows_display(self, paper):
-        if paper.is_pdf_removed_by_moderator:
-            return False
-        return can_display_paper_pdf(paper.oa_status, paper.pdf_license)
+        return pdf_copyright_allows_display(paper)
 
     def get_file(self, paper):
         if not paper.file:

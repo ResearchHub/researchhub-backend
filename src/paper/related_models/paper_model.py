@@ -95,6 +95,7 @@ class Paper(AbstractGenericReactionModel):
     is_removed_by_user = models.BooleanField(
         default=False, help_text=HELP_TEXT_IS_REMOVED
     )
+    # We assume that is_pdf_removed_by_moderator is only set to True if the PDF was removed for copyright reasons
     is_pdf_removed_by_moderator = models.BooleanField(default=False, help_text=HELP_TEXT_IS_PDF_REMOVED)
     bullet_low_quality = models.BooleanField(default=False)
     summary_low_quality = models.BooleanField(default=False)
