@@ -785,6 +785,18 @@ class UserViewSet(viewsets.ModelViewSet):
         detail=False,
         methods=[RequestMethods.PATCH],
     )
+    def has_completed_onboarding(self, request):
+        user = request.user
+        user = User.objects.get(pk=user.id)
+        user.has_completed_onboarding = True
+        user.save()
+        serialized = UserSerializer(user)
+        return Response(serialized.data, status=200)
+
+    @action(
+        detail=False,
+        methods=[RequestMethods.PATCH],
+    )
     def has_seen_stripe_modal(self, request):
         user = request.user
         user = User.objects.get(pk=user.id)
