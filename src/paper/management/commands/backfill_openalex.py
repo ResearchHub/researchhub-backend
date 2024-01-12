@@ -26,13 +26,16 @@ class Command(BaseCommand):
             doi = paper.doi
             try:
                 result = open_alex.get_data_from_doi(doi)
-                host_venue = result.get("host_venue", {})
+                primary_location = result.get("primary_location", {})
                 oa = result.get("open_access", {})
 
                 paper.is_open_access = oa.get("is_oa", None)
-                pdf_license = host_venue.get("license", None)
-                pdf_license_url = host_venue.get("url", None)
-                external_source = host_venue.get("display_name", None)
+                pdf_license = primary_location.get("license", None)
+                source = primary_location.get("source", None)
+                if pdf_license is None:
+                    pdf_license = result.get("license", None)
+                pdf_license_url = pdf_license.get("url", None)
+                external_source = source.get("display_name", None)
 
                 if pdf_license:
                     paper.pdf_license = pdf_license

@@ -721,3 +721,30 @@ def clean_dois(parsed_url, dois):
         version_regex = r"v[0-9]+$"
         dois = list(map(lambda doi: re.sub(version_regex, "", doi), dois))
     return dois
+
+
+def pdf_copyright_allows_display(paper):
+    """
+    Returns True if the paper can be displayed on our site.
+    E.g. if the paper is open-access and has a license that allows for commercial use.
+    """
+    oa_status = (paper.oa_status or '').lower() # Type from https://api.openalex.org/works?group_by=oa_status:include_unknown
+    license = (paper.pdf_license or '').lower() # Type from https://api.openalex.org/works?group_by=primary_location.license:include_unknown
+    is_pdf_removed_by_moderator = paper.is_pdf_removed_by_moderator
+
+    # we're going to assume that if a moderator removed it,
+    # it was because of copyright issues
+    if is_pdf_removed_by_moderator:
+        return False
+
+    # we can only show papers that allow for commercial use
+    if license in ["cc-by", "cc-by-sa", "cc-by-nd", "public-domain"]:
+        return True
+
+    # only rely on oa_status if license is null or unknown
+    # otherwise license is non-usable for us
+    if license in [None, '', 'unknown']:
+        if oa_status in ["green", "gold"]:
+            return True
+
+    return False

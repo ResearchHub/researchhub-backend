@@ -189,6 +189,9 @@ class OpenAlex:
                     None,
                 )
 
+                if not paper_concept:
+                    continue
+
                 hydrated_concepts.append(
                     {
                         "level": paper_concept["level"],

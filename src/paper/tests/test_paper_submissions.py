@@ -23,7 +23,7 @@ class PaperSubmissionViewTests(APITestCase):
         self.url = "https://pubmed.ncbi.nlm.nih.gov/33313563/"
         self.duplicate_url = "https://researchhub-web-staging.vercel.app/paper/131636/evaluating-and-mapping-grape-color-using-image-based-phenotyping/"
         self.true_doi = "10.34133/2020/8086309"
-        self.paper_publish_date = "2020-04-24"
+        self.paper_publish_date = "2020-01-01"
         self.concept_display_names = [
             "Computer science",
             "Biology",
@@ -40,7 +40,6 @@ class PaperSubmissionViewTests(APITestCase):
             "Hue",
             "Color space",
             "Lightness",
-            "Color model",
         ]
         self.submitter = create_random_default_user("submitter")
         self.client.force_authenticate(self.submitter)

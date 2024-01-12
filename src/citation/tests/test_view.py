@@ -1,4 +1,6 @@
+from django.core.files.uploadedfile import SimpleUploadedFile
 from citation.constants import JOURNAL_ARTICLE
+from citation.models import CitationEntry
 from paper.tests.helpers import create_paper
 from researchhub_access_group.models import Permission
 from user.tests.helpers import create_random_default_user
@@ -287,3 +289,51 @@ class CitationEntryViewTests(APITestCaseWithOrg):
             f"/api/citationentry/{citation_id}/comments/?privacy_type=PRIVATE"
         )
         self.assertEqual(response_3.data.get("count", None), 1)
+
+
+class PaperCitationEntryViewTests(APITestCaseWithOrg):
+    def setUp(self):
+        self.authenticated_user = create_random_default_user("user1")
+        self.random_user = create_random_default_user("random1")
+        self.organization_user = create_random_default_user("orguser1")
+
+    def test_add_paper_as_citation(self):
+        self.client.force_authenticate(self.authenticated_user)
+
+        paper = create_paper()
+        paper.paper_title = "test_add_paper_as_citation"
+        paper.save()
+
+        response = self.client.post(
+            f"/api/citation_entry/{paper.id}/add_paper_as_citation/",
+            {
+                "organization": self.authenticated_user.organization.id,
+            },
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["fields"]["title"], paper.paper_title)
+
+    def test_add_paper_as_citation_with_pdf_and_closed_access(self):
+        self.client.force_authenticate(self.authenticated_user)
+
+        mock_file = SimpleUploadedFile('test.pdf', b'These are the contents of the pdf file.', content_type='application/pdf')
+        paper = create_paper()
+        paper.paper_title = "test_add_paper_as_citation_with_pdf_and_closed_access"
+        paper.file = mock_file
+        paper.pdf_license = "publisher-specific, author-manuscript" # from https://api.openalex.org/works?group_by=primary_location.license:include_unknown
+        paper.save()
+
+        response = self.client.post(
+            f"/api/citation_entry/{paper.id}/add_paper_as_citation/",
+            {
+                "organization": self.authenticated_user.organization.id,
+            },
+            format='json'
+        )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.data["fields"]["title"], paper.paper_title)
+        # should've skipped attaching pdf since it's closed access
+        self.assertIsNone(response.data["attachment"])

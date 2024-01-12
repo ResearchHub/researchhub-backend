@@ -29,7 +29,7 @@ from paper.paper_upload_tasks import (
     celery_process_paper,
 )
 from paper.serializers import PaperSubmissionSerializer
-from paper.utils import download_pdf
+from paper.utils import download_pdf, pdf_copyright_allows_display
 from researchhub.settings import AWS_STORAGE_BUCKET_NAME, GROBID_SERVER
 from user.models import User
 from utils.aws import lambda_compress_and_linearize_pdf
@@ -167,7 +167,7 @@ def create_citation_entry_from_bibtex_entry_if_not_exists(
             paper = get_paper_by_doi(doi)
             paper_json = generate_json_for_rh_paper(paper)
             related_unified_doc = paper.unified_document.id
-            if paper.file:
+            if paper.file and pdf_copyright_allows_display(paper):
                 pdf = paper.file
             json = merge_jsons(json, paper_json)
         except Paper.DoesNotExist:
@@ -175,7 +175,7 @@ def create_citation_entry_from_bibtex_entry_if_not_exists(
                 paper = get_paper_by_url(bibtex_entry.fields_dict.get("url", None))
                 paper_json = generate_json_for_rh_paper(paper)
                 related_unified_doc = paper.unified_document.id
-                if paper.file:
+                if paper.file and pdf_copyright_allows_display(paper):
                     pdf = paper.file
                 json = merge_jsons(json, paper_json)
             except Paper.DoesNotExist:
@@ -183,7 +183,7 @@ def create_citation_entry_from_bibtex_entry_if_not_exists(
                     paper = get_paper_by_doi_url(doi)
                     paper_json = generate_json_for_rh_paper(paper)
                     related_unified_doc = paper.unified_document.id
-                    if paper.file:
+                    if paper.file and pdf_copyright_allows_display(paper):
                         pdf = paper.file
                     json = merge_jsons(json, paper_json)
                 except Paper.DoesNotExist:

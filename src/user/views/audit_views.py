@@ -398,6 +398,51 @@ class AuditViewSet(viewsets.GenericViewSet):
                 {},
                 status=200,
             )
+        
+    
+    @action(detail=False, methods=["post"])
+    def remove_flagged_paper_pdf(self, request):
+        flagger = request.user
+        data = request.data
+
+        verdict_data = {}
+        verdict_data["created_by"] = flagger.id
+        verdict_data["is_paper_pdf_removed"] = True
+
+        with transaction.atomic():
+            flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
+            for flag in flags.iterator():
+                if flag.content_type != ContentType.objects.get(app_label="paper", model="paper"):
+                    continue
+
+                available_reasons = list(map(lambda r: r[0], FLAG_REASON_CHOICES))
+                verdict_choice = NOT_SPECIFIED
+                if data.get("verdict_choice") in available_reasons:
+                    verdict_choice = data.get("verdict_choice")
+                elif flag.reason_choice in available_reasons:
+                    verdict_choice = flag.reason_choice
+
+                verdict_data["verdict_choice"] = verdict_choice
+                verdict_data["flag"] = flag.id
+                verdict_serializer = VerdictSerializer(data=verdict_data)
+                verdict_serializer.is_valid(raise_exception=True)
+                verdict = verdict_serializer.save()
+                flag.verdict_created_date = verdict.created_date
+                flag.save()
+
+                self._remove_flagged_paper_pdf(flag)
+
+            return Response(
+                {},
+                status=200,
+            )
+        
+    def _remove_flagged_paper_pdf(self, flag):
+        with transaction.atomic():
+            paper = flag.item
+            # we keep the PDF/file but set this flag so that we don't show the PDF
+            paper.is_pdf_removed_by_moderator = True
+            paper.save()
 
     def _remove_flagged_content(self, flag):
         with transaction.atomic():

@@ -42,7 +42,7 @@ from citation.utils import (
 from paper.exceptions import DOINotFoundError
 from paper.models import Paper
 from paper.serializers import PaperCitationSerializer
-from paper.utils import DOI_REGEX, clean_dois
+from paper.utils import DOI_REGEX, clean_dois, pdf_copyright_allows_display
 from researchhub.pagination import FasterDjangoPaginator
 from researchhub.settings import (
     AWS_ACCESS_KEY_ID,
@@ -198,8 +198,9 @@ class CitationEntryViewSet(ModelViewSet):
             json = generate_json_for_rh_paper(paper)
             key = None
 
-            if file := paper.file:
-                # Creates a copy of the file in S3
+            if file := paper.file and pdf_copyright_allows_display(paper):
+                # Creates a copy of the file in S3, only if copyright allows.
+                # Otherwise user will have to upload the file manually.
                 today = datetime.now()
                 year = today.strftime("%Y")
                 month = today.strftime("%m")

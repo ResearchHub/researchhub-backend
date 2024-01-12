@@ -439,13 +439,18 @@ def celery_openalex(self, celery_data):
                 duplicate_ids = doi_paper_check.values_list("id", flat=True)
                 raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
 
-            host_venue = result.get("host_venue", {})
+            primary_location = result.get("primary_location", {})
+            source = primary_location.get("source", {})
             oa = result.get("open_access", {})
             oa_pdf_url = oa.get("oa_url", None)
-            url = host_venue.get("url", None)
+            url = primary_location.get("landing_page_url", None)
             title = normalize("NFKD", result.get("title", ""))
             raw_authors = result.get("authorships", [])
             concepts = result.get("concepts", [])
+
+            pdf_license = primary_location.get("license", None)
+            if pdf_license is None:
+                pdf_license = result.get("license", None)
 
             data = {
                 "doi": doi,
@@ -456,9 +461,9 @@ def celery_openalex(self, celery_data):
                 "paper_publish_date": result.get("publication_date", None),
                 "is_open_access": oa.get("is_oa", None),
                 "oa_status": oa.get("oa_status", None),
-                "pdf_license": host_venue.get("license", None),
+                "pdf_license": primary_location.get("license", None),
                 "pdf_license_url": url,
-                "external_source": host_venue.get("display_name", None),
+                "external_source": source.get("display_name", None),
             }
 
             if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
