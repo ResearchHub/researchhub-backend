@@ -5,8 +5,9 @@ from django.db import IntegrityError
 from django.test import TestCase, TransactionTestCase, tag
 from psycopg2.errors import UniqueViolation
 
+from paper.serializers import PaperSerializer, DynamicPaperSerializer
 from paper.tasks import handle_duplicate_doi
-from paper.utils import convert_journal_url_to_pdf_url, convert_pdf_url_to_journal_url
+from paper.utils import convert_journal_url_to_pdf_url, convert_pdf_url_to_journal_url, pdf_copyright_allows_display
 from utils.test_helpers import IntegrationTestHelper, TestHelper, get_user_from_response
 
 
@@ -196,3 +197,58 @@ class PaperPatchTest(TestCase, TestHelper, IntegrationTestHelper):
         self.assertEquals(
             data["raw_authors"], [{"first_name": "First", "last_name": "Last"}]
         )
+
+
+class PaperCopyrightTest(TestCase, TestHelper):
+    def setUp(self):
+        mock_file = SimpleUploadedFile('test.pdf', b'These are the contents of the pdf file.', content_type='application/pdf')
+
+        self.paper = self.create_paper_without_authors()
+        self.paper.pdf_url = "https://arxiv.org/pdf/1706.03762.pdf"
+        self.paper.file = mock_file
+        self.paper.save()
+
+    # Unit-test util function
+
+    def test_dont_display_pdf_if_oa_closed(self):
+        self.paper.oa_status = "closed"
+        self.paper.save()
+        self.assertFalse(pdf_copyright_allows_display(self.paper))
+
+    def test_display_pdf_if_oa_gold(self):
+        self.paper.oa_status = "gold"
+        self.paper.save()
+        self.assertTrue(pdf_copyright_allows_display(self.paper))
+
+    def test_dont_display_pdf_if_license_publisher_specific(self):
+        self.paper.pdf_license = "publisher-specific, author manuscript" # from https://api.openalex.org/works?group_by=primary_location.license:include_unknown
+        self.paper.save()
+        self.assertFalse(pdf_copyright_allows_display(self.paper))
+
+    def test_display_pdf_if_license_cc_by(self):
+        self.paper.pdf_license = "cc-by"
+        self.paper.save()
+        self.assertTrue(pdf_copyright_allows_display(self.paper))
+
+    def test_dont_display_pdf_if_removed_by_mod(self):
+        self.paper.is_pdf_removed_by_moderator = True
+        self.paper.save()
+        self.assertFalse(pdf_copyright_allows_display(self.paper))
+
+    # Unit-test serializers
+
+    def test_paper_serializer_hides_file_if_pdf_copyrighted(self):
+        self.paper.oa_status = "closed"
+        self.paper.save()
+
+        serializer = DynamicPaperSerializer(self.paper)
+        self.assertIsNone(serializer.data["file"])
+        self.assertIsNone(serializer.data["pdf_url"])
+
+    def test_paper_serializer_shows_file_if_pdf_open(self):
+        self.paper.oa_status = "gold"
+        self.paper.save()
+
+        serializer = DynamicPaperSerializer(self.paper)
+        self.assertIsNotNone(serializer.data["file"])
+        self.assertIsNotNone(serializer.data["pdf_url"])
