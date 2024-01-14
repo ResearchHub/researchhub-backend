@@ -159,7 +159,7 @@ class EventsApi:
             "author_id": str(user.author_profile.id),
             "is_verified": user.is_verified,
             "profile_url": f"https://www.researchhub.com/user/{str(user.author_profile.id)}",
-            "created_date": user.created_date,
+            "created_date": user.created_date.isoformat(),
             **meta,
         }
 
@@ -188,6 +188,7 @@ class EventsApi:
             (user.id, meta, login_status), priority=4, countdown=10
         )
         tracked_login = celery_response.get()
+        self.track_account(request.user, request, update=True)
         return tracked_login
 
     @staticmethod
@@ -220,6 +221,7 @@ class EventsApi:
             priority=4,
             countdown=3,
         )
+        self.track_account(request.user, request, update=True)
         return celery_response
 
     @staticmethod
@@ -275,6 +277,7 @@ class EventsApi:
             priority=4,
             countdown=5,
         )
+        self.track_account(request.user, request, update=True)
         return celery_response
 
     @staticmethod
@@ -324,6 +327,7 @@ class EventsApi:
             priority=4,
             countdown=5,
         )
+        self.track_account(request.user, request, update=True)
         return celery_response
 
     @staticmethod
