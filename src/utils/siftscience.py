@@ -160,6 +160,7 @@ class EventsApi:
             "is_verified": user.is_verified,
             "profile_url": f"https://www.researchhub.com/user/{str(user.author_profile.id)}",
             "created_date": user.created_date.isoformat(),
+            "reputation": user.reputation,
             **meta,
         }
 
