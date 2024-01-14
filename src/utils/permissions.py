@@ -14,7 +14,7 @@ class ReadOnly(BasePermission):
 
 class UserNotSpammer(BasePermission):
     def has_permission(self, request, view):
-        return not request.user.probable_spammer
+        return not request.user.is_suspended
 
 
 class CreateOrUpdateIfAllowed(BasePermission):
