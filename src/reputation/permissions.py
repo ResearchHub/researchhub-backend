@@ -7,7 +7,7 @@ from rest_framework.permissions import BasePermission
 from reputation.models import Bounty
 from researchhub.settings import DIST_WHITELIST
 from researchhub_document.models import ResearchhubUnifiedDocument
-from utils.http import RequestMethods
+from utils.http import PATCH, POST, RequestMethods
 from utils.permissions import AuthorizationBasedPermission
 
 
@@ -23,6 +23,19 @@ class UpdateOrDeleteWithdrawal(AuthorizationBasedPermission):
             or (method == RequestMethods.DELETE)
         ):
             return user == obj.user
+        return True
+
+
+class AllowWithdrawalIfNotSuspecious(BasePermission):
+    message = "Cannot withdraw funds at this time."
+
+    def has_permission(self, request, view):
+        if (
+            (request.method == POST or request.method == PATCH)
+            and request.user.is_authenticated
+            and (request.user.is_suspended or request.user.probable_spammer)
+        ):
+            return False
         return True
 
 

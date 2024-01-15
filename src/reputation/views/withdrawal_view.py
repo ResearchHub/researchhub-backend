@@ -25,6 +25,7 @@ from purchase.models import Balance, RscExchangeRate
 from reputation.exceptions import WithdrawalError
 from reputation.lib import WITHDRAWAL_MINIMUM, PendingWithdrawal, gwei_to_eth
 from reputation.models import PaidStatusModelMixin, Webhook, Withdrawal
+from reputation.permissions import AllowWithdrawalIfNotSuspecious
 from reputation.serializers import WithdrawalSerializer
 from researchhub.settings import (
     ETHERSCAN_API_KEY,
@@ -34,12 +35,7 @@ from researchhub.settings import (
 from user.models import Action
 from user.serializers import UserSerializer
 from utils import sentry
-from utils.permissions import (
-    AllowWithdrawalIfNotSuspecious,
-    CreateOrReadOnly,
-    CreateOrUpdateIfAllowed,
-    UserNotSpammer,
-)
+from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfAllowed, UserNotSpammer
 from utils.throttles import THROTTLE_CLASSES
 
 TRANSACTION_FEE = int(os.environ.get("TRANSACTION_FEE", 100))

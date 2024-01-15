@@ -17,19 +17,6 @@ class UserNotSpammer(BasePermission):
         return not request.user.is_suspended
 
 
-class AllowWithdrawalIfNotSuspecious(BasePermission):
-    message = "Cannot withdraw funds at this time."
-
-    def has_permission(self, request, view):
-        if (
-            (request.method == POST or request.method == PATCH)
-            and request.user.is_authenticated
-            and (request.user.is_suspended or request.user.probable_spammer)
-        ):
-            return False
-        return True
-
-
 class CreateOrUpdateIfAllowed(BasePermission):
     def has_permission(self, request, view):
         if (request.method not in SAFE_METHODS) and request.user.is_authenticated:
