@@ -868,10 +868,8 @@ class UserViewSet(viewsets.ModelViewSet):
             user = User.objects.get(id=user_id)
 
             if (
-                (not user.moderator or user.email not in EMAIL_WHITELIST)
-                and user.id not in SIFT_MODERATION_WHITELIST
-                and not user.is_verified
-            ):
+                not user.moderator or user.email not in EMAIL_WHITELIST
+            ) and user.id not in SIFT_MODERATION_WHITELIST:
                 if "mark_as_probable_spammer_content_abuse" in decision_id:
                     log_info(
                         f"Possible Spammer - {user.id}: {user.first_name} {user.last_name} - {decision_id}"
