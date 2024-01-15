@@ -4,7 +4,7 @@ from rest_framework_api_key.permissions import BaseHasAPIKey
 
 from researchhub.settings import ASYNC_SERVICE_API_KEY
 from user.models import UserApiToken
-from utils.http import RequestMethods
+from utils.http import DELETE, PATCH, POST, PUT, RequestMethods
 
 
 class ReadOnly(BasePermission):
@@ -15,6 +15,19 @@ class ReadOnly(BasePermission):
 class UserNotSpammer(BasePermission):
     def has_permission(self, request, view):
         return not request.user.is_suspended
+
+
+class AllowWithdrawalIfNotSuspecious(BasePermission):
+    message = "Cannot withdraw funds at this time."
+
+    def has_permission(self, request, view):
+        if (
+            (request.method == POST or request.method == PATCH)
+            and request.user.is_authenticated
+            and (request.user.is_suspended or request.user.probable_spammer)
+        ):
+            return False
+        return True
 
 
 class CreateOrUpdateIfAllowed(BasePermission):

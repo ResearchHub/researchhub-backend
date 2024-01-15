@@ -34,7 +34,12 @@ from researchhub.settings import (
 from user.models import Action
 from user.serializers import UserSerializer
 from utils import sentry
-from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfAllowed, UserNotSpammer
+from utils.permissions import (
+    AllowWithdrawalIfNotSuspecious,
+    CreateOrReadOnly,
+    CreateOrUpdateIfAllowed,
+    UserNotSpammer,
+)
 from utils.throttles import THROTTLE_CLASSES
 
 TRANSACTION_FEE = int(os.environ.get("TRANSACTION_FEE", 100))
@@ -48,6 +53,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         CreateOrReadOnly,
         CreateOrUpdateIfAllowed,
         UserNotSpammer,
+        AllowWithdrawalIfNotSuspecious,
     ]
     throttle_classes = THROTTLE_CLASSES
 
