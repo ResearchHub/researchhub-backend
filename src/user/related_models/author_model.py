@@ -59,6 +59,9 @@ class Author(models.Model):
     facebook = models.URLField(max_length=255, default=None, null=True, blank=True)
     twitter = models.URLField(max_length=255, default=None, null=True, blank=True)
     linkedin = models.URLField(max_length=255, default=None, null=True, blank=True)
+    google_scholar = models.URLField(
+        max_length=255, default=None, null=True, blank=True
+    )
     linkedin_data = models.JSONField(null=True, blank=True)
     academic_verification = models.BooleanField(default=None, null=True, blank=True)
     claimed = models.BooleanField(default=True, null=True, blank=True)

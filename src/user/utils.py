@@ -34,6 +34,7 @@ def merge_author_profiles(source, target):
         "facebook",
         "linkedin",
         "twitter",
+        "google_scholar",
         "academic_verification",
     ]
     for attr in attributes:

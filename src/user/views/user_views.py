@@ -913,6 +913,7 @@ def get_user_popover(request, pk=None):
                 "facebook",
                 "linkedin",
                 "twitter",
+                "google_scholar",
                 "description",
                 "education",
                 "headline",
