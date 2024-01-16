@@ -156,8 +156,14 @@ class EventsApi:
             "$user_email": user.email,
             "$name": f"{user.first_name} {user.last_name}",
             "$social_sign_on_type": "$google",
+            "author_id": str(user.author_profile.id),
+            "is_verified": user.is_verified,
+            "profile_url": f"https://www.researchhub.com/user/{str(user.author_profile.id)}",
+            "created_date": user.created_date.isoformat(),
+            "reputation": user.reputation,
             **meta,
         }
+
         track_type = "$update_account" if update else "$create_account"
 
         try:
@@ -183,6 +189,7 @@ class EventsApi:
             (user.id, meta, login_status), priority=4, countdown=10
         )
         tracked_login = celery_response.get()
+        self.track_account(request.user, request, update=True)
         return tracked_login
 
     @staticmethod
@@ -215,6 +222,7 @@ class EventsApi:
             priority=4,
             countdown=3,
         )
+        self.track_account(request.user, request, update=True)
         return celery_response
 
     @staticmethod
@@ -270,6 +278,7 @@ class EventsApi:
             priority=4,
             countdown=5,
         )
+        self.track_account(request.user, request, update=True)
         return celery_response
 
     @staticmethod
@@ -319,6 +328,7 @@ class EventsApi:
             priority=4,
             countdown=5,
         )
+        self.track_account(request.user, request, update=True)
         return celery_response
 
     @staticmethod
@@ -366,6 +376,7 @@ class EventsApi:
         celery_response = self.celery_track_content_vote.apply_async(
             (response_data, meta, is_update), priority=4, countdown=10
         )
+        self.track_account(request.user, request, update=True)
         return celery_response
 
     @staticmethod

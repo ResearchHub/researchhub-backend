@@ -35,12 +35,4 @@ class PersonDocument(BaseDocument):
         ]
 
     def should_remove_from_index(self, obj):
-        should_delete = False
-        try:
-            author_user = User.objects.get(id=obj.user_id)
-            if author_user.is_suspended:
-                should_delete = True
-        except Exception as e:
-            pass
-
-        return should_delete
+        return False

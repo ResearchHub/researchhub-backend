@@ -25,6 +25,7 @@ from purchase.models import Balance, RscExchangeRate
 from reputation.exceptions import WithdrawalError
 from reputation.lib import WITHDRAWAL_MINIMUM, PendingWithdrawal, gwei_to_eth
 from reputation.models import PaidStatusModelMixin, Webhook, Withdrawal
+from reputation.permissions import AllowWithdrawalIfNotSuspecious
 from reputation.serializers import WithdrawalSerializer
 from researchhub.settings import (
     ETHERSCAN_API_KEY,
@@ -48,6 +49,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         CreateOrReadOnly,
         CreateOrUpdateIfAllowed,
         UserNotSpammer,
+        AllowWithdrawalIfNotSuspecious,
     ]
     throttle_classes = THROTTLE_CLASSES
 

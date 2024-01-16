@@ -4,7 +4,7 @@ from rest_framework_api_key.permissions import BaseHasAPIKey
 
 from researchhub.settings import ASYNC_SERVICE_API_KEY
 from user.models import UserApiToken
-from utils.http import RequestMethods
+from utils.http import DELETE, PATCH, POST, PUT, RequestMethods
 
 
 class ReadOnly(BasePermission):
@@ -14,7 +14,7 @@ class ReadOnly(BasePermission):
 
 class UserNotSpammer(BasePermission):
     def has_permission(self, request, view):
-        return not request.user.probable_spammer
+        return not request.user.is_suspended
 
 
 class CreateOrUpdateIfAllowed(BasePermission):

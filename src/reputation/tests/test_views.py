@@ -22,6 +22,39 @@ class ReputationViewsTests(APITestCase):
         create_withdrawals(10)
         self.all_withdrawals = len(Withdrawal.objects.all())
 
+    def test_suspecious_user_cannot_withdraw_rsc(self):
+        user = create_random_authenticated_user("rep_user")
+        user.set_probable_spammer()
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            "/api/withdrawal/",
+            {
+                "agreed_to_terms": True,
+                "amount": "333",
+                "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "transaction_fee": 15,
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_regular_user_can_withdraw_rsc(self):
+        user = create_random_authenticated_user("rep_user")
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            "/api/withdrawal/",
+            {
+                "agreed_to_terms": True,
+                "amount": "333",
+                "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "transaction_fee": 15,
+            },
+        )
+
+        self.assertNotEqual(response.status_code, 403)
+
     @skip
     def test_user_can_only_see_own_withdrawals(self):
         user = create_random_authenticated_user("rep_user")
