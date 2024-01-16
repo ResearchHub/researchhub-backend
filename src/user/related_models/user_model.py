@@ -62,9 +62,13 @@ class User(AbstractUser):
     clicked_on_balance_date = models.DateTimeField(auto_now_add=True)
     country_code = models.CharField(max_length=4, null=True, blank=True)
     created_date = models.DateTimeField(auto_now_add=True)
+    
+    # onboarding state
     has_seen_first_coin_modal = models.BooleanField(default=False)
     has_seen_orcid_connect_modal = models.BooleanField(default=False)
     has_seen_stripe_modal = models.BooleanField(default=False)
+    has_completed_onboarding = models.BooleanField(default=False)
+
     invited_by = models.ForeignKey(
         "self", related_name="invitee", on_delete=models.SET_NULL, null=True, blank=True
     )
