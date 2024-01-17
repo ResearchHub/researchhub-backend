@@ -13,7 +13,8 @@ from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from analytics.amplitude import track_event, track_revenue_event
+from analytics.amplitude import track_event
+from analytics.tasks import track_revenue_event
 from discussion.reaction_views import ReactionViewActionMixin
 from hub.models import Hub
 from note.models import NoteContent
@@ -356,9 +357,13 @@ def charge_doi_fee(created_by, rh_post):
     )
 
     # Track in Amplitude
-    track_revenue_event(
-        user=created_by,
-        revenue_type="DOI_FEE",
-        rsc_revenue=str(CROSSREF_DOI_RSC_FEE),
-        transaction_method="OFF_CHAIN",
+    track_revenue_event.apply_async(
+        (
+            created_by.id,
+            "DOI_FEE",
+            str(CROSSREF_DOI_RSC_FEE),
+            None,
+            "OFF_CHAIN",
+        ),
+        priority=1,
     )

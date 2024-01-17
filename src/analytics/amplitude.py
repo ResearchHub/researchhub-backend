@@ -2,10 +2,8 @@ import functools
 import json
 
 import requests
-from typing import Literal
 from ipware import get_client_ip
 
-from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub.settings import AMPLITUDE_API_KEY, DEVELOPMENT
 from utils.parsers import json_serial
 from utils.sentry import log_info
@@ -102,7 +100,7 @@ class Amplitude:
         hit = json.dumps(hit, default=json_serial)
         return self.forward_event(hit)
     
-    def track_revenue_event(
+    def _track_revenue_event(
         self,
         user,
         revenue_type: str,
@@ -156,56 +154,3 @@ def track_event(func):
         return res
 
     return inner
-
-
-def track_revenue_event(
-    user,
-    revenue_type: Literal["BOUNTY_FEE", "FUNDRAISE_CONTRIBUTION_FEE", "SUPPORT_FEE", "DOI_FEE", "WITHDRAWAL_FEE"],
-    rsc_revenue: str,
-    usd_revenue: str = None,
-    transaction_method: Literal["OFF_CHAIN", "ON_CHAIN", "STRIPE"] = None,
-
-    # it's useful to be able to see e.g. how much did we make on paper tips versus comment tips.
-    # so we should use these fields to point to the object that the revenue is associated with.
-    # and not simply the Purchase/Balance/Fundraise object.
-    content_type: str = None,
-    object_id: str = None,
-
-    additional_properties: dict = {},
-):
-    """
-    Helper function to track revenue events.
-    Performs the conversion from RSC to USD if usd_revenue is None.
-    """
-
-    amp = None
-    if DEVELOPMENT:
-        return
-
-    try:
-        if usd_revenue is None:
-            if not isinstance(rsc_revenue, float):
-                rsc_revenue_float = float(rsc_revenue)
-            else:
-                rsc_revenue_float = rsc_revenue
-
-            usd_revenue_float = RscExchangeRate.rsc_to_usd(rsc_revenue_float)
-            usd_revenue = str(usd_revenue_float)
-    except Exception as e:
-        log_info("Error converting RSC to USD", e)
-
-    try:
-        additional_properties["transaction_method"] = transaction_method
-        additional_properties["content_type"] = content_type
-        additional_properties["object_id"] = object_id
-
-        amp = Amplitude()
-        amp.track_revenue_event(
-            user,
-            revenue_type,
-            rsc_revenue,
-            usd_revenue,
-            additional_properties,
-        )
-    except Exception as e:
-        log_info(e, getattr(amp, "revenue_event", None))

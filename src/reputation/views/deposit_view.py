@@ -19,7 +19,7 @@ from web3 import Web3
 
 import ethereum.lib
 import ethereum.utils
-from analytics.amplitude import track_revenue_event
+from analytics.tasks import track_revenue_event
 from notification.models import Notification
 from purchase.models import Balance
 from reputation.distributions import Distribution as Dist
@@ -221,11 +221,15 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 self._pay_withdrawal(withdrawal, amount, transaction_fee)
 
                 # Track in Amplitude
-                track_revenue_event(
-                    user=user,
-                    revenue_type="WITHDRAWAL_FEE",
-                    rsc_revenue=str(transaction_fee),
-                    transaction_method="ON_CHAIN",
+                track_revenue_event.apply_async(
+                    (
+                        user.id,
+                        "WITHDRAWAL_FEE",
+                        str(transaction_fee),
+                        None,
+                        "ON_CHAIN",
+                    ),
+                    priority=1,
                 )
 
                 serialized = WithdrawalSerializer(withdrawal)

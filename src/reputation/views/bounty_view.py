@@ -9,7 +9,8 @@ from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from analytics.amplitude import track_event, track_revenue_event
+from analytics.amplitude import track_event
+from analytics.tasks import track_revenue_event
 from purchase.models import Balance
 from reputation.models import Bounty, BountyFee, Contribution, Escrow
 from reputation.permissions import UserCanApproveBounty, UserCanCancelBounty
@@ -130,13 +131,17 @@ def _create_bounty(
         )
 
     # Track in Amplitude
-    track_revenue_event(
-        user=user,
-        revenue_type="BOUNTY_FEE",
-        rsc_revenue=fee_str,
-        transaction_method="OFF_CHAIN",
-        content_type=content_type.model,
-        object_id=item_object_id,
+    track_revenue_event.apply_async(
+        (
+            user.id,
+            "BOUNTY_FEE",
+            fee_str,
+            None,
+            "OFF_CHAIN",
+            content_type.model,
+            item_object_id,
+        ),
+        priority=1,
     )
 
     return bounty

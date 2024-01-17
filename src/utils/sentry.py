@@ -3,13 +3,14 @@ import traceback
 from sentry_sdk import capture_exception, capture_message, configure_scope
 
 
-def log_error(e, base_error=None, message=None):
+def log_error(e, base_error=None, message=None, json_data=None):
     """Captures an exception with the sentry sdk.
 
     Arguments:
         e (Exception)
         base_error (Exception) -- Exception that triggered e
         message (str) -- Optional message for additional info
+        json_data (dict) -- Optional json data to send with the error
     """
     from researchhub.settings import PRODUCTION
 
@@ -28,6 +29,13 @@ def log_error(e, base_error=None, message=None):
             scope.set_extra("base_error", message)
         if message is not None:
             scope.set_extra("message", message)
+        if json_data is not None:
+            for k, v in json_data.items():
+                if isinstance(v, dict):
+                    for k2, v2 in v.items():
+                        scope.set_extra(f"{k}_{k2}", v2)
+                elif v is not None:
+                    scope.set_extra(k, v)
         capture_exception(e)
 
 
