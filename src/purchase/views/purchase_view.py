@@ -12,7 +12,7 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from analytics.amplitude import track_event
+from analytics.amplitude import track_event, track_revenue_event
 from notification.models import Notification
 from paper.models import Paper
 from paper.utils import get_cache_key
@@ -120,6 +120,16 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                     content_type=source_type,
                     object_id=purchase_id,
                     amount=f"-{amount}",
+                )
+
+                # Track in Amplitude
+                track_revenue_event(
+                    user,
+                    revenue_type="SUPPORT_FEE",
+                    rsc_revenue=fee_str,
+                    transaction_method="OFF_CHAIN",
+                    content_type=content_type.model,
+                    object_id=object_id,
                 )
 
             purchase_hash = purchase.hash()
