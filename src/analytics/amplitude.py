@@ -99,6 +99,36 @@ class Amplitude:
         }
         hit = json.dumps(hit, default=json_serial)
         return self.forward_event(hit)
+    
+    def _track_revenue_event(
+        self,
+        user,
+        revenue_type: str,
+        rsc_revenue: str,
+        usd_revenue: str,
+        additional_properties: dict = {},
+    ):
+        user_id, user_properties = self._build_user_properties(user)
+        data = {
+            "user_id": user_id,
+            "event_type": "revenue",
+            "user_properties": user_properties,
+            "event_properties": {
+                "revenue_type": revenue_type,
+                "rsc_revenue": rsc_revenue,
+                "usd_revenue": usd_revenue,
+                **additional_properties,
+            },
+            # Amplitude has specific revenue properties that we can use.
+            "revenue": usd_revenue,
+            "revenueType": revenue_type,
+        }
+        hit = {
+            "api_key": self.api_key,
+            "events": [data],
+        }
+        hit = json.dumps(hit, default=json_serial)
+        return self.forward_event(hit)
 
     def forward_event(self, hit):
         headers = {"Content-Type": "application/json", "Accept": "*/*"}

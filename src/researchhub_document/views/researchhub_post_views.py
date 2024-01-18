@@ -14,6 +14,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from analytics.amplitude import track_event
+from analytics.tasks import track_revenue_event
 from discussion.reaction_views import ReactionViewActionMixin
 from hub.models import Hub
 from note.models import NoteContent
@@ -353,4 +354,16 @@ def charge_doi_fee(created_by, rh_post):
         content_type=ContentType.objects.get_for_model(purchase),
         object_id=purchase.id,
         amount=-CROSSREF_DOI_RSC_FEE,
+    )
+
+    # Track in Amplitude
+    track_revenue_event.apply_async(
+        (
+            created_by.id,
+            "DOI_FEE",
+            str(CROSSREF_DOI_RSC_FEE),
+            None,
+            "OFF_CHAIN",
+        ),
+        priority=1,
     )

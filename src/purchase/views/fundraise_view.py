@@ -7,6 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from analytics.tasks import track_revenue_event
 from purchase.models import Balance, Fundraise, Purchase
 from purchase.related_models.constants.currency import RSC, USD
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
@@ -296,6 +297,18 @@ class FundraiseViewSet(viewsets.ModelViewSet):
                 content_type=ContentType.objects.get_for_model(Purchase),
                 object_id=purchase.id,
                 amount=f"-{amount_str}",
+            )
+
+            # Track in Amplitude
+            track_revenue_event.apply_async(
+                (
+                    user.id,
+                    "FUNDRAISE_CONTRIBUTION_FEE",
+                    fee_str,
+                    None,
+                    "OFF_CHAIN",
+                ),
+                priority=1,
             )
 
             # Update escrow object
