@@ -17,6 +17,10 @@ from analytics.tasks import track_revenue_event
 from notification.models import Notification
 from paper.models import Paper
 from paper.utils import get_cache_key
+from purchase.related_models.constants.support import (
+    MINIMUM_SUPPORT_AMOUNT_RSC,
+    MAXIMUM_SUPPORT_AMOUNT_RSC,
+)
 from purchase.models import (
     AggregatePurchase,
     Balance,
@@ -89,6 +93,17 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             if purchase_method == Purchase.ON_CHAIN:
                 purchase_data["purchase_method"] = Purchase.ON_CHAIN
             else:
+                if (
+                    decimal_amount < MINIMUM_SUPPORT_AMOUNT_RSC
+                    or decimal_amount > MAXIMUM_SUPPORT_AMOUNT_RSC
+                ):
+                    return Response(
+                        {
+                            "detail": f"Invalid amount. Minimum of {MINIMUM_SUPPORT_AMOUNT_RSC} RSC.",
+                        },
+                        status=400,
+                    )
+
                 user_balance = user.get_balance()
                 total_fee, rh_fee, dao_fee, current_support_fee = calculate_support_fees(
                     decimal_amount

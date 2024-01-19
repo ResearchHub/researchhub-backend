@@ -211,7 +211,7 @@ class BountyViewTests(APITestCase):
         create_bounty_res = self.client.post(
             "/api/bounty/",
             {
-                "amount": 49,
+                "amount": 5,
                 "item_content_type": self.thread._meta.model_name,
                 "item_object_id": self.thread.id,
             },
