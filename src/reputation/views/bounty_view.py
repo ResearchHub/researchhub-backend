@@ -12,6 +12,10 @@ from rest_framework.response import Response
 from analytics.amplitude import track_event
 from analytics.tasks import track_revenue_event
 from purchase.models import Balance
+from reputation.constants import (
+    MINIMUM_BOUNTY_AMOUNT_RSC,
+    MAXIMUM_BOUNTY_AMOUNT_RSC,
+)
 from reputation.models import Bounty, BountyFee, Contribution, Escrow
 from reputation.permissions import UserCanApproveBounty, UserCanCancelBounty
 from reputation.serializers import (
@@ -51,8 +55,13 @@ def _create_bounty_checks(user, amount, item_content_type, bypass_user_balance=F
         and not bypass_user_balance
     ):
         return Response({"detail": "Insufficient Funds"}, status=402)
-    elif amount <= 50 or amount > 1000000:
-        return Response({"detail": "Invalid amount. Minimum of 50 RSC"}, status=400)
+    elif amount < MINIMUM_BOUNTY_AMOUNT_RSC or amount > MAXIMUM_BOUNTY_AMOUNT_RSC:
+        return Response(
+            {
+                "detail": f"Invalid amount. Minimum of {MINIMUM_BOUNTY_AMOUNT_RSC} RSC"
+            },
+            status=400,
+        )
 
     if item_content_type not in BountyViewSet.ALLOWED_CREATE_CONTENT_TYPES:
         return Response({"detail": "Invalid content type"}, status=400)

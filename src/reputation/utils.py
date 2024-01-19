@@ -93,6 +93,13 @@ def _deduct_fees(
         giver=user,
     )
     rh_inc_record = rh_inc_distributor.distribute()
+    if not rh_inc_record:
+        raise Exception("Failed to deduct rh inc fee")
+
+    # if there's no dao fee, we can skip that distribution
+    if dao_fee == 0:
+        return True
+
     rh_dao_distributor = Distributor(
         dao_fee_distribution,
         dao_recipient,
@@ -101,7 +108,7 @@ def _deduct_fees(
         giver=user,
     )
     rh_dao_record = rh_dao_distributor.distribute()
+    if not rh_dao_record:
+        raise Exception("Failed to deduct rh dao fee")
 
-    if not (rh_inc_record and rh_dao_record):
-        raise Exception("Failed to deduct fee")
     return True

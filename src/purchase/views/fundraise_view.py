@@ -8,6 +8,10 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from analytics.tasks import track_revenue_event
+from purchase.related_models.constants import (
+  MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC,
+  MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC
+)
 from purchase.models import Balance, Fundraise, Purchase
 from purchase.related_models.constants.currency import RSC, USD
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
@@ -229,6 +233,18 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         except Exception as e:
             log_error(e)
             return Response({"detail": "Invalid amount"}, status=400)
+        
+        # Check if amount is within limits
+        if (
+            amount < MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC
+            or amount > MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC
+        ):
+            return Response(
+                {
+                    "message": f"Invalid amount. Minimum is {MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC}"
+                },
+                status=400,
+            )
 
         # Get fundraise object
         try:
