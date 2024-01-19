@@ -28,7 +28,7 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
     def setUp(self):
         self.bank_user = create_user(email="bank@researchhub.com")
         self.bountyFee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
-        self.supportFee = SupportFee.objects.create(rh_pct=0.02, dao_pct=0.01)
+        self.supportFee = SupportFee.objects.create(rh_pct=0.03, dao_pct=0.00)
         self.recipient = create_random_default_user("recipient")
 
     def test_regular_user_send_rsc(self):
@@ -91,7 +91,7 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
         post = create_post(created_by=poster)
 
         tip_amount = 100
-        fee_amount = 3 # latest `SupportFee` is 2% RH, 1% DAO as of 2024-01-08
+        fee_amount = 3 # latest `SupportFee` is 3% RH, 0% DAO as of 2024-01-19
 
         # give the user 10,000 RSC
         DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model="distribution")
