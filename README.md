@@ -2,29 +2,31 @@
     <h1 align="left">The <a aria-label="RH logo" href="https://researchhub.com">ResearchHub</a> Django API </h1>
 </p>
 
-
 <p align="left">
 
 [![Automated Tests](https://github.com/ResearchHub/researchhub-backend-internal/actions/workflows/run-automated-tests.yml/badge.svg)](https://github.com/ResearchHub/researchhub-backend-internal/actions/workflows/run-automated-tests.yml)
-  <a aria-label="Join the community" href="https://researchhub-community.slack.com">
-    <img alt="" src="https://badgen.net/badge/Join%20the%20community/Slack/yellow?icon=slack">
-  </a>
+<a aria-label="Join the community" href="https://researchhub-community.slack.com">
+<img alt="" src="https://badgen.net/badge/Join%20the%20community/Slack/yellow?icon=slack">
+</a>
+
 </p>
 <p align="left">&nbsp;</p>
 
 # Our Mission
+
 ```
 Our mission is to accelerate the pace of scientific research 🚀
 ```
+
 We believe that by empowering scientists to independently fund, create, and publish academic content we can revolutionize the speed at which new knowledge is created and transformed into life-changing products.
 
-# Important Links  👀
-💡 Got an idea or request? [Open issue on Github](https://github.com/ResearchHub/researchhub-web/issues).  
-🐛 Found a bug? [Report it here](https://github.com/ResearchHub/researchhub-web/issues).   
-➕ Want to contribute to this project? [Introduce yourself in our Discord community](https://discord.gg/ZcCYgcnUp5)    
-🔨 [See what we are working on](https://github.com/orgs/ResearchHub/projects/2)   
-📰 Read the [ResearchCoin White Paper](https://www.researchhub.com/paper/819400/the-researchcoin-whitepaper)  
+# Important Links 👀
 
+💡 Got an idea or request? [Open issue on Github](https://github.com/ResearchHub/researchhub-web/issues).
+🐛 Found a bug? [Report it here](https://github.com/ResearchHub/researchhub-web/issues).
+➕ Want to contribute to this project? [Introduce yourself in our Discord community](https://discord.gg/ZcCYgcnUp5)
+🔨 [See what we are working on](https://github.com/orgs/ResearchHub/projects/2)
+📰 Read the [ResearchCoin White Paper](https://www.researchhub.com/paper/819400/the-researchcoin-whitepaper)
 
 # Installation
 
@@ -46,12 +48,13 @@ docker build --tag researchhub-backend .
 docker-compose up
 ```
 
-The backend will now run at localhost:8000  
+The backend will now run at localhost:8000
 4. Setup and run the [web app](https://github.com/ResearchHub/researchhub-web) at localhost:3000
 
 ## 2. Native install (Slower, recommended for development)
 
 ### Prerequisites
+
 1. Docker
 2. pyenv
 3. redis
@@ -60,70 +63,83 @@ The backend will now run at localhost:8000
    - [Sublime](https://github.com/SublimeLinter/SublimeLinter-flake8)
    - [flake8](http://flake8.pycqa.org/en/latest/index.html)
 
-### General setup 
+### General setup
 
-* Create a fork of the repository in your GitHub account, and clone it.
+- Create a fork of the repository in your GitHub account, and clone it.
 
-* Prepare the database:
+- Copy local config files. From inside the dir root, run
 
-    Create a db file in config
+```
+cp db_config.sample.py src/config_local/db.py
+cp keys.sample.py src/config_local/keys.py
+cp twitter_config_sample.py src/config_local/twitter.py
+```
 
-    ```shell
-    touch src/config/db.py
-    ```
+- Prepare the database:
 
-    Add the following:
+  Update the db file in config
 
-    ```python
-    NAME = 'researchhub'
-    HOST = 'localhost'
-    PORT = 5432
-    USER = 'rh_developer'  # replace as needed
-    PASS = 'not_secure'  # replace as needed
-    ```
+  Add the following:
 
- * Use [posgres.app](https://postgres.app/) to install Posgres DB. The latest available DB version should be fine.
+  ```python
+  NAME = 'researchhub' # replace as needed
+  HOST = 'localhost'
+  PORT = 5432
+  USER = 'rh_developer'  # replace as needed
+  PASS = 'not_secure'  # replace as needed
+  ```
 
+- Use [posgres.app](https://postgres.app/) to install Posgres DB. The latest available DB version should be fine.
 
-  > Good UI tool for interacting with PostgreSQ: [Postico](https://eggerapps.at/postico2/)
+> Good UI tool for interacting with PostgreSQ: [Postico](https://eggerapps.at/postico2/)
 
-* The project virtual environment is managed using [Poetry](https://python-poetry.org/docs/).
+- The project virtual environment is managed using [Poetry](https://python-poetry.org/docs/).
+
   ```shell
   pip3 install poetry
   ```
 
-* Go to the [`src`](src) directory and run the following commands in order to activate the virtual environment:
-    ```shell
-    cd src
+- Make sure to set your local shell python version to 3.9 as Poetry uses the python version of the current shell as the default python version. e.g. using pyenv:
 
-    # activates a Python virtual environment and enters shell
-    poetry shell
+  ```shell
+  pyenv shell 3.9.9
+  ```
 
-    # installs the project virtual environment and packages
-    poetry install
-    ```
+- Go to the [`src`](src) directory and run the following commands in order to activate the virtual environment (Note: if this step didn't work, run `poetry env list` and check your python version is <= 3.9):
+
+  ```shell
+  cd src
+
+  # activates a Python virtual environment and enters shell
+  poetry shell
+
+  # installs the project virtual environment and packages
+  poetry install
+  ```
 
 > The following commands should all be run in the virtual environment (`poetry shell`), in the [`src`](src) folder:
 
-* Install python dependencies stored in `requirements.txt`:
+- Install python dependencies stored in `requirements.txt`:
+
   ```shell
   pip3 install -r requirements.txt --no-deps
   ```
 
-* Create the database schema:
+- Create the database schema:
 
   ```shell
   python manage.py makemigrations
   python manage.py migrate
   ```
 
-* The backend worker queue is managed using `redis`. Before you start the backend, in a separate terminal, run `redis-server`:
+- The backend worker queue is managed using `redis`. Before you start the backend, in a separate terminal, run `redis-server`:
+
   ```shell
   brew install redis
   redis-server
   ```
 
-* Start `celery`, the tool that runs the worker via `redis`. In a separate terminal:
+- Start `celery`, the tool that runs the worker via `redis`. In a separate terminal:
 
   ```shell
   # celery: in poetry shell, run:
@@ -133,39 +149,43 @@ The backend will now run at localhost:8000
 
 ### Seed the database
 
-* In order for the UI to work properly, some data needs to be seeded into the database. Seed category data:
+- In order for the UI to work properly, some data needs to be seeded into the database. Seed category data (You can safely ignore the errors around elastic search and aws buckets):
 
-    ```shell
-    python manage.py create-categories
-    ```
+  ```shell
+  python manage.py create-categories
+  ```
 
-* Seed hub data. There's a CSV file in `/misc/hub_hub.csv` with hub data that you can use to seed hubs data. This can be done in two ways:
+- Seed hub data. There's a CSV file in `/misc/hub_hub.csv` with hub data that you can use to seed hubs data. This can be done in two ways:
 
-    * in `Postico`: right-click on the `hub_hub` table, and select `Import CSV...`. You will encounter problems importing the CSV due to the tool thinking that empty fields are nulls for `acronym` and `description` columns. Temporarily update `hub_hub` table to allow null values for those columns:
-   ```postgresql
-   ALTER TABLE hub_hub ALTER COLUMN description DROP NOT NULL;
-   ALTER TABLE hub_hub ALTER COLUMN acronym DROP NOT NULL;
-   ```
-   Import CSV, then change all nulls to empty in the two columns, and revert the columns to not null:
+  - in `Postico`: right-click on the `hub_hub` table, and select `Import CSV...`. You will encounter problems importing the CSV due to the tool thinking that empty fields are nulls for `acronym` and `description` columns. Temporarily update `hub_hub` table to allow null values for those columns:
 
-   ```postgresql
-   UPDATE hub_hub set acronym='', description='';
-   ALTER TABLE hub_hub ALTER COLUMN description SET NOT NULL;
-   ALTER TABLE hub_hub ALTER COLUMN acronym SET NOT NULL;
-   ```
-   **OR**
-   * in Python: run `python manage.py shell_plus` to open a Python terminal in the virtual environment. Then, paste the following code:
+  ```postgresql
+  ALTER TABLE hub_hub ALTER COLUMN description DROP NOT NULL;
+  ALTER TABLE hub_hub ALTER COLUMN acronym DROP NOT NULL;
+  ```
 
-   ```python
-   import pandas as pd        
+  Import CSV, then change all nulls to empty in the two columns, and revert the columns to not null:
 
-   hub_df = pd.read_csv("../misc/hub_hub.csv")
-   hub_df = hub_df.drop("slug_index", axis=1)
-   hub_df = hub_df.drop("acronym", axis=1)
-   hub_df = hub_df.drop("hub_image", axis=1)
-   hubs = [Hub(**row.to_dict()) for _, row in hub_df.iterrows()]
-   Hub.objects.bulk_create(hubs)
-   ```
+  ```postgresql
+  UPDATE hub_hub set acronym='', description='';
+  ALTER TABLE hub_hub ALTER COLUMN description SET NOT NULL;
+  ALTER TABLE hub_hub ALTER COLUMN acronym SET NOT NULL;
+  ```
+
+  **OR**
+
+  - in Python: run `python manage.py shell_plus` to open a Python terminal in the virtual environment. Then, paste the following code:
+
+  ```python
+  import pandas as pd
+
+  hub_df = pd.read_csv("../misc/hub_hub.csv")
+  hub_df = hub_df.drop("slug_index", axis=1)
+  hub_df = hub_df.drop("acronym", axis=1)
+  hub_df = hub_df.drop("hub_image", axis=1)
+  hubs = [Hub(**row.to_dict()) for _, row in hub_df.iterrows()]
+  Hub.objects.bulk_create(hubs)
+  ```
 
 ### Run the development server:
 
@@ -174,6 +194,7 @@ python manage.py runserver
 ```
 
 ### Ensure pre-commit hooks are set up
+
 ```
 pre-commit install
 ```
@@ -189,7 +210,7 @@ python manage.py createsuperuser --username=florin --email=florin@researchhub.co
 python manage.py drf_create_token florin@researchhub.com
 ```
 
-#### Query the API using the Auth token 
+#### Query the API using the Auth token
 
 > Note that for paths under `/api`, e.g. `/api/hub/`, you don't need a token.
 
@@ -201,19 +222,19 @@ http://localhost:8000/api/
 
 #### Sending API requests via vscode
 
-* Install the [REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client) extension.
+- Install the [REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client) extension.
 
-* Create a file called `api.rest` with the following contents (insert token):
+- Create a file called `api.rest` with the following contents (insert token):
 
-   ```
-   GET http://localhost:8000/api/ HTTP/1.1
-   content-type: application/json
-   Authorization: Token <token>
-   ```
+  ```
+  GET http://localhost:8000/api/ HTTP/1.1
+  content-type: application/json
+  Authorization: Token <token>
+  ```
 
-   Then press `Send Request` in vscode, above the text.
+  Then press `Send Request` in vscode, above the text.
 
-#### Seed paper data. 
+#### Seed paper data.
 
 > For this to work, the celery worker needs to be running (see above). This calls two methods that are temporarily disabled, in [`src/paper/tasks.py`](src/paper/tasks.py): `pull_crossref_papers()` and `pull_papers()`. First, comment the first line of the methods, that cause the methods to be disabled. Then, change the `while` loops to finish after pulling a small number of papers (enough to populate local environment):
 
@@ -234,6 +255,7 @@ def pull_crossref_papers(start=0, force=False):
 ```
 
 Then, run:
+
 ```shell
 python manage.py shell_plus # enters Python shell within poetry shell
 ```
