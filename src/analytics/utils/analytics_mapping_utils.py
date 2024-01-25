@@ -13,13 +13,13 @@ from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 def log_analytics_event(action):
     if action.content_type.model == "vote" and action.item.vote_type == Vote.UPVOTE:
         properties = build_vote_event(action)
-        analytics.track(properties["user_id"], properties["event_type"], properties)
+        analytics.track(properties["USER_ID"], properties["EVENT_TYPE"], properties)
     elif action.content_type.model == "bounty":
         properties = build_bounty_event(action)
-        analytics.track(properties["user_id"], properties["event_type"], properties)
+        analytics.track(properties["USER_ID"], properties["EVENT_TYPE"], properties)
     elif action.content_type.model == "rhcommentmodel":
         properties = build_comment_event(action)
-        analytics.track(properties["user_id"], properties["event_type"], properties)
+        analytics.track(properties["USER_ID"], properties["EVENT_TYPE"], properties)
 
 
 def build_bounty_event(action):
@@ -29,14 +29,12 @@ def build_bounty_event(action):
     )
 
     record = {}
-    record["item_id"] = "bounty_" + str(bounty.id)
+    record["ITEM_ID"] = "bounty_" + str(bounty.id)
+    record["TIMESTAMP"] = int(time.mktime(bounty.created_date.timetuple()))
     record["internal_item_id"] = str(bounty.id)
-    record["user_id"] = str(action.user_id)
-    record["amount_offered"] = bounty.amount
-    record["event_type"] = "bounty_contribution" if is_contribution else "bounty_create"
-
-    if isinstance(bounty.item, RhCommentModel):
-        record["related_comment_id"] = "comment_" + str(bounty.id)
+    record["USER_ID"] = str(action.user_id)
+    record["EVENT_VALUE"] = bounty.amount
+    record["EVENT_TYPE"] = "bounty_contribution" if is_contribution else "bounty_create"
 
     if bounty.unified_document:
         doc_props = build_doc_props_for_interaction(bounty.unified_document)
@@ -50,13 +48,14 @@ def build_vote_event(action):
 
     record = {}
     if vote.vote_type == Vote.UPVOTE:
-        record["event_type"] = "upvote"
+        record["EVENT_TYPE"] = "upvote"
     elif vote.vote_type == Vote.DOWNVOTE:
-        record["event_type"] = "downvote"
+        record["EVENT_TYPE"] = "downvote"
 
-    record["item_id"] = "vote_" + str(vote.id)
+    record["ITEM_ID"] = "vote_" + str(vote.id)
+    record["TIMESTAMP"] = int(time.mktime(vote.created_date.timetuple()))
     record["internal_item_id"] = str(vote.id)
-    record["user_id"] = str(action.user_id)
+    record["USER_ID"] = str(action.user_id)
 
     if vote.unified_document:
         doc_props = build_doc_props_for_interaction(vote.unified_document)
@@ -69,10 +68,11 @@ def build_comment_event(action):
     comment = action.item
 
     record = {}
-    record["item_id"] = "comment_" + str(comment.id)
+    record["ITEM_ID"] = "comment_" + str(comment.id)
+    record["TIMESTAMP"] = int(time.mktime(comment.created_date.timetuple()))
     record["internal_item_id"] = str(comment.id)
-    record["user_id"] = str(action.user_id)
-    record["event_type"] = "comment_create"
+    record["USER_ID"] = str(action.user_id)
+    record["EVENT_TYPE"] = "comment_create"
 
     if comment.unified_document:
         doc_props = build_doc_props_for_interaction(comment.unified_document)
@@ -125,26 +125,28 @@ def build_hub_props_from_unified_doc(unified_doc):
     return props
 
 
-def build_hub_props_for_interaction(action):
-    hubs = action.hubs.all()
-    hubs_list = hubs.values_list("name", flat=True)
-    hub_slug_list = hubs.values_list("slug", flat=True)
+def build_hub_props_for_interaction(unified_doc):
+    from researchhub_document.related_models.researchhub_unified_document_model import (
+        UnifiedDocumentConcepts,
+    )
 
-    return {
-        "hubs": ",".join(hubs_list),
-        "hub_slugs": ",".join(hub_slug_list),
-    }
+    props = {}
+    if unified_doc:
+        primary_concept = (
+            UnifiedDocumentConcepts.objects.filter(unified_document=unified_doc)
+            .order_by("-relevancy_score")
+            .first()
+        )
+
+        if primary_concept:
+            props["primary_hub"] = primary_concept.concept.hub.name
+
+    return props
 
 
 def build_doc_props_for_interaction(unified_doc):
     props = {}
-    specific_doc = unified_doc.get_document()
-    document_type = unified_doc.get_client_doc_type()
-
     props["unified_document_id"] = str(unified_doc.id)
-    props["related_item_id"] = document_type + "_" + str(specific_doc.id)
-    props["related_item_type"] = document_type
-    props["title"] = specific_doc.title
 
     hub_props = build_hub_props_for_interaction(unified_doc)
     props = {**props, **hub_props}

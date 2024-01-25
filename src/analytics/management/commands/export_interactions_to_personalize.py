@@ -43,18 +43,14 @@ class Command(BaseCommand):
 
         # Define the header if required
         header = [
-            "item_id",
+            "ITEM_ID",
+            "EVENT_TYPE",
+            "TIMESTAMP",
+            "EVENT_VALUE",
+            "USER_ID",
             "internal_item_id",
-            "user_id",
-            "event_type",
-            "amount_offered",
             "unified_document_id",
-            "related_comment_id",
-            "related_item_id",
-            "related_item_type",
-            "title",
-            "hubs",
-            "hub_slugs",
+            "primary_hub",
         ]
 
         # Write to CSV

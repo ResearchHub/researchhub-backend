@@ -25,10 +25,13 @@ class Command(BaseCommand):
 
             doc_props = build_doc_props_for_item(doc)
             record = {**doc_props}
-            record["item_id"] = item_type + "_" + str(specific_doc.id)
+            record["ITEM_ID"] = item_type + "_" + str(specific_doc.id)
             record["item_type"] = item_type
             record["internal_item_id"] = str(specific_doc.id)
-            record["created_timestamp"] = int(time.mktime(doc.created_date.timetuple()))
+            record["CREATION_TIMESTAMP"] = int(
+                time.mktime(doc.created_date.timetuple())
+            )
+            record["updated_timestamp"] = int(time.mktime(doc.updated_date.timetuple()))
 
             if specific_doc.created_by:
                 record["created_by_user_id"] = str(specific_doc.created_by.id)
@@ -43,11 +46,11 @@ class Command(BaseCommand):
                 doc_props = build_doc_props_for_item(comment.unified_document)
                 record = {**doc_props}
 
-            record["item_id"] = "comment" + "_" + str(comment.id)
+            record["ITEM_ID"] = "comment" + "_" + str(comment.id)
             record["item_type"] = "comment"
             record["item_subtype"] = comment.comment_type
             record["internal_item_id"] = str(comment.id)
-            record["created_timestamp"] = int(
+            record["CREATION_TIMESTAMP"] = int(
                 time.mktime(comment.created_date.timetuple())
             )
             record["created_by_user_id"] = str(comment.created_by.id)
@@ -64,12 +67,10 @@ class Command(BaseCommand):
 
             data.append(record)
 
-        # Specify the filename
         filename = "exported_data.csv"
-
-        # Define the header if required
-        header = [
-            "item_id",
+        headers = [
+            "ITEM_ID",
+            "CREATION_TIMESTAMP",
             "item_type",
             "item_subtype",
             "internal_item_id",
@@ -86,7 +87,7 @@ class Command(BaseCommand):
             "twitter_score",
             "slug",
             "authors",
-            "created_timestamp",
+            "updated_timestamp",
             "publication_timestamp",
             "publication_year",
             "hubs",
@@ -96,7 +97,7 @@ class Command(BaseCommand):
 
         # Write to CSV
         with open(filename, mode="w", newline="", encoding="utf-8") as file:
-            writer = csv.DictWriter(file, fieldnames=header)
+            writer = csv.DictWriter(file, fieldnames=headers)
 
             # Write the header
             writer.writeheader()
