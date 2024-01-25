@@ -144,6 +144,8 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
             return "question"
         elif self.document_type == NOTE:
             return "note"
+        elif self.document_type == BOUNTY:
+            return "bounty"
         else:
             raise Exception(f"Unrecognized document_type: {self.document_type}")
 
