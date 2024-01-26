@@ -1,4 +1,5 @@
 import csv
+from datetime import datetime
 
 from django.core.management.base import BaseCommand
 
@@ -10,10 +11,21 @@ from user.models import Action
 class Command(BaseCommand):
     help = "Export user interaction data to personalize"
 
-    def handle(self, *args, **options):
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--start_date", type=str, help="Start date in YYYY-MM-DD format."
+        )
+
+    def handle(self, *args, **kwargs):
+        start_date_str = kwargs["start_date"]
+
+        queryset = Action.objects.all()
+        if start_date_str:
+            start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+            queryset = queryset.filter(created_date__gte=start_date)
+
         actions = (
-            Action.objects.all()
-            .filter(is_removed=False, user__isnull=False)
+            queryset.filter(is_removed=False, user__isnull=False)
             .select_related(
                 "content_type",
                 "user",
@@ -27,16 +39,19 @@ class Command(BaseCommand):
 
         data = []
         for action in actions:
-            if action.content_type.model == "bounty":
-                event = build_bounty_event(action)
-                data.append(event)
-            elif action.content_type.model == "vote":
-                if action.item.vote_type == Vote.DOWNVOTE:
-                    # Skip downvotes since they are not beneficial for machine learning models
-                    continue
+            try:
+                if action.content_type.model == "bounty":
+                    event = build_bounty_event(action)
+                    data.append(event)
+                elif action.content_type.model == "vote":
+                    if action.item.vote_type == Vote.DOWNVOTE:
+                        # Skip downvotes since they are not beneficial for machine learning models
+                        continue
 
-                event = build_vote_event(action)
-                data.append(event)
+                    event = build_vote_event(action)
+                    data.append(event)
+            except Exception as e:
+                print("Failed to export action:" + action.id)
 
         # Specify the filename
         filename = "exported_interaction_data.csv"

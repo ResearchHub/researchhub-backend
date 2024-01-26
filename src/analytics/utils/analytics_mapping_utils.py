@@ -167,18 +167,22 @@ def build_doc_props_for_item(unified_doc):
         paper = specific_doc
         mapped["pdf_license"] = paper.pdf_license
         mapped["oa_status"] = paper.oa_status
-        mapped["authors"] = format_raw_authors(paper.raw_authors)
+        mapped["authors"] = ""
         mapped["journal"] = paper.external_source
         mapped["twitter_score"] = paper.twitter_score
 
-        # Parse the authors' list to include only names
-        authors_list = format_raw_authors(paper.raw_authors)
-        names_only = [
-            f"{author['first_name']} {author['last_name']}"
-            for author in authors_list
-            if author["first_name"] and author["last_name"]
-        ]
-        mapped["authors"] = ", ".join(names_only)
+        try:
+            # Parse the authors' list to include only names
+            authors_list = format_raw_authors(paper.raw_authors)
+            names_only = [
+                f"{author['first_name']} {author['last_name']}"
+                for author in authors_list
+                if author["first_name"] and author["last_name"]
+            ]
+            mapped["authors"] = ", ".join(names_only)
+        except Exception as e:
+            print("Failed to parse authors:", e)
+            print("paper:", paper.id)
 
         if paper.paper_publish_date:
             mapped["publication_year"] = parse_year_from_date(paper.paper_publish_date)

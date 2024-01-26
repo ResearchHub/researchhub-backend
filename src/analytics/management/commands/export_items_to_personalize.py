@@ -1,5 +1,6 @@
 import csv
 import time
+from datetime import datetime
 
 from django.core.management.base import BaseCommand
 
@@ -11,61 +12,82 @@ from researchhub_document.models import ResearchhubUnifiedDocument
 class Command(BaseCommand):
     help = "Export item data to personalize"
 
-    def handle(self, *args, **options):
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--start_date", type=str, help="Start date in YYYY-MM-DD format."
+        )
+
+    def handle(self, *args, **kwargs):
+        start_date_str = kwargs["start_date"]
         docs = ResearchhubUnifiedDocument.objects.filter(
             document_type__in=["PAPER", "DISCUSSION", "QUESTION", "PREREGISTRATION"],
             is_removed=False,
         )
 
+        if start_date_str:
+            start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+            docs = docs.filter(created_date__gte=start_date)
+
+        print("Number of documents:" + str(len(docs)))
+
         data = []
         for doc in docs:
-            record = {}
-            item_type = doc.get_client_doc_type()
-            specific_doc = doc.get_document()  # paper, post, ...
+            try:
+                record = {}
+                item_type = doc.get_client_doc_type()
+                specific_doc = doc.get_document()  # paper, post, ...
 
-            doc_props = build_doc_props_for_item(doc)
-            record = {**doc_props}
-            record["ITEM_ID"] = item_type + "_" + str(specific_doc.id)
-            record["item_type"] = item_type
-            record["internal_item_id"] = str(specific_doc.id)
-            record["CREATION_TIMESTAMP"] = int(
-                time.mktime(doc.created_date.timetuple())
-            )
-            record["updated_timestamp"] = int(time.mktime(doc.updated_date.timetuple()))
-
-            if specific_doc.created_by:
-                record["created_by_user_id"] = str(specific_doc.created_by.id)
-
-            data.append(record)
-
-        # Comments, Peer Reviews, ..
-        comments = RhCommentModel.objects.filter(is_removed=False)
-        for comment in comments:
-            record = {}
-            if comment.unified_document:
-                doc_props = build_doc_props_for_item(comment.unified_document)
+                doc_props = build_doc_props_for_item(doc)
                 record = {**doc_props}
-
-            record["ITEM_ID"] = "comment" + "_" + str(comment.id)
-            record["item_type"] = "comment"
-            record["item_subtype"] = comment.comment_type
-            record["internal_item_id"] = str(comment.id)
-            record["CREATION_TIMESTAMP"] = int(
-                time.mktime(comment.created_date.timetuple())
-            )
-            record["created_by_user_id"] = str(comment.created_by.id)
-
-            bounties = comment.bounties.filter(status="OPEN").order_by("-amount")
-            if bounties.exists():
-                bounty = bounties.first()
-                record["bounty_amount"] = bounty.amount
-                record["bounty_id"] = "bounty_" + str(bounty.id)
-                record["bounty_type"] = bounty.bounty_type
-                record["bounty_expiration_timestamp"] = int(
-                    time.mktime(bounty.created_date.timetuple())
+                record["ITEM_ID"] = item_type + "_" + str(specific_doc.id)
+                record["item_type"] = item_type
+                record["internal_item_id"] = str(specific_doc.id)
+                record["CREATION_TIMESTAMP"] = int(
+                    time.mktime(doc.created_date.timetuple())
+                )
+                record["updated_timestamp"] = int(
+                    time.mktime(doc.updated_date.timetuple())
                 )
 
-            data.append(record)
+                if specific_doc.created_by:
+                    record["created_by_user_id"] = str(specific_doc.created_by.id)
+
+                data.append(record)
+            except Exception as e:
+                print("Failed to export doc:" + doc.id, e)
+
+        try:
+            # Comments, Peer Reviews, ..
+            comments = RhCommentModel.objects.filter(is_removed=False)
+            for comment in comments:
+                record = {}
+                if comment.unified_document:
+                    doc_props = build_doc_props_for_item(comment.unified_document)
+                    record = {**doc_props}
+
+                record["ITEM_ID"] = "comment" + "_" + str(comment.id)
+                record["item_type"] = "comment"
+                record["item_subtype"] = comment.comment_type
+                record["internal_item_id"] = str(comment.id)
+                record["CREATION_TIMESTAMP"] = int(
+                    time.mktime(comment.created_date.timetuple())
+                )
+                record["created_by_user_id"] = str(comment.created_by.id)
+
+                bounties = comment.bounties.filter(status="OPEN").order_by("-amount")
+                if bounties.exists():
+                    bounty = bounties.first()
+                    record["bounty_amount"] = bounty.amount
+                    record["bounty_id"] = "bounty_" + str(bounty.id)
+                    record["bounty_type"] = bounty.bounty_type
+                    record["bounty_expiration_timestamp"] = int(
+                        time.mktime(bounty.created_date.timetuple())
+                    )
+
+                data.append(record)
+
+        except Exception as e:
+            print("Failed to export comment:" + comment.id, e)
 
         filename = "exported_data.csv"
         headers = [
