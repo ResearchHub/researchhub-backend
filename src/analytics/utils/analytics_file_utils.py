@@ -2,7 +2,7 @@ import csv
 import json
 import os
 
-CHUNK_SIZE = 2
+CHUNK_SIZE = 100
 
 
 def read_last_processed_ids(filepath, models_to_export):
@@ -18,6 +18,13 @@ def write_last_processed_id(model_name, models_to_export, last_id, filepath):
     ids[model_name] = last_id
     with open(filepath, "w") as file:
         json.dump(ids, file)
+
+
+def truncate_fields(record, max_length=900):
+    for key, value in record.items():
+        if isinstance(value, str) and len(value) > max_length:
+            record[key] = value[:max_length]  # Truncate the string
+    return record
 
 
 def remove_file(filepath):
@@ -41,9 +48,9 @@ def write_data_to_csv(data, headers, output_filepath):
         if not file_exists:
             writer.writeheader()
 
-        # Write the data
         for item in data:
-            writer.writerow(item)
+            truncated_item = truncate_fields(item)  # Truncate fields before writing
+            writer.writerow(truncated_item)
 
 
 def export_data_to_csv_in_chunks(
