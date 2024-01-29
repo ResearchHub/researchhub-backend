@@ -51,7 +51,7 @@ class Command(BaseCommand):
                     event = build_vote_event(action)
                     data.append(event)
             except Exception as e:
-                print("Failed to export action:" + action.id)
+                print("Failed to export action: " + str(action.id))
 
         # Specify the filename
         filename = "exported_interaction_data.csv"
