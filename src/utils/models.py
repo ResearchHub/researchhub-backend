@@ -15,6 +15,14 @@ class DefaultModel(models.Model):
     class Meta:
         abstract = True
 
+    # Used for analytics such as Amazon Personalize. Override in child class.
+    def get_analytics_type(self):
+        return "unknown"
+
+    # Used for analytics such as Amazon Personalize. Override in child class.
+    def get_analytics_id(self):
+        return "unknown"
+
 
 class DefaultAuthenticatedModel(models.Model):
     class Meta:

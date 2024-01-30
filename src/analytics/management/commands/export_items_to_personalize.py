@@ -52,13 +52,12 @@ def map_document_data(docs):
     for doc in docs:
         try:
             record = {}
-            item_type = doc.get_client_doc_type()
             specific_doc = doc.get_document()  # paper, post, ...
 
             doc_props = build_doc_props_for_item(doc)
             record = {**doc_props}
-            record["ITEM_ID"] = item_type + "_" + str(specific_doc.id)
-            record["item_type"] = item_type
+            record["ITEM_ID"] = specific_doc.get_analytics_id()
+            record["item_type"] = specific_doc.get_analytics_type()
             record["internal_item_id"] = str(specific_doc.id)
             record["CREATION_TIMESTAMP"] = int(
                 time.mktime(doc.created_date.timetuple())
@@ -86,8 +85,8 @@ def map_comment_data(comments):
                 doc_props = build_doc_props_for_item(comment.unified_document)
                 record = {**doc_props}
 
-            record["ITEM_ID"] = "comment" + "_" + str(comment.id)
-            record["item_type"] = "comment"
+            record["ITEM_ID"] = comment.get_analytics_id()
+            record["item_type"] = comment.get_analytics_type()
             record["item_subtype"] = comment.comment_type
             record["internal_item_id"] = str(comment.id)
             record["CREATION_TIMESTAMP"] = int(
@@ -99,8 +98,8 @@ def map_comment_data(comments):
             if bounties.exists():
                 bounty = bounties.first()
                 record["bounty_amount"] = bounty.amount
-                record["bounty_id"] = "bounty_" + str(bounty.id)
-                record["bounty_type"] = bounty.bounty_type
+                record["bounty_id"] = bounty.get_analytics_id()
+                record["bounty_type"] = bounty.get_analytics_type()
                 record["bounty_expiration_timestamp"] = int(
                     time.mktime(bounty.created_date.timetuple())
                 )

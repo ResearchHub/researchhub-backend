@@ -6,7 +6,7 @@ from django.db.models import DecimalField, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
-from analytics.utils.analytics_mapping_utils import log_analytics_event
+from analytics.tasks import log_analytics_event
 from discussion.models import Comment, Reply, Thread
 from hub.models import Hub
 from paper.models import Paper, PaperSubmission
@@ -61,13 +61,12 @@ class Action(DefaultModel):
         super().save(*args, **kwargs)
 
         if is_new:
-            print("newly created", self)
-            log_analytics_event(self)
-
-            if not TESTING:
-                notify_immediate.apply_async((self.id,), priority=5)
-            else:
+            if TESTING:
                 notify_immediate(self.id)
+            else:
+                notify_immediate.apply_async((self.id,), priority=5)
+
+            log_analytics_event.apply_async((self.id,), priority=5, countdown=10)
 
     def set_read(self):
         self.read_date = timezone.now()

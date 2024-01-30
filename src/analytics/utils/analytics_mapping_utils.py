@@ -3,23 +3,9 @@
 import time
 from datetime import datetime
 
-import segment.analytics as analytics
-
 from discussion.reaction_models import Vote
+from paper.related_models.paper_model import Paper
 from paper.utils import format_raw_authors
-from researchhub_comment.related_models.rh_comment_model import RhCommentModel
-
-
-def log_analytics_event(action):
-    if action.content_type.model == "vote" and action.item.vote_type == Vote.UPVOTE:
-        properties = build_vote_event(action)
-        analytics.track(properties["USER_ID"], properties["EVENT_TYPE"], properties)
-    elif action.content_type.model == "bounty":
-        properties = build_bounty_event(action)
-        analytics.track(properties["USER_ID"], properties["EVENT_TYPE"], properties)
-    elif action.content_type.model == "rhcommentmodel":
-        properties = build_comment_event(action)
-        analytics.track(properties["USER_ID"], properties["EVENT_TYPE"], properties)
 
 
 def build_bounty_event(action):
@@ -29,18 +15,30 @@ def build_bounty_event(action):
     )
 
     record = {}
-    record["ITEM_ID"] = "bounty_" + str(bounty.id)
+    record["ITEM_ID"] = bounty.get_analytics_id()
     record["TIMESTAMP"] = int(time.mktime(bounty.created_date.timetuple()))
-    record["internal_item_id"] = str(bounty.id)
     record["USER_ID"] = str(action.user_id)
     record["EVENT_VALUE"] = bounty.amount
     record["EVENT_TYPE"] = "bounty_contribution" if is_contribution else "bounty_create"
+    record["internal_item_id"] = str(bounty.id)
 
     if bounty.unified_document:
         doc_props = build_doc_props_for_interaction(bounty.unified_document)
         record = {**record, **doc_props}
 
     return record
+
+
+def get_related_item_props(item):
+    try:
+        related_item_id = item.get_analytics_id()
+    except Exception as e:
+        print("Failed to get related item props:", e)
+        related_item_id = None
+
+    return {
+        "related_item_id": related_item_id,
+    }
 
 
 def build_vote_event(action):
@@ -52,14 +50,21 @@ def build_vote_event(action):
     elif vote.vote_type == Vote.DOWNVOTE:
         record["EVENT_TYPE"] = "downvote"
 
-    record["ITEM_ID"] = "vote_" + str(vote.id)
+    record["ITEM_ID"] = vote.get_analytics_id()
     record["TIMESTAMP"] = int(time.mktime(vote.created_date.timetuple()))
-    record["internal_item_id"] = str(vote.id)
     record["USER_ID"] = str(action.user_id)
+    record["internal_item_id"] = str(vote.id)
 
     if vote.unified_document:
         doc_props = build_doc_props_for_interaction(vote.unified_document)
         record = {**record, **doc_props}
+
+    try:
+        vote_item = vote.item
+        related_item_props = get_related_item_props(vote_item)
+        record = {**record, **related_item_props}
+    except Exception as e:
+        print("Failed to get related item props:", e)
 
     return record
 
@@ -68,11 +73,11 @@ def build_comment_event(action):
     comment = action.item
 
     record = {}
-    record["ITEM_ID"] = "comment_" + str(comment.id)
+    record["ITEM_ID"] = comment.get_analytics_id()
     record["TIMESTAMP"] = int(time.mktime(comment.created_date.timetuple()))
-    record["internal_item_id"] = str(comment.id)
     record["USER_ID"] = str(action.user_id)
     record["EVENT_TYPE"] = "comment_create"
+    record["internal_item_id"] = str(comment.id)
 
     if comment.unified_document:
         doc_props = build_doc_props_for_interaction(comment.unified_document)
