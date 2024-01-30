@@ -86,6 +86,44 @@ def build_comment_event(action):
     return record
 
 
+def build_rsc_spend_event(action):
+    from purchase.related_models.purchase_model import Purchase
+
+    purchase = action.item
+
+    record = {}
+    record["ITEM_ID"] = purchase.get_analytics_id()
+    record["TIMESTAMP"] = int(time.mktime(purchase.created_date.timetuple()))
+    record["USER_ID"] = str(action.user_id)
+    record["EVENT_VALUE"] = purchase.amount
+    record["internal_item_id"] = str(purchase.id)
+
+    if purchase.purchase_type == Purchase.BOOST:
+        record["EVENT_TYPE"] = "support_item_with_rsc"
+    elif purchase.purchase_type == Purchase.DOI:
+        record["EVENT_TYPE"] = "purchase_doi_with_rsc"
+    elif purchase.purchase_type == Purchase.FUNDRAISE_CONTRIBUTION:
+        record["EVENT_TYPE"] = "support_fundraise_with_rsc"
+    else:
+        record["EVENT_TYPE"] = "generic_rsc_spend"
+
+    try:
+        if purchase.item.unified_document:
+            doc_props = build_doc_props_for_interaction(purchase.item.unified_document)
+            record = {**record, **doc_props}
+    except Exception as e:
+        print("Failed to get unified doc:", e)
+
+    try:
+        purchase_item = purchase.item
+        related_item_props = get_related_item_props(purchase_item)
+        record = {**record, **related_item_props}
+    except Exception as e:
+        print("Failed to get related item props:", e)
+
+    return record
+
+
 def parse_year_from_date(date_string):
     try:
         date_object = datetime.strptime(str(date_string), "%Y-%m-%d")
@@ -126,6 +164,8 @@ def build_hub_props_from_unified_doc(unified_doc):
     )
     if primary_concept:
         props["primary_hub"] = primary_concept.concept.hub.name
+    elif primary_concept is None and len(relevant_hubs) > 0:
+        props["primary_hub"] = relevant_hubs[0]
 
     return props
 
@@ -137,6 +177,9 @@ def build_hub_props_for_interaction(unified_doc):
 
     props = {}
     if unified_doc:
+        hubs = unified_doc.hubs.all()
+        relevant_hubs = [f"{hub.name}" for hub in hubs]
+
         primary_concept = (
             UnifiedDocumentConcepts.objects.filter(unified_document=unified_doc)
             .order_by("-relevancy_score")
@@ -145,6 +188,8 @@ def build_hub_props_for_interaction(unified_doc):
 
         if primary_concept:
             props["primary_hub"] = primary_concept.concept.hub.name
+        elif primary_concept is None and len(relevant_hubs) > 0:
+            props["primary_hub"] = relevant_hubs[0]
 
     return props
 

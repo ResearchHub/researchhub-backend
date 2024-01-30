@@ -10,7 +10,9 @@ from analytics.utils.analytics_file_utils import (
 )
 from analytics.utils.analytics_mapping_utils import (
     build_bounty_event,
+    build_comment_event,
     build_doc_props_for_item,
+    build_rsc_spend_event,
     build_vote_event,
 )
 from discussion.reaction_models import Vote
@@ -45,6 +47,12 @@ def map_action_data(actions):
                     continue
 
                 event = build_vote_event(action)
+                data.append(event)
+            elif action.content_type.model == "rhcommentmodel":
+                event = build_comment_event(action)
+                data.append(event)
+            elif action.content_type.model == "purchase":
+                event = build_rsc_spend_event(action)
                 data.append(event)
         except Exception as e:
             print("Failed to export action: " + str(action.id), e)
