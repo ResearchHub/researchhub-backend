@@ -32,6 +32,10 @@
 			"type": ["string", "null"]
 		},
 		{
+			"name": "related_item_id",
+			"type": ["string", "null"]
+		},
+		{
 			"name": "primary_hub",
 			"type": ["string", "null"],
 			"categorical": true
