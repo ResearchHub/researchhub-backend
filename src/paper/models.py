@@ -11,5 +11,6 @@ from paper.related_models.paper_model import (
     MetadataRetrievalAttempt,
     Paper,
     Vote,
+    PaperFetchLog,
 )
 from paper.related_models.paper_submission_model import PaperSubmission

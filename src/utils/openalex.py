@@ -2,7 +2,8 @@ import datetime
 import math
 
 from paper.exceptions import DOINotFoundError
-from paper.utils import get_pdf_from_url
+from paper.utils import check_url_contains_pdf, format_raw_authors
+from unicodedata import normalize
 from researchhub.settings import OPENALEX_KEY
 from utils.aws import download_pdf
 from utils.parsers import rebuild_sentence_from_inverted_index
@@ -108,6 +109,53 @@ class OpenAlex:
                 output_json[key] = value
 
         return output_json
+    
+    def parse_to_paper_format(self, work):
+        doi = work.get("doi", work.get('ids', {}).get('doi', ''))
+        if doi is None:
+            raise DOINotFoundError(f"No DOI found for work: {work}")
+        
+        # remove https://doi.org/ from doi
+        doi = doi.replace("https://doi.org/", "")
+
+        primary_location = work.get("primary_location", {})
+        source = primary_location.get("source", {})
+
+        oa = work.get("open_access", {})
+        oa_pdf_url = oa.get("oa_url", None)
+
+        url = primary_location.get("landing_page_url", None)
+
+        title = normalize("NFKD", work.get("title", ""))
+        raw_authors = work.get("authorships", [])
+        concepts = work.get("concepts", [])
+
+        pdf_license = primary_location.get("license", None)
+        if pdf_license is None:
+            pdf_license = work.get("license", None)
+
+        paper = {
+            "doi": doi,
+            "url": url,
+            "raw_authors": format_raw_authors(raw_authors),
+            "title": title,
+            "paper_title": title,
+            "alternate_ids": work.get("ids", {}),
+            "paper_publish_date": work.get("publication_date", None),
+            "is_open_access": oa.get("is_oa", None),
+            "oa_status": oa.get("oa_status", None),
+            "pdf_license": primary_location.get("license", None),
+            "pdf_license_url": url,
+            "retrieved_from_external_source": True,
+            "external_source": source.get("display_name", None) or source.get("name", None) or source.get("publisher", None),
+            "citations": work.get("cited_by_count", 0),
+            "open_alex_raw_json": work,
+        }
+
+        if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
+            paper["pdf_url"] = oa_pdf_url
+
+        return paper, concepts
 
     def get_data_from_doi(self, doi):
         filters = {"filter": f"doi:{doi}"}
@@ -207,3 +255,41 @@ class OpenAlex:
             return hydrated_concepts
         except Exception as e:
             return []
+        
+    def get_new_works(self, since_date, type="article", cursor="*"):
+        """
+        Get works published after the specified date.
+
+        Args:
+            since_date (datetime.date): Date to start searching for new papers.
+            cursor (str): Pagination cursor for API requests.
+
+        Returns:
+            list: List of new works since the given date.
+        """
+        # Format the date in YYYY-MM-DD format
+        formatted_date = since_date.strftime("%Y-%m-%d")
+        
+        # Build the filter
+        oa_filter = f"from_created_date:{formatted_date},type:{type}"
+        filters = {
+            "filter": oa_filter,
+            # there's usually a lot of data in these requests,
+            # so we'll set the per-page to 50
+            "per-page": 50,
+            "cursor": cursor,
+        }
+
+        # Fetch the papers
+        papers = []
+        while True:
+            response = self._get("works", filters=filters)
+            papers.extend(response.get("results", []))
+
+            # Pagination handling
+            next_cursor = response.get("meta", {}).get("next_cursor")
+            if not next_cursor or next_cursor == "*":
+                break
+            filters["cursor"] = next_cursor
+
+        return papers

@@ -967,6 +967,33 @@ class MetadataRetrievalAttempt(models.Model):
             # methods.append(cls.MANUBOT_PDF_URL)
             methods.append(cls.MANUBOT_URL)
         return methods
+    
+
+class PaperFetchLog(models.Model):
+    """
+    Stores the logs for e.g. daily paper fetches from openalex
+    """
+
+    OPENALEX = "OPENALEX"
+    SOURCE_CHOICES = [(OPENALEX, OPENALEX)]
+
+    FETCH_NEW = "FETCH_NEW"
+    FETCH_UPDATE = "FETCH_UPDATE"
+    FETCH_TYPE_CHOICES = [(FETCH_NEW, FETCH_NEW), (FETCH_UPDATE, FETCH_UPDATE)]
+
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    STATUS_CHOICES = [(SUCCESS, SUCCESS), (FAILED, FAILED)]
+
+    started_date = models.DateTimeField(auto_now_add=True)
+    completed_date = models.DateTimeField(null=True, blank=True)
+
+    source = models.CharField(choices=SOURCE_CHOICES, max_length=255)
+    fetch_type = models.CharField(choices=FETCH_TYPE_CHOICES, max_length=255)
+    status = models.CharField(choices=STATUS_CHOICES, max_length=255)
+
+    num_papers_success = models.IntegerField(default=0)
+    num_papers_failed = models.IntegerField(default=0)
 
 
 class Figure(models.Model):

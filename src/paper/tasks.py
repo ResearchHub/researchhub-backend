@@ -1267,3 +1267,157 @@ def pull_openalex_author_works(user_id, openalex_id):
         filters=[NEW],
     )
     return True
+
+
+@periodic_task(
+    run_every=crontab(minute=0, hour=0), priority=3, queue=QUEUE_PULL_PAPERS
+)
+def pull_new_openalex_works(page=0, retry=0):
+    if not PRODUCTION:
+        return
+
+    from paper.models import Paper, PaperFetchLog
+    from paper.paper_upload_tasks import create_paper_concepts_and_hubs
+
+    sentry.log_info("Starting New OpenAlex pull")
+
+    start_date = datetime.now()
+
+    if retry > 2:
+        PaperFetchLog.objects.create(
+            source=PaperFetchLog.OPENALEX,
+            fetch_type=PaperFetchLog.FETCH_NEW,
+            status=PaperFetchLog.FAILURE,
+            started_date=start_date,
+            completed_date=datetime.now(),
+        )
+        return False
+
+    # get the last time we ran this task
+    fetch_since_date = datetime.now() - timedelta(days=1)
+    try:
+        last_log = PaperFetchLog.objects.filter(
+            source=PaperFetchLog.OPENALEX,
+            fetch_type=PaperFetchLog.FETCH_NEW,
+            status=PaperFetchLog.SUCCESS,
+        ).order_by("-started_date").first()
+
+        if last_log:
+            fetch_since_date = last_log.started_date
+    except Exception as e:
+        sentry.log_error(e)
+
+    try:
+        open_alex = OpenAlex()
+        works = open_alex.get_new_works(since_date=fetch_since_date)
+        if not works or len(works) == 0:
+            PaperFetchLog.objects.create(
+                source=PaperFetchLog.OPENALEX,
+                fetch_type=PaperFetchLog.FETCH_NEW,
+                status=PaperFetchLog.SUCCESS,
+                started_date=start_date,
+                completed_date=datetime.now(),
+            )
+            return False
+
+        num_papers_success = 0
+        num_papers_failed = 0
+
+        for works in works:
+            try:
+                doi = works.get("doi")
+                if doi is None:
+                    print(f"No Doi for result: {works}")
+                    continue
+                existing_paper = Paper.objects.filter(doi_svf=SearchQuery(doi))
+                existing_paper = existing_paper.first()
+
+                # parse data
+                data, raw_concepts = open_alex.parse_to_paper_format(works)
+                concepts = open_alex.hydrate_paper_concepts(raw_concepts)
+
+                # if paper exists, we try to update it
+                if existing_paper:
+                    # we update these specific fields because we also create new papers from arxiv
+                    # and arxiv usually doesn't have these fields
+                    existing_paper.paper_publish_date = data.get("paper_publish_date")
+                    existing_paper.alternate_ids = data.get("alternate_ids", {})
+                    existing_paper.citations = data.get("citations")
+                    if data.get("pdf_license") is not None:
+                        existing_paper.pdf_license = data.get("pdf_license")
+                    if data.get("oa_status") is not None:
+                        existing_paper.oa_status = data.get("oa_status")
+                    existing_paper.is_open_access = data.get("is_open_access")
+                    existing_paper.open_alex_raw_json = data.get("open_alex_raw_json")
+
+                    existing_paper.save()
+                    paper_id = existing_paper.id
+
+                    # update concepts
+                    create_paper_concepts_and_hubs.apply_async(
+                        (
+                            paper_id,
+                            concepts,
+                        ),
+                        priority=2,
+                        countdown=1,
+                    )
+
+                    num_papers_success += 1
+                    continue
+
+                # create paper
+                paper = Paper(**data)
+                paper.full_clean()
+                paper.get_abstract_backup()
+                paper.get_pdf_link()
+                paper.save()
+                paper_id = paper.id
+
+                # we're purposefully skipping PDF download here,
+                # since there's on the order of new 30-40K papers/day
+                # and that's just too much data processing for us to handle
+                # download_pdf.apply_async((paper_id,), priority=3, countdown=5)
+
+                # trigger add orcid authors
+                add_orcid_authors.apply_async((paper_id,), priority=5, countdown=5)
+
+                # create concepts and hubs
+                create_paper_concepts_and_hubs.apply_async(
+                    (
+                        paper_id,
+                        concepts,
+                    ),
+                    priority=2,
+                    countdown=1,
+                )
+
+                num_papers_success += 1
+            except Exception as e:
+                sentry.log_error(e)
+                num_papers_failed += 1
+                continue
+
+        PaperFetchLog.objects.create(
+            source=PaperFetchLog.OPENALEX,
+            fetch_type=PaperFetchLog.FETCH_NEW,
+            status=PaperFetchLog.SUCCESS,
+            started_date=start_date,
+            completed_date=datetime.now(),
+            num_papers_success=num_papers_success,
+            num_papers_failed=num_papers_failed,
+        )
+    except requests.ConnectionError:
+        pull_new_openalex_works.apply_async(
+            (page, retry + 1), priority=4, countdown=10 + (retry * 2)
+        )
+    except Exception as e:
+        sentry.log_error(e)
+        PaperFetchLog.objects.create(
+            source=PaperFetchLog.OPENALEX,
+            fetch_type=PaperFetchLog.FETCH_NEW,
+            status=PaperFetchLog.FAILED,
+            started_date=start_date,
+            completed_date=datetime.now(),
+        )
+        return False
