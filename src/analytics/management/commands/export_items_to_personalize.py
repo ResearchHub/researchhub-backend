@@ -23,6 +23,8 @@ EXPORT_FILE_HEADERS = [
     "internal_item_id",
     "unified_document_id",
     "created_by_user_id",
+    "discussion_count",
+    "hot_score",
     "bounty_id",
     "bounty_amount",
     "bounty_type",
