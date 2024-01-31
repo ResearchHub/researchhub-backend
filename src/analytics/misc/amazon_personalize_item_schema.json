@@ -71,6 +71,14 @@
 			"categorical": true
 		},
 		{
+			"name": "hot_score",
+			"type": ["int", "null"]
+		},
+		{
+			"name": "discussion_count",
+			"type": ["long", "null"]
+		},
+		{
 			"name": "updated_timestamp",
 			"type": ["long", "null"]
 		},

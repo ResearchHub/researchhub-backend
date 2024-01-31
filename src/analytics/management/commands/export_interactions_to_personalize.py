@@ -11,11 +11,11 @@ from analytics.utils.analytics_file_utils import (
 from analytics.utils.analytics_mapping_utils import (
     build_bounty_event,
     build_comment_event,
-    build_doc_props_for_item,
     build_rsc_spend_event,
     build_vote_event,
 )
 from discussion.reaction_models import Vote
+from purchase.related_models.purchase_model import Purchase
 from user.models import Action
 
 OUTPUT_FILE = "./exported_interaction_data.csv"
@@ -26,7 +26,6 @@ EXPORT_FILE_HEADERS = [
     "TIMESTAMP",
     "EVENT_VALUE",
     "USER_ID",
-    "related_item_id",
     "internal_item_id",
     "unified_document_id",
     "primary_hub",
@@ -52,7 +51,12 @@ def map_action_data(actions):
                 event = build_comment_event(action)
                 data.append(event)
             elif action.content_type.model == "purchase":
-                event = build_rsc_spend_event(action)
+                if (
+                    action.item.purchase_type == Purchase.BOOST
+                    or action.item.purchase_type == Purchase.FUNDRAISE_CONTRIBUTION
+                ):
+                    event = build_rsc_spend_event(action)
+
                 data.append(event)
         except Exception as e:
             print("Failed to export action: " + str(action.id), e)

@@ -29,18 +29,6 @@ def build_bounty_event(action):
     return record
 
 
-def get_related_item_props(item):
-    try:
-        related_item_id = item.get_analytics_id()
-    except Exception as e:
-        print("Failed to get related item props:", e)
-        related_item_id = None
-
-    return {
-        "related_item_id": related_item_id,
-    }
-
-
 def build_vote_event(action):
     vote = action.item
 
@@ -50,7 +38,11 @@ def build_vote_event(action):
     elif vote.vote_type == Vote.DOWNVOTE:
         record["EVENT_TYPE"] = "downvote"
 
-    record["ITEM_ID"] = vote.get_analytics_id()
+    record[
+        "ITEM_ID"
+    ] = (
+        vote.item.get_analytics_id()
+    )  # In this case, the vote is not the ITEM_ID we want to capture, but rather the item that was voted on
     record["TIMESTAMP"] = int(time.mktime(vote.created_date.timetuple()))
     record["USER_ID"] = str(action.user_id)
     record["internal_item_id"] = str(vote.id)
@@ -58,13 +50,6 @@ def build_vote_event(action):
     if vote.unified_document:
         doc_props = build_doc_props_for_interaction(vote.unified_document)
         record = {**record, **doc_props}
-
-    try:
-        vote_item = vote.item
-        related_item_props = get_related_item_props(vote_item)
-        record = {**record, **related_item_props}
-    except Exception as e:
-        print("Failed to get related item props:", e)
 
     return record
 
@@ -92,20 +77,17 @@ def build_rsc_spend_event(action):
     purchase = action.item
 
     record = {}
-    record["ITEM_ID"] = purchase.get_analytics_id()
+    record["ITEM_ID"] = purchase.item.get_analytics_id()
     record["TIMESTAMP"] = int(time.mktime(purchase.created_date.timetuple()))
     record["USER_ID"] = str(action.user_id)
     record["EVENT_VALUE"] = purchase.amount
     record["internal_item_id"] = str(purchase.id)
 
+    # As far as Amazon Personalize events go, we are only interested in select rsc spend events and not all
     if purchase.purchase_type == Purchase.BOOST:
         record["EVENT_TYPE"] = "support_item_with_rsc"
-    elif purchase.purchase_type == Purchase.DOI:
-        record["EVENT_TYPE"] = "purchase_doi_with_rsc"
     elif purchase.purchase_type == Purchase.FUNDRAISE_CONTRIBUTION:
         record["EVENT_TYPE"] = "support_fundraise_with_rsc"
-    else:
-        record["EVENT_TYPE"] = "generic_rsc_spend"
 
     try:
         if purchase.item.unified_document:
@@ -113,13 +95,6 @@ def build_rsc_spend_event(action):
             record = {**record, **doc_props}
     except Exception as e:
         print("Failed to get unified doc:", e)
-
-    try:
-        purchase_item = purchase.item
-        related_item_props = get_related_item_props(purchase_item)
-        record = {**record, **related_item_props}
-    except Exception as e:
-        print("Failed to get related item props:", e)
 
     return record
 
@@ -247,6 +222,12 @@ def build_doc_props_for_item(unified_doc):
             if author.first_name and author.last_name
         ]
         mapped["authors"] = ", ".join(authors_list)
+
+    try:
+        mapped["discussion_count"] = specific_doc.discussion_count
+        mapped["hot_score"] = unified_doc.hot_score
+    except Exception as e:
+        pass
 
     # Add hub props
     hub_props = build_hub_props_from_unified_doc(unified_doc)

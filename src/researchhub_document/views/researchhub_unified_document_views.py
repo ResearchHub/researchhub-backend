@@ -1,8 +1,10 @@
 from time import perf_counter
 
+import boto3
 from dateutil import parser
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
+from django.http import JsonResponse
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
@@ -79,6 +81,29 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         if self.action == "restore":
             return ResearchhubUnifiedDocument.all_objects.all()
         return super().get_queryset()
+
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[AllowAny],
+    )
+    def recommendations(self, request, *args, **kwargs):
+        user_id = request.user.id
+        personalize_runtime = boto3.client(
+            "personalize-runtime", region_name="us-west-2"
+        )
+
+        campaign_arn = (
+            "arn:aws:personalize:us-west-2:794128250202:campaign/test-campaign2"
+        )
+
+        response = personalize_runtime.get_recommendations(
+            campaignArn=campaign_arn,
+            userId=str(user_id),
+            numResults=20,
+        )
+        items = [item["itemId"] for item in response["itemList"]]
+        return JsonResponse({"recommended_items": items})
 
     @action(
         detail=True,
