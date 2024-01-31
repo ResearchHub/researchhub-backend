@@ -96,7 +96,9 @@ class Paper(AbstractGenericReactionModel):
         default=False, help_text=HELP_TEXT_IS_REMOVED
     )
     # We assume that is_pdf_removed_by_moderator is only set to True if the PDF was removed for copyright reasons
-    is_pdf_removed_by_moderator = models.BooleanField(default=False, help_text=HELP_TEXT_IS_PDF_REMOVED)
+    is_pdf_removed_by_moderator = models.BooleanField(
+        default=False, help_text=HELP_TEXT_IS_PDF_REMOVED
+    )
     bullet_low_quality = models.BooleanField(default=False)
     summary_low_quality = models.BooleanField(default=False)
     discussion_count = models.IntegerField(default=0, db_index=True)
@@ -438,6 +440,14 @@ class Paper(AbstractGenericReactionModel):
         if len(all_votes) > 0:
             return [self.get_vote_for_index(vote) for vote in all_votes]
         return {}
+
+    # Used for analytics such as Amazon Personalize
+    def get_analytics_type(self):
+        return "paper"
+
+    # Used for analytics such as Amazon Personalize
+    def get_analytics_id(self):
+        return self.get_analytics_type() + "_" + str(self.id)
 
     def true_author_count(self):
         registered_author_count = self.authors.count()

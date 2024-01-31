@@ -15,8 +15,8 @@ from researchhub_document.related_models.constants.document_type import (
     NOTE,
     PAPER,
     POSTS,
-    QUESTION,
     PREREGISTRATION,
+    QUESTION,
 )
 from researchhub_document.related_models.document_filter_model import DocumentFilter
 from researchhub_document.tasks import update_elastic_registry
@@ -130,6 +130,24 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
         doc = self.get_document()
 
         return "{}/{}/{}/{}".format(BASE_FRONTEND_URL, doc_url, doc.id, doc.slug)
+
+    def get_client_doc_type(self):
+        if self.document_type == PAPER:
+            return "paper"
+        elif self.document_type == DISCUSSION:
+            return "post"
+        elif self.document_type == HYPOTHESIS:
+            return "hypothesis"
+        elif self.document_type == PREREGISTRATION:
+            return "preregistration"
+        elif self.document_type == QUESTION:
+            return "question"
+        elif self.document_type == NOTE:
+            return "note"
+        elif self.document_type == BOUNTY:
+            return "bounty"
+        else:
+            raise Exception(f"Unrecognized document_type: {self.document_type}")
 
     def get_hub_names(self):
         return ",".join(self.hubs.values_list("name", flat=True))

@@ -14,6 +14,7 @@ import os
 import sys
 
 import requests
+import segment.analytics as analytics
 import sentry_sdk
 import stripe
 from celery.task.schedules import crontab
@@ -801,7 +802,6 @@ SIFT_WEBHOOK_SECRET_KEY = os.environ.get(
     "SIFT_WEBHOOK_SECRET_KEY", keys.SIFT_WEBHOOK_SECRET_KEY
 )
 
-
 # Amplitude and GeoIP
 AMPLITUDE_API_KEY = os.environ.get("AMPLITUDE_API_KEY", keys.AMPLITUDE_API_KEY)
 
@@ -935,3 +935,6 @@ if not DEVELOPMENT:
 
 # Etherscan API Key
 ETHERSCAN_API_KEY = os.environ.get("ETHERSCAN_API_KEY", "")
+
+# Segment analytics
+analytics.write_key = os.environ.get("SEGMENT_WRITE_KEY", keys.SEGMENT_WRITE_KEY)

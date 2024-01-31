@@ -1,0 +1,45 @@
+{
+	"type": "record",
+	"name": "Interactions",
+	"namespace": "com.amazonaws.personalize.schema",
+	"fields": [
+		{
+			"name": "ITEM_ID",
+			"type": "string"
+		},
+		{
+			"name": "EVENT_TYPE",
+			"type": "string"
+		},
+		{
+			"name": "TIMESTAMP",
+			"type": "long"
+		},
+		{
+			"name": "USER_ID",
+			"type": "string"
+		},
+        {
+            "name": "EVENT_VALUE",
+            "type": ["float", "null"]
+        },
+		{
+			"name": "internal_item_id",
+			"type": "string"
+		},
+		{
+			"name": "unified_document_id",
+			"type": ["string", "null"]
+		},
+		{
+			"name": "related_item_id",
+			"type": ["string", "null"]
+		},
+		{
+			"name": "primary_hub",
+			"type": ["string", "null"],
+			"categorical": true
+		}
+	],
+	"version": "1.0"
+}

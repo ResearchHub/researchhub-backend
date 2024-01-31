@@ -6,6 +6,7 @@ from django.db.models import DecimalField, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
+from analytics.tasks import log_analytics_event
 from discussion.models import Comment, Reply, Thread
 from hub.models import Hub
 from paper.models import Paper, PaperSubmission
@@ -54,16 +55,18 @@ class Action(DefaultModel):
         )
 
     def save(self, *args, **kwargs):
-        if self.id is None:
-            from mailing_list.tasks import notify_immediate
+        from mailing_list.tasks import notify_immediate
 
-            super().save(*args, **kwargs)
-            if not TESTING:
-                notify_immediate.apply_async((self.id,), priority=5)
-            else:
+        is_new = self.id is None
+        super().save(*args, **kwargs)
+
+        if is_new:
+            if TESTING:
                 notify_immediate(self.id)
-        else:
-            super().save(*args, **kwargs)
+            else:
+                notify_immediate.apply_async((self.id,), priority=5)
+
+            log_analytics_event.apply_async((self.id,), priority=5, countdown=10)
 
     def set_read(self):
         self.read_date = timezone.now()
