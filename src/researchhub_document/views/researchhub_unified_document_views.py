@@ -4,7 +4,6 @@ import boto3
 from dateutil import parser
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
-from django.http import JsonResponse
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
@@ -88,22 +87,79 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         permission_classes=[AllowAny],
     )
     def recommendations(self, request, *args, **kwargs):
-        user_id = request.user.id
+        user_id = request.query_params.get("user_id", None)
         personalize_runtime = boto3.client(
             "personalize-runtime", region_name="us-west-2"
         )
 
-        campaign_arn = (
-            "arn:aws:personalize:us-west-2:794128250202:campaign/test-campaign2"
-        )
+        campaign_arn = "arn:aws:personalize:us-west-2:794128250202:campaign/hp-recs"
 
         response = personalize_runtime.get_recommendations(
             campaignArn=campaign_arn,
             userId=str(user_id),
-            numResults=20,
+            numResults=50,
         )
-        items = [item["itemId"] for item in response["itemList"]]
-        return JsonResponse({"recommended_items": items})
+
+        def parse_analytics_id(analytics_id):
+            parts = analytics_id.split("_")
+            if len(parts) != 2:
+                return None
+
+            if parts[0] == "paper":
+                return (Paper, parts[1])
+            elif parts[0] == "post":
+                return (ResearchhubPost, parts[1])
+            elif parts[0] == "question":
+                return (ResearchhubPost, parts[1])
+            else:
+                return None
+
+        def get_unified_doc_from_analytics_id(analytics_id):
+            try:
+                parts = parse_analytics_id(analytics_id)
+                if parts is None:
+                    return None
+
+                model, id = parts
+                obj = model.objects.filter(id=id).first()
+
+                if isinstance(obj, ResearchhubPost) or isinstance(obj, Paper):
+                    return obj.unified_document
+                else:
+                    return None
+            except Exception as e:
+                return None
+
+        docs = []
+        for item in response["itemList"]:
+            unified_doc = get_unified_doc_from_analytics_id(item["itemId"])
+            if unified_doc is not None:
+                docs.append(unified_doc)
+
+        context = self._get_serializer_context()
+        page = self.paginate_queryset(docs)
+
+        serializer = self.dynamic_serializer_class(
+            page,
+            _include_fields=[
+                "id",
+                "created_date",
+                "documents",
+                "document_filter",
+                "document_type",
+                "hot_score",
+                "hubs",
+                "reviews",
+                "score",
+                "fundraise",
+            ],
+            many=True,
+            context=context,
+        )
+
+        serializer_data = serializer.data
+
+        return self.get_paginated_response(serializer_data)
 
     @action(
         detail=True,

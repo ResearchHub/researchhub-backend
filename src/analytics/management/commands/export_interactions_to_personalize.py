@@ -26,7 +26,7 @@ EXPORT_FILE_HEADERS = [
     "TIMESTAMP",
     "EVENT_VALUE",
     "USER_ID",
-    "internal_item_id",
+    "internal_id",
     "unified_document_id",
     "primary_hub",
 ]
