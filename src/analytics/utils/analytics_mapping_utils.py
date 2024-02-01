@@ -38,11 +38,14 @@ def build_vote_event(action):
     elif vote.vote_type == Vote.DOWNVOTE:
         record["EVENT_TYPE"] = "downvote"
 
-    record[
-        "ITEM_ID"
-    ] = (
-        vote.item.get_analytics_id()
-    )  # In this case, the vote is not the ITEM_ID we want to capture, but rather the item that was voted on
+    try:
+        record["ITEM_ID"] = vote.item.get_analytics_id()
+    except Exception as e:
+        if vote.item.paper:
+            record["ITEM_ID"] = vote.item.paper.get_analytics_id()
+        else:
+            raise Exception("Failed to get ITEM_ID:", e, vote)
+
     record["TIMESTAMP"] = int(time.mktime(vote.created_date.timetuple()))
     record["USER_ID"] = str(action.user_id)
     record["internal_item_id"] = str(vote.id)
