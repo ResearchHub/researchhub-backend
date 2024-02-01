@@ -134,9 +134,14 @@ class OpenAlex:
         if pdf_license is None:
             pdf_license = work.get("license", None)
 
+        abstract = rebuild_sentence_from_inverted_index(
+            work.get("abstract_inverted_index", {})
+        )
+
         paper = {
             "doi": doi,
             "url": url,
+            "abstract": abstract,
             "raw_authors": format_raw_authors(raw_authors),
             "title": title,
             "paper_title": title,

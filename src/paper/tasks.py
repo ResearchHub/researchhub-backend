@@ -1323,17 +1323,17 @@ def pull_new_openalex_works(page=0, retry=0):
         num_papers_success = 0
         num_papers_failed = 0
 
-        for works in works:
+        for work in works:
             try:
-                doi = works.get("doi")
+                doi = work.get("doi")
                 if doi is None:
-                    print(f"No Doi for result: {works}")
+                    print(f"No Doi for result: {work}")
                     continue
                 existing_paper = Paper.objects.filter(doi_svf=SearchQuery(doi))
                 existing_paper = existing_paper.first()
 
                 # parse data
-                data, raw_concepts = open_alex.parse_to_paper_format(works)
+                data, raw_concepts = open_alex.parse_to_paper_format(work)
                 concepts = open_alex.hydrate_paper_concepts(raw_concepts)
 
                 # if paper exists, we try to update it
@@ -1343,6 +1343,8 @@ def pull_new_openalex_works(page=0, retry=0):
                     existing_paper.paper_publish_date = data.get("paper_publish_date")
                     existing_paper.alternate_ids = data.get("alternate_ids", {})
                     existing_paper.citations = data.get("citations")
+                    if existing_paper.abstract is None:
+                        existing_paper.abstract = data.get("abstract")
                     if data.get("pdf_license") is not None:
                         existing_paper.pdf_license = data.get("pdf_license")
                     if data.get("oa_status") is not None:
