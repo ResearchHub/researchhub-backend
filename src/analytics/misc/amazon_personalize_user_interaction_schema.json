@@ -24,7 +24,7 @@
             "type": ["float", "null"]
         },
 		{
-			"name": "internal_item_id",
+			"name": "internal_id",
 			"type": "string"
 		},
 		{

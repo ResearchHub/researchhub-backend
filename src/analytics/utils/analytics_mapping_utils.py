@@ -20,7 +20,7 @@ def build_bounty_event(action):
     record["USER_ID"] = str(action.user_id)
     record["EVENT_VALUE"] = bounty.amount
     record["EVENT_TYPE"] = "bounty_contribution" if is_contribution else "bounty_create"
-    record["internal_item_id"] = str(bounty.id)
+    record["internal_id"] = str(bounty.id)
 
     if bounty.unified_document:
         doc_props = build_doc_props_for_interaction(bounty.unified_document)
@@ -41,18 +41,22 @@ def build_vote_event(action):
     try:
         record["ITEM_ID"] = vote.item.get_analytics_id()
     except Exception as e:
-        if vote.item.paper:
-            record["ITEM_ID"] = vote.item.paper.get_analytics_id()
+        if vote.paper:
+            record["ITEM_ID"] = vote.paper.get_analytics_id()
         else:
+            print("Failed to get ITEM_ID", vote)
             raise Exception("Failed to get ITEM_ID:", e, vote)
 
     record["TIMESTAMP"] = int(time.mktime(vote.created_date.timetuple()))
     record["USER_ID"] = str(action.user_id)
-    record["internal_item_id"] = str(vote.id)
+    record["internal_id"] = str(vote.id)
 
-    if vote.unified_document:
+    try:
         doc_props = build_doc_props_for_interaction(vote.unified_document)
         record = {**record, **doc_props}
+    except Exception as e:
+        record["primary_hub"] = ""
+        record["unified_document_id"] = ""
 
     return record
 
@@ -65,7 +69,7 @@ def build_comment_event(action):
     record["TIMESTAMP"] = int(time.mktime(comment.created_date.timetuple()))
     record["USER_ID"] = str(action.user_id)
     record["EVENT_TYPE"] = "comment_create"
-    record["internal_item_id"] = str(comment.id)
+    record["internal_id"] = str(comment.id)
 
     if comment.unified_document:
         doc_props = build_doc_props_for_interaction(comment.unified_document)
@@ -84,7 +88,7 @@ def build_rsc_spend_event(action):
     record["TIMESTAMP"] = int(time.mktime(purchase.created_date.timetuple()))
     record["USER_ID"] = str(action.user_id)
     record["EVENT_VALUE"] = purchase.amount
-    record["internal_item_id"] = str(purchase.id)
+    record["internal_id"] = str(purchase.id)
 
     # As far as Amazon Personalize events go, we are only interested in select rsc spend events and not all
     if purchase.purchase_type == Purchase.BOOST:
