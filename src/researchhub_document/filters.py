@@ -208,7 +208,10 @@ class UnifiedDocumentFilter(filters.FilterSet):
             )
             qs = qs.filter(document_filter__has_bounty=True)
         else:
-            qs = qs.exclude(document_type=NOTE)
+            # We do this for preregistrations so that they don't show up in the home feed,
+            # but do show up on the /funding page.
+            # This is a temporary solution as we trial out preregistration funding.
+            qs = qs.exclude(document_type__in=[NOTE, PREREGISTRATION])
 
         return qs.select_related(*selects).prefetch_related(*prefetches)
 
