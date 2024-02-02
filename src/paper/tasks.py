@@ -1270,7 +1270,8 @@ def pull_openalex_author_works(user_id, openalex_id):
 
 
 @periodic_task(
-    run_every=crontab(minute=0, hour=0), priority=3, queue=QUEUE_PULL_PAPERS
+    # run at 4:30 PM UTC (8:30 AM PST)
+    run_every=crontab(minute=30, hour=16), priority=3, queue=QUEUE_PULL_PAPERS
 )
 def pull_new_openalex_works(page=0, retry=0):
     if not PRODUCTION:
