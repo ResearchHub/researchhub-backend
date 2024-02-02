@@ -438,36 +438,8 @@ def celery_openalex(self, celery_data):
             if doi_paper_check.exists():
                 duplicate_ids = doi_paper_check.values_list("id", flat=True)
                 raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
-
-            primary_location = result.get("primary_location", {})
-            source = primary_location.get("source", {})
-            oa = result.get("open_access", {})
-            oa_pdf_url = oa.get("oa_url", None)
-            url = primary_location.get("landing_page_url", None)
-            title = normalize("NFKD", result.get("title", ""))
-            raw_authors = result.get("authorships", [])
-            concepts = result.get("concepts", [])
-
-            pdf_license = primary_location.get("license", None)
-            if pdf_license is None:
-                pdf_license = result.get("license", None)
-
-            data = {
-                "doi": doi,
-                "url": url,
-                "raw_authors": format_raw_authors(raw_authors),
-                "title": title,
-                "paper_title": title,
-                "paper_publish_date": result.get("publication_date", None),
-                "is_open_access": oa.get("is_oa", None),
-                "oa_status": oa.get("oa_status", None),
-                "pdf_license": primary_location.get("license", None),
-                "pdf_license_url": url,
-                "external_source": source.get("display_name", None),
-            }
-
-            if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
-                data["pdf_url"] = oa_pdf_url
+            
+            data, concepts = open_alex.parse_to_paper_format(result)
 
             paper_concepts = open_alex.hydrate_paper_concepts(concepts)
             data["concepts"] = paper_concepts
@@ -665,6 +637,9 @@ def celery_create_paper(self, celery_data):
 
 @app.task(queue=QUEUE_PAPER_METADATA)
 def create_paper_concepts_and_hubs(paper_id, paper_concepts):
+    """
+    Creates concepts and hubs for a paper, or updates them if they already exist.
+    """
     for paper_concept in paper_concepts:
         try:
             logger.info(f"concepts in celery_create_paper: {paper_concepts}")
