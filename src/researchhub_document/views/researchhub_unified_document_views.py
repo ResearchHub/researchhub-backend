@@ -91,7 +91,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         personalize_runtime = boto3.client(
             "personalize-runtime", region_name="us-west-2"
         )
-        campaign_arn = "arn:aws:personalize:us-west-2:794128250202:campaign/hp-recs"
+        campaign_arn = "arn:aws:personalize:us-west-2:794128250202:campaign/trending"
 
         response = personalize_runtime.get_recommendations(
             campaignArn=campaign_arn,
