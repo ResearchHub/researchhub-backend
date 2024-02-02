@@ -126,7 +126,23 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         context = self._get_serializer_context()
         page = self.paginate_queryset(docs_queryset)
-        serializer = self.dynamic_serializer_class(page, many=True, context=context)
+        serializer = self.dynamic_serializer_class(
+            page,
+            _include_fields=[
+                "id",
+                "created_date",
+                "documents",
+                "document_filter",
+                "document_type",
+                "hot_score",
+                "hubs",
+                "reviews",
+                "score",
+                "fundraise",
+            ],
+            many=True,
+            context=context,
+        )
 
         return self.get_paginated_response(serializer.data)
 
