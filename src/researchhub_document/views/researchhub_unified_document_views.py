@@ -118,8 +118,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         # Combine and filter the queryset based on unified_document if necessary
         docs = list(papers) + list(posts)
-
-        # Assuming `get_filtered_queryset` returns a QuerySet that you want to filter further
         docs_queryset = ResearchhubUnifiedDocument.objects.filter(
             Q(id__in=[doc.id for doc in docs])
         )
