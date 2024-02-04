@@ -132,6 +132,43 @@ class Author(models.Model):
         else:
             return None
 
+    def get_expertise_hubs(self):
+        pass
+
+    def get_top_hubs(self, max_results=10):
+        from researchhub_comment.related_models.rh_comment_model import RhCommentModel
+        from researchhub_document.related_models.researchhub_unified_document_model import (
+            UnifiedDocumentConcepts,
+        )
+
+        # Contains all hubs associated with user's authored papers ordered by relevance
+        expertise_hubs = []
+
+        # All Unified Documents associated with records (peer review, authored paper, etc.)
+        # which will be used to get relevant concepts and related hubs
+        related_unified_documents = []
+
+        # Get unified documents associated with authored papers
+        authored_papers = self.authored_papers.all()
+        for authored_paper in authored_papers:
+            related_unified_documents.append(authored_paper.unified_document)
+
+        # Get unified documents associated with peer reviews
+        peer_reviews = RhCommentModel.objects.filter(
+            comment_type__in=["REVIEW"], created_by_id=self.user.id
+        )
+        for review in peer_reviews:
+            related_unified_documents.append(review.unified_document)
+
+        # Get relevant concepts associated with unified documents
+        concepts = UnifiedDocumentConcepts.objects.filter(
+            unified_document__in=related_unified_documents
+        ).order_by("-relevancy_score")
+
+        expertise_hubs = [hub for hub in concepts]
+
+        return expertise_hubs[:max_results]
+
     def calculate_score(self):
         aggregated_score = self.authored_papers.annotate(
             paper_score=PAPER_SCORE_Q_ANNOTATION
