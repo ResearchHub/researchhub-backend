@@ -4,6 +4,8 @@ from django.db import models
 from django.db.models import JSONField, Sum
 from django.db.models.deletion import SET_NULL
 
+from discussion.reaction_models import Vote
+from hub.models import Hub
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
 from researchhub_case.constants.case_constants import APPROVED
 from user.related_models.profile_image_storage import ProfileImageStorage
@@ -132,10 +134,61 @@ class Author(models.Model):
         else:
             return None
 
-    def get_expertise_hubs(self):
-        pass
+    # Gets ranked list of hubs associated with user's interests.
+    # We use comments and votes to determine what is the user interested in
+    def get_interest_hubs(self, max_results=20):
+        from researchhub_comment.related_models.rh_comment_model import RhCommentModel
+        from researchhub_document.related_models.researchhub_unified_document_model import (
+            UnifiedDocumentConcepts,
+        )
 
-    def get_top_hubs(self, max_results=10):
+        # Contains all hubs associated with user's interests ordered by relevance
+        # Comments, votes
+        interest_hubs = []
+
+        # All Unified Documents associated with records
+        # which will be used to get related hubs
+        related_unified_documents = []
+
+        # Get unified documents associated with comments
+        comments = RhCommentModel.objects.filter(created_by_id=self.user.id).exclude(
+            comment_type__in=["REVIEW"]
+        )
+
+        for comment in comments:
+            related_unified_documents.append(comment.unified_document)
+
+        # Get all unified docs associated with user votes
+        user_votes = Vote.objects.filter(created_by_id=self.user.id)
+
+        for vote in user_votes:
+            try:
+                related_unified_documents.append(vote.item.unified_document)
+            except Exception as e:
+                pass
+
+        # Get relevant concepts associated with unified documents
+        ranked_concepts = UnifiedDocumentConcepts.objects.filter(
+            unified_document__in=related_unified_documents
+        ).order_by("-relevancy_score")
+
+        # Get hubs associated with concepts
+        interest_hubs = [ranked.concept.hub for ranked in ranked_concepts]
+
+        # It is quite possible that hubs returned through ranked concepts is less than max_results
+        # As a result, we want to pad the list with the rest of the hubs
+        for doc in related_unified_documents:
+            interest_hubs = interest_hubs + list(doc.hubs.all())
+
+        # Remove duplicates while preserving order
+        seen = set()
+        interest_hubs = [x for x in interest_hubs if not (x in seen or seen.add(x))]
+
+        return interest_hubs[:max_results]
+
+    # Gets ranked list of hubs associated with user's likely expertise.
+    # We use content peer reviewed and published papers to determine expertise
+    def get_expertise_hubs(self, max_results=20, min_relevancy_score=0.15):
         from researchhub_comment.related_models.rh_comment_model import RhCommentModel
         from researchhub_document.related_models.researchhub_unified_document_model import (
             UnifiedDocumentConcepts,
@@ -161,11 +214,25 @@ class Author(models.Model):
             related_unified_documents.append(review.unified_document)
 
         # Get relevant concepts associated with unified documents
-        concepts = UnifiedDocumentConcepts.objects.filter(
+        ranked_concepts = UnifiedDocumentConcepts.objects.filter(
             unified_document__in=related_unified_documents
         ).order_by("-relevancy_score")
 
-        expertise_hubs = [hub for hub in concepts]
+        # Omit concepts with relevancy score below threshold
+        expertise_hubs = [
+            ranked.concept.hub
+            for ranked in ranked_concepts
+            if ranked.relevancy_score >= min_relevancy_score
+        ]
+
+        # It is quite possible that hubs returned through ranked concepts is less than max_results
+        # As a result, we want to pad the list with the rest of the hubs
+        for doc in related_unified_documents:
+            expertise_hubs = expertise_hubs + list(doc.hubs.all())
+
+        # Remove duplicates while preserving order
+        seen = set()
+        expertise_hubs = [x for x in expertise_hubs if not (x in seen or seen.add(x))]
 
         return expertise_hubs[:max_results]
 
