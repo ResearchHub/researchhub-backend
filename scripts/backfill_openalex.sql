@@ -1,10 +1,15 @@
 -- Make backups of the tables
+DROP TABLE IF EXISTS paper_paper_backup;
+DROP TABLE IF EXISTS researchhub_document_researchhubunifieddocument_backup;
+DROP TABLE IF EXISTS researchhub_document_unifieddocumentconcepts_backup;
+DROP TABLE IF EXISTS researchhub_document_researchhubunifieddocument_hubs_backup;
 CREATE TABLE paper_paper_backup AS TABLE paper_paper;
 CREATE TABLE researchhub_document_researchhubunifieddocument_backup AS TABLE researchhub_document_researchhubunifieddocument;
 CREATE TABLE researchhub_document_unifieddocumentconcepts_backup AS TABLE researchhub_document_unifieddocumentconcepts;
 CREATE TABLE researchhub_document_researchhubunifieddocument_hubs_backup AS TABLE researchhub_document_researchhubunifieddocument_hubs;
 
 -- Create temp tables
+DROP TABLE IF EXISTS backfill_paper_paper;
 CREATE TABLE backfill_paper_paper (
   title character varying(1024),
   paper_publish_date date,
@@ -33,12 +38,14 @@ CREATE TABLE backfill_paper_paper (
   is_open_access boolean,
   oa_status character varying(8)
 );
+DROP TABLE IF EXISTS backfill_researchhub_unified_document;
 CREATE TABLE backfill_researchhub_unified_document (
   document_type character varying(32) NOT NULL,
   published_date date NOT NULL,
   paper_doi character varying(255),
   paper_url character varying(1024)
 );
+DROP TABLE IF EXISTS backfill_tag_concept;
 CREATE TABLE backfill_tag_concept (
   openalex_id character varying(255),
   display_name character varying(255),
@@ -49,9 +56,9 @@ CREATE TABLE backfill_tag_concept (
 );
 
 -- Load data from CSVs
-\copy backfill_paper_paper FROM '~/openalex-snapshot/2023/2023_paper_paper_part1.csv' DELIMITER ',' CSV HEADER; 
-\copy backfill_researchhub_unified_document FROM '~/openalex-snapshot/2023/2023_researchhub_unified_document_part1.csv' DELIMITER ',' CSV HEADER;
-\copy backfill_tag_concept FROM '~/openalex-snapshot/2023/2023_tag_concept_part1.csv' DELIMITER ',' CSV HEADER;
+\copy backfill_paper_paper FROM '~/openalex-snapshot/2023/2023_paper_paper_part2.csv' DELIMITER ',' CSV HEADER; 
+\copy backfill_researchhub_unified_document FROM '~/openalex-snapshot/2023/2023_researchhub_unified_document_part2.csv' DELIMITER ',' CSV HEADER;
+\copy backfill_tag_concept FROM '~/openalex-snapshot/2023/2023_tag_concept_part2.csv' DELIMITER ',' CSV HEADER;
 
 -- Remove duplicates/invalid
 -- add idx first
@@ -91,44 +98,7 @@ ALTER TABLE backfill_paper_paper ALTER COLUMN pdf_url TYPE character varying(102
 ALTER TABLE backfill_paper_paper
 ADD COLUMN id SERIAL PRIMARY KEY;
 
-
 -- Insert or Update in the main table
-INSERT INTO paper_paper (
-  title, paper_publish_date, doi, url, publication_type, paper_title, pdf_url,
-  retrieved_from_external_source, is_public, is_removed, external_source,
-  pdf_license, raw_authors, discussion_count, alternate_ids, slug,
-  paper_type, completeness, open_alex_raw_json, citations, downloads,
-  twitter_mentions, views, is_open_access, oa_status, created_date, updated_date,
-  is_removed_by_user, bullet_low_quality, summary_low_quality,
-  automated_bounty_created, is_pdf_removed_by_moderator, twitter_score, score
-)
-SELECT title, paper_publish_date, doi, url, publication_type, paper_title, pdf_url,
-  retrieved_from_external_source, is_public, is_removed, external_source,
-  pdf_license, raw_authors, discussion_count, alternate_ids, slug,
-  paper_type, completeness, open_alex_raw_json, citations, downloads,
-  twitter_mentions, views, is_open_access, oa_status, NOW(), NOW(), false,
-  false, false, false, false, 0, 0
-FROM backfill_paper_paper b
-WHERE NOT EXISTS (
-    SELECT 1 FROM paper_paper p WHERE p.url = b.url
-)
-ON CONFLICT (doi)
-DO UPDATE SET
-  paper_publish_date = excluded.paper_publish_date,
-  pdf_license = excluded.pdf_license,
-  alternate_ids = excluded.alternate_ids,
-  citations = excluded.citations,
-  is_open_access = excluded.is_open_access,
-  oa_status = excluded.oa_status,
-  open_alex_raw_json = excluded.open_alex_raw_json,
-  updated_date = NOW()
-WHERE paper_paper.paper_publish_date IS DISTINCT FROM excluded.paper_publish_date
-   OR paper_paper.pdf_license IS DISTINCT FROM excluded.pdf_license
-   OR paper_paper.alternate_ids IS DISTINCT FROM excluded.alternate_ids
-   OR paper_paper.citations IS DISTINCT FROM excluded.citations
-   OR paper_paper.is_open_access IS DISTINCT FROM excluded.is_open_access
-   OR paper_paper.oa_status IS DISTINCT FROM excluded.oa_status
-   OR paper_paper.open_alex_raw_json IS DISTINCT FROM excluded.open_alex_raw_json;
 -- batched version
 DO $$
 DECLARE
@@ -184,13 +154,88 @@ BEGIN
         RAISE NOTICE 'Rows affected: %', rows_affected;
     END LOOP;
 END $$;
+-- do it again for doi
+DO $$
+DECLARE
+    batch_size int := 5000;
+    offset_val int := 0;
+    rows_affected int;
+BEGIN
+    LOOP
+        INSERT INTO paper_paper (
+          title, paper_publish_date, doi, url, publication_type, paper_title, pdf_url,
+          retrieved_from_external_source, is_public, is_removed, external_source,
+          pdf_license, raw_authors, discussion_count, alternate_ids, slug,
+          paper_type, completeness, open_alex_raw_json, citations, downloads,
+          twitter_mentions, views, is_open_access, oa_status, created_date, updated_date,
+          is_removed_by_user, bullet_low_quality, summary_low_quality,
+          automated_bounty_created, is_pdf_removed_by_moderator, twitter_score, score
+        )
+        SELECT 
+          title, paper_publish_date, doi, url, publication_type, paper_title, pdf_url,
+          retrieved_from_external_source, is_public, is_removed, external_source,
+          pdf_license, raw_authors, discussion_count, alternate_ids, slug,
+          paper_type, completeness, open_alex_raw_json, citations, downloads,
+          twitter_mentions, views, is_open_access, oa_status, NOW(), NOW(), false,
+          false, false, false, false, 0, 0
+        FROM backfill_paper_paper b
+        WHERE NOT EXISTS (
+            SELECT 1 FROM paper_paper p WHERE p.doi = b.doi
+        )
+        ORDER BY b.id
+        LIMIT batch_size OFFSET offset_val
+        ON CONFLICT (url) DO UPDATE SET
+          paper_publish_date = excluded.paper_publish_date,
+          pdf_license = excluded.pdf_license,
+          alternate_ids = excluded.alternate_ids,
+          citations = excluded.citations,
+          is_open_access = excluded.is_open_access,
+          oa_status = excluded.oa_status,
+          open_alex_raw_json = excluded.open_alex_raw_json,
+          updated_date = NOW()
+        WHERE paper_paper.paper_publish_date IS DISTINCT FROM excluded.paper_publish_date
+          OR paper_paper.pdf_license IS DISTINCT FROM excluded.pdf_license
+          OR paper_paper.alternate_ids IS DISTINCT FROM excluded.alternate_ids
+          OR paper_paper.citations IS DISTINCT FROM excluded.citations
+          OR paper_paper.is_open_access IS DISTINCT FROM excluded.is_open_access
+          OR paper_paper.oa_status IS DISTINCT FROM excluded.oa_status
+          OR paper_paper.open_alex_raw_json IS DISTINCT FROM excluded.open_alex_raw_json;
+
+        GET DIAGNOSTICS rows_affected = ROW_COUNT;
+        EXIT WHEN rows_affected < batch_size;
+        offset_val := offset_val + batch_size;
+
+        RAISE NOTICE 'Offset: %', offset_val;
+        RAISE NOTICE 'Rows affected: %', rows_affected;
+    END LOOP;
+END $$;
+
+-- Check if there are any rows that were not backfilled
+DO $$
+DECLARE 
+  num_rows_not_backfilled int;
+BEGIN
+  SELECT COUNT(*) INTO num_rows_not_backfilled
+  FROM backfill_paper_paper b
+  WHERE NOT EXISTS (
+      SELECT 1 FROM paper_paper p WHERE p.url = b.url
+  ) AND NOT EXISTS (
+      SELECT 1 FROM paper_paper p WHERE p.doi = b.doi
+  );
+  RAISE NOTICE 'Rows not backfilled: %', num_rows_not_backfilled;
+  -- raise an error if there are rows that were not backfilled
+  IF num_rows_not_backfilled > 0 THEN
+    RAISE EXCEPTION 'There are rows that were not backfilled';
+  END IF;
+END $$;
+
 
 ALTER TABLE backfill_researchhub_unified_document
 ADD COLUMN new_unified_document_id INTEGER;
 
 -- Temporarily add a column to unified doc table
-ALTER TABLE researchhub_document_researchhubunifieddocument
-ADD COLUMN paper_doi character varying(255);
+-- ALTER TABLE researchhub_document_researchhubunifieddocument
+-- ADD COLUMN paper_doi character varying(255);
 
 -- Add indexes
 CREATE INDEX idx_backfill_researchhub_unified_document_paper_doi ON backfill_researchhub_unified_document(paper_doi);
@@ -232,6 +277,22 @@ SET unified_document_id = b.new_unified_document_id
 FROM backfill_researchhub_unified_document b
 WHERE paper_paper.doi = b.paper_doi AND paper_paper.unified_document_id IS NULL;
 
+-- Check if there's still papers from backfill_paper_paper that don't have a unified_document_id
+DO $$
+DECLARE 
+  num_rows_missing_unified_document_id int;
+BEGIN
+  SELECT COUNT(*) INTO num_rows_missing_unified_document_id
+  FROM backfill_paper_paper b
+  INNER JOIN paper_paper p ON (b.doi = p.doi OR b.url = p.url)
+  WHERE p.unified_document_id IS NULL;
+  RAISE NOTICE 'Rows missing unified_document_id: %', num_rows_missing_unified_document_id;
+  -- raise an error if there are rows that were not backfilled
+  IF num_rows_missing_unified_document_id > 0 THEN
+    RAISE EXCEPTION 'There are rows that were not backfilled';
+  END IF;
+END $$;
+
 -- Insert concepts
 INSERT INTO researchhub_document_unifieddocumentconcepts (
   created_date, updated_date, relevancy_score, level, concept_id, unified_document_id
@@ -259,16 +320,16 @@ ANALYZE researchhub_document_researchhubunifieddocument;
 ANALYZE researchhub_document_unifieddocumentconcepts;
 ANALYZE researchhub_document_researchhubunifieddocument_hubs;
 
--- Cleanup
-DROP TABLE backfill_paper_paper;
-DROP TABLE backfill_researchhub_unified_document;
-DROP TABLE backfill_tag_concept;
+-- -- Cleanup
+-- -- DROP TABLE backfill_paper_paper;
+-- -- DROP TABLE backfill_researchhub_unified_document;
+-- -- DROP TABLE backfill_tag_concept;
 
-ALTER TABLE researchhub_document_researchhubunifieddocument
-DROP COLUMN paper_doi;
+-- -- ALTER TABLE researchhub_document_researchhubunifieddocument
+-- -- DROP COLUMN paper_doi;
 
--- drop backups
-DROP TABLE paper_paper_backup;
-DROP TABLE researchhub_document_researchhubunifieddocument_backup;
-DROP TABLE researchhub_document_unifieddocumentconcepts_backup;
-DROP TABLE researchhub_document_researchhubunifieddocument_hubs_backup;
+-- -- -- drop backups
+-- -- DROP TABLE paper_paper_backup;
+-- -- DROP TABLE researchhub_document_researchhubunifieddocument_backup;
+-- -- DROP TABLE researchhub_document_unifieddocumentconcepts_backup;
+-- -- DROP TABLE researchhub_document_researchhubunifieddocument_hubs_backup;
