@@ -251,6 +251,15 @@ def build_doc_props_for_item(unified_doc):
                 time.mktime(paper.paper_publish_date.timetuple())
             )
 
+        if paper.open_alex_raw_json:
+            try:
+                open_alex_data = paper.open_alex_raw_json
+                mapped["keywords"] = [
+                    keyword_obj["keyword"] for keyword_obj in open_alex_data["keywords"]
+                ]
+            except Exception as e:
+                pass
+
     else:
         authors_list = [
             f"{author.first_name} {author.last_name}"

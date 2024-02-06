@@ -106,6 +106,19 @@
 			"name": "hubs",
 			"type": ["string", "null"],
 			"categorical": true
+		},
+		{
+			"name": "keywords",
+			"type": ["string", "null"],
+			"categorical": true
+		},
+		{
+			"name": "cited_by_count",
+			"type": ["int", "null"]
+		},
+		{
+			"name": "citation_percentile_performance",
+			"type": ["int", "null"]
 		}
 	],
 	"version": "1.0"
