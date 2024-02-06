@@ -104,14 +104,6 @@
 		},
 		{
 			"name": "hubs",
-			"type": ["string", "null"]
-		},
-		{
-			"name": "hub_slugs",
-			"type": ["string", "null"]
-		},
-		{
-			"name": "primary_hub",
 			"type": ["string", "null"],
 			"categorical": true
 		}

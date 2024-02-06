@@ -40,8 +40,6 @@ EXPORT_FILE_HEADERS = [
     "publication_timestamp",
     "publication_year",
     "hubs",
-    "hub_slugs",
-    "primary_hub",
 ]
 MODELS_TO_EXPORT = [
     "ResearchhubUnifiedDocument",

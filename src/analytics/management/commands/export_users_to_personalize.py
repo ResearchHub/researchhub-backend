@@ -8,58 +8,38 @@ from analytics.utils.analytics_file_utils import (
     read_last_processed_ids,
     remove_file,
 )
-from analytics.utils.analytics_mapping_utils import (
-    build_bounty_event,
-    build_comment_event,
-    build_rsc_spend_event,
-    build_vote_event,
-)
-from discussion.reaction_models import Vote
-from purchase.related_models.purchase_model import Purchase
-from user.models import Action
+from analytics.utils.analytics_mapping_utils import build_hub_str
+from user.related_models.user_model import User
 
-OUTPUT_FILE = "./exported_interaction_data.csv"
-TEMP_PROGRESS_FILE = "./interaction-export-progress.temp.json"
+OUTPUT_FILE = "./exported_user_data.csv"
+TEMP_PROGRESS_FILE = "./user-export-progress.temp.json"
 EXPORT_FILE_HEADERS = [
-    "ITEM_ID",
-    "EVENT_TYPE",
-    "TIMESTAMP",
-    "EVENT_VALUE",
     "USER_ID",
-    "internal_id",
-    "unified_document_id",
-    "hubs",
+    "interest_hubs",
+    "expertise_hubs",
 ]
-MODELS_TO_EXPORT = ["Action"]
+MODELS_TO_EXPORT = ["User"]
 
 
-def map_action_data(actions):
+def map_user_data(queryset):
     data = []
-    for action in actions:
+    for user in queryset:
         try:
-            if action.content_type.model == "bounty":
-                event = build_bounty_event(action)
-                data.append(event)
-            elif action.content_type.model == "vote":
-                if action.item.vote_type == Vote.DOWNVOTE:
-                    # Skip downvotes since they are not beneficial for machine learning models
-                    continue
+            record = {}
+            interests = user.author_profile.get_interest_hubs()
+            expertise = user.author_profile.get_expertise_hubs()
 
-                event = build_vote_event(action)
-                data.append(event)
-            elif action.content_type.model == "rhcommentmodel":
-                event = build_comment_event(action)
-                data.append(event)
-            elif action.content_type.model == "purchase":
-                if (
-                    action.item.purchase_type == Purchase.BOOST
-                    or action.item.purchase_type == Purchase.FUNDRAISE_CONTRIBUTION
-                ):
-                    event = build_rsc_spend_event(action)
+            record["USER_ID"] = str(user.id)
+            record["interest_hubs"] = "|".join(
+                [build_hub_str(hub) for hub in interests]
+            )
+            record["expertise_hubs"] = "|".join(
+                [build_hub_str(hub) for hub in expertise]
+            )
+            data.append(record)
 
-                data.append(event)
         except Exception as e:
-            print("Failed to export action: " + str(action.id), e)
+            print("Failed to export user: " + str(user.id), e)
 
     return data
 
@@ -107,40 +87,31 @@ class Command(BaseCommand):
             )
             print("Resuming", last_completed_ids)
 
-        actions_queryset = Action.objects.all()
+        queryset = User.objects.all()
         if start_date_str:
             start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
-            actions_queryset = actions_queryset.filter(created_date__gte=start_date)
+            queryset = queryset.filter(created_date__gte=start_date)
 
-        actions_queryset = (
-            actions_queryset.filter(is_removed=False, user__isnull=False)
-            .select_related(
-                "content_type",
-                "user",
-            )
-            .prefetch_related(
-                "item",
-                "hubs",
-                "user__author_profile",
-            )
+        queryset = queryset.prefetch_related(
+            "author_profile",
         )
 
         if start_date_str:
             start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
-            actions_queryset = actions_queryset.filter(created_date__gte=start_date)
+            queryset = queryset.filter(created_date__gte=start_date)
 
-        print(f"Number of documents >= {start_date_str}: " + str(len(actions_queryset)))
+        print(f"Number of users >= {start_date_str}: " + str(len(queryset)))
         print("*********************************************************************")
 
         export_data_to_csv_in_chunks(
-            queryset=actions_queryset,
-            current_model_to_export="Action",
+            queryset=queryset,
+            current_model_to_export="User",
             all_models_to_export=MODELS_TO_EXPORT,
-            chunk_processor=map_action_data,
+            chunk_processor=map_user_data,
             headers=EXPORT_FILE_HEADERS,
             output_filepath=OUTPUT_FILE,
             temp_progress_filepath=TEMP_PROGRESS_FILE,
-            last_id=last_completed_ids["Action"],
+            last_id=last_completed_ids["User"],
         )
 
         # Cleanup the temp file pointing to our export progress thus far

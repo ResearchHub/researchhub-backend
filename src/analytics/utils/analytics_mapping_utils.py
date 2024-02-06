@@ -8,6 +8,10 @@ from paper.related_models.paper_model import Paper
 from paper.utils import format_raw_authors
 
 
+def build_hub_str(hub):
+    return "NAME:" + str(hub.name) + ";ID:" + str(hub.id)
+
+
 def build_bounty_event(action):
     bounty = action.item
     is_contribution = (
@@ -131,23 +135,17 @@ def build_hub_props_from_unified_doc(unified_doc):
     )
 
     props = {}
-
-    # Add hubs
     hubs = unified_doc.hubs.all()
-    relevant_hub_slugs = [f"{hub.slug}" for hub in hubs]
-    props["hub_slugs"] = ";".join(relevant_hub_slugs)
-    relevant_hubs = [f"{hub.name}" for hub in hubs]
-    props["hubs"] = ";".join(relevant_hubs)
 
-    primary_concept = (
-        UnifiedDocumentConcepts.objects.filter(unified_document=unified_doc)
-        .order_by("-relevancy_score")
-        .first()
-    )
-    if primary_concept:
-        props["primary_hub"] = primary_concept.concept.hub.name
-    elif primary_concept is None and len(relevant_hubs) > 0:
-        props["primary_hub"] = relevant_hubs[0]
+    concepts = UnifiedDocumentConcepts.objects.filter(
+        unified_document=unified_doc
+    ).order_by("-relevancy_score")
+    if len(concepts) > 0:
+        props["hubs"] = "|".join(
+            [build_hub_str(ranked_concept.concept.hub) for ranked_concept in concepts]
+        )
+    elif len(hubs) > 0:
+        props["hubs"] = "|".join([build_hub_str(hub) for hub in hubs])
 
     return props
 
@@ -160,18 +158,20 @@ def build_hub_props_for_interaction(unified_doc):
     props = {}
     if unified_doc:
         hubs = unified_doc.hubs.all()
-        relevant_hubs = [f"{hub.name}" for hub in hubs]
 
-        primary_concept = (
-            UnifiedDocumentConcepts.objects.filter(unified_document=unified_doc)
-            .order_by("-relevancy_score")
-            .first()
-        )
+        concepts = UnifiedDocumentConcepts.objects.filter(
+            unified_document=unified_doc
+        ).order_by("-relevancy_score")
 
-        if primary_concept:
-            props["primary_hub"] = primary_concept.concept.hub.name
-        elif primary_concept is None and len(relevant_hubs) > 0:
-            props["primary_hub"] = relevant_hubs[0]
+        if len(concepts) > 0:
+            props["hubs"] = "|".join(
+                [
+                    build_hub_str(ranked_concept.concept.hub)
+                    for ranked_concept in concepts
+                ]
+            )
+        elif len(hubs) > 0:
+            props["hubs"] = "|".join([build_hub_str(hub) for hub in hubs])
 
     return props
 
