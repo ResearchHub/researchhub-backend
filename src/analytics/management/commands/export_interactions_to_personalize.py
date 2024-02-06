@@ -10,12 +10,14 @@ from analytics.utils.analytics_file_utils import (
 )
 from analytics.utils.analytics_mapping_utils import (
     build_bounty_event,
+    build_claimed_paper_event,
     build_comment_event,
     build_rsc_spend_event,
     build_vote_event,
 )
 from discussion.reaction_models import Vote
 from purchase.related_models.purchase_model import Purchase
+from researchhub_case.related_models.author_claim_case_model import AuthorClaimCase
 from user.models import Action
 
 OUTPUT_FILE = "./exported_interaction_data.csv"
@@ -30,7 +32,7 @@ EXPORT_FILE_HEADERS = [
     "unified_document_id",
     "hubs",
 ]
-MODELS_TO_EXPORT = ["Action"]
+MODELS_TO_EXPORT = ["Action", "AuthorClaimCase"]
 
 
 def map_action_data(actions):
@@ -60,6 +62,18 @@ def map_action_data(actions):
                 data.append(event)
         except Exception as e:
             print("Failed to export action: " + str(action.id), e)
+
+    return data
+
+
+def map_claim_data(claim_cases):
+    data = []
+    for claim in claim_cases:
+        try:
+            event = build_claimed_paper_event(claim)
+            data.append(event)
+        except Exception as e:
+            print("Failed to export claim: " + str(claim.id), e)
 
     return data
 
@@ -108,6 +122,7 @@ class Command(BaseCommand):
             print("Resuming", last_completed_ids)
 
         actions_queryset = Action.objects.all()
+        claim_queryset = AuthorClaimCase.objects.filter(status="APPROVED")
         if start_date_str:
             start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
             actions_queryset = actions_queryset.filter(created_date__gte=start_date)
@@ -130,6 +145,10 @@ class Command(BaseCommand):
             actions_queryset = actions_queryset.filter(created_date__gte=start_date)
 
         print(f"Number of documents >= {start_date_str}: " + str(len(actions_queryset)))
+        print(
+            f"Number of approved claims >= {start_date_str}: "
+            + str(len(claim_queryset))
+        )
         print("*********************************************************************")
 
         export_data_to_csv_in_chunks(
@@ -141,6 +160,17 @@ class Command(BaseCommand):
             output_filepath=OUTPUT_FILE,
             temp_progress_filepath=TEMP_PROGRESS_FILE,
             last_id=last_completed_ids["Action"],
+        )
+
+        export_data_to_csv_in_chunks(
+            queryset=claim_queryset,
+            current_model_to_export="AuthorClaimCase",
+            all_models_to_export=MODELS_TO_EXPORT,
+            chunk_processor=map_claim_data,
+            headers=EXPORT_FILE_HEADERS,
+            output_filepath=OUTPUT_FILE,
+            temp_progress_filepath=TEMP_PROGRESS_FILE,
+            last_id=last_completed_ids["AuthorClaimCase"],
         )
 
         # Cleanup the temp file pointing to our export progress thus far

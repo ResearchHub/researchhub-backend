@@ -7,6 +7,15 @@ from discussion.reaction_models import Vote
 from paper.related_models.paper_model import Paper
 from paper.utils import format_raw_authors
 
+# Event values correspond to the user's potential interest in the item's topics (hubs)
+# on a scale of 1-10. The higher the value, the more interest the user has in the item.
+PAGE_VIEW_EVENT_VALUE = 1  # This will be used on the client side
+VOTE_EVENT_VALUE = 2
+RSC_SUPPORT_EVENT_VALUE = 5
+BOUNTY_EVENT_VALUE = 8
+COMMENT_EVENT_VALUE = 8
+CLAIMED_PAPER_EVENT_VALUE = 10
+
 
 def build_hub_str(hub):
     return "NAME:" + str(hub.name) + ";ID:" + str(hub.id)
@@ -22,7 +31,7 @@ def build_bounty_event(action):
     record["ITEM_ID"] = bounty.get_analytics_id()
     record["TIMESTAMP"] = int(time.mktime(bounty.created_date.timetuple()))
     record["USER_ID"] = str(action.user_id)
-    record["EVENT_VALUE"] = bounty.amount
+    record["EVENT_VALUE"] = BOUNTY_EVENT_VALUE
     record["EVENT_TYPE"] = "bounty_contribution" if is_contribution else "bounty_create"
     record["internal_id"] = str(bounty.id)
 
@@ -37,6 +46,7 @@ def build_vote_event(action):
     vote = action.item
 
     record = {}
+    record["EVENT_VALUE"] = VOTE_EVENT_VALUE
     if vote.vote_type == Vote.UPVOTE:
         record["EVENT_TYPE"] = "upvote"
     elif vote.vote_type == Vote.DOWNVOTE:
@@ -65,10 +75,29 @@ def build_vote_event(action):
     return record
 
 
+def build_claimed_paper_event(author_claim_case):
+    claimed_paper = author_claim_case.target_paper
+
+    record = {}
+    record["EVENT_VALUE"] = CLAIMED_PAPER_EVENT_VALUE
+    record["ITEM_ID"] = claimed_paper.get_analytics_id()
+    record["TIMESTAMP"] = int(time.mktime(claimed_paper.created_date.timetuple()))
+    record["USER_ID"] = str(author_claim_case.requestor_id)
+    record["EVENT_TYPE"] = "claimed_paper"
+    record["internal_id"] = str(claimed_paper.id)
+
+    if claimed_paper.unified_document:
+        doc_props = build_doc_props_for_interaction(claimed_paper.unified_document)
+        record = {**record, **doc_props}
+
+    return record
+
+
 def build_comment_event(action):
     comment = action.item
 
     record = {}
+    record["EVENT_VALUE"] = COMMENT_EVENT_VALUE
     record["ITEM_ID"] = comment.get_analytics_id()
     record["TIMESTAMP"] = int(time.mktime(comment.created_date.timetuple()))
     record["USER_ID"] = str(action.user_id)
@@ -91,7 +120,7 @@ def build_rsc_spend_event(action):
     record["ITEM_ID"] = purchase.item.get_analytics_id()
     record["TIMESTAMP"] = int(time.mktime(purchase.created_date.timetuple()))
     record["USER_ID"] = str(action.user_id)
-    record["EVENT_VALUE"] = purchase.amount
+    record["EVENT_VALUE"] = RSC_SUPPORT_EVENT_VALUE
     record["internal_id"] = str(purchase.id)
 
     # As far as Amazon Personalize events go, we are only interested in select rsc spend events and not all

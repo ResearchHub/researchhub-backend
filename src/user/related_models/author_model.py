@@ -7,6 +7,7 @@ from django.db.models.deletion import SET_NULL
 from discussion.reaction_models import Vote
 from hub.models import Hub
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
+from purchase.related_models.purchase_model import Purchase
 from researchhub_case.constants.case_constants import APPROVED
 from user.related_models.profile_image_storage import ProfileImageStorage
 from user.related_models.school_model import University
@@ -136,7 +137,7 @@ class Author(models.Model):
 
     # Gets ranked list of hubs associated with user's interests.
     # We use comments and votes to determine what is the user interested in
-    def get_interest_hubs(self, max_results=20):
+    def get_interest_hubs(self, max_results=15, min_relevancy_score=0.2):
         from researchhub_comment.related_models.rh_comment_model import RhCommentModel
         from researchhub_document.related_models.researchhub_unified_document_model import (
             UnifiedDocumentConcepts,
@@ -167,13 +168,26 @@ class Author(models.Model):
             except Exception as e:
                 pass
 
+        # Get all items the user spend RSC on
+        purchases = Purchase.objects.filter(user_id=self.user.id)
+
+        for purchase in purchases:
+            try:
+                related_unified_documents.append(purchase.item.unified_document)
+            except Exception as e:
+                pass
+
         # Get relevant concepts associated with unified documents
         ranked_concepts = UnifiedDocumentConcepts.objects.filter(
             unified_document__in=related_unified_documents
         ).order_by("-relevancy_score")
 
         # Get hubs associated with concepts
-        interest_hubs = [ranked.concept.hub for ranked in ranked_concepts]
+        interest_hubs = [
+            ranked.concept.hub
+            for ranked in ranked_concepts
+            if ranked.relevancy_score >= min_relevancy_score
+        ]
 
         # It is quite possible that hubs returned through ranked concepts is less than max_results
         # As a result, we want to pad the list with the rest of the hubs
@@ -188,7 +202,7 @@ class Author(models.Model):
 
     # Gets ranked list of hubs associated with user's likely expertise.
     # We use content peer reviewed and published papers to determine expertise
-    def get_expertise_hubs(self, max_results=20, min_relevancy_score=0.15):
+    def get_expertise_hubs(self, max_results=15, min_relevancy_score=0.2):
         from researchhub_comment.related_models.rh_comment_model import RhCommentModel
         from researchhub_document.related_models.researchhub_unified_document_model import (
             UnifiedDocumentConcepts,
