@@ -862,13 +862,16 @@ class Paper(AbstractGenericReactionModel):
         return license
 
     def set_paper_completeness(self):
-        if self.abstract and self.file:
-            self.completeness = self.COMPLETE
-        elif self.abstract or self.file:
-            self.completeness = self.PARTIAL
-        else:
-            self.completeness = self.INCOMPLETE
+        self.completeness = self.get_paper_completeness()
         self.save()
+
+    def get_paper_completeness(self):
+        if self.abstract and self.title and (self.file or self.pdf_url):
+            return self.COMPLETE
+        elif self.abstract and self.title:
+            return self.PARTIAL
+        else:
+            return self.INCOMPLETE
 
     def get_abstract_backup(self, should_save=False):
         if not self.abstract:
@@ -967,7 +970,7 @@ class MetadataRetrievalAttempt(models.Model):
             # methods.append(cls.MANUBOT_PDF_URL)
             methods.append(cls.MANUBOT_URL)
         return methods
-    
+
 
 class PaperFetchLog(models.Model):
     """

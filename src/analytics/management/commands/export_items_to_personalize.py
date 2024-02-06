@@ -48,9 +48,28 @@ MODELS_TO_EXPORT = [
 
 
 def map_document_data(docs):
+    from paper.related_models.paper_model import Paper
+
     data = []
     for doc in docs:
         try:
+            # The following clause aims to prevent papers with missing criticial or interesting data (e.g. comments)
+            # from being recommneded by Amazon personalize
+            if doc.document_type == "PAPER":
+                paper = doc.paper
+                completeness = paper.get_paper_completeness()
+                if completeness == Paper.PARTIAL:
+                    if paper.discussion_count == 0:
+                        print(
+                            "skipping partially completed paper: ",
+                            paper.title,
+                            paper.id,
+                        )
+                        continue
+                elif completeness == Paper.INCOMPLETE:
+                    print("skipping incomplete paper: ", paper.title, paper.id)
+                    continue
+
             record = {}
             specific_doc = doc.get_document()  # paper, post, ...
 
