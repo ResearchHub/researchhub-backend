@@ -119,9 +119,15 @@ class OpenAlex:
         doi = doi.replace("https://doi.org/", "")
 
         primary_location = work.get("primary_location", {})
+        if primary_location is None:
+            primary_location = {}
         source = primary_location.get("source", {})
+        if source is None:
+            source = {}
 
         oa = work.get("open_access", {})
+        if oa is None:
+            oa = {}
         oa_pdf_url = oa.get("oa_url", None)
 
         url = primary_location.get("landing_page_url", None)
@@ -261,16 +267,21 @@ class OpenAlex:
         except Exception as e:
             return []
         
-    def get_new_works(self, since_date, type="article", cursor="*"):
+    def get_new_works_batch(
+        self, since_date, type="article", cursor="*",
+        batch_size=100,
+    ):
         """
         Get works published after the specified date.
 
         Args:
             since_date (datetime.date): Date to start searching for new papers.
             cursor (str): Pagination cursor for API requests.
+            batch_size (int): Number of works to fetch in each request.
 
         Returns:
             list: List of new works since the given date.
+            cursor (str): Pagination cursor for the next request.
         """
         # Format the date in YYYY-MM-DD format
         formatted_date = since_date.strftime("%Y-%m-%d")
@@ -279,22 +290,12 @@ class OpenAlex:
         oa_filter = f"from_created_date:{formatted_date},type:{type}"
         filters = {
             "filter": oa_filter,
-            # there's usually a lot of data in these requests,
-            # so we'll set the per-page to 50
-            "per-page": 50,
+            "per-page": batch_size,
             "cursor": cursor,
         }
 
-        # Fetch the papers
-        papers = []
-        while True:
-            response = self._get("works", filters=filters)
-            papers.extend(response.get("results", []))
-
-            # Pagination handling
-            next_cursor = response.get("meta", {}).get("next_cursor")
-            if not next_cursor or next_cursor == "*":
-                break
-            filters["cursor"] = next_cursor
-
-        return papers
+        response = self._get("works", filters=filters)
+        works = response.get("results", [])
+        next_cursor = response.get("meta", {}).get("next_cursor")
+        cursor = next_cursor if next_cursor != "*" else None
+        return works, cursor
