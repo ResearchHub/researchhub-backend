@@ -992,8 +992,7 @@ class PaperFetchLog(models.Model):
     fetch_type = models.CharField(choices=FETCH_TYPE_CHOICES, max_length=255)
     status = models.CharField(choices=STATUS_CHOICES, max_length=255)
 
-    num_papers_success = models.IntegerField(default=0)
-    num_papers_failed = models.IntegerField(default=0)
+    total_papers_processed = models.IntegerField(default=0)
 
 
 class Figure(models.Model):
