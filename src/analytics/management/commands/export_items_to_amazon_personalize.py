@@ -9,6 +9,7 @@ from analytics.utils.analytics_file_utils import (
     remove_file,
 )
 from analytics.utils.analytics_mappers import (
+    map_bounty_data,
     map_comment_data,
     map_paper_data,
     map_post_data,
@@ -90,6 +91,25 @@ COMMENT_HEADERS = [
     "hubs",
 ]
 
+BOUNTY_HEADERS = [
+    "ITEM_ID",
+    "CREATION_TIMESTAMP",
+    "created_by_user_id",
+    "bounty_type",
+    "parent_id",
+    "internal_item_id",
+    "related_unified_document_id",
+    "status",
+    "expiration_timestamp",
+    "is_expiring_soon",
+    "num_replies",
+    "has_solution",
+    "body",
+    "related_slug",
+    "updated_timestamp",
+    "hubs",
+]
+
 MODELS_TO_EXPORT = [
     "ResearchhubUnifiedDocument",
     "RhCommentModel",
@@ -112,7 +132,11 @@ EXPORT_ITEM_HELPER = {
         "mapper": map_comment_data,
         "headers": COMMENT_HEADERS,
     },
-    "bounty": "Bounty",
+    "bounty": {
+        "model": "Bounty",
+        "mapper": map_bounty_data,
+        "headers": BOUNTY_HEADERS,
+    },
 }
 
 
@@ -176,8 +200,8 @@ class Command(BaseCommand):
             )
         elif export_type == "comment":
             queryset = RhCommentModel.objects.filter(is_removed=False)
-        elif export_type == "comment":
-            queryset = Bounty.objects.filter(is_removed=False)
+        elif export_type == "bounty":
+            queryset = Bounty.objects.all()
 
         if start_date_str:
             start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()

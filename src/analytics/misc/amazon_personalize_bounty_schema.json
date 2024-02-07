@@ -1,0 +1,76 @@
+{
+	"type": "record",
+	"name": "Items",
+	"namespace": "com.amazonaws.personalize.schema",
+	"fields": [
+		{
+			"name": "ITEM_ID",
+			"type": "string"
+		},
+		{
+			"name": "CREATION_TIMESTAMP",
+			"type": "long"
+		},
+		{
+			"name": "created_by_user_id",
+			"type": ["string", "null"]
+		},
+		{
+			"name": "bounty_type",
+			"type": "string",
+			"categorical": true
+		},
+		{
+			"name": "parent_id",
+			"type": ["string", "null"]
+		},
+        {
+            "name": "internal_item_id",
+            "type": "string"
+        },
+        {
+            "name": "related_unified_document_id",
+            "type": ["string", "null"]
+        },
+		{
+			"name": "status",
+			"type": "string",
+			"categorical": true
+		},
+		{
+			"name": "expiration_timestamp",
+			"type": "long"
+		},
+		{
+			"name": "is_expiring_soon",
+			"type": "boolean"
+		},
+        {
+            "name": "num_replies",
+            "type": ["int", "null"]
+        },
+		{
+			"name": "has_solution",
+			"type": "boolean"
+		},
+		{
+			"name": "body",
+			"type": ["string", "null"],
+			"textual": true
+		},
+		{
+			"name": "updated_timestamp",
+			"type": ["long", "null"]
+		},
+		{
+			"name": "related_slug",
+			"type": ["string", "null"]
+		},
+		{
+			"name": "hubs",
+			"type": ["string", "null"],
+			"categorical": true
+		}
+	],
+	"version": "1.0"
+}

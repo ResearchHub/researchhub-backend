@@ -103,6 +103,7 @@ def map_comment_data(comments):
             )
             record["created_by_user_id"] = str(comment.created_by.id)
             record["author"] = str(comment.created_by.full_name())
+            record["reply_count"] = comment.get_total_children_count()
 
             # Add bounty
             bounties = comment.bounties.filter(status="OPEN")
@@ -120,8 +121,6 @@ def map_comment_data(comments):
             except Exception as e:
                 pass
 
-            print(record)
-
             data.append(record)
         except Exception as e:
             print("Failed to export comment:" + str(comment.id), e)
@@ -129,38 +128,61 @@ def map_comment_data(comments):
     return data
 
 
-def map_bounty_data(comments):
+def map_bounty_data(bounties):
     data = []
 
-    # Comments, Peer Reviews, ..
-    for comment in comments:
+    for bounty in bounties:
         try:
             record = {}
-            if comment.unified_document:
-                doc_props = build_doc_props_for_item(comment.unified_document)
+            if bounty.unified_document:
+                doc_props = build_doc_props_for_item(bounty.unified_document)
                 record = {**doc_props}
+                record["related_unified_document_id"] = bounty.unified_document.id
+                specific_doc = bounty.unified_document.get_document()
+                record["related_slug"] = specific_doc.slug
 
-            record["ITEM_ID"] = comment.get_analytics_id()
-            record["item_type"] = comment.comment_type
-            record["internal_item_id"] = str(comment.id)
+            record["ITEM_ID"] = bounty.get_analytics_id()
+            record["bounty_type"] = bounty.bounty_type
+            record["internal_item_id"] = str(bounty.id)
             record["CREATION_TIMESTAMP"] = int(
-                time.mktime(comment.created_date.timetuple())
+                time.mktime(bounty.created_date.timetuple())
             )
-            record["created_by_user_id"] = str(comment.created_by.id)
-            record
 
-            bounties = comment.bounties.filter(status="OPEN").order_by("-amount")
-            if bounties.exists():
-                bounty = bounties.first()
-                record["bounty_amount"] = bounty.amount
-                record["bounty_id"] = bounty.get_analytics_id()
-                record["bounty_type"] = bounty.get_analytics_type()
-                record["bounty_expiration_timestamp"] = int(
-                    time.mktime(bounty.created_date.timetuple())
-                )
+            if bounty.parent:
+                record["parent_id"] = bounty.parent.get_analytics_id()
+
+            record["updated_timestamp"] = int(
+                time.mktime(bounty.updated_date.timetuple())
+            )
+            record["expiration_timestamp"] = int(
+                time.mktime(bounty.expiration_date.timetuple())
+            )
+
+            num_days_to_expiry = bounty.get_num_days_to_expiration()
+            record["is_expiring_soon"] = (
+                num_days_to_expiry <= 7 and bounty.get_num_days_to_expiration() >= 0
+            )
+            record["status"] = bounty.status
+            record["has_solution"] = bounty.solutions.exists()
+            record["created_by_user_id"] = str(bounty.created_by.id)
+
+            try:
+                record["num_replies"] = bounty.item.get_total_children_count()
+            except Exception as e:
+                pass
+
+            try:
+                record["body"] = bounty.item.plain_text
+            except Exception as e:
+                pass
+
+            try:
+                record["body"] = bounty.plain_text
+            except Exception as e:
+                pass
 
             data.append(record)
         except Exception as e:
-            print("Failed to export comment:" + str(comment.id), e)
+            print("Failed to export bounty:" + str(bounty.id), e)
 
     return data
