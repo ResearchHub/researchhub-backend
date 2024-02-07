@@ -20,11 +20,12 @@ def write_last_processed_id(model_name, models_to_export, last_id, filepath):
         json.dump(ids, file)
 
 
-def truncate_fields(record, max_length=900):
+def truncate_fields(record, headers, max_length=900):
     for key, value in record.items():
         if isinstance(value, str) and len(value) > max_length:
             record[key] = value[:max_length]  # Truncate the string
-    return record
+
+    return {key: value for key, value in record.items() if key in headers}
 
 
 def remove_file(filepath):
@@ -49,7 +50,9 @@ def write_data_to_csv(data, headers, output_filepath):
             writer.writeheader()
 
         for item in data:
-            truncated_item = truncate_fields(item)  # Truncate fields before writing
+            truncated_item = truncate_fields(
+                item, headers
+            )  # Truncate fields before writing
             writer.writerow(truncated_item)
 
 

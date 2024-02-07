@@ -1,5 +1,4 @@
 import os
-import time
 from datetime import datetime
 
 from django.core.management.base import BaseCommand
@@ -9,9 +8,10 @@ from analytics.utils.analytics_file_utils import (
     read_last_processed_ids,
     remove_file,
 )
-from analytics.utils.analytics_mapping_utils import (
-    build_doc_props_for_item,
-    get_open_bounty_count,
+from analytics.utils.analytics_mappers import (
+    map_comment_data,
+    map_paper_data,
+    map_post_data,
 )
 from reputation.related_models.bounty import Bounty
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
@@ -54,30 +54,39 @@ PAPER_HEADERS = [
     "is_trending_citations",
 ]
 
-EXPORT_FILE_HEADERS = [
+POST_HEADERS = [
     "ITEM_ID",
     "CREATION_TIMESTAMP",
     "item_type",
-    "item_subtype",
     "internal_item_id",
     "unified_document_id",
     "created_by_user_id",
     "discussion_count",
     "hot_score",
-    "bounty_id",
-    "bounty_amount",
-    "bounty_type",
-    "bounty_expiration_timestamp",
+    "open_bounty_count",
     "title",
-    "journal",
-    "pdf_license",
-    "oa_status",
-    "twitter_score",
     "slug",
     "authors",
     "updated_timestamp",
-    "publication_timestamp",
-    "publication_year",
+    "keywords",
+    "hubs",
+]
+
+COMMENT_HEADERS = [
+    "ITEM_ID",
+    "CREATION_TIMESTAMP",
+    "item_type",
+    "internal_item_id",
+    "related_unified_document_id",
+    "author",
+    "created_by_user_id",
+    "peer_review_score",
+    "num_replies",
+    "hot_score",
+    "open_bounty_count",
+    "body",
+    "related_slug",
+    "updated_timestamp",
     "hubs",
 ]
 
@@ -87,141 +96,22 @@ MODELS_TO_EXPORT = [
     "Bounty",
 ]
 
-
-def map_paper_data(docs):
-    from paper.related_models.paper_model import Paper
-
-    data = []
-    for doc in docs:
-        try:
-            paper = doc.get_document()
-            # The following clause aims to prevent papers with missing criticial or interesting data (e.g. comments)
-            # from being recommneded by Amazon personalize
-            completeness = paper.get_paper_completeness()
-            if completeness == Paper.PARTIAL:
-                if paper.discussion_count == 0:
-                    print(
-                        "skipping partially completed paper: ",
-                        paper.title,
-                        paper.id,
-                    )
-                    continue
-            elif completeness == Paper.INCOMPLETE:
-                print("skipping incomplete paper: ", paper.title, paper.id)
-                continue
-
-            record = {}
-            doc_props = build_doc_props_for_item(doc)
-            record = {**doc_props}
-            record["ITEM_ID"] = paper.get_analytics_id()
-            record["internal_item_id"] = str(paper.id)
-            record["CREATION_TIMESTAMP"] = int(
-                time.mktime(doc.created_date.timetuple())
-            )
-            record["updated_timestamp"] = int(time.mktime(doc.updated_date.timetuple()))
-            record["open_bounty_count"] = get_open_bounty_count(doc)
-
-            if paper.created_by:
-                record["created_by_user_id"] = str(paper.created_by.id)
-
-            data.append(record)
-        except Exception as e:
-            print("Failed to export doc: " + str(doc.id), e)
-
-    return data
-
-
-def map_document_data(docs):
-    from paper.related_models.paper_model import Paper
-
-    data = []
-    for doc in docs:
-        try:
-            # The following clause aims to prevent papers with missing criticial or interesting data (e.g. comments)
-            # from being recommneded by Amazon personalize
-            if doc.document_type == "PAPER":
-                paper = doc.paper
-                completeness = paper.get_paper_completeness()
-                if completeness == Paper.PARTIAL:
-                    if paper.discussion_count == 0:
-                        print(
-                            "skipping partially completed paper: ",
-                            paper.title,
-                            paper.id,
-                        )
-                        continue
-                elif completeness == Paper.INCOMPLETE:
-                    print("skipping incomplete paper: ", paper.title, paper.id)
-                    continue
-
-            record = {}
-            specific_doc = doc.get_document()  # paper, post, ...
-
-            doc_props = build_doc_props_for_item(doc)
-            record = {**doc_props}
-            record["ITEM_ID"] = specific_doc.get_analytics_id()
-            record["item_type"] = specific_doc.get_analytics_type()
-            record["internal_item_id"] = str(specific_doc.id)
-            record["CREATION_TIMESTAMP"] = int(
-                time.mktime(doc.created_date.timetuple())
-            )
-            record["updated_timestamp"] = int(time.mktime(doc.updated_date.timetuple()))
-
-            if specific_doc.created_by:
-                record["created_by_user_id"] = str(specific_doc.created_by.id)
-
-            data.append(record)
-        except Exception as e:
-            print("Failed to export doc: " + str(doc.id), e)
-
-    return data
-
-
-def map_comment_data(comments):
-    data = []
-
-    # Comments, Peer Reviews, ..
-    for comment in comments:
-        try:
-            record = {}
-            if comment.unified_document:
-                doc_props = build_doc_props_for_item(comment.unified_document)
-                record = {**doc_props}
-
-            record["ITEM_ID"] = comment.get_analytics_id()
-            record["item_type"] = comment.get_analytics_type()
-            record["item_subtype"] = comment.comment_type
-            record["internal_item_id"] = str(comment.id)
-            record["CREATION_TIMESTAMP"] = int(
-                time.mktime(comment.created_date.timetuple())
-            )
-            record["created_by_user_id"] = str(comment.created_by.id)
-
-            bounties = comment.bounties.filter(status="OPEN").order_by("-amount")
-            if bounties.exists():
-                bounty = bounties.first()
-                record["bounty_amount"] = bounty.amount
-                record["bounty_id"] = bounty.get_analytics_id()
-                record["bounty_type"] = bounty.get_analytics_type()
-                record["bounty_expiration_timestamp"] = int(
-                    time.mktime(bounty.created_date.timetuple())
-                )
-
-            data.append(record)
-        except Exception as e:
-            print("Failed to export comment:" + str(comment.id), e)
-
-    return data
-
-
 EXPORT_ITEM_HELPER = {
     "paper": {
         "model": "ResearchhubUnifiedDocument",
         "mapper": map_paper_data,
         "headers": PAPER_HEADERS,
     },
-    "post": "ResearchhubUnifiedDocument",
-    "comment": "RhCommentModel",
+    "post": {
+        "model": "ResearchhubUnifiedDocument",
+        "mapper": map_post_data,
+        "headers": POST_HEADERS,
+    },
+    "comment": {
+        "model": "RhCommentModel",
+        "mapper": map_comment_data,
+        "headers": COMMENT_HEADERS,
+    },
     "bounty": "Bounty",
 }
 
@@ -284,11 +174,6 @@ class Command(BaseCommand):
                 document_type__in=["DISCUSSION", "QUESTION", "PREREGISTRATION"],
                 is_removed=False,
             )
-        elif export_type == "preregistration":
-            queryset = ResearchhubUnifiedDocument.objects.filter(
-                document_type__in=["PREREGISTRATION"],
-                is_removed=False,
-            )
         elif export_type == "comment":
             queryset = RhCommentModel.objects.filter(is_removed=False)
         elif export_type == "comment":
@@ -309,7 +194,7 @@ class Command(BaseCommand):
             headers=EXPORT_ITEM_HELPER[export_type]["headers"],
             output_filepath=get_output_file_path(export_type),
             temp_progress_filepath=get_temp_progress_file_path(export_type),
-            last_id=last_completed_ids["ResearchhubUnifiedDocument"],
+            last_id=last_completed_ids[EXPORT_ITEM_HELPER[export_type]["model"]],
         )
 
         # Cleanup the temp file pointing to our export progress thus far
