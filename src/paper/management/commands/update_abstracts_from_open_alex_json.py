@@ -16,8 +16,10 @@ class Command(BaseCommand):
                 to_update.append(paper)
 
             if len(to_update) >= 100:
+                print(f'Updating {len(to_update)} papers...')
                 Paper.objects.bulk_update(to_update, ['abstract'])
                 to_update = []
 
         if to_update:
+            print(f'Updating {len(to_update)} papers...')
             Paper.objects.bulk_update(to_update, ['abstract'])
