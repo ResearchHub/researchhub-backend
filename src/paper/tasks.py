@@ -1308,17 +1308,22 @@ def pull_new_openalex_works(page=0, retry=0):
         sentry.log_error(e)
 
     total_papers_processed = 0
-    cursor = "*" # used for pagination
+    # openalex uses a cursor to paginate through results,
+    # cursor is meant to point to the next page of results.
+    # if next_cursor = "*", it means it's the first page,
+    # if next_cursor = None, it means it's the last page,
+    # otherwise it's a base64 encoded string
+    next_cursor = "*"
     try:
         open_alex = OpenAlex()
-        
+
         while True:
             # get new works in batches
-            works, cursor = open_alex.get_new_works_batch(
+            works, next_cursor = open_alex.get_new_works_batch(
                 since_date=fetch_since_date,
-                cursor=cursor
+                next_cursor=next_cursor
             )
-            if not cursor or not works or len(works) == 0:
+            if next_cursor is None or works is None or len(works) == 0:
                 break
 
             for work in works:

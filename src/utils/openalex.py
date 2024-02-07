@@ -268,7 +268,7 @@ class OpenAlex:
             return []
         
     def get_new_works_batch(
-        self, since_date, type="article", cursor="*",
+        self, since_date, type="article", next_cursor="*",
         batch_size=100,
     ):
         """
@@ -276,7 +276,7 @@ class OpenAlex:
 
         Args:
             since_date (datetime.date): Date to start searching for new papers.
-            cursor (str): Pagination cursor for API requests.
+            next_cursor (str): Pagination cursor for API requests.
             batch_size (int): Number of works to fetch in each request.
 
         Returns:
@@ -291,7 +291,7 @@ class OpenAlex:
         filters = {
             "filter": oa_filter,
             "per-page": batch_size,
-            "cursor": cursor,
+            "cursor": next_cursor,
         }
 
         response = self._get("works", filters=filters)
