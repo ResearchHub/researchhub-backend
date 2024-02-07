@@ -6,6 +6,7 @@ from datetime import datetime
 from discussion.reaction_models import Vote
 from paper.related_models.paper_model import Paper
 from paper.utils import format_raw_authors
+from reputation.related_models.bounty import Bounty
 
 # Event values correspond to the user's potential interest in the item's topics (hubs)
 # on a scale of 1-10. The higher the value, the more interest the user has in the item.
@@ -215,6 +216,12 @@ def build_doc_props_for_interaction(unified_doc):
     return props
 
 
+def get_open_bounty_count(unified_document):
+    return len(
+        Bounty.objects.filter(unified_document=unified_document.id, status=Bounty.OPEN)
+    )
+
+
 def build_doc_props_for_item(unified_doc):
     item_type = unified_doc.get_client_doc_type()
     specific_doc = unified_doc.get_document()  # paper, post, ...
@@ -252,11 +259,43 @@ def build_doc_props_for_item(unified_doc):
             )
 
         if paper.open_alex_raw_json:
+            open_alex_data = paper.open_alex_raw_json
             try:
-                open_alex_data = paper.open_alex_raw_json
-                mapped["keywords"] = [
-                    keyword_obj["keyword"] for keyword_obj in open_alex_data["keywords"]
-                ]
+                mapped["keywords"] = ",".join(
+                    [
+                        keyword_obj["keyword"]
+                        for keyword_obj in open_alex_data["keywords"]
+                    ]
+                )
+            except Exception as e:
+                pass
+
+            try:
+                mapped["cited_by_count"] = open_alex_data["cited_by_count"]
+            except Exception as e:
+                pass
+
+            try:
+                mapped["citation_percentile_performance"] = open_alex_data[
+                    "cited_by_percentile_year"
+                ]["max"]
+            except Exception as e:
+                pass
+
+            try:
+                years_cited = open_alex_data["counts_by_year"]
+                # Let's use 2 years for now to determine if a paper is trending citation wise
+                mapped["is_trending_citations"] = False
+                if len(years_cited) >= 2:
+                    one_year_ago = years_cited[0]["cited_by_count"]
+                    two_years_ago = years_cited[1]["cited_by_count"]
+
+                    # 25% growth over the previous year is sufficient to be considered trending
+                    if (
+                        one_year_ago > two_years_ago
+                        and one_year_ago >= two_years_ago * 1.25
+                    ):
+                        mapped["is_trending_citations"] = True
             except Exception as e:
                 pass
 

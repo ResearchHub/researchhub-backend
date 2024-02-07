@@ -9,12 +9,51 @@ from analytics.utils.analytics_file_utils import (
     read_last_processed_ids,
     remove_file,
 )
-from analytics.utils.analytics_mapping_utils import build_doc_props_for_item
+from analytics.utils.analytics_mapping_utils import (
+    build_doc_props_for_item,
+    get_open_bounty_count,
+)
+from reputation.related_models.bounty import Bounty
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.models import ResearchhubUnifiedDocument
 
-OUTPUT_FILE = "./exported_items.csv"
 TEMP_PROGRESS_FILE = "./item-export-progress.temp.json"
+
+
+def get_temp_progress_file_path(item_type: str):
+    return f"./{item_type}-item-export-progress.temp.json"
+
+
+def get_output_file_path(item_type: str):
+    return f"./{item_type}-item-export.csv"
+
+
+PAPER_HEADERS = [
+    "ITEM_ID",
+    "CREATION_TIMESTAMP",
+    "internal_item_id",
+    "unified_document_id",
+    "created_by_user_id",
+    "discussion_count",
+    "hot_score",
+    "open_bounty_count",
+    "title",
+    "journal",
+    "pdf_license",
+    "oa_status",
+    "twitter_score",
+    "slug",
+    "authors",
+    "updated_timestamp",
+    "publication_timestamp",
+    "publication_year",
+    "keywords",
+    "cited_by_count",
+    "citation_percentile_performance",
+    "hubs",
+    "is_trending_citations",
+]
+
 EXPORT_FILE_HEADERS = [
     "ITEM_ID",
     "CREATION_TIMESTAMP",
@@ -41,10 +80,55 @@ EXPORT_FILE_HEADERS = [
     "publication_year",
     "hubs",
 ]
+
 MODELS_TO_EXPORT = [
     "ResearchhubUnifiedDocument",
     "RhCommentModel",
+    "Bounty",
 ]
+
+
+def map_paper_data(docs):
+    from paper.related_models.paper_model import Paper
+
+    data = []
+    for doc in docs:
+        try:
+            paper = doc.get_document()
+            # The following clause aims to prevent papers with missing criticial or interesting data (e.g. comments)
+            # from being recommneded by Amazon personalize
+            completeness = paper.get_paper_completeness()
+            if completeness == Paper.PARTIAL:
+                if paper.discussion_count == 0:
+                    print(
+                        "skipping partially completed paper: ",
+                        paper.title,
+                        paper.id,
+                    )
+                    continue
+            elif completeness == Paper.INCOMPLETE:
+                print("skipping incomplete paper: ", paper.title, paper.id)
+                continue
+
+            record = {}
+            doc_props = build_doc_props_for_item(doc)
+            record = {**doc_props}
+            record["ITEM_ID"] = paper.get_analytics_id()
+            record["internal_item_id"] = str(paper.id)
+            record["CREATION_TIMESTAMP"] = int(
+                time.mktime(doc.created_date.timetuple())
+            )
+            record["updated_timestamp"] = int(time.mktime(doc.updated_date.timetuple()))
+            record["open_bounty_count"] = get_open_bounty_count(doc)
+
+            if paper.created_by:
+                record["created_by_user_id"] = str(paper.created_by.id)
+
+            data.append(record)
+        except Exception as e:
+            print("Failed to export doc: " + str(doc.id), e)
+
+    return data
 
 
 def map_document_data(docs):
@@ -130,6 +214,18 @@ def map_comment_data(comments):
     return data
 
 
+EXPORT_ITEM_HELPER = {
+    "paper": {
+        "model": "ResearchhubUnifiedDocument",
+        "mapper": map_paper_data,
+        "headers": PAPER_HEADERS,
+    },
+    "post": "ResearchhubUnifiedDocument",
+    "comment": "RhCommentModel",
+    "bounty": "Bounty",
+}
+
+
 class Command(BaseCommand):
     help = "Export item data to personalize"
 
@@ -147,20 +243,24 @@ class Command(BaseCommand):
         parser.add_argument(
             "--force", type=str, help="Force write to file if one already exists"
         )
+        parser.add_argument(
+            "--type", type=str, help="The type you would like to export"
+        )
 
     def handle(self, *args, **kwargs):
         start_date_str = kwargs["start_date"]
         should_resume = kwargs["resume"]
         force = kwargs["force"]
+        export_type = kwargs["type"]
 
         # Check if the file already so we don't accidentally override it and cry over time lost :(
-        file_exists = os.path.isfile(OUTPUT_FILE)
+        file_exists = os.path.isfile(get_output_file_path(export_type))
         if file_exists and not should_resume:
             if force:
-                remove_file(OUTPUT_FILE)
+                remove_file(get_output_file_path(export_type))
             else:
                 print(
-                    f"File {OUTPUT_FILE} already exists. Please delete it or use --force to override it."
+                    f"File {get_output_file_path(export_type)} already exists. Please delete it or use --force to override it."
                 )
                 return
 
@@ -173,40 +273,43 @@ class Command(BaseCommand):
             )
             print("Resuming", last_completed_ids)
 
-        docs_queryset = ResearchhubUnifiedDocument.objects.filter(
-            document_type__in=["PAPER", "DISCUSSION", "QUESTION", "PREREGISTRATION"],
-            is_removed=False,
-        )
-        comments_queryset = RhCommentModel.objects.filter(is_removed=False)
+        queryset = None
+        if export_type == "paper":
+            queryset = ResearchhubUnifiedDocument.objects.filter(
+                document_type__in=["PAPER"],
+                is_removed=False,
+            )
+        elif export_type == "post":
+            queryset = ResearchhubUnifiedDocument.objects.filter(
+                document_type__in=["DISCUSSION", "QUESTION", "PREREGISTRATION"],
+                is_removed=False,
+            )
+        elif export_type == "preregistration":
+            queryset = ResearchhubUnifiedDocument.objects.filter(
+                document_type__in=["PREREGISTRATION"],
+                is_removed=False,
+            )
+        elif export_type == "comment":
+            queryset = RhCommentModel.objects.filter(is_removed=False)
+        elif export_type == "comment":
+            queryset = Bounty.objects.filter(is_removed=False)
 
         if start_date_str:
             start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
-            docs_queryset = docs_queryset.filter(created_date__gte=start_date)
-            comments_queryset = comments_queryset.filter(created_date__gte=start_date)
+            queryset = queryset.filter(created_date__gte=start_date)
 
-        print(f"Number of documents >= {start_date_str}: " + str(len(docs_queryset)))
-        print(f"Number of comments >= {start_date_str}: " + str(len(comments_queryset)))
+        print(f"Number of records >= {start_date_str}: " + str(len(queryset)))
         print("*********************************************************************")
 
         export_data_to_csv_in_chunks(
-            queryset=docs_queryset,
-            current_model_to_export="ResearchhubUnifiedDocument",
+            queryset=queryset,
+            current_model_to_export=EXPORT_ITEM_HELPER[export_type]["model"],
             all_models_to_export=MODELS_TO_EXPORT,
-            chunk_processor=map_document_data,
-            headers=EXPORT_FILE_HEADERS,
-            output_filepath=OUTPUT_FILE,
-            temp_progress_filepath=TEMP_PROGRESS_FILE,
+            chunk_processor=EXPORT_ITEM_HELPER[export_type]["mapper"],
+            headers=EXPORT_ITEM_HELPER[export_type]["headers"],
+            output_filepath=get_output_file_path(export_type),
+            temp_progress_filepath=get_temp_progress_file_path(export_type),
             last_id=last_completed_ids["ResearchhubUnifiedDocument"],
-        )
-        export_data_to_csv_in_chunks(
-            queryset=comments_queryset,
-            current_model_to_export="RhCommentModel",
-            all_models_to_export=MODELS_TO_EXPORT,
-            chunk_processor=map_comment_data,
-            headers=EXPORT_FILE_HEADERS,
-            output_filepath=OUTPUT_FILE,
-            temp_progress_filepath=TEMP_PROGRESS_FILE,
-            last_id=last_completed_ids["RhCommentModel"],
         )
 
         # Cleanup the temp file pointing to our export progress thus far

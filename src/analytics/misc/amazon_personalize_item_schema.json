@@ -117,8 +117,16 @@
 			"type": ["int", "null"]
 		},
 		{
+			"name": "open_bounty_count",
+			"type": "int"
+		},
+		{
 			"name": "citation_percentile_performance",
 			"type": ["int", "null"]
+		},
+		{
+			"name": "is_trending_citations",
+			"type": "boolean"
 		}
 	],
 	"version": "1.0"
