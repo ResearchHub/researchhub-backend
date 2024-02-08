@@ -5,19 +5,19 @@ import os
 CHUNK_SIZE = 100
 
 
-def read_last_processed_ids(filepath, models_to_export):
-    if os.path.exists(filepath):
-        with open(filepath, "r") as file:
+def read_progress_filepath(progress_filepath, export_filepath):
+    if os.path.exists(progress_filepath):
+        with open(progress_filepath, "r") as file:
             return json.load(file)
 
-    return {key: 0 for key in models_to_export}
+    return {"current_id": 1, "export_filepath": export_filepath}
 
 
-def write_last_processed_id(model_name, models_to_export, last_id, filepath):
-    ids = read_last_processed_ids(filepath, models_to_export)
-    ids[model_name] = last_id
-    with open(filepath, "w") as file:
-        json.dump(ids, file)
+def write_to_progress_filepath(last_id, progress_filepath, export_filepath):
+    progress_json = read_progress_filepath(progress_filepath, export_filepath)
+    progress_json["current_id"] = last_id
+    with open(progress_filepath, "w") as file:
+        json.dump(progress_json, file)
 
 
 def truncate_fields(record, headers, max_length=900):
@@ -58,8 +58,6 @@ def write_data_to_csv(data, headers, output_filepath):
 
 def export_data_to_csv_in_chunks(
     queryset,
-    current_model_to_export,
-    all_models_to_export,
     chunk_processor,
     headers,
     output_filepath,
@@ -70,7 +68,11 @@ def export_data_to_csv_in_chunks(
     chunk_num = 1
 
     while True:
+        # print('_last_id', _last_id)
         _queryset = queryset.filter(id__gt=_last_id).order_by("id")[:CHUNK_SIZE]
+        # print('_queryset', len(_queryset))
+        # print('***************************')
+        # return
         chunk = list(_queryset.iterator())
 
         if not chunk:
@@ -88,11 +90,10 @@ def export_data_to_csv_in_chunks(
         _last_id = last_record.id
         chunk_num += 1
         # Write progress to temp file in case something goes wrong
-        write_last_processed_id(
-            current_model_to_export,
-            all_models_to_export,
-            _last_id,
-            temp_progress_filepath,
+        write_to_progress_filepath(
+            last_id=_last_id,
+            progress_filepath=temp_progress_filepath,
+            export_filepath=output_filepath,
         )
 
         # raise Exception("stop")

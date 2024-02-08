@@ -1,11 +1,10 @@
-import os
 from datetime import datetime
 
 from django.core.management.base import BaseCommand
 
 from analytics.utils.analytics_file_utils import (
     export_data_to_csv_in_chunks,
-    read_last_processed_ids,
+    read_progress_filepath,
     remove_file,
 )
 from analytics.utils.analytics_mappers import (
@@ -18,15 +17,15 @@ from reputation.related_models.bounty import Bounty
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.models import ResearchhubUnifiedDocument
 
-TEMP_PROGRESS_FILE = "./item-export-progress.temp.json"
-
 
 def get_temp_progress_file_path(item_type: str):
     return f"./{item_type}-item-export-progress.temp.json"
 
 
 def get_output_file_path(item_type: str):
-    return f"./{item_type}-item-export.csv"
+    now = datetime.now()
+    date_string = now.strftime("%m_%d_%y_%H_%M_%S")
+    return f"./{item_type}-item-export-{date_string}.csv"
 
 
 PAPER_HEADERS = [
@@ -110,12 +109,6 @@ BOUNTY_HEADERS = [
     "hubs",
 ]
 
-MODELS_TO_EXPORT = [
-    "ResearchhubUnifiedDocument",
-    "RhCommentModel",
-    "Bounty",
-]
-
 EXPORT_ITEM_HELPER = {
     "paper": {
         "model": "ResearchhubUnifiedDocument",
@@ -155,37 +148,27 @@ class Command(BaseCommand):
             help="Resume will start from the last id within the file",
         )
         parser.add_argument(
-            "--force", type=str, help="Force write to file if one already exists"
-        )
-        parser.add_argument(
             "--type", type=str, help="The type you would like to export"
         )
 
     def handle(self, *args, **kwargs):
         start_date_str = kwargs["start_date"]
         should_resume = kwargs["resume"]
-        force = kwargs["force"]
         export_type = kwargs["type"]
 
-        # Check if the file already so we don't accidentally override it and cry over time lost :(
-        file_exists = os.path.isfile(get_output_file_path(export_type))
-        if file_exists and not should_resume:
-            if force:
-                remove_file(get_output_file_path(export_type))
-            else:
-                print(
-                    f"File {get_output_file_path(export_type)} already exists. Please delete it or use --force to override it."
-                )
-                return
+        # Related files
+        output_filepath = get_output_file_path(export_type)
+        temp_progress_filepath = get_temp_progress_file_path(export_type)
 
         # By default we are not resuming and starting from 0
-        last_completed_ids = {key: 0 for key in MODELS_TO_EXPORT}
+        progress_json = {"current_id": 1, "export_filepath": output_filepath}
 
         if should_resume:
-            last_completed_ids = read_last_processed_ids(
-                TEMP_PROGRESS_FILE, MODELS_TO_EXPORT
+            progress_json = read_progress_filepath(
+                temp_progress_filepath, output_filepath
             )
-            print("Resuming", last_completed_ids)
+            output_filepath = progress_json["export_filepath"]
+            print("Resuming from ID", progress_json["current_id"])
 
         queryset = None
         if export_type == "paper":
@@ -212,14 +195,12 @@ class Command(BaseCommand):
 
         export_data_to_csv_in_chunks(
             queryset=queryset,
-            current_model_to_export=EXPORT_ITEM_HELPER[export_type]["model"],
-            all_models_to_export=MODELS_TO_EXPORT,
             chunk_processor=EXPORT_ITEM_HELPER[export_type]["mapper"],
             headers=EXPORT_ITEM_HELPER[export_type]["headers"],
-            output_filepath=get_output_file_path(export_type),
-            temp_progress_filepath=get_temp_progress_file_path(export_type),
-            last_id=last_completed_ids[EXPORT_ITEM_HELPER[export_type]["model"]],
+            output_filepath=output_filepath,
+            temp_progress_filepath=temp_progress_filepath,
+            last_id=progress_json["current_id"],
         )
 
         # Cleanup the temp file pointing to our export progress thus far
-        remove_file(TEMP_PROGRESS_FILE)
+        # remove_file(TEMP_PROGRESS_FILE)
