@@ -23,7 +23,6 @@ EXPORT_FILE_HEADERS = [
     "unified_document_id",
     "hubs",
 ]
-MODELS_TO_EXPORT = ["Action", "AuthorClaimCase"]
 
 
 def get_temp_progress_file_path():
@@ -37,7 +36,7 @@ def get_output_file_path():
 
 
 def get_error_file_path():
-    return f"./interaction-item-export-errors.txt"
+    return f"./interaction-export-errors.txt"
 
 
 def write_error_to_file(id, error, error_filepath):
@@ -66,7 +65,6 @@ class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         start_date_str = kwargs["start_date"]
         should_resume = kwargs["resume"]
-        force = kwargs["force"]
 
         # Related files
         output_filepath = get_output_file_path()

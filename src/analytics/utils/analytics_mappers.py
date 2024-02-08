@@ -5,6 +5,7 @@ from analytics.utils.analytics_mapping_utils import (
     build_claimed_paper_event,
     build_comment_event,
     build_doc_props_for_item,
+    build_hub_str,
     build_rsc_spend_event,
     build_vote_event,
     get_open_bounty_count,
@@ -234,5 +235,28 @@ def map_bounty_data(bounties, on_error):
             data.append(record)
         except Exception as e:
             on_error(id=str(bounty.id), msg=str(e))
+
+    return data
+
+
+def map_user_data(queryset, on_error):
+    data = []
+    for user in queryset:
+        try:
+            record = {}
+            interests = user.author_profile.get_interest_hubs()
+            expertise = user.author_profile.get_expertise_hubs()
+
+            record["USER_ID"] = str(user.id)
+            record["interest_hubs"] = "|".join(
+                [build_hub_str(hub) for hub in interests]
+            )
+            record["expertise_hubs"] = "|".join(
+                [build_hub_str(hub) for hub in expertise]
+            )
+            data.append(record)
+
+        except Exception as e:
+            on_error(id=str(user.id), msg=str(e))
 
     return data

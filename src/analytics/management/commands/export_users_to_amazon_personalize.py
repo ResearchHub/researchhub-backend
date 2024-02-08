@@ -1,13 +1,13 @@
-import os
 from datetime import datetime
 
 from django.core.management.base import BaseCommand
 
 from analytics.utils.analytics_file_utils import (
     export_data_to_csv_in_chunks,
-    read_last_processed_ids,
+    read_progress_filepath,
     remove_file,
 )
+from analytics.utils.analytics_mappers import map_user_data
 from analytics.utils.analytics_mapping_utils import build_hub_str
 from user.related_models.user_model import User
 
@@ -18,30 +18,21 @@ EXPORT_FILE_HEADERS = [
     "interest_hubs",
     "expertise_hubs",
 ]
-MODELS_TO_EXPORT = ["User"]
 
 
-def map_user_data(queryset):
-    data = []
-    for user in queryset:
-        try:
-            record = {}
-            interests = user.author_profile.get_interest_hubs()
-            expertise = user.author_profile.get_expertise_hubs()
+def get_output_file_path():
+    now = datetime.now()
+    date_string = now.strftime("%m_%d_%y_%H_%M_%S")
+    return f"./user-export-{date_string}.csv"
 
-            record["USER_ID"] = str(user.id)
-            record["interest_hubs"] = "|".join(
-                [build_hub_str(hub) for hub in interests]
-            )
-            record["expertise_hubs"] = "|".join(
-                [build_hub_str(hub) for hub in expertise]
-            )
-            data.append(record)
 
-        except Exception as e:
-            print("Failed to export user: " + str(user.id), e)
+def get_error_file_path():
+    return f"./user-export-errors.txt"
 
-    return data
+
+def write_error_to_file(id, error, error_filepath):
+    with open(error_filepath, "a") as file:
+        file.write(f"ID: {id}, ERROR: {error}\n")
 
 
 class Command(BaseCommand):
@@ -65,27 +56,18 @@ class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         start_date_str = kwargs["start_date"]
         should_resume = kwargs["resume"]
-        force = kwargs["force"]
 
-        # Check if the file already so we don't accidentally override it and cry over time lost :(
-        file_exists = os.path.isfile(OUTPUT_FILE)
-        if file_exists and not should_resume:
-            if force:
-                remove_file(OUTPUT_FILE)
-            else:
-                print(
-                    f"File {OUTPUT_FILE} already exists. Please delete it or use --force to override it."
-                )
-                return
+        # Related files
+        output_filepath = get_output_file_path()
+        error_filepath = get_error_file_path()
 
-        # By default we are not resuming and starting from 0
-        last_completed_ids = {key: 0 for key in MODELS_TO_EXPORT}
+        # By default we are not resuming and starting from beginning
+        progress_json = {"current_id": 0, "export_filepath": output_filepath}
 
         if should_resume:
-            last_completed_ids = read_last_processed_ids(
-                TEMP_PROGRESS_FILE, MODELS_TO_EXPORT
-            )
-            print("Resuming", last_completed_ids)
+            progress_json = read_progress_filepath(TEMP_PROGRESS_FILE, output_filepath)
+            output_filepath = progress_json["export_filepath"]
+            print("Resuming from ID", progress_json["current_id"])
 
         queryset = User.objects.all()
         if start_date_str:
@@ -105,13 +87,12 @@ class Command(BaseCommand):
 
         export_data_to_csv_in_chunks(
             queryset=queryset,
-            current_model_to_export="User",
-            all_models_to_export=MODELS_TO_EXPORT,
             chunk_processor=map_user_data,
             headers=EXPORT_FILE_HEADERS,
             output_filepath=OUTPUT_FILE,
+            last_id=progress_json["current_id"],
             temp_progress_filepath=TEMP_PROGRESS_FILE,
-            last_id=last_completed_ids["User"],
+            on_error=lambda id, msg: write_error_to_file(id, msg, error_filepath),
         )
 
         # Cleanup the temp file pointing to our export progress thus far
