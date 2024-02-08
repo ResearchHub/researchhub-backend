@@ -1274,39 +1274,92 @@ def pull_openalex_author_works(user_id, openalex_id):
 #     # run at 4:30 PM UTC (8:30 AM PST)
 #     run_every=crontab(minute=30, hour=16), priority=3, queue=QUEUE_PULL_PAPERS
 # )
-def pull_new_openalex_works(page=0, retry=0):
+def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
+    """
+    Pull new works (papers) from OpenAlex.
+    
+    This looks complicated because we're trying to handle retries and logging.
+    But simply:
+    1. Get new works from OpenAlex in batches
+    2. Kick-off a task to create/update papers for each work
+    3. If we hit an error, retry the job from where we left off
+    4. Log the results
+    """
     if not PRODUCTION:
         return
 
     from paper.models import PaperFetchLog
 
-    sentry.log_info("Starting New OpenAlex pull")
-
-    start_date = datetime.now()
-
-    if retry > 2:
-        PaperFetchLog.objects.create(
-            source=PaperFetchLog.OPENALEX,
-            fetch_type=PaperFetchLog.FETCH_NEW,
-            status=PaperFetchLog.FAILURE,
-            started_date=start_date,
-            completed_date=datetime.now(),
-        )
-        return False
-
-    # get the last time we ran this task
     fetch_since_date = datetime.now() - timedelta(days=1)
-    try:
-        last_log = PaperFetchLog.objects.filter(
+    # if paper_fetch_log_id is provided, it means we're retrying
+    # otherwise we're starting a new pull
+    if paper_fetch_log_id is None:
+        start_date = datetime.now()
+
+        # figure out when we should start fetching from.
+        # if we have an existing successful run, we start from the last successful run
+        try:
+            last_log = PaperFetchLog.objects.filter(
+                source=PaperFetchLog.OPENALEX,
+                fetch_type=PaperFetchLog.FETCH_NEW,
+                status=PaperFetchLog.SUCCESS,
+            ).order_by("-started_date").first()
+
+            if last_log:
+                fetch_since_date = last_log.started_date
+        except Exception as e:
+            sentry.log_error(e, message="Failed to get last successful log")
+
+        # check if there's a pending log within the last 24 hours
+        # if there is, skip this run.
+        # this is to prevent multiple runs from being queued at the same time,
+        # since our celery setup sometimes triggers multiple runs
+        try:
+            pending_log = PaperFetchLog.objects.filter(
+                source=PaperFetchLog.OPENALEX,
+                fetch_type=PaperFetchLog.FETCH_NEW,
+                status=PaperFetchLog.PENDING,
+                started_date__gte=fetch_since_date,
+            ).exists()
+
+            if pending_log:
+                return
+        except Exception as e:
+            sentry.log_error(e, message="Failed to get pending log")
+
+        lg = PaperFetchLog.objects.create(
             source=PaperFetchLog.OPENALEX,
             fetch_type=PaperFetchLog.FETCH_NEW,
-            status=PaperFetchLog.SUCCESS,
-        ).order_by("-started_date").first()
+            status=PaperFetchLog.PENDING,
+            started_date=start_date,
+            fetch_since_date=fetch_since_date,
+        )
+        paper_fetch_log_id = lg.id
+        sentry.log_info(f"Starting New OpenAlex pull: {paper_fetch_log_id}")
+    else:
+        # if paper_fetch_log_id is provided, it means we're retrying
+        # so we should get the last fetch date from the log
+        try:
+            last_log = PaperFetchLog.objects.get(id=paper_fetch_log_id)
+            fetch_since_date = last_log.fetch_since_date
+        except Exception as e:
+            sentry.log_error(e, message=f"Failed to get last log for id {paper_fetch_log_id}")
+            # consider this a failed run
+            PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
+                status=PaperFetchLog.FAILED,
+                completed_date=datetime.now(),
+            )
+            return False
+        
+        sentry.log_info(f"Retrying OpenAlex pull: {paper_fetch_log_id}")
 
-        if last_log:
-            fetch_since_date = last_log.started_date
-    except Exception as e:
-        sentry.log_error(e)
+    if retry > 2: # too many retries
+        if paper_fetch_log_id is not None:
+            PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
+                status=PaperFetchLog.FAILED,
+                completed_date=datetime.now(),
+            )
+        return False
 
     total_papers_processed = 0
     # openalex uses a cursor to paginate through results,
@@ -1319,47 +1372,45 @@ def pull_new_openalex_works(page=0, retry=0):
         open_alex = OpenAlex()
 
         while True:
-            # get new works in batches
             works, next_cursor = open_alex.get_new_works_batch(
                 since_date=fetch_since_date,
                 next_cursor=next_cursor
             )
+            # if we've reached the end of the results, exit the loop
             if next_cursor is None or works is None or len(works) == 0:
                 break
 
             for work in works:
-                _process_openalex_work.apply_async(
-                    (work,),
-                    priority=4,
-                    countdown=1,
-                )
-                # delay so that we don't queue too many tasks at once
-                time.sleep(0.2)
+                # if we're starting from a specific index, skip until we reach that index
+                if total_papers_processed >= start_index:
+                    _process_openalex_work.apply_async(
+                        (work,),
+                        priority=4,
+                        countdown=1,
+                    )
+                    # delay so that we don't queue too many tasks at once
+                    time.sleep(0.1)
+                total_papers_processed += 1
 
-            total_papers_processed += len(works)
-
-        PaperFetchLog.objects.create(
-            source=PaperFetchLog.OPENALEX,
-            fetch_type=PaperFetchLog.FETCH_NEW,
-            status=PaperFetchLog.SUCCESS,
-            started_date=start_date,
-            completed_date=datetime.now(),
-            total_papers_processed=total_papers_processed,
-        )
-    except requests.ConnectionError:
-        pull_new_openalex_works.apply_async(
-            (page, retry + 1), priority=4, countdown=10 + (retry * 2)
-        )
+        # done processing all works
+        if paper_fetch_log_id is not None:
+            PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
+                status=PaperFetchLog.SUCCESS,
+                completed_date=datetime.now(),
+                total_papers_processed=total_papers_processed,
+            )
     except Exception as e:
-        sentry.log_error(e)
-        PaperFetchLog.objects.create(
-            source=PaperFetchLog.OPENALEX,
-            fetch_type=PaperFetchLog.FETCH_NEW,
-            status=PaperFetchLog.FAILED,
-            started_date=start_date,
-            completed_date=datetime.now(),
-            total_papers_processed=total_papers_processed,
+        sentry.log_error(e, message="Failed to pull new works from OpenAlex, retrying")
+        pull_new_openalex_works.apply_async(
+            (total_papers_processed, retry + 1, paper_fetch_log_id),
+            priority=4,
+            countdown=10 + (retry * 2)
         )
+        # update total_papers_processed in the log
+        if paper_fetch_log_id is not None:
+            PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
+                total_papers_processed=total_papers_processed,
+            )
         return False
 
 

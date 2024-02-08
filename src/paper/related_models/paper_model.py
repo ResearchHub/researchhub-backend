@@ -986,10 +986,12 @@ class PaperFetchLog(models.Model):
 
     SUCCESS = "SUCCESS"
     FAILED = "FAILED"
-    STATUS_CHOICES = [(SUCCESS, SUCCESS), (FAILED, FAILED)]
+    PENDING = "PENDING"
+    STATUS_CHOICES = [(SUCCESS, SUCCESS), (FAILED, FAILED), (PENDING, PENDING)]
 
     started_date = models.DateTimeField(auto_now_add=True)
     completed_date = models.DateTimeField(null=True, blank=True)
+    fetch_since_date = models.DateTimeField(null=True, blank=True)
 
     source = models.CharField(choices=SOURCE_CHOICES, max_length=255)
     fetch_type = models.CharField(choices=FETCH_TYPE_CHOICES, max_length=255)

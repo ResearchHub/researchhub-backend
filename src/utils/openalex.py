@@ -266,7 +266,7 @@ class OpenAlex:
             return hydrated_concepts
         except Exception as e:
             return []
-        
+
     def get_new_works_batch(
         self, since_date, type="article", next_cursor="*",
         batch_size=100,
