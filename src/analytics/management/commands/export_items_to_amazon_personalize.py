@@ -28,6 +28,15 @@ def get_output_file_path(item_type: str):
     return f"./{item_type}-item-export-{date_string}.csv"
 
 
+def get_error_file_path(item_type: str):
+    return f"./{item_type}-item-export-errors.txt"
+
+
+def write_error_to_file(id, error, error_filepath):
+    with open(error_filepath, "a") as file:
+        file.write(f"ID: {id}, ERROR: {error}\n")
+
+
 PAPER_HEADERS = [
     "ITEM_ID",
     "CREATION_TIMESTAMP",
@@ -159,6 +168,7 @@ class Command(BaseCommand):
         # Related files
         output_filepath = get_output_file_path(export_type)
         temp_progress_filepath = get_temp_progress_file_path(export_type)
+        error_filepath = get_error_file_path(export_type)
 
         # By default we are not resuming and starting from 0
         progress_json = {"current_id": 1, "export_filepath": output_filepath}
@@ -200,6 +210,7 @@ class Command(BaseCommand):
             output_filepath=output_filepath,
             temp_progress_filepath=temp_progress_filepath,
             last_id=progress_json["current_id"],
+            on_error=lambda id, msg: write_error_to_file(id, msg, error_filepath),
         )
 
         # Cleanup the temp file pointing to our export progress thus far

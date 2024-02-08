@@ -62,24 +62,21 @@ def export_data_to_csv_in_chunks(
     headers,
     output_filepath,
     temp_progress_filepath,
+    on_error,
     last_id=0,
 ):
     _last_id = last_id
     chunk_num = 1
 
     while True:
-        # print('_last_id', _last_id)
         _queryset = queryset.filter(id__gt=_last_id).order_by("id")[:CHUNK_SIZE]
-        # print('_queryset', len(_queryset))
-        # print('***************************')
-        # return
         chunk = list(_queryset.iterator())
 
         if not chunk:
             break
 
         # Process the chunk with the provided function
-        processed_chunk = chunk_processor(chunk)
+        processed_chunk = chunk_processor(chunk, on_error)
 
         write_data_to_csv(processed_chunk, headers, output_filepath)
 
@@ -95,5 +92,3 @@ def export_data_to_csv_in_chunks(
             progress_filepath=temp_progress_filepath,
             export_filepath=output_filepath,
         )
-
-        # raise Exception("stop")

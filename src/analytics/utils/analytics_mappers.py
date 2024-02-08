@@ -7,7 +7,7 @@ from analytics.utils.analytics_mapping_utils import (
 from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
 
 
-def map_paper_data(docs):
+def map_paper_data(docs, on_error):
     from paper.related_models.paper_model import Paper
 
     data = []
@@ -45,12 +45,12 @@ def map_paper_data(docs):
 
             data.append(record)
         except Exception as e:
-            print("Failed to export doc: " + str(doc.id), e)
+            on_error(id=str(doc.id), msg=str(e))
 
     return data
 
 
-def map_post_data(docs):
+def map_post_data(docs, on_error):
     data = []
     for doc in docs:
         try:
@@ -73,12 +73,12 @@ def map_post_data(docs):
 
             data.append(record)
         except Exception as e:
-            print("Failed to export doc: " + str(doc.id), e)
+            on_error(id=str(doc.id), msg=str(e))
 
     return data
 
 
-def map_comment_data(comments):
+def map_comment_data(comments, on_error):
     data = []
 
     # Comments, Peer Reviews, ..
@@ -123,12 +123,12 @@ def map_comment_data(comments):
 
             data.append(record)
         except Exception as e:
-            print("Failed to export comment:" + str(comment.id), e)
+            on_error(id=str(comment.id), msg=str(e))
 
     return data
 
 
-def map_bounty_data(bounties):
+def map_bounty_data(bounties, on_error):
     data = []
 
     for bounty in bounties:
@@ -183,6 +183,6 @@ def map_bounty_data(bounties):
 
             data.append(record)
         except Exception as e:
-            print("Failed to export bounty:" + str(bounty.id), e)
+            on_error(id=str(bounty.id), msg=str(e))
 
     return data
