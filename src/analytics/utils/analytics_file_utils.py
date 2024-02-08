@@ -86,9 +86,11 @@ def export_data_to_csv_in_chunks(
         last_record = chunk[-1]
         _last_id = last_record.id
         chunk_num += 1
+
         # Write progress to temp file in case something goes wrong
-        write_to_progress_filepath(
-            last_id=_last_id,
-            progress_filepath=temp_progress_filepath,
-            export_filepath=output_filepath,
-        )
+        if temp_progress_filepath:
+            write_to_progress_filepath(
+                last_id=_last_id,
+                progress_filepath=temp_progress_filepath,
+                export_filepath=output_filepath,
+            )

@@ -1,10 +1,60 @@
 import time
 
 from analytics.utils.analytics_mapping_utils import (
+    build_bounty_event,
+    build_claimed_paper_event,
+    build_comment_event,
     build_doc_props_for_item,
+    build_rsc_spend_event,
+    build_vote_event,
     get_open_bounty_count,
 )
+from discussion.reaction_models import Vote
+from purchase.related_models.purchase_model import Purchase
 from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
+
+
+def map_action_data(actions, on_error):
+    data = []
+    for action in actions:
+        try:
+            if action.content_type.model == "bounty":
+                event = build_bounty_event(action)
+                data.append(event)
+            elif action.content_type.model == "vote":
+                if action.item.vote_type == Vote.DOWNVOTE:
+                    # Skip downvotes since they are not beneficial for machine learning models
+                    continue
+
+                event = build_vote_event(action)
+                data.append(event)
+            elif action.content_type.model == "rhcommentmodel":
+                event = build_comment_event(action)
+                data.append(event)
+            elif action.content_type.model == "purchase":
+                if (
+                    action.item.purchase_type == Purchase.BOOST
+                    or action.item.purchase_type == Purchase.FUNDRAISE_CONTRIBUTION
+                ):
+                    event = build_rsc_spend_event(action)
+
+                data.append(event)
+        except Exception as e:
+            on_error(id=str(action.id), msg=str(e))
+
+    return data
+
+
+def map_claim_data(claim_cases, on_error):
+    data = []
+    for claim in claim_cases:
+        try:
+            event = build_claimed_paper_event(claim)
+            data.append(event)
+        except Exception as e:
+            print("Failed to export claim: " + str(claim.id), e)
+
+    return data
 
 
 def map_paper_data(docs, on_error):

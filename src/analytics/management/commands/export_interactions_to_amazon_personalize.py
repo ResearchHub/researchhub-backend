@@ -1,27 +1,18 @@
-import os
 from datetime import datetime
 
 from django.core.management.base import BaseCommand
 
 from analytics.utils.analytics_file_utils import (
     export_data_to_csv_in_chunks,
-    read_last_processed_ids,
+    read_progress_filepath,
     remove_file,
 )
-from analytics.utils.analytics_mapping_utils import (
-    build_bounty_event,
-    build_claimed_paper_event,
-    build_comment_event,
-    build_rsc_spend_event,
-    build_vote_event,
-)
+from analytics.utils.analytics_mappers import map_action_data, map_claim_data
 from discussion.reaction_models import Vote
 from purchase.related_models.purchase_model import Purchase
 from researchhub_case.related_models.author_claim_case_model import AuthorClaimCase
 from user.models import Action
 
-OUTPUT_FILE = "./exported_interaction_data.csv"
-TEMP_PROGRESS_FILE = "./interaction-export-progress.temp.json"
 EXPORT_FILE_HEADERS = [
     "ITEM_ID",
     "EVENT_TYPE",
@@ -35,47 +26,23 @@ EXPORT_FILE_HEADERS = [
 MODELS_TO_EXPORT = ["Action", "AuthorClaimCase"]
 
 
-def map_action_data(actions):
-    data = []
-    for action in actions:
-        try:
-            if action.content_type.model == "bounty":
-                event = build_bounty_event(action)
-                data.append(event)
-            elif action.content_type.model == "vote":
-                if action.item.vote_type == Vote.DOWNVOTE:
-                    # Skip downvotes since they are not beneficial for machine learning models
-                    continue
-
-                event = build_vote_event(action)
-                data.append(event)
-            elif action.content_type.model == "rhcommentmodel":
-                event = build_comment_event(action)
-                data.append(event)
-            elif action.content_type.model == "purchase":
-                if (
-                    action.item.purchase_type == Purchase.BOOST
-                    or action.item.purchase_type == Purchase.FUNDRAISE_CONTRIBUTION
-                ):
-                    event = build_rsc_spend_event(action)
-
-                data.append(event)
-        except Exception as e:
-            print("Failed to export action: " + str(action.id), e)
-
-    return data
+def get_temp_progress_file_path():
+    return f"./interaction-export-progress.temp.json"
 
 
-def map_claim_data(claim_cases):
-    data = []
-    for claim in claim_cases:
-        try:
-            event = build_claimed_paper_event(claim)
-            data.append(event)
-        except Exception as e:
-            print("Failed to export claim: " + str(claim.id), e)
+def get_output_file_path():
+    now = datetime.now()
+    date_string = now.strftime("%m_%d_%y_%H_%M_%S")
+    return f"./interaction-export-{date_string}.csv"
 
-    return data
+
+def get_error_file_path():
+    return f"./interaction-item-export-errors.txt"
+
+
+def write_error_to_file(id, error, error_filepath):
+    with open(error_filepath, "a") as file:
+        file.write(f"ID: {id}, ERROR: {error}\n")
 
 
 class Command(BaseCommand):
@@ -101,25 +68,20 @@ class Command(BaseCommand):
         should_resume = kwargs["resume"]
         force = kwargs["force"]
 
-        # Check if the file already so we don't accidentally override it and cry over time lost :(
-        file_exists = os.path.isfile(OUTPUT_FILE)
-        if file_exists and not should_resume:
-            if force:
-                remove_file(OUTPUT_FILE)
-            else:
-                print(
-                    f"File {OUTPUT_FILE} already exists. Please delete it or use --force to override it."
-                )
-                return
+        # Related files
+        output_filepath = get_output_file_path()
+        temp_progress_filepath = get_temp_progress_file_path()
+        error_filepath = get_error_file_path()
 
-        # By default we are not resuming and starting from 0
-        last_completed_ids = {key: 0 for key in MODELS_TO_EXPORT}
+        # By default we are not resuming and starting from beginning
+        progress_json = {"current_id": 0, "export_filepath": output_filepath}
 
         if should_resume:
-            last_completed_ids = read_last_processed_ids(
-                TEMP_PROGRESS_FILE, MODELS_TO_EXPORT
+            progress_json = read_progress_filepath(
+                temp_progress_filepath, output_filepath
             )
-            print("Resuming", last_completed_ids)
+            output_filepath = progress_json["export_filepath"]
+            print("Resuming from ID", progress_json["current_id"])
 
         actions_queryset = Action.objects.all()
         claim_queryset = AuthorClaimCase.objects.filter(status="APPROVED")
@@ -151,27 +113,27 @@ class Command(BaseCommand):
         )
         print("*********************************************************************")
 
+        # Actions export
         export_data_to_csv_in_chunks(
             queryset=actions_queryset,
-            current_model_to_export="Action",
-            all_models_to_export=MODELS_TO_EXPORT,
             chunk_processor=map_action_data,
             headers=EXPORT_FILE_HEADERS,
-            output_filepath=OUTPUT_FILE,
-            temp_progress_filepath=TEMP_PROGRESS_FILE,
-            last_id=last_completed_ids["Action"],
+            output_filepath=output_filepath,
+            temp_progress_filepath=temp_progress_filepath,
+            last_id=progress_json["current_id"],
+            on_error=lambda id, msg: write_error_to_file(id, msg, error_filepath),
         )
 
+        # Author claim is not captured in Action table. Needs to export separately
         export_data_to_csv_in_chunks(
             queryset=claim_queryset,
-            current_model_to_export="AuthorClaimCase",
-            all_models_to_export=MODELS_TO_EXPORT,
             chunk_processor=map_claim_data,
             headers=EXPORT_FILE_HEADERS,
-            output_filepath=OUTPUT_FILE,
-            temp_progress_filepath=TEMP_PROGRESS_FILE,
-            last_id=last_completed_ids["AuthorClaimCase"],
+            output_filepath=output_filepath,
+            last_id=0,
+            temp_progress_filepath=None,
+            on_error=None,
         )
 
         # Cleanup the temp file pointing to our export progress thus far
-        remove_file(TEMP_PROGRESS_FILE)
+        remove_file(temp_progress_filepath)

@@ -170,8 +170,8 @@ class Command(BaseCommand):
         temp_progress_filepath = get_temp_progress_file_path(export_type)
         error_filepath = get_error_file_path(export_type)
 
-        # By default we are not resuming and starting from 0
-        progress_json = {"current_id": 1, "export_filepath": output_filepath}
+        # By default we are not resuming and starting from beginning
+        progress_json = {"current_id": 0, "export_filepath": output_filepath}
 
         if should_resume:
             progress_json = read_progress_filepath(
@@ -214,4 +214,4 @@ class Command(BaseCommand):
         )
 
         # Cleanup the temp file pointing to our export progress thus far
-        # remove_file(TEMP_PROGRESS_FILE)
+        remove_file(temp_progress_filepath)
