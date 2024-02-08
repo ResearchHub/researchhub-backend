@@ -84,6 +84,7 @@ def map_paper_data(docs, on_error):
             doc_props = build_doc_props_for_item(doc)
             record = {**doc_props}
             record["ITEM_ID"] = paper.get_analytics_id()
+            record["item_type"] = paper.get_analytics_type()
             record["internal_item_id"] = str(paper.id)
             record["CREATION_TIMESTAMP"] = int(
                 time.mktime(doc.created_date.timetuple())
@@ -111,6 +112,7 @@ def map_post_data(docs, on_error):
             doc_props = build_doc_props_for_item(doc)
             record = {**doc_props}
             record["ITEM_ID"] = post.get_analytics_id()
+            record["item_type"] = post.get_analytics_type()
             record["internal_item_id"] = str(post.id)
             record["CREATION_TIMESTAMP"] = int(
                 time.mktime(doc.created_date.timetuple())
@@ -118,6 +120,7 @@ def map_post_data(docs, on_error):
             record["item_type"] = doc.get_client_doc_type()
             record["updated_timestamp"] = int(time.mktime(doc.updated_date.timetuple()))
             record["open_bounty_count"] = get_open_bounty_count(doc)
+            record["body"] = post.renderable_text
 
             if post.created_by:
                 record["created_by_user_id"] = str(post.created_by.id)
@@ -144,7 +147,7 @@ def map_comment_data(comments, on_error):
                 record["related_slug"] = specific_doc.slug
 
             record["ITEM_ID"] = comment.get_analytics_id()
-            record["item_type"] = comment.comment_type
+            record["item_type"] = comment.get_analytics_type()
             record["internal_item_id"] = str(comment.id)
             record["CREATION_TIMESTAMP"] = int(
                 time.mktime(comment.created_date.timetuple())
@@ -154,11 +157,12 @@ def map_comment_data(comments, on_error):
             )
             record["created_by_user_id"] = str(comment.created_by.id)
             record["author"] = str(comment.created_by.full_name())
-            record["reply_count"] = comment.get_total_children_count()
+            record["discussion_count"] = comment.get_total_children_count()
 
             # Add bounty
             bounties = comment.bounties.filter(status="OPEN")
             record["open_bounty_count"] = len(bounties)
+            record["authors"] = str(comment.created_by.full_name())
 
             # Peer review metadata
             try:
@@ -193,6 +197,7 @@ def map_bounty_data(bounties, on_error):
                 record["related_slug"] = specific_doc.slug
 
             record["ITEM_ID"] = bounty.get_analytics_id()
+            record["item_type"] = bounty.get_analytics_type()
             record["bounty_type"] = bounty.bounty_type
             record["internal_item_id"] = str(bounty.id)
             record["CREATION_TIMESTAMP"] = int(
@@ -200,35 +205,31 @@ def map_bounty_data(bounties, on_error):
             )
 
             if bounty.parent:
-                record["parent_id"] = bounty.parent.get_analytics_id()
+                record["bounty_parent_id"] = bounty.parent.get_analytics_id()
 
             record["updated_timestamp"] = int(
                 time.mktime(bounty.updated_date.timetuple())
             )
-            record["expiration_timestamp"] = int(
+            record["bounty_expiration_timestamp"] = int(
                 time.mktime(bounty.expiration_date.timetuple())
             )
 
             num_days_to_expiry = bounty.get_num_days_to_expiration()
-            record["is_expiring_soon"] = (
+            record["bounty_is_expiring_soon"] = (
                 num_days_to_expiry <= 7 and bounty.get_num_days_to_expiration() >= 0
             )
-            record["status"] = bounty.status
-            record["has_solution"] = bounty.solutions.exists()
+            record["bounty_status"] = bounty.status
+            record["bounty_has_solution"] = bounty.solutions.exists()
             record["created_by_user_id"] = str(bounty.created_by.id)
+            record["authors"] = str(bounty.created_by.full_name())
 
             try:
-                record["num_replies"] = bounty.item.get_total_children_count()
+                record["discussion_count"] = bounty.item.get_total_children_count()
             except Exception as e:
                 pass
 
             try:
                 record["body"] = bounty.item.plain_text
-            except Exception as e:
-                pass
-
-            try:
-                record["body"] = bounty.plain_text
             except Exception as e:
                 pass
 

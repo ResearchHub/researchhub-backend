@@ -196,6 +196,15 @@ class ResearchhubPost(AbstractGenericReactionModel):
 
     # Used for analytics such as Amazon Personalize
     def get_analytics_type(self):
+        if self.document_type == "BOUNTY":
+            return "bounty"
+        elif self.document_type == "DISCUSSION":
+            return "post"
+        elif self.document_type == "QUESTION":
+            return "question"
+        elif self.document_type == "PREREGISTRATION":
+            return "preregistration"
+
         return "post"
 
     # Used for analytics such as Amazon Personalize

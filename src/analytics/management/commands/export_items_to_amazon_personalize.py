@@ -37,15 +37,24 @@ def write_error_to_file(id, error, error_filepath):
         file.write(f"ID: {id}, ERROR: {error}\n")
 
 
-PAPER_HEADERS = [
+HEADERS = [
     "ITEM_ID",
+    "item_type",  # new
     "CREATION_TIMESTAMP",
     "internal_item_id",
     "unified_document_id",
     "created_by_user_id",
-    "discussion_count",
+    "discussion_count",  # need changing
     "hot_score",
     "open_bounty_count",
+    "bounty_type",  # new
+    "bounty_status",  # new
+    "bounty_parent_id",  # new
+    "bounty_expiration_timestamp",  # new
+    "bounty_is_expiring_soon",  # new
+    "bounty_has_solution",  # new
+    "body",  # content (abstract, comment body)
+    "peer_review_score",  # new
     "title",
     "journal",
     "pdf_license",
@@ -63,81 +72,26 @@ PAPER_HEADERS = [
     "is_trending_citations",
 ]
 
-POST_HEADERS = [
-    "ITEM_ID",
-    "CREATION_TIMESTAMP",
-    "item_type",
-    "internal_item_id",
-    "unified_document_id",
-    "created_by_user_id",
-    "discussion_count",
-    "hot_score",
-    "open_bounty_count",
-    "title",
-    "slug",
-    "authors",
-    "updated_timestamp",
-    "keywords",
-    "hubs",
-]
-
-COMMENT_HEADERS = [
-    "ITEM_ID",
-    "CREATION_TIMESTAMP",
-    "item_type",
-    "internal_item_id",
-    "related_unified_document_id",
-    "author",
-    "created_by_user_id",
-    "peer_review_score",
-    "num_replies",
-    "hot_score",
-    "open_bounty_count",
-    "body",
-    "related_slug",
-    "updated_timestamp",
-    "hubs",
-]
-
-BOUNTY_HEADERS = [
-    "ITEM_ID",
-    "CREATION_TIMESTAMP",
-    "created_by_user_id",
-    "bounty_type",
-    "parent_id",
-    "internal_item_id",
-    "related_unified_document_id",
-    "status",
-    "expiration_timestamp",
-    "is_expiring_soon",
-    "num_replies",
-    "has_solution",
-    "body",
-    "related_slug",
-    "updated_timestamp",
-    "hubs",
-]
-
 EXPORT_ITEM_HELPER = {
     "paper": {
         "model": "ResearchhubUnifiedDocument",
         "mapper": map_paper_data,
-        "headers": PAPER_HEADERS,
+        "headers": HEADERS,
     },
     "post": {
         "model": "ResearchhubUnifiedDocument",
         "mapper": map_post_data,
-        "headers": POST_HEADERS,
+        "headers": HEADERS,
     },
     "comment": {
         "model": "RhCommentModel",
         "mapper": map_comment_data,
-        "headers": COMMENT_HEADERS,
+        "headers": HEADERS,
     },
     "bounty": {
         "model": "Bounty",
         "mapper": map_bounty_data,
-        "headers": BOUNTY_HEADERS,
+        "headers": HEADERS,
     },
 }
 
@@ -181,37 +135,77 @@ class Command(BaseCommand):
             print("Resuming from ID", progress_json["current_id"])
 
         queryset = None
-        if export_type == "paper":
+        if export_type == "paper" or export_type == "all":
             queryset = ResearchhubUnifiedDocument.objects.filter(
                 document_type__in=["PAPER"],
                 is_removed=False,
             )
-        elif export_type == "post":
+
+            if start_date_str:
+                start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+                queryset = queryset.filter(created_date__gte=start_date)
+
+            export_data_to_csv_in_chunks(
+                queryset=queryset,
+                chunk_processor=EXPORT_ITEM_HELPER["paper"]["mapper"],
+                headers=EXPORT_ITEM_HELPER["paper"]["headers"],
+                output_filepath=output_filepath,
+                temp_progress_filepath=temp_progress_filepath,
+                last_id=progress_json["current_id"],
+                on_error=lambda id, msg: write_error_to_file(id, msg, error_filepath),
+            )
+
+        if export_type == "post" or export_type == "all":
             queryset = ResearchhubUnifiedDocument.objects.filter(
                 document_type__in=["DISCUSSION", "QUESTION", "PREREGISTRATION"],
                 is_removed=False,
             )
-        elif export_type == "comment":
+
+            if start_date_str:
+                start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+                queryset = queryset.filter(created_date__gte=start_date)
+
+            export_data_to_csv_in_chunks(
+                queryset=queryset,
+                chunk_processor=EXPORT_ITEM_HELPER["post"]["mapper"],
+                headers=EXPORT_ITEM_HELPER["post"]["headers"],
+                output_filepath=output_filepath,
+                temp_progress_filepath=temp_progress_filepath,
+                last_id=progress_json["current_id"],
+                on_error=lambda id, msg: write_error_to_file(id, msg, error_filepath),
+            )
+        if export_type == "comment" or export_type == "all":
             queryset = RhCommentModel.objects.filter(is_removed=False)
-        elif export_type == "bounty":
+
+            if start_date_str:
+                start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+                queryset = queryset.filter(created_date__gte=start_date)
+
+            export_data_to_csv_in_chunks(
+                queryset=queryset,
+                chunk_processor=EXPORT_ITEM_HELPER["comment"]["mapper"],
+                headers=EXPORT_ITEM_HELPER["comment"]["headers"],
+                output_filepath=output_filepath,
+                temp_progress_filepath=temp_progress_filepath,
+                last_id=progress_json["current_id"],
+                on_error=lambda id, msg: write_error_to_file(id, msg, error_filepath),
+            )
+        if export_type == "bounty" or export_type == "all":
             queryset = Bounty.objects.all()
 
-        if start_date_str:
-            start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
-            queryset = queryset.filter(created_date__gte=start_date)
+            if start_date_str:
+                start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+                queryset = queryset.filter(created_date__gte=start_date)
 
-        print(f"Number of records >= {start_date_str}: " + str(len(queryset)))
-        print("*********************************************************************")
-
-        export_data_to_csv_in_chunks(
-            queryset=queryset,
-            chunk_processor=EXPORT_ITEM_HELPER[export_type]["mapper"],
-            headers=EXPORT_ITEM_HELPER[export_type]["headers"],
-            output_filepath=output_filepath,
-            temp_progress_filepath=temp_progress_filepath,
-            last_id=progress_json["current_id"],
-            on_error=lambda id, msg: write_error_to_file(id, msg, error_filepath),
-        )
+            export_data_to_csv_in_chunks(
+                queryset=queryset,
+                chunk_processor=EXPORT_ITEM_HELPER["bounty"]["mapper"],
+                headers=EXPORT_ITEM_HELPER["bounty"]["headers"],
+                output_filepath=output_filepath,
+                temp_progress_filepath=temp_progress_filepath,
+                last_id=progress_json["current_id"],
+                on_error=lambda id, msg: write_error_to_file(id, msg, error_filepath),
+            )
 
         # Cleanup the temp file pointing to our export progress thus far
         remove_file(temp_progress_filepath)

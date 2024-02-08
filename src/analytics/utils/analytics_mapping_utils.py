@@ -238,6 +238,7 @@ def build_doc_props_for_item(unified_doc):
         mapped["authors"] = ""
         mapped["journal"] = paper.external_source
         mapped["twitter_score"] = paper.twitter_score
+        mapped["body"] = paper.abstract
 
         try:
             # Parse the authors' list to include only names
