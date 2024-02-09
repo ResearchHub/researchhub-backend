@@ -38,6 +38,10 @@
 			"type": ["string", "null"]
 		},
 		{
+			"name": "bounty_parent_id",
+			"type": ["string", "null"]
+		},
+		{
 			"name": "bounty_amount",
 			"type": ["float", "null"]
 		},
@@ -47,11 +51,29 @@
 			"categorical": true
 		},
 		{
+			"name": "bounty_status",
+			"type": ["string", "null"],
+			"categorical": true
+		},
+		{
 			"name": "bounty_expiration_timestamp",
 			"type": ["long", "null"]
 		},
 		{
+			"name": "bounty_is_expiring_soon",
+			"type": "boolean"
+		},
+		{
+			"name": "bounty_has_solution",
+			"type": "boolean"
+		},
+		{
 			"name": "title",
+			"type": ["string", "null"],
+			"textual": true
+		},
+		{
+			"name": "body",
 			"type": ["string", "null"],
 			"textual": true
 		},
@@ -72,11 +94,11 @@
 		},
 		{
 			"name": "hot_score",
-			"type": ["int", "null"]
+			"type": ["long", "null"]
 		},
 		{
 			"name": "discussion_count",
-			"type": ["long", "null"]
+			"type": "int"
 		},
 		{
 			"name": "updated_timestamp",
@@ -104,16 +126,33 @@
 		},
 		{
 			"name": "hubs",
-			"type": ["string", "null"]
-		},
-		{
-			"name": "hub_slugs",
-			"type": ["string", "null"]
-		},
-		{
-			"name": "primary_hub",
 			"type": ["string", "null"],
 			"categorical": true
+		},
+		{
+			"name": "keywords",
+			"type": ["string", "null"],
+			"categorical": true
+		},
+		{
+			"name": "cited_by_count",
+			"type": ["int", "null"]
+		},
+		{
+			"name": "open_bounty_count",
+			"type": "int"
+		},
+		{
+			"name": "citation_percentile_performance",
+			"type": ["int", "null"]
+		},
+		{
+			"name": "is_trending_citations",
+			"type": "boolean"
+		},
+		{
+			"name": "peer_review_score",
+			"type": ["float", "null"]
 		}
 	],
 	"version": "1.0"

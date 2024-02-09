@@ -4,7 +4,10 @@ from django.db import models
 from django.db.models import JSONField, Sum
 from django.db.models.deletion import SET_NULL
 
+from discussion.reaction_models import Vote
+from hub.models import Hub
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
+from purchase.related_models.purchase_model import Purchase
 from researchhub_case.constants.case_constants import APPROVED
 from user.related_models.profile_image_storage import ProfileImageStorage
 from user.related_models.school_model import University
@@ -131,6 +134,121 @@ class Author(models.Model):
             return approved_claim_case.requestor.author_profile.id
         else:
             return None
+
+    # Gets ranked list of hubs associated with user's interests.
+    # We use comments and votes to determine what is the user interested in
+    def get_interest_hubs(self, max_results=15, min_relevancy_score=0.2):
+        from researchhub_comment.related_models.rh_comment_model import RhCommentModel
+        from researchhub_document.related_models.researchhub_unified_document_model import (
+            UnifiedDocumentConcepts,
+        )
+
+        # Contains all hubs associated with user's interests ordered by relevance
+        # Comments, votes
+        interest_hubs = []
+
+        # All Unified Documents associated with records
+        # which will be used to get related hubs
+        related_unified_documents = []
+
+        # Get unified documents associated with comments
+        comments = RhCommentModel.objects.filter(created_by_id=self.user.id).exclude(
+            comment_type__in=["REVIEW"]
+        )
+
+        for comment in comments:
+            related_unified_documents.append(comment.unified_document)
+
+        # Get all unified docs associated with user votes
+        user_votes = Vote.objects.filter(created_by_id=self.user.id)
+
+        for vote in user_votes:
+            try:
+                related_unified_documents.append(vote.item.unified_document)
+            except Exception as e:
+                pass
+
+        # Get all items the user spend RSC on
+        purchases = Purchase.objects.filter(user_id=self.user.id)
+
+        for purchase in purchases:
+            try:
+                related_unified_documents.append(purchase.item.unified_document)
+            except Exception as e:
+                pass
+
+        # Get relevant concepts associated with unified documents
+        ranked_concepts = UnifiedDocumentConcepts.objects.filter(
+            unified_document__in=related_unified_documents
+        ).order_by("-relevancy_score")
+
+        # Get hubs associated with concepts
+        interest_hubs = [
+            ranked.concept.hub
+            for ranked in ranked_concepts
+            if ranked.relevancy_score >= min_relevancy_score
+        ]
+
+        # It is quite possible that hubs returned through ranked concepts is less than max_results
+        # As a result, we want to pad the list with the rest of the hubs
+        for doc in related_unified_documents:
+            interest_hubs = interest_hubs + list(doc.hubs.all())
+
+        # Remove duplicates while preserving order
+        seen = set()
+        interest_hubs = [x for x in interest_hubs if not (x in seen or seen.add(x))]
+
+        return interest_hubs[:max_results]
+
+    # Gets ranked list of hubs associated with user's likely expertise.
+    # We use content peer reviewed and published papers to determine expertise
+    def get_expertise_hubs(self, max_results=15, min_relevancy_score=0.2):
+        from researchhub_comment.related_models.rh_comment_model import RhCommentModel
+        from researchhub_document.related_models.researchhub_unified_document_model import (
+            UnifiedDocumentConcepts,
+        )
+
+        # Contains all hubs associated with user's authored papers ordered by relevance
+        expertise_hubs = []
+
+        # All Unified Documents associated with records (peer review, authored paper, etc.)
+        # which will be used to get relevant concepts and related hubs
+        related_unified_documents = []
+
+        # Get unified documents associated with authored papers
+        authored_papers = self.authored_papers.all()
+        for authored_paper in authored_papers:
+            related_unified_documents.append(authored_paper.unified_document)
+
+        # Get unified documents associated with peer reviews
+        peer_reviews = RhCommentModel.objects.filter(
+            comment_type__in=["REVIEW"], created_by_id=self.user.id
+        )
+        for review in peer_reviews:
+            related_unified_documents.append(review.unified_document)
+
+        # Get relevant concepts associated with unified documents
+        ranked_concepts = UnifiedDocumentConcepts.objects.filter(
+            unified_document__in=related_unified_documents
+        ).order_by("-relevancy_score")
+
+        # Omit concepts with relevancy score below threshold
+        expertise_hubs = [
+            ranked.concept.hub
+            for ranked in ranked_concepts
+            if ranked.relevancy_score >= min_relevancy_score
+        ]
+
+        # It is quite possible that hubs returned through ranked concepts is less than max_results
+        # As a result, we want to pad the list with the rest of the hubs
+        for doc in related_unified_documents:
+            expertise_hubs = expertise_hubs + list(doc.hubs.all())
+
+        # Remove duplicates while preserving order
+        seen = set()
+        expertise_hubs = [x for x in expertise_hubs if not (x in seen or seen.add(x))]
+
+        return expertise_hubs[:max_results]
 
     def calculate_score(self):
         aggregated_score = self.authored_papers.annotate(

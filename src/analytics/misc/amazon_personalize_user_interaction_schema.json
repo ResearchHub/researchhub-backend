@@ -32,7 +32,7 @@
 			"type": ["string", "null"]
 		},
 		{
-			"name": "primary_hub",
+			"name": "hubs",
 			"type": ["string", "null"],
 			"categorical": true
 		}

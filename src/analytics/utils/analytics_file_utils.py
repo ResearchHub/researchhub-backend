@@ -5,26 +5,27 @@ import os
 CHUNK_SIZE = 100
 
 
-def read_last_processed_ids(filepath, models_to_export):
-    if os.path.exists(filepath):
-        with open(filepath, "r") as file:
+def read_progress_filepath(progress_filepath, export_filepath):
+    if os.path.exists(progress_filepath):
+        with open(progress_filepath, "r") as file:
             return json.load(file)
 
-    return {key: 0 for key in models_to_export}
+    return {"current_id": 1, "export_filepath": export_filepath}
 
 
-def write_last_processed_id(model_name, models_to_export, last_id, filepath):
-    ids = read_last_processed_ids(filepath, models_to_export)
-    ids[model_name] = last_id
-    with open(filepath, "w") as file:
-        json.dump(ids, file)
+def write_to_progress_filepath(last_id, progress_filepath, export_filepath):
+    progress_json = read_progress_filepath(progress_filepath, export_filepath)
+    progress_json["current_id"] = last_id
+    with open(progress_filepath, "w") as file:
+        json.dump(progress_json, file)
 
 
-def truncate_fields(record, max_length=900):
+def truncate_fields(record, headers, max_length=900):
     for key, value in record.items():
         if isinstance(value, str) and len(value) > max_length:
             record[key] = value[:max_length]  # Truncate the string
-    return record
+
+    return {key: value for key, value in record.items() if key in headers}
 
 
 def remove_file(filepath):
@@ -49,18 +50,19 @@ def write_data_to_csv(data, headers, output_filepath):
             writer.writeheader()
 
         for item in data:
-            truncated_item = truncate_fields(item)  # Truncate fields before writing
+            truncated_item = truncate_fields(
+                item, headers
+            )  # Truncate fields before writing
             writer.writerow(truncated_item)
 
 
 def export_data_to_csv_in_chunks(
     queryset,
-    current_model_to_export,
-    all_models_to_export,
     chunk_processor,
     headers,
     output_filepath,
     temp_progress_filepath,
+    on_error,
     last_id=0,
 ):
     _last_id = last_id
@@ -74,7 +76,7 @@ def export_data_to_csv_in_chunks(
             break
 
         # Process the chunk with the provided function
-        processed_chunk = chunk_processor(chunk)
+        processed_chunk = chunk_processor(chunk, on_error)
 
         write_data_to_csv(processed_chunk, headers, output_filepath)
 
@@ -84,12 +86,11 @@ def export_data_to_csv_in_chunks(
         last_record = chunk[-1]
         _last_id = last_record.id
         chunk_num += 1
-        # Write progress to temp file in case something goes wrong
-        write_last_processed_id(
-            current_model_to_export,
-            all_models_to_export,
-            _last_id,
-            temp_progress_filepath,
-        )
 
-        # raise Exception("stop")
+        # Write progress to temp file in case something goes wrong
+        if temp_progress_filepath:
+            write_to_progress_filepath(
+                last_id=_last_id,
+                progress_filepath=temp_progress_filepath,
+                export_filepath=output_filepath,
+            )

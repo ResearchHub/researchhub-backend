@@ -155,6 +155,17 @@ class RhCommentModel(
 
     """ --- METHODS --- """
 
+    # Recursively counts all direct and indirect children of a comment.
+    def get_total_children_count(self):
+        total_count = 0
+        children = self.children.all()  # Get direct children of the comment
+
+        for child in children:
+            # Count each child and recursively count their children
+            total_count += 1 + child.get_total_children_count()
+
+        return total_count
+
     # Used for analytics such as Amazon Personalize
     def get_analytics_type(self):
         return "comment"

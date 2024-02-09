@@ -6,6 +6,7 @@ from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelatio
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models import Sum
+from django.utils import timezone
 
 from reputation.related_models.escrow import Escrow
 from utils.models import DefaultModel
@@ -94,6 +95,17 @@ class Bounty(DefaultModel):
         self.status = status
         if should_save:
             self.save()
+
+    def get_num_days_to_expiration(self):
+        """Returns the number of days until the expiration date."""
+        # Get the current date with timezone
+        now = timezone.now()
+
+        # Calculate the difference between the expiration date and now
+        delta = self.expiration_date - now
+
+        # Return the number of days before expiration
+        return delta.days
 
     def set_cancelled_status(self, should_save=True):
         self.set_status(self.CANCELLED, should_save=should_save)
