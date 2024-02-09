@@ -8,8 +8,6 @@ from analytics.utils.analytics_file_utils import (
     remove_file,
 )
 from analytics.utils.analytics_mappers import map_action_data, map_claim_data
-from discussion.reaction_models import Vote
-from purchase.related_models.purchase_model import Purchase
 from researchhub_case.related_models.author_claim_case_model import AuthorClaimCase
 from user.models import Action
 

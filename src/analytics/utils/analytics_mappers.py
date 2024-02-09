@@ -64,7 +64,7 @@ def map_paper_data(docs, on_error):
     data = []
     for doc in docs:
         try:
-            paper = doc.get_document()
+            paper = Paper.objects.get(unified_document_id=doc.id)
             # The following clause aims to prevent papers with missing criticial or interesting data (e.g. comments)
             # from being recommneded by Amazon personalize
             completeness = paper.get_paper_completeness()
