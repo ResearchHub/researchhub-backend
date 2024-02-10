@@ -23,18 +23,18 @@ EXPORT_FILE_HEADERS = [
 ]
 
 
-def get_temp_progress_file_path():
-    return f"./interaction-export-progress.temp.json"
+def get_temp_progress_file_path(output_path: str):
+    return f"{output_path}/interaction-export-progress.temp.json"
 
 
-def get_output_file_path():
+def get_output_file_path(output_path: str):
     now = datetime.now()
     date_string = now.strftime("%m_%d_%y_%H_%M_%S")
-    return f"./interaction-export-{date_string}.csv"
+    return f"{output_path}/interaction-export-{date_string}.csv"
 
 
-def get_error_file_path():
-    return f"./interaction-export-errors.txt"
+def get_error_file_path(output_path: str):
+    return f"{output_path}/interaction-export-errors.txt"
 
 
 def write_error_to_file(id, error, error_filepath):
@@ -59,15 +59,17 @@ class Command(BaseCommand):
         parser.add_argument(
             "--force", type=str, help="Force write to file if one already exists"
         )
+        parser.add_argument("--output_path", type=str, help="The output path")
 
     def handle(self, *args, **kwargs):
         start_date_str = kwargs["start_date"]
         should_resume = kwargs["resume"]
+        output_path = kwargs["output_path"]
 
         # Related files
-        output_filepath = get_output_file_path()
-        temp_progress_filepath = get_temp_progress_file_path()
-        error_filepath = get_error_file_path()
+        output_filepath = get_output_file_path(output_path)
+        temp_progress_filepath = get_temp_progress_file_path(output_path)
+        error_filepath = get_error_file_path(output_path)
 
         # By default we are not resuming and starting from beginning
         progress_json = {"current_id": 0, "export_filepath": output_filepath}
