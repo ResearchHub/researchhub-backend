@@ -248,6 +248,43 @@ def add_orcid_authors(paper_id):
 
 
 @app.task(queue=QUEUE_PAPER_MISC)
+def add_orcid_authors_batch(paper_ids):
+    paper_ids = [id for id in paper_ids if id is not None]
+
+    from utils.orcid import orcid_api
+    from paper.models import Paper
+
+    papers = Paper.objects.filter(id__in=paper_ids).values("doi", "alternate_ids")
+
+    for paper in papers:
+        orcid_authors = []
+        doi = paper.get("doi", None)
+        arxiv_id = paper.get("alternate_ids", {}).get("arxiv", None)
+        if doi is not None:
+            orcid_authors = orcid_api.get_authors(doi=doi)
+
+        if arxiv_id is not None and doi:
+            orcid_authors = orcid_api.get_authors(arxiv=doi)
+
+        if arxiv_id is not None:
+            orcid_authors = orcid_api.get_authors(arxiv=arxiv_id)
+
+        if len(orcid_authors) < 1:
+            print("No authors to add")
+            logging.info("Did not find paper identifier to give to ORCID API")
+            return False, "No Authors Found"
+
+        paper.authors.add(*orcid_authors)
+        if orcid_authors:
+            paper_cache_key = get_cache_key("paper", paper.id)
+            cache.delete(paper_cache_key)
+        for author in paper.authors.iterator():
+            Wallet.objects.get_or_create(author=author)
+
+    return True
+
+
+@app.task(queue=QUEUE_PAPER_MISC)
 def celery_extract_figures(paper_id):
     if paper_id is None:
         return
@@ -1274,8 +1311,8 @@ def pull_openalex_author_works(user_id, openalex_id):
     run_every=crontab(minute=30, hour=16), priority=3, queue=QUEUE_PULL_PAPERS
 )
 def pull_new_openalex_works(page=0, retry=0):
-    if not PRODUCTION:
-        return
+    # if not PRODUCTION:
+    #     return
 
     from paper.models import PaperFetchLog
 
@@ -1326,14 +1363,11 @@ def pull_new_openalex_works(page=0, retry=0):
             if next_cursor is None or works is None or len(works) == 0:
                 break
 
-            for work in works:
-                _process_openalex_work.apply_async(
-                    (work,),
-                    priority=4,
-                    countdown=1,
-                )
-                # delay so that we don't queue too many tasks at once
-                time.sleep(0.2)
+            _process_openalex_works_batch.apply_async(
+                (works,),
+                priority=2,
+                countdown=1,
+            )
 
             total_papers_processed += len(works)
 
@@ -1360,6 +1394,123 @@ def pull_new_openalex_works(page=0, retry=0):
             total_papers_processed=total_papers_processed,
         )
         return False
+
+
+@app.task(queue=QUEUE_PULL_PAPERS)
+def _process_openalex_works_batch(works):
+    # _process_openalex_work but it fetches SQL data in batches and uses batch_create and batch_update
+    from paper.models import Paper
+    from paper.paper_upload_tasks import create_paper_concepts_and_hubs
+
+    open_alex = OpenAlex()
+
+    # Rough Plan:
+    # 1. Fetch all existing papers from the database
+    # 2. Create a dictionary of dois to existing papers
+    # 3. Iterate through the works, and for each work:
+    #   a. Parse the work to a paper format
+    #   b. If the paper exists, add to update list
+    #   c. If the paper doesn't exist, add to create list
+    # 4. Batch create and batch update the papers
+    # 5. Batch create the concepts and hubs for the papers
+    # 6. Batch create the authors for the papers
+    # 7. Done
+
+    dois = [work.get("doi") for work in works]
+    dois = [doi for doi in dois if doi is not None]
+    # if dois have https://doi.org/ prefix, remove them
+    dois = [doi.replace("https://doi.org/", "") for doi in dois]
+
+    existing_papers_query = Paper.objects.filter(doi__in=dois).values("doi", "id")
+    existing_papers = {paper['doi']: paper for paper in existing_papers_query}
+
+    create_papers = []
+    update_papers = []
+
+    for work in works:
+        doi = work.get("doi")
+        if doi is None:
+            print(f"No Doi for result: {work}")
+            continue
+
+        existing_paper = existing_papers.get(doi)
+        if existing_paper is not None:
+            update_papers.append((existing_paper, work))
+        else:
+            create_papers.append(work)
+
+    paper_id_to_concepts = {}
+
+    # create papers
+    new_papers = []
+    for work in create_papers:
+        data, raw_concepts = open_alex.parse_to_paper_format(work)
+        concepts = open_alex.hydrate_paper_concepts(raw_concepts)
+        paper = Paper(**data)
+        # we don't do .full_clean() since it performs a unique check on doi, url
+        # and we don't need to check for uniques since we already did that above.
+        paper.clean_fields()
+        paper.clean()
+        paper.get_abstract_backup()
+        paper.get_pdf_link()
+
+        new_papers.append(paper)
+        paper_id_to_concepts[paper.id] = concepts
+
+    # batch create papers
+    with transaction.atomic():
+        # we can't use Paper.objects.bulk_create because there's generated fields,
+        # and we can't exclude the generated fields (e.g. doi_svf) from the bulk_create
+        for paper in new_papers:
+            try:
+                paper.save()
+            except Exception as e:
+                sentry.log_error(e, message=f"Failed to save paper, doi: {paper.doi}")
+
+    # batch create authors
+    new_paper_ids = [paper.id for paper in new_papers]
+    if new_paper_ids and len(new_paper_ids) > 0:
+        add_orcid_authors_batch.apply_async((new_paper_ids,), priority=5, countdown=5)
+
+    # update papers
+    for existing_paper, work in update_papers:
+        data, raw_concepts = open_alex.parse_to_paper_format(work)
+        concepts = open_alex.hydrate_paper_concepts(raw_concepts)
+        existing_paper.paper_publish_date = data.get("paper_publish_date")
+        existing_paper.alternate_ids = data.get("alternate_ids", {})
+        existing_paper.citations = data.get("citations")
+        if existing_paper.abstract is None:
+            existing_paper.abstract = data.get("abstract")
+        if data.get("pdf_license") is not None:
+            existing_paper.pdf_license = data.get("pdf_license")
+        if data.get("oa_status") is not None:
+            existing_paper.oa_status = data.get("oa_status")
+        existing_paper.is_open_access = data.get("is_open_access")
+        existing_paper.open_alex_raw_json = data.get("open_alex_raw_json")
+
+        paper_id_to_concepts[existing_paper.id] = concepts
+
+    fields_to_update = [
+        "paper_publish_date",
+        "alternate_ids",
+        "citations",
+        "abstract",
+        "pdf_license",
+        "oa_status",
+        "is_open_access",
+        "open_alex_raw_json",
+    ]
+    papers_to_update = [paper for paper, _ in update_papers]
+    Paper.objects.bulk_update(papers_to_update, fields_to_update)
+
+    # batch create concepts and hubs
+    # create_paper_concepts_and_hubs_batch(paper_id_to_concepts)
+    for paper_id, concepts in paper_id_to_concepts.items():
+        create_paper_concepts_and_hubs.apply_async(
+            (paper_id, concepts),
+            priority=2,
+            countdown=1,
+        )
 
 
 @app.task(queue=QUEUE_PULL_PAPERS)
