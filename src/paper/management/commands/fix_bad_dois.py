@@ -1,5 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.db.models import Q
+from django.db import IntegrityError
 from paper.models import Paper
 
 class Command(BaseCommand):
@@ -36,6 +37,20 @@ class Command(BaseCommand):
         )
         self.process_arxiv_papers(papers)
 
+    def update_papers(to_update):
+        try:
+            # Attempt to bulk update first
+            Paper.objects.bulk_update(to_update, ['doi'])
+        except Exception as e:
+            # If bulk update fails, fall back to individual updates
+            for paper in to_update:
+                try:
+                    paper.save(update_fields=['doi'])
+                except IntegrityError:
+                    print(f"Skipping duplicate DOI for paper ID {paper.id}")
+                except Exception as e:
+                    print(f"Error updating paper ID {paper.id}: {str(e)}")
+
     def process_arxiv_papers(self, papers):
         to_update = []
         for paper in papers.iterator():
@@ -53,12 +68,12 @@ class Command(BaseCommand):
 
             if len(to_update) >= 100:
                 print(f'Updating {len(to_update)} papers...')
-                Paper.objects.bulk_update(to_update, ['doi'])
+                self.update_papers(to_update)
                 to_update.clear()
 
         if to_update:
             print(f'Updating {len(to_update)} papers...')
-            Paper.objects.bulk_update(to_update, ['doi'])
+            self.update_papers(to_update)
 
     def extract_arxiv_id(self, paper):
         """Extracts the ArXiv ID from the paper's DOI or URL."""

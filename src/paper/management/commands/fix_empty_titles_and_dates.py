@@ -48,6 +48,8 @@ class Command(BaseCommand):
 
             except DOINotFoundError:
                 continue
+            except Exception as e:
+                self.stdout.write(self.style.ERROR(f'Error updating paper {paper.id}: {str(e)}'))
 
         if updated_papers:
             Paper.objects.bulk_update(updated_papers, ['title', 'paper_publish_date'])
