@@ -11,7 +11,6 @@ from analytics.utils.analytics_mappers import map_user_data
 from analytics.utils.analytics_mapping_utils import build_hub_str
 from user.related_models.user_model import User
 
-OUTPUT_FILE = "./exported_user_data.csv"
 TEMP_PROGRESS_FILE = "./user-export-progress.temp.json"
 EXPORT_FILE_HEADERS = [
     "USER_ID",
@@ -23,11 +22,15 @@ EXPORT_FILE_HEADERS = [
 def get_output_file_path(output_path: str):
     now = datetime.now()
     date_string = now.strftime("%m_%d_%y_%H_%M_%S")
-    return f"./user-export-{date_string}.csv"
+    return f"{output_path}/user-export-{date_string}.csv"
+
+
+def get_temp_progress_file_path(output_path: str):
+    return f"{output_path}/user-export-progress.temp.json"
 
 
 def get_error_file_path(output_path: str):
-    return f"./user-export-errors.txt"
+    return f"{output_path}/user-export-errors.txt"
 
 
 def write_error_to_file(id, error, error_filepath):
@@ -62,12 +65,15 @@ class Command(BaseCommand):
         # Related files
         output_filepath = get_output_file_path(output_path)
         error_filepath = get_error_file_path(output_path)
+        temp_progress_filepath = get_temp_progress_file_path(output_path)
 
         # By default we are not resuming and starting from beginning
         progress_json = {"current_id": 0, "export_filepath": output_filepath}
 
         if should_resume:
-            progress_json = read_progress_filepath(TEMP_PROGRESS_FILE, output_filepath)
+            progress_json = read_progress_filepath(
+                temp_progress_filepath, output_filepath
+            )
             output_filepath = progress_json["export_filepath"]
             print("Resuming from ID", progress_json["current_id"])
 
@@ -91,11 +97,11 @@ class Command(BaseCommand):
             queryset=queryset,
             chunk_processor=map_user_data,
             headers=EXPORT_FILE_HEADERS,
-            output_filepath=OUTPUT_FILE,
+            output_filepath=output_filepath,
             last_id=progress_json["current_id"],
-            temp_progress_filepath=TEMP_PROGRESS_FILE,
+            temp_progress_filepath=temp_progress_filepath,
             on_error=lambda id, msg: write_error_to_file(id, msg, error_filepath),
         )
 
         # Cleanup the temp file pointing to our export progress thus far
-        remove_file(TEMP_PROGRESS_FILE)
+        remove_file(temp_progress_filepath)

@@ -19,6 +19,9 @@ def map_action_data(actions, on_error):
     data = []
     for action in actions:
         try:
+            if action.item is None:
+                raise Exception(f"Action {action.id}'s item is None")
+
             if action.content_type.model == "bounty":
                 event = build_bounty_event(action)
                 data.append(event)
@@ -241,8 +244,18 @@ def map_user_data(queryset, on_error):
     for user in queryset:
         try:
             record = {}
-            interests = user.author_profile.get_interest_hubs()
-            expertise = user.author_profile.get_expertise_hubs()
+            interests = []
+            expertise = []
+
+            try:
+                interests = user.author_profile.get_interest_hubs()
+            except Exception as e:
+                pass
+
+            try:
+                expertise = user.author_profile.get_expertise_hubs()
+            except Exception as e:
+                pass
 
             record["USER_ID"] = str(user.id)
             record["interest_hubs"] = "|".join(
