@@ -192,7 +192,8 @@ class Author(models.Model):
         # It is quite possible that hubs returned through ranked concepts is less than max_results
         # As a result, we want to pad the list with the rest of the hubs
         for doc in related_unified_documents:
-            interest_hubs = interest_hubs + list(doc.hubs.all())
+            if doc.hubs:
+                interest_hubs = interest_hubs + list(doc.hubs.all())
 
         # Remove duplicates while preserving order
         seen = set()
@@ -242,7 +243,8 @@ class Author(models.Model):
         # It is quite possible that hubs returned through ranked concepts is less than max_results
         # As a result, we want to pad the list with the rest of the hubs
         for doc in related_unified_documents:
-            expertise_hubs = expertise_hubs + list(doc.hubs.all())
+            if doc.hubs:
+                expertise_hubs = expertise_hubs + list(doc.hubs.all())
 
         # Remove duplicates while preserving order
         seen = set()

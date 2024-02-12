@@ -19,6 +19,9 @@ def map_action_data(actions, on_error):
     data = []
     for action in actions:
         try:
+            if action.item is None:
+                raise Exception(f"Action {action.id}'s item is None")
+
             if action.content_type.model == "bounty":
                 event = build_bounty_event(action)
                 data.append(event)
@@ -58,29 +61,25 @@ def map_claim_data(claim_cases, on_error):
     return data
 
 
-def map_paper_data(docs, on_error):
+def map_paper_data(papers, on_error):
     from paper.related_models.paper_model import Paper
 
     data = []
-    for doc in docs:
+    for paper in papers:
         try:
-            paper = Paper.objects.get(unified_document_id=doc.id)
-            # The following clause aims to prevent papers with missing criticial or interesting data (e.g. comments)
-            # from being recommneded by Amazon personalize
-            completeness = paper.get_paper_completeness()
-            if completeness == Paper.PARTIAL:
-                if paper.discussion_count == 0:
-                    print(
-                        "skipping partially completed paper: ",
-                        paper.title,
-                        paper.id,
-                    )
+            # We want to exclude papers that haven't had any traction thus far
+            if paper.discussion_count == 0:
+                open_alex_data = paper.open_alex_raw_json
+                if open_alex_data["cited_by_percentile_year"]["min"] < 87:
+                    on_error(id=paper.id, msg="Skipping due to low citation percentile")
                     continue
-            elif completeness == Paper.INCOMPLETE:
-                print("skipping incomplete paper: ", paper.title, paper.id)
-                continue
+                # Arbitrary consideration of highly cited papers atm
+                elif open_alex_data["cited_by_count"] < 50:
+                    on_error(id=paper.id, msg="Skipping due to low cited_by_count")
+                    continue
 
             record = {}
+            doc = paper.unified_document
             doc_props = build_doc_props_for_item(doc)
             record = {**doc_props}
             record["ITEM_ID"] = paper.get_analytics_id()
@@ -245,8 +244,18 @@ def map_user_data(queryset, on_error):
     for user in queryset:
         try:
             record = {}
-            interests = user.author_profile.get_interest_hubs()
-            expertise = user.author_profile.get_expertise_hubs()
+            interests = []
+            expertise = []
+
+            try:
+                interests = user.author_profile.get_interest_hubs()
+            except Exception as e:
+                pass
+
+            try:
+                expertise = user.author_profile.get_expertise_hubs()
+            except Exception as e:
+                pass
 
             record["USER_ID"] = str(user.id)
             record["interest_hubs"] = "|".join(

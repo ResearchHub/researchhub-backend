@@ -1,6 +1,7 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from django.core.management.base import BaseCommand
+from django.db.models import Q
 
 from analytics.utils.analytics_file_utils import (
     export_data_to_csv_in_chunks,
@@ -18,18 +19,18 @@ from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.models import ResearchhubUnifiedDocument
 
 
-def get_temp_progress_file_path(item_type: str):
-    return f"./{item_type}-item-export-progress.temp.json"
+def get_temp_progress_file_path(item_type: str, output_path: str):
+    return f"{output_path}/{item_type}-item-export-progress.temp.json"
 
 
-def get_output_file_path(item_type: str):
+def get_output_file_path(item_type: str, output_path: str):
     now = datetime.now()
     date_string = now.strftime("%m_%d_%y_%H_%M_%S")
-    return f"./{item_type}-item-export-{date_string}.csv"
+    return f"{output_path}/{item_type}-item-export-{date_string}.csv"
 
 
-def get_error_file_path(item_type: str):
-    return f"./{item_type}-item-export-errors.txt"
+def get_error_file_path(item_type: str, output_path: str):
+    return f"{output_path}/{item_type}-item-export-errors.txt"
 
 
 def write_error_to_file(id, error, error_filepath):
@@ -39,22 +40,22 @@ def write_error_to_file(id, error, error_filepath):
 
 HEADERS = [
     "ITEM_ID",
-    "item_type",  # new
+    "item_type",
     "CREATION_TIMESTAMP",
     "internal_item_id",
     "unified_document_id",
     "created_by_user_id",
-    "discussion_count",  # need changing
+    "discussion_count",
     "hot_score",
     "open_bounty_count",
-    "bounty_type",  # new
-    "bounty_status",  # new
-    "bounty_parent_id",  # new
-    "bounty_expiration_timestamp",  # new
-    "bounty_is_expiring_soon",  # new
-    "bounty_has_solution",  # new
-    "body",  # content (abstract, comment body)
-    "peer_review_score",  # new
+    "bounty_type",
+    "bounty_status",
+    "bounty_parent_id",
+    "bounty_expiration_timestamp",
+    "bounty_is_expiring_soon",
+    "bounty_has_solution",
+    "body",
+    "peer_review_score",
     "title",
     "journal",
     "pdf_license",
@@ -71,6 +72,7 @@ HEADERS = [
     "hubs",
     "is_trending_citations",
 ]
+
 
 EXPORT_ITEM_HELPER = {
     "paper": {
@@ -113,16 +115,18 @@ class Command(BaseCommand):
         parser.add_argument(
             "--type", type=str, help="The type you would like to export"
         )
+        parser.add_argument("--output_path", type=str, help="The output path")
 
     def handle(self, *args, **kwargs):
         start_date_str = kwargs["start_date"]
         should_resume = kwargs["resume"]
         export_type = kwargs["type"]
+        output_path = kwargs["output_path"]
 
         # Related files
-        output_filepath = get_output_file_path(export_type)
-        temp_progress_filepath = get_temp_progress_file_path(export_type)
-        error_filepath = get_error_file_path(export_type)
+        output_filepath = get_output_file_path(export_type, output_path)
+        temp_progress_filepath = get_temp_progress_file_path(export_type, output_path)
+        error_filepath = get_error_file_path(export_type, output_path)
 
         # By default we are not resuming and starting from beginning
         progress_json = {"current_id": 0, "export_filepath": output_filepath}
@@ -136,9 +140,26 @@ class Command(BaseCommand):
 
         queryset = None
         if export_type == "paper" or export_type == "all":
-            queryset = ResearchhubUnifiedDocument.objects.filter(
-                document_type__in=["PAPER"],
-                is_removed=False,
+            from paper.related_models.paper_model import Paper
+
+            # The following is meant to filter out papers that are not "COMPLETE"
+            queryset = (
+                Paper.objects.filter(paper_publish_date__gt=date(2020, 1, 1))
+                .exclude(
+                    Q(unified_document_id__isnull=True)
+                    | Q(abstract__isnull=True)
+                    | Q(title__isnull=True)
+                    | Q(is_removed=True)
+                    | Q(doi__isnull=True)
+                    | Q(open_alex_raw_json__isnull=True)
+                    | Q(oa_status="closed")
+                )
+                .exclude(
+                    pdf_url__isnull=True,
+                    file__isnull=True,
+                )
+                .filter(unified_document__hubs__isnull=False)
+                .distinct()
             )
 
             if start_date_str:
