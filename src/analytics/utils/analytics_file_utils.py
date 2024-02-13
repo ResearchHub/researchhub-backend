@@ -69,8 +69,10 @@ def export_data_to_csv_in_chunks(
     chunk_num = 1
 
     while True:
+        print(f"Exporting chunk {chunk_num} to {output_filepath}")
         _queryset = queryset.filter(id__gt=_last_id).order_by("id")[:CHUNK_SIZE]
         chunk = list(_queryset.iterator())
+        print(f"Chunk Processed")
 
         if not chunk:
             break

@@ -144,11 +144,13 @@ class Command(BaseCommand):
         if export_type == "paper" or export_type == "all":
             from paper.related_models.paper_model import Paper
 
-            # The following is meant to filter out papers that are not "COMPLETE"
-            queryset = Paper.objects.filter(paper_publish_date__gt=date(2020, 1, 1))
+            queryset = Paper.objects
 
             if from_id:
                 queryset = queryset.filter(id__gte=from_id)
+
+            # The following is meant to filter out papers that are not "COMPLETE"
+            queryset = queryset.filter(paper_publish_date__gt=date(2020, 1, 1))
 
             queryset = (
                 queryset.exclude(
@@ -167,6 +169,8 @@ class Command(BaseCommand):
                 .filter(unified_document__hubs__isnull=False)
                 .distinct()
             )
+
+            progress_json["current_id"] = from_id
 
             if start_date_str:
                 start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
