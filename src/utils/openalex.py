@@ -132,7 +132,7 @@ class OpenAlex:
 
         url = primary_location.get("landing_page_url", None)
 
-        title = normalize("NFKD", work.get("title", ""))
+        title = normalize("NFKD", work.get("title", "") or "").strip()
         raw_authors = work.get("authorships", [])
         concepts = work.get("concepts", [])
 
