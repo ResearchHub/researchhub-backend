@@ -37,7 +37,7 @@ class Command(BaseCommand):
         )
         self.process_arxiv_papers(papers)
 
-    def update_papers(to_update):
+    def update_papers(self, to_update):
         try:
             # Attempt to bulk update first
             Paper.objects.bulk_update(to_update, ['doi'])
