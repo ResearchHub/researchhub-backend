@@ -116,9 +116,11 @@ class Command(BaseCommand):
             "--type", type=str, help="The type you would like to export"
         )
         parser.add_argument("--output_path", type=str, help="The output path")
+        parser.add_argument("--from_id", type=str, help="start at a particular id")
 
     def handle(self, *args, **kwargs):
         start_date_str = kwargs["start_date"]
+        from_id = kwargs["from_id"]
         should_resume = kwargs["resume"]
         export_type = kwargs["type"]
         output_path = kwargs["output_path"]
@@ -143,9 +145,13 @@ class Command(BaseCommand):
             from paper.related_models.paper_model import Paper
 
             # The following is meant to filter out papers that are not "COMPLETE"
+            queryset = Paper.objects.filter(paper_publish_date__gt=date(2020, 1, 1))
+
+            if from_id:
+                queryset = queryset.filter(id__gte=from_id)
+
             queryset = (
-                Paper.objects.filter(paper_publish_date__gt=date(2020, 1, 1))
-                .exclude(
+                queryset.exclude(
                     Q(unified_document_id__isnull=True)
                     | Q(abstract__isnull=True)
                     | Q(title__isnull=True)
@@ -165,6 +171,8 @@ class Command(BaseCommand):
             if start_date_str:
                 start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
                 queryset = queryset.filter(created_date__gte=start_date)
+
+            print("Queryset count: ", queryset.count())
 
             export_data_to_csv_in_chunks(
                 queryset=queryset,

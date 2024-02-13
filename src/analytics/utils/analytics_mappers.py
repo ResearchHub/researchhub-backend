@@ -1,4 +1,5 @@
 import time
+from datetime import date
 
 from analytics.utils.analytics_mapping_utils import (
     build_bounty_event,
@@ -70,13 +71,21 @@ def map_paper_data(papers, on_error):
             # We want to exclude papers that haven't had any traction thus far
             if paper.discussion_count == 0:
                 open_alex_data = paper.open_alex_raw_json
-                if open_alex_data["cited_by_percentile_year"]["min"] < 87:
-                    on_error(id=paper.id, msg="Skipping due to low citation percentile")
-                    continue
-                # Arbitrary consideration of highly cited papers atm
-                elif open_alex_data["cited_by_count"] < 50:
-                    on_error(id=paper.id, msg="Skipping due to low cited_by_count")
-                    continue
+
+                # If papers are not new, let's see if they have been cited
+                if paper.paper_publish_date < date(2023, 1, 1):
+                    if (
+                        open_alex_data["cited_by_percentile_year"]
+                        and open_alex_data["cited_by_percentile_year"]["min"] < 80
+                    ):
+                        on_error(
+                            id=paper.id, msg="Skipping due to low citation percentile"
+                        )
+                        continue
+                    # Arbitrary consideration of highly cited papers atm
+                    if open_alex_data["cited_by_count"] < 40:
+                        on_error(id=paper.id, msg="Skipping due to low cited_by_count")
+                        continue
 
             record = {}
             doc = paper.unified_document
@@ -96,7 +105,7 @@ def map_paper_data(papers, on_error):
 
             data.append(record)
         except Exception as e:
-            on_error(id=str(doc.id), msg=str(e))
+            on_error(id=str(paper.id), msg=str(e))
 
     return data
 
