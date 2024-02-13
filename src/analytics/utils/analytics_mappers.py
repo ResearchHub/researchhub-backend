@@ -1,4 +1,5 @@
 import time
+from datetime import date
 
 from analytics.utils.analytics_mapping_utils import (
     build_bounty_event,
@@ -72,7 +73,7 @@ def map_paper_data(papers, on_error):
                 open_alex_data = paper.open_alex_raw_json
 
                 # If papers are not new, let's see if they have been cited
-                if paper.paper_publish_date < "2023-01-01":
+                if paper.paper_publish_date < date(2023, 1, 1):
                     if (
                         open_alex_data["cited_by_percentile_year"]
                         and open_alex_data["cited_by_percentile_year"]["min"] < 80
