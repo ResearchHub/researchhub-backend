@@ -19,9 +19,11 @@ def get_default_expiration_date():
 class Fundraise(DefaultModel):
     OPEN = "OPEN"
     CLOSED = "CLOSED"
+    COMPLETED = "COMPLETED"
     status_choices = (
         (OPEN, OPEN),
         (CLOSED, CLOSED),
+        (COMPLETED, COMPLETED),
     )
 
     created_by = models.ForeignKey(
