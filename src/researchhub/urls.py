@@ -36,6 +36,7 @@ import researchhub_document.views as researchhub_document_views
 import search.urls
 import user.views
 from citation.views import CitationEntryViewSet, CitationProjectViewSet
+from feed.views import FeedViewSet
 from peer_review.views import (
     PeerReviewInviteViewSet,
     PeerReviewRequestViewSet,
@@ -141,6 +142,7 @@ router.register(r"withdrawal", reputation.views.WithdrawalViewSet)
 router.register(r"deposit", reputation.views.DepositViewSet)
 
 router.register(r"bounty", reputation.views.BountyViewSet)
+router.register(r"feed", FeedViewSet)
 
 router.register(r"user_verification", user.views.VerificationViewSet)
 
