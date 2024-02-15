@@ -13,8 +13,13 @@ from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.serializers.rh_comment_serializer import (
     DynamicRhCommentSerializer,
 )
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.serializers.researchhub_post_serializer import (
+    DynamicPostSerializer,
+)
 from user.models import Action
 from user.serializers import DynamicUserSerializer
+from utils import sentry
 from utils.http import get_user_from_request
 
 
@@ -51,6 +56,8 @@ class DynamicFeedSerializer(DynamicModelFieldSerializer):
             return obj.score
         elif obj._meta.model_name == "bounty":
             return obj.item.score
+        elif obj._meta.model_name == "researchhubpost":
+            return obj.score
 
         return None
 
@@ -94,6 +101,13 @@ class DynamicFeedSerializer(DynamicModelFieldSerializer):
                 obj.created_by, context=context, **_context_fields
             )
             return serializer.data
+        elif obj._meta.model_name == "researchhubpost":
+            context = self.context
+            _context_fields = context.get("rhc_dcs_get_created_by", {})
+            serializer = DynamicUserSerializer(
+                obj.created_by, context=context, **_context_fields
+            )
+            return serializer.data
 
         return None
 
@@ -116,6 +130,9 @@ class DynamicFeedSerializer(DynamicModelFieldSerializer):
             serializer = DynamicBountySerializer(
                 obj, context=context, **_context_fields
             )
+        elif obj._meta.model_name == "researchhubpost":
+            _context_fields = context.get("feed_get_post_item", {})
+            serializer = DynamicPostSerializer(obj, context=context, **_context_fields)
 
         if serializer is not None:
             return serializer.data
@@ -123,12 +140,17 @@ class DynamicFeedSerializer(DynamicModelFieldSerializer):
         return None
 
     def get_content_type(self, obj):
-        if obj._meta.model_name == "paper":
-            return "paper"
-        elif obj._meta.model_name == "rhcommentmodel":
-            return "comment"
-        elif obj._meta.model_name == "bounty":
-            return "bounty"
+        try:
+            if obj._meta.model_name == "paper":
+                return "paper"
+            elif obj._meta.model_name == "rhcommentmodel":
+                return "comment"
+            elif obj._meta.model_name == "bounty":
+                return "bounty"
+            elif obj._meta.model_name == "researchhubpost":
+                return obj.unified_document.get_client_doc_type()
+        except Exception as e:
+            sentry.log_info("Could not resolve feed content_type", error=e)
 
         return "unknown"
 
@@ -144,9 +166,20 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
                     "id",
                     "created_date",
                     "updated_date",
-                    "unified_document",
+                    # "unified_document",
                     "abstract",
                     "raw_authors",
+                ]
+            },
+            "feed_get_post_item": {
+                "_include_fields": [
+                    "id",
+                    "created_date",
+                    "updated_date",
+                    # "unified_document",
+                    "renderable_text",
+                    "authors",
+                    "created_by",
                 ]
             },
             "feed_get_bounty_item": {
@@ -157,21 +190,41 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
                     "expiration_date",
                     "bounty_type",
                     "item",
+                    "parent",
+                    "created_by",
+                    "created_date",
+                    "updated_date",
+                ]
+            },
+            "rep_dbs_get_item": {
+                "_include_fields": [
+                    "id",
+                    "amount",
+                    "status",
+                    "expiration_date",
+                    "bounty_type",
+                    "parent",
+                    "created_by",
+                    "created_date",
+                    "updated_date",
+                    "comment_content_json",
+                ]
+            },
+            "rep_dbs_get_parent": {
+                "_include_fields": [
+                    "id",
+                    "amount",
+                    "status",
+                    "expiration_date",
+                    "bounty_type",
+                    "item",
+                    "parent",
                     "created_by",
                     "created_date",
                     "updated_date",
                 ]
             },
             "feed_get_comment_item": {
-                "_include_fields": [
-                    "id",
-                    "created_date",
-                    "updated_date",
-                    "created_by",
-                    "comment_content_json",
-                ]
-            },
-            "rep_dbs_get_item": {
                 "_include_fields": [
                     "id",
                     "created_date",
@@ -190,6 +243,25 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
                 ]
             },
             "feed_get_hubs": {"_include_fields": ["id", "slug", "name"]},
+            "doc_dps_get_created_by": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
+                    "first_name",
+                    "last_name",
+                    "is_verified",
+                ]
+            },
+            "doc_dps_get_authors": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
+                    "first_name",
+                    "last_name",
+                    "created_date",
+                    "is_verified",
+                ]
+            },
             "feed_get_created_by": {
                 "_include_fields": [
                     "id",
@@ -197,7 +269,6 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
                     "first_name",
                     "last_name",
                     "is_verified",
-                    "editor_of",
                 ]
             },
             "rep_dbs_get_created_by": {
@@ -207,7 +278,6 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
                     "first_name",
                     "last_name",
                     "is_verified",
-                    "editor_of",
                 ]
             },
             "feed_get_unified_document": {"_include_fields": ["id", "documents"]},
@@ -216,6 +286,14 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
                     "id",
                     "slug",
                     "title",
+                ]
+            },
+            "doc_dps_get_unified_document": {
+                "_include_fields": [
+                    "id",
+                    "document_type",
+                    "slug",
+                    "documents",
                 ]
             },
             "pap_dps_get_unified_document": {
@@ -233,7 +311,6 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
                     "first_name",
                     "last_name",
                     "is_verified",
-                    "editor_of",
                 )
             },
             "usr_dus_get_author_profile": {
@@ -242,7 +319,6 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
                     "first_name",
                     "last_name",
                     "created_date",
-                    "updated_date",
                     "profile_image",
                     "is_verified",
                 )
@@ -252,7 +328,7 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
         return context
 
     def list(self, request, *args, **kwargs):
-        rec_ids = ["comment_60", "paper_6", "bounty_9", "bounty_12"]
+        rec_ids = ["comment_60", "paper_6", "bounty_9", "post_13", "question_15"]
         analytics_ids = [item_id.split("_") for item_id in rec_ids if "_" in item_id]
         paper_ids = [
             analytics_id[1]
@@ -269,11 +345,19 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
             for analytics_id in analytics_ids
             if analytics_id[0] == "bounty"
         ]
+        post_ids = [
+            analytics_id[1]
+            for analytics_id in analytics_ids
+            if analytics_id[0] == "question"
+            or analytics_id[0] == "post"
+            or analytics_id[0] == "preregistration"
+        ]
 
         papers = Paper.objects.filter(id__in=paper_ids)
         comments = RhCommentModel.objects.filter(id__in=comment_ids)
         bounties = Bounty.objects.filter(id__in=bounty_ids)
-        combined_queryset = list(chain(bounties, comments, papers))
+        posts = ResearchhubPost.objects.filter(id__in=post_ids)
+        combined_queryset = list(chain(bounties, papers, comments, posts))
 
         page = self.paginate_queryset(combined_queryset)
 
