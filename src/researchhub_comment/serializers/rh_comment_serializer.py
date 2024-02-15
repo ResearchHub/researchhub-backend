@@ -58,10 +58,23 @@ class DynamicRhCommentSerializer(
     bounties = SerializerMethodField()
     user_vote = SerializerMethodField()
     review = SerializerMethodField()
+    parent = SerializerMethodField()
 
     class Meta:
         fields = "__all__"
         model = RhCommentModel
+
+    def get_parent(self, comment):
+        context = self.context
+        _context_fields = context.get("rhc_dcs_get_parent", {})
+
+        if not comment.parent:
+            return None
+
+        serializer = DynamicRhCommentSerializer(
+            comment.parent, context=context, **_context_fields
+        )
+        return serializer.data
 
     def get_created_by(self, comment):
         context = self.context

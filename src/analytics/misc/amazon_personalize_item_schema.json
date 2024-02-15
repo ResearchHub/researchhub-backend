@@ -21,11 +21,6 @@
 			"categorical": true
 		},
 		{
-			"name": "item_subtype",
-			"type": ["string", "null"],
-			"categorical": true
-		},
-		{
 			"name": "internal_item_id",
 			"type": "string"
 		},
@@ -34,16 +29,8 @@
 			"type": ["string", "null"]
 		},
 		{
-			"name": "bounty_id",
-			"type": ["string", "null"]
-		},
-		{
 			"name": "bounty_parent_id",
 			"type": ["string", "null"]
-		},
-		{
-			"name": "bounty_amount",
-			"type": ["float", "null"]
 		},
 		{
 			"name": "bounty_type",
@@ -61,21 +48,15 @@
 		},
 		{
 			"name": "bounty_is_expiring_soon",
-			"type": "boolean"
+			"type": ["string", "null"]
 		},
 		{
 			"name": "bounty_has_solution",
-			"type": "boolean"
+			"type": ["string", "null"]
 		},
 		{
 			"name": "title",
-			"type": ["string", "null"],
-			"textual": true
-		},
-		{
-			"name": "body",
-			"type": ["string", "null"],
-			"textual": true
+			"type": ["string", "null"]
 		},
 		{
 			"name": "journal",
@@ -98,7 +79,7 @@
 		},
 		{
 			"name": "discussion_count",
-			"type": "int"
+			"type": ["int", "null"]
 		},
 		{
 			"name": "updated_timestamp",
@@ -140,15 +121,15 @@
 		},
 		{
 			"name": "open_bounty_count",
-			"type": "int"
-		},
-		{
-			"name": "citation_percentile_performance",
 			"type": ["int", "null"]
 		},
 		{
+			"name": "citation_percentile_performance",
+			"type": ["float", "null"]
+		},
+		{
 			"name": "is_trending_citations",
-			"type": "boolean"
+			"type": ["string", "null"]
 		},
 		{
 			"name": "peer_review_score",

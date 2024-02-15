@@ -1,0 +1,22 @@
+{
+	"type": "record",
+	"name": "Users",
+	"namespace": "com.amazonaws.personalize.schema",
+	"fields": [
+		{
+			"name": "USER_ID",
+			"type": "string"
+		},
+		{
+			"name": "interest_hubs",
+			"type": ["string", "null"],
+			"categorical": true
+		},
+		{
+			"name": "expertise_hubs",
+			"type": ["string", "null"],
+			"categorical": true
+		}
+	],
+	"version": "1.0"
+}
