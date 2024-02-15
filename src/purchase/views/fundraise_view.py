@@ -339,7 +339,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             # the escrow payout functions creates + sends a notification
             did_payout = fundraise.payout_funds()
             if did_payout:
-                fundraise.status = Fundraise.CLOSED
+                fundraise.status = Fundraise.COMPLETED
                 fundraise.save()
             else:
                 return Response({"message": "Failed to payout funds"}, status=500)

@@ -205,7 +205,7 @@ class FundraiseViewTests(APITestCase):
         self.assertEqual(updated_fundraise["amount_raised"]["rsc"], 200)
         self.assertEqual(float(updated_fundraise["escrow"]["amount_holding"]), 0.0)
         self.assertEqual(float(updated_fundraise["escrow"]["amount_paid"]), 200.0)
-        self.assertEqual(updated_fundraise["status"], "CLOSED")
+        self.assertEqual(updated_fundraise["status"], "COMPLETED")
 
         # there should be two balance objects for the user, one for the '100', and one for fees
         amount_balance = Balance.objects.filter(user=user, content_type=ContentType.objects.get_for_model(Purchase))
@@ -247,7 +247,7 @@ class FundraiseViewTests(APITestCase):
 
         updated_fundraise = response.data
         # make sure fundraise is closed
-        self.assertEqual(updated_fundraise["status"], "CLOSED")
+        self.assertEqual(updated_fundraise["status"], "COMPLETED")
 
         response = self._create_contribution(fundraise_id, user, amount=200)
 
