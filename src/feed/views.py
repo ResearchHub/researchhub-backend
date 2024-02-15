@@ -1,7 +1,9 @@
 from itertools import chain
 
+import boto3
 from rest_framework import serializers, viewsets
 from rest_framework.permissions import AllowAny
+from rest_framework.response import Response
 
 from discussion.reaction_serializers import DynamicVoteSerializer
 from hub.serializers import DynamicHubSerializer
@@ -328,7 +330,59 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
         return context
 
     def list(self, request, *args, **kwargs):
-        rec_ids = ["comment_60", "paper_6", "bounty_9", "post_13", "question_15"]
+        user_id = request.query_params.get("user_id")
+        if not user_id:
+            return Response({"error": "user_id is required"}, status=400)
+
+        personalize_runtime = boto3.client(
+            "personalize-runtime", region_name="us-west-2"
+        )
+        recs_campaign_arn = "arn:aws:personalize:us-west-2:794128250202:campaign/recs"
+
+        filters = [
+            {
+                "item_type": "bounty",
+                "arn": "arn:aws:personalize:us-west-2:794128250202:filter/bounties-only",
+                "num_results": 2,
+            },
+            {
+                "item_type": "paper",
+                "arn": "arn:aws:personalize:us-west-2:794128250202:filter/papers-only",
+                "num_results": 4,
+            },
+            {
+                "item_type": "post",
+                "arn": "arn:aws:personalize:us-west-2:794128250202:filter/posts-only",
+                "num_results": 4,
+            },
+            {
+                "item_type": "preregistration",
+                "arn": "arn:aws:personalize:us-west-2:794128250202:filter/preregistrations-only",
+                "num_results": 1,
+            },
+            {
+                "item_type": "question",
+                "arn": "arn:aws:personalize:us-west-2:794128250202:filter/questions-only",
+                "num_results": 2,
+            },
+            {
+                "item_type": "comment",
+                "arn": "arn:aws:personalize:us-west-2:794128250202:filter/comments-only",
+                "num_results": 7,
+            },
+        ]
+
+        rec_ids = []
+        for filter in filters:
+            response = personalize_runtime.get_recommendations(
+                campaignArn=recs_campaign_arn,
+                userId=str(user_id),
+                numResults=filter["num_results"],
+                filterArn=filter["arn"],
+            )
+            # rec_ids = [item["itemId"] for item in response["itemList"]]
+            rec_ids.extend([item["itemId"] for item in response["itemList"]])
+
         analytics_ids = [item_id.split("_") for item_id in rec_ids if "_" in item_id]
         paper_ids = [
             analytics_id[1]
