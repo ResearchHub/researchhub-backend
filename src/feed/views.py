@@ -1,3 +1,5 @@
+import random
+from datetime import datetime, timedelta
 from itertools import chain
 
 import boto3
@@ -16,6 +18,9 @@ from researchhub_comment.serializers.rh_comment_serializer import (
     DynamicRhCommentSerializer,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from researchhub_document.serializers.researchhub_post_serializer import (
     DynamicPostSerializer,
 )
@@ -329,6 +334,68 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
 
         return context
 
+    def _get_ranked_recent_object_ids(self, user_id):
+        personalize_runtime = boto3.client(
+            "personalize-runtime", region_name="us-west-2"
+        )
+        user_ranking_campaign_arn = (
+            "arn:aws:personalize:us-west-2:794128250202:campaign/hp-re-ranking"
+        )
+
+        open_bounties = Bounty.objects.filter(
+            status="OPEN",
+            expiration_date__gte=datetime.now(),
+        )
+        open_bounty_ids = [f"bounty_{bounty.id}" for bounty in open_bounties]
+
+        response = personalize_runtime.get_personalized_ranking(
+            campaignArn=user_ranking_campaign_arn,
+            inputList=open_bounty_ids,
+            userId=user_id,
+        )
+        ranked_bounty_ids = [item["itemId"] for item in response["personalizedRanking"]]
+
+        recent_preregistrations = ResearchhubPost.objects.filter(
+            document_type="PREREGISTRATION",
+            created_date__gte=datetime.now() - timedelta(days=30),
+        )
+        recent_preregistration_ids = [
+            f"preregistration_{preregistration.id}"
+            for preregistration in recent_preregistrations
+        ]
+
+        response = personalize_runtime.get_personalized_ranking(
+            campaignArn=user_ranking_campaign_arn,
+            inputList=recent_preregistration_ids,
+            userId=user_id,
+        )
+        ranked_preregistration_ids = [
+            item["itemId"] for item in response["personalizedRanking"]
+        ]
+
+        recent_comments = RhCommentModel.objects.filter(
+            created_date__gte=datetime.now() - timedelta(days=14),
+            is_removed=False,
+        )
+        recent_comment_ids = [f"comment_{comment.id}" for comment in recent_comments]
+
+        response = personalize_runtime.get_personalized_ranking(
+            campaignArn=user_ranking_campaign_arn,
+            inputList=recent_comment_ids,
+            userId=user_id,
+        )
+        ranked_comment_ids = [
+            item["itemId"] for item in response["personalizedRanking"]
+        ]
+
+        ranked_ids = (
+            ranked_bounty_ids[:2]
+            + ranked_preregistration_ids[:1]
+            + ranked_comment_ids[:7]
+        )
+
+        return ranked_ids
+
     def list(self, request, *args, **kwargs):
         user_id = request.query_params.get("user_id")
         if not user_id:
@@ -337,14 +404,17 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
         personalize_runtime = boto3.client(
             "personalize-runtime", region_name="us-west-2"
         )
+
+        ranked_object_ids = self._get_ranked_recent_object_ids(user_id)
+
         recs_campaign_arn = "arn:aws:personalize:us-west-2:794128250202:campaign/recs"
 
         filters = [
-            {
-                "item_type": "bounty",
-                "arn": "arn:aws:personalize:us-west-2:794128250202:filter/bounties-only",
-                "num_results": 2,
-            },
+            # {
+            #     "item_type": "bounty",
+            #     "arn": "arn:aws:personalize:us-west-2:794128250202:filter/bounties-only",
+            #     "num_results": 2,
+            # },
             {
                 "item_type": "paper",
                 "arn": "arn:aws:personalize:us-west-2:794128250202:filter/papers-only",
@@ -355,21 +425,21 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
                 "arn": "arn:aws:personalize:us-west-2:794128250202:filter/posts-only",
                 "num_results": 4,
             },
-            {
-                "item_type": "preregistration",
-                "arn": "arn:aws:personalize:us-west-2:794128250202:filter/preregistrations-only",
-                "num_results": 1,
-            },
+            # {
+            #     "item_type": "preregistration",
+            #     "arn": "arn:aws:personalize:us-west-2:794128250202:filter/preregistrations-only",
+            #     "num_results": 1,
+            # },
             {
                 "item_type": "question",
                 "arn": "arn:aws:personalize:us-west-2:794128250202:filter/questions-only",
                 "num_results": 2,
             },
-            {
-                "item_type": "comment",
-                "arn": "arn:aws:personalize:us-west-2:794128250202:filter/comments-only",
-                "num_results": 7,
-            },
+            # {
+            #     "item_type": "comment",
+            #     "arn": "arn:aws:personalize:us-west-2:794128250202:filter/comments-only",
+            #     "num_results": 7,
+            # },
         ]
 
         rec_ids = []
@@ -383,35 +453,44 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
             # rec_ids = [item["itemId"] for item in response["itemList"]]
             rec_ids.extend([item["itemId"] for item in response["itemList"]])
 
-        analytics_ids = [item_id.split("_") for item_id in rec_ids if "_" in item_id]
-        paper_ids = [
-            analytics_id[1]
-            for analytics_id in analytics_ids
-            if analytics_id[0] == "paper"
+        rec_ids = [item_id.split("_") for item_id in rec_ids if "_" in item_id]
+        ranked_object_ids = [
+            item_id.split("_") for item_id in ranked_object_ids if "_" in item_id
         ]
+        paper_ids = [
+            analytics_id[1] for analytics_id in rec_ids if analytics_id[0] == "paper"
+        ]
+        post_ids = [
+            analytics_id[1]
+            for analytics_id in rec_ids
+            if analytics_id[0] == "question" or analytics_id[0] == "post"
+        ]
+
         comment_ids = [
             analytics_id[1]
-            for analytics_id in analytics_ids
+            for analytics_id in ranked_object_ids
             if analytics_id[0] == "comment"
         ]
         bounty_ids = [
             analytics_id[1]
-            for analytics_id in analytics_ids
+            for analytics_id in ranked_object_ids
             if analytics_id[0] == "bounty"
         ]
-        post_ids = [
+        preregistration_ids = [
             analytics_id[1]
-            for analytics_id in analytics_ids
-            if analytics_id[0] == "question"
-            or analytics_id[0] == "post"
-            or analytics_id[0] == "preregistration"
+            for analytics_id in ranked_object_ids
+            if analytics_id[0] == "preregistration"
         ]
 
         papers = Paper.objects.filter(id__in=paper_ids)
         comments = RhCommentModel.objects.filter(id__in=comment_ids)
         bounties = Bounty.objects.filter(id__in=bounty_ids)
         posts = ResearchhubPost.objects.filter(id__in=post_ids)
-        combined_queryset = list(chain(bounties, papers, comments, posts))
+        preregistrations = ResearchhubPost.objects.filter(id__in=preregistration_ids)
+        combined_queryset = list(
+            chain(bounties, papers, comments, posts, preregistrations)
+        )
+        random.shuffle(combined_queryset)
 
         page = self.paginate_queryset(combined_queryset)
 
