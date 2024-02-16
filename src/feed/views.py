@@ -345,7 +345,7 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
         open_bounties = Bounty.objects.filter(
             status="OPEN",
             expiration_date__gte=datetime.now(),
-        )
+        ).order_by("expiration_date")[:400]
         open_bounty_ids = [f"bounty_{bounty.id}" for bounty in open_bounties]
 
         response = personalize_runtime.get_personalized_ranking(
@@ -358,7 +358,7 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
         recent_preregistrations = ResearchhubPost.objects.filter(
             document_type="PREREGISTRATION",
             created_date__gte=datetime.now() - timedelta(days=30),
-        )
+        ).order_by("-created_date")[:400]
         recent_preregistration_ids = [
             f"preregistration_{preregistration.id}"
             for preregistration in recent_preregistrations
@@ -376,7 +376,7 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
         recent_comments = RhCommentModel.objects.filter(
             created_date__gte=datetime.now() - timedelta(days=14),
             is_removed=False,
-        )
+        ).order_by("-created_date")[:400]
         recent_comment_ids = [f"comment_{comment.id}" for comment in recent_comments]
 
         response = personalize_runtime.get_personalized_ranking(
