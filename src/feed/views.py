@@ -4,6 +4,7 @@ from itertools import chain
 
 import boto3
 from rest_framework import serializers, viewsets
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
@@ -28,6 +29,11 @@ from user.models import Action
 from user.serializers import DynamicUserSerializer
 from utils import sentry
 from utils.http import get_user_from_request
+
+
+class FeedPagination(PageNumberPagination):
+    max_page_size = 20
+    page_size = 20
 
 
 class DynamicFeedSerializer(DynamicModelFieldSerializer):
@@ -165,6 +171,8 @@ class DynamicFeedSerializer(DynamicModelFieldSerializer):
 class FeedViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Action.objects.all()
     permission_classes = [AllowAny]
+    pagination_class = FeedPagination
+    serializer = DynamicFeedSerializer
 
     def _get_feed_context(self):
         context = {
@@ -173,9 +181,19 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
                     "id",
                     "created_date",
                     "updated_date",
-                    # "unified_document",
+                    "unified_document",
                     "abstract",
                     "raw_authors",
+                    "score",
+                    "file",
+                    "doi",
+                    "pdf_url",
+                    "title",
+                    "is_open_access",
+                    "pdf_copyright_allows_display",
+                    "pdf_license",
+                    "external_source",
+                    "paper_publish_date",
                 ]
             },
             "feed_get_post_item": {
@@ -183,10 +201,13 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
                     "id",
                     "created_date",
                     "updated_date",
-                    # "unified_document",
+                    "unified_document",
                     "renderable_text",
                     "authors",
                     "created_by",
+                    "score",
+                    "title",
+                    "post_src",
                 ]
             },
             "feed_get_bounty_item": {
@@ -215,6 +236,9 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
                     "created_date",
                     "updated_date",
                     "comment_content_json",
+                    "review",
+                    "awarded_bounty_amount",
+                    "score",
                 ]
             },
             "rep_dbs_get_parent": {
@@ -237,7 +261,17 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
                     "created_date",
                     "updated_date",
                     "created_by",
+                    "score",
                     "comment_content_json",
+                    "awarded_bounty_amount",
+                    "review",
+                ]
+            },
+            "rhc_dcs_get_review": {
+                "_include_fields": [
+                    "score",
+                    "id",
+                    "object_id",
                 ]
             },
             "rhc_dcs_get_parent": {
@@ -247,6 +281,9 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
                     "updated_date",
                     "created_by",
                     "comment_content_json",
+                    "awarded_bounty_amount",
+                    "score",
+                    "review",
                 ]
             },
             "feed_get_hubs": {"_include_fields": ["id", "slug", "name"]},
@@ -450,7 +487,7 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
                 numResults=filter["num_results"],
                 filterArn=filter["arn"],
             )
-            # rec_ids = [item["itemId"] for item in response["itemList"]]
+
             rec_ids.extend([item["itemId"] for item in response["itemList"]])
 
         rec_ids = [item_id.split("_") for item_id in rec_ids if "_" in item_id]
