@@ -1269,10 +1269,11 @@ def pull_openalex_author_works(user_id, openalex_id):
     return True
 
 
-@periodic_task(
-    # run at 4:30 PM UTC (8:30 AM PST)
-    run_every=crontab(minute=30, hour=16), priority=3, queue=QUEUE_PULL_PAPERS
-)
+# Temporarily disabled as it was causing a lot of slowness in production
+# @periodic_task(
+#     # run at 4:30 PM UTC (8:30 AM PST)
+#     run_every=crontab(minute=30, hour=16), priority=3, queue=QUEUE_PULL_PAPERS
+# )
 def pull_new_openalex_works(page=0, retry=0):
     if not PRODUCTION:
         return
@@ -1364,6 +1365,9 @@ def pull_new_openalex_works(page=0, retry=0):
 
 @app.task(queue=QUEUE_PULL_PAPERS)
 def _process_openalex_work(work):
+    # causing slowness in production so temporarily disabled the job
+    return
+
     from paper.models import Paper
     from paper.paper_upload_tasks import create_paper_concepts_and_hubs
 
