@@ -82,48 +82,46 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             return ResearchhubUnifiedDocument.all_objects.all()
         return super().get_queryset()
 
+    def get_recommended_papers(self, user_id):
+        personalize_runtime = boto3.client(
+            "personalize-runtime", region_name="us-west-2"
+        )
+
+        recs_campaign_arn = "arn:aws:personalize:us-west-2:794128250202:campaign/recs"
+
+        response = personalize_runtime.get_recommendations(
+            campaignArn=recs_campaign_arn,
+            userId=str(user_id),
+            numResults=100,
+            filterArn="arn:aws:personalize:us-west-2:794128250202:filter/papers-only",
+        )
+
+        rec_ids = [item["itemId"] for item in response["itemList"]]
+        rec_ids = [item_id.split("_") for item_id in rec_ids if "_" in item_id]
+
+        print("paper_ids from personalize:", rec_ids)
+        paper_ids = [
+            analytics_id[1] for analytics_id in rec_ids if analytics_id[0] == "paper"
+        ]
+
+        papers = Paper.objects.filter(id__in=paper_ids)
+
+        return papers
+
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def recommendations(self, request, *args, **kwargs):
         user_id = request.query_params.get("user_id")
         if not user_id:
             return Response({"error": "user_id is required"}, status=400)
 
-        personalize_runtime = boto3.client(
-            "personalize-runtime", region_name="us-west-2"
-        )
-        campaign_arn = "arn:aws:personalize:us-west-2:794128250202:campaign/trending"
-
-        response = personalize_runtime.get_recommendations(
-            campaignArn=campaign_arn,
-            userId=str(user_id),
-            numResults=40,
-        )
-
-        item_ids = [item["itemId"] for item in response["itemList"]]
-        analytics_ids = [itemId.split("_") for itemId in item_ids if "_" in itemId]
-        paper_ids = [
-            analytics_id[1]
-            for analytics_id in analytics_ids
-            if analytics_id[0] == "paper"
+        papers = self.get_recommended_papers(user_id)
+        unified_doc_ids = [
+            paper.unified_document_id for paper in papers if paper.unified_document_id
         ]
-        post_ids = [
-            analytics_id[1]
-            for analytics_id in analytics_ids
-            if analytics_id[0] in ["post", "question"]
-        ]
-
-        # Fetch documents in a single query
-        papers = Paper.objects.filter(id__in=paper_ids)
-        posts = ResearchhubPost.objects.filter(id__in=post_ids)
-
-        # Combine and filter the queryset based on unified_document if necessary
-        docs = list(papers) + list(posts)
-        docs_queryset = ResearchhubUnifiedDocument.objects.filter(
-            Q(id__in=[doc.id for doc in docs])
-        )
+        docs = ResearchhubUnifiedDocument.objects.filter(id__in=unified_doc_ids)
 
         context = self._get_serializer_context()
-        page = self.paginate_queryset(docs_queryset)
+        page = self.paginate_queryset(docs)
         serializer = self.dynamic_serializer_class(
             page,
             _include_fields=[
