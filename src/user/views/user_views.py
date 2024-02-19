@@ -1369,7 +1369,9 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     "citation",
                     "comment_count",
                     "comment_content_json",
-                    "children",
+                    # 02-18-24 Kobe: Temporarily commenting this out as it leads to a fatal error.
+                    # I'm not sure this key is necessary for the client. Only time will tell
+                    # "children",
                     "content_type",
                     "created_by",
                     "created_date",
