@@ -25,6 +25,7 @@ from django.contrib.postgres.search import SearchQuery
 from django.core.cache import cache
 from django.core.files import File
 from django.core.files.base import ContentFile
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from habanero import Crossref
@@ -244,6 +245,44 @@ def add_orcid_authors(paper_id):
     for author in paper.authors.iterator():
         Wallet.objects.get_or_create(author=author)
     logging.info(f"Finished adding orcid authors to paper {paper.id}")
+    return True
+
+
+@app.task(queue=QUEUE_PAPER_MISC)
+def add_orcid_authors_batch(paper_ids):
+    paper_ids = [id for id in paper_ids if id is not None]
+
+    from utils.orcid import orcid_api
+    from paper.models import Paper
+
+    papers = Paper.objects.filter(id__in=paper_ids).only("doi", "alternate_ids")
+
+    for paper in papers:
+        orcid_authors = []
+        doi = paper.doi
+        arxiv_id = paper.alternate_ids.get("arxiv", None) if paper.alternate_ids else None
+
+        if doi is not None:
+            orcid_authors = orcid_api.get_authors(doi=doi)
+
+        if arxiv_id is not None and doi:
+            orcid_authors = orcid_api.get_authors(arxiv=doi)
+
+        if arxiv_id is not None:
+            orcid_authors = orcid_api.get_authors(arxiv=arxiv_id)
+
+        if len(orcid_authors) < 1:
+            print("No authors to add")
+            logging.info("Did not find paper identifier to give to ORCID API")
+            return False, "No Authors Found"
+
+        paper.authors.add(*orcid_authors)
+        if orcid_authors:
+            paper_cache_key = get_cache_key("paper", paper.id)
+            cache.delete(paper_cache_key)
+        for author in paper.authors.iterator():
+            Wallet.objects.get_or_create(author=author)
+
     return True
 
 
@@ -1269,44 +1308,96 @@ def pull_openalex_author_works(user_id, openalex_id):
     return True
 
 
-# Temporarily disabled as it was causing a lot of slowness in production
-# @periodic_task(
-#     # run at 4:30 PM UTC (8:30 AM PST)
-#     run_every=crontab(minute=30, hour=16), priority=3, queue=QUEUE_PULL_PAPERS
-# )
-def pull_new_openalex_works(page=0, retry=0):
+@periodic_task(
+    # run at 4:30 PM UTC (8:30 AM PST)
+    run_every=crontab(minute=30, hour=16), priority=3, queue=QUEUE_PULL_PAPERS
+)
+def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
+    """
+    Pull new works (papers) from OpenAlex.
+    
+    This looks complicated because we're trying to handle retries and logging.
+    But simply:
+    1. Get new works from OpenAlex in batches
+    2. Kick-off a task to create/update papers for each work
+    3. If we hit an error, retry the job from where we left off
+    4. Log the results
+    """
     if not PRODUCTION:
         return
 
     from paper.models import PaperFetchLog
 
-    sentry.log_info("Starting New OpenAlex pull")
+    date_to_fetch_from = datetime.now() - timedelta(days=1)
+    # if paper_fetch_log_id is provided, it means we're retrying
+    # otherwise we're starting a new pull
+    if paper_fetch_log_id is None:
+        start_date = datetime.now()
 
-    start_date = datetime.now()
+        # figure out when we should start fetching from.
+        # if we have an existing successful run, we start from the last successful run
+        try:
+            last_successful_run_log = PaperFetchLog.objects.filter(
+                source=PaperFetchLog.OPENALEX,
+                fetch_type=PaperFetchLog.FETCH_NEW,
+                status=PaperFetchLog.SUCCESS,
+            ).order_by("-started_date").first()
 
-    if retry > 2:
-        PaperFetchLog.objects.create(
+            if last_successful_run_log:
+                date_to_fetch_from = last_successful_run_log.started_date
+        except Exception as e:
+            sentry.log_error(e, message="Failed to get last successful log")
+
+        # check if there's a pending log within the last 24 hours
+        # if there is, skip this run.
+        # this is to prevent multiple runs from being queued at the same time,
+        # since our celery setup sometimes triggers multiple runs
+        try:
+            pending_log = PaperFetchLog.objects.filter(
+                source=PaperFetchLog.OPENALEX,
+                fetch_type=PaperFetchLog.FETCH_NEW,
+                status=PaperFetchLog.PENDING,
+                started_date__gte=date_to_fetch_from,
+            ).exists()
+
+            if pending_log:
+                return
+        except Exception as e:
+            sentry.log_error(e, message="Failed to get pending log")
+
+        lg = PaperFetchLog.objects.create(
             source=PaperFetchLog.OPENALEX,
             fetch_type=PaperFetchLog.FETCH_NEW,
-            status=PaperFetchLog.FAILURE,
+            status=PaperFetchLog.PENDING,
             started_date=start_date,
-            completed_date=datetime.now(),
+            fetch_since_date=date_to_fetch_from,
         )
+        paper_fetch_log_id = lg.id
+        sentry.log_info(f"Starting New OpenAlex pull: {paper_fetch_log_id}")
+    else:
+        # if paper_fetch_log_id is provided, it means we're retrying
+        # so we should get the last fetch date from the log
+        try:
+            last_successful_run_log = PaperFetchLog.objects.get(id=paper_fetch_log_id)
+            date_to_fetch_from = last_successful_run_log.fetch_since_date
+        except Exception as e:
+            sentry.log_error(e, message=f"Failed to get last log for id {paper_fetch_log_id}")
+            # consider this a failed run
+            PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
+                status=PaperFetchLog.FAILED,
+                completed_date=datetime.now(),
+            )
+            return False
+        
+        sentry.log_info(f"Retrying OpenAlex pull: {paper_fetch_log_id}")
+
+    if retry > 2: # too many retries
+        if paper_fetch_log_id is not None:
+            PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
+                status=PaperFetchLog.FAILED,
+                completed_date=datetime.now(),
+            )
         return False
-
-    # get the last time we ran this task
-    fetch_since_date = datetime.now() - timedelta(days=1)
-    try:
-        last_log = PaperFetchLog.objects.filter(
-            source=PaperFetchLog.OPENALEX,
-            fetch_type=PaperFetchLog.FETCH_NEW,
-            status=PaperFetchLog.SUCCESS,
-        ).order_by("-started_date").first()
-
-        if last_log:
-            fetch_since_date = last_log.started_date
-    except Exception as e:
-        sentry.log_error(e)
 
     total_papers_processed = 0
     # openalex uses a cursor to paginate through results,
@@ -1319,80 +1410,146 @@ def pull_new_openalex_works(page=0, retry=0):
         open_alex = OpenAlex()
 
         while True:
-            # get new works in batches
             works, next_cursor = open_alex.get_new_works_batch(
-                since_date=fetch_since_date,
+                since_date=date_to_fetch_from,
                 next_cursor=next_cursor
             )
+            # if we've reached the end of the results, exit the loop
             if next_cursor is None or works is None or len(works) == 0:
                 break
 
-            for work in works:
-                _process_openalex_work.apply_async(
-                    (work,),
-                    priority=4,
+            # if we're starting from a specific index, skip until we reach that index
+            works_to_process = None
+            if total_papers_processed >= start_index:
+                works_to_process = works
+            elif total_papers_processed + len(works) >= start_index:
+                works_to_process = works[start_index - total_papers_processed:]
+            if works_to_process is not None:
+                _process_openalex_works_batch.apply_async(
+                    (works_to_process,),
+                    priority=2,
                     countdown=1,
                 )
-                # delay so that we don't queue too many tasks at once
-                time.sleep(0.2)
 
             total_papers_processed += len(works)
 
-        PaperFetchLog.objects.create(
-            source=PaperFetchLog.OPENALEX,
-            fetch_type=PaperFetchLog.FETCH_NEW,
-            status=PaperFetchLog.SUCCESS,
-            started_date=start_date,
-            completed_date=datetime.now(),
-            total_papers_processed=total_papers_processed,
-        )
-    except requests.ConnectionError:
-        pull_new_openalex_works.apply_async(
-            (page, retry + 1), priority=4, countdown=10 + (retry * 2)
-        )
+        # done processing all works
+        if paper_fetch_log_id is not None:
+            PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
+                status=PaperFetchLog.SUCCESS,
+                completed_date=datetime.now(),
+                total_papers_processed=total_papers_processed,
+            )
     except Exception as e:
-        sentry.log_error(e)
-        PaperFetchLog.objects.create(
-            source=PaperFetchLog.OPENALEX,
-            fetch_type=PaperFetchLog.FETCH_NEW,
-            status=PaperFetchLog.FAILED,
-            started_date=start_date,
-            completed_date=datetime.now(),
-            total_papers_processed=total_papers_processed,
+        sentry.log_error(e, message="Failed to pull new works from OpenAlex, retrying")
+        pull_new_openalex_works.apply_async(
+            (total_papers_processed, retry + 1, paper_fetch_log_id),
+            priority=4,
+            countdown=10 + (retry * 2)
         )
+        # update total_papers_processed in the log
+        if paper_fetch_log_id is not None:
+            PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
+                total_papers_processed=total_papers_processed,
+            )
         return False
 
 
 @app.task(queue=QUEUE_PULL_PAPERS)
-def _process_openalex_work(work):
-    # causing slowness in production so temporarily disabled the job
-    return
-
+def _process_openalex_works_batch(works):
     from paper.models import Paper
     from paper.paper_upload_tasks import create_paper_concepts_and_hubs
 
     open_alex = OpenAlex()
 
-    doi = work.get("doi")
-    if doi is None:
-        print(f"No Doi for result: {work}")
-        return
-    existing_paper = Paper.objects.filter(doi_svf=SearchQuery(doi))
-    existing_paper = existing_paper.first()
-    # if doi has https://doi.org/ prefix, remove it
-    if not existing_paper and doi.startswith("https://doi.org/"):
-        doi = doi.replace("https://doi.org/", "")
-        existing_paper = Paper.objects.filter(doi_svf=SearchQuery(doi))
-        existing_paper = existing_paper.first()
+    dois = [work.get("doi") for work in works]
+    dois = [doi for doi in dois if doi is not None]
+    # if dois have https://doi.org/ prefix, remove them
+    dois = [doi.replace("https://doi.org/", "") for doi in dois]
 
-    # parse data
-    data, raw_concepts = open_alex.parse_to_paper_format(work)
-    concepts = open_alex.hydrate_paper_concepts(raw_concepts)
+    # batch fetch existing papers
+    existing_papers_query = Paper.objects.filter(doi__in=dois).only("doi", "id")
+    existing_papers = {paper.doi: paper for paper in existing_papers_query}
 
-    # if paper exists, we try to update it
-    if existing_paper is not None:
-        # we update these specific fields because we also create new papers from arxiv
-        # and arxiv usually doesn't have these fields
+    create_papers = []
+    update_papers = []
+
+    for work in works:
+        doi = work.get("doi")
+        if doi is None:
+            print(f"No Doi for result: {work}")
+            continue
+
+        existing_paper = existing_papers.get(doi)
+        if existing_paper is None:
+            doi = doi.replace("https://doi.org/", "")
+            existing_paper = existing_papers.get(doi)
+
+        if existing_paper is not None:
+            update_papers.append((existing_paper, work))
+        else:
+            create_papers.append(work)
+
+    paper_id_to_concepts = {}
+
+    # we can't use Paper.objects.bulk_create because there's generated fields,
+    # and we can't exclude the generated fields (e.g. doi_svf) from the bulk_create.
+    # so we just do it in a transaction.
+    new_paper_ids = []
+    with transaction.atomic():
+        for work in create_papers:
+            data, raw_concepts = open_alex.parse_to_paper_format(work)
+            concepts = open_alex.hydrate_paper_concepts(raw_concepts)
+            paper = Paper(**data)
+            # we don't do .full_clean() since it performs a unique check on doi, url
+            # and we don't need to check for uniques since we already did that above.
+            try:
+                paper.clean_fields()
+                paper.clean()
+            except ValidationError as e:
+                sentry.log_error(e, message=f"Failed to validate paper: {paper.doi}")
+                continue
+            paper.get_abstract_backup()
+            paper.get_pdf_link()
+
+            try:
+                paper.save()
+            except IntegrityError as e:
+                sentry.log_error(e, message=f"Failed to save paper, DOI already exists: {paper.doi}")
+            except Exception as e:
+                sentry.log_error(e, message=f"Failed to save paper, unexpected error: {paper.doi}")
+
+            paper_id_to_concepts[paper.id] = concepts
+            new_paper_ids.append(paper.id)
+
+    # batch create authors
+    if new_paper_ids and len(new_paper_ids) > 0:
+        try:
+            add_orcid_authors_batch.apply_async((new_paper_ids,), priority=5, countdown=5)
+        except Exception as e:
+            sentry.log_error(e, message="Failed to batch create authors")
+
+    # setup papers for batch update
+    for existing_paper, work in update_papers:
+        data, raw_concepts = open_alex.parse_to_paper_format(work)
+        concepts = open_alex.hydrate_paper_concepts(raw_concepts)
+
+        # we didn't fetch all fields in the initial paper query (we used .only()),
+        # so we need to explicitly fetch them if we want to update them.
+        # otherwise django doesn't update them, e.g. paper_publish_date
+        existing_paper.refresh_from_db(
+            fields=[
+                "paper_publish_date",
+                "alternate_ids",
+                "citations",
+                "abstract",
+                "pdf_license",
+                "oa_status",
+                "is_open_access",
+                "open_alex_raw_json",
+            ]
+        )
+
         existing_paper.paper_publish_date = data.get("paper_publish_date")
         existing_paper.alternate_ids = data.get("alternate_ids", {})
         existing_paper.citations = data.get("citations")
@@ -1405,43 +1562,34 @@ def _process_openalex_work(work):
         existing_paper.is_open_access = data.get("is_open_access")
         existing_paper.open_alex_raw_json = data.get("open_alex_raw_json")
 
-        existing_paper.save()
-        paper_id = existing_paper.id
+        paper_id_to_concepts[existing_paper.id] = concepts
 
-        # update concepts
-        create_paper_concepts_and_hubs.apply_async(
-            (
-                paper_id,
-                concepts,
-            ),
-            priority=2,
-            countdown=1,
-        )
+    # perform batch update
+    if update_papers and len(update_papers) > 0:
+        fields_to_update = [
+            "paper_publish_date",
+            "alternate_ids",
+            "citations",
+            "abstract",
+            "pdf_license",
+            "oa_status",
+            "is_open_access",
+            "open_alex_raw_json",
+        ]
+        papers_to_update = [paper for paper, _ in update_papers]
+        try:
+            Paper.objects.bulk_update(papers_to_update, fields_to_update)
+        except Exception as e:
+            sentry.log_error(e, message="Failed to bulk update papers")
 
-        return
-
-    # create paper
-    paper = Paper(**data)
-    paper.full_clean()
-    paper.get_abstract_backup()
-    paper.get_pdf_link()
-    paper.save()
-    paper_id = paper.id
-
-    # we're purposefully skipping PDF download here,
-    # since there's on the order of new 30-40K papers/day
-    # and that's just too much data processing for us to handle
-    # download_pdf.apply_async((paper_id,), priority=3, countdown=5)
-
-    # trigger add orcid authors
-    add_orcid_authors.apply_async((paper_id,), priority=5, countdown=5)
-
-    # create concepts and hubs
-    create_paper_concepts_and_hubs.apply_async(
-        (
-            paper_id,
-            concepts,
-        ),
-        priority=2,
-        countdown=1,
-    )
+    # batch create concepts and hubs
+    for paper_id, concepts in paper_id_to_concepts.items():
+        # TODO: We should batch create concepts and hubs
+        try:
+            create_paper_concepts_and_hubs.apply_async(
+                (paper_id, concepts),
+                priority=5,
+                countdown=1,
+            )
+        except Exception as e:
+            sentry.log_error(e, message="Failed to batch create concepts and hubs")
