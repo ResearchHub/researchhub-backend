@@ -29,6 +29,7 @@ import oauth.urls
 import oauth.views
 import paper.views as paper_views
 import purchase.views
+import proxy.views
 import reputation.views
 import researchhub.views
 import researchhub_case.views as researchhub_case_views
@@ -242,6 +243,7 @@ router.register(r"fundraise", purchase.views.FundraiseViewSet, basename="fundrai
 urlpatterns = [
     path("admin/", admin.site.urls),
     re_path(r"^api/", include(router.urls)),
+    path("api/proxy/", proxy.views.proxy_view),
     path("api/events/forward_event/", google_analytics.views.forward_event),
     # TODO: calvinhlee - consolidate all mod views into 1 set
     path("api/get_hub_active_contributors/", editor_views.get_hub_active_contributors),
