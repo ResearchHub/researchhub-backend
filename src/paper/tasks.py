@@ -1328,7 +1328,7 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
 
     from paper.models import PaperFetchLog
 
-    fetch_since_date = datetime.now() - timedelta(days=1)
+    date_to_fetch_from = datetime.now() - timedelta(days=1)
     # if paper_fetch_log_id is provided, it means we're retrying
     # otherwise we're starting a new pull
     if paper_fetch_log_id is None:
@@ -1337,14 +1337,14 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
         # figure out when we should start fetching from.
         # if we have an existing successful run, we start from the last successful run
         try:
-            last_log = PaperFetchLog.objects.filter(
+            last_successful_run_log = PaperFetchLog.objects.filter(
                 source=PaperFetchLog.OPENALEX,
                 fetch_type=PaperFetchLog.FETCH_NEW,
                 status=PaperFetchLog.SUCCESS,
             ).order_by("-started_date").first()
 
-            if last_log:
-                fetch_since_date = last_log.started_date
+            if last_successful_run_log:
+                date_to_fetch_from = last_successful_run_log.started_date
         except Exception as e:
             sentry.log_error(e, message="Failed to get last successful log")
 
@@ -1357,7 +1357,7 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
                 source=PaperFetchLog.OPENALEX,
                 fetch_type=PaperFetchLog.FETCH_NEW,
                 status=PaperFetchLog.PENDING,
-                started_date__gte=fetch_since_date,
+                started_date__gte=date_to_fetch_from,
             ).exists()
 
             if pending_log:
@@ -1370,7 +1370,7 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
             fetch_type=PaperFetchLog.FETCH_NEW,
             status=PaperFetchLog.PENDING,
             started_date=start_date,
-            fetch_since_date=fetch_since_date,
+            fetch_since_date=date_to_fetch_from,
         )
         paper_fetch_log_id = lg.id
         sentry.log_info(f"Starting New OpenAlex pull: {paper_fetch_log_id}")
@@ -1378,8 +1378,8 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
         # if paper_fetch_log_id is provided, it means we're retrying
         # so we should get the last fetch date from the log
         try:
-            last_log = PaperFetchLog.objects.get(id=paper_fetch_log_id)
-            fetch_since_date = last_log.fetch_since_date
+            last_successful_run_log = PaperFetchLog.objects.get(id=paper_fetch_log_id)
+            date_to_fetch_from = last_successful_run_log.fetch_since_date
         except Exception as e:
             sentry.log_error(e, message=f"Failed to get last log for id {paper_fetch_log_id}")
             # consider this a failed run
@@ -1411,7 +1411,7 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
 
         while True:
             works, next_cursor = open_alex.get_new_works_batch(
-                since_date=fetch_since_date,
+                since_date=date_to_fetch_from,
                 next_cursor=next_cursor
             )
             # if we've reached the end of the results, exit the loop
@@ -1419,16 +1419,19 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
                 break
 
             # if we're starting from a specific index, skip until we reach that index
+            works_to_process = None
             if total_papers_processed >= start_index:
+                works_to_process = works
+            elif total_papers_processed + len(works) >= start_index:
+                works_to_process = works[start_index - total_papers_processed:]
+            if works_to_process is not None:
                 _process_openalex_works_batch.apply_async(
-                    (works,),
+                    (works_to_process,),
                     priority=2,
                     countdown=1,
                 )
 
             total_papers_processed += len(works)
-
-            break
 
         # done processing all works
         if paper_fetch_log_id is not None:
