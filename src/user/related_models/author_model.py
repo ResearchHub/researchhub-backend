@@ -185,6 +185,7 @@ class Author(models.Model):
             ranked.concept.hub
             for ranked in ranked_concepts
             if ranked.relevancy_score >= min_relevancy_score
+            and hasattr(ranked.concept, "hub")
         ]
 
         # It is quite possible that hubs returned through ranked concepts is less than max_results
@@ -236,6 +237,7 @@ class Author(models.Model):
             ranked.concept.hub
             for ranked in ranked_concepts
             if ranked.relevancy_score >= min_relevancy_score
+            and hasattr(ranked.concept, "hub")
         ]
 
         # It is quite possible that hubs returned through ranked concepts is less than max_results
