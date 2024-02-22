@@ -94,6 +94,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             userId=str(user_id),
             numResults=100,
             filterArn="arn:aws:personalize:us-west-2:794128250202:filter/papers-only",
+            getExplanations=True,
         )
 
         rec_ids = [item["itemId"] for item in response["itemList"]]
