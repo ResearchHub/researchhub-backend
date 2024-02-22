@@ -274,7 +274,7 @@ def add_orcid_authors_batch(paper_ids):
         if len(orcid_authors) < 1:
             print("No authors to add")
             logging.info("Did not find paper identifier to give to ORCID API")
-            return False, "No Authors Found"
+            continue # skip to next paper
 
         paper.authors.add(*orcid_authors)
         if orcid_authors:
