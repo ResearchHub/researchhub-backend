@@ -6,7 +6,6 @@ from analytics.utils.analytics_mapping_utils import (
     build_claimed_paper_event,
     build_comment_event,
     build_doc_props_for_item,
-    build_hub_str,
     build_rsc_spend_event,
     build_vote_event,
     get_open_bounty_count,
@@ -267,12 +266,36 @@ def map_user_data(queryset, on_error):
                 pass
 
             record["USER_ID"] = str(user.id)
-            record["interest_hubs"] = "|".join(
-                [build_hub_str(hub) for hub in interests]
-            )
-            record["expertise_hubs"] = "|".join(
-                [build_hub_str(hub) for hub in expertise]
-            )
+
+            interest_hub_ids = []
+            interest_hub_metadata = []
+            expertise_hub_ids = []
+            expertise_hub_metadata = []
+            for hub in interests:
+                try:
+                    interest_hub_ids.append(str(hub.id))
+                    interest_hub_metadata.append(
+                        "hub_id: " + str(hub.id) + " -- hub_name: " + str(hub.name)
+                    )
+
+                except Exception as e:
+                    pass
+
+            for hub in expertise:
+                try:
+                    expertise_hub_ids.append(str(hub.id))
+                    expertise_hub_metadata.append(
+                        "hub_id: " + str(hub.id) + " -- hub_name: " + str(hub.name)
+                    )
+
+                except Exception as e:
+                    pass
+
+            record["user_interest_hub_ids"] = ";".join(interest_hub_ids)
+            record["user_interest_hub_metadata"] = ";".join(interest_hub_metadata)
+            record["user_expertise_hub_ids"] = ";".join(expertise_hub_ids)
+            record["user_expertise_hub_metadata"] = ";".join(expertise_hub_metadata)
+
             data.append(record)
 
         except Exception as e:

@@ -68,7 +68,8 @@ HEADERS = [
     "keywords",
     "cited_by_count",
     "citation_percentile_performance",
-    "hubs",
+    "hub_ids",
+    "hub_metadata",
     "is_trending_citations",
 ]
 
@@ -251,3 +252,5 @@ class Command(BaseCommand):
                     queryset, HEADERS
                 ),
             )
+
+            print("Export complete", output_filepath)

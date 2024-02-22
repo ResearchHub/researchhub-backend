@@ -106,9 +106,14 @@
 			"type": ["string", "null"]
 		},
 		{
-			"name": "hubs",
+			"name": "hub_ids",
 			"type": ["string", "null"],
 			"categorical": true
+		},
+		{
+			"name": "hub_metadata",
+			"type": ["string", "null"],
+			"textual": true
 		},
 		{
 			"name": "keywords",

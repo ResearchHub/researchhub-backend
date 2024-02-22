@@ -18,7 +18,8 @@ HEADERS = [
     "USER_ID",
     "internal_id",
     "unified_document_id",
-    "hubs",
+    "hub_ids",
+    "hub_metadata",
 ]
 
 
@@ -188,3 +189,5 @@ class Command(BaseCommand):
             from_id=from_id,
             process_chunk=lambda queryset: process_claim_chunk(queryset, HEADERS),
         )
+
+        print("Export complete!", output_filepath)

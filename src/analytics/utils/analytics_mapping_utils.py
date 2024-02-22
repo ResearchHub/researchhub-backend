@@ -18,10 +18,6 @@ COMMENT_EVENT_VALUE = 8
 CLAIMED_PAPER_EVENT_VALUE = 10
 
 
-def build_hub_str(hub):
-    return "NAME:" + str(hub.name) + ";ID:" + str(hub.id)
-
-
 def build_bounty_event(action):
     bounty = action.item
     is_contribution = (
@@ -167,41 +163,39 @@ def build_hub_props_from_unified_doc(unified_doc):
     props = {}
     hubs = unified_doc.hubs.all()
 
-    concepts = UnifiedDocumentConcepts.objects.filter(
+    ranked_concepts = UnifiedDocumentConcepts.objects.filter(
         unified_document=unified_doc
     ).order_by("-relevancy_score")
-    if len(concepts) > 0:
-        props["hubs"] = "|".join(
-            [build_hub_str(ranked_concept.concept.hub) for ranked_concept in concepts]
-        )
+
+    hub_ids = []
+    hub_metadata = []
+    if len(ranked_concepts) > 0:
+        for ranked_concept in ranked_concepts:
+            try:
+                if ranked_concept.concept and hasattr(ranked_concept.concept, "hub"):
+                    hub_ids.append(str(ranked_concept.concept.hub.id))
+                    hub_metadata.append(
+                        "hub_id: "
+                        + str(ranked_concept.concept.hub.id)
+                        + " -- hub_name: "
+                        + str(ranked_concept.concept.hub.name)
+                    )
+            except Exception as e:
+                pass
+
     elif len(hubs) > 0:
-        props["hubs"] = "|".join([build_hub_str(hub) for hub in hubs])
+        for hub in hubs:
+            try:
+                hub_ids.append(str(hub.id))
+                hub_metadata.append(
+                    "hub_id: " + str(hub.id) + " -- hub_name: " + str(hub.name)
+                )
 
-    return props
+            except Exception as e:
+                pass
 
-
-def build_hub_props_for_interaction(unified_doc):
-    from researchhub_document.related_models.researchhub_unified_document_model import (
-        UnifiedDocumentConcepts,
-    )
-
-    props = {}
-    if unified_doc:
-        hubs = unified_doc.hubs.all()
-
-        concepts = UnifiedDocumentConcepts.objects.filter(
-            unified_document=unified_doc
-        ).order_by("-relevancy_score")
-
-        if len(concepts) > 0:
-            props["hubs"] = "|".join(
-                [
-                    build_hub_str(ranked_concept.concept.hub)
-                    for ranked_concept in concepts
-                ]
-            )
-        elif len(hubs) > 0:
-            props["hubs"] = "|".join([build_hub_str(hub) for hub in hubs])
+    props["hub_ids"] = ";".join(hub_ids)
+    props["hub_metadata"] = ";".join(hub_metadata)
 
     return props
 
@@ -210,7 +204,7 @@ def build_doc_props_for_interaction(unified_doc):
     props = {}
     props["unified_document_id"] = str(unified_doc.id)
 
-    hub_props = build_hub_props_for_interaction(unified_doc)
+    hub_props = build_hub_props_from_unified_doc(unified_doc)
     props = {**props, **hub_props}
 
     return props

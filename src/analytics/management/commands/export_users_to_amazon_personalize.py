@@ -12,8 +12,10 @@ from user.related_models.user_model import User
 TEMP_PROGRESS_FILE = "./user-export-progress.temp.json"
 HEADERS = [
     "USER_ID",
-    "interest_hubs",
-    "expertise_hubs",
+    "user_interest_hub_ids",
+    "user_interest_hub_metadata",
+    "user_expertise_hub_ids",
+    "user_expertise_hub_metadata",
 ]
 
 
@@ -108,3 +110,5 @@ class Command(BaseCommand):
             from_id=from_id,
             process_chunk=lambda queryset: process_user_chunk(queryset, HEADERS),
         )
+
+        print("Export complete", output_filepath)
