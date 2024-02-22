@@ -893,8 +893,8 @@ def pull_openalex_author_works(user_id, openalex_id):
 
 
 @periodic_task(
-    # run at 4:30 PM UTC (8:30 AM PST)
-    run_every=crontab(minute=30, hour=16), priority=3, queue=QUEUE_PULL_PAPERS
+    # run at 6:00 AM UTC (10:00 PM PST)
+    run_every=crontab(minute=00, hour=6), priority=3, queue=QUEUE_PULL_PAPERS
 )
 def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
     """
