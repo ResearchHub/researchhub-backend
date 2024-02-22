@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import datetime
 
 from django.core.management.base import BaseCommand
 from django.db.models import Q
@@ -176,8 +176,8 @@ class Command(BaseCommand):
 
     def handle(self, *args, **kwargs):
         from_id = kwargs["from_id"] or 1
-        export_type = kwargs["type"]
         output_path = kwargs["output_path"]
+        export_type = kwargs["type"]
 
         # Related files
         output_filepath = get_output_file_path(export_type, output_path)
