@@ -56,48 +56,6 @@ def write_data_to_csv(data, headers, output_filepath):
             writer.writerow(truncated_item)
 
 
-# def export_data_to_csv_in_chunks(
-#     queryset,
-#     chunk_processor,
-#     headers,
-#     output_filepath,
-#     temp_progress_filepath,
-#     on_error,
-#     last_id=0,
-# ):
-#     _last_id = last_id
-#     chunk_num = 1
-
-#     while True:
-#         print(f"Exporting chunk {chunk_num} to {output_filepath}")
-#         _queryset = queryset.filter(id__gt=_last_id).order_by("id")[:CHUNK_SIZE]
-#         chunk = list(_queryset.iterator())
-#         print(f"Chunk Processed")
-
-#         if not chunk:
-#             break
-
-#         # Process the chunk with the provided function
-#         processed_chunk = chunk_processor(chunk, on_error)
-
-#         write_data_to_csv(processed_chunk, headers, output_filepath)
-
-#         print(f"Successfully exported chunk {chunk_num} {output_filepath}")
-
-#         # Move the pointers forward
-#         last_record = chunk[-1]
-#         _last_id = last_record.id
-#         chunk_num += 1
-
-#         # Write progress to temp file in case something goes wrong
-#         if temp_progress_filepath:
-#             write_to_progress_filepath(
-#                 last_id=_last_id,
-#                 progress_filepath=temp_progress_filepath,
-#                 export_filepath=output_filepath,
-#             )
-
-
 def export_chunk_to_csv(
     queryset,
     headers,
