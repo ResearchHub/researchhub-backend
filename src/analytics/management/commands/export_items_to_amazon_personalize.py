@@ -50,6 +50,7 @@ HEADERS = [
     "peer_review_score",
     "journal",
     "pdf_license",
+    "is_allowed_to_display_pdf",
     "oa_status",
     "slug",
     "authors",
@@ -140,6 +141,7 @@ def export_papers(from_id, to_id=None, size=1000, process_chunk: callable = None
             )
             .filter(unified_document__hubs__isnull=False)
             .distinct()
+            .order_by("id")
         )
 
         print(
@@ -169,7 +171,7 @@ class Command(BaseCommand):
         parser.add_argument("--from_id", type=str, help="start at a particular id")
 
     def handle(self, *args, **kwargs):
-        from_id = kwargs["from_id"] or 1
+        from_id = int(kwargs["from_id"] or 1)
         output_path = kwargs["output_path"]
         export_type = kwargs["type"]
 

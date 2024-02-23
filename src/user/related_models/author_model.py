@@ -137,7 +137,7 @@ class Author(models.Model):
 
     # Gets ranked list of hubs associated with user's interests.
     # We use comments and votes to determine what is the user interested in
-    def get_interest_hubs(self, max_results=15, min_relevancy_score=0.2):
+    def get_interest_hubs(self, max_results=100, min_relevancy_score=0.2):
         from researchhub_comment.related_models.rh_comment_model import RhCommentModel
         from researchhub_document.related_models.researchhub_unified_document_model import (
             UnifiedDocumentConcepts,
@@ -191,7 +191,7 @@ class Author(models.Model):
         # It is quite possible that hubs returned through ranked concepts is less than max_results
         # As a result, we want to pad the list with the rest of the hubs
         for doc in related_unified_documents:
-            if doc.hubs:
+            if hasattr(doc, "hubs"):
                 interest_hubs = interest_hubs + list(doc.hubs.all())
 
         # Remove duplicates while preserving order
@@ -202,7 +202,7 @@ class Author(models.Model):
 
     # Gets ranked list of hubs associated with user's likely expertise.
     # We use content peer reviewed and published papers to determine expertise
-    def get_expertise_hubs(self, max_results=15, min_relevancy_score=0.2):
+    def get_expertise_hubs(self, max_results=100, min_relevancy_score=0.2):
         from researchhub_comment.related_models.rh_comment_model import RhCommentModel
         from researchhub_document.related_models.researchhub_unified_document_model import (
             UnifiedDocumentConcepts,
@@ -243,7 +243,7 @@ class Author(models.Model):
         # It is quite possible that hubs returned through ranked concepts is less than max_results
         # As a result, we want to pad the list with the rest of the hubs
         for doc in related_unified_documents:
-            if doc.hubs:
+            if hasattr(doc, "hubs"):
                 expertise_hubs = expertise_hubs + list(doc.hubs.all())
 
         # Remove duplicates while preserving order
