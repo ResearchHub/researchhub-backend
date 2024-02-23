@@ -74,8 +74,9 @@ def export_posts(from_id, to_id=None, size=1000, process_chunk: callable = None)
     )
 
     current_id = from_id
+    to_id = to_id or ResearchhubPost.objects.last().id
     while True:
-        if to_id and current_id > to_id:
+        if current_id > to_id:
             break
 
         posts = ResearchhubPost.objects.filter(
@@ -106,23 +107,22 @@ def export_posts(from_id, to_id=None, size=1000, process_chunk: callable = None)
             process_chunk(queryset)
 
         # Update cursor
-        from_id += size
+        current_id += size
 
 
 def export_papers(from_id, to_id=None, size=1000, process_chunk: callable = None):
     from paper.related_models.paper_model import Paper
 
     current_id = from_id
+    to_id = to_id or Paper.objects.last().id
     while True:
-        if to_id and current_id > to_id:
+        if current_id > to_id:
             break
 
         # Get next "chunk"
-        queryset = Paper.objects.filter(id__gte=from_id, id__lte=(from_id + size - 1))
-
-        # Keep going until no more!
-        if queryset.exists() is False:
-            break
+        queryset = Paper.objects.filter(
+            id__gte=current_id, id__lte=(current_id + size - 1)
+        )
 
         # The following is meant to filter out papers that are not "COMPLETE"
         queryset = (
@@ -157,7 +157,7 @@ def export_papers(from_id, to_id=None, size=1000, process_chunk: callable = None
             process_chunk(queryset)
 
         # Update cursor
-        from_id += size
+        current_id += size
 
 
 class Command(BaseCommand):
