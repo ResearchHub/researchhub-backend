@@ -1075,6 +1075,7 @@ def _process_openalex_works_batch(works):
             create_papers.append(work)
 
     paper_id_to_concepts = {}
+    paper_ids_to_add_to_biorxiv_hub = []
 
     # we can't use Paper.objects.bulk_create because there's generated fields,
     # and we can't exclude the generated fields (e.g. doi_svf) from the bulk_create.
@@ -1102,6 +1103,11 @@ def _process_openalex_works_batch(works):
                 sentry.log_error(e, message=f"Failed to save paper, DOI already exists: {paper.doi}")
             except Exception as e:
                 sentry.log_error(e, message=f"Failed to save paper, unexpected error: {paper.doi}")
+
+            # if the paper is from biorXiv, we want to add it to the biorXiv Community Reviews hub
+            # so that it can get auto-assigned a peer-review with enough upvotes.
+            if "bioRxiv" in paper.external_source:
+                paper_ids_to_add_to_biorxiv_hub.append(paper.id)
 
             paper_id_to_concepts[paper.id] = concepts
             new_paper_ids.append(paper.id)
@@ -1131,6 +1137,7 @@ def _process_openalex_works_batch(works):
                 "oa_status",
                 "is_open_access",
                 "open_alex_raw_json",
+                "external_source",
             ]
         )
 
@@ -1147,6 +1154,11 @@ def _process_openalex_works_batch(works):
         existing_paper.open_alex_raw_json = data.get("open_alex_raw_json")
 
         paper_id_to_concepts[existing_paper.id] = concepts
+
+        # if the paper is from biorXiv, we want to add it to the biorXiv Community Reviews hub
+        # so that it can get auto-assigned a peer-review with enough upvotes.
+        if "bioRxiv" in existing_paper.external_source:
+            paper_ids_to_add_to_biorxiv_hub.append(existing_paper.id)
 
     # perform batch update
     if update_papers and len(update_papers) > 0:
@@ -1165,6 +1177,22 @@ def _process_openalex_works_batch(works):
             Paper.objects.bulk_update(papers_to_update, fields_to_update)
         except Exception as e:
             sentry.log_error(e, message="Failed to bulk update papers")
+
+    # batch add papers to biorXiv hub
+    if paper_ids_to_add_to_biorxiv_hub and len(paper_ids_to_add_to_biorxiv_hub) > 0:
+        # batch fetch papers
+        papers_to_add_to_biorxiv_hub = Paper.objects.filter(id__in=paper_ids_to_add_to_biorxiv_hub).only("id", "unified_document", "hubs")
+
+        with transaction.atomic():
+            biorxiv_hub_id = 436
+            
+            for paper in papers_to_add_to_biorxiv_hub:
+                try:
+                    paper.hubs.add(biorxiv_hub_id)
+                    paper.unified_document.hubs.add(biorxiv_hub_id)
+                except Exception as e:
+                    sentry.log_error(e, message=f"Failed to add paper to biorXiv hub: {paper.id}")
+                    continue
 
     # batch create concepts and hubs
     for paper_id, concepts in paper_id_to_concepts.items():
