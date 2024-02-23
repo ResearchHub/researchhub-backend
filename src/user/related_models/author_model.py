@@ -152,9 +152,7 @@ class Author(models.Model):
         related_unified_documents = []
 
         # Get unified documents associated with comments
-        comments = RhCommentModel.objects.filter(created_by_id=self.user.id).exclude(
-            comment_type__in=["REVIEW"]
-        )
+        comments = RhCommentModel.objects.filter(created_by_id=self.user.id)
 
         for comment in comments:
             related_unified_documents.append(comment.unified_document)
@@ -187,6 +185,7 @@ class Author(models.Model):
             ranked.concept.hub
             for ranked in ranked_concepts
             if ranked.relevancy_score >= min_relevancy_score
+            and hasattr(ranked.concept, "hub")
         ]
 
         # It is quite possible that hubs returned through ranked concepts is less than max_results
@@ -238,6 +237,7 @@ class Author(models.Model):
             ranked.concept.hub
             for ranked in ranked_concepts
             if ranked.relevancy_score >= min_relevancy_score
+            and hasattr(ranked.concept, "hub")
         ]
 
         # It is quite possible that hubs returned through ranked concepts is less than max_results

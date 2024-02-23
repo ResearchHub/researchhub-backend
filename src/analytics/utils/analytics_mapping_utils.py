@@ -18,10 +18,6 @@ COMMENT_EVENT_VALUE = 8
 CLAIMED_PAPER_EVENT_VALUE = 10
 
 
-def build_hub_str(hub):
-    return "NAME:" + str(hub.name) + ";ID:" + str(hub.id)
-
-
 def build_bounty_event(action):
     bounty = action.item
     is_contribution = (
@@ -167,41 +163,39 @@ def build_hub_props_from_unified_doc(unified_doc):
     props = {}
     hubs = unified_doc.hubs.all()
 
-    concepts = UnifiedDocumentConcepts.objects.filter(
+    ranked_concepts = UnifiedDocumentConcepts.objects.filter(
         unified_document=unified_doc
     ).order_by("-relevancy_score")
-    if len(concepts) > 0:
-        props["hubs"] = "|".join(
-            [build_hub_str(ranked_concept.concept.hub) for ranked_concept in concepts]
-        )
+
+    hub_ids = []
+    hub_metadata = []
+    if len(ranked_concepts) > 0:
+        for ranked_concept in ranked_concepts:
+            try:
+                if ranked_concept.concept and hasattr(ranked_concept.concept, "hub"):
+                    hub_ids.append(str(ranked_concept.concept.hub.id))
+                    hub_metadata.append(
+                        "hub_id: "
+                        + str(ranked_concept.concept.hub.id)
+                        + " -- hub_name: "
+                        + str(ranked_concept.concept.hub.name)
+                    )
+            except Exception as e:
+                pass
+
     elif len(hubs) > 0:
-        props["hubs"] = "|".join([build_hub_str(hub) for hub in hubs])
+        for hub in hubs:
+            try:
+                hub_ids.append(str(hub.id))
+                hub_metadata.append(
+                    "hub_id: " + str(hub.id) + " -- hub_name: " + str(hub.name)
+                )
 
-    return props
+            except Exception as e:
+                pass
 
-
-def build_hub_props_for_interaction(unified_doc):
-    from researchhub_document.related_models.researchhub_unified_document_model import (
-        UnifiedDocumentConcepts,
-    )
-
-    props = {}
-    if unified_doc:
-        hubs = unified_doc.hubs.all()
-
-        concepts = UnifiedDocumentConcepts.objects.filter(
-            unified_document=unified_doc
-        ).order_by("-relevancy_score")
-
-        if len(concepts) > 0:
-            props["hubs"] = "|".join(
-                [
-                    build_hub_str(ranked_concept.concept.hub)
-                    for ranked_concept in concepts
-                ]
-            )
-        elif len(hubs) > 0:
-            props["hubs"] = "|".join([build_hub_str(hub) for hub in hubs])
+    props["hub_ids"] = ";".join(hub_ids)
+    props["hub_metadata"] = ";".join(hub_metadata)
 
     return props
 
@@ -210,7 +204,7 @@ def build_doc_props_for_interaction(unified_doc):
     props = {}
     props["unified_document_id"] = str(unified_doc.id)
 
-    hub_props = build_hub_props_for_interaction(unified_doc)
+    hub_props = build_hub_props_from_unified_doc(unified_doc)
     props = {**props, **hub_props}
 
     return props
@@ -259,48 +253,10 @@ def build_doc_props_for_item(unified_doc):
                 time.mktime(paper.paper_publish_date.timetuple())
             )
 
-        if paper.open_alex_raw_json:
-            open_alex_data = paper.open_alex_raw_json
-            try:
-                mapped["keywords"] = ",".join(
-                    [
-                        keyword_obj["keyword"]
-                        for keyword_obj in open_alex_data["keywords"]
-                    ]
-                )
-            except Exception as e:
-                pass
-
-            try:
-                mapped["cited_by_count"] = open_alex_data["cited_by_count"]
-            except Exception as e:
-                pass
-
-            try:
-                mapped["citation_percentile_performance"] = open_alex_data[
-                    "cited_by_percentile_year"
-                ]["max"]
-            except Exception as e:
-                pass
-
-            try:
-                years_cited = open_alex_data["counts_by_year"]
-                # Let's use 2 years for now to determine if a paper is trending citation wise
-                mapped["is_trending_citations"] = False
-                if len(years_cited) >= 2:
-                    one_year_ago = years_cited[0]["cited_by_count"]
-                    two_years_ago = years_cited[1]["cited_by_count"]
-
-                    # 25% growth over the previous year is sufficient to be considered trending
-                    if (
-                        one_year_ago > two_years_ago
-                        and one_year_ago >= two_years_ago * 1.25
-                    ):
-                        mapped["is_trending_citations"] = True
-            except Exception as e:
-                pass
-
     else:
+        mapped["oa_status"] = "open"
+        mapped["twitter_score"] = 0
+
         authors_list = [
             f"{author.first_name} {author.last_name}"
             for author in unified_doc.authors

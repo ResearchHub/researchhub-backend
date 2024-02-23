@@ -3,19 +3,19 @@ from datetime import datetime
 from django.core.management.base import BaseCommand
 
 from analytics.utils.analytics_file_utils import (
-    export_data_to_csv_in_chunks,
-    read_progress_filepath,
-    remove_file,
+    write_data_to_csv,
+    write_to_progress_filepath,
 )
 from analytics.utils.analytics_mappers import map_user_data
-from analytics.utils.analytics_mapping_utils import build_hub_str
 from user.related_models.user_model import User
 
 TEMP_PROGRESS_FILE = "./user-export-progress.temp.json"
-EXPORT_FILE_HEADERS = [
+HEADERS = [
     "USER_ID",
-    "interest_hubs",
-    "expertise_hubs",
+    "user_interest_hub_ids",
+    "user_interest_hub_metadata",
+    "user_expertise_hub_ids",
+    "user_expertise_hub_metadata",
 ]
 
 
@@ -38,70 +38,77 @@ def write_error_to_file(id, error, error_filepath):
         file.write(f"ID: {id}, ERROR: {error}\n")
 
 
+def export_users(from_id, to_id=None, size=1000, process_chunk: callable = None):
+    current_id = from_id
+    while True:
+        if to_id and current_id > to_id:
+            break
+
+        # Get next "chunk"
+        queryset = User.objects.filter(id__gte=from_id, id__lte=(from_id + size - 1))
+
+        # Keep going until no more!
+        if queryset.exists() is False:
+            break
+
+        print(
+            "processing users from: ",
+            from_id,
+            " to: ",
+            from_id + size - 1,
+            " eligible results: ",
+            queryset.count(),
+        )
+
+        if process_chunk:
+            process_chunk(queryset)
+
+        # Update cursor
+        from_id += size
+
+
 class Command(BaseCommand):
-    help = "Export interaction data to personalize"
+    help = "Export users data to personalize"
 
     def add_arguments(self, parser):
-        parser.add_argument(
-            "--start_date",
-            type=str,
-            help="Start date in YYYY-MM-DD format.",
-        )
-        parser.add_argument(
-            "--resume",
-            type=str,
-            help="Resume will start from the last id within the file",
-        )
-        parser.add_argument(
-            "--force", type=str, help="Force write to file if one already exists"
-        )
         parser.add_argument("--output_path", type=str, help="The output path")
+        parser.add_argument("--from_id", type=str, help="start at a particular id")
 
     def handle(self, *args, **kwargs):
-        start_date_str = kwargs["start_date"]
-        should_resume = kwargs["resume"]
+        from_id = kwargs["from_id"] or 1
         output_path = kwargs["output_path"]
 
         # Related files
         output_filepath = get_output_file_path(output_path)
-        error_filepath = get_error_file_path(output_path)
         temp_progress_filepath = get_temp_progress_file_path(output_path)
+        error_filepath = get_error_file_path(output_path)
 
-        # By default we are not resuming and starting from beginning
-        progress_json = {"current_id": 0, "export_filepath": output_filepath}
-
-        if should_resume:
-            progress_json = read_progress_filepath(
-                temp_progress_filepath, output_filepath
+        def process_user_chunk(queryset, headers):
+            mapped_results = map_user_data(
+                queryset,
+                on_error=lambda id, msg: write_error_to_file(id, msg, error_filepath),
             )
-            output_filepath = progress_json["export_filepath"]
-            print("Resuming from ID", progress_json["current_id"])
 
-        queryset = User.objects.all()
-        if start_date_str:
-            start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
-            queryset = queryset.filter(created_date__gte=start_date)
+            write_data_to_csv(
+                data=mapped_results,
+                headers=headers,
+                output_filepath=output_filepath,
+            )
 
-        queryset = queryset.prefetch_related(
-            "author_profile",
+            # Write progress to temp file in case something goes wrong
+            if temp_progress_filepath:
+                last_item = queryset.last()
+
+                if last_item:
+                    write_to_progress_filepath(
+                        last_id=last_item.id,
+                        progress_filepath=temp_progress_filepath,
+                        export_filepath=output_filepath,
+                    )
+
+        export_users(
+            from_id=from_id,
+            process_chunk=lambda queryset: process_user_chunk(queryset, HEADERS),
         )
 
-        if start_date_str:
-            start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
-            queryset = queryset.filter(created_date__gte=start_date)
-
-        print(f"Number of users >= {start_date_str}: " + str(len(queryset)))
-        print("*********************************************************************")
-
-        export_data_to_csv_in_chunks(
-            queryset=queryset,
-            chunk_processor=map_user_data,
-            headers=EXPORT_FILE_HEADERS,
-            output_filepath=output_filepath,
-            last_id=progress_json["current_id"],
-            temp_progress_filepath=temp_progress_filepath,
-            on_error=lambda id, msg: write_error_to_file(id, msg, error_filepath),
-        )
-
-        # Cleanup the temp file pointing to our export progress thus far
-        remove_file(temp_progress_filepath)
+        print("Export complete", output_filepath)

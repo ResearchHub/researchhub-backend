@@ -8,14 +8,24 @@
 			"type": "string"
 		},
 		{
-			"name": "interest_hubs",
+			"name": "user_interest_hub_ids",
 			"type": ["string", "null"],
 			"categorical": true
 		},
 		{
-			"name": "expertise_hubs",
+			"name": "user_interest_hub_metadata",
+			"type": ["string", "null"],
+			"textual": true
+		},
+		{
+			"name": "user_expertise_hub_ids",
 			"type": ["string", "null"],
 			"categorical": true
+		},
+		{
+			"name": "user_expertise_hub_metadata",
+			"type": ["string", "null"],
+			"textual": true
 		}
 	],
 	"version": "1.0"
