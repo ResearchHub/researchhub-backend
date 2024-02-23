@@ -38,8 +38,9 @@ def write_error_to_file(id, error, error_filepath):
 
 def export_users(from_id, to_id=None, size=1000, process_chunk: callable = None):
     current_id = from_id
+    to_id = to_id or User.objects.last().id
     while True:
-        if to_id and current_id > to_id:
+        if current_id > to_id:
             break
 
         # Get next "chunk"
@@ -62,7 +63,7 @@ def export_users(from_id, to_id=None, size=1000, process_chunk: callable = None)
             process_chunk(queryset)
 
         # Update cursor
-        from_id += size
+        current_id += size
 
 
 class Command(BaseCommand):
