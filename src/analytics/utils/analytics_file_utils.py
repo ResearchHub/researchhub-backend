@@ -54,20 +54,3 @@ def write_data_to_csv(data, headers, output_filepath):
                 item, headers
             )  # Truncate fields before writing
             writer.writerow(truncated_item)
-
-
-def export_chunk_to_csv(
-    queryset,
-    headers,
-    output_filepath,
-    temp_progress_filepath,
-):
-    write_data_to_csv(queryset, headers, output_filepath)
-
-    # Write progress to temp file in case something goes wrong
-    if temp_progress_filepath:
-        write_to_progress_filepath(
-            last_id=_last_id,
-            progress_filepath=temp_progress_filepath,
-            export_filepath=output_filepath,
-        )
