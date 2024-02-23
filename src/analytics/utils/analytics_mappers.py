@@ -1,5 +1,7 @@
 import time
-from datetime import date
+from datetime import datetime
+
+import dateutil.relativedelta
 
 from analytics.utils.analytics_mapping_utils import (
     build_bounty_event,
@@ -62,29 +64,57 @@ def map_claim_data(claim_cases, on_error):
 
 
 def map_paper_data(papers, on_error):
-    from paper.related_models.paper_model import Paper
-
     data = []
     for paper in papers:
         try:
-            # We want to exclude papers that haven't had any traction thus far
-            if paper.discussion_count == 0:
-                open_alex_data = paper.open_alex_raw_json
+            open_alex_data = paper.open_alex_raw_json
 
-                # If papers are not new, let's see if they have been cited
-                if paper.paper_publish_date < date(2023, 1, 1):
-                    if (
-                        open_alex_data["cited_by_percentile_year"]
-                        and open_alex_data["cited_by_percentile_year"]["min"] < 80
-                    ):
-                        on_error(
-                            id=paper.id, msg="Skipping due to low citation percentile"
-                        )
-                        continue
-                    # Arbitrary consideration of highly cited papers atm
-                    if open_alex_data["cited_by_count"] < 40:
-                        on_error(id=paper.id, msg="Skipping due to low cited_by_count")
-                        continue
+            citation_percentile = 0
+            try:
+                citation_percentile = open_alex_data["cited_by_percentile_year"]["min"]
+            except Exception as e:
+                pass
+
+            cited_by_count = 0
+            try:
+                cited_by_count = open_alex_data["cited_by_count"] or 0
+            except Exception as e:
+                pass
+
+            paper_published_less_than_three_months_ago = False
+            three_months_ago = datetime.now() - dateutil.relativedelta.relativedelta(
+                months=3
+            )
+            try:
+                paper_published_less_than_three_months_ago = (
+                    paper.paper_publish_date.date() > three_months_ago
+                )
+            except Exception as e:
+                pass
+
+            paper_has_more_than_5_citations = cited_by_count > 5
+            paper_has_activity = paper.discussion_count > 0 or paper.twitter_score > 0
+            paper_is_highly_cited = cited_by_count > 80 or (
+                cited_by_count > 40 and citation_percentile > 90
+            )
+            should_include = False
+
+            if paper_has_activity:
+                should_include = True
+            elif (
+                paper_has_more_than_5_citations
+                and paper_published_less_than_three_months_ago
+            ):
+                should_include = True
+            elif paper_is_highly_cited:
+                should_include = True
+
+            if should_include is False:
+                on_error(
+                    id=str(paper.id),
+                    msg=f"Skipping paper. paper_has_activity: {str(paper_has_activity)}, paper_has_more_than_5_citations: {str(paper_has_more_than_5_citations)}, paper_published_less_than_three_months_ago: {str(paper_published_less_than_three_months_ago)}, paper_is_highly_cited: {str(paper_is_highly_cited)}",
+                )
+                continue
 
             record = {}
             doc = paper.unified_document
@@ -98,9 +128,39 @@ def map_paper_data(papers, on_error):
             )
             record["updated_timestamp"] = int(time.mktime(doc.updated_date.timetuple()))
             record["open_bounty_count"] = get_open_bounty_count(doc)
+            record["is_highly_cited"] = paper_is_highly_cited
+            record["citation_percentile_performance"] = citation_percentile
+            record["cited_by_count"] = cited_by_count
 
             if paper.created_by:
                 record["created_by_user_id"] = str(paper.created_by.id)
+
+            try:
+                years_cited = open_alex_data["counts_by_year"]
+                # Let's use 2 years for now to determine if a paper is trending citation wise
+                record["is_trending_citations"] = False
+                if len(years_cited) >= 2:
+                    one_year_ago = years_cited[0]["cited_by_count"]
+                    two_years_ago = years_cited[1]["cited_by_count"]
+
+                    # 25% growth over the previous year is sufficient to be considered trending
+                    if (
+                        one_year_ago > two_years_ago
+                        and one_year_ago >= two_years_ago * 1.25
+                    ):
+                        record["is_trending_citations"] = True
+            except Exception as e:
+                pass
+
+            try:
+                record["keywords"] = ",".join(
+                    [
+                        keyword_obj["keyword"]
+                        for keyword_obj in open_alex_data["keywords"]
+                    ]
+                )
+            except Exception as e:
+                pass
 
             data.append(record)
         except Exception as e:

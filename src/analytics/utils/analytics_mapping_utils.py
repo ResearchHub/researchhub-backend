@@ -253,48 +253,10 @@ def build_doc_props_for_item(unified_doc):
                 time.mktime(paper.paper_publish_date.timetuple())
             )
 
-        if paper.open_alex_raw_json:
-            open_alex_data = paper.open_alex_raw_json
-            try:
-                mapped["keywords"] = ",".join(
-                    [
-                        keyword_obj["keyword"]
-                        for keyword_obj in open_alex_data["keywords"]
-                    ]
-                )
-            except Exception as e:
-                pass
-
-            try:
-                mapped["cited_by_count"] = open_alex_data["cited_by_count"]
-            except Exception as e:
-                pass
-
-            try:
-                mapped["citation_percentile_performance"] = open_alex_data[
-                    "cited_by_percentile_year"
-                ]["max"]
-            except Exception as e:
-                pass
-
-            try:
-                years_cited = open_alex_data["counts_by_year"]
-                # Let's use 2 years for now to determine if a paper is trending citation wise
-                mapped["is_trending_citations"] = False
-                if len(years_cited) >= 2:
-                    one_year_ago = years_cited[0]["cited_by_count"]
-                    two_years_ago = years_cited[1]["cited_by_count"]
-
-                    # 25% growth over the previous year is sufficient to be considered trending
-                    if (
-                        one_year_ago > two_years_ago
-                        and one_year_ago >= two_years_ago * 1.25
-                    ):
-                        mapped["is_trending_citations"] = True
-            except Exception as e:
-                pass
-
     else:
+        mapped["oa_status"] = "open"
+        mapped["twitter_score"] = 0
+
         authors_list = [
             f"{author.first_name} {author.last_name}"
             for author in unified_doc.authors

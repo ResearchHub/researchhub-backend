@@ -29,36 +29,6 @@
 			"type": ["string", "null"]
 		},
 		{
-			"name": "bounty_parent_id",
-			"type": ["string", "null"]
-		},
-		{
-			"name": "bounty_type",
-			"type": ["string", "null"],
-			"categorical": true
-		},
-		{
-			"name": "bounty_status",
-			"type": ["string", "null"],
-			"categorical": true
-		},
-		{
-			"name": "bounty_expiration_timestamp",
-			"type": ["long", "null"]
-		},
-		{
-			"name": "bounty_is_expiring_soon",
-			"type": ["string", "null"]
-		},
-		{
-			"name": "bounty_has_solution",
-			"type": ["string", "null"]
-		},
-		{
-			"name": "title",
-			"type": ["string", "null"]
-		},
-		{
 			"name": "journal",
 			"type": ["string", "null"],
 			"categorical": true
@@ -133,8 +103,12 @@
 			"type": ["float", "null"]
 		},
 		{
+			"name": "is_highly_cited",
+			"type": ["boolean", "null"]
+		},
+		{
 			"name": "is_trending_citations",
-			"type": ["string", "null"]
+			"type": ["boolean", "null"]
 		},
 		{
 			"name": "peer_review_score",
