@@ -19,7 +19,6 @@ HEADERS = [
     "internal_id",
     "unified_document_id",
     "hub_ids",
-    "hub_metadata",
 ]
 
 
@@ -126,7 +125,7 @@ class Command(BaseCommand):
         parser.add_argument("--from_id", type=str, help="start at a particular id")
 
     def handle(self, *args, **kwargs):
-        from_id = kwargs["from_id"] or 1
+        from_id = int(kwargs["from_id"] or 1)
         output_path = kwargs["output_path"]
 
         # Related files

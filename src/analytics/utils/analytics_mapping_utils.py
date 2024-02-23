@@ -5,7 +5,7 @@ from datetime import datetime
 
 from discussion.reaction_models import Vote
 from paper.related_models.paper_model import Paper
-from paper.utils import format_raw_authors
+from paper.utils import format_raw_authors, pdf_copyright_allows_display
 from reputation.related_models.bounty import Bounty
 
 # Event values correspond to the user's potential interest in the item's topics (hubs)
@@ -175,9 +175,8 @@ def build_hub_props_from_unified_doc(unified_doc):
                 if ranked_concept.concept and hasattr(ranked_concept.concept, "hub"):
                     hub_ids.append(str(ranked_concept.concept.hub.id))
                     hub_metadata.append(
-                        "hub_id: "
-                        + str(ranked_concept.concept.hub.id)
-                        + " -- hub_name: "
+                        +str(ranked_concept.concept.hub.id)
+                        + "::"
                         + str(ranked_concept.concept.hub.name)
                     )
             except Exception as e:
@@ -187,9 +186,7 @@ def build_hub_props_from_unified_doc(unified_doc):
         for hub in hubs:
             try:
                 hub_ids.append(str(hub.id))
-                hub_metadata.append(
-                    "hub_id: " + str(hub.id) + " -- hub_name: " + str(hub.name)
-                )
+                hub_metadata.append(str(hub.id) + "::" + str(hub.name))
 
             except Exception as e:
                 pass
@@ -234,6 +231,12 @@ def build_doc_props_for_item(unified_doc):
         mapped["twitter_score"] = paper.twitter_score
         mapped["body"] = paper.abstract
 
+        mapped["is_allowed_to_display_pdf"] = ""
+        try:
+            mapped["is_allowed_to_display_pdf"] = pdf_copyright_allows_display(paper)
+        except Exception as e:
+            pass
+
         try:
             # Parse the authors' list to include only names
             authors_list = format_raw_authors(paper.raw_authors)
@@ -254,7 +257,7 @@ def build_doc_props_for_item(unified_doc):
             )
 
     else:
-        mapped["oa_status"] = "open"
+        mapped["oa_status"] = "gold"
         mapped["twitter_score"] = 0
 
         authors_list = [

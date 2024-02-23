@@ -20,9 +20,14 @@ def write_to_progress_filepath(last_id, progress_filepath, export_filepath):
         json.dump(progress_json, file)
 
 
-def truncate_fields(record, headers, max_length=900):
+def clean_fields(record, headers, max_length=900):
     for key, value in record.items():
-        if isinstance(value, str) and len(value) > max_length:
+        if value == "TRUE" or value == True:
+            value = 1
+        elif value == "FALSE" or value == False:
+            value = 0
+
+        if isinstance(value, str) and not "metadata" in key and len(value) > max_length:
             record[key] = value[:max_length]  # Truncate the string
 
     return {key: value for key, value in record.items() if key in headers}
@@ -50,7 +55,7 @@ def write_data_to_csv(data, headers, output_filepath):
             writer.writeheader()
 
         for item in data:
-            truncated_item = truncate_fields(
+            cleaned_item = clean_fields(
                 item, headers
-            )  # Truncate fields before writing
-            writer.writerow(truncated_item)
+            )  # Truncate/clean fields before writing
+            writer.writerow(cleaned_item)

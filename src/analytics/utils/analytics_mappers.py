@@ -92,7 +92,7 @@ def map_paper_data(papers, on_error):
             except Exception as e:
                 pass
 
-            paper_has_more_than_5_citations = cited_by_count > 5
+            paper_has_at_least_1_citation = cited_by_count >= 1
             paper_has_activity = paper.discussion_count > 0 or paper.twitter_score > 0
             paper_is_highly_cited = cited_by_count > 80 or (
                 cited_by_count > 40 and citation_percentile > 90
@@ -102,7 +102,7 @@ def map_paper_data(papers, on_error):
             if paper_has_activity:
                 should_include = True
             elif (
-                paper_has_more_than_5_citations
+                paper_has_at_least_1_citation
                 and paper_published_less_than_three_months_ago
             ):
                 should_include = True
@@ -112,7 +112,7 @@ def map_paper_data(papers, on_error):
             if should_include is False:
                 on_error(
                     id=str(paper.id),
-                    msg=f"Skipping paper. paper_has_activity: {str(paper_has_activity)}, paper_has_more_than_5_citations: {str(paper_has_more_than_5_citations)}, paper_published_less_than_three_months_ago: {str(paper_published_less_than_three_months_ago)}, paper_is_highly_cited: {str(paper_is_highly_cited)}",
+                    msg=f"Skipping paper. paper_has_activity: {str(paper_has_activity)}, paper_has_at_least_1_citation: {str(paper_has_at_least_1_citation)}, paper_published_less_than_three_months_ago: {str(paper_published_less_than_three_months_ago)}, paper_is_highly_cited: {str(paper_is_highly_cited)}",
                 )
                 continue
 
@@ -328,15 +328,10 @@ def map_user_data(queryset, on_error):
             record["USER_ID"] = str(user.id)
 
             interest_hub_ids = []
-            interest_hub_metadata = []
             expertise_hub_ids = []
-            expertise_hub_metadata = []
             for hub in interests:
                 try:
                     interest_hub_ids.append(str(hub.id))
-                    interest_hub_metadata.append(
-                        "hub_id: " + str(hub.id) + " -- hub_name: " + str(hub.name)
-                    )
 
                 except Exception as e:
                     pass
@@ -344,17 +339,12 @@ def map_user_data(queryset, on_error):
             for hub in expertise:
                 try:
                     expertise_hub_ids.append(str(hub.id))
-                    expertise_hub_metadata.append(
-                        "hub_id: " + str(hub.id) + " -- hub_name: " + str(hub.name)
-                    )
 
                 except Exception as e:
                     pass
 
             record["user_interest_hub_ids"] = ";".join(interest_hub_ids)
-            record["user_interest_hub_metadata"] = ";".join(interest_hub_metadata)
             record["user_expertise_hub_ids"] = ";".join(expertise_hub_ids)
-            record["user_expertise_hub_metadata"] = ";".join(expertise_hub_metadata)
 
             data.append(record)
 

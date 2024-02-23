@@ -39,6 +39,10 @@
 			"categorical": true
 		},
 		{
+			"name": "is_allowed_to_display_pdf",
+			"type": ["int", "null"]
+		},
+		{
 			"name": "oa_status",
 			"type": ["string", "null"],
 			"categorical": true
@@ -104,11 +108,11 @@
 		},
 		{
 			"name": "is_highly_cited",
-			"type": ["boolean", "null"]
+			"type": ["int", "null"]
 		},
 		{
 			"name": "is_trending_citations",
-			"type": ["boolean", "null"]
+			"type": ["int", "null"]
 		},
 		{
 			"name": "peer_review_score",
