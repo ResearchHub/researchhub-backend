@@ -38,7 +38,7 @@ def write_error_to_file(id, error, error_filepath):
 
 def export_users(from_id, to_id=None, size=1000, process_chunk: callable = None):
     current_id = from_id
-    to_id = to_id or User.objects.last().id
+    to_id = to_id or User.objects.all().order_by("-id").first().id
     while True:
         if current_id > to_id:
             break
