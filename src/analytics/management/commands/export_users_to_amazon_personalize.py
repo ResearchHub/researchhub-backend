@@ -44,11 +44,9 @@ def export_users(from_id, to_id=None, size=1000, process_chunk: callable = None)
             break
 
         # Get next "chunk"
-        queryset = User.objects.filter(id__gte=from_id, id__lte=(from_id + size - 1))
-
-        # Keep going until no more!
-        if queryset.exists() is False:
-            break
+        queryset = User.objects.filter(
+            id__gte=current_id, id__lte=(current_id + size - 1)
+        )
 
         print(
             "processing users from: ",

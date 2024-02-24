@@ -49,7 +49,9 @@ def export_actions(from_id, to_id=None, size=1000, process_chunk: callable = Non
             break
 
         # Get next "chunk"
-        queryset = Action.objects.filter(id__gte=from_id, id__lte=(from_id + size - 1))
+        queryset = Action.objects.filter(
+            id__gte=current_id, id__lte=(current_id + size - 1)
+        )
 
         queryset = (
             queryset.filter(is_removed=False, user__isnull=False)
@@ -63,10 +65,6 @@ def export_actions(from_id, to_id=None, size=1000, process_chunk: callable = Non
                 "user__author_profile",
             )
         )
-
-        # Keep going until no more!
-        if queryset.exists() is False:
-            break
 
         print(
             "processing actions from: ",
