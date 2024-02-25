@@ -17,6 +17,7 @@ HEADERS = [
     "EVENT_VALUE",
     "USER_ID",
     "internal_id",
+    "interaction_id",
     "unified_document_id",
     "hub_ids",
 ]
@@ -96,10 +97,6 @@ def export_author_claim_cases(
             id__gte=current_id, id__lte=(current_id + size - 1)
         )
         queryset.filter(status="APPROVED")
-
-        # Keep going until no more!
-        if queryset.exists() is False:
-            break
 
         print(
             "processing claim from: ",

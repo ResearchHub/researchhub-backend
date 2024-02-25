@@ -24,6 +24,10 @@
             "type": ["float", "null"]
         },
 		{
+			"name": "interaction_id",
+			"type": "string"
+		},
+		{
 			"name": "internal_id",
 			"type": "string"
 		},
