@@ -274,7 +274,7 @@ def add_orcid_authors_batch(paper_ids):
         if len(orcid_authors) < 1:
             print("No authors to add")
             logging.info("Did not find paper identifier to give to ORCID API")
-            return False, "No Authors Found"
+            continue # skip to next paper
 
         paper.authors.add(*orcid_authors)
         if orcid_authors:
@@ -702,252 +702,6 @@ def log_daily_uploads():
     return request.status_code, paper_count
 
 
-# @periodic_task(
-#     run_every=crontab(minute=0, hour="*/3"), priority=3, queue=QUEUE_PULL_PAPERS
-# )
-def pull_biorxiv_papers():
-    sentry.log_info("Starting Biorxiv pull")
-
-    from paper.models import Paper
-
-    biorxiv_id = "https://openalex.org/S4306402567"
-    today = datetime.now(tz=pytz_tz("US/Pacific")).strftime("%Y-%m-%d")
-    open_alex = OpenAlex()
-    biorxiv_works = open_alex.get_data_from_source(
-        biorxiv_id,
-        None,
-        cursor="IlsxLCAnaHR0cHM6Ly9vcGVuYWxleC5vcmcvVzMxNjQyOTI5NjInXSI=",
-    )
-    total_works = biorxiv_works.get("meta").get("count")
-    pages = math.ceil(total_works / open_alex.per_page)
-    print(pages)
-    next_cursor = biorxiv_works.get("meta", {}).get("next_cursor", "*")
-    i = 1040
-
-    while next_cursor is not None:
-        i += 1
-        next_cursor = biorxiv_works.get("meta", {}).get("next_cursor", "*")
-        print(f"{i} / {pages + 1}: {next_cursor}")
-
-        with open("last_cursor.txt", "w") as f:
-            f.write(str(next_cursor))
-
-        with transaction.atomic():
-            for result in biorxiv_works.get("results", []):
-                try:
-                    start_time = time.time()
-                    doi = result.get("doi")
-                    if doi is None:
-                        print(f"No Doi for result: {result}")
-                        continue
-                    pure_doi = doi.split("doi.org/")[-1]
-
-                    primary_location = result.get(
-                        "best_oa_location", None
-                    ) or result.get("primary_location", {})
-                    source = primary_location.get("source", {})
-                    oa = result.get("open_access", {})
-                    oa_pdf_url = oa.get("oa_url", None)
-                    url = primary_location.get("landing_page_url", None)
-                    raw_title = result.get("title", "") or ""
-                    title = normalize("NFKD", raw_title)
-                    raw_authors = result.get("authorships", [])
-                    concepts = result.get("concepts", [])
-                    abstract = rebuild_sentence_from_inverted_index(
-                        result.get("abstract_inverted_index", {})
-                    )
-
-                    # doi_paper_check = Paper.objects.filter(
-                    #     doi_svf=SearchQuery(pure_doi)
-                    # )
-                    # url_paper_check = Paper.objects.filter(
-                    #     Q(url_svf=SearchQuery(url))
-                    #     | Q(pdf_url_svf=SearchQuery(oa_pdf_url))
-                    # )
-                    # if doi_paper_check.exists() or url_paper_check.exists():
-                    #     # This skips over the current iteration
-                    #     continue
-
-                    data = {
-                        "doi": pure_doi,
-                        "url": url,
-                        "raw_authors": format_raw_authors(raw_authors),
-                        "title": title,
-                        "paper_title": title,
-                        "paper_publish_date": result.get("publication_date", None),
-                        "is_open_access": oa.get("is_oa", None),
-                        "oa_status": oa.get("oa_status", None),
-                        "pdf_license": source.get("license", None),
-                        "external_source": source.get("display_name", ""),
-                        "abstract": abstract,
-                        "open_alex_raw_json": result,
-                        "score": 1,
-                    }
-                    if oa_pdf_url:
-                        data["pdf_url"] = oa_pdf_url
-
-                    end_time = time.time()
-                    elapsed_time = end_time - start_time
-
-                    paper = Paper(**data)
-                    paper.full_clean()
-                    paper.save()
-                    concept_names = [
-                        concept.get("display_name", "other")
-                        for concept in concepts
-                        if concept.get("level", 0) == 0
-                    ]
-                    potential_hubs = []
-                    for concept_name in concept_names:
-                        potential_hub = Hub.objects.filter(name__icontains=concept_name)
-                        if potential_hub.exists():
-                            potential_hub = potential_hub.first()
-                            potential_hubs.append(potential_hub)
-                    paper.hubs.add(*potential_hubs)
-                    paper.unified_document.hubs.add(*potential_hubs)
-
-                    download_pdf.apply_async((paper.id,), priority=4, countdown=4)
-                    if "biorxiv" in paper.url:
-                        set_biorxiv_tweet_count.apply_async(
-                            (
-                                paper.url,
-                                paper.doi,
-                                paper.id,
-                            ),
-                            priority=4,
-                            countdown=2,
-                        )
-                except Exception as e:
-                    print(e)
-                    sentry.log_error(e)
-        biorxiv_works = open_alex.get_data_from_source(
-            biorxiv_id, None, cursor=next_cursor
-        )
-    reset_unified_document_cache(
-        document_type=["paper"],
-        filters=[NEW],
-    )
-    return total_works
-
-
-@periodic_task(
-    run_every=crontab(minute=45, hour=17), priority=3, queue=QUEUE_PULL_PAPERS
-)
-def pull_arxiv_papers_directly():
-    if not PRODUCTION:
-        return
-
-    from paper.models import Paper
-
-    categories = [
-        "astro-ph",
-        "cond-mat",
-        "cs",
-        "econ",
-        "eess",
-        "gr-qc",
-        "hep-ex",
-        "hep-lat",
-        "hep-ph",
-        "hep-th",
-        "math",
-        "math-ph",
-        "nlin",
-        "nucl-ex",
-        "nucl-th",
-        "physics",
-        "q-bio",
-        "q-fin",
-        "quant-ph",
-        "stat",
-    ]
-    total_works = 0
-
-    for category in categories:
-        url = "https://export.arxiv.org/rss/{}".format(category)
-        feed = feedparser.parse(url)
-        entries = []
-        for entry in feed["entries"]:
-            total_works += 1
-            entry_id = entry["id"].split("http://arxiv.org/abs/")[1]
-            entries.append(entry_id)
-
-        search = arxiv.Search(id_list=entries)
-        for i, result in enumerate(search.results()):
-            entry_id = result.entry_id.split("http://arxiv.org/abs/")[1]
-            pure_doi = "arXiv.{}".format(entry_id.split("v")[0])
-            pdf_url = f"https://arxiv.org/pdf/{entry_id}.pdf"
-
-            doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(pure_doi))
-            url_paper_check = Paper.objects.filter(
-                Q(url_svf=SearchQuery(url)) | Q(pdf_url_svf=SearchQuery(pdf_url))
-            )
-            if doi_paper_check.exists() or url_paper_check.exists():
-                continue
-
-            title = result.title
-            abstract = result.summary
-            publication_date = None
-            raw_authors = []
-            hubs = []
-            publication_date = result.published
-            for arxiv_cat in result.categories:
-                cur_cat = get_category_name(arxiv_cat)
-                hubs.append(cur_cat)
-
-            try:
-                raw_authors = [
-                    {
-                        "first_name": " ".join(author_name[:-1]),
-                        "last_name": "".join(author_name[-1]),
-                    }
-                    for author in result.authors
-                    if (author_name := author.name.split(" "))
-                ]
-            except Exception as e:
-                print(e)
-                sentry.log_error(e)
-
-            data = {
-                "doi": pure_doi,
-                "url": result.entry_id,
-                "raw_authors": format_raw_authors(raw_authors),
-                "title": title,
-                "paper_title": title,
-                "paper_publish_date": publication_date,
-                "is_open_access": True,
-                "oa_status": "",
-                "external_source": "arXiv",
-                "abstract": abstract,
-                "pdf_url": pdf_url,
-            }
-
-            try:
-                paper = Paper(**data)
-                paper.full_clean()
-                paper.save()
-                potential_hubs = []
-                for concept_name in hubs:
-                    potential_hub = Hub.objects.filter(name__icontains=concept_name)
-                    if potential_hub.exists():
-                        potential_hub = potential_hub.first()
-                        potential_hubs.append(potential_hub)
-                        paper.unified_document.concepts.add(
-                            potential_hub.concept,
-                        )
-                paper.hubs.add(*potential_hubs)
-                paper.unified_document.hubs.add(*potential_hubs)
-                download_pdf.apply_async((paper.id,), priority=4, countdown=4)
-            except Exception as e:
-                sentry.log_error(e)
-    reset_unified_document_cache(
-        document_type=["paper"],
-        filters=[NEW],
-    )
-
-    return total_works
-
-
 @periodic_task(
     run_every=crontab(minute=0, hour="2"), priority=3, queue=QUEUE_PULL_PAPERS
 )
@@ -968,39 +722,6 @@ def get_biorxiv_tweets():
             priority=4,
             countdown=2,
         )
-
-
-@periodic_task(
-    run_every=crontab(minute=0, hour="*/3"), priority=3, queue=QUEUE_PULL_PAPERS
-)
-def pull_biorxiv(page=0, retry=0):
-    if not PRODUCTION:
-        return
-
-    sentry.log_info("Starting Biorxiv pull")
-
-    if retry > 2:
-        return False
-
-    try:
-        res = requests.get(
-            f"https://www.biorxiv.org/content/early/recent?page={page}", timeout=10
-        )
-        has_entries = _extract_biorxiv_entries(res.content)
-
-        if has_entries:
-            pull_biorxiv.apply_async(
-                (page + 1, 0),
-                priority=1,
-                countdown=10,
-            )
-    except requests.ConnectionError:
-        pull_biorxiv.apply_async(
-            (page, retry + 1), priority=4, countdown=10 + (retry * 2)
-        )
-    except Exception as e:
-        sentry.log_error(e)
-
 
 @app.task(queue=QUEUE_PULL_PAPERS)
 def set_biorxiv_tweet_count(url, doi, paper_id):
@@ -1029,143 +750,6 @@ def _get_biorxiv_tweet_counts(url, doi):
         print(e)
         sentry.log_error(e)
         return 0
-
-
-def _extract_biorxiv_entries(html_content):
-    from paper.models import Paper
-
-    soup = BeautifulSoup(html_content, "lxml")
-    today = datetime.now(tz=pytz_tz("US/Pacific"))
-    today_string = today.strftime("%B-%d-%Y").lower()
-
-    page = soup.find(id=today_string)
-    if page:
-        current_content = page.find_all(class_="highwire-cite-linked-title")
-        for content in current_content:
-            article_href = content.attrs.get("href")
-            article_url = f"https://biorxiv.org{article_href}"
-            article_url_check = Paper.objects.filter(doi_svf=SearchQuery(article_url))
-            if article_url_check.exists():
-                continue
-            _extract_biorxiv_entry.apply_async((article_url,), priority=4, countdown=2)
-        return True
-
-    return False
-
-
-@app.task(queue=QUEUE_PULL_PAPERS)
-def _extract_biorxiv_entry(url, retry=0):
-    from paper.models import Paper
-
-    if retry > 2:
-        return False
-
-    try:
-        res = requests.get(url, timeout=10)
-        soup = BeautifulSoup(res.content, "lxml")
-
-        has_license_type_none = soup.find(class_="license-type-none")
-        if has_license_type_none:
-            # No reuse allowed without permission.
-            return
-
-        pure_doi = soup.find("meta", attrs={"name": "citation_doi"}).attrs.get(
-            "content"
-        )
-        pdf_url = soup.find("meta", attrs={"name": "citation_pdf_url"}).attrs.get(
-            "content"
-        )
-
-        doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(pure_doi))
-        url_paper_check = Paper.objects.filter(
-            Q(url_svf=SearchQuery(url)) | Q(pdf_url_svf=SearchQuery(pdf_url))
-        )
-        if doi_paper_check.exists() or url_paper_check.exists():
-            return
-
-        title = soup.find("meta", property="og:title").attrs.get("content")
-        authors_html = soup.find_all("meta", attrs={"name": "citation_author"})
-        raw_authors = [
-            {
-                "first_name": " ".join(author_name[:-1]),
-                "last_name": "".join(author_name[-1]),
-            }
-            for raw_author in authors_html
-            if (author_name := raw_author.attrs.get("content").split(" "))
-        ]
-        raw_publication_date = soup.find(
-            "meta", attrs={"name": "citation_publication_date"}
-        ).attrs.get("content")
-        publication_date = datetime.strptime(raw_publication_date, "%Y/%d/%m").strftime(
-            "%Y-%m-%d"
-        )
-        abstract = BeautifulSoup(
-            soup.find("meta", attrs={"name": "citation_abstract"}).attrs.get("content"),
-            "lxml",
-        ).text
-        journal = soup.find("meta", attrs={"name": "citation_journal_title"}).attrs.get(
-            "content"
-        )
-        publisher = soup.find("meta", attrs={"name": "citation_publisher"}).attrs.get(
-            "content"
-        )
-
-        license_block = soup.find(class_="license-type")
-        if license_ref := license_block.findChild():
-            license_url = license_ref.attrs.get("href")
-            pdf_license = get_license_by_url(license_url)
-        else:
-            pdf_license = None
-
-        external_source = f"{journal} ({publisher})"
-        subject_area = soup.find(class_="highwire-article-collection-term")
-
-        if subject_area:
-            hub = subject_area.text.strip().lower()
-
-        data = {
-            "doi": pure_doi,
-            "url": url,
-            "raw_authors": raw_authors,
-            "title": title,
-            "paper_title": title,
-            "paper_publish_date": publication_date,
-            "pdf_license": pdf_license,
-            "external_source": external_source,
-            "abstract": abstract,
-            "pdf_url": pdf_url,
-            "twitter_score": _get_biorxiv_tweet_counts(url, pure_doi),
-            "twitter_score_updated_date": datetime.now(),
-        }
-        paper = Paper(**data)
-        paper.full_clean()
-        paper.save()
-        download_pdf.apply_async((paper.id,), priority=4, countdown=4)
-
-        hub_ids = []
-        if PRODUCTION:
-            # Hard coded to add biorxiv preprints to specific biorxiv hub
-            hub_ids = [436]
-        if subject_area:
-            potential_hub = Hub.objects.filter(name__icontains=hub)
-            if potential_hub.exists():
-                potential_hub = potential_hub.first()
-                hub_ids.append(potential_hub.id)
-        paper.hubs.add(*hub_ids)
-        paper.unified_document.hubs.add(*hub_ids)
-
-        reset_unified_document_cache(
-            document_type=["paper"],
-            filters=[NEW],
-        )
-    except requests.ConnectionError as e:
-        sentry.log_error(e)
-        _extract_biorxiv_entry.apply_async(
-            (url, retry + 1), priority=6, countdown=2 * (retry + 1)
-        )
-    except Exception as e:
-        sentry.log_error(e)
-        return False
 
 
 @app.task(queue=QUEUE_PULL_PAPERS)
@@ -1309,8 +893,8 @@ def pull_openalex_author_works(user_id, openalex_id):
 
 
 @periodic_task(
-    # run at 4:30 PM UTC (8:30 AM PST)
-    run_every=crontab(minute=30, hour=16), priority=3, queue=QUEUE_PULL_PAPERS
+    # run at 6:00 AM UTC (10:00 PM PST)
+    run_every=crontab(minute=00, hour=6), priority=3, queue=QUEUE_PULL_PAPERS
 )
 def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
     """
@@ -1491,6 +1075,7 @@ def _process_openalex_works_batch(works):
             create_papers.append(work)
 
     paper_id_to_concepts = {}
+    paper_ids_to_add_to_biorxiv_hub = []
 
     # we can't use Paper.objects.bulk_create because there's generated fields,
     # and we can't exclude the generated fields (e.g. doi_svf) from the bulk_create.
@@ -1518,6 +1103,11 @@ def _process_openalex_works_batch(works):
                 sentry.log_error(e, message=f"Failed to save paper, DOI already exists: {paper.doi}")
             except Exception as e:
                 sentry.log_error(e, message=f"Failed to save paper, unexpected error: {paper.doi}")
+
+            # if the paper is from biorXiv, we want to add it to the biorXiv Community Reviews hub
+            # so that it can get auto-assigned a peer-review with enough upvotes.
+            if "bioRxiv" in paper.external_source:
+                paper_ids_to_add_to_biorxiv_hub.append(paper.id)
 
             paper_id_to_concepts[paper.id] = concepts
             new_paper_ids.append(paper.id)
@@ -1547,6 +1137,7 @@ def _process_openalex_works_batch(works):
                 "oa_status",
                 "is_open_access",
                 "open_alex_raw_json",
+                "external_source",
             ]
         )
 
@@ -1563,6 +1154,11 @@ def _process_openalex_works_batch(works):
         existing_paper.open_alex_raw_json = data.get("open_alex_raw_json")
 
         paper_id_to_concepts[existing_paper.id] = concepts
+
+        # if the paper is from biorXiv, we want to add it to the biorXiv Community Reviews hub
+        # so that it can get auto-assigned a peer-review with enough upvotes.
+        if "bioRxiv" in existing_paper.external_source:
+            paper_ids_to_add_to_biorxiv_hub.append(existing_paper.id)
 
     # perform batch update
     if update_papers and len(update_papers) > 0:
@@ -1581,6 +1177,22 @@ def _process_openalex_works_batch(works):
             Paper.objects.bulk_update(papers_to_update, fields_to_update)
         except Exception as e:
             sentry.log_error(e, message="Failed to bulk update papers")
+
+    # batch add papers to biorXiv hub
+    if paper_ids_to_add_to_biorxiv_hub and len(paper_ids_to_add_to_biorxiv_hub) > 0:
+        # batch fetch papers
+        papers_to_add_to_biorxiv_hub = Paper.objects.filter(id__in=paper_ids_to_add_to_biorxiv_hub).only("id", "unified_document", "hubs")
+
+        with transaction.atomic():
+            biorxiv_hub_id = 436
+            
+            for paper in papers_to_add_to_biorxiv_hub:
+                try:
+                    paper.hubs.add(biorxiv_hub_id)
+                    paper.unified_document.hubs.add(biorxiv_hub_id)
+                except Exception as e:
+                    sentry.log_error(e, message=f"Failed to add paper to biorXiv hub: {paper.id}")
+                    continue
 
     # batch create concepts and hubs
     for paper_id, concepts in paper_id_to_concepts.items():
