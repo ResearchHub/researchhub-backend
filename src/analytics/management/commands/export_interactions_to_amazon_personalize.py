@@ -16,9 +16,6 @@ HEADERS = [
     "TIMESTAMP",
     "EVENT_VALUE",
     "USER_ID",
-    "internal_id",
-    "interaction_id",
-    "unified_document_id",
     "hub_ids",
 ]
 

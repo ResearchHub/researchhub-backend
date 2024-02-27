@@ -82,32 +82,50 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             return ResearchhubUnifiedDocument.all_objects.all()
         return super().get_queryset()
 
-    def get_recommended_papers(self, user_id):
+    def get_paper_recommendations(self, user_id):
         personalize_runtime = boto3.client(
             "personalize-runtime", region_name="us-west-2"
         )
 
-        recs_campaign_arn = "arn:aws:personalize:us-west-2:794128250202:campaign/recs"
-
-        response = personalize_runtime.get_recommendations(
-            campaignArn=recs_campaign_arn,
-            userId=str(user_id),
-            numResults=100,
-            filterArn="arn:aws:personalize:us-west-2:794128250202:filter/papers-only",
-            getExplanations=True,
+        recs_campaign_arn = (
+            "arn:aws:personalize:us-west-2:794128250202:campaign/recommendations"
         )
-
-        rec_ids = [item["itemId"] for item in response["itemList"]]
-        rec_ids = [item_id.split("_") for item_id in rec_ids if "_" in item_id]
-
-        print("paper_ids from personalize:", rec_ids)
-        paper_ids = [
-            analytics_id[1] for analytics_id in rec_ids if analytics_id[0] == "paper"
+        filter_arn = "arn:aws:personalize:us-west-2:794128250202:filter"
+        filters = [
+            {
+                "item_type": "highly-cited",
+                "num_results": 4,
+            },
+            {
+                "item_type": "popular-on-social-media",
+                "num_results": 3,
+            },
+            {
+                "item_type": "trending-citations",
+                "num_results": 3,
+            },
         ]
 
-        papers = Paper.objects.filter(id__in=paper_ids)
+        recs = []
+        for filter in filters:
+            response = personalize_runtime.get_recommendations(
+                campaignArn=recs_campaign_arn,
+                userId=str(user_id),
+                numResults=filter["num_results"],
+                filterArn=f"{filter_arn}/{filter['item_type']}",
+            )
+            print(response["itemList"])
+            rec_ids = [item["itemId"] for item in response["itemList"]]
+            rec_ids = [item_id.split("_") for item_id in rec_ids if "_" in item_id]
+            paper_ids = [
+                analytics_id[1]
+                for analytics_id in rec_ids
+                if analytics_id[0] == "paper"
+            ]
 
-        return papers
+            recs.append((filter["item_type"], paper_ids))
+
+        return recs
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def recommendations(self, request, *args, **kwargs):
@@ -115,14 +133,24 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         if not user_id:
             return Response({"error": "user_id is required"}, status=400)
 
-        papers = self.get_recommended_papers(user_id)
-        unified_doc_ids = [
-            paper.unified_document_id for paper in papers if paper.unified_document_id
-        ]
-        docs = ResearchhubUnifiedDocument.objects.filter(id__in=unified_doc_ids)
+        paper_recs = self.get_paper_recommendations(user_id)
+        recs_unified_docs = []
+        for recs in paper_recs:
+            filter_type, ids = recs
+            papers = Paper.objects.filter(id__in=ids).prefetch_related(
+                "unified_document"
+            )
+            unified_docs = [paper.unified_document for paper in papers]
+
+            for doc in unified_docs:
+                doc.recommendation_metadata = {
+                    "filter_type": filter_type,
+                }
+
+            recs_unified_docs.extend(unified_docs)
 
         context = self._get_serializer_context()
-        page = self.paginate_queryset(docs)
+        page = self.paginate_queryset(unified_docs)
         serializer = self.dynamic_serializer_class(
             page,
             _include_fields=[
@@ -136,6 +164,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "reviews",
                 "score",
                 "fundraise",
+                "recommendation_metadata",
             ],
             many=True,
             context=context,
