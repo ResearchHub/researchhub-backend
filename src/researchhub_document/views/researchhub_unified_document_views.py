@@ -223,7 +223,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         recs_unified_docs.extend(trending_docs)
 
         context = self._get_serializer_context()
-        page = self.paginate_queryset(unified_docs)
+        page = self.paginate_queryset(recs_unified_docs)
         serializer = self.dynamic_serializer_class(
             page,
             _include_fields=[
