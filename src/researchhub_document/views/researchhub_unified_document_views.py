@@ -1,3 +1,5 @@
+import time
+from itertools import chain
 from time import perf_counter
 
 import boto3
@@ -104,17 +106,22 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "item_type": "trending-citations",
                 "num_results": 3,
             },
+            {
+                "item_type": "only-papers",
+                "num_results": 2,
+            },
         ]
 
         recs = []
         for filter in filters:
+            arn = f"{filter_arn}/{filter['item_type']}" if filter["item_type"] else None
             response = personalize_runtime.get_recommendations(
                 campaignArn=recs_campaign_arn,
                 userId=str(user_id),
                 numResults=filter["num_results"],
-                filterArn=f"{filter_arn}/{filter['item_type']}",
+                filterArn=arn,
             )
-            print(response["itemList"])
+
             rec_ids = [item["itemId"] for item in response["itemList"]]
             rec_ids = [item_id.split("_") for item_id in rec_ids if "_" in item_id]
             paper_ids = [
@@ -129,11 +136,21 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def recommendations(self, request, *args, **kwargs):
+        # Session ID will be used to log impressions. It is essential to associate impressions with a user's session
+        session_id = request.session.session_key
+        if not session_id:
+            # If there isn't a session yet, accessing any session attribute will create one.
+            request.session["init"] = True
+            request.session.save()
+            session_id = request.session.session_key
+            print("Session ID:", session_id)
+
         user_id = request.query_params.get("user_id")
         if not user_id:
             return Response({"error": "user_id is required"}, status=400)
 
         paper_recs = self.get_paper_recommendations(user_id)
+
         recs_unified_docs = []
         for recs in paper_recs:
             filter_type, ids = recs
@@ -144,10 +161,66 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
             for doc in unified_docs:
                 doc.recommendation_metadata = {
-                    "filter_type": filter_type,
+                    "context": filter_type,
+                    "recommender": "personalize",
                 }
 
             recs_unified_docs.extend(unified_docs)
+
+        # Hot stuff on RH according to the RH trending algorithm
+        rh_algo_trending_docs = ResearchhubUnifiedDocument.objects.order_by(
+            "-hot_score_v2"
+        )[:7]
+        for doc in rh_algo_trending_docs:
+            doc.recommendation_metadata = {
+                "context": "trending-on-rh",
+                "recommender": "researchhub",
+            }
+
+        recs_unified_docs.extend(rh_algo_trending_docs)
+
+        personalize_runtime = boto3.client(
+            "personalize-runtime", region_name="us-west-2"
+        )
+        trending_arn = (
+            "arn:aws:personalize:us-west-2:794128250202:campaign/trending-on-rh"
+        )
+        response = personalize_runtime.get_recommendations(
+            campaignArn=trending_arn,
+            userId=str(user_id),
+            numResults=10,
+        )
+
+        print("response", response["itemList"])
+
+        rec_ids = [item["itemId"] for item in response["itemList"]]
+        rec_ids = [item_id.split("_") for item_id in rec_ids if "_" in item_id]
+        paper_ids = [
+            analytics_id[1] for analytics_id in rec_ids if analytics_id[0] == "paper"
+        ]
+        post_ids = [
+            analytics_id[1]
+            for analytics_id in rec_ids
+            if analytics_id[0] == "question" or analytics_id[0] == "post"
+        ]
+
+        print("paper_ids", paper_ids)
+        print("post_ids", post_ids)
+
+        trending_papers = Paper.objects.filter(id__in=paper_ids)
+        trending_posts = ResearchhubPost.objects.filter(id__in=post_ids)
+        combined_queryset = list(chain(trending_papers, trending_posts))
+
+        trending_docs = []
+        for doc in combined_queryset:
+            doc.unified_document
+            doc.unified_document.recommendation_metadata = {
+                "context": "trending-on-rh",
+                "recommender": "personalize",
+            }
+            trending_docs.append(doc.unified_document)
+
+        recs_unified_docs.extend(trending_docs)
 
         context = self._get_serializer_context()
         page = self.paginate_queryset(unified_docs)
