@@ -16,8 +16,6 @@ HEADERS = [
     "TIMESTAMP",
     "EVENT_VALUE",
     "USER_ID",
-    "internal_id",
-    "unified_document_id",
     "hub_ids",
 ]
 
@@ -43,7 +41,7 @@ def write_error_to_file(id, error, error_filepath):
 
 def export_actions(from_id, to_id=None, size=1000, process_chunk: callable = None):
     current_id = from_id
-    to_id = to_id or Action.objects.last().id
+    to_id = to_id or Action.objects.all().order_by("-id").first().id
     while True:
         if current_id > to_id:
             break
@@ -68,9 +66,9 @@ def export_actions(from_id, to_id=None, size=1000, process_chunk: callable = Non
 
         print(
             "processing actions from: ",
-            from_id,
+            current_id,
             " to: ",
-            from_id + size - 1,
+            current_id + size - 1,
             " eligible results: ",
             queryset.count(),
         )
@@ -86,26 +84,22 @@ def export_author_claim_cases(
     from_id, to_id=None, size=1000, process_chunk: callable = None
 ):
     current_id = from_id
-    to_id = to_id or AuthorClaimCase.objects.last().id
+    to_id = to_id or AuthorClaimCase.objects.all().order_by("-id").first().id
     while True:
         if current_id > to_id:
             break
 
         # Get next "chunk"
         queryset = AuthorClaimCase.objects.filter(
-            id__gte=from_id, id__lte=(from_id + size - 1)
+            id__gte=current_id, id__lte=(current_id + size - 1)
         )
         queryset.filter(status="APPROVED")
 
-        # Keep going until no more!
-        if queryset.exists() is False:
-            break
-
         print(
             "processing claim from: ",
-            from_id,
+            current_id,
             " to: ",
-            from_id + size - 1,
+            current_id + size - 1,
             " eligible results: ",
             queryset.count(),
         )

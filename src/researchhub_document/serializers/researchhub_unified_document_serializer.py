@@ -101,10 +101,14 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
     concepts = SerializerMethodField()
     prediction_market = SerializerMethodField()
     fundraise = SerializerMethodField()
+    recommendation_metadata = SerializerMethodField()
 
     class Meta:
         model = ResearchhubUnifiedDocument
         fields = "__all__"
+
+    def get_recommendation_metadata(self, unified_doc):
+        return unified_doc.recommendation_metadata
 
     def get_bounties(self, unified_doc):
         from reputation.serializers import DynamicBountySerializer

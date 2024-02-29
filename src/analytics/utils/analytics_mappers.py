@@ -8,6 +8,8 @@ from analytics.utils.analytics_mapping_utils import (
     build_claimed_paper_event,
     build_comment_event,
     build_doc_props_for_item,
+    build_paper_submission_event,
+    build_post_created_event,
     build_rsc_spend_event,
     build_vote_event,
     get_open_bounty_count,
@@ -29,6 +31,10 @@ def map_action_data(actions, on_error):
                 data.append(event)
             elif action.content_type.model == "vote":
                 if action.item.vote_type == Vote.DOWNVOTE:
+                    on_error(
+                        id=str(action.id),
+                        msg="Unsupported action type (downvote). Skipping.",
+                    )
                     # Skip downvotes since they are not beneficial for machine learning models
                     continue
 
@@ -45,6 +51,14 @@ def map_action_data(actions, on_error):
                     event = build_rsc_spend_event(action)
 
                 data.append(event)
+            elif action.content_type.model == "paper":
+                event = build_paper_submission_event(action)
+                data.append(event)
+            elif action.content_type.model == "researchhubpost":
+                event = build_post_created_event(action)
+                data.append(event)
+            else:
+                on_error(id=str(action.id), msg="Unsupported action type. Skipping.")
         except Exception as e:
             on_error(id=str(action.id), msg=str(e))
 

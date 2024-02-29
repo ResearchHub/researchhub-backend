@@ -24,14 +24,6 @@
             "type": ["float", "null"]
         },
 		{
-			"name": "internal_id",
-			"type": "string"
-		},
-		{
-			"name": "unified_document_id",
-			"type": ["string", "null"]
-		},
-		{
 			"name": "hub_ids",
 			"type": ["string", "null"],
 			"categorical": true

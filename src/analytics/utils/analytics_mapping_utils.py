@@ -13,8 +13,10 @@ from reputation.related_models.bounty import Bounty
 PAGE_VIEW_EVENT_VALUE = 1  # This will be used on the client side
 VOTE_EVENT_VALUE = 2
 RSC_SUPPORT_EVENT_VALUE = 5
+PAPER_SUBMISSION_EVENT_VALUE = 6
 BOUNTY_EVENT_VALUE = 8
 COMMENT_EVENT_VALUE = 8
+POST_CREATED_EVENT_VALUE = 8
 CLAIMED_PAPER_EVENT_VALUE = 10
 
 
@@ -31,6 +33,7 @@ def build_bounty_event(action):
     record["EVENT_VALUE"] = BOUNTY_EVENT_VALUE
     record["EVENT_TYPE"] = "bounty_contribution" if is_contribution else "bounty_create"
     record["internal_id"] = str(bounty.id)
+    record["interaction_id"] = str(action.id)
 
     if bounty.unified_document:
         doc_props = build_doc_props_for_interaction(bounty.unified_document)
@@ -61,6 +64,7 @@ def build_vote_event(action):
     record["TIMESTAMP"] = int(time.mktime(vote.created_date.timetuple()))
     record["USER_ID"] = str(action.user_id)
     record["internal_id"] = str(vote.id)
+    record["interaction_id"] = str(action.id)
 
     try:
         doc_props = build_doc_props_for_interaction(vote.unified_document)
@@ -82,6 +86,7 @@ def build_claimed_paper_event(author_claim_case):
     record["USER_ID"] = str(author_claim_case.requestor_id)
     record["EVENT_TYPE"] = "claimed_paper"
     record["internal_id"] = str(claimed_paper.id)
+    record["interaction_id"] = str(author_claim_case.id)
 
     if claimed_paper.unified_document:
         doc_props = build_doc_props_for_interaction(claimed_paper.unified_document)
@@ -100,6 +105,7 @@ def build_comment_event(action):
     record["USER_ID"] = str(action.user_id)
     record["EVENT_TYPE"] = "comment_create"
     record["internal_id"] = str(comment.id)
+    record["interaction_id"] = str(action.id)
 
     if comment.unified_document:
         doc_props = build_doc_props_for_interaction(comment.unified_document)
@@ -118,6 +124,7 @@ def build_rsc_spend_event(action):
     record["TIMESTAMP"] = int(time.mktime(purchase.created_date.timetuple()))
     record["USER_ID"] = str(action.user_id)
     record["EVENT_VALUE"] = RSC_SUPPORT_EVENT_VALUE
+    record["interaction_id"] = str(action.id)
     record["internal_id"] = str(purchase.id)
 
     # As far as Amazon Personalize events go, we are only interested in select rsc spend events and not all
@@ -129,6 +136,54 @@ def build_rsc_spend_event(action):
     try:
         if purchase.item.unified_document:
             doc_props = build_doc_props_for_interaction(purchase.item.unified_document)
+            record = {**record, **doc_props}
+    except Exception as e:
+        print("Failed to get unified doc:", e)
+
+    return record
+
+
+def build_post_created_event(action):
+    """Generated when a post is created (e.g. question, preregistration, etc.)"""
+
+    post = action.item
+
+    record = {}
+    record["ITEM_ID"] = post.item.get_analytics_id()
+    record["TIMESTAMP"] = int(time.mktime(post.created_date.timetuple()))
+    record["USER_ID"] = str(action.user_id)
+    record["EVENT_VALUE"] = POST_CREATED_EVENT_VALUE
+    record["internal_id"] = str(post.id)
+    record["interaction_id"] = str(action.id)
+    record["EVENT_TYPE"] = "create_post"
+
+    try:
+        if post.unified_document:
+            doc_props = build_doc_props_for_interaction(post.unified_document)
+            record = {**record, **doc_props}
+    except Exception as e:
+        print("Failed to get unified doc:", e)
+
+    return record
+
+
+def build_paper_submission_event(action):
+    """Generated when user shares a paper"""
+
+    paper = action.item
+
+    record = {}
+    record["ITEM_ID"] = paper.get_analytics_id()
+    record["TIMESTAMP"] = int(time.mktime(paper.created_date.timetuple()))
+    record["USER_ID"] = str(action.user_id)
+    record["EVENT_VALUE"] = PAPER_SUBMISSION_EVENT_VALUE
+    record["internal_id"] = str(paper.id)
+    record["interaction_id"] = str(action.id)
+    record["EVENT_TYPE"] = "submit_paper"
+
+    try:
+        if paper.unified_document:
+            doc_props = build_doc_props_for_interaction(paper.unified_document)
             record = {**record, **doc_props}
     except Exception as e:
         print("Failed to get unified doc:", e)

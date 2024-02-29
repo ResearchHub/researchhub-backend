@@ -74,13 +74,13 @@ def export_posts(from_id, to_id=None, size=1000, process_chunk: callable = None)
     )
 
     current_id = from_id
-    to_id = to_id or ResearchhubPost.objects.last().id
+    to_id = to_id or ResearchhubPost.objects.all().order_by("-id").first().id
     while True:
         if current_id > to_id:
             break
 
         posts = ResearchhubPost.objects.filter(
-            id__gte=from_id, id__lte=(from_id + size - 1)
+            id__gte=current_id, id__lte=(current_id + size - 1)
         ).exclude(
             document_type__in=[HYPOTHESIS, ELN, NOTE],
         )
@@ -96,9 +96,9 @@ def export_posts(from_id, to_id=None, size=1000, process_chunk: callable = None)
 
         print(
             "processing posts from: ",
-            from_id,
+            current_id,
             " to: ",
-            from_id + size - 1,
+            current_id + size - 1,
             " eligible results: ",
             queryset.count(),
         )
@@ -114,7 +114,7 @@ def export_papers(from_id, to_id=None, size=1000, process_chunk: callable = None
     from paper.related_models.paper_model import Paper
 
     current_id = from_id
-    to_id = to_id or Paper.objects.last().id
+    to_id = to_id or Paper.objects.all().order_by("-id").first().id
     while True:
         if current_id > to_id:
             break
@@ -146,9 +146,9 @@ def export_papers(from_id, to_id=None, size=1000, process_chunk: callable = None
 
         print(
             "processing papers from: ",
-            from_id,
+            current_id,
             " to: ",
-            from_id + size - 1,
+            current_id + size - 1,
             " eligible results: ",
             queryset.count(),
         )

@@ -1,3 +1,5 @@
+import time
+from itertools import chain
 from time import perf_counter
 
 import boto3
@@ -82,47 +84,178 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             return ResearchhubUnifiedDocument.all_objects.all()
         return super().get_queryset()
 
-    def get_recommended_papers(self, user_id):
+    def _get_unified_doc_ids_from_rec_ids(self, rec_ids):
+        rec_ids = [item_id.split("_") for item_id in rec_ids if "_" in item_id]
+        paper_ids = [
+            analytics_id[1] for analytics_id in rec_ids if analytics_id[0] == "paper"
+        ]
+        post_ids = [
+            analytics_id[1]
+            for analytics_id in rec_ids
+            if analytics_id[0] == "question" or analytics_id[0] == "post"
+        ]
+
+        unified_doc_ids = list(
+            Paper.objects.filter(id__in=paper_ids).values_list(
+                "unified_document", flat=True
+            )
+        )
+        unified_doc_ids.extend(
+            list(
+                ResearchhubPost.objects.filter(id__in=post_ids).values_list(
+                    "unified_document", flat=True
+                )
+            )
+        )
+
+        return unified_doc_ids
+
+    def _get_recommendation_buckets(self, user_id):
         personalize_runtime = boto3.client(
             "personalize-runtime", region_name="us-west-2"
         )
 
-        recs_campaign_arn = "arn:aws:personalize:us-west-2:794128250202:campaign/recs"
-
-        response = personalize_runtime.get_recommendations(
-            campaignArn=recs_campaign_arn,
-            userId=str(user_id),
-            numResults=100,
-            filterArn="arn:aws:personalize:us-west-2:794128250202:filter/papers-only",
-            getExplanations=True,
-        )
-
-        rec_ids = [item["itemId"] for item in response["itemList"]]
-        rec_ids = [item_id.split("_") for item_id in rec_ids if "_" in item_id]
-
-        print("paper_ids from personalize:", rec_ids)
-        paper_ids = [
-            analytics_id[1] for analytics_id in rec_ids if analytics_id[0] == "paper"
+        buckets = [
+            {
+                "name": "highly-cited",
+                "source": "personalize",
+                "campaign_arn": "arn:aws:personalize:us-west-2:794128250202:campaign/recommendations3",
+                "filter_arn": "arn:aws:personalize:us-west-2:794128250202:filter/highly-cited",
+                "num_results": 25,
+                "dist_pct": 0.2,
+            },
+            {
+                "name": "popular-on-social-media",
+                "source": "personalize",
+                "campaign_arn": "arn:aws:personalize:us-west-2:794128250202:campaign/recommendations3",
+                "filter_arn": "arn:aws:personalize:us-west-2:794128250202:filter/popular-on-social-media",
+                "num_results": 25,
+                "dist_pct": 0.2,
+            },
+            {
+                "name": "trending-citations",
+                "source": "personalize",
+                "campaign_arn": "arn:aws:personalize:us-west-2:794128250202:campaign/recommendations3",
+                "filter_arn": "arn:aws:personalize:us-west-2:794128250202:filter/trending-citations",
+                "num_results": 25,
+                "dist_pct": 0.1,
+            },
+            {
+                "name": "only-papers",
+                "source": "personalize",
+                "campaign_arn": "arn:aws:personalize:us-west-2:794128250202:campaign/recommendations3",
+                "filter_arn": "arn:aws:personalize:us-west-2:794128250202:filter/only-papers",
+                "num_results": 25,
+                "dist_pct": 0.1,
+            },
+            {
+                "name": "rh-hot-score",
+                "source": "researchhub",
+                "num_results": 25,
+                "dist_pct": 0.2,
+            },
+            {
+                "name": "trending-on-rh",
+                "source": "personalize",
+                "campaign_arn": "arn:aws:personalize:us-west-2:794128250202:campaign/trending-on-rh",
+                "filter_arn": None,
+                "num_results": 25,
+                "dist_pct": 0.2,
+            },
         ]
 
-        papers = Paper.objects.filter(id__in=paper_ids)
+        for bucket in buckets:
+            if bucket["source"] == "researchhub":
+                if bucket["name"] == "rh-hot-score":
+                    unified_doc_ids = list(
+                        ResearchhubUnifiedDocument.objects.order_by("-hot_score_v2")[
+                            : bucket["num_results"]
+                        ].values_list("id", flat=True)
+                    )
+                    bucket["unified_doc_ids"] = unified_doc_ids
+            else:
+                args = {
+                    "campaignArn": bucket["campaign_arn"],
+                    "userId": str(user_id),
+                    "numResults": bucket["num_results"],
+                }
 
-        return papers
+                if bucket["filter_arn"]:
+                    args["filterArn"] = bucket["filter_arn"]
+
+                response = personalize_runtime.get_recommendations(**args)
+
+                rec_ids = [item["itemId"] for item in response["itemList"]]
+                unified_doc_ids = self._get_unified_doc_ids_from_rec_ids(rec_ids)
+                bucket["unified_doc_ids"] = unified_doc_ids
+
+        return self._deduplicate_recommendations(buckets)
+
+    def _deduplicate_recommendations(self, buckets):
+        seen_doc_ids = set()
+        new_buckets = []
+
+        for bucket in buckets:
+            new_doc_ids = []
+            for doc_id in bucket["unified_doc_ids"]:
+                if doc_id not in seen_doc_ids:
+                    seen_doc_ids.add(doc_id)
+                    new_doc_ids.append(doc_id)
+
+            # Update the bucket with the deduplicated list of doc IDs
+            new_bucket = bucket.copy()
+            new_bucket["unified_doc_ids"] = new_doc_ids
+            new_buckets.append(new_bucket)
+
+        # Replace the original buckets with the deduplicated version
+        buckets = new_buckets
+
+        return buckets
+
+    def _build_recommendation_pages(
+        self, recommendation_buckets, num_pages_to_build, num_per_page
+    ):
+        pages = []
+        for i in range(num_pages_to_build):
+            this_page = []
+            for bucket in recommendation_buckets:
+                bucket_items_per_page = int(num_per_page * bucket["dist_pct"])
+                doc_ids = bucket["unified_doc_ids"][:bucket_items_per_page]
+                docs = ResearchhubUnifiedDocument.objects.filter(id__in=doc_ids)
+
+                for doc in docs:
+                    doc.recommendation_metadata = bucket
+                    this_page.append(doc)
+
+                bucket["unified_doc_ids"] = bucket["unified_doc_ids"][
+                    bucket_items_per_page:
+                ]
+
+            pages.append(this_page)
+
+        return pages
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def recommendations(self, request, *args, **kwargs):
+        # Session ID will be used to log impressions. It is essential to associate impressions with a user's session
+        session_id = request.session.session_key
+        if not session_id:
+            # If there isn't a session yet, accessing any session attribute will create one.
+            request.session["init"] = True
+            request.session.save()
+            session_id = request.session.session_key
+            print("Session ID:", session_id)
+
         user_id = request.query_params.get("user_id")
         if not user_id:
             return Response({"error": "user_id is required"}, status=400)
 
-        papers = self.get_recommended_papers(user_id)
-        unified_doc_ids = [
-            paper.unified_document_id for paper in papers if paper.unified_document_id
-        ]
-        docs = ResearchhubUnifiedDocument.objects.filter(id__in=unified_doc_ids)
+        recommendation_buckets = self._get_recommendation_buckets(user_id)
+        pages = self._build_recommendation_pages(recommendation_buckets, 2, 10)
+        unified_docs = [item for sublist in pages for item in sublist]
 
         context = self._get_serializer_context()
-        page = self.paginate_queryset(docs)
+        page = self.paginate_queryset(unified_docs)
         serializer = self.dynamic_serializer_class(
             page,
             _include_fields=[
@@ -136,6 +269,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "reviews",
                 "score",
                 "fundraise",
+                "recommendation_metadata",
             ],
             many=True,
             context=context,
