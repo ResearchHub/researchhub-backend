@@ -225,7 +225,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
                 for doc in docs:
                     doc.recommendation_metadata = bucket
-                    this_page.append(doc.id)
+                    this_page.append(doc)
 
                 bucket["unified_doc_ids"] = bucket["unified_doc_ids"][
                     bucket_items_per_page:
@@ -252,84 +252,10 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         recommendation_buckets = self._get_recommendation_buckets(user_id)
         pages = self._build_recommendation_pages(recommendation_buckets, 2, 10)
-
-        print("pages", pages)
-
-        raise "moew"
-
-        recs_unified_docs = []
-        for recs in paper_recs:
-            filter_type, ids = recs
-            papers = Paper.objects.filter(id__in=ids).prefetch_related(
-                "unified_document"
-            )
-            unified_docs = [paper.unified_document for paper in papers]
-
-            for doc in unified_docs:
-                doc.recommendation_metadata = {
-                    "context": filter_type,
-                    "recommender": "personalize",
-                }
-
-            recs_unified_docs.extend(unified_docs)
-
-        # Hot stuff on RH according to the RH trending algorithm
-        rh_algo_trending_docs = ResearchhubUnifiedDocument.objects.order_by(
-            "-hot_score_v2"
-        )[:7]
-        for doc in rh_algo_trending_docs:
-            doc.recommendation_metadata = {
-                "context": "trending-on-rh",
-                "recommender": "researchhub",
-            }
-
-        recs_unified_docs.extend(rh_algo_trending_docs)
-
-        personalize_runtime = boto3.client(
-            "personalize-runtime", region_name="us-west-2"
-        )
-        trending_arn = (
-            "arn:aws:personalize:us-west-2:794128250202:campaign/trending-on-rh"
-        )
-        response = personalize_runtime.get_recommendations(
-            campaignArn=trending_arn,
-            userId=str(user_id),
-            numResults=10,
-        )
-
-        print("response", response["itemList"])
-
-        rec_ids = [item["itemId"] for item in response["itemList"]]
-        rec_ids = [item_id.split("_") for item_id in rec_ids if "_" in item_id]
-        paper_ids = [
-            analytics_id[1] for analytics_id in rec_ids if analytics_id[0] == "paper"
-        ]
-        post_ids = [
-            analytics_id[1]
-            for analytics_id in rec_ids
-            if analytics_id[0] == "question" or analytics_id[0] == "post"
-        ]
-
-        print("paper_ids", paper_ids)
-        print("post_ids", post_ids)
-
-        trending_papers = Paper.objects.filter(id__in=paper_ids)
-        trending_posts = ResearchhubPost.objects.filter(id__in=post_ids)
-        combined_queryset = list(chain(trending_papers, trending_posts))
-
-        trending_docs = []
-        for doc in combined_queryset:
-            doc.unified_document
-            doc.unified_document.recommendation_metadata = {
-                "context": "trending-on-rh",
-                "recommender": "personalize",
-            }
-            trending_docs.append(doc.unified_document)
-
-        recs_unified_docs.extend(trending_docs)
+        unified_docs = [item for sublist in pages for item in sublist]
 
         context = self._get_serializer_context()
-        page = self.paginate_queryset(recs_unified_docs)
+        page = self.paginate_queryset(unified_docs)
         serializer = self.dynamic_serializer_class(
             page,
             _include_fields=[
