@@ -115,44 +115,48 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "personalize-runtime", region_name="us-west-2"
         )
 
+        user_ranking_arn = (
+            "arn:aws:personalize:us-west-2:794128250202:campaign/user-ranking"
+        )
+
         buckets = [
             {
                 "name": "highly-cited",
                 "source": "personalize",
                 "campaign_arn": "arn:aws:personalize:us-west-2:794128250202:campaign/recommendations3",
                 "filter_arn": "arn:aws:personalize:us-west-2:794128250202:filter/highly-cited",
-                "num_results": 25,
-                "dist_pct": 0.2,
+                "num_results": 100,
+                "dist_pct": 0.1,
             },
             {
                 "name": "popular-on-social-media",
                 "source": "personalize",
                 "campaign_arn": "arn:aws:personalize:us-west-2:794128250202:campaign/recommendations3",
                 "filter_arn": "arn:aws:personalize:us-west-2:794128250202:filter/popular-on-social-media",
-                "num_results": 25,
-                "dist_pct": 0.2,
+                "num_results": 100,
+                "dist_pct": 0.1,
             },
             {
                 "name": "trending-citations",
                 "source": "personalize",
                 "campaign_arn": "arn:aws:personalize:us-west-2:794128250202:campaign/recommendations3",
                 "filter_arn": "arn:aws:personalize:us-west-2:794128250202:filter/trending-citations",
-                "num_results": 25,
-                "dist_pct": 0.1,
+                "num_results": 100,
+                "dist_pct": 0.2,
             },
             {
                 "name": "only-papers",
                 "source": "personalize",
                 "campaign_arn": "arn:aws:personalize:us-west-2:794128250202:campaign/recommendations3",
                 "filter_arn": "arn:aws:personalize:us-west-2:794128250202:filter/only-papers",
-                "num_results": 25,
-                "dist_pct": 0.1,
+                "num_results": 100,
+                "dist_pct": 0.2,
             },
             {
                 "name": "rh-hot-score",
                 "source": "researchhub",
-                "num_results": 25,
-                "dist_pct": 0.2,
+                "num_results": 100,
+                "dist_pct": 0.3,
             },
             {
                 "name": "trending-on-rh",
@@ -160,7 +164,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "campaign_arn": "arn:aws:personalize:us-west-2:794128250202:campaign/trending-on-rh",
                 "filter_arn": None,
                 "num_results": 25,
-                "dist_pct": 0.2,
+                "dist_pct": 0.1,
             },
         ]
 
@@ -184,9 +188,20 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     args["filterArn"] = bucket["filter_arn"]
 
                 response = personalize_runtime.get_recommendations(**args)
-
                 rec_ids = [item["itemId"] for item in response["itemList"]]
-                unified_doc_ids = self._get_unified_doc_ids_from_rec_ids(rec_ids)
+
+                response = personalize_runtime.get_personalized_ranking(
+                    campaignArn=user_ranking_arn,
+                    inputList=rec_ids,
+                    userId=user_id,
+                )
+                ranked_ids = [
+                    item["itemId"] for item in response["personalizedRanking"]
+                ]
+                print("rec_ids", rec_ids)
+                print("ranked_ids", ranked_ids)
+
+                unified_doc_ids = self._get_unified_doc_ids_from_rec_ids(ranked_ids)
                 bucket["unified_doc_ids"] = unified_doc_ids
 
         return self._deduplicate_recommendations(buckets)
