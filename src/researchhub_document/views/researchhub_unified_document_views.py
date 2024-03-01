@@ -130,20 +130,18 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         buckets = [
             {
+                "name": "rh-hot-score",
+                "source": "researchhub",
+                "num_results": 100,
+                "dist_pct": 0.3,
+            },
+            {
                 "name": "highly-cited",
                 "source": "personalize",
                 "campaign_arn": "arn:aws:personalize:us-west-2:794128250202:campaign/recommendations3",
                 "filter_arn": "arn:aws:personalize:us-west-2:794128250202:filter/highly-cited",
                 "num_results": 100,
-                "dist_pct": 0.1,
-            },
-            {
-                "name": "popular-on-social-media",
-                "source": "personalize",
-                "campaign_arn": "arn:aws:personalize:us-west-2:794128250202:campaign/recommendations3",
-                "filter_arn": "arn:aws:personalize:us-west-2:794128250202:filter/popular-on-social-media",
-                "num_results": 100,
-                "dist_pct": 0.1,
+                "dist_pct": 0.05,
             },
             {
                 "name": "trending-citations",
@@ -154,18 +152,20 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "dist_pct": 0.2,
             },
             {
+                "name": "popular-on-social-media",
+                "source": "personalize",
+                "campaign_arn": "arn:aws:personalize:us-west-2:794128250202:campaign/recommendations3",
+                "filter_arn": "arn:aws:personalize:us-west-2:794128250202:filter/popular-on-social-media",
+                "num_results": 100,
+                "dist_pct": 0.1,
+            },
+            {
                 "name": "only-papers",
                 "source": "personalize",
                 "campaign_arn": "arn:aws:personalize:us-west-2:794128250202:campaign/recommendations3",
                 "filter_arn": "arn:aws:personalize:us-west-2:794128250202:filter/only-papers",
                 "num_results": 100,
                 "dist_pct": 0.2,
-            },
-            {
-                "name": "rh-hot-score",
-                "source": "researchhub",
-                "num_results": 100,
-                "dist_pct": 0.3,
             },
             {
                 "name": "trending-on-rh",
@@ -182,7 +182,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 if bucket["name"] == "rh-hot-score":
                     unified_doc_ids = list(
                         ResearchhubUnifiedDocument.objects.filter(
-                            document_type__in=["PAPER", "QUESTION", "DISCUSSION", ""]
+                            document_type__in=["PAPER", "QUESTION", "DISCUSSION"]
                         )
                         .order_by("-hot_score_v2")[: bucket["num_results"]]
                         .values_list("id", flat=True)
