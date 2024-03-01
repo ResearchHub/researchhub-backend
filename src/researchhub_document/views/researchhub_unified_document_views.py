@@ -205,14 +205,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 response = personalize_runtime.get_personalized_ranking(
                     campaignArn=user_ranking_arn,
                     inputList=rec_ids,
-                    userId=user_id,
+                    userId=str(user_id),
                 )
                 ranked_ids = [
                     item["itemId"] for item in response["personalizedRanking"]
                 ]
-
-                print("rec_ids------", rec_ids)
-                print("ranked_ids----", ranked_ids)
 
                 unified_doc_ids = self._get_unified_doc_ids_from_rec_ids(ranked_ids)
                 bucket["unified_doc_ids"] = unified_doc_ids
@@ -265,6 +262,37 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def recommendations(self, request, *args, **kwargs):
+        page_number = int(request.query_params.get("page", 1))
+        if request.query_params.get("user_id", None):
+            user_id = int(request.query_params.get("user_id"))
+        elif request.user.is_authenticated:
+            user_id = request.user.id
+        else:
+            # For logged out users and all other cases, let's deafult to "hot" results
+            qs = self.get_queryset().order_by("-hot_score_v2")[:20]
+            page = self.paginate_queryset(qs)
+            context = self._get_serializer_context()
+            serializer = self.dynamic_serializer_class(
+                page,
+                _include_fields=[
+                    "id",
+                    "created_date",
+                    "documents",
+                    "document_filter",
+                    "document_type",
+                    "hot_score",
+                    "hubs",
+                    "reviews",
+                    "score",
+                    "fundraise",
+                ],
+                many=True,
+                context=context,
+            )
+
+            serializer_data = serializer.data
+            return self.get_paginated_response(serializer_data)
+
         # Session ID will be used to log impressions. It is essential to associate impressions with a user's session
         session_id = request.session.session_key
         if not session_id:
@@ -274,14 +302,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             session_id = request.session.session_key
             print("Session ID:", session_id)
 
-        user_id = request.query_params.get("user_id")
-        page_number = int(request.query_params.get("page", 1))
-        if not user_id:
-            return Response({"error": "user_id is required"}, status=400)
-
         cache_key = f"recs-user-{user_id}-page-{page_number}"
         cache_hit = cache.get(cache_key)
-        print("cache_hit", cache_hit)
 
         if cache_hit:
             print("cache hit")
@@ -292,7 +314,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         serialized_data_pages = []
         i = 1
-        print("pages", pages)
         for unified_docs in pages:
             context = self._get_serializer_context()
             cache_key = f"recs-user-{user_id}-page-{i}"
@@ -315,8 +336,17 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 context=context,
             )
 
-            cache.set(cache_key, serializer.data, timeout=60 * 60 * 24)
-            serialized_data_pages.append(serializer.data)
+            data = {
+                "count": len(unified_docs),
+                "previous": f"{request.scheme}://{request.get_host()}/api/researchhub_unified_document/recommendations/?user_id={user_id}&page={i - 1}"
+                if i > 1
+                else None,
+                "next": f"{request.scheme}://{request.get_host()}/api/researchhub_unified_document/recommendations/?user_id={user_id}&page={i + 1}",
+                "results": serializer.data,
+            }
+
+            cache.set(cache_key, data, timeout=60 * 60 * 24)
+            serialized_data_pages.append(data)
             i += 1
 
         return Response(serialized_data_pages[page_number - 1])
