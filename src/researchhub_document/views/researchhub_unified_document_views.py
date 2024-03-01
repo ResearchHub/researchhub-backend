@@ -315,7 +315,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 context=context,
             )
 
-            cache.set(cache_key, serializer.data, timeout=3600)
+            cache.set(cache_key, serializer.data, timeout=60 * 60 * 24)
             serialized_data_pages.append(serializer.data)
             i += 1
 
