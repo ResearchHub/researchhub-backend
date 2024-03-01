@@ -1,3 +1,4 @@
+import json
 import time
 from itertools import chain
 from time import perf_counter
@@ -6,6 +7,7 @@ import boto3
 from dateutil import parser
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
+from django.core.serializers.json import DjangoJSONEncoder
 from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
@@ -110,6 +112,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         return unified_doc_ids
 
+    def _exclude_unacceptable_rec_ids(self, rec_ids):
+        return [
+            rec_id
+            for rec_id in rec_ids
+            if "_" in rec_id and rec_id.split("_")[0] in ["paper", "question", "post"]
+        ]
+
     def _get_recommendation_buckets(self, user_id):
         personalize_runtime = boto3.client(
             "personalize-runtime", region_name="us-west-2"
@@ -172,9 +181,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             if bucket["source"] == "researchhub":
                 if bucket["name"] == "rh-hot-score":
                     unified_doc_ids = list(
-                        ResearchhubUnifiedDocument.objects.order_by("-hot_score_v2")[
-                            : bucket["num_results"]
-                        ].values_list("id", flat=True)
+                        ResearchhubUnifiedDocument.objects.filter(
+                            document_type__in=["PAPER", "QUESTION", "DISCUSSION", ""]
+                        )
+                        .order_by("-hot_score_v2")[: bucket["num_results"]]
+                        .values_list("id", flat=True)
                     )
                     bucket["unified_doc_ids"] = unified_doc_ids
             else:
@@ -189,6 +200,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
                 response = personalize_runtime.get_recommendations(**args)
                 rec_ids = [item["itemId"] for item in response["itemList"]]
+                rec_ids = self._exclude_unacceptable_rec_ids(rec_ids)
 
                 response = personalize_runtime.get_personalized_ranking(
                     campaignArn=user_ranking_arn,
@@ -198,8 +210,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 ranked_ids = [
                     item["itemId"] for item in response["personalizedRanking"]
                 ]
-                print("rec_ids", rec_ids)
-                print("ranked_ids", ranked_ids)
+
+                print("rec_ids------", rec_ids)
+                print("ranked_ids----", ranked_ids)
 
                 unified_doc_ids = self._get_unified_doc_ids_from_rec_ids(ranked_ids)
                 bucket["unified_doc_ids"] = unified_doc_ids
@@ -262,35 +275,51 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             print("Session ID:", session_id)
 
         user_id = request.query_params.get("user_id")
+        page_number = int(request.query_params.get("page", 1))
         if not user_id:
             return Response({"error": "user_id is required"}, status=400)
 
+        cache_key = f"recs-user-{user_id}-page-{page_number}"
+        cache_hit = cache.get(cache_key)
+        print("cache_hit", cache_hit)
+
+        if cache_hit:
+            print("cache hit")
+            return Response(cache_hit)
+
         recommendation_buckets = self._get_recommendation_buckets(user_id)
-        pages = self._build_recommendation_pages(recommendation_buckets, 2, 10)
-        unified_docs = [item for sublist in pages for item in sublist]
+        pages = self._build_recommendation_pages(recommendation_buckets, 5, 20)
 
-        context = self._get_serializer_context()
-        page = self.paginate_queryset(unified_docs)
-        serializer = self.dynamic_serializer_class(
-            page,
-            _include_fields=[
-                "id",
-                "created_date",
-                "documents",
-                "document_filter",
-                "document_type",
-                "hot_score",
-                "hubs",
-                "reviews",
-                "score",
-                "fundraise",
-                "recommendation_metadata",
-            ],
-            many=True,
-            context=context,
-        )
+        serialized_data_pages = []
+        i = 1
+        print("pages", pages)
+        for unified_docs in pages:
+            context = self._get_serializer_context()
+            cache_key = f"recs-user-{user_id}-page-{i}"
+            serializer = self.dynamic_serializer_class(
+                unified_docs,
+                _include_fields=[
+                    "id",
+                    "created_date",
+                    "documents",
+                    "document_filter",
+                    "document_type",
+                    "hot_score",
+                    "hubs",
+                    "reviews",
+                    "score",
+                    "fundraise",
+                    "recommendation_metadata",
+                ],
+                many=True,
+                context=context,
+            )
 
-        return self.get_paginated_response(serializer.data)
+            cache.set(cache_key, serializer.data, timeout=3600)
+            serialized_data_pages.append(serializer.data)
+            i += 1
+
+        return Response(serialized_data_pages[page_number - 1])
 
     @action(
         detail=True,
