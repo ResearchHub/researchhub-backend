@@ -188,7 +188,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                         .order_by("-hot_score_v2")[: bucket["num_results"]]
                         .values_list("id", flat=True)
                     )
-                    random.shuffle(unified_doc_ids)
                     bucket["unified_doc_ids"] = unified_doc_ids
             else:
                 args = {
@@ -215,7 +214,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 ]
 
                 unified_doc_ids = self._get_unified_doc_ids_from_rec_ids(ranked_ids)
-                random.shuffle(unified_doc_ids)
                 bucket["unified_doc_ids"] = unified_doc_ids
 
         return self._deduplicate_recommendations(buckets)
