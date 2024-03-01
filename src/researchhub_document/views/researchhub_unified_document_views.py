@@ -1,4 +1,5 @@
 import json
+import random
 import time
 from itertools import chain
 from time import perf_counter
@@ -141,7 +142,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "campaign_arn": "arn:aws:personalize:us-west-2:794128250202:campaign/recommendations3",
                 "filter_arn": "arn:aws:personalize:us-west-2:794128250202:filter/highly-cited",
                 "num_results": 100,
-                "dist_pct": 0.05,
+                "dist_pct": 0.1,
             },
             {
                 "name": "trending-citations",
@@ -149,7 +150,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "campaign_arn": "arn:aws:personalize:us-west-2:794128250202:campaign/recommendations3",
                 "filter_arn": "arn:aws:personalize:us-west-2:794128250202:filter/trending-citations",
                 "num_results": 100,
-                "dist_pct": 0.2,
+                "dist_pct": 0.25,
             },
             {
                 "name": "popular-on-social-media",
@@ -165,15 +166,15 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "campaign_arn": "arn:aws:personalize:us-west-2:794128250202:campaign/recommendations3",
                 "filter_arn": "arn:aws:personalize:us-west-2:794128250202:filter/only-papers",
                 "num_results": 100,
-                "dist_pct": 0.2,
+                "dist_pct": 0.1,
             },
             {
                 "name": "trending-on-rh",
                 "source": "personalize",
                 "campaign_arn": "arn:aws:personalize:us-west-2:794128250202:campaign/trending-on-rh",
                 "filter_arn": None,
-                "num_results": 25,
-                "dist_pct": 0.1,
+                "num_results": 100,
+                "dist_pct": 0.15,
             },
         ]
 
@@ -187,6 +188,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                         .order_by("-hot_score_v2")[: bucket["num_results"]]
                         .values_list("id", flat=True)
                     )
+                    random.shuffle(unified_doc_ids)
                     bucket["unified_doc_ids"] = unified_doc_ids
             else:
                 args = {
@@ -200,6 +202,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
                 response = personalize_runtime.get_recommendations(**args)
                 rec_ids = [item["itemId"] for item in response["itemList"]]
+
                 rec_ids = self._exclude_unacceptable_rec_ids(rec_ids)
 
                 response = personalize_runtime.get_personalized_ranking(
@@ -212,6 +215,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 ]
 
                 unified_doc_ids = self._get_unified_doc_ids_from_rec_ids(ranked_ids)
+                random.shuffle(unified_doc_ids)
                 bucket["unified_doc_ids"] = unified_doc_ids
 
         return self._deduplicate_recommendations(buckets)
@@ -263,6 +267,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def recommendations(self, request, *args, **kwargs):
         page_number = int(request.query_params.get("page", 1))
+        ignore_cache = request.query_params.get("ignore_cache", False) == "true"
         if request.query_params.get("user_id", None):
             user_id = int(request.query_params.get("user_id"))
         elif request.user.is_authenticated:
@@ -305,7 +310,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         cache_key = f"recs-user-{user_id}-page-{page_number}"
         cache_hit = cache.get(cache_key)
 
-        if cache_hit:
+        if cache_hit and not ignore_cache:
             print("cache hit")
             return Response(cache_hit)
 
