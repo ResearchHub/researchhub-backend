@@ -70,21 +70,21 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
         permission_classes=[IsAuthenticated],
     )
     def list_csv(self, request):
-        queryset = self.filter_queryset(self.get_queryset()).values_list(
-            "created_date", "amount"
-        )
-
-        page = self.paginate_queryset(queryset)
+        queryset = self.get_queryset().values_list("created_date", "amount")
+        default_exchange_rate = RscExchangeRate.objects.first()
 
         data = []
-        for obj in page:
+        for obj in queryset.iterator():
             date, rsc = obj
             exchange_rate = RscExchangeRate.objects.filter(
                 created_date__lte=date
             ).last()
-            rate = exchange_rate.rate
+            if exchange_rate is None:
+                rate = default_exchange_rate.rate
+            else:
+                rate = exchange_rate.rate
             data.append((date, rsc, rate, decimal.Decimal(rsc) * decimal.Decimal(rate)))
         df = pd.DataFrame(
             data, columns=("date", "rsc_amount", "rsc_to_usd", "usd_value")
         )
-        return self.get_paginated_response(df.to_csv(index=False))
+        return Response(df.to_csv(index=False), status=200)
