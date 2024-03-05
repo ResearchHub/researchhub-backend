@@ -2,7 +2,6 @@ import time
 
 from reputation.distributions import create_purchase_distribution
 from reputation.distributor import Distributor
-from reputation.models import Escrow
 
 
 def distribute_support_to_authors(paper, purchase, amount):
@@ -25,9 +24,24 @@ def distribute_support_to_authors(paper, purchase, amount):
 
 
 def store_leftover_paper_support(paper, purchase, leftover_amount):
+    from reputation.models import Escrow
+
     Escrow.objects.create(
         created_by=purchase.user,
         amount_holding=leftover_amount,
         item=paper,
         hold_type=Escrow.AUTHOR_RSC,
     )
+
+
+def flattenjson(dictionary, delim):
+    flattened = {}
+    for i in dictionary.keys():
+        if isinstance(dictionary[i], dict):
+            get = flattenjson(dictionary[i], delim)
+            for j in get.keys():
+                flattened[i + delim + j] = get[j]
+        else:
+            flattened[i] = dictionary[i]
+
+    return flattened
