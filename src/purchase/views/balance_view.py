@@ -1,3 +1,4 @@
+import decimal
 import time
 
 import pandas as pd
@@ -8,10 +9,9 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from purchase.models import Balance
+from purchase.models import Balance, RscExchangeRate
 from purchase.permissions import CanSendRSC
 from purchase.serializers import BalanceSerializer
-from purchase.utils import flattenjson
 from reputation.distributions import Distribution
 from reputation.distributor import Distributor
 from user.models import User
@@ -70,13 +70,21 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
         permission_classes=[IsAuthenticated],
     )
     def list_csv(self, request):
-        queryset = self.filter_queryset(self.get_queryset())
+        queryset = self.filter_queryset(self.get_queryset()).values_list(
+            "created_date", "amount"
+        )
 
         page = self.paginate_queryset(queryset)
-        serializer = self.get_serializer(page, many=True)
 
         data = []
-        for res in serializer.data:
-            data.append(flattenjson(res, "__"))
-        df = pd.DataFrame(data)
+        for obj in page:
+            date, rsc = obj
+            exchange_rate = RscExchangeRate.objects.filter(
+                created_date__lte=date
+            ).last()
+            rate = exchange_rate.rate
+            data.append((date, rsc, rate, decimal.Decimal(rsc) * decimal.Decimal(rate)))
+        df = pd.DataFrame(
+            data, columns=("date", "rsc_amount", "rsc_to_usd", "usd_value")
+        )
         return self.get_paginated_response(df.to_csv(index=False))
