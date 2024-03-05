@@ -83,7 +83,14 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
                 rate = default_exchange_rate.rate
             else:
                 rate = exchange_rate.rate
-            data.append((date, rsc, rate, decimal.Decimal(rsc) * decimal.Decimal(rate)))
+            data.append(
+                (
+                    date,
+                    rsc,
+                    rate,
+                    f"{(decimal.Decimal(rsc) * decimal.Decimal(rate)):.2f}",
+                )
+            )
         df = pd.DataFrame(
             data, columns=("date", "rsc_amount", "rsc_to_usd", "usd_value")
         )
