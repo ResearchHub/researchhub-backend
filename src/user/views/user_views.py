@@ -6,7 +6,7 @@ from allauth.account.models import EmailAddress
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db import IntegrityError, models, transaction
-from django.db.models import F, Q, Sum
+from django.db.models import F, Q, Sum, Exists, OuterRef
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -1576,8 +1576,20 @@ class AuthorViewSet(viewsets.ModelViewSet):
             )
 
         return response
+    
+    def _get_author_comments(self, author_id):
+        author = self.get_object()
+        user = author.user
+
+        if user:
+            user_threads = RhCommentModel.objects.filter(
+                Q(created_by=user)
+            )
+            return user_threads
+        return []
 
     def _get_author_contribution_queryset(self, author_id, ordering, asset_type):
+        author_comments = self._get_author_comments(author_id)
         rh_comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
         post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
         paper_content_type = ContentType.objects.get_for_model(Paper)
@@ -1598,7 +1610,10 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     Q(
                         unified_document__is_removed=False,
                         content_type=rh_comment_content_type,
-                        user__author_profile=author_id,
+                        # we filter by object_id instead of author_profile because
+                        # sometimes there's contributions without a matching comment.
+                        # this method ensures the comments exists.
+                        object_id__in=author_comments,
                         contribution_type__in=[
                             Contribution.COMMENTER,
                         ],
@@ -1636,7 +1651,10 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 query |= Q(
                     unified_document__is_removed=False,
                     content_type=rh_comment_content_type,
-                    user__author_profile=author_id,
+                    # we filter by object_id instead of author_profile because
+                    # sometimes there's contributions without a matching comment.
+                    # this method ensures the comments exists.
+                    object_id__in=author_comments,
                     contribution_type__in=[Contribution.COMMENTER],
                 )
             elif asset_type == "paper":
