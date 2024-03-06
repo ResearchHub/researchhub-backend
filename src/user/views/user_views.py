@@ -1577,19 +1577,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
 
         return response
 
-    def _get_author_threads_participated(self, author_id):
-        author = self.get_object()
-        user = author.user
-
-        if user:
-            user_threads = RhCommentModel.objects.filter(
-                Q(children__created_by=user) | Q(created_by=user)
-            )
-            return user_threads
-        return []
-
     def _get_author_contribution_queryset(self, author_id, ordering, asset_type):
-        author_threads = self._get_author_threads_participated(author_id)
         rh_comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
         post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
         paper_content_type = ContentType.objects.get_for_model(Paper)
@@ -1610,7 +1598,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     Q(
                         unified_document__is_removed=False,
                         content_type=rh_comment_content_type,
-                        object_id__in=author_threads,
+                        user__author_profile=author_id,
                         contribution_type__in=[
                             Contribution.COMMENTER,
                         ],
@@ -1648,7 +1636,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 query |= Q(
                     unified_document__is_removed=False,
                     content_type=rh_comment_content_type,
-                    object_id__in=author_threads,
+                    user__author_profile=author_id,
                     contribution_type__in=[Contribution.COMMENTER],
                 )
             elif asset_type == "paper":
