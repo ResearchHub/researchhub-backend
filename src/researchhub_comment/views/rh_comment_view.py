@@ -397,6 +397,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 current_bounty_fee,
                 item_content_type,
                 item_object_id,
+                rh_fee=rh_fee,
             )
             unified_document = bounty.unified_document
             unified_document.update_filter(SORT_DISCUSSED)

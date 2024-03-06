@@ -462,7 +462,7 @@ def check_hotwallet():
         }
         context["subject"] = outer_subject
         send_email_message(
-            ["patricklu@researchhub.com", "pat@researchhub.com"],
+            ["pat@researchhub.com", "tyler@researchhub.com", "dev@researchhub.com"],
             "general_email_message.txt",
             outer_subject,
             context,

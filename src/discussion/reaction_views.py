@@ -479,6 +479,7 @@ def create_automated_bounty(item):
                 comment_content_type,
                 comment.id,
                 False,
+                rh_fee=rh_fee,
             )
             unified_document = bounty.unified_document
             unified_document.update_filters(

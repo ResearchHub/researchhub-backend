@@ -34,7 +34,6 @@ class UserCaptchaThrottle(UserRateThrottle):
             or (
                 request.user.is_authenticated
                 and (request.user.email is not None)
-                and request.user.email.endswith("@quantfive.org")
             )
             or (request.user.is_authenticated and request.user.moderator)
             or (request.user.email in EMAIL_WHITELIST)
