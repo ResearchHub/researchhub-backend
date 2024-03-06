@@ -316,11 +316,12 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             )
 
             # Track in Amplitude
+            rh_fee_str = rh_fee.to_eng_string()
             track_revenue_event.apply_async(
                 (
                     user.id,
                     "FUNDRAISE_CONTRIBUTION_FEE",
-                    fee_str,
+                    rh_fee_str,
                     None,
                     "OFF_CHAIN",
                 ),

@@ -78,6 +78,7 @@ def _create_bounty(
     item_content_type,
     item_object_id,
     balance_required=True,
+    rh_fee=None,
 ):
     content_type = ContentType.objects.get(model=item_content_type)
     content_type_id = content_type.id
@@ -140,18 +141,20 @@ def _create_bounty(
         )
 
     # Track in Amplitude
-    track_revenue_event.apply_async(
-        (
-            user.id,
-            "BOUNTY_FEE",
-            fee_str,
-            None,
-            "OFF_CHAIN",
-            content_type.model,
-            item_object_id,
-        ),
-        priority=1,
-    )
+    if rh_fee is not None:
+        rh_fee_str = rh_fee.to_eng_string()
+        track_revenue_event.apply_async(
+            (
+                user.id,
+                "BOUNTY_FEE",
+                rh_fee_str,
+                None,
+                "OFF_CHAIN",
+                content_type.model,
+                item_object_id,
+            ),
+            priority=1,
+        )
 
     return bounty
 
@@ -232,6 +235,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                 current_bounty_fee,
                 item_content_type,
                 item_object_id,
+                rh_fee=rh_fee,
             )
             unified_document = bounty.unified_document
 
