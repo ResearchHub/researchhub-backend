@@ -1,5 +1,7 @@
+import decimal
 import time
 
+import pandas as pd
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -7,13 +9,9 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from purchase.models import (
-    Balance,
-)
+from purchase.models import Balance, RscExchangeRate
 from purchase.permissions import CanSendRSC
-from purchase.serializers import (
-    BalanceSerializer,
-)
+from purchase.serializers import BalanceSerializer
 from reputation.distributions import Distribution
 from reputation.distributor import Distributor
 from user.models import User
@@ -65,3 +63,35 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
             distributor.distribute()
 
         return Response({"message": "RSC Sent!"})
+
+    @action(
+        detail=False,
+        methods=["GET"],
+        permission_classes=[IsAuthenticated],
+    )
+    def list_csv(self, request):
+        queryset = self.get_queryset().values_list("created_date", "amount")
+        default_exchange_rate = RscExchangeRate.objects.first()
+
+        data = []
+        for obj in queryset.iterator():
+            date, rsc = obj
+            exchange_rate = RscExchangeRate.objects.filter(
+                created_date__lte=date
+            ).last()
+            if exchange_rate is None:
+                rate = default_exchange_rate.rate
+            else:
+                rate = exchange_rate.rate
+            data.append(
+                (
+                    date,
+                    rsc,
+                    rate,
+                    f"{(decimal.Decimal(rsc) * decimal.Decimal(rate)):.2f}",
+                )
+            )
+        df = pd.DataFrame(
+            data, columns=("date", "rsc_amount", "rsc_to_usd", "usd_value")
+        )
+        return Response(df.to_csv(index=False), status=200)
