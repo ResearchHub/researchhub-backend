@@ -82,7 +82,8 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
             if exchange_rate is None:
                 rate = default_exchange_rate.real_rate
             else:
-                rate = exchange_rate.real_rate
+                # Uses rate if real_rate is null
+                rate = exchange_rate.real_rate or exchange_rate.rate
             data.append(
                 (
                     date,
