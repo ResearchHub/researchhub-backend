@@ -116,7 +116,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 title = data.get("title", "")
                 assign_doi = data.get("assign_doi", False)
                 peer_review_is_requested = data.get("request_peer_review", False)
-                # amount = data.pop("amount", None)
+                # amount = data.pop("amount", None)/
                 doi = generate_doi() if assign_doi else None
 
                 if assign_doi and created_by.get_balance() - CROSSREF_DOI_RSC_FEE < 0:
