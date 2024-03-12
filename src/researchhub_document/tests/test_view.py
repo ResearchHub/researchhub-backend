@@ -5,13 +5,14 @@ from rest_framework.test import APITestCase
 
 from hub.models import Hub
 from hub.tests.helpers import create_hub
+from note.tests.helpers import create_note
 from paper.tests.helpers import create_paper
 from reputation.distributions import Distribution
 from reputation.distributor import Distributor
 from researchhub_access_group.constants import EDITOR
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
-from user.tests.helpers import create_random_default_user
+from user.tests.helpers import create_organization, create_random_default_user
 
 
 class ViewTests(APITestCase):
@@ -218,7 +219,11 @@ class ViewTests(APITestCase):
     def test_non_author_cannot_update_post(self):
         hub = create_hub()
 
+        author = create_random_default_user("author")
         self.client.force_authenticate(author)
+
+        org = create_organization(author, "organization")
+        note = create_note(author, org)
 
         doc_response = self.client.post(
             "/api/researchhubpost/",
@@ -230,10 +235,13 @@ class ViewTests(APITestCase):
                 "renderable_text": "body",
                 "title": "title",
                 "hubs": [hub.id],
+                "note_id": note[0].id,
             },
         )
 
-        self.client.force_authenticate(nonauthor)
+        non_author = create_random_default_user("non_author")
+        self.client.force_authenticate(non_author)
+
         updated_response = self.client.post(
             "/api/researchhubpost/",
             {
