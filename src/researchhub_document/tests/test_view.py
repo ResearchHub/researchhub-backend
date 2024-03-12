@@ -301,7 +301,7 @@ class ViewTests(APITestCase):
             },
         )
 
-        self.assertEqual(updated_response.data["full_src"], "updated body")
+        self.assertEqual(updated_response.data["full_markdown"], "updated body")
 
     def test_non_author_cannot_edit_hypothesis(self):
         author = create_random_default_user("author")
