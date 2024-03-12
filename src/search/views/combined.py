@@ -1,3 +1,4 @@
+from django.http import JsonResponse
 from django_elasticsearch_dsl_drf.constants import SUGGESTER_COMPLETION
 from django_elasticsearch_dsl_drf.filter_backends import (
     CompoundSearchFilterBackend,
@@ -12,6 +13,7 @@ from django_elasticsearch_dsl_drf.filter_backends import (
     SearchFilterBackend,
     SuggesterFilterBackend,
 )
+from elasticsearch import Elasticsearch
 from elasticsearch_dsl import Search
 from rest_framework.generics import ListAPIView
 from rest_framework.response import Response

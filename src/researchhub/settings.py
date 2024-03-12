@@ -422,6 +422,24 @@ SOCIALACCOUNT_PROVIDERS = {
     },
 }
 
+# LOGGING = {
+#     'version': 1,
+#     'disable_existing_loggers': False,
+#     'handlers': {
+#         'console': {
+#             'class': 'logging.StreamHandler',
+#         },
+#     },
+#     'loggers': {
+#         'elasticsearch': {
+#             'handlers': ['console'],
+#             'level': 'DEBUG',  # Set to DEBUG for verbose output
+#             'propagate': True,
+#         },
+#     },
+# }
+
+
 GOOGLE_REDIRECT_URL = "http://localhost:8000/auth/google/login/callback/"
 LINKEDIN_REDIRECT_URL = "http://localhost:8000/auth/"
 GOOGLE_YOLO_REDIRECT_URL = "http://localhost:8000/auth/google/yolo/callback/"
