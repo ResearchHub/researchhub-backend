@@ -94,40 +94,54 @@ class AuthorClaimCaseSerializer(ModelSerializer):
     def __check_uniqueness_on_create(
         self, requestor_id, target_paper_id, target_author_name, target_paper_doi
     ):
-        has_open_case = AuthorClaimCase.objects.filter(
-            Q(
+        query = None
+        if target_paper_id:
+            query = Q(
                 requestor__id=requestor_id,
                 target_author_name=target_author_name,
                 target_paper_id=target_paper_id,
                 status__in=["OPEN", "INITIATED"],
             )
-            | Q(
+        if target_paper_doi:
+            doi_query = Q(
                 requestor__id=requestor_id,
                 target_author_name=target_author_name,
                 target_paper_doi=target_paper_doi,
                 status__in=["OPEN", "INITIATED"],
             )
-        ).exists()
+            if query:
+                query = query | doi_query
+            else:
+                query = doi_query
+
+        has_open_case = AuthorClaimCase.objects.filter(query).exists()
 
         if has_open_case:
             raise Exception(
                 f"Attempting to open a duplicate case for author {target_author_name} in paper {target_paper_id}"
             )
-
-        already_claimed = AuthorClaimCase.objects.filter(
-            Q(
+        
+        query = None
+        if target_paper_id:
+            query = Q(
                 requestor__id=requestor_id,
                 target_author_name=target_author_name,
                 target_paper_id=target_paper_id,
                 status__in=["APPROVED"],
             )
-            | Q(
+        if target_paper_doi:
+            doi_query = Q(
                 requestor__id=requestor_id,
                 target_author_name=target_author_name,
                 target_paper_doi=target_paper_doi,
                 status__in=["APPROVED"],
             )
-        ).exists()
+            if query:
+                query = query | doi_query
+            else:
+                query = doi_query
+
+        already_claimed = AuthorClaimCase.objects.filter(query).exists()
 
         if already_claimed:
             raise Exception(

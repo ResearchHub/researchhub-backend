@@ -217,5 +217,60 @@ class ViewTests(APITestCase):
 
       self.assertEqual(response.status_code, 201)
 
+    def test_user_can_claim_multiple_papers(self):
+      moderator = create_moderator(first_name='moderator', last_name='moderator')
+      claiming_user = create_random_default_user('claiming_user')
+      self.client.force_authenticate(claiming_user)
+
+      paper1 = create_paper(
+        title='some title',
+        uploaded_by=None,
+      )
+
+      paper2 = create_paper(
+        title='some title',
+        uploaded_by=None,
+      )
+
+      response = self.client.post(
+        "/api/author_claim_case/", {
+          "case_type":"PAPER_CLAIM",
+          "creator": claiming_user.id,
+          "requestor":claiming_user.id,
+          "provided_email":"example@example.com",
+          "target_paper_id": paper1.id,
+          "target_author_name": "random author",
+        }
+      )
+      # Update Claim status
+      claim = AuthorClaimCase.objects.get(id=response.data['id'])
+      claim.status = 'OPEN'
+      claim.save()
+
+      # Approve claim
+      self.client.force_authenticate(moderator)
+      update_response = self.client.post(
+        "/api/author_claim_case/moderator/", {
+          "case_id": response.data['id'],
+          "notify_user": True,
+          "update_status": 'APPROVED',
+        }
+      )
+
+      self.assertEqual(update_response.status_code, 200)
+
+      response = self.client.post(
+        "/api/author_claim_case/", {
+          "case_type":"PAPER_CLAIM",
+          "creator": claiming_user.id,
+          "requestor":claiming_user.id,
+          "provided_email":"example@example.com",
+          "target_paper_id": paper2.id,
+          "target_author_name": "random author",
+        }
+      )
+
+      self.assertEqual(response.status_code, 201)
+
     # def test_does_not_reward_claim_twice
     # def legacy_author_claim_throws_error  
