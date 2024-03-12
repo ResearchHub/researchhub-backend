@@ -9,6 +9,7 @@ from hub.tests.helpers import create_hub
 from researchhub_access_group.constants import EDITOR
 from researchhub_access_group.models import Permission
 from user.models import Action, Author, University, User
+from user.related_models.organization_model import Organization
 
 
 class TestData:
@@ -62,6 +63,14 @@ def create_random_default_user(unique_value, moderator=False):
         first_name=first_name, last_name=last_name, email=email, moderator=moderator
     )
     return user
+
+
+def create_organization(
+    name="Organization", description="Organization description", slug="org"
+):
+    return Organization.objects.create(
+        name=name, description=description, slug=slug
+    )
 
 
 def create_user(
