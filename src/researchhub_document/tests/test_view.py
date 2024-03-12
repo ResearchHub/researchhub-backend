@@ -159,7 +159,7 @@ class ViewTests(APITestCase):
         )
         self.assertEqual(doc.is_removed, True)
 
-    def author_can_create_post(self):
+    def test_author_can_create_post(self):
         author = create_random_default_user("author")
         hub = create_hub()
 
@@ -180,7 +180,7 @@ class ViewTests(APITestCase):
 
         self.assertEqual(doc_response.status_code, 200)
 
-    def author_can_update_post(self):
+    def test_author_can_update_post(self):
         author = create_random_default_user("author")
         hub = create_hub()
 
@@ -215,9 +215,7 @@ class ViewTests(APITestCase):
 
         self.assertEqual(updated_response.data["title"], "updated title")
 
-    def non_author_cannot_update_post(self):
-        author = create_random_default_user("author")
-        nonauthor = create_random_default_user("nonauthor")
+    def test_non_author_cannot_update_post(self):
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -252,7 +250,7 @@ class ViewTests(APITestCase):
 
         self.assertEqual(updated_response.status_code, 403)
 
-    def author_can_create_hypothesis(self):
+    def test_author_can_create_hypothesis(self):
         author = create_random_default_user("author")
         hub = create_hub()
 
@@ -273,7 +271,7 @@ class ViewTests(APITestCase):
 
         self.assertEqual(doc_response.status_code, 200)
 
-    def author_can_update_hypothesis(self):
+    def test_author_can_update_hypothesis(self):
         author = create_random_default_user("author")
         hub = create_hub()
 
