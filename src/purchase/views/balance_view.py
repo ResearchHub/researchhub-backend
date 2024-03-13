@@ -76,6 +76,11 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
         default_exchange_rate = RscExchangeRate.objects.first()
 
         data = []
+        before_exchange_rate_date = "11-10-2022"
+        before_exchange_datetime = datetime.strptime(
+            before_exchange_rate_date, "%m-%d-%Y"
+        )
+        specific_date_aware = pytz.utc.localize(before_exchange_datetime)
         for obj in queryset.iterator():
             date, rsc = obj
             exchange_rate = RscExchangeRate.objects.filter(
@@ -86,17 +91,13 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
             else:
                 # Uses rate if real_rate is null
                 rate = exchange_rate.real_rate or exchange_rate.rate
-                before_exchange_rate_date = "11-10-2022"
-                before_exchange_datetime = datetime.strptime(
-                    before_exchange_rate_date, "%m-%d-%Y"
-                )
-                specific_date_aware = pytz.utc.localize(before_exchange_datetime)
 
-                if (
-                    exchange_rate.created_date <= specific_date_aware
-                    and not exchange_rate.real_rate
-                ):
-                    rate = 0
+            if (
+                date <= specific_date_aware
+                and exchange_rate is None
+                or not exchange_rate.real_rate
+            ):
+                rate = 0
 
             data.append(
                 (
