@@ -18,6 +18,15 @@ services:
     # Use "forwardPorts" in **devcontainer.json** to forward an app port locally.
     # (Adding the "ports" property to this file will not forward from a Codespace.)
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.18
+    restart: unless-stopped
+    environment:
+      discovery.type: single-node
+
+    # Add "forwardPorts": ["9200", "9300"] to **devcontainer.json** to forward Elasticsearch locally.
+    # (Adding the "ports" property to this file will not forward from a Codespace.)
+
   postgres:
     image: postgres:14
     restart: unless-stopped
