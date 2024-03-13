@@ -14,10 +14,10 @@
 	"forwardPorts": [
 		"app:8080",
 		"postgres:5432"
-	]
+	],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	// "postCreateCommand": "pip install --user -r requirements.txt",
+	"postCreateCommand": "sh -c 'poetry install --directory=src && pip install -r src/requirements.txt --no-deps'"
 
 	// Configure tool-specific properties.
 	// "customizations": {},
