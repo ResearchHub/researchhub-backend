@@ -11,5 +11,6 @@ ENV PYTHONUNBUFFERED 1
 # RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
 #     && apt-get -y install --no-install-recommends <your-package-list-here>
 
+RUN pip --no-cache-dir install --upgrade pip poetry
 
 
