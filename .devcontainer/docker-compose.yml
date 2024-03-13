@@ -31,5 +31,12 @@ services:
     # Add "forwardPorts": ["5432"] to **devcontainer.json** to forward PostgreSQL locally.
     # (Adding the "ports" property to this file will not forward from a Codespace.)
 
+  redis:
+    image: redis:6.2
+    restart: unless-stopped
+
+    # Add "forwardPorts": ["6379"] to **devcontainer.json** to forward Redis locally.
+    # (Adding the "ports" property to this file will not forward from a Codespace.)
+
 volumes:
   postgres-data:
