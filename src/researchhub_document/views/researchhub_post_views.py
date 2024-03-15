@@ -21,10 +21,6 @@ from note.models import NoteContent
 from note.related_models.note_model import Note
 from peer_review.serializers import PeerReviewRequestSerializer
 from purchase.models import Balance, Purchase
-from reputation.views.bounty_view import (
-    _create_bounty,
-    _create_bounty_checks,
-)
 from researchhub.settings import (
     BASE_FRONTEND_URL,
     CROSSREF_API_URL,
