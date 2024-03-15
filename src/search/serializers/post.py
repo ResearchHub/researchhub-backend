@@ -5,7 +5,6 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from search.documents import PostDocument
 from user.models import User
 from user.serializers import UserSerializer
-from utils import sentry
 
 
 class PostDocumentSerializer(DocumentSerializer):

@@ -53,19 +53,6 @@ class HubDocument(BaseDocument):
         words = cleaned_name.split()
         # Prioritize results with less words: "Computer Science" > "Computer Science and Engineering"
         weight = 1000 - len(words)
-        permutations = itertools.permutations(words)
-        input_variations = [" ".join(permutation) for permutation in permutations]
-
-        return {
-            "input": input_variations,
-            "weight": max(weight, 1),
-        }
-
-    def prepare_name_suggest(self, instance):
-        cleaned_name = re.sub(r"[^\w\s]", "", instance.name)
-        words = cleaned_name.split()
-        # Prioritize results with less words: "Computer Science" > "Computer Science and Engineering"
-        weight = 1000 - len(words)
 
         return {
             "input": words + [cleaned_name],

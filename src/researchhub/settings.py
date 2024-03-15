@@ -94,6 +94,7 @@ ALLOWED_HOSTS = [
     r"researchhub(-[0-9]?)\.ngrok\.io",
 ]
 
+
 if not (PRODUCTION or STAGING):
     ALLOWED_HOSTS += [".ngrok.io", "localhost", "10.0.2.2", "10.0.3.2"]
 
@@ -622,6 +623,7 @@ ELASTICSEARCH_HOST = os.environ.get("ELASTICSEARCH_HOST", keys.ELASTICSEARCH_HOS
 ELASTICSEARCH_DSL = {
     "default": {
         "hosts": ELASTICSEARCH_HOST if ELASTICSEARCH_HOST else "http://localhost:9200",
+        "timeout": 30,
     },
 }
 

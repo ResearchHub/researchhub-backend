@@ -66,7 +66,7 @@ class UserDocument(BaseDocument):
 
         try:
             profile["profile_image"] = instance.author_profile.profile_image.url
-        except Exception as e:
+        except Exception:
             pass
 
         return profile

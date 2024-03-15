@@ -8,7 +8,7 @@ from search.documents.paper import PaperDocument
 
 
 def index_papers_in_bulk(es, from_id, to_id):
-    batch_size = 1000
+    batch_size = 10000
     current_id = from_id or 1
     to_id = to_id or Paper.objects.all().order_by("-id").first().id
     while True:
