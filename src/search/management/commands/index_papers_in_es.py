@@ -7,7 +7,7 @@ from paper.models import Paper
 from search.documents.paper import PaperDocument
 
 
-def get_bulk_actions(from_id, to_id):
+def index_papers_in_bulk(es, from_id, to_id):
     batch_size = 1000
     current_id = from_id or 1
     to_id = to_id or Paper.objects.all().order_by("-id").first().id
@@ -28,6 +28,7 @@ def get_bulk_actions(from_id, to_id):
             .order_by("id")
         )
 
+        actions = []
         for paper in queryset:
             try:
                 doc = PaperDocument()
@@ -57,13 +58,18 @@ def get_bulk_actions(from_id, to_id):
                     "_id": paper.id,  # document ID
                     "_source": doc_data,  # the document source
                 }
-                yield action
+
+                actions.append(action)
+
             except:
                 print(f"Error processing paper {paper.id}")
                 pass
 
         # Update cursor
         current_id += batch_size
+
+        success, _ = bulk(es, actions)
+        print(f"Successfully indexed {success} papers.")
 
 
 class Command(BaseCommand):
@@ -77,6 +83,4 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         start_id = options["start_id"]
         es = connections.get_connection()
-        actions = get_bulk_actions(start_id, None)
-        success, _ = bulk(es, actions)
-        self.stdout.write(f"Successfully indexed {success} papers.")
+        index_papers_in_bulk(es, start_id, None)
