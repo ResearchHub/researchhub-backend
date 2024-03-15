@@ -12,10 +12,28 @@ from reputation.distributor import Distributor
 from researchhub_access_group.constants import EDITOR
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
+from user.related_models.organization_model import Organization
 from user.tests.helpers import create_organization, create_random_default_user
 
 
 class ViewTests(APITestCase):
+    def setUp(self):
+        # Create three users - an org admin, and a member of the admin's org, and a non-member:
+        self.admin_user = create_random_default_user("admin")
+        self.member_user = create_random_default_user("member")
+        self.non_member = create_random_default_user("non_member")
+
+        # Make `member_user` a member of `admin_user`'s organization
+        self.organization = Organization.objects.get(user_id=self.admin_user.id)
+        Permission.objects.create(
+            access_type="MEMBER",
+            content_type=ContentType.objects.get_for_model(Organization),
+            object_id=self.organization.id,
+            user=self.member_user,
+        )
+        
+        self.hub = create_hub("hub")
+
     def test_author_can_delete_doc(self):
         author = create_random_default_user("author")
         hub = create_hub()
@@ -180,6 +198,50 @@ class ViewTests(APITestCase):
         )
 
         self.assertEqual(doc_response.status_code, 200)
+
+    def test_user_can_create_post_with_multiple_authors(self):
+        note = create_note(self.admin_user, self.organization)
+
+        self.client.force_authenticate(self.admin_user)
+
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "authors": [self.admin_user.id, self.member_user.id],
+                "created_by": self.admin_user.id,
+                "document_type": "DISCUSSION",
+                "full_src": "body",
+                "hubs": [self.hub.id],
+                "is_public": True,
+                "note_id": note[0].id,
+                "renderable_text": "body",
+                "title": "title",
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 200)
+
+    def test_user_cannot_create_post_with_non_members(self):
+        note = create_note(self.admin_user, self.organization)
+
+        self.client.force_authenticate(self.admin_user)
+
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "authors": [self.admin_user.id, self.non_member.id],
+                "created_by": self.admin_user.id,
+                "document_type": "DISCUSSION",
+                "full_src": "body",
+                "hubs": [self.hub.id],
+                "is_public": True,
+                "note_id": note[0].id,
+                "renderable_text": "body",
+                "title": "title",
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 403)
 
     def test_author_can_update_post(self):
         author = create_random_default_user("author")
