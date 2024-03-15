@@ -18,6 +18,7 @@ from analytics.tasks import track_revenue_event
 from discussion.reaction_views import ReactionViewActionMixin
 from hub.models import Hub
 from note.models import NoteContent
+from note.related_models.note_model import Note
 from peer_review.serializers import PeerReviewRequestSerializer
 from purchase.models import Balance, Purchase
 from reputation.views.bounty_view import (
@@ -60,6 +61,7 @@ from researchhub_document.serializers.researchhub_post_serializer import (
     ResearchhubPostSerializer,
 )
 from researchhub_document.utils import reset_unified_document_cache
+from user.related_models.user_model import User
 from utils.sentry import log_error
 from utils.siftscience import SIFT_POST, sift_track
 from utils.throttles import THROTTLE_CLASSES
@@ -103,16 +105,31 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         except (KeyError, TypeError) as exception:
             return Response(exception, status=400)
 
+    def _check_authors_in_org(self, authors, organization):
+        for author_id in authors:
+            author = User.objects.get(id=author_id)
+            if not organization.org_has_user(author):
+                return False
+        return True
+
     @sift_track(SIFT_POST)
     def create_researchhub_post(self, request):
+        data = request.data
+        authors = data.get("authors", [])
+        note_id = data.get("note_id", None)
+
+        # If a note is provided, check if all given authors are in the same organization
+        if note_id is not None:
+            note = Note.objects.get(id=note_id)
+            organization = note.organization
+            if not self._check_authors_in_org(authors, organization):
+                return Response("No permission to create note for organization", status=403)
+
         try:
             with transaction.atomic():
-                data = request.data
                 created_by = request.user
                 document_type = data.get("document_type")
                 editor_type = data.get("editor_type")
-                authors = data.get("authors", [])
-                note_id = data.get("note_id", None)
                 title = data.get("title", "")
                 assign_doi = data.get("assign_doi", False)
                 peer_review_is_requested = data.get("request_peer_review", False)
