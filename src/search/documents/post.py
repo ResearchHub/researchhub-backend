@@ -8,19 +8,6 @@ from utils import sentry
 
 from .base import BaseDocument
 
-edge_ngram_filter = token_filter(
-    "edge_ngram_filter",
-    type="edge_ngram",
-    min_gram=1,
-    max_gram=20,
-)
-
-edge_ngram_analyzer = analyzer(
-    "edge_ngram_analyzer",
-    tokenizer="standard",
-    filter=["lowercase", edge_ngram_filter],
-)
-
 
 @registry.register_document
 class PostDocument(BaseDocument):
@@ -55,8 +42,7 @@ class PostDocument(BaseDocument):
     )
     title_suggest = es_fields.Completion()
     title = es_fields.TextField(
-        analyzer=edge_ngram_analyzer,
-        search_analyzer="standard",
+        analyzer=title_analyzer,
     )
     slug = es_fields.TextField()
 

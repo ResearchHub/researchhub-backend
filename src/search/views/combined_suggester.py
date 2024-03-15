@@ -46,15 +46,15 @@ class CombinedSuggestView(APIView):
 
         combined_suggestions = []  # Combined suggestions from different suggesters
         for suggestion_type in suggestion_types:
-            s = Search(index=suggestion_type["document"]._index._name)
-            s = s.suggest(
+            search = Search(index=suggestion_type["document"]._index._name)
+            suggest = search.suggest(
                 "suggestions",
                 query,
                 completion={"field": suggestion_type["suggester_field"]},
             )
-            es_response = s.execute().suggest.to_dict()
+            es_response = suggest.execute().suggest.to_dict()
 
             for suggestion_with_metadata in es_response["suggestions"]:
-                combined_suggestions.extend(suggestion_with_metadata["options"][:10])
+                combined_suggestions.extend(suggestion_with_metadata["options"][:5])
 
         return Response(combined_suggestions)

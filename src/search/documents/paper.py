@@ -10,41 +10,6 @@ from utils import sentry
 
 from .base import BaseDocument
 
-# Define custom token filters
-shingle_filter = token_filter(
-    "shingle_filter",
-    type="shingle",
-    min_shingle_size=2,
-    max_shingle_size=3,
-    output_unigrams=True,
-)
-
-edge_ngram_filter = token_filter(
-    "edge_ngram_filter",
-    type="edge_ngram",
-    min_gram=1,
-    max_gram=20,
-)
-
-# Define custom analyzers
-shingle_analyzer = analyzer(
-    "shingle_analyzer",
-    tokenizer="standard",
-    filter=["lowercase", shingle_filter],
-)
-
-edge_ngram_analyzer = analyzer(
-    "edge_ngram_analyzer",
-    tokenizer="standard",
-    filter=["lowercase", edge_ngram_filter],
-)
-
-autocomplete_analyzer = analyzer(
-    "autocomplete_analyzer",
-    tokenizer=tokenizer("trigram", "nGram", min_gram=1, max_gram=20),
-    filter=["lowercase"],
-)
-
 
 @registry.register_document
 class PaperDocument(BaseDocument):
@@ -80,8 +45,7 @@ class PaperDocument(BaseDocument):
     slug = es_fields.TextField()
     title_suggest = es_fields.Completion()
     title = es_fields.TextField(
-        analyzer=edge_ngram_analyzer,
-        search_analyzer="standard",
+        analyzer=title_analyzer,
     )
     updated_date = es_fields.DateField()
     is_open_access = es_fields.BooleanField()
