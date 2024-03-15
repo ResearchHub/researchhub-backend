@@ -1,8 +1,8 @@
 from django_elasticsearch_dsl_drf.serializers import DocumentSerializer
 from rest_framework import serializers
 
-from search.documents import PostDocument
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from search.documents import PostDocument
 from user.models import User
 from user.serializers import UserSerializer
 
@@ -15,31 +15,31 @@ class PostDocumentSerializer(DocumentSerializer):
     class Meta(object):
         document = PostDocument
         fields = [
-            'id',
-            'hubs_flat',
-            'hot_score',
-            'score',
-            'discussion_count',
-            'unified_document_id',
-            'hubs',
-            'created_date',
-            'updated_date',
-            'preview_img',
-            'title',
-            'renderable_text',
-            'slug',
-            'created_by_id',
+            "id",
+            "hubs_flat",
+            "hot_score",
+            "score",
+            "discussion_count",
+            "unified_document_id",
+            "hubs",
+            "created_date",
+            "updated_date",
+            "preview_img",
+            "title",
+            "renderable_text",
+            "slug",
+            "created_by_id",
         ]
 
     def get_highlight(self, obj):
-        if hasattr(obj.meta, 'highlight'):
-            return obj.meta.highlight.__dict__['_d_']
+        if hasattr(obj.meta, "highlight"):
+            return obj.meta.highlight.__dict__["_d_"]
         return {}
 
     def get_slug(self, hit):
-        slug = ''
+        slug = ""
         try:
-            obj = ResearchhubPost.objects.get(id=hit['id'])
+            obj = ResearchhubPost.objects.get(id=hit["id"])
             slug = obj.slug
         except:
             pass
@@ -48,11 +48,8 @@ class PostDocumentSerializer(DocumentSerializer):
 
     def get_created_by(self, obj):
         try:
-            author = User.objects.get(
-                id=obj.created_by_id
-            )
+            author = User.objects.get(id=obj.created_by_id)
             return UserSerializer(author, read_only=True).data
         except:
             # The object no longer exist in the DB
             pass
-        

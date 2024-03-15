@@ -13,4 +13,5 @@ class UserDocumentSerializer(DocumentSerializer):
             "last_name",
             "reputation",
             "author_profile",
+            "created_date",
         )

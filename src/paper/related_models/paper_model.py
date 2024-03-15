@@ -19,7 +19,7 @@ from manubot.cite.unpaywall import Unpaywall
 
 import utils.sentry as sentry
 from discussion.reaction_models import AbstractGenericReactionModel, Vote
-from hub.serializers import HubSerializer
+from hub.serializers import DynamicHubSerializer, HubSerializer
 from paper.lib import journal_hosts
 from paper.tasks import (
     celery_extract_figures,
@@ -402,7 +402,18 @@ class Paper(AbstractGenericReactionModel):
 
     @property
     def hubs_indexing(self):
-        return [HubSerializer(h).data for h in self.hubs.all()]
+        serializer = DynamicHubSerializer(
+            self.hubs.all(),
+            many=True,
+            context={},
+            _include_fields=[
+                "id",
+                "name",
+                "slug",
+            ],
+        )
+
+        return serializer.data
 
     @property
     def hubs_indexing_flat(self):

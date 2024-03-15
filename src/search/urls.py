@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from search.views import (
     CitationEntryDocumentView,
+    CombinedSuggestView,
     CombinedView,
     HubDocumentView,
     HubSuggesterDocumentView,
@@ -30,4 +31,5 @@ hub_suggester = router.register(
 urlpatterns = [
     re_path(r"^", include(router.urls)),
     path("all/", CombinedView.as_view(), name="combined_search"),
+    path("combined-suggest/", CombinedSuggestView.as_view(), name="combined_suggester"),
 ]
