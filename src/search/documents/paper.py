@@ -1,6 +1,3 @@
-import itertools
-import re
-
 from django_elasticsearch_dsl import Document, Index
 from django_elasticsearch_dsl import fields
 from django_elasticsearch_dsl import fields as es_fields
@@ -42,13 +39,11 @@ edge_ngram_analyzer = analyzer(
     filter=["lowercase", edge_ngram_filter],
 )
 
-
 autocomplete_analyzer = analyzer(
     "autocomplete_analyzer",
     tokenizer=tokenizer("trigram", "nGram", min_gram=1, max_gram=20),
     filter=["lowercase"],
 )
-from elasticsearch_dsl import analyzer, tokenizer
 
 
 @registry.register_document
