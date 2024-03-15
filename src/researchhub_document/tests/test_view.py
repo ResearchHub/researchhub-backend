@@ -244,23 +244,25 @@ class ViewTests(APITestCase):
         self.assertEqual(doc_response.status_code, 403)
 
     def test_author_can_update_post(self):
-        author = create_random_default_user("author")
-        hub = create_hub()
+        note = create_note(self.admin_user, self.organization)
 
-        self.client.force_authenticate(author)
+        self.client.force_authenticate(self.admin_user)
 
         doc_response = self.client.post(
             "/api/researchhubpost/",
             {
                 "document_type": "DISCUSSION",
-                "created_by": author.id,
+                "created_by": self.admin_user.id,
                 "full_src": "body",
                 "is_public": True,
+                "note_id": note[0].id,
                 "renderable_text": "body",
                 "title": "title",
-                "hubs": [hub.id],
+                "hubs": [self.hub.id],
             },
         )
+
+        self.assertEqual(doc_response.status_code, 200)
 
         updated_response = self.client.post(
             "/api/researchhubpost/",
@@ -268,11 +270,11 @@ class ViewTests(APITestCase):
                 "post_id": doc_response.data["id"],
                 "title": "updated title",
                 "document_type": "DISCUSSION",
-                "created_by": author.id,
+                "created_by": self.admin_user.id,
                 "full_src": "body",
                 "is_public": True,
                 "renderable_text": "body",
-                "hubs": [hub.id],
+                "hubs": [self.hub.id],
             },
         )
 
