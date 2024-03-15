@@ -46,6 +46,6 @@ class CombinedSuggestView(APIView):
             es_response = suggest.execute().suggest.to_dict()
 
             for suggestion_with_metadata in es_response["suggestions"]:
-                combined_suggestions.extend(suggestion_with_metadata["options"][:5])
+                combined_suggestions.extend(suggestion_with_metadata["options"][:3])
 
         return Response(combined_suggestions)
