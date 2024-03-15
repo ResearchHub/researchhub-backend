@@ -28,7 +28,71 @@ We believe that by empowering scientists to independently fund, create, and publ
 
 # Installation
 
-## 1. Quick install using Docker (Not recommended for development)
+There are three different methods for running this project: [Dev Containers with VSCode](#dev-containers-and-vscode), [Docker Compose](#quick-install-using-docker-not-recommended-for-development) and [a native installation](#native-install-slower-recommended-for-development).
+
+## Dev Containers and VSCode
+
+### Prerequisites
+
+Install [Docker](https://www.docker.com/), [Visual Studio Code](https://code.visualstudio.com/) and [the Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers). Please review the [Installation section](https://code.visualstudio.com/docs/devcontainers/containers#_installation) in the [Visual Studio Code Dev Container documentation](https://code.visualstudio.com/docs/devcontainers/containers).
+
+On MacOS with [Homebrew](https://brew.sh/), the installation can be achieved with the following commands:
+
+```shell
+brew install docker
+brew install visual-studio-code
+code --install-extension ms-vscode-remote.vscode-remote-extensionpack
+```
+
+### Configuration
+
+Clone the repository and create an initial configuration by copying the sample configuration files to `config_local`:
+
+```shell
+cp db_config.sample.py src/config_local/db.py
+cp keys.sample.py src/config_local/keys.py
+cp twitter_config_sample.py src/config_local/twitter.py
+```
+
+Make adjustments to the new configuration files as needed.
+
+### Start Developing
+
+When opening the code in VSCode, tt will recognize the Dev Containers configuration and will prompt to _Rebuild and Reopen in Container_.
+Alternatively, select _Rebuild and Reopen in Container_ manually from the command palette.
+This will pull and run all necessary auxiliary services including ElasticSearch, PostgreSQL, and Redis.
+
+During the creation of the dev container, all Python dependencies are downloaded and installed and an initial database migration is also performed. After dev container creation, proceed with [seeding the database](#Seed-the-database) as needed.
+
+### Running and Debugging
+
+Run the application by typing the following into integrated terminal:
+
+```shell
+cd src
+python manage.py runserver
+```
+
+Alternatively, debugging of the application is possible with the following launch configuration (in `.vscode/launch.json`):
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Python: Django",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/manage.py",
+      "args": ["runserver", "[::]:8000"],
+      "django": true,
+      "autoStartBrowser": false
+    }
+  ]
+}
+```
+
+## Quick install using Docker (Not recommended for development)
 
 1. Download or clone this repository.
 2. Copy local config files. From inside the dir root, run
@@ -49,7 +113,7 @@ docker-compose up
 The backend will now run at localhost:8000  
 4. Setup and run the [web app](https://github.com/ResearchHub/researchhub-web) at localhost:3000
 
-## 2. Native install (Slower, recommended for development)
+## Native install (Slower, recommended for development)
 
 ### Prerequisites
 1. Docker
