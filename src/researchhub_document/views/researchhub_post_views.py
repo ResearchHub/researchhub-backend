@@ -207,8 +207,18 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
     @sift_track(SIFT_POST, is_update=True)
     def update_existing_researchhub_posts(self, request):
         data = request.data
+
+        authors = data.get("authors", [])
+        rh_post_id = data.get("post_id", None)
+        rh_post = ResearchhubPost.objects.get(id=rh_post_id)
+
+        # Check if all given authors are in the same organization
+        note = Note.objects.get(id=rh_post.note_id)
+        organization = note.organization
+        if not self._check_authors_in_org(authors, organization):
+            return Response("No permission to update post for organization", status=403)
+
         created_by = request.user
-        authors = data.pop("authors", None)
         hubs = data.pop("hubs", None)
         title = data.get("title", "")
         assign_doi = data.get("assign_doi", False)
@@ -217,7 +227,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         if assign_doi and created_by.get_balance() - CROSSREF_DOI_RSC_FEE < 0:
             return Response("Insufficient Funds", status=402)
 
-        rh_post = ResearchhubPost.objects.get(id=data.get("post_id"))
         rh_post.doi = doi or rh_post.doi
         rh_post.save(update_fields=["doi"])
 

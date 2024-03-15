@@ -280,6 +280,44 @@ class ViewTests(APITestCase):
 
         self.assertEqual(updated_response.data["title"], "updated title")
 
+    def test_author_cannot_update_post_with_non_members(self):
+        note = create_note(self.admin_user, self.organization)
+
+        self.client.force_authenticate(self.admin_user)
+
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "DISCUSSION",
+                "created_by": self.admin_user.id,
+                "full_src": "body",
+                "is_public": True,
+                "note_id": note[0].id,
+                "renderable_text": "body",
+                "title": "title",
+                "hubs": [self.hub.id],
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 200)
+
+        updated_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "authors": [self.admin_user.id, self.non_member.id],
+                "post_id": doc_response.data["id"],
+                "title": "updated title",
+                "document_type": "DISCUSSION",
+                "created_by": self.admin_user.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": "body",
+                "hubs": [self.hub.id],
+            },
+        )
+
+        self.assertEqual(updated_response.status_code, 403)
+
     def test_non_author_cannot_update_post(self):
         hub = create_hub()
 
