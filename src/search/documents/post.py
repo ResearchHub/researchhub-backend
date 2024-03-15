@@ -25,7 +25,6 @@ edge_ngram_analyzer = analyzer(
 @registry.register_document
 class PostDocument(BaseDocument):
     auto_refresh = True
-
     hubs_flat = es_fields.TextField(attr="hubs_indexing_flat")
     hot_score = es_fields.IntegerField(attr="hot_score")
     score = es_fields.IntegerField(attr="score")
@@ -49,11 +48,9 @@ class PostDocument(BaseDocument):
     hubs = es_fields.ObjectField(
         attr="hubs_indexing",
         properties={
-            "hub_image": es_fields.TextField(),
             "id": es_fields.IntegerField(),
-            "is_locked": es_fields.TextField(),
-            "is_removed": es_fields.TextField(),
             "name": es_fields.KeywordField(),
+            "slug": es_fields.TextField(),
         },
     )
     title_suggest = es_fields.Completion()
@@ -61,6 +58,7 @@ class PostDocument(BaseDocument):
         analyzer=edge_ngram_analyzer,
         search_analyzer="standard",
     )
+    slug = es_fields.TextField()
 
     class Index:
         name = "post"
@@ -81,12 +79,11 @@ class PostDocument(BaseDocument):
 
     def prepare(self, instance):
         try:
-            print("instance", instance)
             data = super().prepare(instance)
             data["title_suggest"] = self.prepare_title_suggest(instance)
             return data
         except Exception as error:
-            print("Paper Indexing error: ", error)
+            print("Post Indexing error: ", error, "Instance: ", instance.id)
             sentry.log_error(error)
             return False
 

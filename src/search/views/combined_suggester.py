@@ -4,13 +4,11 @@ from rest_framework.views import APIView
 
 from search.documents.hub import HubDocument
 from search.documents.paper import PaperDocument
-from search.documents.person import PersonDocument
 from search.documents.post import PostDocument
 from search.documents.user import UserDocument
 from search.serializers.combined import CombinedSerializer
 from search.serializers.hub import HubDocumentSerializer
 from search.serializers.paper import PaperDocumentSerializer
-from search.serializers.person import PersonDocumentSerializer
 from search.serializers.post import PostDocumentSerializer
 from search.serializers.user import UserDocumentSerializer
 from utils.permissions import ReadOnly
@@ -23,7 +21,6 @@ class CombinedSuggestView(APIView):
     def get(self, request, *args, **kwargs):
         # Retrieve the query from the request
         query = request.query_params.get("query", "")
-
         suggestion_types = [
             {
                 "serializer": PaperDocumentSerializer,
@@ -40,9 +37,14 @@ class CombinedSuggestView(APIView):
                 "document": UserDocument,
                 "suggester_field": "full_name_suggest",
             },
+            {
+                "serializer": HubDocumentSerializer,
+                "document": HubDocument,
+                "suggester_field": "name_suggest",
+            },
         ]
 
-        all_suggestions = []
+        combined_suggestions = []  # Combined suggestions from different suggesters
         for suggestion_type in suggestion_types:
             s = Search(index=suggestion_type["document"]._index._name)
             s = s.suggest(
@@ -53,6 +55,6 @@ class CombinedSuggestView(APIView):
             es_response = s.execute().suggest.to_dict()
 
             for suggestion_with_metadata in es_response["suggestions"]:
-                all_suggestions.extend(suggestion_with_metadata["options"][:10])
+                combined_suggestions.extend(suggestion_with_metadata["options"][:10])
 
-        return Response(all_suggestions)
+        return Response(combined_suggestions)

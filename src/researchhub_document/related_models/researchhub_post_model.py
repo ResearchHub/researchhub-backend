@@ -7,7 +7,7 @@ from django.db.models import Avg, Count, IntegerField, Q, Sum
 from django.db.models.functions import Cast, Extract
 
 from discussion.reaction_models import AbstractGenericReactionModel, Vote
-from hub.serializers import HubSerializer
+from hub.serializers import DynamicHubSerializer, HubSerializer
 from paper.utils import paper_piecewise_log
 from purchase.models import Purchase
 from researchhub_comment.models import RhCommentThreadModel
@@ -159,7 +159,18 @@ class ResearchhubPost(AbstractGenericReactionModel):
 
     @property
     def hubs_indexing(self):
-        return [HubSerializer(h).data for h in self.hubs.all()]
+        serializer = DynamicHubSerializer(
+            self.hubs.all(),
+            many=True,
+            context={},
+            _include_fields=[
+                "id",
+                "name",
+                "slug",
+            ],
+        )
+
+        return serializer.data
 
     @property
     def hubs_indexing_flat(self):

@@ -30,6 +30,7 @@ class UserDocument(BaseDocument):
         analyzer=edge_ngram_analyzer,
         search_analyzer="standard",
     )
+    created_date = es_fields.DateField()
 
     author_profile = es_fields.ObjectField(
         properties={
@@ -72,14 +73,24 @@ class UserDocument(BaseDocument):
 
     # Used specifically for "autocomplete" style suggest feature
     def prepare_full_name_suggest(self, instance):
-        full_name_suggest = f"{instance.first_name} {instance.last_name}"
+        full_name_suggest = ""
+        try:
+            full_name_suggest = f"{instance.author_profile.first_name} {instance.author_profile.last_name}"
+        except Exception as e:
+            # Some legacy users don't have an author profile
+            full_name_suggest = f"{instance.first_name} {instance.last_name}"
+
         return {
             "input": full_name_suggest.split() + [full_name_suggest],
             "weight": instance.reputation,
         }
 
     def prepare_full_name(self, instance):
-        return f"{instance.first_name} {instance.last_name}"
+        try:
+            return f"{instance.author_profile.first_name} {instance.author_profile.last_name}"
+        except Exception as e:
+            # Some legacy users don't have an author profile
+            return f"{instance.first_name} {instance.last_name}"
 
     def prepare(self, instance):
         data = super().prepare(instance)
