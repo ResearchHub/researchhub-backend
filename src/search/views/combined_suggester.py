@@ -7,10 +7,6 @@ from search.documents.paper import PaperDocument
 from search.documents.post import PostDocument
 from search.documents.user import UserDocument
 from search.serializers.combined import CombinedSerializer
-from search.serializers.hub import HubDocumentSerializer
-from search.serializers.paper import PaperDocumentSerializer
-from search.serializers.post import PostDocumentSerializer
-from search.serializers.user import UserDocumentSerializer
 from utils.permissions import ReadOnly
 
 
@@ -19,26 +15,21 @@ class CombinedSuggestView(APIView):
     serializer_class = CombinedSerializer
 
     def get(self, request, *args, **kwargs):
-        # Retrieve the query from the request
         query = request.query_params.get("query", "")
         suggestion_types = [
             {
-                "serializer": PaperDocumentSerializer,
                 "document": PaperDocument,
                 "suggester_field": "title_suggest",
             },
             {
-                "serializer": PostDocumentSerializer,
                 "document": PostDocument,
                 "suggester_field": "title_suggest",
             },
             {
-                "serializer": UserDocumentSerializer,
                 "document": UserDocument,
                 "suggester_field": "full_name_suggest",
             },
             {
-                "serializer": HubDocumentSerializer,
                 "document": HubDocument,
                 "suggester_field": "name_suggest",
             },
