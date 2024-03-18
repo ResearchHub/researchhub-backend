@@ -17,7 +17,6 @@ from researchhub_case.constants.case_constants import (
 from researchhub_case.models import AuthorClaimCase
 from researchhub_case.serializers import AuthorClaimCaseSerializer
 from researchhub_case.tasks import after_approval_flow, after_rejection_flow
-from user.utils import move_paper_to_author
 from utils.http import GET, POST
 from utils.permissions import CreateOrReadOnly
 
