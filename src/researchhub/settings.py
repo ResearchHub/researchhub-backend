@@ -310,6 +310,13 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 26214400 * 24.1  # ~655MB max data allowed
 
 PAGINATION_PAGE_SIZE = 10
 
+DEFAULT_RENDERER_CLASSES = ("rest_framework.renderers.JSONRenderer",)
+
+if DEBUG:
+    DEFAULT_RENDERER_CLASSES = DEFAULT_RENDERER_CLASSES + (
+        "rest_framework.renderers.BrowsableAPIRenderer",
+    )
+
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "researchhub.middleware.ApiTokenSession.UserApiTokenAuth",
@@ -319,6 +326,7 @@ REST_FRAMEWORK = {
         # 'rest_framework.permissions.AllowAny',  # FOR TESTING ONLY
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
+    "DEFAULT_RENDERER_CLASSES": DEFAULT_RENDERER_CLASSES,
     "PAGE_SIZE": PAGINATION_PAGE_SIZE,
     "TEST_REQUEST_RENDERER_CLASSES": [
         "rest_framework.renderers.MultiPartRenderer",
