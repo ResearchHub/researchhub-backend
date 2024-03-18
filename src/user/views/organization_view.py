@@ -39,6 +39,13 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         "slug",
     ]
 
+    def get_queryset(self):
+        user = self.request.user
+        organizations = self.queryset.filter(
+            permissions__user=user,
+        ).distinct()
+        return organizations
+
     def get_object(self, slug=False):
         queryset = self.filter_queryset(self.get_queryset())
 
@@ -124,7 +131,10 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         user = request.user
         partial = kwargs.pop("partial", False)
-        organization = self.get_object()
+        try:
+            organization = self.get_object()
+        except Exception:
+            return Response({"data": "No permission to get organization"}, status=403)
 
         if not organization.org_has_admin_user(user):
             return Response({"data": "Invalid permissions"}, status=403)
@@ -303,7 +313,11 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     def invite_user(self, request, pk=None):
         inviter = request.user
         data = request.data
-        organization = self.get_object()
+        try:
+            organization = self.get_object()
+        except Exception:
+            return Response({"data": "No permission to get organization"}, status=403)
+
         access_type = data.get("access_type")
         recipient_email = data.get("email")
         time_to_expire = int(data.get("expire", 1440))
