@@ -338,6 +338,3 @@ def test_moderator_can_claim_paper_for_any_user(self):
       )
 
       self.assertEqual(response.status_code, 201)
-
-    # def test_does_not_reward_claim_twice
-    # def legacy_author_claim_throws_error  
