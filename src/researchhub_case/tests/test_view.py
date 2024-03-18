@@ -5,8 +5,7 @@ from user.tests.helpers import (
     create_moderator,
 )
 from researchhub_case.models import AuthorClaimCase
-from user.utils import move_paper_to_author
-
+from researchhub_case.constants.case_constants import PAPER_CLAIM
 
 class ViewTests(APITestCase):
     def setUp(self):
@@ -37,7 +36,7 @@ class ViewTests(APITestCase):
         }
       )
 
-      print('response', response.data)
+      self.assertEqual(response.status_code, 201)
 
       # Update Claim status
       claim = AuthorClaimCase.objects.get(id=response.data['id'])
@@ -53,6 +52,8 @@ class ViewTests(APITestCase):
           "update_status": 'APPROVED',
         }
       )
+
+      self.assertEqual(update_response.status_code, 200)
 
       claim = AuthorClaimCase.objects.get(id=response.data['id'])
       self.assertEqual(claim.status, 'APPROVED')
@@ -216,6 +217,72 @@ class ViewTests(APITestCase):
       )      
 
       self.assertEqual(response.status_code, 201)
+
+    def test_user_cannot_claim_paper_for_other_creator(self):
+      claiming_user = create_random_default_user('claiming_user')
+      other_user = create_random_default_user('other_user')
+      paper = create_paper(
+        title='title1',
+      )
+
+      self.client.force_authenticate(claiming_user)
+
+      response = self.client.post(
+        "/api/author_claim_case/", {
+          "case_type": PAPER_CLAIM,
+          "creator": other_user.id,
+          "provided_email": "email1@researchhub.com",
+          "requestor": claiming_user.id,
+          "target_author_name": "author1",
+          "target_paper_id": paper.id,
+        }
+      )
+
+      self.assertEqual(response.status_code, 403)
+
+    def test_user_cannot_claim_paper_for_other_requestor(self):
+      claiming_user = create_random_default_user('claiming_user')
+      other_user = create_random_default_user('other_user')
+      paper = create_paper(
+        title='title1',
+      )
+
+      self.client.force_authenticate(claiming_user)
+
+      response = self.client.post(
+        "/api/author_claim_case/", {
+          "case_type": PAPER_CLAIM,
+          "creator": claiming_user.id,
+          "provided_email": "email1@researchhub.com",
+          "requestor": other_user.id,
+          "target_author_name": "author1",
+          "target_paper_id": paper.id,
+        }
+      )
+
+      self.assertEqual(response.status_code, 403)
+
+def test_moderator_can_claim_paper_for_any_user(self):
+    moderator_user = create_moderator('moderator_user')
+    other_user = create_random_default_user('other_user')
+    paper = create_paper(
+      title='title1',
+    )
+
+    self.client.force_authenticate(moderator_user)
+
+    response = self.client.post(
+      "/api/author_claim_case/", {
+        "case_type": PAPER_CLAIM,
+        "creator": other_user.id,
+        "provided_email": "email1@researchhub.com",
+        "requestor": moderator_user.id,
+        "target_author_name": "author1",
+        "target_paper_id": paper.id,
+      }
+    )
+
+    self.assertEqual(response.status_code, 201)
 
     def test_user_can_claim_multiple_papers(self):
       moderator = create_moderator(first_name='moderator', last_name='moderator')
