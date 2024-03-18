@@ -19,7 +19,12 @@
 	],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": "chmod +x .devcontainer/post-create.sh && .devcontainer/post-create.sh"
+	"postCreateCommand": "chmod +x .devcontainer/post-create.sh && .devcontainer/post-create.sh",
+
+	// Use 'postStartCommand' to run commands after the container is started.
+	// Currently setting `safe.directory` to the workspace folder to avoid permission issues.
+	// See: https://github.com/microsoft/vscode-remote-release/issues/7923
+	"postStartCommand": "git config --global --add safe.directory ${containerWorkspaceFolder}"
 
 	// Configure tool-specific properties.
 	// "customizations": {},
