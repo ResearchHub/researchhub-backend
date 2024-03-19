@@ -57,7 +57,7 @@ from researchhub_document.serializers.researchhub_post_serializer import (
     ResearchhubPostSerializer,
 )
 from researchhub_document.utils import reset_unified_document_cache
-from user.related_models.user_model import User
+from user.related_models.author_model import Author
 from utils.sentry import log_error
 from utils.siftscience import SIFT_POST, sift_track
 from utils.throttles import THROTTLE_CLASSES
@@ -103,8 +103,8 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
 
     def _check_authors_in_org(self, authors, organization):
         for author_id in authors:
-            author = User.objects.get(id=author_id)
-            if not organization.org_has_user(author):
+            author = Author.objects.select_related("user").get(id=author_id)
+            if not organization.org_has_user(author.user):
                 return False
         return True
 

@@ -12,6 +12,7 @@ from reputation.distributor import Distributor
 from researchhub_access_group.constants import EDITOR
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
+from user.related_models.author_model import Author
 from user.related_models.organization_model import Organization
 from user.tests.helpers import create_organization, create_random_default_user
 
@@ -20,8 +21,11 @@ class ViewTests(APITestCase):
     def setUp(self):
         # Create three users - an org admin, and a member of the admin's org, and a non-member:
         self.admin_user = create_random_default_user("admin")
+        self.admin_author = Author.objects.select_related("user").get(id=self.admin_user.id)
         self.member_user = create_random_default_user("member")
+        self.member_author = Author.objects.select_related("user").get(id=self.member_user.id)
         self.non_member = create_random_default_user("non_member")
+        self.non_member_author = Author.objects.select_related("user").get(id=self.non_member.id)
 
         # Make `member_user` a member of `admin_user`'s organization
         self.organization = Organization.objects.get(user_id=self.admin_user.id)
@@ -207,7 +211,7 @@ class ViewTests(APITestCase):
         doc_response = self.client.post(
             "/api/researchhubpost/",
             {
-                "authors": [self.admin_user.id, self.member_user.id],
+                "authors": [self.admin_author.id, self.member_author.id],
                 "created_by": self.admin_user.id,
                 "document_type": "DISCUSSION",
                 "full_src": "body",
@@ -229,7 +233,7 @@ class ViewTests(APITestCase):
         doc_response = self.client.post(
             "/api/researchhubpost/",
             {
-                "authors": [self.admin_user.id, self.non_member.id],
+                "authors": [self.admin_author.id, self.non_member_author.id],
                 "created_by": self.admin_user.id,
                 "document_type": "DISCUSSION",
                 "full_src": "body",
@@ -304,7 +308,7 @@ class ViewTests(APITestCase):
         updated_response = self.client.post(
             "/api/researchhubpost/",
             {
-                "authors": [self.admin_user.id, self.non_member.id],
+                "authors": [self.admin_author.id, self.non_member_author.id],
                 "post_id": doc_response.data["id"],
                 "title": "updated title",
                 "document_type": "DISCUSSION",
