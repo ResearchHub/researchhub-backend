@@ -50,7 +50,6 @@ class AuthorClaimCaseViewSet(ModelViewSet):
         else:
             return user.id == creator_id and user.id == requestor_id
 
-
     @action(detail=False, methods=[GET], permission_classes=[IsModerator])
     def count(self, request, pk=None):
         try:
