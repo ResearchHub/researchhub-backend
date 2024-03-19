@@ -2,13 +2,12 @@ name: Automated Tests
 
 on:
   push:
-    branches: [ master ]
+    branches: [master]
   pull_request:
-    branches: [ master ]
+    branches: [master]
 
 jobs:
   build:
-
     runs-on: ubuntu-20.04
     timeout-minutes: 45
 
@@ -42,25 +41,25 @@ jobs:
           - 6379:6379
 
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.8.5'
-    - name: Updating pip
-      working-directory: ./src
-      run: |
-        pip install poetry
-        poetry run pip install --upgrade pip
-        poetry run pip install -U pip setuptools
-    - name: Install Dependencies
-      working-directory: ./src
-      run: |
-        poetry install
-    - name: Run Tests
-      working-directory: ./src
-      run: |
-        cp config/ci/* config
-        poetry run python manage.py migrate
-        poetry run python manage.py collectstatic --noinput
-        poetry run python manage.py test
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.8.5"
+      - name: Updating pip
+        working-directory: ./src
+        run: |
+          pip install poetry
+          poetry run pip install --upgrade pip
+          poetry run pip install -U pip setuptools
+      - name: Install Dependencies
+        working-directory: ./src
+        run: |
+          poetry install
+      - name: Run Tests
+        working-directory: ./src
+        run: |
+          cp config/ci/* config
+          poetry run python manage.py migrate
+          poetry run python manage.py collectstatic --noinput
+          poetry run python manage.py test
