@@ -24,7 +24,9 @@ services:
       - researchhub
 
   elasticsearch:
-    image: elasticsearch:7.17.18
+    build:
+      context: .
+      dockerfile: Dockerfile.elasticsearch
     restart: unless-stopped
     environment:
       discovery.type: single-node
