@@ -69,7 +69,7 @@ class OrganizationTests(APITestCase):
         )
         self.assertEqual(response.data["user_count"], 3)
 
-    def test_admin_of_org_A_cannot_update_details_of_org_B(self):
+    def test_admin_of_org_B_cannot_update_details_of_org_A(self):
         # Create + auth user
         self.org_b_admin = get_user_model().objects.create_user(
             username="org_b_admin@researchhub_test.com",
@@ -92,7 +92,7 @@ class OrganizationTests(APITestCase):
         response = self.client.get(f"/api/organization/{self.org['id']}/")
         self.assertNotEqual(response.data["name"], "updated name")
 
-    def test_admin_of_org_A_cannot_invite_users_in_org_B(self):
+    def test_admin_of_org_B_cannot_invite_users_in_org_A(self):
         # Create + auth user
         self.org_b_admin = get_user_model().objects.create_user(
             username="org_b_admin@researchhub_test.com",
@@ -104,21 +104,21 @@ class OrganizationTests(APITestCase):
         # Create org B
         response = self.client.post("/api/organization/", {"name": "ORG B"})
 
-        # Invite user for org A
+        # Org B Admin tries to invite user to org A
         response = self.client.post(
             f"/api/organization/{self.org['id']}/invite_user/",
             {"access_type": "MEMBER", "email": "email@researchhub_test.com"},
         )
         self.assertEqual(response.status_code, 403)
 
-        # Refetch org members list and ensure it did not grow
+        # Refetch org A members list and ensure it did not grow, reauth as org A admin to access.
         self.client.force_authenticate(self.admin_user)
         response = self.client.get(
             f"/api/organization/{self.org['id']}/get_organization_users/"
         )
         self.assertEqual(response.data["user_count"], 2)
 
-    def test_admin_of_org_A_cannot_create_notes_in_org_B(self):
+    def test_admin_of_org_B_cannot_create_notes_in_org_A(self):
         # Create + auth user
         self.org_b_admin = get_user_model().objects.create_user(
             username="org_b_admin@researchhub_test.com",
