@@ -5,6 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.db import models, transaction
 from django.db.models import Case, Count, F, Q, Sum, Value, When
+from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
@@ -133,7 +134,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         partial = kwargs.pop("partial", False)
         try:
             organization = self.get_object()
-        except Exception:
+        except Http404:
             return Response({"data": "No permission to get organization"}, status=403)
 
         if not organization.org_has_admin_user(user):
@@ -315,7 +316,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         data = request.data
         try:
             organization = self.get_object()
-        except Exception:
+        except Http404:
             return Response({"data": "No permission to get organization"}, status=403)
 
         access_type = data.get("access_type")
