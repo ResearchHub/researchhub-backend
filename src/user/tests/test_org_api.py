@@ -97,7 +97,7 @@ class OrganizationTests(APITestCase):
         response = self.client.patch(
             f"/api/organization/{self.org_a['id']}/", {"name": "updated name"}
         )
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 404)
 
         # Ensure that the org was not updated
         self.client.force_authenticate(self.org_a_admin)
@@ -112,7 +112,7 @@ class OrganizationTests(APITestCase):
             f"/api/organization/{self.org_a['id']}/invite_user/",
             {"access_type": "MEMBER", "email": "email@researchhub_test.com"},
         )
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 404)
 
         # Refetch org A members list and ensure it did not grow, reauth as org A admin to access.
         self.client.force_authenticate(self.org_a_admin)

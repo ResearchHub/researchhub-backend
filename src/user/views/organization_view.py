@@ -132,10 +132,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         user = request.user
         partial = kwargs.pop("partial", False)
-        try:
-            organization = self.get_object()
-        except Http404:
-            return Response({"data": "No permission to get organization"}, status=403)
+        organization = self.get_object()
 
         if not organization.org_has_admin_user(user):
             return Response({"data": "Invalid permissions"}, status=403)
@@ -314,10 +311,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     def invite_user(self, request, pk=None):
         inviter = request.user
         data = request.data
-        try:
-            organization = self.get_object()
-        except Http404:
-            return Response({"data": "No permission to get organization"}, status=403)
+        organization = self.get_object()
 
         access_type = data.get("access_type")
         recipient_email = data.get("email")
