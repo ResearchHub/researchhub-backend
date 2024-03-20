@@ -60,6 +60,8 @@ class ViewTests(APITestCase):
         response = self.client.delete(
             f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/censor/"
         )
+        self.assertEqual(response.status_code, 200)
+
         doc = ResearchhubUnifiedDocument.all_objects.get(
             id=doc_response.data["unified_document_id"]
         )
@@ -87,6 +89,8 @@ class ViewTests(APITestCase):
         delete_response = self.client.delete(
             f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/censor/"
         )
+        self.assertEqual(delete_response.status_code, 200)
+
         restore_response = self.client.patch(
             f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/restore/"
         )
@@ -115,6 +119,7 @@ class ViewTests(APITestCase):
         delete_response = self.client.delete(
             f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/censor/"
         )
+        self.assertEqual(delete_response.status_code, 200)
 
         self.client.force_authenticate(mod)
         restore_response = self.client.patch(
@@ -147,6 +152,8 @@ class ViewTests(APITestCase):
         response = self.client.delete(
             f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/censor/"
         )
+        self.assertEqual(response.status_code, 403)
+
         doc = ResearchhubUnifiedDocument.objects.get(
             id=doc_response.data["unified_document_id"]
         )
@@ -177,6 +184,8 @@ class ViewTests(APITestCase):
         response = self.client.delete(
             f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/censor/"
         )
+        self.assertEqual(response.status_code, 200)
+
         doc = ResearchhubUnifiedDocument.all_objects.get(
             id=doc_response.data["unified_document_id"]
         )
@@ -403,6 +412,7 @@ class ViewTests(APITestCase):
                 "hubs": [hub.id],
             },
         )
+        self.assertEqual(doc_response.status_code, 200)
 
         updated_response = self.client.post(
             f"/api/hypothesis/{doc_response.data['id']}/upsert/",
@@ -414,7 +424,7 @@ class ViewTests(APITestCase):
                 "renderable_text": "body",
             },
         )
-
+        self.assertEqual(updated_response.status_code, 200)
         self.assertEqual(updated_response.data["full_markdown"], "updated body")
 
     def test_non_author_cannot_edit_hypothesis(self):
@@ -436,6 +446,7 @@ class ViewTests(APITestCase):
                 "hubs": [hub.id],
             },
         )
+        self.assertEqual(doc_response.status_code, 200)
 
         self.client.force_authenticate(non_author)
 
@@ -449,6 +460,7 @@ class ViewTests(APITestCase):
                 "renderable_text": "body",
             },
         )
+        self.assertEqual(updated_response.status_code, 403)
         self.assertEqual(updated_response.status_code, 403)
 
     def test_hub_editors_can_censor_papers(self):
