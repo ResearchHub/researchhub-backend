@@ -21,11 +21,11 @@ class ViewTests(APITestCase):
     def setUp(self):
         # Create three users - an org admin, and a member of the admin's org, and a non-member:
         self.admin_user = create_random_default_user("admin")
-        self.admin_author = Author.objects.select_related("user").get(id=self.admin_user.id)
+        self.admin_author, _ = Author.objects.get_or_create(user=self.admin_user)
         self.member_user = create_random_default_user("member")
-        self.member_author = Author.objects.select_related("user").get(id=self.member_user.id)
+        self.member_author, _ = Author.objects.get_or_create(user=self.member_user)
         self.non_member = create_random_default_user("non_member")
-        self.non_member_author = Author.objects.select_related("user").get(id=self.non_member.id)
+        self.non_member_author, _ = Author.objects.get_or_create(user=self.non_member)
 
         # Make `member_user` a member of `admin_user`'s organization
         self.organization = Organization.objects.get(user_id=self.admin_user.id)
