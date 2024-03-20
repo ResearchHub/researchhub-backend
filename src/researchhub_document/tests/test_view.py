@@ -135,7 +135,7 @@ class ViewTests(APITestCase):
         self.client.force_authenticate(author)
 
         doc_response = self.client.post(
-            f"/api/researchhubpost/",
+            "/api/researchhubpost/",
             {
                 "document_type": "DISCUSSION",
                 "created_by": author.id,
