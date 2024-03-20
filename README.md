@@ -221,7 +221,8 @@ The backend will now run at localhost:8000
    * in Python: run `python manage.py shell_plus` to open a Python terminal in the virtual environment. Then, paste the following code:
 
    ```python
-   import pandas as pd        
+   import pandas as pd
+   from hub.models import Hub
 
    hub_df = pd.read_csv("../misc/hub_hub.csv")
    hub_df = hub_df.drop("slug_index", axis=1)
