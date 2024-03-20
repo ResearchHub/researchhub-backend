@@ -108,7 +108,10 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
         fields = "__all__"
 
     def get_recommendation_metadata(self, unified_doc):
-        return unified_doc.recommendation_metadata
+        if hasattr(unified_doc, "recommendation_metadata"):
+            return unified_doc.recommendation_metadata
+
+        return None
 
     def get_bounties(self, unified_doc):
         from reputation.serializers import DynamicBountySerializer
