@@ -13,7 +13,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:latest
+        image: postgres:14-alpine
         env:
           POSTGRES_DB: researchhub
           POSTGRES_USER: rh_developer
@@ -31,7 +31,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
       redis:
-        image: redis
+        image: redis:6.2-alpine
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
