@@ -5,6 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.db import models, transaction
 from django.db.models import Case, Count, F, Q, Sum, Value, When
+from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
@@ -38,6 +39,13 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     filterset_fields = [
         "slug",
     ]
+
+    def get_queryset(self):
+        user = self.request.user
+        organizations = self.queryset.filter(
+            permissions__user=user,
+        ).distinct()
+        return organizations
 
     def get_object(self, slug=False):
         queryset = self.filter_queryset(self.get_queryset())
@@ -304,6 +312,7 @@ class OrganizationViewSet(viewsets.ModelViewSet):
         inviter = request.user
         data = request.data
         organization = self.get_object()
+
         access_type = data.get("access_type")
         recipient_email = data.get("email")
         time_to_expire = int(data.get("expire", 1440))
