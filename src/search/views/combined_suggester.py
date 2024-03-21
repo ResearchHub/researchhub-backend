@@ -19,7 +19,7 @@ class CombinedSuggestView(APIView):
         suggestion_types = [
             {
                 "document": PaperDocument,
-                "suggester_field": "title_suggest",
+                "suggester_field": "suggestion_phrases",
             },
             {
                 "document": PostDocument,
