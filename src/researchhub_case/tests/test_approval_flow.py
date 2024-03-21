@@ -4,8 +4,7 @@ from paper.tests.helpers import create_paper
 from researchhub_case.constants.case_constants import APPROVED
 from researchhub_case.models import AuthorClaimCase
 from researchhub_case.tasks import after_approval_flow
-from user.tests.helpers import create_moderator, create_random_default_user
-from user.utils import move_paper_to_author
+from user.tests.helpers import create_random_default_user
 
 
 class ApprovalFlowTests(TestCase):
