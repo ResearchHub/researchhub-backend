@@ -2,11 +2,11 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from rest_framework.test import APITestCase
 
-from paper.tests.helpers import create_paper
-from researchhub_document.helpers import create_post
 from discussion.tests.helpers import create_rh_comment
+from paper.tests.helpers import create_paper
 from purchase.models import Balance
-from reputation.models import Escrow, BountyFee, SupportFee
+from reputation.models import BountyFee, Escrow, SupportFee
+from researchhub_document.helpers import create_post
 from user.related_models.gatekeeper_model import Gatekeeper
 from user.tests.helpers import (
     create_moderator,
@@ -30,6 +30,52 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
         self.bountyFee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
         self.supportFee = SupportFee.objects.create(rh_pct=0.03, dao_pct=0.00)
         self.recipient = create_random_default_user("recipient")
+
+    def test_list_purchases(self):
+        purchaser = create_random_authenticated_user("rep_user")
+        poster = create_random_authenticated_user("rep_user")
+        post = create_post(created_by=poster)
+
+        tip_amount = 100
+
+        # give the user 10,000 RSC
+        DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model="distribution")
+        Balance.objects.create(
+            amount="10000", user=purchaser, content_type=DISTRIBUTION_CONTENT_TYPE
+        )
+
+        response = self._post_support_response(
+            purchaser, post.id, "researchhubpost", tip_amount
+        )
+        self.assertContains(response, "id", status_code=201)
+
+        self.client.force_authenticate(purchaser)
+        response = self.client.get("/api/purchase/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+
+    def test_list_purchases_cannot_list_other_users_purchases(self):
+        purchaser = create_random_authenticated_user("rep_user")
+        poster = create_random_authenticated_user("rep_user")
+        post = create_post(created_by=poster)
+
+        tip_amount = 100
+
+        # give the user 10,000 RSC
+        DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model="distribution")
+        Balance.objects.create(
+            amount="10000", user=purchaser, content_type=DISTRIBUTION_CONTENT_TYPE
+        )
+
+        response = self._post_support_response(
+            purchaser, post.id, "researchhubpost", tip_amount
+        )
+        self.assertContains(response, "id", status_code=201)
+
+        self.client.force_authenticate(poster)
+        response = self.client.get("/api/purchase/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 0)
 
     def test_regular_user_send_rsc(self):
         client = self.get_default_authenticated_client()
@@ -91,7 +137,7 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
         post = create_post(created_by=poster)
 
         tip_amount = 100
-        fee_amount = 3 # latest `SupportFee` is 3% RH, 0% DAO as of 2024-01-19
+        fee_amount = 3  # latest `SupportFee` is 3% RH, 0% DAO as of 2024-01-19
 
         # give the user 10,000 RSC
         DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model="distribution")
@@ -99,7 +145,9 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
             amount="10000", user=user, content_type=DISTRIBUTION_CONTENT_TYPE
         )
 
-        response = self._post_support_response(user, post.id, "researchhubpost", tip_amount)
+        response = self._post_support_response(
+            user, post.id, "researchhubpost", tip_amount
+        )
         self.assertContains(response, "id", status_code=201)
         purchase_id = response.data["id"]
         # fee and balance deducted from user
@@ -124,7 +172,9 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
             content_type=ContentType.objects.get(model="distribution"),
         )
         self.assertTrue(poster_balance_entry.exists())
-        poster_balance_amount = float(poster_balance_entry.latest("created_date").amount)
+        poster_balance_amount = float(
+            poster_balance_entry.latest("created_date").amount
+        )
         self.assertEqual(poster_balance_amount, float(tip_amount))
 
     def test_support_comment_distribution(self):
@@ -142,7 +192,9 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
             amount="10000", user=user, content_type=DISTRIBUTION_CONTENT_TYPE
         )
 
-        response = self._post_support_response(user, comment.id, "rhcommentmodel", tip_amount)
+        response = self._post_support_response(
+            user, comment.id, "rhcommentmodel", tip_amount
+        )
         self.assertContains(response, "id", status_code=201)
         purchase_id = response.data["id"]
         # fee and balance deducted from user
@@ -167,7 +219,9 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
             content_type=ContentType.objects.get(model="distribution"),
         )
         self.assertTrue(poster_balance_entry.exists())
-        poster_balance_amount = float(poster_balance_entry.latest("created_date").amount)
+        poster_balance_amount = float(
+            poster_balance_entry.latest("created_date").amount
+        )
         self.assertEqual(poster_balance_amount, float(tip_amount))
 
     def _post_support_response(self, user, object_id, content_type, amount=10):

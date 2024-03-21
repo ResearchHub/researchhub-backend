@@ -17,19 +17,12 @@ from analytics.tasks import track_revenue_event
 from notification.models import Notification
 from paper.models import Paper
 from paper.utils import get_cache_key
+from purchase.models import AggregatePurchase, Balance, Purchase
 from purchase.related_models.constants.support import (
-    MINIMUM_SUPPORT_AMOUNT_RSC,
     MAXIMUM_SUPPORT_AMOUNT_RSC,
+    MINIMUM_SUPPORT_AMOUNT_RSC,
 )
-from purchase.models import (
-    AggregatePurchase,
-    Balance,
-    Purchase,
-)
-from purchase.serializers import (
-    AggregatePurchaseSerializer,
-    PurchaseSerializer,
-)
+from purchase.serializers import AggregatePurchaseSerializer, PurchaseSerializer
 from purchase.tasks import send_support_email
 from purchase.utils import distribute_support_to_authors
 from reputation.distributions import create_purchase_distribution
@@ -43,9 +36,7 @@ from researchhub_document.related_models.constants.filters import HOT
 from researchhub_document.utils import reset_unified_document_cache
 from user.models import Action, User
 from utils.http import RequestMethods, http_request
-from utils.permissions import (
-    CreateOrReadOnly,
-)
+from utils.permissions import CreateOrReadOnly
 from utils.throttles import THROTTLE_CLASSES
 
 
@@ -56,6 +47,9 @@ class PurchaseViewSet(viewsets.ModelViewSet):
     pagination_class = PageNumberPagination
     throttle_classes = THROTTLE_CLASSES
     ALLOWED_CONTENT_TYPES = ("rhcommentmodel", "paper", "researchhubpost")
+
+    def get_queryset(self):
+        return self.queryset.filter(user=self.request.user)
 
     @track_event
     def create(self, request):
@@ -105,14 +99,19 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                     )
 
                 user_balance = user.get_balance()
-                total_fee, rh_fee, dao_fee, current_support_fee = calculate_support_fees(
-                    decimal_amount
-                )
+                (
+                    total_fee,
+                    rh_fee,
+                    dao_fee,
+                    current_support_fee,
+                ) = calculate_support_fees(decimal_amount)
                 if user_balance - (decimal_amount + total_fee) < 0:
                     return Response("Insufficient Funds", status=402)
-                
+
                 # Deduct fees from the gross amount of the purchase.
-                deduct_support_fees(user, total_fee, rh_fee, dao_fee, current_support_fee)
+                deduct_support_fees(
+                    user, total_fee, rh_fee, dao_fee, current_support_fee
+                )
 
                 # Create a purchase object with the pre-fees amount
                 purchase_data["purchase_method"] = Purchase.OFF_CHAIN
