@@ -54,6 +54,13 @@ class DepositViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = DepositSerializer
     permission_classes = [IsAuthenticated]
 
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return Deposit.objects.all()
+        else:
+            return Deposit.objects.filter(user=user)
+
     @action(detail=False, methods=["post"], permission_classes=[APIPermission])
     def deposit_rsc(self, request):
         """
