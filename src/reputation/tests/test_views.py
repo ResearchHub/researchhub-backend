@@ -45,7 +45,7 @@ class ReputationViewsTests(APITestCase):
         self.assertEquals(response.status_code, 200)
         self.assertEquals(response.data["count"], 0)
 
-    def test_deposit_deposit_user_can_list_all_deposits(self):
+    def test_deposit_deposit_staff_user_can_list_all_deposits(self):
         user1 = create_random_authenticated_user("user1")
         user2 = create_random_authenticated_user("user2")
         staff_user = create_random_authenticated_user("staff_user1")
