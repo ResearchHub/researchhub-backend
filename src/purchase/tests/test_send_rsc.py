@@ -54,6 +54,24 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["results"]), 1)
 
+    def test_list_purchases_cannot_list_other_users_purchases(self):
+        purchaser = create_random_authenticated_user("rep_user")
+        poster = create_random_authenticated_user("rep_user")
+        post = create_post(created_by=poster)
+
+        tip_amount = 100
+
+        # give the user 10,000 RSC
+        DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model="distribution")
+        Balance.objects.create(
+            amount="10000", user=purchaser, content_type=DISTRIBUTION_CONTENT_TYPE
+        )
+
+        response = self._post_support_response(
+            purchaser, post.id, "researchhubpost", tip_amount
+        )
+        self.assertContains(response, "id", status_code=201)
+
         self.client.force_authenticate(poster)
         response = self.client.get("/api/purchase/")
         self.assertEqual(response.status_code, 200)
