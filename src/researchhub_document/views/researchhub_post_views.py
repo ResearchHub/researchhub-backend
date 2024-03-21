@@ -18,12 +18,9 @@ from analytics.tasks import track_revenue_event
 from discussion.reaction_views import ReactionViewActionMixin
 from hub.models import Hub
 from note.models import NoteContent
+from note.related_models.note_model import Note
 from peer_review.serializers import PeerReviewRequestSerializer
 from purchase.models import Balance, Purchase
-from reputation.views.bounty_view import (
-    _create_bounty,
-    _create_bounty_checks,
-)
 from researchhub.settings import (
     BASE_FRONTEND_URL,
     CROSSREF_API_URL,
@@ -60,6 +57,7 @@ from researchhub_document.serializers.researchhub_post_serializer import (
     ResearchhubPostSerializer,
 )
 from researchhub_document.utils import reset_unified_document_cache
+from user.related_models.author_model import Author
 from utils.sentry import log_error
 from utils.siftscience import SIFT_POST, sift_track
 from utils.throttles import THROTTLE_CLASSES
@@ -103,40 +101,38 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         except (KeyError, TypeError) as exception:
             return Response(exception, status=400)
 
+    def _check_authors_in_org(self, authors, organization):
+        for author_id in authors:
+            author = Author.objects.select_related("user").get(id=author_id)
+            if not organization.org_has_user(author.user):
+                return False
+        return True
+
     @sift_track(SIFT_POST)
     def create_researchhub_post(self, request):
+        data = request.data
+        authors = data.get("authors", [])
+        note_id = data.get("note_id", None)
+
+        # If a note is provided, check if all given authors are in the same organization
+        if note_id is not None:
+            note = Note.objects.get(id=note_id)
+            organization = note.organization
+            if not self._check_authors_in_org(authors, organization):
+                return Response("No permission to create note for organization", status=403)
+
         try:
             with transaction.atomic():
-                data = request.data
                 created_by = request.user
                 document_type = data.get("document_type")
                 editor_type = data.get("editor_type")
-                authors = data.get("authors", [])
-                note_id = data.get("note_id", None)
                 title = data.get("title", "")
                 assign_doi = data.get("assign_doi", False)
                 peer_review_is_requested = data.get("request_peer_review", False)
-                # amount = data.pop("amount", None)
                 doi = generate_doi() if assign_doi else None
 
                 if assign_doi and created_by.get_balance() - CROSSREF_DOI_RSC_FEE < 0:
                     return Response("Insufficient Funds", status=402)
-
-                # if amount:
-                #     item_content_type = ResearchhubPost.__name__.lower()
-                #     response = _create_bounty_checks(
-                #         created_by, amount, item_content_type
-                #     )
-                #     if not isinstance(response, tuple):
-                #         return response
-                #     else:
-                #         (
-                #             amount,
-                #             fee_amount,
-                #             rh_fee,
-                #             dao_fee,
-                #             current_bounty_fee,
-                #         ) = response
 
                 # logical ordering & not using signals to avoid race-conditions
                 access_group = self.create_access_group(request)
@@ -164,26 +160,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 full_src_file = ContentFile(data["full_src"].encode())
                 rh_post.authors.set(authors)
                 self.add_upvote(created_by, rh_post)
-
-                # if amount:
-                #     bounty_data = {
-                #         "item_content_type": item_content_type,
-                #         "item": rh_post,
-                #         "item_object_id": rh_post.id,
-                #         "bounty_type": "ANSWER",
-                #     }
-                #     _deduct_fees(
-                #         created_by, fee_amount, rh_fee, dao_fee, current_bounty_fee
-                #     )
-                #     _create_bounty(
-                #         created_by,
-                #         bounty_data,
-                #         amount,
-                #         fee_amount,
-                #         current_bounty_fee,
-                #         item_content_type,
-                #         rh_post.id,
-                #     )
 
                 if not TESTING:
                     if document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
@@ -231,8 +207,18 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
     @sift_track(SIFT_POST, is_update=True)
     def update_existing_researchhub_posts(self, request):
         data = request.data
+
+        authors = data.get("authors", [])
+        rh_post_id = data.get("post_id", None)
+        rh_post = ResearchhubPost.objects.get(id=rh_post_id)
+
+        # Check if all given authors are in the same organization
+        note = Note.objects.get(id=rh_post.note_id)
+        organization = note.organization
+        if not self._check_authors_in_org(authors, organization):
+            return Response("No permission to update post for organization", status=403)
+
         created_by = request.user
-        authors = data.pop("authors", None)
         hubs = data.pop("hubs", None)
         title = data.get("title", "")
         assign_doi = data.get("assign_doi", False)
@@ -241,7 +227,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         if assign_doi and created_by.get_balance() - CROSSREF_DOI_RSC_FEE < 0:
             return Response("Insufficient Funds", status=402)
 
-        rh_post = ResearchhubPost.objects.get(id=data.get("post_id"))
         rh_post.doi = doi or rh_post.doi
         rh_post.save(update_fields=["doi"])
 

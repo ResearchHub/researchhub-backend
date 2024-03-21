@@ -12,10 +12,32 @@ from reputation.distributor import Distributor
 from researchhub_access_group.constants import EDITOR
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
+from user.related_models.author_model import Author
+from user.related_models.organization_model import Organization
 from user.tests.helpers import create_organization, create_random_default_user
 
 
 class ViewTests(APITestCase):
+    def setUp(self):
+        # Create three users - an org admin, and a member of the admin's org, and a non-member:
+        self.admin_user = create_random_default_user("admin")
+        self.admin_author, _ = Author.objects.get_or_create(user=self.admin_user)
+        self.member_user = create_random_default_user("member")
+        self.member_author, _ = Author.objects.get_or_create(user=self.member_user)
+        self.non_member = create_random_default_user("non_member")
+        self.non_member_author, _ = Author.objects.get_or_create(user=self.non_member)
+
+        # Make `member_user` a member of `admin_user`'s organization
+        self.organization = Organization.objects.get(user_id=self.admin_user.id)
+        Permission.objects.create(
+            access_type="MEMBER",
+            content_type=ContentType.objects.get_for_model(Organization),
+            object_id=self.organization.id,
+            user=self.member_user,
+        )
+        
+        self.hub = create_hub("hub")
+
     def test_author_can_delete_doc(self):
         author = create_random_default_user("author")
         hub = create_hub()
@@ -38,6 +60,8 @@ class ViewTests(APITestCase):
         response = self.client.delete(
             f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/censor/"
         )
+        self.assertEqual(response.status_code, 200)
+
         doc = ResearchhubUnifiedDocument.all_objects.get(
             id=doc_response.data["unified_document_id"]
         )
@@ -65,6 +89,8 @@ class ViewTests(APITestCase):
         delete_response = self.client.delete(
             f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/censor/"
         )
+        self.assertEqual(delete_response.status_code, 200)
+
         restore_response = self.client.patch(
             f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/restore/"
         )
@@ -93,6 +119,7 @@ class ViewTests(APITestCase):
         delete_response = self.client.delete(
             f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/censor/"
         )
+        self.assertEqual(delete_response.status_code, 200)
 
         self.client.force_authenticate(mod)
         restore_response = self.client.patch(
@@ -108,7 +135,7 @@ class ViewTests(APITestCase):
         self.client.force_authenticate(author)
 
         doc_response = self.client.post(
-            f"/api/researchhubpost/",
+            "/api/researchhubpost/",
             {
                 "document_type": "DISCUSSION",
                 "created_by": author.id,
@@ -125,6 +152,8 @@ class ViewTests(APITestCase):
         response = self.client.delete(
             f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/censor/"
         )
+        self.assertEqual(response.status_code, 403)
+
         doc = ResearchhubUnifiedDocument.objects.get(
             id=doc_response.data["unified_document_id"]
         )
@@ -155,6 +184,8 @@ class ViewTests(APITestCase):
         response = self.client.delete(
             f"/api/researchhub_unified_document/{doc_response.data['unified_document_id']}/censor/"
         )
+        self.assertEqual(response.status_code, 200)
+
         doc = ResearchhubUnifiedDocument.all_objects.get(
             id=doc_response.data["unified_document_id"]
         )
@@ -181,24 +212,70 @@ class ViewTests(APITestCase):
 
         self.assertEqual(doc_response.status_code, 200)
 
-    def test_author_can_update_post(self):
-        author = create_random_default_user("author")
-        hub = create_hub()
+    def test_user_can_create_post_with_multiple_authors(self):
+        note = create_note(self.admin_user, self.organization)
 
-        self.client.force_authenticate(author)
+        self.client.force_authenticate(self.admin_user)
+
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "authors": [self.admin_author.id, self.member_author.id],
+                "created_by": self.admin_user.id,
+                "document_type": "DISCUSSION",
+                "full_src": "body",
+                "hubs": [self.hub.id],
+                "is_public": True,
+                "note_id": note[0].id,
+                "renderable_text": "body",
+                "title": "title",
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 200)
+
+    def test_user_cannot_create_post_with_non_members(self):
+        note = create_note(self.admin_user, self.organization)
+
+        self.client.force_authenticate(self.admin_user)
+
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "authors": [self.admin_author.id, self.non_member_author.id],
+                "created_by": self.admin_user.id,
+                "document_type": "DISCUSSION",
+                "full_src": "body",
+                "hubs": [self.hub.id],
+                "is_public": True,
+                "note_id": note[0].id,
+                "renderable_text": "body",
+                "title": "title",
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 403)
+
+    def test_author_can_update_post(self):
+        note = create_note(self.admin_user, self.organization)
+
+        self.client.force_authenticate(self.admin_user)
 
         doc_response = self.client.post(
             "/api/researchhubpost/",
             {
                 "document_type": "DISCUSSION",
-                "created_by": author.id,
+                "created_by": self.admin_user.id,
                 "full_src": "body",
                 "is_public": True,
+                "note_id": note[0].id,
                 "renderable_text": "body",
                 "title": "title",
-                "hubs": [hub.id],
+                "hubs": [self.hub.id],
             },
         )
+
+        self.assertEqual(doc_response.status_code, 200)
 
         updated_response = self.client.post(
             "/api/researchhubpost/",
@@ -206,15 +283,53 @@ class ViewTests(APITestCase):
                 "post_id": doc_response.data["id"],
                 "title": "updated title",
                 "document_type": "DISCUSSION",
-                "created_by": author.id,
+                "created_by": self.admin_user.id,
                 "full_src": "body",
                 "is_public": True,
                 "renderable_text": "body",
-                "hubs": [hub.id],
+                "hubs": [self.hub.id],
             },
         )
 
         self.assertEqual(updated_response.data["title"], "updated title")
+
+    def test_author_cannot_update_post_with_non_members(self):
+        note = create_note(self.admin_user, self.organization)
+
+        self.client.force_authenticate(self.admin_user)
+
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "DISCUSSION",
+                "created_by": self.admin_user.id,
+                "full_src": "body",
+                "is_public": True,
+                "note_id": note[0].id,
+                "renderable_text": "body",
+                "title": "title",
+                "hubs": [self.hub.id],
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 200)
+
+        updated_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "authors": [self.admin_author.id, self.non_member_author.id],
+                "post_id": doc_response.data["id"],
+                "title": "updated title",
+                "document_type": "DISCUSSION",
+                "created_by": self.admin_user.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": "body",
+                "hubs": [self.hub.id],
+            },
+        )
+
+        self.assertEqual(updated_response.status_code, 403)
 
     def test_non_author_cannot_update_post(self):
         hub = create_hub()
@@ -297,6 +412,7 @@ class ViewTests(APITestCase):
                 "hubs": [hub.id],
             },
         )
+        self.assertEqual(doc_response.status_code, 200)
 
         updated_response = self.client.post(
             f"/api/hypothesis/{doc_response.data['id']}/upsert/",
@@ -308,7 +424,7 @@ class ViewTests(APITestCase):
                 "renderable_text": "body",
             },
         )
-
+        self.assertEqual(updated_response.status_code, 200)
         self.assertEqual(updated_response.data["full_markdown"], "updated body")
 
     def test_non_author_cannot_edit_hypothesis(self):
@@ -330,6 +446,7 @@ class ViewTests(APITestCase):
                 "hubs": [hub.id],
             },
         )
+        self.assertEqual(doc_response.status_code, 200)
 
         self.client.force_authenticate(non_author)
 
@@ -343,6 +460,7 @@ class ViewTests(APITestCase):
                 "renderable_text": "body",
             },
         )
+        self.assertEqual(updated_response.status_code, 403)
         self.assertEqual(updated_response.status_code, 403)
 
     def test_hub_editors_can_censor_papers(self):
