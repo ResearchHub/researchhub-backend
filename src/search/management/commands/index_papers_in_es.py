@@ -1,3 +1,6 @@
+import time
+
+import elasticsearch
 from django.core.management.base import BaseCommand
 from django.db.models import Q
 from elasticsearch.helpers import bulk
@@ -7,8 +10,8 @@ from paper.models import Paper
 from search.documents.paper import PaperDocument
 
 
-def index_papers_in_bulk(es, from_id, to_id):
-    batch_size = 10000
+def index_papers_in_bulk(es, from_id, to_id, attempt=1, max_attempts=5):
+    batch_size = 2500
     current_id = from_id or 1
     to_id = to_id or Paper.objects.all().order_by("-id").first().id
     while True:
@@ -31,6 +34,10 @@ def index_papers_in_bulk(es, from_id, to_id):
         actions = []
         for paper in queryset:
             try:
+                # We would typically not need to create a new instance of a document
+                # and assign data to it, but it is necessary here because we are bypassing
+                # the normal indexing process which normall happens via rebuild_index command.
+                # NOTE: Any attribute we would need to index will have to be assigned here.
                 doc = PaperDocument()
                 doc.meta.id = paper.id
                 doc_data = {
@@ -53,10 +60,10 @@ def index_papers_in_bulk(es, from_id, to_id):
                 }
 
                 action = {
-                    "_op_type": "index",  # specify the action type here
-                    "_index": doc._index._name,  # the index name
-                    "_id": paper.id,  # document ID
-                    "_source": doc_data,  # the document source
+                    "_op_type": "index",
+                    "_index": doc._index._name,
+                    "_id": paper.id,
+                    "_source": doc_data,
                 }
 
                 actions.append(action)
@@ -68,8 +75,22 @@ def index_papers_in_bulk(es, from_id, to_id):
         # Update cursor
         current_id += batch_size
 
-        success, _ = bulk(es, actions)
-        print(f"Successfully indexed {success} papers.")
+        try:
+            success, _ = bulk(es, actions, request_timeout=120)
+            print(f"Successfully indexed {success} papers.")
+        except elasticsearch.exceptions.ConnectionTimeout:
+            if attempt <= max_attempts:
+                wait_time = 2**attempt  # Exponential backoff strategy
+                print(f"Timeout encountered. Retrying in {wait_time} seconds...")
+                time.sleep(wait_time)
+                index_papers_in_bulk(es, from_id, to_id, attempt + 1)
+            else:
+                print(
+                    "Failed to index papers after multiple attempts due to persistent timeouts."
+                )
+
+            success, _ = bulk(es, actions, request_timeout=120)
+            print(f"Successfully indexed {success} papers.")
 
 
 class Command(BaseCommand):
