@@ -23,7 +23,7 @@ class CombinedSuggestView(APIView):
             },
             {
                 "document": PostDocument,
-                "suggester_field": "title_suggest",
+                "suggester_field": "suggestion_phrases",
             },
             {
                 "document": UserDocument,

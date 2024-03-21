@@ -40,7 +40,7 @@ class PostDocument(BaseDocument):
             "slug": es_fields.TextField(),
         },
     )
-    title_suggest = es_fields.Completion()
+    suggestion_phrases = es_fields.Completion()
     title = es_fields.TextField(
         analyzer=title_analyzer,
     )
@@ -57,16 +57,47 @@ class PostDocument(BaseDocument):
             "document_type",
         ]
 
-    def prepare_title_suggest(self, instance):
+    # Used specifically for "autocomplete" style suggest feature.
+    # Inlcudes a bunch of phrases the user may search by.
+    def prepare_suggestion_phrases(self, instance):
+        phrases = []
+
+        # Variation of title which may be searched by users
+        if instance.title:
+            phrases.append(instance.title)
+            phrases.extend(instance.title.split())
+
+        if instance.doi:
+            phrases.append(instance.doi)
+
+        # Variation of author names which may be searched by users
+        try:
+            author_names_only = [
+                f"{author.first_name} {author.last_name}"
+                for author in instance.unified_document.authors
+                if author.first_name and author.last_name
+            ]
+            all_authors_as_str = ", ".join(author_names_only)
+            created_by = (
+                instance.created_by.first_name + " " + instance.created_by.last_name
+            )
+
+            phrases.append(all_authors_as_str)
+            phrases.append(created_by)
+            phrases.extend(author_names_only)
+        except Exception as error:
+            print(error)
+            pass
+
         return {
-            "input": instance.title.split() + [instance.title],
+            "input": list(set(phrases)),  # Dedupe using set
             "weight": 1,
         }
 
     def prepare(self, instance):
         try:
             data = super().prepare(instance)
-            data["title_suggest"] = self.prepare_title_suggest(instance)
+            data["suggestion_phrases"] = self.prepare_suggestion_phrases(instance)
             return data
         except Exception as error:
             print("Post Indexing error: ", error, "Instance: ", instance.id)

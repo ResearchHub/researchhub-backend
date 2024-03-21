@@ -69,7 +69,7 @@ class PaperDocument(BaseDocument):
         return False
 
     # Used specifically for "autocomplete" style suggest feature.
-    # Inlcudes a bunch of phrases the user may search by.
+    # Includes a bunch of phrases the user may search by.
     def prepare_suggestion_phrases(self, instance):
         phrases = []
 
