@@ -1,8 +1,18 @@
-from reputation.models import Withdrawal
+from reputation.models import Deposit, Withdrawal
 from user.tests.helpers import create_random_default_user
 
 ADDRESS_1 = "0x0000000000000000000000000000000000000000"
 ADDRESS_2 = "0x1123581321345589144233377610987159725844"
+
+
+def create_deposit(
+    user,
+    amount="1500.0",
+    from_address=ADDRESS_1,
+):
+    Deposit.objects.create(
+        user=user, amount=amount, from_address=from_address
+    )
 
 
 def create_withdrawals(count):
