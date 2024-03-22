@@ -25,7 +25,7 @@ citation = router.register(
     r"citation", CitationEntryDocumentView, basename="citation_document"
 )
 hub_suggester = router.register(
-    r"hubs", HubSuggesterDocumentView, basename="hub_document"
+    r"hubs", HubSuggesterDocumentView, basename="hub_suggester_document"
 )
 
 urlpatterns = [
