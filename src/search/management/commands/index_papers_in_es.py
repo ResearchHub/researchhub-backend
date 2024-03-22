@@ -34,7 +34,7 @@ def index_papers_in_bulk(es, from_id, to_id, max_attempts=5):
             try:
                 # We would typically not need to create a new instance of a document
                 # and assign data to it, but it is necessary here because we are bypassing
-                # the normal indexing process which normall happens via rebuild_index command.
+                # the normal indexing process which normally happens via rebuild_index command.
                 # NOTE: Any attribute we would need to index will have to be assigned here.
                 doc = PaperDocument()
                 doc.meta.id = paper.id
