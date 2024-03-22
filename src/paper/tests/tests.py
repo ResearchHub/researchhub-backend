@@ -84,7 +84,7 @@ class DuplicatePaperIntegrationTest(
         self.create_thread(user1, original_paper, text="thread_1")
         self.create_thread(user2, new_paper, text="thread_2")
 
-        # Adding bullet point to papers
+        # Adding bullet point to papers.
         self.create_bulletpoint(user1, original_paper, text="original_point")
         self.create_bulletpoint(user2, new_paper, text="new_point")
 
