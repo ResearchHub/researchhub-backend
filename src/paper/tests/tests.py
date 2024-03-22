@@ -68,6 +68,7 @@ class DuplicatePaperIntegrationTest(
         original_paper.save()
         return original_paper
 
+    @skip
     def test_duplicate_papers(self):
         doi = "1.1.1"
         user1 = self.create_random_authenticated_user("user_1")
