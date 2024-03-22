@@ -14,11 +14,9 @@ def index_papers_in_bulk(es, from_id, to_id, attempt=1, max_attempts=5):
     batch_size = 2500
     current_id = from_id or 1
     to_id = to_id or Paper.objects.all().order_by("-id").first().id
-    while True:
-        if current_id > to_id:
-            break
 
-        print("processing chunk starting with ", current_id)
+    while current_id <= to_id:
+        print(f"processing chunk starting with: {current_id} ")
 
         # Get next "chunk"
         queryset = Paper.objects.filter(
@@ -72,25 +70,29 @@ def index_papers_in_bulk(es, from_id, to_id, attempt=1, max_attempts=5):
                 print(f"Error processing paper {paper.id}")
                 pass
 
-        # Update cursor
-        current_id += batch_size
-
-        try:
-            success, _ = bulk(es, actions, request_timeout=120)
-            print(f"Successfully indexed {success} papers.")
-        except elasticsearch.exceptions.ConnectionTimeout:
-            if attempt <= max_attempts:
-                wait_time = 2**attempt  # Exponential backoff strategy
-                print(f"Timeout encountered. Retrying in {wait_time} seconds...")
-                time.sleep(wait_time)
-                index_papers_in_bulk(es, from_id, to_id, attempt + 1)
-            else:
+        for attempt in range(1, max_attempts + 1):
+            try:
+                success, _ = bulk(es, actions, request_timeout=120)
                 print(
-                    "Failed to index papers after multiple attempts due to persistent timeouts."
+                    f"Successfully indexed {success} papers from starting ID {current_id}."
                 )
-
-            success, _ = bulk(es, actions, request_timeout=120)
-            print(f"Successfully indexed {success} papers.")
+                current_id += batch_size
+                break  # Break out of the retry loop on success
+            except (
+                elasticsearch.exceptions.TransportError,
+                elasticsearch.exceptions.ConnectionTimeout,
+            ) as e:
+                if attempt == max_attempts:
+                    print(
+                        f"Failed to index papers after {max_attempts} attempts due to persistent timeouts. Last ID attempted was {current_id}."
+                    )
+                    return
+                else:
+                    wait_time = 2**attempt  # Exponential backoff
+                    print(
+                        f"Timeout encountered. Retrying batch starting at {current_id} in {wait_time} seconds (Attempt {attempt}/{max_attempts})..."
+                    )
+                    time.sleep(wait_time)
 
 
 class Command(BaseCommand):
