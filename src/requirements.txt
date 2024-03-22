@@ -678,9 +678,9 @@ django==4.1.13 ; python_version >= "3.8" and python_version < "4.0" \
 djangorestframework-api-key==2.2.0 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:41b7c988f356d62410fb42b9982a3017be035b84d68f187e127c0b52e6557b19 \
     --hash=sha256:c9884e52f2802994a02781eaba0a63a628a150ed55d58603d5c9c57a6657de43
-djangorestframework==3.15.0 ; python_version >= "3.8" and python_version < "4.0" \
-    --hash=sha256:3f4a263012e1b263bf49a4907eb4cfe14de840a09b1ba64596d01a9c54835919 \
-    --hash=sha256:5fa616048a7ec287fdaab3148aa5151efb73f7f8be1e23a9d18484e61e672695
+djangorestframework==3.15.1 ; python_version >= "3.8" and python_version < "4.0" \
+    --hash=sha256:3ccc0475bce968608cf30d07fb17d8e52d1d7fc8bfe779c905463200750cbca6 \
+    --hash=sha256:f88fad74183dfc7144b2756d0d2ac716ea5b4c7c9840995ac3bfd8ec034333c1
 easygui==0.98.3 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:33498710c68b5376b459cd3fc48d1d1f33822139eb3ed01defbc0528326da3ba \
     --hash=sha256:d653ff79ee1f42f63b5a090f2f98ce02335d86ad8963b3ce2661805cafe99a04
