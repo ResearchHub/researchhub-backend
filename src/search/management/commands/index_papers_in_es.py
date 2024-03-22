@@ -1,3 +1,6 @@
+import time
+
+import elasticsearch
 from django.core.management.base import BaseCommand
 from django.db.models import Q
 from elasticsearch.helpers import bulk
@@ -7,15 +10,13 @@ from paper.models import Paper
 from search.documents.paper import PaperDocument
 
 
-def index_papers_in_bulk(es, from_id, to_id):
-    batch_size = 10000
+def index_papers_in_bulk(es, from_id, to_id, max_attempts=5):
+    batch_size = 2500
     current_id = from_id or 1
     to_id = to_id or Paper.objects.all().order_by("-id").first().id
-    while True:
-        if current_id > to_id:
-            break
 
-        print("processing chunk starting with ", current_id)
+    while current_id <= to_id:
+        print(f"processing chunk starting with: {current_id} ")
 
         # Get next "chunk"
         queryset = Paper.objects.filter(
@@ -31,6 +32,10 @@ def index_papers_in_bulk(es, from_id, to_id):
         actions = []
         for paper in queryset:
             try:
+                # We would typically not need to create a new instance of a document
+                # and assign data to it, but it is necessary here because we are bypassing
+                # the normal indexing process which normally happens via rebuild_index command.
+                # NOTE: Any attribute we would need to index will have to be assigned here.
                 doc = PaperDocument()
                 doc.meta.id = paper.id
                 doc_data = {
@@ -53,10 +58,10 @@ def index_papers_in_bulk(es, from_id, to_id):
                 }
 
                 action = {
-                    "_op_type": "index",  # specify the action type here
-                    "_index": doc._index._name,  # the index name
-                    "_id": paper.id,  # document ID
-                    "_source": doc_data,  # the document source
+                    "_op_type": "index",
+                    "_index": doc._index._name,
+                    "_id": paper.id,
+                    "_source": doc_data,
                 }
 
                 actions.append(action)
@@ -65,11 +70,29 @@ def index_papers_in_bulk(es, from_id, to_id):
                 print(f"Error processing paper {paper.id}")
                 pass
 
-        # Update cursor
-        current_id += batch_size
-
-        success, _ = bulk(es, actions)
-        print(f"Successfully indexed {success} papers.")
+        for attempt in range(1, max_attempts + 1):
+            try:
+                success, _ = bulk(es, actions, request_timeout=120)
+                print(
+                    f"Successfully indexed {success} papers from starting ID {current_id}."
+                )
+                current_id += batch_size
+                break  # Break out of the retry loop on success
+            except (
+                elasticsearch.exceptions.TransportError,
+                elasticsearch.exceptions.ConnectionTimeout,
+            ) as e:
+                if attempt == max_attempts:
+                    print(
+                        f"Failed to index papers after {max_attempts} attempts due to persistent timeouts. Last ID attempted was {current_id}."
+                    )
+                    return
+                else:
+                    wait_time = 2**attempt  # Exponential backoff
+                    print(
+                        f"Timeout encountered. Retrying batch starting at {current_id} in {wait_time} seconds (Attempt {attempt}/{max_attempts})..."
+                    )
+                    time.sleep(wait_time)
 
 
 class Command(BaseCommand):
