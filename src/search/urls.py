@@ -15,16 +15,16 @@ from search.views import (
 )
 
 router = DefaultRouter()
-person = router.register(r"person", PersonDocumentView, basename="person_document")
-paper = router.register(r"paper", PaperDocumentView, basename="paper_document")
-post = router.register(r"post", PostDocumentView, basename="post_document")
-thread = router.register(r"thread", ThreadDocumentView, basename="thread_document")
-hub = router.register(r"hub", HubDocumentView, basename="hub_document")
-user = router.register(r"user", UserSuggesterDocumentView, basename="user_document")
-citation = router.register(
+router.register(r"person", PersonDocumentView, basename="person_document")
+router.register(r"paper", PaperDocumentView, basename="paper_document")
+router.register(r"post", PostDocumentView, basename="post_document")
+router.register(r"thread", ThreadDocumentView, basename="thread_document")
+router.register(r"hub", HubDocumentView, basename="hub_document")
+router.register(r"user", UserSuggesterDocumentView, basename="user_document")
+router.register(
     r"citation", CitationEntryDocumentView, basename="citation_document"
 )
-hub_suggester = router.register(
+router.register(
     r"hubs", HubSuggesterDocumentView, basename="hub_suggester_document"
 )
 
