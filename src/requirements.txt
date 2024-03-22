@@ -672,9 +672,9 @@ django-storages==1.10.1 ; python_version >= "3.8" and python_version < "4.0" \
 django-timezone-field==4.2.3 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:5dd5bd9249382bef8847d3e7e4c32b7be182a4b538f354130d1252ed228892f8 \
     --hash=sha256:7552d2b0f145684b7de3fb5046101c7efd600cc6ba951b15c630fa1e1b83558e
-django==4.1 ; python_version >= "3.8" and python_version < "4.0" \
-    --hash=sha256:031ccb717782f6af83a0063a1957686e87cb4581ea61b47b3e9addf60687989a \
-    --hash=sha256:032f8a6fc7cf05ccd1214e4a2e21dfcd6a23b9d575c6573cacc8c67828dbe642
+django==4.1.13 ; python_version >= "3.8" and python_version < "4.0" \
+    --hash=sha256:04ab3f6f46d084a0bba5a2c9a93a3a2eb3fe81589512367a75f79ee8acf790ce \
+    --hash=sha256:94a3f471e833c8f124ee7a2de11e92f633991d975e3fa5bdd91e8abd66426318
 djangorestframework-api-key==2.2.0 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:41b7c988f356d62410fb42b9982a3017be035b84d68f187e127c0b52e6557b19 \
     --hash=sha256:c9884e52f2802994a02781eaba0a63a628a150ed55d58603d5c9c57a6657de43
@@ -1827,6 +1827,7 @@ pyyaml==6.0.1 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:8d4e9c88387b0f5c7d5f281e55304de64cf7f9c0021a3525bd3b1c542da3b0e4 \
     --hash=sha256:9046c58c4395dff28dd494285c82ba00b546adfc7ef001486fbf0324bc174fba \
     --hash=sha256:9eb6caa9a297fc2c2fb8862bc5370d0303ddba53ba97e71f08023b6cd73d16a8 \
+    --hash=sha256:a08c6f0fe150303c1c6b71ebcd7213c2858041a7e01975da3a99aed1e7a378ef \
     --hash=sha256:a0cd17c15d3bb3fa06978b4e8958dcdc6e0174ccea823003a106c7d4d7899ac5 \
     --hash=sha256:afd7e57eddb1a54f0f1a974bc4391af8bcce0b444685d936840f125cf046d5bd \
     --hash=sha256:b1275ad35a5d18c62a7220633c913e1b42d44b46ee12554e5fd39c70a243d6a3 \
