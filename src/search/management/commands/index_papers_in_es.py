@@ -10,7 +10,7 @@ from paper.models import Paper
 from search.documents.paper import PaperDocument
 
 
-def index_papers_in_bulk(es, from_id, to_id, attempt=1, max_attempts=5):
+def index_papers_in_bulk(es, from_id, to_id, max_attempts=5):
     batch_size = 2500
     current_id = from_id or 1
     to_id = to_id or Paper.objects.all().order_by("-id").first().id
