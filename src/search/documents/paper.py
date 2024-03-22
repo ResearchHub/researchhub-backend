@@ -1,3 +1,5 @@
+import math
+
 from django_elasticsearch_dsl import Document, Index
 from django_elasticsearch_dsl import fields
 from django_elasticsearch_dsl import fields as es_fields
@@ -114,9 +116,16 @@ class PaperDocument(BaseDocument):
         except:
             pass
 
+        # Assign weight based on how "hot" the paper is
+        weight = 1
+        if instance.unified_document.hot_score_v2 > 0:
+            # Scale down the hot score from 1 - 100 to avoid a huge range
+            # of values that could result in bad suggestions
+            weight = int(math.log(instance.unified_document.hot_score_v2, 10) * 10)
+
         return {
             "input": list(set(phrases)),  # Dedupe using set
-            "weight": 1,
+            "weight": weight,
         }
 
     def prepare(self, instance):

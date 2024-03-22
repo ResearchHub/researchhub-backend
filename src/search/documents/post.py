@@ -1,3 +1,5 @@
+import math
+
 from django_elasticsearch_dsl import fields as es_fields
 from django_elasticsearch_dsl.registries import registry
 from elasticsearch_dsl import analyzer, token_filter, tokenizer
@@ -85,13 +87,19 @@ class PostDocument(BaseDocument):
             phrases.append(all_authors_as_str)
             phrases.append(created_by)
             phrases.extend(author_names_only)
-        except Exception as error:
-            print(error)
+        except:
             pass
+
+        # Assign weight based on how "hot" the paper is
+        weight = 1
+        if instance.unified_document.hot_score_v2 > 0:
+            # Scale down the hot score from 1 - 100 to avoid a huge range
+            # of values that could result in bad suggestions
+            weight = int(math.log(instance.unified_document.hot_score_v2, 10) * 10)
 
         return {
             "input": list(set(phrases)),  # Dedupe using set
-            "weight": 1,
+            "weight": weight,
         }
 
     def prepare(self, instance):
