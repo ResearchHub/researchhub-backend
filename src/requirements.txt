@@ -278,12 +278,12 @@ black==22.12.0 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:9eedd20838bd5d75b80c9f5487dbcb06836a43833a37846cf1d8c1cc01cef59d \
     --hash=sha256:c116eed0efb9ff870ded8b62fe9f28dd61ef6e9ddd28d83d7d264a38417dcee2 \
     --hash=sha256:d30b212bffeb1e252b31dd269dfae69dd17e06d92b87ad26e23890f3efea366f
-boto3==1.15.3 ; python_version >= "3.8" and python_version < "4.0" \
-    --hash=sha256:3f0d8dc7dec39876b7b224469639d8eef4dba1c2dc779a1b30fc73f99a18f742 \
-    --hash=sha256:b2aa8a8ddb6a4301741a713ecc44262d49782fda754444e499851aaba8feb2bd
-botocore==1.18.18 ; python_version >= "3.8" and python_version < "4.0" \
-    --hash=sha256:de5f9fc0c7e88ee7ba831fa27475be258ae09ece99143ed623d3618a3c84ee2c \
-    --hash=sha256:e224754230e7e015836ba20037cac6321e8e2ce9b8627c14d579fcb37249decd
+boto3==1.34.69 ; python_version >= "3.8" and python_version < "4.0" \
+    --hash=sha256:2e25ef6bd325217c2da329829478be063155897d8d3b29f31f7f23ab548519b1 \
+    --hash=sha256:898a5fed26b1351352703421d1a8b886ef2a74be6c97d5ecc92432ae01fda203
+botocore==1.34.69 ; python_version >= "3.8" and python_version < "4.0" \
+    --hash=sha256:d1ab2bff3c2fd51719c2021d9fa2f30fbb9ed0a308f69e9a774ac92c8091380a \
+    --hash=sha256:d3802d076d4d507bf506f9845a6970ce43adc3d819dd57c2791f5c19ed6e5950
 cachetools==4.2.4 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:89ea6f1b638d5a73a4f9226be57ac5e4f399d22770b92355f92dcb0f7f001693 \
     --hash=sha256:92971d3cb7d2a97efff7c7bb1657f21a8f5fb309a37530537c71b1774189f2d1
@@ -2102,9 +2102,9 @@ rpds-py==0.17.1 ; python_version >= "3.8" and python_version < "4.0" \
 rsa==4.9 ; python_version >= "3.8" and python_version < "4" \
     --hash=sha256:90260d9058e514786967344d0ef75fa8727eed8a7d2e43ce9f4bcf1b536174f7 \
     --hash=sha256:e38464a49c6c85d7f1351b0126661487a7e0a14a50f1675ec50eb34d4f20ef21
-s3transfer==0.3.7 ; python_version >= "3.8" and python_version < "4.0" \
-    --hash=sha256:35627b86af8ff97e7ac27975fe0a98a312814b46c6333d8a6b889627bcd80994 \
-    --hash=sha256:efa5bd92a897b6a8d5c1383828dca3d52d0790e0756d49740563a3fb6ed03246
+s3transfer==0.10.1 ; python_version >= "3.8" and python_version < "4.0" \
+    --hash=sha256:5683916b4c724f799e600f41dd9e10a9ff19871bf87623cc8f491cb4f5fa0a19 \
+    --hash=sha256:ceb252b11bcf87080fb7850a224fb6e05c8a776bab8f2b64b7f25b969464839d
 segment-analytics-python==2.2.3 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:06cc3d8e79103f02c3878ec66cb66152415473d0d2a142b98a0ee18da972e109 \
     --hash=sha256:0df5908e3df74b4482f33392fdd450df4c8351bf54974376fbe6bf33b0700865
