@@ -1455,9 +1455,9 @@ newrelic==7.16.0.178 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:e4f22613d95c00df6a6143b721a8477b8f59acdfb76f4a1689e81238b4fe10ae \
     --hash=sha256:f2e6116d45776491e282f93f331bb942d3cdf26859ec20c527ef751c5eb3254f \
     --hash=sha256:f42a04818c2ab0ade18c0a1a5d35652bb0d1d8cc2cfcb16304fffb15f556f117
-nltk==3.6.5 ; python_version >= "3.8" and python_version < "4.0" \
-    --hash=sha256:834d1a8e38496369390be699be9bca4f2a0f2175b50327272b2ec7a98ffda2a0 \
-    --hash=sha256:95fb4f577efe93af21765e9b2852235c2c6a405885da2a70f397478d94e906e0
+nltk==3.6.7 ; python_version >= "3.8" and python_version < "4.0" \
+    --hash=sha256:22e97be5d6c784d93a52d17860515cc50c5cfcc620b1f5c3747765041255a01e \
+    --hash=sha256:51bf1aef5304740a708be7c8e683f7798f03dc5c7a7e7feb758be9e95f4585e3
 nodeenv==1.8.0 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:d51e0c37e64fbf47d017feac3145cdbb58836d7eee8c6f6d3b6880c5456227d2 \
     --hash=sha256:df865724bb3c3adc86b3876fa209771517b0cfe596beff01a92700e0e8be4cec
