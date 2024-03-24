@@ -31,7 +31,10 @@
 		"vscode": {
 			"extensions": [
 				"ms-python.flake8"
-			]
+			],
+			"settings": {
+				"remote.autoForwardPorts": false
+			}
 		}
 	}
 
