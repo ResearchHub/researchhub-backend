@@ -24,10 +24,16 @@
 	// Use 'postStartCommand' to run commands after the container is started.
 	// Currently setting `safe.directory` to the workspace folder to avoid permission issues.
 	// See: https://github.com/microsoft/vscode-remote-release/issues/7923
-	"postStartCommand": "git config --global --add safe.directory ${containerWorkspaceFolder}"
+	"postStartCommand": "git config --global --add safe.directory ${containerWorkspaceFolder}",
 
 	// Configure tool-specific properties.
-	// "customizations": {},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-python.flake8"
+			]
+		}
+	}
 
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "root"
