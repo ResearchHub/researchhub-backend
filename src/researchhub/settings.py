@@ -17,7 +17,7 @@ import requests
 import segment.analytics as analytics
 import sentry_sdk
 import stripe
-from celery.task.schedules import crontab
+from celery.schedules import crontab
 from corsheaders.defaults import default_headers
 from sentry_sdk.integrations.django import DjangoIntegration
 from web3 import Web3
