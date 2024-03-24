@@ -15,6 +15,9 @@ class OrganizationInvitationViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = OrganizationInvitationSerializer
 
+    def get_queryset(self):
+        return self.queryset.filter(recipient=self.request.user)
+
     @action(detail=True, methods=["post"], permission_classes=[AllowAny])
     def accept_invite(self, request, pk=None):
         user = request.user
