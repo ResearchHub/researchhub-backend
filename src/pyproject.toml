@@ -83,6 +83,7 @@ pyyaml = "6.0.1"
 segment-analytics-python = "^2.2.3"
 urllib3 = "1.26.18"
 aiohttp = "3.9.3"
+cryptography = "42.0.5"
 
 [tool.poetry.dev-dependencies]
 
