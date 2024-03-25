@@ -74,7 +74,7 @@ class NoteInvitationViewsTest(APITestCaseWithOrg):
 
         # Create note
         self.client.force_authenticate(self.sender)
-        response = self.client.post("/api/note/", {"name": "ORG A"})
+        response = self.client.post("/api/note/", {"name": "NOTE A"})
         self.org = response.data
 
     def test_list_invites_sender(self):
