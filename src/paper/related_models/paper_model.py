@@ -338,6 +338,46 @@ class Paper(AbstractGenericReactionModel):
         return self.title or self.paper_title
 
     @property
+    def is_highly_cited(self):
+        is_highly_cited = False
+        MIN_CITATIONS_FOR_HIGHLY_CITED_ACROSS_ALL_FIELDS = 80
+        MIN_CITATIONS_FOR_HIGHLY_CITED_ACROSS_LESS_CITED_FIELDS = 40
+        MIN_PERCENTILE_FOR_HIGHLY_CITED_ACROSS_LESS_CITED_FIELDS = 90
+
+        try:
+            open_alex_data = self.open_alex_raw_json
+            cited_by_count = open_alex_data["cited_by_count"] or 0
+            citation_percentile = open_alex_data["cited_by_percentile_year"]["min"]
+
+            # Somewhat arbitrary formula but seems to work for most OpenAlex cases
+            # Papers > MIN_CITATIONS_FOR_HIGHLY_CITED_ACROSS_ALL_FIELDS are always considered highly cited.
+            # Since some scientific areas are less cited, we consider papers with less citations but high percentile as highly cited.
+            is_highly_cited = (
+                cited_by_count > MIN_CITATIONS_FOR_HIGHLY_CITED_ACROSS_ALL_FIELDS
+                or (
+                    cited_by_count
+                    > MIN_CITATIONS_FOR_HIGHLY_CITED_ACROSS_LESS_CITED_FIELDS
+                    and citation_percentile
+                    > MIN_PERCENTILE_FOR_HIGHLY_CITED_ACROSS_LESS_CITED_FIELDS
+                )
+            )
+        except Exception:
+            pass
+
+        return is_highly_cited
+
+    @property
+    def citation_percentile(self):
+        open_alex_data = self.open_alex_raw_json
+        citation_percentile = 0
+        try:
+            citation_percentile = open_alex_data["cited_by_percentile_year"]["min"]
+        except Exception:
+            pass
+
+        return citation_percentile
+
+    @property
     def uploaded_date(self):
         return self.created_date
 

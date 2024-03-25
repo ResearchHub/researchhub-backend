@@ -98,6 +98,7 @@ class PaperDocumentView(DocumentViewSet):
         "pdf_license": "pdf_license",
         "external_source": "external_source",
         "citations": "citations",
+        "citation_percentile": "citation_percentile",
     }
 
     ordering = ("_score", "-hot_score", "-discussion_count", "-paper_publish_date")
