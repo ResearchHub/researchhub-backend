@@ -54,4 +54,4 @@ class UserPopoverTests(APITestCase):
     def test_popover_for_nonexistant_user(self):
         res = self.client.get("/api/popover/1000/get_user/")
         self.assertEqual(res.status_code, 404)
-        self.assertEqual(res.data["detail"], "Not found.")
+        self.assertEqual(res.data["detail"].code, "not_found")
