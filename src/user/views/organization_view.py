@@ -43,7 +43,8 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         organizations = self.queryset.filter(
-            permissions__user=user,
+            Q(permissions__user=user)
+            | Q(created_notes__unified_document__permissions__user=user)
         ).distinct()
         return organizations
 
