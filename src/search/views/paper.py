@@ -90,11 +90,13 @@ class PaperDocumentView(DocumentViewSet):
         "hubs": "hubs.name",
         "paper_publish_year": {"field": "paper_publish_year", "enabled": True},
         "pdf_license": {"field": "pdf_license", "enabled": True},
+        "external_source": {"field": "external_source", "enabled": True},
     }
 
     filter_fields = {
         "paper_publish_year": "paper_publish_year",
         "pdf_license": "pdf_license",
+        "external_source": "external_source",
     }
 
     ordering = ("_score", "-hot_score", "-discussion_count", "-paper_publish_date")
