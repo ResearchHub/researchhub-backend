@@ -97,6 +97,7 @@ class PaperDocumentView(DocumentViewSet):
         "paper_publish_year": "paper_publish_year",
         "pdf_license": "pdf_license",
         "external_source": "external_source",
+        "citations": "citations",
     }
 
     ordering = ("_score", "-hot_score", "-discussion_count", "-paper_publish_date")

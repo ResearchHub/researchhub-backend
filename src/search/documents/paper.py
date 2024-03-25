@@ -21,6 +21,7 @@ class PaperDocument(BaseDocument):
     hubs_flat = es_fields.TextField(attr="hubs_indexing_flat")
     discussion_count = es_fields.IntegerField(attr="discussion_count_indexing")
     score = es_fields.IntegerField(attr="score_indexing")
+    citations = es_fields.IntegerField()
     hot_score = es_fields.IntegerField(attr="hot_score_indexing")
     paper_title = es_fields.TextField(analyzer=title_analyzer)
     paper_publish_date = es_fields.DateField(
