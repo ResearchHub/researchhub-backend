@@ -86,9 +86,12 @@ class PaperDocumentView(DocumentViewSet):
         "hubs": "hubs.name",
     }
 
-    faceted_search_fields = {"hubs": "hubs.name"}
+    faceted_search_fields = {
+        "hubs": "hubs.name",
+        "paper_publish_year": {"field": "paper_publish_year", "enabled": True},
+    }
 
-    filter_fields = {"publish_date": "paper_publish_date"}
+    filter_fields = {"paper_publish_year": "paper_publish_year"}
 
     ordering = ("_score", "-hot_score", "-discussion_count", "-paper_publish_date")
 

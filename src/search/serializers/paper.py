@@ -33,6 +33,7 @@ class PaperDocumentSerializer(DocumentSerializer):
             "title",
             "paper_title",
             "unified_doc_id",
+            "paper_publish_year",
         ]
 
     def get_highlight(self, obj):

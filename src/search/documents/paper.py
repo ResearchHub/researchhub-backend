@@ -26,6 +26,7 @@ class PaperDocument(BaseDocument):
     paper_publish_date = es_fields.DateField(
         attr="paper_publish_date", format="yyyy-MM-dd"
     )
+    paper_publish_year = es_fields.IntegerField()
     abstract = es_fields.TextField(attr="abstract_indexing", analyzer=content_analyzer)
     doi = es_fields.TextField(attr="doi_indexing", analyzer="keyword")
     raw_authors = es_fields.ObjectField(
@@ -127,6 +128,11 @@ class PaperDocument(BaseDocument):
             "input": list(set(phrases)),  # Dedupe using set
             "weight": weight,
         }
+
+    def prepare_paper_publish_year(self, instance):
+        if instance.paper_publish_date:
+            return instance.paper_publish_date.year
+        return None
 
     def prepare(self, instance):
         try:
