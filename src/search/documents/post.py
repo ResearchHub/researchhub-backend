@@ -1,3 +1,5 @@
+import math
+
 from django_elasticsearch_dsl import fields as es_fields
 from django_elasticsearch_dsl.registries import registry
 from elasticsearch_dsl import analyzer, token_filter, tokenizer
@@ -40,7 +42,7 @@ class PostDocument(BaseDocument):
             "slug": es_fields.TextField(),
         },
     )
-    title_suggest = es_fields.Completion()
+    suggestion_phrases = es_fields.Completion()
     title = es_fields.TextField(
         analyzer=title_analyzer,
     )
@@ -57,16 +59,53 @@ class PostDocument(BaseDocument):
             "document_type",
         ]
 
-    def prepare_title_suggest(self, instance):
+    # Used specifically for "autocomplete" style suggest feature.
+    # Inlcudes a bunch of phrases the user may search by.
+    def prepare_suggestion_phrases(self, instance):
+        phrases = []
+
+        # Variation of title which may be searched by users
+        if instance.title:
+            phrases.append(instance.title)
+            phrases.extend(instance.title.split())
+
+        if instance.doi:
+            phrases.append(instance.doi)
+
+        # Variation of author names which may be searched by users
+        try:
+            author_names_only = [
+                f"{author.first_name} {author.last_name}"
+                for author in instance.unified_document.authors
+                if author.first_name and author.last_name
+            ]
+            all_authors_as_str = ", ".join(author_names_only)
+            created_by = (
+                instance.created_by.first_name + " " + instance.created_by.last_name
+            )
+
+            phrases.append(all_authors_as_str)
+            phrases.append(created_by)
+            phrases.extend(author_names_only)
+        except Exception:
+            pass
+
+        # Assign weight based on how "hot" the paper is
+        weight = 1
+        if instance.unified_document.hot_score_v2 > 0:
+            # Scale down the hot score from 1 - 100 to avoid a huge range
+            # of values that could result in bad suggestions
+            weight = int(math.log(instance.unified_document.hot_score_v2, 10) * 10)
+
         return {
-            "input": instance.title.split() + [instance.title],
-            "weight": 1,
+            "input": list(set(phrases)),  # Dedupe using set
+            "weight": weight,
         }
 
     def prepare(self, instance):
         try:
             data = super().prepare(instance)
-            data["title_suggest"] = self.prepare_title_suggest(instance)
+            data["suggestion_phrases"] = self.prepare_suggestion_phrases(instance)
             return data
         except Exception as error:
             print("Post Indexing error: ", error, "Instance: ", instance.id)
