@@ -7,6 +7,7 @@ from rest_framework.serializers import (
     IntegerField,
     ModelSerializer,
     PrimaryKeyRelatedField,
+    Serializer,
     SerializerMethodField,
 )
 
@@ -50,10 +51,15 @@ class UniversitySerializer(ModelSerializer):
         fields = "__all__"
 
 
+class LinkedinDataSerializer(Serializer):
+    sub = CharField(required=False)
+
+
 class AuthorSerializer(ModelSerializer):
     added_as_editor_date = SerializerMethodField()
     is_hub_editor_of = SerializerMethodField()
     is_hub_editor = SerializerMethodField()
+    linkedin_data = LinkedinDataSerializer(required=False)
     num_posts = SerializerMethodField()
     orcid_id = SerializerMethodField()
     reputation = SerializerMethodField()
@@ -71,6 +77,7 @@ class AuthorSerializer(ModelSerializer):
             "is_claimed",
             "is_hub_editor_of",
             "is_hub_editor",
+            "linkedin_data",
             "num_posts",
             "orcid_id",
             "reputation",
