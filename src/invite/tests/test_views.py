@@ -72,7 +72,7 @@ class NoteInvitationViewsTest(APITestCaseWithOrg):
             email="user2@researchhub_test.com",
         )
 
-        # Create org
+        # Create note
         self.client.force_authenticate(self.sender)
         response = self.client.post("/api/note/", {"name": "ORG A"})
         self.org = response.data
