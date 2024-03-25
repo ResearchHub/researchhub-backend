@@ -108,9 +108,6 @@ def map_paper_data(papers, on_error):
 
             paper_has_at_least_1_citation = cited_by_count >= 1
             paper_has_activity = paper.discussion_count > 0 or paper.twitter_score > 0
-            paper_is_highly_cited = cited_by_count > 80 or (
-                cited_by_count > 40 and citation_percentile > 90
-            )
             should_include = False
 
             if paper_has_activity:
@@ -120,7 +117,7 @@ def map_paper_data(papers, on_error):
                 and paper_published_less_than_three_months_ago
             ):
                 should_include = True
-            elif paper_is_highly_cited:
+            elif paper.is_highly_cited:
                 should_include = True
 
             if should_include is False:
@@ -142,7 +139,7 @@ def map_paper_data(papers, on_error):
             )
             record["updated_timestamp"] = int(time.mktime(doc.updated_date.timetuple()))
             record["open_bounty_count"] = get_open_bounty_count(doc)
-            record["is_highly_cited"] = paper_is_highly_cited
+            record["is_highly_cited"] = paper.is_highly_cited
             record["citation_percentile_performance"] = citation_percentile
             record["cited_by_count"] = cited_by_count
 

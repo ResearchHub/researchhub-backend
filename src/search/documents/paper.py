@@ -21,11 +21,14 @@ class PaperDocument(BaseDocument):
     hubs_flat = es_fields.TextField(attr="hubs_indexing_flat")
     discussion_count = es_fields.IntegerField(attr="discussion_count_indexing")
     score = es_fields.IntegerField(attr="score_indexing")
+    citations = es_fields.IntegerField()
+    citation_percentile = es_fields.FloatField(attr="citation_percentile")
     hot_score = es_fields.IntegerField(attr="hot_score_indexing")
     paper_title = es_fields.TextField(analyzer=title_analyzer)
     paper_publish_date = es_fields.DateField(
         attr="paper_publish_date", format="yyyy-MM-dd"
     )
+    paper_publish_year = es_fields.IntegerField()
     abstract = es_fields.TextField(attr="abstract_indexing", analyzer=content_analyzer)
     doi = es_fields.TextField(attr="doi_indexing", analyzer="keyword")
     raw_authors = es_fields.ObjectField(
@@ -127,6 +130,11 @@ class PaperDocument(BaseDocument):
             "input": list(set(phrases)),  # Dedupe using set
             "weight": weight,
         }
+
+    def prepare_paper_publish_year(self, instance):
+        if instance.paper_publish_date:
+            return instance.paper_publish_date.year
+        return None
 
     def prepare(self, instance):
         try:

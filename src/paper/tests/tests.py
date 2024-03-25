@@ -5,9 +5,13 @@ from django.db import IntegrityError
 from django.test import TestCase, TransactionTestCase, tag
 from psycopg2.errors import UniqueViolation
 
-from paper.serializers import PaperSerializer, DynamicPaperSerializer
+from paper.serializers import DynamicPaperSerializer, PaperSerializer
 from paper.tasks import handle_duplicate_doi
-from paper.utils import convert_journal_url_to_pdf_url, convert_pdf_url_to_journal_url, pdf_copyright_allows_display
+from paper.utils import (
+    convert_journal_url_to_pdf_url,
+    convert_pdf_url_to_journal_url,
+    pdf_copyright_allows_display,
+)
 from utils.test_helpers import IntegrationTestHelper, TestHelper, get_user_from_response
 
 
@@ -200,9 +204,37 @@ class PaperPatchTest(TestCase, TestHelper, IntegrationTestHelper):
         )
 
 
+class PaperPropertiesTest(TestCase, TestHelper):
+    def test_low_cited_paper_does_not_have_highly_cited_property(self):
+        paper = self.create_paper_without_authors()
+        paper.open_alex_raw_json = {
+            "id": "https://openalex.org/W4286008317",
+            "cited_by_count": 10,
+            "cited_by_percentile_year": {"max": 80, "min": 70},
+        }
+        paper.save()
+        paper.refresh_from_db()
+        self.assertFalse(paper.is_highly_cited)
+
+    def test_highly_cited_paper_does_have_highly_cited_property(self):
+        paper = self.create_paper_without_authors()
+        paper.open_alex_raw_json = {
+            "id": "https://openalex.org/W4286008317",
+            "cited_by_count": 100,
+            "cited_by_percentile_year": {"max": 80, "min": 70},
+        }
+        paper.save()
+        paper.refresh_from_db()
+        self.assertTrue(paper.is_highly_cited)
+
+
 class PaperCopyrightTest(TestCase, TestHelper):
     def setUp(self):
-        mock_file = SimpleUploadedFile('test.pdf', b'These are the contents of the pdf file.', content_type='application/pdf')
+        mock_file = SimpleUploadedFile(
+            "test.pdf",
+            b"These are the contents of the pdf file.",
+            content_type="application/pdf",
+        )
 
         self.paper = self.create_paper_without_authors()
         self.paper.pdf_url = "https://arxiv.org/pdf/1706.03762.pdf"
@@ -222,7 +254,7 @@ class PaperCopyrightTest(TestCase, TestHelper):
         self.assertTrue(pdf_copyright_allows_display(self.paper))
 
     def test_dont_display_pdf_if_license_publisher_specific(self):
-        self.paper.pdf_license = "publisher-specific, author manuscript" # from https://api.openalex.org/works?group_by=primary_location.license:include_unknown
+        self.paper.pdf_license = "publisher-specific, author manuscript"  # from https://api.openalex.org/works?group_by=primary_location.license:include_unknown
         self.paper.save()
         self.assertFalse(pdf_copyright_allows_display(self.paper))
 

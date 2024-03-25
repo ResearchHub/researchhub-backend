@@ -14,6 +14,7 @@ class PaperDocumentSerializer(DocumentSerializer):
     unified_doc_id = serializers.SerializerMethodField()
     uploaded_by = serializers.SerializerMethodField()
     uploaded_date = serializers.SerializerMethodField()
+    is_highly_cited = serializers.SerializerMethodField()
 
     class Meta(object):
         document = PaperDocument
@@ -33,7 +34,21 @@ class PaperDocumentSerializer(DocumentSerializer):
             "title",
             "paper_title",
             "unified_doc_id",
+            "paper_publish_year",
+            "is_highly_cited",
+            "citations",
+            "citation_percentile",
         ]
+
+    def get_is_highly_cited(self, hit):
+        is_highly_cited = False
+        try:
+            paper = Paper.objects.get(id=hit["id"])
+            is_highly_cited = paper.is_highly_cited
+        except Exception:
+            pass
+
+        return is_highly_cited
 
     def get_highlight(self, obj):
         try:
