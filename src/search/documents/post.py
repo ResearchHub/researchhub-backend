@@ -87,7 +87,7 @@ class PostDocument(BaseDocument):
             phrases.append(all_authors_as_str)
             phrases.append(created_by)
             phrases.extend(author_names_only)
-        except:
+        except Exception:
             pass
 
         # Assign weight based on how "hot" the paper is

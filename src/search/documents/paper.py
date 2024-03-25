@@ -98,7 +98,7 @@ class PaperDocument(BaseDocument):
             phrases.append(joined_kewords)
             phrases.extend(keywords)
 
-        except:
+        except Exception:
             pass
 
         # Variation of author names which may be searched by users
@@ -113,7 +113,7 @@ class PaperDocument(BaseDocument):
 
             phrases.append(all_authors_as_str)
             phrases.extend(author_names_only)
-        except:
+        except Exception:
             pass
 
         # Assign weight based on how "hot" the paper is
