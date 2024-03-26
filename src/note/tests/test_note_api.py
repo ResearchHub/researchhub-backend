@@ -106,7 +106,7 @@ class NoteTests(APITestCase):
         )
 
         # Add permission to user
-        perms = Permission.objects.create(
+        Permission.objects.create(
             access_type='EDITOR',
             content_type=unified_doc_content_type,
             object_id=note['unified_document']['id'],
@@ -147,7 +147,7 @@ class NoteTests(APITestCase):
         )
 
         # Add permission to user
-        perms = Permission.objects.create(
+        Permission.objects.create(
             access_type='EDITOR',
             content_type=unified_doc_content_type,
             object_id=note['unified_document']['id'],
@@ -200,7 +200,7 @@ class NoteTests(APITestCase):
         )
 
         # Add permission to user
-        perms = Permission.objects.create(
+        Permission.objects.create(
             access_type='VIEWER',
             content_type=unified_doc_content_type,
             object_id=note['unified_document']['id'],
@@ -254,7 +254,7 @@ class NoteTests(APITestCase):
         )
 
         # Add permission to user
-        perms = Permission.objects.create(
+        Permission.objects.create(
             access_type='VIEWER',
             content_type=unified_doc_content_type,
             object_id=note['unified_document']['id'],
@@ -295,7 +295,7 @@ class NoteTests(APITestCase):
         )
 
         # Add permission to user
-        perms = Permission.objects.create(
+        Permission.objects.create(
             access_type='ADMIN',
             content_type=unified_doc_content_type,
             object_id=note['unified_document']['id'],
@@ -339,7 +339,7 @@ class NoteTests(APITestCase):
         )
 
         # Add permission to user
-        perms = Permission.objects.create(
+        Permission.objects.create(
             access_type='ADMIN',
             content_type=unified_doc_content_type,
             object_id=note['unified_document']['id'],
@@ -469,7 +469,7 @@ class NoteTests(APITestCase):
         )
 
         # Add permission to user
-        perms = Permission.objects.create(
+        Permission.objects.create(
             access_type='VIEWER',
             content_type=unified_doc_content_type,
             object_id=note['unified_document']['id'],
@@ -477,7 +477,7 @@ class NoteTests(APITestCase):
         )
 
         # Upgrade user to org member
-        perms = Permission.objects.create(
+        Permission.objects.create(
             access_type='MEMBER',
             content_type=organization_content_type,
             object_id=self.org['id'],
@@ -515,7 +515,7 @@ class NoteTests(APITestCase):
         )
 
         # Add permission to user
-        perms = Permission.objects.create(
+        Permission.objects.create(
             access_type='ADMIN',
             content_type=unified_doc_content_type,
             object_id=note['unified_document']['id'],
@@ -549,7 +549,7 @@ class NoteTests(APITestCase):
         )
 
         # Add permission to user
-        perms = Permission.objects.create(
+        Permission.objects.create(
             access_type='EDITOR',
             content_type=unified_doc_content_type,
             object_id=note['unified_document']['id'],
@@ -583,7 +583,7 @@ class NoteTests(APITestCase):
         )
 
         # Add second user
-        perms = Permission.objects.create(
+        Permission.objects.create(
             access_type='MEMBER',
             content_type=organization_content_type,
             object_id=self.org['id'],
@@ -618,7 +618,7 @@ class NoteTests(APITestCase):
         )
 
         # Add user
-        perms = Permission.objects.create(
+        Permission.objects.create(
             access_type='MEMBER',
             content_type=organization_content_type,
             object_id=self.org['id'],
