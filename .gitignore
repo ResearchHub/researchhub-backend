@@ -13,7 +13,8 @@ deploy.zip
 **/**.ipynb
 
 # IDE
-.vscode/
+.vscode/*
+!.vscode/launch.json
 .idea/
 
 # local postgress database docker volume
