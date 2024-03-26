@@ -86,7 +86,11 @@ class NoteTests(APITestCase):
         # NOTE: Should only be able to created SHARED note by inviting useres
         self.assertNotEqual(created_note['access'], 'SHARED')
 
-    def test_note_editor_cannot_invite_others(self):
+    def test_note_editor_can_invite_others(self):
+        """
+        Note editors should be able to invite others to the note
+        because the `IsOrganizationUser` permission class allows for this.
+        """
         # Create workspace note
         response = self.client.post(
             '/api/note/',
@@ -125,7 +129,7 @@ class NoteTests(APITestCase):
         )
 
         # Get new permissions
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 200)
 
     def test_note_editor_can_update_contents(self):
         # Create workspace note
@@ -234,7 +238,11 @@ class NoteTests(APITestCase):
         note = response.data
         self.assertEqual(note['latest_version'], None)
 
-    def test_note_viewer_cannot_invite_others(self):
+    def test_note_viewer_can_invite_others(self):
+        """
+        Note viewers should be able to invite others to the note
+        because the `IsOrganizationUser` permission class allows for this.
+        """
         # Create workspace note
         response = self.client.post(
             '/api/note/',
@@ -273,7 +281,7 @@ class NoteTests(APITestCase):
         )
 
         # Get new permissions
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 200)
 
     def test_note_admin_can_invite_others(self):
         # Create workspace note
@@ -529,7 +537,11 @@ class NoteTests(APITestCase):
         response = self.client.post(f"/api/note/{note['id']}/make_private/")
         self.assertEqual(response.data["access"], "PRIVATE")
 
-    def test_note_editor_cannot_make_private(self):
+    def test_note_editor_can_make_private(self):
+        """
+        Editors should be able to make notes private, because the 
+        `HasOrgEditingPermission` permission class allows for this.
+        """
         # Create workspace note
         response = self.client.post(
             '/api/note/',
@@ -539,6 +551,7 @@ class NoteTests(APITestCase):
                 'title': 'original title'
             }
         )
+        self.assertTrue(response.status_code, 201)
         note = response.data
 
         # Create another user
@@ -561,7 +574,7 @@ class NoteTests(APITestCase):
 
         # Make Private
         response = self.client.post(f"/api/note/{note['id']}/make_private/")
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 200)
 
     def test_org_member_can_make_private(self):
         # Create workspace note
