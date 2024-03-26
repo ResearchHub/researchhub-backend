@@ -144,8 +144,6 @@ router.register(r"deposit", reputation.views.DepositViewSet)
 router.register(r"bounty", reputation.views.BountyViewSet)
 router.register(r"feed", FeedViewSet)
 
-router.register(r"user_verification", user.views.VerificationViewSet)
-
 router.register(
     r"author_claim_case",
     researchhub_case_views.AuthorClaimCaseViewSet,

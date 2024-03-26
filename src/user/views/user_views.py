@@ -6,7 +6,7 @@ from allauth.account.models import EmailAddress
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db import IntegrityError, models, transaction
-from django.db.models import F, Q, Sum, Exists, OuterRef
+from django.db.models import Exists, F, OuterRef, Q, Sum
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -52,15 +52,7 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.serializers import DynamicPostSerializer
 from review.models.review_model import Review
 from user.filters import AuthorFilter, UserFilter
-from user.models import (
-    Author,
-    Follow,
-    Major,
-    University,
-    User,
-    UserApiToken,
-    Verification,
-)
+from user.models import Author, Follow, Major, University, User, UserApiToken
 from user.permissions import (
     Censor,
     DeleteAuthorPermission,
@@ -78,8 +70,6 @@ from user.serializers import (
     UserActions,
     UserEditableSerializer,
     UserSerializer,
-    VerificationFileSerializer,
-    VerificationSerializer,
 )
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from user.utils import calculate_show_referral, reset_latest_acitvity_cache
@@ -963,79 +953,6 @@ class MajorViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [AllowAny]
 
 
-class VerificationViewSet(viewsets.ModelViewSet):
-    queryset = Verification.objects.all()
-    serializer_class = VerificationSerializer
-    # TODO: Permissions
-    permission_classes = [AllowAny]
-    filter_backends = (DjangoFilterBackend, OrderingFilter)
-    filterset_fields = ("status",)
-    ordering_fields = ("created_date",)
-    throttle_classes = THROTTLE_CLASSES
-
-    def create(self, request, *args, **kwargs):
-        user = request.user
-        with transaction.atomic():
-            try:
-                files = request.data.getlist("file[]")
-                res = super().create(request, *args, **kwargs)
-                for file in files:
-                    data = {"verification": res.data["id"], "file": file}
-                    serializer = VerificationFileSerializer(data=data)
-                    serializer.is_valid(raise_exception=True)
-                    serializer.save()
-            except Exception as e:
-                user.api_keys.filter(
-                    name=UserApiToken.TEMPORARY_VERIFICATION_TOKEN
-                ).delete()
-                raise e
-            return res
-
-    @action(
-        detail=False,
-        methods=["post"],
-    )
-    def bulk_upload(self, request):
-        return Response({"message": "Deprecated"})
-
-    @action(
-        detail=False, methods=["post"], permission_classes=[HasVerificationPermission]
-    )
-    def get_openalex_author_profiles(self, request):
-        data = request.data
-        user = request.user
-        page = int(request.query_params.get("page", 1))
-
-        request_type = data.get("request_type")
-        oa = OpenAlex()
-
-        if request_type == "ORCID":
-            author_profile = user.author_profile
-            orcid_id = author_profile.orcid_id
-            try:
-                author = oa.get_author_via_orcid(orcid_id)
-                res = oa._get_works_from_api_url(author)
-            except HTTPError as e:
-                log_error(e)
-                return Response(
-                    {"error": "No profile found with associated ID"}, status=404
-                )
-        elif request_type == "NAME":
-            manual_name_input = data.get("name", None)
-            if manual_name_input:
-                res = oa.search_authors_via_name(manual_name_input, page)
-            else:
-                name = f"{user.first_name} {user.last_name}"
-                res = oa.search_authors_via_name(name, page)
-            authors = res.get("results", [])
-            authors_and_works = oa._get_works_from_api_url(authors)
-            res["results"] = authors_and_works
-        else:
-            return Response(status=400)
-
-        return Response(res, status=200)
-
-
 class AuthorViewSet(viewsets.ModelViewSet):
     queryset = Author.objects.all()
     serializer_class = AuthorSerializer
@@ -1576,15 +1493,13 @@ class AuthorViewSet(viewsets.ModelViewSet):
             )
 
         return response
-    
+
     def _get_author_comments(self, author_id):
         author = self.get_object()
         user = author.user
 
         if user:
-            user_threads = RhCommentModel.objects.filter(
-                Q(created_by=user)
-            )
+            user_threads = RhCommentModel.objects.filter(Q(created_by=user))
             return user_threads
         return []
 
