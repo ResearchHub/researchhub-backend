@@ -109,7 +109,7 @@ class NoteTests(APITestCase):
         perms = Permission.objects.create(
             access_type='EDITOR',
             content_type=unified_doc_content_type,
-            object_id=note['unified_document'],
+            object_id=note['unified_document']['id'],
             user=editor_user
         )
 
@@ -150,7 +150,7 @@ class NoteTests(APITestCase):
         perms = Permission.objects.create(
             access_type='EDITOR',
             content_type=unified_doc_content_type,
-            object_id=note['unified_document'],
+            object_id=note['unified_document']['id'],
             user=editor_user
         )
 
@@ -199,7 +199,7 @@ class NoteTests(APITestCase):
         perms = Permission.objects.create(
             access_type='VIEWER',
             content_type=unified_doc_content_type,
-            object_id=note['unified_document'],
+            object_id=note['unified_document']['id'],
             user=viewer_user
         )
 
@@ -253,7 +253,7 @@ class NoteTests(APITestCase):
         perms = Permission.objects.create(
             access_type='VIEWER',
             content_type=unified_doc_content_type,
-            object_id=note['unified_document'],
+            object_id=note['unified_document']['id'],
             user=invited_viewer
         )
 
@@ -294,7 +294,7 @@ class NoteTests(APITestCase):
         perms = Permission.objects.create(
             access_type='ADMIN',
             content_type=unified_doc_content_type,
-            object_id=note['unified_document'],
+            object_id=note['unified_document']['id'],
             user=invited_note_admin
         )
 
@@ -338,7 +338,7 @@ class NoteTests(APITestCase):
         perms = Permission.objects.create(
             access_type='ADMIN',
             content_type=unified_doc_content_type,
-            object_id=note['unified_document'],
+            object_id=note['unified_document']['id'],
             user=invited_note_admin
         )
 
@@ -468,7 +468,7 @@ class NoteTests(APITestCase):
         perms = Permission.objects.create(
             access_type='VIEWER',
             content_type=unified_doc_content_type,
-            object_id=note['unified_document'],
+            object_id=note['unified_document']['id'],
             user=viewer_user
         )
 
@@ -514,7 +514,7 @@ class NoteTests(APITestCase):
         perms = Permission.objects.create(
             access_type='ADMIN',
             content_type=unified_doc_content_type,
-            object_id=note['unified_document'],
+            object_id=note['unified_document']['id'],
             user=admin_user
         )
 
@@ -548,7 +548,7 @@ class NoteTests(APITestCase):
         perms = Permission.objects.create(
             access_type='EDITOR',
             content_type=unified_doc_content_type,
-            object_id=note['unified_document'],
+            object_id=note['unified_document']['id'],
             user=editor_user
         )
 
