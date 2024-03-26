@@ -4,8 +4,6 @@ from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from paper.serializers import DynamicPaperSerializer, PaperSerializer
-from prediction_market.models import PredictionMarket
-from prediction_market.serializers import DynamicPredictionMarketSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
@@ -99,7 +97,6 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
     hubs = SerializerMethodField()
     reviews = SerializerMethodField()
     concepts = SerializerMethodField()
-    prediction_market = SerializerMethodField()
     fundraise = SerializerMethodField()
     recommendation_metadata = SerializerMethodField()
 
@@ -229,23 +226,6 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
             context=context,
             **_context_fields,
         )
-        return serializer.data
-
-    def get_prediction_market(self, unified_doc):
-        """
-        Returns details of the prediction market for paper replicability.
-        We assume there's only one prediction market for the `unified_doc`
-        """
-        if not unified_doc.prediction_markets.exists():
-            return None
-
-        prediction_market = unified_doc.prediction_markets.filter(
-            prediction_type=PredictionMarket.REPLICATION_PREDICTION
-        ).first()
-        if not prediction_market:
-            return None
-
-        serializer = DynamicPredictionMarketSerializer(prediction_market)
         return serializer.data
 
     def get_fundraise(self, unified_doc):
