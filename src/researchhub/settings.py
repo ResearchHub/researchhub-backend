@@ -257,7 +257,6 @@ INSTALLED_APPS = [
     "peer_review",
     "referral",
     "review",
-    "prediction_market",
     "feed",
 ]
 
