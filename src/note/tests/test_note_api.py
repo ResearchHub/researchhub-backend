@@ -168,13 +168,17 @@ class NoteTests(APITestCase):
         # Update body
         response = self.client.post(
             '/api/note_content/',
-            {'full_src': 'updated body', 'note': note['id'], 'plain_text': ''}
+            {
+                'full_src': 'updated body',
+                'note': note['id'],
+                'plain_text': 'updated body',
+            }
         )
 
         # Re-fetch note
         response = self.client.get(f"/api/note/{note['id']}/")
         note = response.data
-        self.assertEqual(note['latest_version']['src'], 'updated body')
+        self.assertEqual(note['latest_version']['plain_text'], 'updated body')
 
     def test_note_viewer_cannot_update_contents(self):
         # Create workspace note
