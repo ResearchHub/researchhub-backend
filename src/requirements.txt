@@ -2294,9 +2294,9 @@ watchdog==2.1.9 ; python_version >= "3.8" and python_version < "4.0" \
 wcwidth==0.2.13 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:3da69048e4540d84af32131829ff948f1e022c1c6bdb8d6102117aac784f6859 \
     --hash=sha256:72ea0c06399eb286d978fdedb6923a9eb47e1c486ce63e9b4e64fc18303972b5
-web3==6.15.0 ; python_version >= "3.8" and python_version < "4.0" \
-    --hash=sha256:7c39bb21d75b4ef239bb33a7e1b02526c0493db4b230177dca0ae325f28ea027 \
-    --hash=sha256:a646d1fe5eba00625b5459d23910e472f0d0aa063788422bff2648ca4e1ebc7e
+web3==6.15.1 ; python_version >= "3.8" and python_version < "4.0" \
+    --hash=sha256:4e4a8313aa4556ecde61c852a62405b853b667498b07da6ff05c29fe8c79096b \
+    --hash=sha256:f9e7eefc1b3c3d194868a4ef9583b625c18ea3f31a48ebe143183db74898f381
 webencodings==0.5.1 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:a0af1213f3c2226497a97e2b3aa01a7e4bee4f403f95be16fc9acd2947514a78 \
     --hash=sha256:b36a1c245f2d304965eb4e0a82848379241dc04b865afcc4aab16748587e1923
