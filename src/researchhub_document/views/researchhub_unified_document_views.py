@@ -1069,7 +1069,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "reviews",
                 "score",
                 "hubs",
-                "prediction_market",
                 "fundraise",
             ),
             context=metadata_context,
