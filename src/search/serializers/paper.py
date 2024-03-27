@@ -16,6 +16,8 @@ class PaperDocumentSerializer(DocumentSerializer):
     uploaded_date = serializers.SerializerMethodField()
     is_highly_cited = serializers.SerializerMethodField()
     paper_publish_year = serializers.SerializerMethodField()
+    citation_percentile = serializers.SerializerMethodField()
+    citations = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
 
     class Meta(object):
@@ -78,6 +80,24 @@ class PaperDocumentSerializer(DocumentSerializer):
             pass
 
         return publish_year
+
+    def get_citations(self, hit):
+        citations = None
+        try:
+            citations = hit["citations"]
+        except Exception as e:
+            pass
+
+        return citations
+
+    def get_citation_percentile(self, hit):
+        citation_percentile = None
+        try:
+            citation_percentile = hit["citation_percentile"]
+        except Exception as e:
+            pass
+
+        return citation_percentile
 
     def get_slug(self, hit):
         try:
