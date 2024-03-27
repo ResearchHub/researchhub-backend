@@ -9,7 +9,7 @@ from rest_framework.test import APITestCase
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.models import Withdrawal
-from reputation.tests.helpers import create_withdrawals
+from reputation.tests.helpers import create_deposit, create_withdrawals
 from user.tests.helpers import create_random_authenticated_user
 from utils.test_helpers import (
     get_authenticated_get_response,
@@ -21,6 +21,45 @@ class ReputationViewsTests(APITestCase):
     def setUp(self):
         create_withdrawals(10)
         self.all_withdrawals = len(Withdrawal.objects.all())
+
+    def test_deposit_user_can_list_deposits(self):
+        user = create_random_authenticated_user("deposit_user")
+
+        create_deposit(user)
+
+        self.client.force_authenticate(user)
+        response = self.client.get("/api/deposit/")
+
+        self.assertEquals(response.status_code, 200)
+        self.assertEquals(response.data["count"], 1)
+
+    def test_deposit_user_cannot_list_other_deposits(self):
+        user = create_random_authenticated_user("deposit_user")
+        other_user = create_random_authenticated_user("other_deposit_user")
+
+        create_deposit(user)
+
+        self.client.force_authenticate(other_user)
+        response = self.client.get("/api/deposit/")
+
+        self.assertEquals(response.status_code, 200)
+        self.assertEquals(response.data["count"], 0)
+
+    def test_deposit_deposit_staff_user_can_list_all_deposits(self):
+        user1 = create_random_authenticated_user("user1")
+        user2 = create_random_authenticated_user("user2")
+        staff_user = create_random_authenticated_user("staff_user1")
+        staff_user.is_staff = True
+        staff_user.save()
+
+        create_deposit(user1)
+        create_deposit(user2)
+
+        self.client.force_authenticate(staff_user)
+        response = self.client.get("/api/deposit/")
+
+        self.assertEquals(response.status_code, 200)
+        self.assertEquals(response.data["count"], 2)
 
     def test_suspecious_user_cannot_withdraw_rsc(self):
         user = create_random_authenticated_user("rep_user")
