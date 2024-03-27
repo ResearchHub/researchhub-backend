@@ -30,6 +30,7 @@
 	"customizations": {
 		"vscode": {
 			"extensions": [
+				"ms-python.black-formatter",
 				"ms-python.flake8"
 			],
 			"settings": {
