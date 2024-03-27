@@ -15,6 +15,8 @@ class PaperDocumentSerializer(DocumentSerializer):
     uploaded_by = serializers.SerializerMethodField()
     uploaded_date = serializers.SerializerMethodField()
     is_highly_cited = serializers.SerializerMethodField()
+    paper_publish_year = serializers.SerializerMethodField()
+    score = serializers.SerializerMethodField()
 
     class Meta(object):
         document = PaperDocument
@@ -34,8 +36,8 @@ class PaperDocumentSerializer(DocumentSerializer):
             "title",
             "paper_title",
             "unified_doc_id",
-            "paper_publish_year",
             "is_highly_cited",
+            "paper_publish_year",
             "citations",
             "citation_percentile",
         ]
@@ -50,6 +52,16 @@ class PaperDocumentSerializer(DocumentSerializer):
 
         return is_highly_cited
 
+    def get_score(self, hit):
+        score = 0
+        try:
+            paper = Paper.objects.get(id=hit["id"])
+            score = paper.unified_document.score
+        except Exception as e:
+            pass
+
+        return score
+
     def get_highlight(self, obj):
         try:
             if hasattr(obj.meta, "highlight"):
@@ -57,6 +69,15 @@ class PaperDocumentSerializer(DocumentSerializer):
             return {}
         except Exception as e:
             log_error(e, "Paper is missing highlight")
+
+    def get_paper_publish_year(self, hit):
+        publish_year = None
+        try:
+            publish_year = hit["paper_publish_year"]
+        except Exception as e:
+            pass
+
+        return publish_year
 
     def get_slug(self, hit):
         try:
