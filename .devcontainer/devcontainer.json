@@ -30,9 +30,14 @@
 	"customizations": {
 		"vscode": {
 			"extensions": [
+				"ms-python.black-formatter",
 				"ms-python.flake8"
 			],
 			"settings": {
+				"[python]": {
+					"editor.defaultFormatter": "ms-python.black-formatter",
+					"editor.formatOnSave": true
+				},
 				"remote.autoForwardPorts": false
 			}
 		}
