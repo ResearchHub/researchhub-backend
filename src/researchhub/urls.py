@@ -11,7 +11,6 @@ from dj_rest_auth.views import (
     PasswordResetConfirmView,
     PasswordResetView,
 )
-from django.contrib import admin
 from django.urls import include, path, re_path
 from rest_framework import routers
 
@@ -227,7 +226,6 @@ router.register(
 router.register(r"fundraise", purchase.views.FundraiseViewSet, basename="fundraise")
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
     re_path(r"^api/", include(router.urls)),
     path("api/events/forward_event/", google_analytics.views.forward_event),
     # TODO: calvinhlee - consolidate all mod views into 1 set
