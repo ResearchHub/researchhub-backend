@@ -38,8 +38,6 @@ from user.models import (
     User,
     UserApiToken,
     Verdict,
-    Verification,
-    VerificationFile,
 )
 from user.related_models.gatekeeper_model import Gatekeeper
 from utils import sentry
@@ -203,24 +201,6 @@ class AuthorSerializer(ModelSerializer):
         user = author.user
         if user:
             return user.is_hub_editor()
-
-
-class VerificationFileSerializer(ModelSerializer):
-    class Meta:
-        model = VerificationFile
-        fields = "__all__"
-
-
-class VerificationSerializer(ModelSerializer):
-    files = VerificationFileSerializer(many=True, read_only=True)
-    related_author_object = SerializerMethodField()
-
-    class Meta:
-        model = Verification
-        fields = "__all__"
-
-    def get_related_author_object(self, obj):
-        return AuthorSerializer(obj.related_author).data
 
 
 class MajorSerializer(ModelSerializer):
