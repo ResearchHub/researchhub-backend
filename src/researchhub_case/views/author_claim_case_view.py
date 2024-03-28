@@ -17,7 +17,6 @@ from researchhub_case.constants.case_constants import (
 from researchhub_case.models import AuthorClaimCase
 from researchhub_case.serializers import AuthorClaimCaseSerializer
 from researchhub_case.tasks import after_approval_flow, after_rejection_flow
-from user.utils import move_paper_to_author
 from utils.http import GET, POST
 from utils.permissions import CreateOrReadOnly
 
@@ -30,6 +29,9 @@ class AuthorClaimCaseViewSet(ModelViewSet):
     serializer_class = AuthorClaimCaseSerializer
 
     def create(self, request, *args, **kwargs):
+        if not self._can_claim_case(request):
+            return Response("Author cannot claim case", status=403)
+
         try:
             return super().create(request, *args, **kwargs)
         except Exception as error:
@@ -37,6 +39,16 @@ class AuthorClaimCaseViewSet(ModelViewSet):
 
     def retrieve(self, request, *args, **kwargs):
         return Response("Method not allowed to public", status=400)
+
+    def _can_claim_case(self, request) -> bool:
+        data = request.data
+        user = request.user
+        creator_id = data.get("creator")
+        requestor_id = data.get("requestor")
+        if user.moderator:
+            return True
+        else:
+            return user.id == creator_id and user.id == requestor_id
 
     @action(detail=False, methods=[GET], permission_classes=[IsModerator])
     def count(self, request, pk=None):
