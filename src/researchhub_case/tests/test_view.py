@@ -59,6 +59,56 @@ class ViewTests(APITestCase):
       self.assertEqual(claim.status, 'APPROVED')
       self.assertTrue(paper in claiming_user.author_profile.authored_papers.all())
 
+    def test_approved_claim_moves_paper_to_author(self):
+      paper1 = create_paper(title='title1')
+      user1 = create_random_default_user('user1')
+
+      self.client.force_authenticate(user1)
+      response = self.client.post(
+        "/api/author_claim_case/", {
+          "case_type":"PAPER_CLAIM",
+          "creator": user1.id,
+          "requestor":user1.id,
+          "provided_email":"example@example.com",
+          "target_paper_id": paper1.id,
+          "target_author_name": "author1",
+        }
+      )
+      self.assertEqual(response.status_code, 201)
+      
+      paper2 = create_paper(title='title2')
+      user2 = create_random_default_user('user2')
+
+      self.client.force_authenticate(user2)
+      response = self.client.post(
+        "/api/author_claim_case/", {
+          "case_type":"PAPER_CLAIM",
+          "creator": user2.id,
+          "requestor":user2.id,
+          "provided_email":"user2@nowhere.org",
+          "target_paper_id": paper2.id,
+          "target_author_name": "author2",
+        }
+      )
+
+      # User 1 can only see own claim
+      self.client.force_authenticate(user1)
+      response = self.client.get("/api/author_claim_case/")
+
+      self.assertEqual(response.status_code, 200)
+      self.assertEqual(len(response.data['results']), 1)
+      data = response.data['results'][0]
+      self.assertEqual(data['requestor']['id'], user1.id)
+
+      # User 2 can only see own claim
+      self.client.force_authenticate(user2)
+      response = self.client.get("/api/author_claim_case/")
+
+      self.assertEqual(response.status_code, 200)
+      self.assertEqual(len(response.data['results']), 1)
+      data = response.data['results'][0]
+      self.assertEqual(data['requestor']['id'], user2.id)
+
     def test_claim_without_valid_paper_id_throws_error(self):
       claiming_user = create_random_default_user('claiming_user')
       self.client.force_authenticate(claiming_user)
