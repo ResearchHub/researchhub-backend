@@ -27,6 +27,114 @@ class NoteTests(APITestCase):
         response = self.client.post("/api/organization/", {"name": "some org"})
         self.org = response.data
 
+    def test_user_can_list_created_notes(self):
+        # Arrange
+        response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "PRIVATE",
+                "title": "Test1",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+
+        # Act
+        response = self.client.get("/api/note/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+
+    def test_user_cannot_list_other_users_notes(self):
+        # Arrange
+        response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "PRIVATE",
+                "title": "TEST",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+
+        other_user = get_user_model().objects.create_user(
+            username="other1", password="password1", email="other1@researchhub.com"
+        )
+
+        # Act
+        self.client.force_authenticate(other_user)
+        response = self.client.get("/api/note/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 0)
+
+    def test_org_member_can_list_org_notes(self):
+        # Arrange
+        response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "TEST",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+
+        member_user = get_user_model().objects.create_user(
+            username="member1",
+            password="password1",
+            email="email1@researchhub.com",
+        )
+
+        Permission.objects.create(
+            access_type="MEMBER",
+            content_type=organization_content_type,
+            object_id=self.org["id"],
+            user=member_user,
+        )
+
+        # Act
+        self.client.force_authenticate(member_user)
+        response = self.client.get("/api/note/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+
+    def test_viewer_can_list_notes(self):
+        # Arrange
+        response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "TEST",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        note = response.data
+
+        viewer_user = get_user_model().objects.create_user(
+            username="viewer1",
+            password="password1",
+            email="viewer1@researchhub.com",
+        )
+
+        Permission.objects.create(
+            access_type="VIEWER",
+            content_type=unified_doc_content_type,
+            object_id=note["unified_document"]["id"],
+            user=viewer_user,
+        )
+
+        # Act
+        self.client.force_authenticate(viewer_user)
+        response = self.client.get("/api/note/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+
     def test_create_workspace_note(self):
         response = self.client.post(
             "/api/note/",
