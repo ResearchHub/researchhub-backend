@@ -2,6 +2,7 @@ from datetime import datetime
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import Q
 from django.core.files.base import ContentFile
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
@@ -50,6 +51,18 @@ class NoteViewSet(ModelViewSet):
     permission_classes = [IsAuthenticated, HasAccessPermission]
     serializer_class = NoteSerializer
     pagination_class = MediumPageLimitPagination
+
+    def get_queryset(self):
+        user = self.request.user
+        return (
+            self.queryset.filter(
+                Q(created_by=user)
+                | Q(organization__permissions__user=user)
+                | Q(unified_document__permissions__user=user)
+            )
+            .distinct()
+            .order_by("-created_date")
+        )
 
     def create(self, request, *args, **kwargs):
         user = request.user
