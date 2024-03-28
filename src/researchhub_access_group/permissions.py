@@ -6,7 +6,7 @@ from utils.http import POST
 class IsOrganizationAdmin(BasePermission):
     # This permission is used for Organization based views
 
-    message = 'User is not an admin of the organization'
+    message = "User is not an admin of the organization"
 
     def has_object_permission(self, request, view, obj):
         user = request.user
@@ -17,7 +17,7 @@ class IsOrganizationAdmin(BasePermission):
 
 
 class IsAdminOrCreateOnly(BasePermission):
-    message = 'User is not an admin of the organization'
+    message = "User is not an admin of the organization"
 
     def has_object_permission(self, request, view, obj):
         user = request.user
@@ -31,7 +31,7 @@ class IsAdminOrCreateOnly(BasePermission):
 
 
 class IsOrganizationUser(BasePermission):
-    message = 'User is not part of the organization'
+    message = "User is not part of the organization"
 
     def has_object_permission(self, request, view, obj):
         user = request.user
@@ -41,7 +41,7 @@ class IsOrganizationUser(BasePermission):
         if request.method == POST:
             return True
 
-        if not hasattr(obj, 'org_has_user'):
+        if not hasattr(obj, "org_has_user"):
             return obj.organization.org_has_user(user)
 
         return obj.org_has_user(user)
@@ -50,11 +50,11 @@ class IsOrganizationUser(BasePermission):
 class HasAdminPermission(BasePermission):
     # This permission is used for unified documents
 
-    message = 'User does not have permission to view or create'
+    message = "User does not have permission to view or create"
 
     def has_object_permission(self, request, view, obj):
-        if not hasattr(obj, 'unified_document'):
-            raise Exception('Object has no reference to unified document')
+        if not hasattr(obj, "unified_document"):
+            raise Exception("Object has no reference to unified document")
 
         unified_document = obj.unified_document
         permissions = unified_document.permissions
@@ -64,13 +64,13 @@ class HasAdminPermission(BasePermission):
 class HasEditingPermission(BasePermission):
     # This permission is used for unified documents
 
-    message = 'User does not have permission to view or create'
+    message = "User does not have permission to view or create"
 
     def has_object_permission(self, request, view, obj):
         user = request.user
 
-        if not hasattr(obj, 'unified_document'):
-            raise Exception('Object has no reference to unified document')
+        if not hasattr(obj, "unified_document"):
+            raise Exception("Object has no reference to unified document")
 
         if user.is_anonymous:
             return False
@@ -85,13 +85,13 @@ class HasEditingPermission(BasePermission):
 class HasOrgEditingPermission(BasePermission):
     # This permission is used for unified documents
 
-    message = 'User does not have permission to view or create'
+    message = "User does not have permission to view or create"
 
     def has_object_permission(self, request, view, obj):
         user = request.user
 
-        if not hasattr(obj, 'unified_document'):
-            raise Exception('Object has no reference to unified document')
+        if not hasattr(obj, "unified_document"):
+            raise Exception("Object has no reference to unified document")
 
         if user.is_anonymous:
             return False
@@ -106,12 +106,12 @@ class HasOrgEditingPermission(BasePermission):
 class HasAccessPermission(BasePermission):
     # This permission is used for unified documents
 
-    message = 'User does not have permission to view or create'
+    message = "User does not have permission to view or create"
 
     def has_object_permission(self, request, view, obj):
         user = request.user
-        if not hasattr(obj, 'unified_document'):
-            raise Exception('Object has no reference to unified document')
+        if not hasattr(obj, "unified_document"):
+            raise Exception("Object has no reference to unified document")
 
         if user.is_anonymous:
             return False
