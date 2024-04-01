@@ -28,6 +28,9 @@ class AuthorClaimCaseViewSet(ModelViewSet):
     queryset = AuthorClaimCase.objects.all()
     serializer_class = AuthorClaimCaseSerializer
 
+    def get_queryset(self):
+        return self.queryset.filter(requestor=self.request.user.id)
+
     def create(self, request, *args, **kwargs):
         if not self._can_claim_case(request):
             return Response("Author cannot claim case", status=403)
