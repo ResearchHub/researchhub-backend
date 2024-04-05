@@ -19,9 +19,12 @@ def index_papers_in_bulk(es, from_id, to_id, max_attempts=5):
         print(f"processing chunk starting with: {current_id} ")
 
         # Get next "chunk"
-        queryset = Paper.objects.filter(
-            id__gte=current_id, id__lte=(current_id + batch_size - 1)
+        chunk_end_id = (
+            to_id
+            if to_id < current_id + batch_size - 1
+            else current_id + batch_size - 1
         )
+        queryset = Paper.objects.filter(id__gte=current_id, id__lte=chunk_end_id)
 
         queryset = (
             queryset.exclude(Q(title__isnull=True) | Q(is_removed=True))
@@ -100,10 +103,14 @@ class Command(BaseCommand):
         parser.add_argument(
             "--start-id", type=int, help="ID to start indexing from", default=1
         )
+        parser.add_argument(
+            "--end-id", type=int, help="ID to stop indexing at", default=None
+        )
 
     help = "Bulk index papers in Elasticsearch"
 
     def handle(self, *args, **options):
         start_id = options["start_id"]
+        end_id = options["end_id"]
         es = connections.get_connection()
-        index_papers_in_bulk(es, start_id, None)
+        index_papers_in_bulk(es, start_id, end_id)
