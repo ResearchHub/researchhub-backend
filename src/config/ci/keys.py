@@ -59,8 +59,5 @@ TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", "")
 
 SERP_API_KEY = os.environ.get("SERP_API_KEY", "")
 OPENALEX_KEY = os.environ.get("OPENALEX_KEY", "")
-LINKEDIN_CLIENT_ID = os.environ.get("LINKEDIN_CLIENT_ID", "")
-LINKEDIN_CLIENT_SECRET = os.environ.get("LINKEDIN_CLIENT_SECRET", "")
-LINKEDIN_CALLBACK_URL = os.environ.get("LINKEDIN_CALLBACK_URL", "")
 ORCID_REDIRECT_URL = os.environ.get("ORCID_REDIRECT_URL", "")
 SEGMENT_WRITE_KEY = os.environ.get("SEGMENT_WRITE_KEY", "")
