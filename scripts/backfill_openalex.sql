@@ -33,7 +33,6 @@ CREATE TABLE backfill_paper_paper (
   open_alex_raw_json jsonb,
   citations integer NOT NULL,
   downloads integer NOT NULL,
-  twitter_mentions integer NOT NULL,
   views integer NOT NULL,
   is_open_access boolean,
   oa_status character varying(8)
@@ -112,17 +111,17 @@ BEGIN
           retrieved_from_external_source, is_public, is_removed, external_source,
           pdf_license, raw_authors, discussion_count, alternate_ids, slug,
           paper_type, completeness, open_alex_raw_json, citations, downloads,
-          twitter_mentions, views, is_open_access, oa_status, created_date, updated_date,
+          views, is_open_access, oa_status, created_date, updated_date,
           is_removed_by_user, bullet_low_quality, summary_low_quality,
-          automated_bounty_created, is_pdf_removed_by_moderator, twitter_score, score
+          automated_bounty_created, is_pdf_removed_by_moderator, score
         )
         SELECT 
           title, paper_publish_date, doi, url, publication_type, paper_title, pdf_url,
           retrieved_from_external_source, is_public, is_removed, external_source,
           pdf_license, raw_authors, discussion_count, alternate_ids, slug,
           paper_type, completeness, open_alex_raw_json, citations, downloads,
-          twitter_mentions, views, is_open_access, oa_status, NOW(), NOW(), false,
-          false, false, false, false, 0, 0
+          views, is_open_access, oa_status, NOW(), NOW(), false,
+          false, false, false, false, 0
         FROM backfill_paper_paper b
         WHERE NOT EXISTS (
             SELECT 1 FROM paper_paper p WHERE p.url = b.url
@@ -167,17 +166,17 @@ BEGIN
           retrieved_from_external_source, is_public, is_removed, external_source,
           pdf_license, raw_authors, discussion_count, alternate_ids, slug,
           paper_type, completeness, open_alex_raw_json, citations, downloads,
-          twitter_mentions, views, is_open_access, oa_status, created_date, updated_date,
+          views, is_open_access, oa_status, created_date, updated_date,
           is_removed_by_user, bullet_low_quality, summary_low_quality,
-          automated_bounty_created, is_pdf_removed_by_moderator, twitter_score, score
+          automated_bounty_created, is_pdf_removed_by_moderator, score
         )
         SELECT 
           title, paper_publish_date, doi, url, publication_type, paper_title, pdf_url,
           retrieved_from_external_source, is_public, is_removed, external_source,
           pdf_license, raw_authors, discussion_count, alternate_ids, slug,
           paper_type, completeness, open_alex_raw_json, citations, downloads,
-          twitter_mentions, views, is_open_access, oa_status, NOW(), NOW(), false,
-          false, false, false, false, 0, 0
+          views, is_open_access, oa_status, NOW(), NOW(), false,
+          false, false, false, false, 0
         FROM backfill_paper_paper b
         WHERE NOT EXISTS (
             SELECT 1 FROM paper_paper p WHERE p.doi = b.doi
