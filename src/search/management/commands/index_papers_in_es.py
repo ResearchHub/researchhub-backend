@@ -46,6 +46,7 @@ def index_papers_in_bulk(es, from_id, to_id, max_attempts=5):
                     "hubs_flat": paper.hubs_indexing_flat or None,
                     "paper_title": paper.paper_title or "",
                     "paper_publish_date": paper.paper_publish_date or None,
+                    "paper_publish_year": doc.prepare_paper_publish_year(paper),
                     "abstract": paper.abstract or "",
                     "doi": paper.doi or None,
                     "raw_authors": paper.raw_authors_indexing or [],
@@ -54,10 +55,11 @@ def index_papers_in_bulk(es, from_id, to_id, max_attempts=5):
                     "title": paper.title or None,
                     "suggestion_phrases": doc.prepare_suggestion_phrases(paper),
                     "updated_date": paper.updated_date or None,
-                    "is_open_access": paper.is_open_access or None,
                     "oa_status": paper.oa_status,
                     "pdf_license": paper.pdf_license,
                     "external_source": paper.external_source,
+                    "citations": paper.citations or 0,
+                    "citation_percentile": paper.citation_percentile or 0,
                 }
 
                 action = {

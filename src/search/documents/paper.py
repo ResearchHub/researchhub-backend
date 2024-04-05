@@ -19,7 +19,6 @@ class PaperDocument(BaseDocument):
     auto_refresh = True
 
     hubs_flat = es_fields.TextField(attr="hubs_indexing_flat")
-    discussion_count = es_fields.IntegerField(attr="discussion_count_indexing")
     score = es_fields.IntegerField(attr="score_indexing")
     citations = es_fields.IntegerField()
     citation_percentile = es_fields.FloatField(attr="citation_percentile")
@@ -54,7 +53,6 @@ class PaperDocument(BaseDocument):
         analyzer=title_analyzer,
     )
     updated_date = es_fields.DateField()
-    is_open_access = es_fields.BooleanField()
     oa_status = es_fields.KeywordField()
     pdf_license = es_fields.KeywordField()
     external_source = es_fields.KeywordField()
