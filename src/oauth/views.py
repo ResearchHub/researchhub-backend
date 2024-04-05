@@ -6,7 +6,6 @@ from allauth.socialaccount.helpers import render_authentication_error
 from allauth.socialaccount.models import SocialAccount, SocialLogin
 from allauth.socialaccount.providers.base import ProviderException
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
-from allauth.socialaccount.providers.linkedin_oauth2.views import LinkedInOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client, OAuth2Error
 from allauth.socialaccount.providers.oauth2.views import (
     AuthError,
@@ -34,7 +33,6 @@ from oauth.utils import get_orcid_names
 from researchhub.settings import (
     GOOGLE_REDIRECT_URL,
     GOOGLE_YOLO_REDIRECT_URL,
-    LINKEDIN_CALLBACK_URL,
     MAILCHIMP_LIST_ID,
     MAILCHIMP_SERVER,
     RECAPTCHA_SECRET_KEY,
@@ -69,12 +67,6 @@ def captcha_verify(request):
         captcha_unlock(request)
 
     return Response(data, status=status)
-
-
-class LinkedInLogin(SocialLoginView):
-    adapter_class = LinkedInOAuth2Adapter
-    callback_url = LINKEDIN_CALLBACK_URL
-    client_class = OAuth2Client
 
 
 # Google login -> SocialLoingSerializer -> adaptor functions are called in "#complete_login"
@@ -154,43 +146,6 @@ class EmailLoginView(LoginView):
         res = super().post(request, *args, **kwargs)
         events_api.track_login(self.user, "$success", request)
         return res
-
-
-@api_view([RequestMethods.POST])
-@permission_classes([IsAuthenticated])
-def linkedin_callback(request):
-    url = "https://www.linkedin.com/oauth/v2/accessToken"
-    linkedin_settings = SOCIALACCOUNT_PROVIDERS.get("linkedin_oauth2").get("APP")
-    body = {
-        "grant_type": "authorization_code",
-        "code": request.data.get("code"),
-        "client_id": linkedin_settings.get("client_id"),
-        "client_secret": linkedin_settings.get("secret"),
-        "redirect_uri": LINKEDIN_CALLBACK_URL,
-    }
-    response = requests.post(url, body)
-    if response.ok:
-        json_response = response.json()
-        access_token = json_response.get("access_token")
-        user_info = requests.get(
-            "https://api.linkedin.com/v2/userinfo",
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
-        user_info_json = user_info.json()
-        user = request.user
-        author_profile = user.author_profile
-        author_profile.linkedin_data = user_info_json
-        author_profile.save(update_fields=["linkedin_data"])
-
-        expiration_date = datetime.today() + timedelta(minutes=5)
-        UserApiToken.objects.create_key(
-            user=user,
-            name=UserApiToken.TEMPORARY_VERIFICATION_TOKEN,
-            expiry_date=expiration_date,
-        )
-        return Response(user_info_json)
-    else:
-        return Response({"error": response.text, "body": body}, status=400)
 
 
 @api_view([RequestMethods.POST])

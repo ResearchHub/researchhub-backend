@@ -209,7 +209,6 @@ INSTALLED_APPS = [
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
     "allauth.socialaccount.providers.orcid",
-    "allauth.socialaccount.providers.linkedin_oauth2",
     "rest_framework.authtoken",
     "dj_rest_auth",
     "dj_rest_auth.registration",
@@ -396,26 +395,12 @@ ACCOUNT_AUTHENTICATED_LOGIN_REDIRECTS = False
 if STAGING or PRODUCTION:
     ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
 LOGIN_REDIRECT_URL = os.environ.get("ORCID_REDIRECT_URL", keys.ORCID_REDIRECT_URL)
-LINKEDIN_CALLBACK_URL = os.environ.get(
-    "LINKEDIN_CALLBACK_URL", keys.LINKEDIN_CALLBACK_URL
-)
 SOCIALACCOUNT_ADAPTER = "oauth.adapters.SocialAccountAdapter"
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_EMAIL_REQUIRED = False
 SOCIALACCOUNT_QUERY_EMAIL = True
 
 SOCIALACCOUNT_PROVIDERS = {
-    "linkedin_oauth2": {
-        "APP": {
-            "client_id": os.environ.get("LINKEDIN_CLIENT_ID", keys.LINKEDIN_CLIENT_ID),
-            "secret": os.environ.get(
-                "LINKEDIN_CLIENT_SECRET", keys.LINKEDIN_CLIENT_SECRET
-            ),
-            "key": os.environ.get(
-                "LINKEDIN_CLIENT_ID", keys.LINKEDIN_CLIENT_ID
-            ),  # This is equal to the client_id
-        }
-    },
     "orcid": {
         # Defaults to 'orcid.org' for the production API
         "BASE_DOMAIN": "orcid.org",
@@ -432,7 +417,6 @@ SOCIALACCOUNT_PROVIDERS = {
 
 
 GOOGLE_REDIRECT_URL = "http://localhost:8000/auth/google/login/callback/"
-LINKEDIN_REDIRECT_URL = "http://localhost:8000/auth/"
 GOOGLE_YOLO_REDIRECT_URL = "http://localhost:8000/auth/google/yolo/callback/"
 if PRODUCTION:
     GOOGLE_REDIRECT_URL = "https://backend.researchhub.com/auth/google/login/callback/"

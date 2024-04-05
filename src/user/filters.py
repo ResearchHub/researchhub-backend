@@ -24,7 +24,7 @@ class AuthorFilter(filters.FilterSet):
     class Meta:
         model = Author
         fields = [field.name for field in model._meta.fields]
-        exclude = ["openalex_ids", "linkedin_data"]
+        exclude = ["openalex_ids"]
         fields.append("id__ne")
         filter_overrides = {
             models.FileField: {
