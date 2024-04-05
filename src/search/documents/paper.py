@@ -108,6 +108,12 @@ class PaperDocument(BaseDocument):
         except Exception:
             pass
 
+        try:
+            hubs_indexing_flat = instance.hubs_indexing_flat
+            phrases.extend(hubs_indexing_flat)
+        except Exception:
+            pass
+
         # Variation of author names which may be searched by users
         try:
             authors_list = format_raw_authors(instance.raw_authors)
