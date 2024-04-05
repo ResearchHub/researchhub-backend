@@ -65,7 +65,6 @@ class Author(models.Model):
     google_scholar = models.URLField(
         max_length=255, default=None, null=True, blank=True
     )
-    linkedin_data = models.JSONField(null=True, blank=True)
     academic_verification = models.BooleanField(default=None, null=True, blank=True)
     claimed = models.BooleanField(default=True, null=True, blank=True)
     is_verified = models.BooleanField(default=False)
