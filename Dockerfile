@@ -28,7 +28,6 @@ COPY .  /usr/app/
 COPY /misc/hub_hub.csv /usr/misc/hub_hub.csv
 COPY db_config.sample.py /usr/app/src/config_local/db.py
 COPY keys.sample.py /usr/app/src/config_local/keys.py
-COPY twitter_config_sample.py /usr/app/src/config_local/twitter.py
 
 RUN mkdir -p /tmp/pdf_cermine/
 RUN cp /usr/bin/python3 /usr/bin/python
