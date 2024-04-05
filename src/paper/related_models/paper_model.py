@@ -19,7 +19,7 @@ from manubot.cite.unpaywall import Unpaywall
 
 import utils.sentry as sentry
 from discussion.reaction_models import AbstractGenericReactionModel, Vote
-from hub.serializers import DynamicHubSerializer, HubSerializer
+from hub.serializers import DynamicHubSerializer
 from paper.lib import journal_hosts
 from paper.tasks import (
     celery_extract_figures,

@@ -220,10 +220,15 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
 
     def get_first_preview(self, paper):
         # If we don't show the PDFs on the paper page, we shouldn't have previews either
-        exclude_copyrighted_content = self.context.get("exclude_copyrighted_content", True)
-        if not self.get_pdf_copyright_allows_display(paper) and exclude_copyrighted_content:
+        exclude_copyrighted_content = self.context.get(
+            "exclude_copyrighted_content", True
+        )
+        if (
+            not self.get_pdf_copyright_allows_display(paper)
+            and exclude_copyrighted_content
+        ):
             return None
-        
+
         try:
             figure = paper.figures.filter(figure_type=Figure.PREVIEW).first()
             if figure:
@@ -306,7 +311,7 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
 
     def get_boost_amount(self, paper):
         return paper.get_boost_amount()
-    
+
     def get_pdf_copyright_allows_display(self, paper):
         return pdf_copyright_allows_display(paper)
 
@@ -316,9 +321,13 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
             return None
 
         # Don't return copyrighted content by default, but enable override for specific cases
-        exclude_copyrighted_content = self.context.get("exclude_copyrighted_content", True)
+        exclude_copyrighted_content = self.context.get(
+            "exclude_copyrighted_content", True
+        )
 
-        if not exclude_copyrighted_content or self.get_pdf_copyright_allows_display(paper):
+        if not exclude_copyrighted_content or self.get_pdf_copyright_allows_display(
+            paper
+        ):
             return paper.file.url
         return None
 
@@ -327,9 +336,13 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
             return None
 
         # Don't return copyrighted content by default, but enable override for specific cases
-        exclude_copyrighted_content = self.context.get('exclude_copyrighted_content', True)
+        exclude_copyrighted_content = self.context.get(
+            "exclude_copyrighted_content", True
+        )
 
-        if not exclude_copyrighted_content or self.get_pdf_copyright_allows_display(paper):
+        if not exclude_copyrighted_content or self.get_pdf_copyright_allows_display(
+            paper
+        ):
             return paper.pdf_url
         return None
 
@@ -510,7 +523,7 @@ class PaperSerializer(BasePaperSerializer):
 
     def update(self, instance, validated_data):
         request = self.context.get("request", None)
-        
+
         # Check permissions
         if not request.user.moderator:
             for field in self.Meta.moderator_only_update_fields:
@@ -941,8 +954,13 @@ class DynamicPaperSerializer(
         context = self.context
 
         # If we don't show the PDFs on the paper page, we shouldn't have previews either
-        exclude_copyrighted_content = self.context.get("exclude_copyrighted_content", True)
-        if not self.get_pdf_copyright_allows_display(paper) and exclude_copyrighted_content:
+        exclude_copyrighted_content = self.context.get(
+            "exclude_copyrighted_content", True
+        )
+        if (
+            not self.get_pdf_copyright_allows_display(paper)
+            and exclude_copyrighted_content
+        ):
             return None
 
         _context_fields = context.get("pap_dps_get_first_preview", {})
@@ -1004,7 +1022,7 @@ class DynamicPaperSerializer(
             uploaded_by, context=context, **_context_fields
         )
         return serializer.data
-    
+
     def get_pdf_copyright_allows_display(self, paper):
         return pdf_copyright_allows_display(paper)
 
@@ -1013,9 +1031,13 @@ class DynamicPaperSerializer(
             return None
 
         # Don't return copyrighted content by default, but enable override for specific cases
-        exclude_copyrighted_content = self.context.get("exclude_copyrighted_content", True)
+        exclude_copyrighted_content = self.context.get(
+            "exclude_copyrighted_content", True
+        )
 
-        if not exclude_copyrighted_content or self.get_pdf_copyright_allows_display(paper):
+        if not exclude_copyrighted_content or self.get_pdf_copyright_allows_display(
+            paper
+        ):
             return paper.file.url
         return None
 
@@ -1024,9 +1046,13 @@ class DynamicPaperSerializer(
             return None
 
         # Don't return copyrighted content by default, but enable override for specific cases
-        exclude_copyrighted_content = self.context.get('exclude_copyrighted_content', True)
+        exclude_copyrighted_content = self.context.get(
+            "exclude_copyrighted_content", True
+        )
 
-        if not exclude_copyrighted_content or self.get_pdf_copyright_allows_display(paper):
+        if not exclude_copyrighted_content or self.get_pdf_copyright_allows_display(
+            paper
+        ):
             return paper.pdf_url
         return None
 
