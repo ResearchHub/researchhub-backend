@@ -341,9 +341,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
             data = {
                 "count": len(unified_docs),
-                "previous": f"{request.scheme}://{request.get_host()}/api/researchhub_unified_document/recommendations/?user_id={user_id}&page={i - 1}"
-                if i > 1
-                else None,
+                "previous": (
+                    f"{request.scheme}://{request.get_host()}/api/researchhub_unified_document/recommendations/?user_id={user_id}&page={i - 1}"
+                    if i > 1
+                    else None
+                ),
                 "next": f"{request.scheme}://{request.get_host()}/api/researchhub_unified_document/recommendations/?user_id={user_id}&page={i + 1}",
                 "results": serializer.data,
             }
