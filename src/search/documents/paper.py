@@ -81,10 +81,14 @@ class PaperDocument(BaseDocument):
         # Variation of title which may be searched by users
         if instance.title:
             phrases.append(instance.title)
+            phrases.append(instance.paper_title)
             phrases.extend(instance.title.split())
 
         if instance.doi:
             phrases.append(instance.doi)
+
+        if instance.url:
+            phrases.append(instance.url)
 
         # Variation of journal name which may be searched by users
         if instance.external_source:
