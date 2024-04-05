@@ -58,7 +58,6 @@ HEADERS = [
     "publication_timestamp",
     "publication_year",
     "keywords",
-    "twitter_score",
     "cited_by_count",
     "is_trending_citations",
     "is_highly_cited",

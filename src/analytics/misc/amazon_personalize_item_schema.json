@@ -68,10 +68,6 @@
 			"type": ["int", "null"]
 		},
 		{
-			"name": "twitter_score",
-			"type": ["int", "null"]
-		},
-		{
 			"name": "slug",
 			"type": ["string", "null"]
 		},
