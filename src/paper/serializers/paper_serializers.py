@@ -373,8 +373,6 @@ class PaperSerializer(BasePaperSerializer):
             "score",
             "slug",
             "tagline",
-            "twitter_mentions",
-            "twitter_score",
             "unified_document_id",
             "unified_document",
             "user_flag",
@@ -495,10 +493,6 @@ class PaperSerializer(BasePaperSerializer):
                     priority=3,
                     countdown=10,
                 )
-
-                # celery_calculate_paper_twitter_score.apply_async(
-                #     (paper_id,), priority=5, countdown=10
-                # )
 
                 reset_unified_document_cache(
                     document_type=["paper", "all"],

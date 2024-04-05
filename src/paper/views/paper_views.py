@@ -307,7 +307,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 "uploaded_date",
                 "uploaded_date",
                 "url",
-                "twitter_score",
             ],
         )
         serializer_data = serializer.data
@@ -767,8 +766,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             )
         elif "removed" in ordering:
             order_papers = papers.order_by("-created_date")
-        elif "twitter_score" in ordering:
-            order_papers = papers.order_by("-twitter_score")
         elif "user-uploaded" in ordering:
             order_papers = papers.filter(created_date__gte=start_date).order_by(
                 "-created_date"

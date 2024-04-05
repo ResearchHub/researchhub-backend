@@ -25,7 +25,6 @@ from paper.tasks import (
     celery_extract_figures,
     celery_extract_meta_data,
     celery_extract_pdf_preview,
-    celery_extract_twitter_comments,
 )
 from paper.utils import (
     get_csl_item,
@@ -48,11 +47,6 @@ from researchhub_document.related_models.constants.editor_type import (
 from summary.models import Summary
 from utils.aws import lambda_compress_and_linearize_pdf
 from utils.http import check_url_contains_pdf, scraper_get_url
-from utils.twitter import (
-    get_twitter_doi_results,
-    get_twitter_results,
-    get_twitter_url_results,
-)
 
 DOI_IDENTIFIER = "10."
 ARXIV_IDENTIFIER = "arXiv:"
@@ -86,7 +80,6 @@ class Paper(AbstractGenericReactionModel):
         help_text="New Comment-Thread module as of Jan 2023",
         related_query_name="paper",
     )
-    twitter_score_updated_date = models.DateTimeField(null=True, blank=True)
     is_public = models.BooleanField(default=True, help_text=HELP_TEXT_IS_PUBLIC)
 
     # TODO clean this up to use SoftDeleteable mixin in utils
@@ -102,11 +95,9 @@ class Paper(AbstractGenericReactionModel):
     bullet_low_quality = models.BooleanField(default=False)
     summary_low_quality = models.BooleanField(default=False)
     discussion_count = models.IntegerField(default=0, db_index=True)
-    twitter_score = models.IntegerField(default=0)
 
     views = models.IntegerField(default=0)
     downloads = models.IntegerField(default=0)
-    twitter_mentions = models.IntegerField(default=0)
     citations = models.IntegerField(default=0)
     open_alex_raw_json = models.JSONField(null=True, blank=True)
     automated_bounty_created = models.BooleanField(default=False)
@@ -528,7 +519,6 @@ class Paper(AbstractGenericReactionModel):
 
     def calculate_hot_score(paper):
         ALGO_START_UNIX = 1546329600
-        TWITTER_BOOST = 100
         TIME_DIV = 3600000
         HOUR_SECONDS = 86400
         DATE_BOOST = 10
@@ -550,7 +540,6 @@ class Paper(AbstractGenericReactionModel):
 
         original_uploaded_date = paper.created_date
         uploaded_date = original_uploaded_date
-        twitter_score = paper.twitter_score
         day_delta = datetime.timedelta(days=2)
         timeframe = today - day_delta
 
@@ -576,13 +565,6 @@ class Paper(AbstractGenericReactionModel):
         else:
             num_votes = 0
             vote_avg_epoch = timeframe.timestamp()
-
-        twitter_boost_score = 0
-        if twitter_score > 0:
-            twitter_epoch = (uploaded_date.timestamp() - ALGO_START_UNIX) / TIME_DIV
-            twitter_boost_score = (
-                paper_piecewise_log(twitter_score + 1) * TWITTER_BOOST
-            ) / twitter_epoch
 
         vote_avg = (max(0, vote_avg_epoch - ALGO_START_UNIX)) / TIME_DIV
 
@@ -626,7 +608,6 @@ class Paper(AbstractGenericReactionModel):
             + vote_avg
             + vote_score
             + discussion_score
-            + twitter_boost_score
             + boost_score
         ) * 1000
 
@@ -641,45 +622,6 @@ class Paper(AbstractGenericReactionModel):
         unified_doc.hot_score = hot_score
         paper.save()
         return hot_score
-
-    def calculate_twitter_score(self):
-        result_ids = set()
-        paper_title = self.paper_title
-        url = self.url
-        doi = self.doi
-
-        if doi:
-            doi_results = set(
-                {
-                    res.user.name: res.id
-                    for res in get_twitter_doi_results(self.doi, filters="")
-                }.values()
-            )
-            result_ids |= doi_results
-
-        if url:
-            url_results = set(
-                {
-                    res.user.name: res.id
-                    for res in get_twitter_url_results(self.url, filters="")
-                }.values()
-            )
-            result_ids |= url_results
-
-        if paper_title:
-            title_results = set(
-                {
-                    res.user.name: res.id
-                    for res in get_twitter_results(self.paper_title)
-                }.values()
-            )
-            result_ids |= title_results
-
-        self.twitter_score_updated_date = datetime.datetime.now()
-        self.twitter_score = len(result_ids) + 1
-        self.twitter_mentions = self.twitter_score
-        self.save()
-        return self.twitter_score
 
     def get_promoted_score(paper):
         purchases = paper.purchases.filter(
@@ -815,19 +757,6 @@ class Paper(AbstractGenericReactionModel):
             )
         else:
             celery_extract_meta_data(self.id, title, check_title)
-
-    def extract_twitter_comments(self, use_celery=True):
-        if TESTING:
-            return
-
-        if use_celery:
-            celery_extract_twitter_comments.apply_async(
-                (self.id,),
-                priority=5,
-                countdown=10,
-            )
-        else:
-            celery_extract_twitter_comments(self.id)
 
     def get_vote_for_index(self, vote):
         wrapper = dict_to_obj(
