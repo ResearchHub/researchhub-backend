@@ -19,7 +19,6 @@ class PaperDocument(BaseDocument):
     auto_refresh = True
 
     hubs_flat = es_fields.TextField(attr="hubs_indexing_flat")
-    discussion_count = es_fields.IntegerField(attr="discussion_count_indexing")
     score = es_fields.IntegerField(attr="score_indexing")
     citations = es_fields.IntegerField()
     citation_percentile = es_fields.FloatField(attr="citation_percentile")
@@ -54,7 +53,6 @@ class PaperDocument(BaseDocument):
         analyzer=title_analyzer,
     )
     updated_date = es_fields.DateField()
-    is_open_access = es_fields.BooleanField()
     oa_status = es_fields.KeywordField()
     pdf_license = es_fields.KeywordField()
     external_source = es_fields.KeywordField()
@@ -81,10 +79,14 @@ class PaperDocument(BaseDocument):
         # Variation of title which may be searched by users
         if instance.title:
             phrases.append(instance.title)
+            phrases.append(instance.paper_title)
             phrases.extend(instance.title.split())
 
         if instance.doi:
             phrases.append(instance.doi)
+
+        if instance.url:
+            phrases.append(instance.url)
 
         # Variation of journal name which may be searched by users
         if instance.external_source:
@@ -101,6 +103,12 @@ class PaperDocument(BaseDocument):
             phrases.append(joined_kewords)
             phrases.extend(keywords)
 
+        except Exception:
+            pass
+
+        try:
+            hubs_indexing_flat = instance.hubs_indexing_flat
+            phrases.extend(hubs_indexing_flat)
         except Exception:
             pass
 

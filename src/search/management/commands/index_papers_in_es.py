@@ -19,9 +19,12 @@ def index_papers_in_bulk(es, from_id, to_id, max_attempts=5):
         print(f"processing chunk starting with: {current_id} ")
 
         # Get next "chunk"
-        queryset = Paper.objects.filter(
-            id__gte=current_id, id__lte=(current_id + batch_size - 1)
+        chunk_end_id = (
+            to_id
+            if to_id < current_id + batch_size - 1
+            else current_id + batch_size - 1
         )
+        queryset = Paper.objects.filter(id__gte=current_id, id__lte=chunk_end_id)
 
         queryset = (
             queryset.exclude(Q(title__isnull=True) | Q(is_removed=True))
@@ -43,6 +46,7 @@ def index_papers_in_bulk(es, from_id, to_id, max_attempts=5):
                     "hubs_flat": paper.hubs_indexing_flat or None,
                     "paper_title": paper.paper_title or "",
                     "paper_publish_date": paper.paper_publish_date or None,
+                    "paper_publish_year": doc.prepare_paper_publish_year(paper),
                     "abstract": paper.abstract or "",
                     "doi": paper.doi or None,
                     "raw_authors": paper.raw_authors_indexing or [],
@@ -51,10 +55,11 @@ def index_papers_in_bulk(es, from_id, to_id, max_attempts=5):
                     "title": paper.title or None,
                     "suggestion_phrases": doc.prepare_suggestion_phrases(paper),
                     "updated_date": paper.updated_date or None,
-                    "is_open_access": paper.is_open_access or None,
                     "oa_status": paper.oa_status,
                     "pdf_license": paper.pdf_license,
                     "external_source": paper.external_source,
+                    "citations": paper.citations or 0,
+                    "citation_percentile": paper.citation_percentile or 0,
                 }
 
                 action = {
@@ -100,10 +105,14 @@ class Command(BaseCommand):
         parser.add_argument(
             "--start-id", type=int, help="ID to start indexing from", default=1
         )
+        parser.add_argument(
+            "--end-id", type=int, help="ID to stop indexing at", default=None
+        )
 
     help = "Bulk index papers in Elasticsearch"
 
     def handle(self, *args, **options):
         start_id = options["start_id"]
+        end_id = options["end_id"]
         es = connections.get_connection()
-        index_papers_in_bulk(es, start_id, None)
+        index_papers_in_bulk(es, start_id, end_id)
