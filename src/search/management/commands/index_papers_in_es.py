@@ -1,3 +1,4 @@
+import sys
 import time
 
 import elasticsearch
@@ -16,6 +17,8 @@ def index_papers_in_bulk(es, from_id, to_id, max_attempts=5):
     to_id = to_id or Paper.objects.all().order_by("-id").first().id
 
     while current_id <= to_id:
+        # Flush output. Useful for debugging.
+        sys.stdout.flush()
         print(f"processing chunk starting with: {current_id} ")
 
         # Get next "chunk"
@@ -53,6 +56,8 @@ def index_papers_in_bulk(es, from_id, to_id, max_attempts=5):
                     "hubs": paper.hubs_indexing or [],
                     "slug": paper.slug or None,
                     "title": paper.title or None,
+                    "discussion_count": paper.discussion_count or 0,
+                    "hot_score": doc.prepare_hot_score(paper),
                     "suggestion_phrases": doc.prepare_suggestion_phrases(paper),
                     "updated_date": paper.updated_date or None,
                     "oa_status": paper.oa_status,

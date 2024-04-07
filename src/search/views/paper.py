@@ -15,7 +15,7 @@ from django_elasticsearch_dsl_drf.filter_backends import (
 )
 from django_elasticsearch_dsl_drf.pagination import LimitOffsetPagination
 from django_elasticsearch_dsl_drf.viewsets import DocumentViewSet
-from elasticsearch_dsl import Search
+from elasticsearch_dsl import Q, Search
 
 from search.backends.multi_match_filter import MultiMatchSearchFilterBackend
 from search.documents.paper import PaperDocument
@@ -41,7 +41,7 @@ class PaperDocumentView(DocumentViewSet):
     pagination_class = LimitOffsetPagination
     lookup_field = "id"
     # This field will be added to the ES _score
-    score_field = "score"
+    # score_field = "score"
     filter_backends = [
         MultiMatchSearchFilterBackend,
         CompoundSearchFilterBackend,
@@ -54,11 +54,11 @@ class PaperDocumentView(DocumentViewSet):
     ]
 
     search_fields = {
-        "doi": {"boost": 3},
-        "paper_title": {"boost": 3},
-        "title": {"boost": 2},
-        "raw_authors.full_name": {"boost": 1},
+        "doi": {"boost": 10},
+        "title": {"boost": 3},
+        "raw_authors.full_name": {"boost": 3},
         "abstract": {"boost": 1},
+        "external_source": {"boost": 1},
         "hubs_flat": {"boost": 1},
     }
 
@@ -67,11 +67,11 @@ class PaperDocumentView(DocumentViewSet):
             "condition": _is_doi,
             "options": {
                 "analyzer": "keyword",
+                "boost": 10,
             },
         },
-        "paper_title": {"boost": 3},
-        "title": {"boost": 2},
-        "raw_authors.full_name": {"boost": 1},
+        "title": {"boost": 4},
+        "raw_authors.full_name": {"boost": 3},
         "abstract": {"boost": 1},
         "hubs_flat": {"boost": 1},
     }
@@ -154,5 +154,20 @@ class PaperDocumentView(DocumentViewSet):
                 queryset,
                 self,
             )
+
+            # Construct the boosted query
+            boosted_query = Q(
+                "bool",
+                must=[Q("match", main_search_field="search_value")],
+                should=[
+                    Q(
+                        "match",
+                        paper_completeness={"query": "COMPLETE", "boost": 2111.0},
+                    )
+                ],
+            )
+
+            # Apply the boosted query to the queryset
+            queryset = queryset.query(boosted_query)
 
         return queryset

@@ -19,6 +19,7 @@ class PaperDocumentSerializer(DocumentSerializer):
     citation_percentile = serializers.SerializerMethodField()
     citations = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
+    es_score = serializers.SerializerMethodField()
 
     class Meta(object):
         document = PaperDocument
@@ -42,7 +43,15 @@ class PaperDocumentSerializer(DocumentSerializer):
             "paper_publish_year",
             "citations",
             "citation_percentile",
+            "es_score",
+            "score",
+            "hot_score",
+            "discussion_count",
+            "completeness_status",
         ]
+
+    def get_es_score(self, obj):
+        return obj.meta.score
 
     def get_is_highly_cited(self, hit):
         is_highly_cited = False

@@ -22,7 +22,8 @@ class PaperDocument(BaseDocument):
     score = es_fields.IntegerField(attr="score_indexing")
     citations = es_fields.IntegerField()
     citation_percentile = es_fields.FloatField(attr="citation_percentile")
-    hot_score = es_fields.IntegerField(attr="hot_score_indexing")
+    hot_score = es_fields.IntegerField()
+    discussion_count = es_fields.IntegerField()
     paper_title = es_fields.TextField(analyzer=title_analyzer)
     paper_publish_date = es_fields.DateField(
         attr="paper_publish_date", format="yyyy-MM-dd"
@@ -56,6 +57,7 @@ class PaperDocument(BaseDocument):
     oa_status = es_fields.KeywordField()
     pdf_license = es_fields.KeywordField()
     external_source = es_fields.KeywordField()
+    completeness_status = es_fields.KeywordField()
 
     class Index:
         name = "paper"
@@ -75,6 +77,8 @@ class PaperDocument(BaseDocument):
     # Includes a bunch of phrases the user may search by.
     def prepare_suggestion_phrases(self, instance):
         phrases = []
+
+        phrases.append(str(instance.id))
 
         # Variation of title which may be searched by users
         if instance.title:
@@ -139,10 +143,21 @@ class PaperDocument(BaseDocument):
             "weight": weight,
         }
 
+    def prepare_completeness_status(self, instance):
+        try:
+            return instance.get_paper_completeness()
+        except Exception:
+            return Paper.PARTIAL
+
     def prepare_paper_publish_year(self, instance):
         if instance.paper_publish_date:
             return instance.paper_publish_date.year
         return None
+
+    def prepare_hot_score(self, instance):
+        if instance.unified_document:
+            return instance.unified_document.hot_score_v2
+        return 0
 
     def prepare(self, instance):
         try:
