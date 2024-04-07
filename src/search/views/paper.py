@@ -144,18 +144,28 @@ class PaperDocumentView(DocumentViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
 
-        boosted_query = Q(
-            "bool",
-            should=[
-                Q(
-                    "term",
-                    # Boost papers that are COMPLETE meaning they contain a PDF and metadata
-                    completeness_status={"value": "COMPLETE", "boost": 5},
-                )
+        boost_queries = Q(
+            "function_score",
+            query=Q("match_all"),
+            functions=[
+                # Boost papers that are COMPLETE meaning they contain a PDF and metadata
+                {"filter": Q("term", completeness_status="COMPLETE"), "weight": 4},
+                # Boost papers with hot_score > 0
+                {
+                    "script_score": {
+                        "script": {
+                            "source": "if (doc['hot_score'].value > 0) { return 2; } else { return 1; }",
+                            "lang": "painless",
+                        }
+                    }
+                },
+                # Boost papers with abstract
+                {"filter": Q("exists", field="abstract"), "weight": 3},
             ],
+            boost_mode="sum",
         )
 
-        queryset = queryset.query(boosted_query)
+        queryset = queryset.query(boost_queries)
 
         return queryset
 
