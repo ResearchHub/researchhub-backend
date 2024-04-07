@@ -141,6 +141,24 @@ class PaperDocumentView(DocumentViewSet):
         },
     }
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+
+        boosted_query = Q(
+            "bool",
+            should=[
+                Q(
+                    "term",
+                    # Boost papers that are COMPLETE meaning they contain a PDF and metadata
+                    completeness_status={"value": "COMPLETE", "boost": 5},
+                )
+            ],
+        )
+
+        queryset = queryset.query(boosted_query)
+
+        return queryset
+
     def __init__(self, *args, **kwargs):
         self.search = Search(index=["paper"])
         super(PaperDocumentView, self).__init__(*args, **kwargs)
@@ -154,20 +172,5 @@ class PaperDocumentView(DocumentViewSet):
                 queryset,
                 self,
             )
-
-            # Construct the boosted query
-            boosted_query = Q(
-                "bool",
-                must=[Q("match", main_search_field="search_value")],
-                should=[
-                    Q(
-                        "match",
-                        paper_completeness={"query": "COMPLETE", "boost": 2111.0},
-                    )
-                ],
-            )
-
-            # Apply the boosted query to the queryset
-            queryset = queryset.query(boosted_query)
 
         return queryset
