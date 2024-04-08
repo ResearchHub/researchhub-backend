@@ -15,7 +15,7 @@ from django_elasticsearch_dsl_drf.filter_backends import (
 )
 from django_elasticsearch_dsl_drf.pagination import LimitOffsetPagination
 from django_elasticsearch_dsl_drf.viewsets import DocumentViewSet
-from elasticsearch_dsl import Search
+from elasticsearch_dsl import Q, Search
 
 from search.backends.multi_match_filter import MultiMatchSearchFilterBackend
 from search.documents.paper import PaperDocument
@@ -40,8 +40,6 @@ class PaperDocumentView(DocumentViewSet):
     serializer_class = PaperDocumentSerializer
     pagination_class = LimitOffsetPagination
     lookup_field = "id"
-    # This field will be added to the ES _score
-    score_field = "score"
     filter_backends = [
         MultiMatchSearchFilterBackend,
         CompoundSearchFilterBackend,
@@ -54,11 +52,11 @@ class PaperDocumentView(DocumentViewSet):
     ]
 
     search_fields = {
-        "doi": {"boost": 3},
-        "paper_title": {"boost": 3},
-        "title": {"boost": 2},
-        "raw_authors.full_name": {"boost": 1},
+        "doi": {"boost": 10},
+        "title": {"boost": 3},
+        "raw_authors.full_name": {"boost": 3},
         "abstract": {"boost": 1},
+        "external_source": {"boost": 1},
         "hubs_flat": {"boost": 1},
     }
 
@@ -67,11 +65,11 @@ class PaperDocumentView(DocumentViewSet):
             "condition": _is_doi,
             "options": {
                 "analyzer": "keyword",
+                "boost": 10,
             },
         },
-        "paper_title": {"boost": 3},
-        "title": {"boost": 2},
-        "raw_authors.full_name": {"boost": 1},
+        "title": {"boost": 4},
+        "raw_authors.full_name": {"boost": 3},
         "abstract": {"boost": 1},
         "hubs_flat": {"boost": 1},
     }
@@ -140,6 +138,36 @@ class PaperDocumentView(DocumentViewSet):
             },
         },
     }
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+
+        boost_queries = Q(
+            "function_score",
+            query=Q("match_all"),
+            functions=[
+                # Boost papers that are COMPLETE meaning they contain a PDF and metadata
+                {"filter": Q("term", completeness_status="COMPLETE"), "weight": 4},
+                # Boost papers with hot_score > 0
+                {
+                    "script_score": {
+                        "script": {
+                            "source": "if (doc['hot_score'].value > 0) { return 2; } else { return 1; }",
+                            "lang": "painless",
+                        }
+                    }
+                },
+                # Boost papers with abstract
+                {"filter": Q("exists", field="abstract"), "weight": 3},
+                # Boost papers that have a pdf which can be displayed
+                {"filter": Q("term", can_display_pdf_license=True), "weight": 1},
+            ],
+            boost_mode="sum",
+        )
+
+        queryset = queryset.query(boost_queries)
+
+        return queryset
 
     def __init__(self, *args, **kwargs):
         self.search = Search(index=["paper"])

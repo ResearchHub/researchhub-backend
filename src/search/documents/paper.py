@@ -7,7 +7,7 @@ from django_elasticsearch_dsl.registries import registry
 from elasticsearch_dsl import analyzer, token_filter, tokenizer
 
 from paper.models import Paper
-from paper.utils import format_raw_authors
+from paper.utils import format_raw_authors, pdf_copyright_allows_display
 from search.analyzers import content_analyzer, name_analyzer, title_analyzer
 from utils import sentry
 
@@ -22,7 +22,8 @@ class PaperDocument(BaseDocument):
     score = es_fields.IntegerField(attr="score_indexing")
     citations = es_fields.IntegerField()
     citation_percentile = es_fields.FloatField(attr="citation_percentile")
-    hot_score = es_fields.IntegerField(attr="hot_score_indexing")
+    hot_score = es_fields.IntegerField()
+    discussion_count = es_fields.IntegerField()
     paper_title = es_fields.TextField(analyzer=title_analyzer)
     paper_publish_date = es_fields.DateField(
         attr="paper_publish_date", format="yyyy-MM-dd"
@@ -56,6 +57,8 @@ class PaperDocument(BaseDocument):
     oa_status = es_fields.KeywordField()
     pdf_license = es_fields.KeywordField()
     external_source = es_fields.KeywordField()
+    completeness_status = es_fields.KeywordField()
+    can_display_pdf_license = es_fields.BooleanField()
 
     class Index:
         name = "paper"
@@ -75,6 +78,8 @@ class PaperDocument(BaseDocument):
     # Includes a bunch of phrases the user may search by.
     def prepare_suggestion_phrases(self, instance):
         phrases = []
+
+        phrases.append(str(instance.id))
 
         # Variation of title which may be searched by users
         if instance.title:
@@ -134,15 +139,37 @@ class PaperDocument(BaseDocument):
             # of values that could result in bad suggestions
             weight = int(math.log(instance.unified_document.hot_score_v2, 10) * 10)
 
+        deduped = list(set(phrases))
+        strings_only = [phrase for phrase in deduped if isinstance(phrase, str)]
+
         return {
-            "input": list(set(phrases)),  # Dedupe using set
+            "input": strings_only,  # Dedupe using set
             "weight": weight,
         }
+
+    def prepare_completeness_status(self, instance):
+        try:
+            return instance.get_paper_completeness()
+        except Exception:
+            return Paper.PARTIAL
 
     def prepare_paper_publish_year(self, instance):
         if instance.paper_publish_date:
             return instance.paper_publish_date.year
         return None
+
+    def prepare_can_display_pdf_license(self, instance):
+        try:
+            return pdf_copyright_allows_display(instance)
+        except Exception:
+            pass
+
+        return False
+
+    def prepare_hot_score(self, instance):
+        if instance.unified_document:
+            return instance.unified_document.hot_score_v2
+        return 0
 
     def prepare(self, instance):
         try:

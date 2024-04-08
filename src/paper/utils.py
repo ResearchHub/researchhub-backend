@@ -728,8 +728,12 @@ def pdf_copyright_allows_display(paper):
     Returns True if the paper can be displayed on our site.
     E.g. if the paper is open-access and has a license that allows for commercial use.
     """
-    oa_status = (paper.oa_status or '').lower() # Type from https://api.openalex.org/works?group_by=oa_status:include_unknown
-    license = (paper.pdf_license or '').lower() # Type from https://api.openalex.org/works?group_by=primary_location.license:include_unknown
+    oa_status = (
+        paper.oa_status or ""
+    ).lower()  # Type from https://api.openalex.org/works?group_by=oa_status:include_unknown
+    license = (
+        paper.pdf_license or ""
+    ).lower()  # Type from https://api.openalex.org/works?group_by=primary_location.license:include_unknown
     is_pdf_removed_by_moderator = paper.is_pdf_removed_by_moderator
 
     # we're going to assume that if a moderator removed it,
@@ -743,8 +747,8 @@ def pdf_copyright_allows_display(paper):
 
     # only rely on oa_status if license is null or unknown
     # otherwise license is non-usable for us
-    if license in [None, '', 'unknown']:
-        if oa_status in ["green", "gold"]:
+    if license in [None, "", "unknown"]:
+        if oa_status in [None, "", "green", "gold"]:
             return True
 
     return False
