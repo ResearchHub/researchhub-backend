@@ -161,6 +161,8 @@ class PaperDocumentView(DocumentViewSet):
                 },
                 # Boost papers with abstract
                 {"filter": Q("exists", field="abstract"), "weight": 3},
+                # Boost papers that have a pdf which can be displayed
+                {"filter": Q("term", can_display_pdf_license=True), "weight": 1},
             ],
             boost_mode="sum",
         )
