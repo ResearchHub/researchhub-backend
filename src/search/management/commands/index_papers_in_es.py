@@ -17,7 +17,7 @@ def index_papers_in_bulk(es, from_id, to_id, max_attempts=5):
     to_id = to_id or Paper.objects.all().order_by("-id").first().id
 
     while current_id <= to_id:
-        # Flush output. Useful for debugging.
+        # Flush output. Useful for debugging. Without this command, running script as nohup will not immediately show output.
         sys.stdout.flush()
         print(f"processing chunk starting with: {current_id} ")
 
