@@ -34,6 +34,7 @@ class PaperDocumentSerializer(DocumentSerializer):
             "paper_publish_date",
             "oa_status",
             "pdf_license",
+            "can_display_pdf_license",
             "external_source",
             "slug",
             "title",

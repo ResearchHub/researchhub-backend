@@ -7,7 +7,7 @@ from django_elasticsearch_dsl.registries import registry
 from elasticsearch_dsl import analyzer, token_filter, tokenizer
 
 from paper.models import Paper
-from paper.utils import format_raw_authors
+from paper.utils import format_raw_authors, pdf_copyright_allows_display
 from search.analyzers import content_analyzer, name_analyzer, title_analyzer
 from utils import sentry
 
@@ -58,6 +58,7 @@ class PaperDocument(BaseDocument):
     pdf_license = es_fields.KeywordField()
     external_source = es_fields.KeywordField()
     completeness_status = es_fields.KeywordField()
+    can_display_pdf_license = es_fields.BooleanField()
 
     class Index:
         name = "paper"
@@ -153,6 +154,14 @@ class PaperDocument(BaseDocument):
         if instance.paper_publish_date:
             return instance.paper_publish_date.year
         return None
+
+    def prepare_can_display_pdf_license(self, instance):
+        try:
+            return pdf_copyright_allows_display(instance)
+        except:
+            pass
+
+        return False
 
     def prepare_hot_score(self, instance):
         if instance.unified_document:
