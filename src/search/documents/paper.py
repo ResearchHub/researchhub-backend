@@ -161,7 +161,7 @@ class PaperDocument(BaseDocument):
     def prepare_can_display_pdf_license(self, instance):
         try:
             return pdf_copyright_allows_display(instance)
-        except:
+        except Exception:
             pass
 
         return False
