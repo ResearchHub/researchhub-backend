@@ -139,8 +139,11 @@ class PaperDocument(BaseDocument):
             # of values that could result in bad suggestions
             weight = int(math.log(instance.unified_document.hot_score_v2, 10) * 10)
 
+        deduped = list(set(phrases))
+        strings_only = [phrase for phrase in deduped if isinstance(phrase, str)]
+
         return {
-            "input": list(set(phrases)),  # Dedupe using set
+            "input": strings_only,  # Dedupe using set
             "weight": weight,
         }
 
