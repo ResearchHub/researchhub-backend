@@ -67,7 +67,9 @@ def index_papers_in_bulk(es, from_id, to_id, max_attempts=5):
                     "citation_percentile": paper.citation_percentile or 0,
                     "can_display_pdf_license": doc.prepare_can_display_pdf_license(
                         paper
-                    ),
+                    )
+                    or False,
+                    "completeness_status": paper.get_paper_completeness(),
                 }
 
                 action = {
