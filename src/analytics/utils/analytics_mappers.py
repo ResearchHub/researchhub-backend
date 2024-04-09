@@ -107,7 +107,7 @@ def map_paper_data(papers, on_error):
                 pass
 
             paper_has_at_least_1_citation = cited_by_count >= 1
-            paper_has_activity = paper.discussion_count > 0 or paper.twitter_score > 0
+            paper_has_activity = paper.discussion_count > 0
             should_include = False
 
             if paper_has_activity:

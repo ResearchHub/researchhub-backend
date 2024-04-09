@@ -186,7 +186,6 @@ def process_json_line(line):
             'open_alex_raw_json': json.dumps(data),
             'citations': data.get('cited_by_count', 0),
             'downloads': 0,
-            'twitter_mentions': 0,
             'views': 0,
             'is_open_access': oa.get('is_oa', False),
             'oa_status': oa.get('oa_status', None),

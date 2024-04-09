@@ -54,15 +54,6 @@ class HotScoreMixin:
 
         return boost_score
 
-    def _calc_social_media_score(self):
-        social_media_score = 0
-        doc = self.get_document()
-
-        if self.document_type == PAPER:
-            social_media_score = math.log(doc.twitter_score + 1, 4)
-
-        return social_media_score
-
     def _calc_bounty_score(self):
         total_bounty_score = 0
 
@@ -136,11 +127,8 @@ class HotScoreMixin:
         total_comment_vote_score = self._count_doc_comment_votes(doc)
         boost_score = self._calc_boost_score()
         bounty_score = self._calc_bounty_score()
-        social_media_score = self._calc_social_media_score()
         time_score = self._get_time_score(self.created_date)
-        time_score_with_magnitude = (
-            self._c(doc_vote_net_score + social_media_score) * time_score
-        )
+        time_score_with_magnitude = self._c(doc_vote_net_score) * time_score
         doc_vote_score = math.log(abs(doc_vote_net_score) + 1, 2)
         discussion_vote_score = math.log(doc.discussion_count + 1, 2) + math.log(
             max(0, total_comment_vote_score) + 1, 3
@@ -171,7 +159,6 @@ class HotScoreMixin:
                 "=score": discussion_vote_score,
             },
             "votes": {"doc_votes": doc_vote_net_score, "=score": doc_vote_score},
-            "social_media": {"=score": social_media_score},
             "boost_score": {"=score": boost_score},
             "agg_score": agg_score,
             "time_score": time_score,

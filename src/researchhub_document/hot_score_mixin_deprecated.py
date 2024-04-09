@@ -35,22 +35,7 @@ class HotScoreMixinDEPRECATED:
         # Ensure no negative values. This can happen if date is in future
         final_val = max(0, final_val)
 
-        # Debug
-        if False:
-            print(f"Value for {date} is: {final_val}")
-
         return final_val
-
-    def _calc_social_media_score(self):
-        social_media_score = 0
-        doc = self.get_document()
-
-        date_val = self._get_date_val(self.created_date)
-        if self.document_type == PAPER:
-            twitter_score = math.log(doc.twitter_score + 1, 2)
-            social_media_score = date_val * twitter_score
-
-        return social_media_score
 
     def _calc_boost_score(self):
         doc = self.get_document()
@@ -97,12 +82,8 @@ class HotScoreMixinDEPRECATED:
         }
 
         # Doc vote score
-        if self.document_type == PAPER:
-            doc_vote_net_score = doc.calculate_score(ignore_twitter_score=True)
-            votes = doc.votes.all()
-        else:
-            doc_vote_net_score = doc.calculate_score()
-            votes = doc.votes.all()
+        doc_vote_net_score = doc.calculate_score()
+        votes = doc.votes.all()
 
         doc_vote_time_score = self._calc_vote_score(votes)
         doc_vote_score = (
@@ -126,10 +107,6 @@ class HotScoreMixinDEPRECATED:
             "created_date": self.created_date,
             "=doc_created_score (WEIGHTED)": doc_created_score,
         }
-
-        # Doc social media score
-        social_media_score = self._calc_social_media_score()
-        debug_obj["social_media_score"] = {"=social_media_score": social_media_score}
 
         # Doc discussion vote score
         discussion_vote_score = 0
@@ -195,11 +172,7 @@ class HotScoreMixinDEPRECATED:
         ] = discussion_vote_score
 
         hot_score = (
-            doc_created_score
-            + doc_vote_score
-            + discussion_vote_score
-            + social_media_score
-            + boost_score
+            doc_created_score + doc_vote_score + discussion_vote_score + boost_score
         )
         final_hot_score = hot_score * 10000
         debug_obj["hot_score"] = hot_score

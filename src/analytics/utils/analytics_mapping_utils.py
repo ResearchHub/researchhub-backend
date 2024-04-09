@@ -283,7 +283,6 @@ def build_doc_props_for_item(unified_doc):
         mapped["oa_status"] = paper.oa_status
         mapped["authors"] = ""
         mapped["journal"] = paper.external_source
-        mapped["twitter_score"] = paper.twitter_score
         mapped["body"] = paper.abstract
 
         mapped["is_allowed_to_display_pdf"] = ""
@@ -313,7 +312,6 @@ def build_doc_props_for_item(unified_doc):
 
     else:
         mapped["oa_status"] = "gold"
-        mapped["twitter_score"] = 0
 
         authors_list = [
             f"{author.first_name} {author.last_name}"

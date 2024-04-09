@@ -51,7 +51,6 @@ Clone the repository and create an initial configuration by copying the sample c
 ```shell
 cp db_config.sample.py src/config_local/db.py
 cp keys.sample.py src/config_local/keys.py
-cp twitter_config_sample.py src/config_local/twitter.py
 ```
 
 Make adjustments to the new configuration files as needed.
@@ -100,7 +99,6 @@ Alternatively, debugging of the application is possible with the following launc
 ```
 cp db_config.sample.py src/config_local/db.py
 cp keys.sample.py src/config_local/keys.py
-cp twitter_config_sample.py src/config_local/twitter.py
 ```
 
 3. Run:

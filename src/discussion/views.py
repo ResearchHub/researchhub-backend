@@ -197,16 +197,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         order = ["-ordering_score", "created_date"]
         if document_type == "paper":
             paper_id = get_document_id_from_path(self.request)
-            if source and source == "twitter":
-                try:
-                    Paper.objects.get(id=paper_id).extract_twitter_comments(
-                        use_celery=True
-                    )
-                except Exception as e:
-                    sentry.log_error(e)
-
-                threads = Thread.objects.filter(paper=paper_id, source=source)
-            elif source == "researchhub":
+            if source == "researchhub":
                 threads = Thread.objects.filter(
                     paper=paper_id, source__in=[source, Thread.INLINE_PAPER_BODY]
                 )

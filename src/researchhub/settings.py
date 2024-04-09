@@ -46,10 +46,10 @@ CONFIG = os.environ.get("CONFIG")
 
 if CLOUD or CONFIG:
     CONFIG_BASE_DIR = "config"
-    from config import db, keys, twitter
+    from config import db, keys
 else:
     CONFIG_BASE_DIR = "config_local"
-    from config_local import db, keys, twitter
+    from config_local import db, keys
 
 if DEVELOPMENT or TESTING:
     BASE_FRONTEND_URL = "http://localhost:3000"
@@ -755,31 +755,6 @@ if elastic_token:
             # 'elasticapm.processors.sanitize_http_request_querystring',
         ),
     }
-
-# Twitter
-
-TWITTER_CONSUMER_KEY = os.environ.get(
-    "TWITTER_CONSUMER_KEY", twitter.TWITTER_CONSUMER_KEY
-)
-TWITTER_CONSUMER_SECRET = os.environ.get(
-    "TWITTER_CONSUMER_SECRET", twitter.TWITTER_CONSUMER_SECRET
-)
-TWITER_ACCESS_TOKEN = os.environ.get("TWITER_ACCESS_TOKEN", twitter.TWITER_ACCESS_TOKEN)
-TWITTER_ACCESS_TOKEN_SECRET = os.environ.get(
-    "TWITTER_ACCESS_TOKEN_SECRET", twitter.TWITTER_ACCESS_TOKEN_SECRET
-)
-TWITTER_CONSUMER_KEY_ALT = os.environ.get(
-    "TWITTER_CONSUMER_KEY_ALT", twitter.TWITTER_CONSUMER_KEY_ALT
-)
-TWITTER_CONSUMER_SECRET_ALT = os.environ.get(
-    "TWITTER_CONSUMER_SECRET_ALT", twitter.TWITTER_CONSUMER_SECRET_ALT
-)
-TWITER_ACCESS_TOKEN_ALT = os.environ.get(
-    "TWITER_ACCESS_TOKEN_ALT", twitter.TWITER_ACCESS_TOKEN_ALT
-)
-TWITTER_ACCESS_TOKEN_SECRET_ALT = os.environ.get(
-    "TWITTER_ACCESS_TOKEN_SECRET_ALT", twitter.TWITTER_ACCESS_TOKEN_SECRET_ALT
-)
 
 # MailChimp
 MAILCHIMP_SERVER = "us4"
