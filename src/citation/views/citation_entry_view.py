@@ -500,6 +500,13 @@ class CitationEntryViewSet(ModelViewSet):
         with transaction.atomic():
             try:
                 target_citation_ids = request.data.get("citation_entry_ids", [])
+
+                if len(target_citation_ids) == 0:
+                    return Response(
+                        {"message": "No citation ids provided"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
                 current_user = request.user
                 for citation_id in target_citation_ids:
                     target_ref = self.get_queryset().filter(id=citation_id)
