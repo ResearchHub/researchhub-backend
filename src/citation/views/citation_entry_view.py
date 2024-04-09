@@ -242,7 +242,7 @@ class CitationEntryViewSet(ModelViewSet):
             request._mutable = False
             res = super().create(request)
 
-            if key and res.status_code == 201:
+            if res.status_code == 201:
                 citation = CitationEntry.objects.get(id=res.data["id"])
                 citation.attachment = key
                 citation.save(update_fields=["attachment"])
