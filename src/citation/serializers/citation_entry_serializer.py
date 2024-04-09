@@ -1,5 +1,6 @@
 from datetime import datetime
 
+import rest_framework.serializers as serializers
 from django.db import transaction
 from django.utils.text import slugify
 from jsonschema import validate
@@ -18,6 +19,17 @@ from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 from user.serializers import DynamicOrganizationSerializer, DynamicUserSerializer
 from utils.http import remove_origin_from_url
 from utils.serializers import DefaultAuthenticatedSerializer
+
+
+class MinimalCitationEntrySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CitationEntry
+        fields = [
+            "id",
+            "organization_id",
+            "project_id",
+            "related_unified_doc_id",
+        ]
 
 
 class CitationEntrySerializer(DefaultAuthenticatedSerializer):
