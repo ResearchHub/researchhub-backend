@@ -380,7 +380,7 @@ class CitationEntryViewSet(ModelViewSet):
         serializer = MinimalCitationEntrySerializer(saved_citations, many=True)
         return Response(serializer.data)
 
-    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
+    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def user_citations(self, request):
         citations_query = self.filter_queryset(self.get_queryset().none()).order_by(
             *self.ordering
