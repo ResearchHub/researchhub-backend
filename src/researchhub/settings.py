@@ -833,7 +833,7 @@ ASYNC_SERVICE_API_KEY = os.environ.get(
     "ASYNC_SERVICE_API_KEY", keys.ASYNC_SERVICE_API_KEY or "testapikeyservice"
 )
 
-WEB3_NETWORK = os.environ.get("WEB3_NETWORK", "sepolia")
+WEB3_NETWORK = os.environ.get("WEB3_NETWORK", keys.WEB3_NETWORK)
 PROVIDER_URL = os.environ.get("PROVIDER_URL", keys.PROVIDER_URL)
 WEB3_KEYSTORE_BUCKET = os.environ.get("WEB3_KEYSTORE_BUCKET", keys.WEB3_KEYSTORE_BUCKET)
 WEB3_KEYSTORE_FILE = os.environ.get("WEB3_KEYSTORE_FILE", keys.WEB3_KEYSTORE_FILE)
