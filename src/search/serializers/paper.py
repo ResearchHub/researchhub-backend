@@ -11,7 +11,7 @@ from utils.sentry import log_error
 class PaperDocumentSerializer(DocumentSerializer):
     slug = serializers.SerializerMethodField()
     highlight = serializers.SerializerMethodField()
-    unified_doc_id = serializers.SerializerMethodField()
+    unified_document_id = serializers.SerializerMethodField()
     uploaded_by = serializers.SerializerMethodField()
     uploaded_date = serializers.SerializerMethodField()
     is_highly_cited = serializers.SerializerMethodField()
@@ -39,7 +39,7 @@ class PaperDocumentSerializer(DocumentSerializer):
             "slug",
             "title",
             "paper_title",
-            "unified_doc_id",
+            "unified_document_id",
             "is_highly_cited",
             "paper_publish_year",
             "citations",
@@ -117,7 +117,7 @@ class PaperDocumentSerializer(DocumentSerializer):
         except Exception as e:
             log_error(e, "Paper is missing slug")
 
-    def get_unified_doc_id(self, paper):
+    def get_unified_document_id(self, paper):
         try:
             obj = Paper.objects.get(id=paper.id)
             return obj.unified_document.id
