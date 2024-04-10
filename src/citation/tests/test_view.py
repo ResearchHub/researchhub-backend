@@ -49,9 +49,6 @@ class CitationEntryViewTests(APITestCaseWithOrg):
                 "project_id": project_id,
             },
             format="json",
-            headers={
-                "X-Organization-Id": self.authenticated_user.organization.id,
-            },
         )
 
         citation_id = response.data["id"]
