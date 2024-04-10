@@ -54,6 +54,7 @@ from researchhub.settings import (
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.related_models.user_model import User
+from user.utils import get_user_organizations
 from utils.aws import get_s3_object_name
 from utils.bibtex import BibTeXParser
 from utils.openalex import OpenAlex
@@ -368,30 +369,8 @@ class CitationEntryViewSet(ModelViewSet):
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def saved_user_citations(self, request):
-        from django.contrib.contenttypes.models import ContentType
-        from django.db import models
-        from django.db.models import Case, When
-
-        from user.models import Organization, User
-
-        org_content_type = ContentType.objects.get_for_model(Organization)
         user = User.objects.get(id=request.user.id)
-        organization_ids = (
-            user.permissions.annotate(
-                org_id=Case(
-                    When(content_type=org_content_type, then="object_id"),
-                    When(
-                        uni_doc_source__note__organization__isnull=False,
-                        then="uni_doc_source__note__organization",
-                    ),
-                    output_field=models.PositiveIntegerField(),
-                )
-            )
-            .filter(org_id__isnull=False)
-            .values("org_id")
-        )
-
-        organizations = Organization.objects.filter(id__in=organization_ids)
+        organizations = get_user_organizations(user)
         saved_citations = self.get_queryset().filter(
             organization_id__in=[o.id for o in organizations]
         )

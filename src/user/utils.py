@@ -1,5 +1,9 @@
+from django.contrib.contenttypes.models import ContentType
+from django.db import models
+from django.db.models import Case, When
+
 from user.aggregates import TenPercentile, TwoPercentile
-from user.models import User
+from user.models import Organization, User
 from user.tasks import preload_latest_activity
 from utils.sentry import log_error
 
@@ -90,3 +94,26 @@ def reset_latest_acitvity_cache(
             preload_latest_activity.apply_async((hub_id, ordering), priority=1)
         else:
             preload_latest_activity(hub_id, ordering)
+
+
+def get_user_organizations(user):
+    """Get all organizations which user has access to"""
+
+    org_content_type = ContentType.objects.get_for_model(Organization)
+    organization_ids = (
+        user.permissions.annotate(
+            org_id=Case(
+                When(content_type=org_content_type, then="object_id"),
+                When(
+                    uni_doc_source__note__organization__isnull=False,
+                    then="uni_doc_source__note__organization",
+                ),
+                output_field=models.PositiveIntegerField(),
+            )
+        )
+        .filter(org_id__isnull=False)
+        .values("org_id")
+    )
+
+    organizations = Organization.objects.filter(id__in=organization_ids)
+    return organizations

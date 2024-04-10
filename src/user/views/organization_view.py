@@ -28,6 +28,7 @@ from user.serializers import (
     DynamicUserSerializer,
     OrganizationSerializer,
 )
+from user.utils import get_user_organizations
 
 
 class OrganizationViewSet(viewsets.ModelViewSet):
@@ -230,23 +231,8 @@ class OrganizationViewSet(viewsets.ModelViewSet):
             user = request.user
         else:
             user = User.objects.get(id=pk)
-        org_content_type = ContentType.objects.get_for_model(Organization)
 
-        organization_ids = (
-            user.permissions.annotate(
-                org_id=Case(
-                    When(content_type=org_content_type, then="object_id"),
-                    When(
-                        uni_doc_source__note__organization__isnull=False,
-                        then="uni_doc_source__note__organization",
-                    ),
-                    output_field=models.PositiveIntegerField(),
-                )
-            )
-            .filter(org_id__isnull=False)
-            .values("org_id")
-        )
-        organizations = self.queryset.filter(id__in=organization_ids)
+        organizations = get_user_organizations(user)
 
         serializer = DynamicOrganizationSerializer(
             organizations,
