@@ -368,7 +368,9 @@ class CitationEntryViewSet(ModelViewSet):
         )
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
-    def saved_user_citations(self, request):
+    def saved_org_citations(self, request):
+        """Returns all citations saved within the user's organization(s)"""
+
         user = User.objects.get(id=request.user.id)
         organizations = get_user_organizations(user)
         saved_citations = self.get_queryset().filter(
