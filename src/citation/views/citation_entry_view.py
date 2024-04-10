@@ -366,19 +366,16 @@ class CitationEntryViewSet(ModelViewSet):
             status=200,
         )
 
-    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
+    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def saved_user_citations(self, request):
         from django.contrib.contenttypes.models import ContentType
         from django.db import models
-        from django.db.models import Case, Count, F, Q, Sum, Value, When
+        from django.db.models import Case, When
 
-        # permissions = User.objects.get(id=10).permissions.filter(content_type_id=102, access_type__in=['ADMIN','MEMBER'], organization_id__isnull=False)
-        # user_org_ids = [p.organization_id for p in permissions]
         from user.models import Organization, User
 
         org_content_type = ContentType.objects.get_for_model(Organization)
-
-        user = User.objects.get(id=10)
+        user = User.objects.get(id=request.user.id)
         organization_ids = (
             user.permissions.annotate(
                 org_id=Case(

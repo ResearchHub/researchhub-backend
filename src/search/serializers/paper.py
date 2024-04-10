@@ -20,6 +20,7 @@ class PaperDocumentSerializer(DocumentSerializer):
     citations = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
     es_score = serializers.SerializerMethodField()
+    reviews = serializers.SerializerMethodField()
 
     class Meta(object):
         document = PaperDocument
@@ -123,6 +124,18 @@ class PaperDocumentSerializer(DocumentSerializer):
             return obj.unified_document.id
         except Exception as e:
             log_error(e, "Paper is missing unified_document")
+
+    def get_reviews(self, hit):
+        reviews = {"avg": 0, "count": 0}
+
+        try:
+            paper = Paper.objects.get(id=hit["id"])
+            if paper.unified_document.reviews.exists():
+                reviews = paper.unified_document.get_review_details()
+        except Exception:
+            pass
+
+        return reviews
 
     def get_uploaded_by(self, hit):
         try:
