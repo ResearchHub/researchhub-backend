@@ -33,6 +33,9 @@ from citation.schema import (
     generate_schema_for_citation,
 )
 from citation.serializers import CitationEntrySerializer
+from citation.serializers.citation_entry_serializer import (
+    MinimalCitationEntrySerializer,
+)
 from citation.tasks import handle_creating_citation_entry
 from citation.utils import (
     create_citation_entry_from_bibtex_entry_if_not_exists,
@@ -50,6 +53,8 @@ from researchhub.settings import (
     AWS_STORAGE_BUCKET_NAME,
 )
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from user.related_models.user_model import User
+from user.utils import get_user_organizations
 from utils.aws import get_s3_object_name
 from utils.bibtex import BibTeXParser
 from utils.openalex import OpenAlex
@@ -185,7 +190,9 @@ class CitationEntryViewSet(ModelViewSet):
             if file and res.status_code == 201:
                 citation.attachment = file
                 citation.save(update_fields=["attachment"])
-            return res
+
+            serializer = MinimalCitationEntrySerializer(citation)
+            return Response(serializer.data, status=res.status_code)
 
     @action(detail=True, methods=["post"])
     def add_paper_as_citation(self, request, pk):
@@ -198,7 +205,7 @@ class CitationEntryViewSet(ModelViewSet):
             json = generate_json_for_rh_paper(paper)
             key = None
 
-            if file := paper.file and pdf_copyright_allows_display(paper):
+            if (file := paper.file) and pdf_copyright_allows_display(paper):
                 # Creates a copy of the file in S3, only if copyright allows.
                 # Otherwise user will have to upload the file manually.
                 today = datetime.now()
@@ -236,11 +243,15 @@ class CitationEntryViewSet(ModelViewSet):
             request._mutable = False
             res = super().create(request)
 
-            if key and res.status_code == 201:
+            if res.status_code == 201:
                 citation = CitationEntry.objects.get(id=res.data["id"])
                 citation.attachment = key
                 citation.save(update_fields=["attachment"])
-            return res
+
+                serializer = MinimalCitationEntrySerializer(citation)
+                return Response(serializer.data, status=res.status_code)
+
+            return Response({}, status=res.status_code)
 
     @action(
         detail=True,
@@ -357,6 +368,19 @@ class CitationEntryViewSet(ModelViewSet):
         )
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
+    def saved_org_citations(self, request):
+        """Returns all citations saved within the user's organization(s)"""
+
+        user = User.objects.get(id=request.user.id)
+        organizations = get_user_organizations(user)
+        saved_citations = self.get_queryset().filter(
+            organization_id__in=[o.id for o in organizations]
+        )
+
+        serializer = MinimalCitationEntrySerializer(saved_citations, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def user_citations(self, request):
         citations_query = self.filter_queryset(self.get_queryset().none()).order_by(
             *self.ordering
@@ -454,6 +478,13 @@ class CitationEntryViewSet(ModelViewSet):
         with transaction.atomic():
             try:
                 target_citation_ids = request.data.get("citation_entry_ids", [])
+
+                if len(target_citation_ids) == 0:
+                    return Response(
+                        {"message": "No citation ids provided"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
                 current_user = request.user
                 for citation_id in target_citation_ids:
                     target_ref = self.get_queryset().filter(id=citation_id)

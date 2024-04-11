@@ -11,7 +11,7 @@ from utils.sentry import log_error
 class PaperDocumentSerializer(DocumentSerializer):
     slug = serializers.SerializerMethodField()
     highlight = serializers.SerializerMethodField()
-    unified_doc_id = serializers.SerializerMethodField()
+    unified_document_id = serializers.SerializerMethodField()
     uploaded_by = serializers.SerializerMethodField()
     uploaded_date = serializers.SerializerMethodField()
     is_highly_cited = serializers.SerializerMethodField()
@@ -20,6 +20,7 @@ class PaperDocumentSerializer(DocumentSerializer):
     citations = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
     es_score = serializers.SerializerMethodField()
+    reviews = serializers.SerializerMethodField()
 
     class Meta(object):
         document = PaperDocument
@@ -39,7 +40,7 @@ class PaperDocumentSerializer(DocumentSerializer):
             "slug",
             "title",
             "paper_title",
-            "unified_doc_id",
+            "unified_document_id",
             "is_highly_cited",
             "paper_publish_year",
             "citations",
@@ -117,12 +118,24 @@ class PaperDocumentSerializer(DocumentSerializer):
         except Exception as e:
             log_error(e, "Paper is missing slug")
 
-    def get_unified_doc_id(self, paper):
+    def get_unified_document_id(self, paper):
         try:
             obj = Paper.objects.get(id=paper.id)
             return obj.unified_document.id
         except Exception as e:
             log_error(e, "Paper is missing unified_document")
+
+    def get_reviews(self, hit):
+        reviews = {"avg": 0, "count": 0}
+
+        try:
+            paper = Paper.objects.get(id=hit["id"])
+            if paper.unified_document.reviews.exists():
+                reviews = paper.unified_document.get_review_details()
+        except Exception:
+            pass
+
+        return reviews
 
     def get_uploaded_by(self, hit):
         try:

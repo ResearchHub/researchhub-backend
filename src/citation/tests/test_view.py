@@ -1,4 +1,5 @@
 from django.core.files.uploadedfile import SimpleUploadedFile
+
 from citation.constants import JOURNAL_ARTICLE
 from citation.models import CitationEntry
 from paper.tests.helpers import create_paper
@@ -12,6 +13,49 @@ class CitationEntryViewTests(APITestCaseWithOrg):
         self.authenticated_user = create_random_default_user("user1")
         self.random_user = create_random_default_user("random1")
         self.organization_user = create_random_default_user("orguser1")
+
+    def test_get_saved_org_citations(self):
+        self.client.force_authenticate(self.organization_user)
+        paper = create_paper()
+
+        # Set up organization permissions
+        Permission.objects.create(
+            access_type="ADMIN",
+            source=self.authenticated_user.organization,
+            user=self.organization_user,
+        )
+        self.client.force_authenticate(
+            self.organization_user, organization=self.authenticated_user.organization
+        )
+
+        # Next, we need to create a project
+        response = self.client.post(
+            f"/api/citation_project/",
+            {
+                "children": [],
+                "organization": self.authenticated_user.organization.id,
+                "collaborators": [],
+                "is_public": True,
+                "project_name": "TEST",
+                "status": "full_access",
+            },
+        )
+        project_id = response.data["id"]
+
+        # Now let's add the paper to the project
+        response = self.client.post(
+            f"/api/citation_entry/{paper.id}/add_paper_as_citation/",
+            {
+                "project_id": project_id,
+            },
+            format="json",
+        )
+
+        citation_id = response.data["id"]
+
+        # Finally let's ensure the citation was saved
+        response = self.client.get("/api/citation_entry/saved_org_citations/")
+        self.assertEqual(response.data[0]["id"], citation_id)
 
     def test_create_citation(self):
         self.client.force_authenticate(self.authenticated_user)
@@ -309,20 +353,23 @@ class PaperCitationEntryViewTests(APITestCaseWithOrg):
             {
                 "organization": self.authenticated_user.organization.id,
             },
-            format='json'
+            format="json",
         )
 
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data["fields"]["title"], paper.paper_title)
 
     def test_add_paper_as_citation_with_pdf_and_closed_access(self):
         self.client.force_authenticate(self.authenticated_user)
 
-        mock_file = SimpleUploadedFile('test.pdf', b'These are the contents of the pdf file.', content_type='application/pdf')
+        mock_file = SimpleUploadedFile(
+            "test.pdf",
+            b"These are the contents of the pdf file.",
+            content_type="application/pdf",
+        )
         paper = create_paper()
         paper.paper_title = "test_add_paper_as_citation_with_pdf_and_closed_access"
         paper.file = mock_file
-        paper.pdf_license = "publisher-specific, author-manuscript" # from https://api.openalex.org/works?group_by=primary_location.license:include_unknown
+        paper.pdf_license = "publisher-specific, author-manuscript"  # from https://api.openalex.org/works?group_by=primary_location.license:include_unknown
         paper.save()
 
         response = self.client.post(
@@ -330,10 +377,11 @@ class PaperCitationEntryViewTests(APITestCaseWithOrg):
             {
                 "organization": self.authenticated_user.organization.id,
             },
-            format='json'
+            format="json",
         )
 
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.data["fields"]["title"], paper.paper_title)
-        # should've skipped attaching pdf since it's closed access
-        self.assertIsNone(response.data["attachment"])
+        paper.refresh_from_db()
+
+        citation = CitationEntry.objects.get(id=response.data["id"])
+        self.assertFalse(citation.attachment)

@@ -485,6 +485,8 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "uploaded_by",
                     "uploaded_date",
                     "raw_authors",
+                    "twitter_score",
+                    "citations",
                 ]
             },
             "doc_duds_get_bounties": {
