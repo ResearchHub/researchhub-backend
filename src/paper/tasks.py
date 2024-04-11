@@ -15,7 +15,6 @@ import arxiv
 import feedparser
 import fitz
 import requests
-import twitter
 from bs4 import BeautifulSoup
 from celery.decorators import periodic_task
 from celery.task.schedules import crontab
@@ -69,7 +68,6 @@ from utils.arxiv.categories import get_category_name
 from utils.http import check_url_contains_pdf
 from utils.openalex import OpenAlex
 from utils.parsers import get_license_by_url, rebuild_sentence_from_inverted_index
-from utils.twitter import get_twitter_results, get_twitter_url_results
 
 logger = get_task_logger(__name__)
 
@@ -260,7 +258,9 @@ def add_orcid_authors_batch(paper_ids):
     for paper in papers:
         orcid_authors = []
         doi = paper.doi
-        arxiv_id = paper.alternate_ids.get("arxiv", None) if paper.alternate_ids else None
+        arxiv_id = (
+            paper.alternate_ids.get("arxiv", None) if paper.alternate_ids else None
+        )
 
         if doi is not None:
             orcid_authors = orcid_api.get_authors(doi=doi)
@@ -274,7 +274,7 @@ def add_orcid_authors_batch(paper_ids):
         if len(orcid_authors) < 1:
             print("No authors to add")
             logging.info("Did not find paper identifier to give to ORCID API")
-            continue # skip to next paper
+            continue  # skip to next paper
 
         paper.authors.add(*orcid_authors)
         if orcid_authors:
@@ -457,90 +457,6 @@ def celery_extract_meta_data(paper_id, title, check_title):
 
 
 @app.task(queue=QUEUE_PAPER_MISC)
-def celery_extract_twitter_comments(paper_id):
-    # TODO: Optimize this
-    return
-
-    if paper_id is None:
-        return
-
-    Paper = apps.get_model("paper.Paper")
-    paper = Paper.objects.get(id=paper_id)
-    url = paper.url
-    if not url:
-        return
-
-    source = "twitter"
-    try:
-        results = get_twitter_url_results(url)
-        for res in results:
-            source_id = res.id_str
-            username = res.user.screen_name
-            text = res.full_text
-            thread_user_profile_img = res.user.profile_image_url_https
-            thread_created_date = res.created_at_in_seconds
-            thread_created_date = datetime.fromtimestamp(
-                thread_created_date, timezone.utc
-            )
-
-            thread_exists = Thread.objects.filter(
-                external_metadata__source_id=source_id
-            ).exists()
-
-            if not thread_exists:
-                external_thread_metadata = {
-                    "source_id": source_id,
-                    "username": username,
-                    "picture": thread_user_profile_img,
-                    "url": f"https://twitter.com/{username}/status/{source_id}",
-                }
-                thread = Thread.objects.create(
-                    paper=paper,
-                    source=source,
-                    external_metadata=external_thread_metadata,
-                    plain_text=text,
-                )
-                thread.created_date = thread_created_date
-                thread.save()
-
-                query = f"to:{username}"
-                replies = get_twitter_results(query)
-                for reply in replies:
-                    reply_username = reply.user.screen_name
-                    reply_id = reply.id_str
-                    reply_text = reply.full_text
-                    comment_user_img = reply.user.profile_image_url_https
-                    comment_created_date = reply.created_at_in_seconds
-                    comment_created_date = datetime.fromtimestamp(
-                        comment_created_date, timezone.utc
-                    )
-
-                    reply_exists = Comment.objects.filter(
-                        external_metadata__source_id=reply_id
-                    ).exists()
-
-                    if not reply_exists:
-                        external_comment_metadata = {
-                            "source_id": reply_id,
-                            "username": reply_username,
-                            "picture": comment_user_img,
-                            "url": f"https://twitter.com/{reply_username}/status/{reply_id}",
-                        }
-                        comment = Comment.objects.create(
-                            parent=thread,
-                            source=source,
-                            external_metadata=external_comment_metadata,
-                            plain_text=reply_text,
-                        )
-                        comment.created_date = comment_created_date
-                        comment.save()
-    except twitter.TwitterError:
-        # TODO: Do we want to push the call back to celery if it exceeds the
-        # rate limit?
-        return
-
-
-@app.task(queue=QUEUE_PAPER_MISC)
 def celery_get_paper_citation_count(paper_id, doi):
     if not doi:
         return
@@ -702,56 +618,6 @@ def log_daily_uploads():
     return request.status_code, paper_count
 
 
-@periodic_task(
-    run_every=crontab(minute=0, hour="2"), priority=3, queue=QUEUE_PULL_PAPERS
-)
-def get_biorxiv_tweets():
-    from paper.models import Paper
-
-    three_days_ago = datetime.now() - timedelta(days=3)
-    biorxiv_papers = Paper.objects.filter(
-        external_source__icontains="bioRxiv", created_date__gte=three_days_ago
-    )
-    for paper in biorxiv_papers.iterator():
-        set_biorxiv_tweet_count.apply_async(
-            (
-                paper.url,
-                paper.doi,
-                paper.id,
-            ),
-            priority=4,
-            countdown=2,
-        )
-
-@app.task(queue=QUEUE_PULL_PAPERS)
-def set_biorxiv_tweet_count(url, doi, paper_id):
-    from paper.models import Paper
-    from researchhub_document.signals import sync_scores
-
-    counts = _get_biorxiv_tweet_counts(url, doi)
-    paper = Paper.objects.get(id=paper_id)
-    paper.twitter_score = counts
-    paper.save(update_fields=["twitter_score"])
-    sync_scores(paper.unified_document, paper)
-
-
-def _get_biorxiv_tweet_counts(url, doi):
-    try:
-        res = requests.get(
-            f"https://connect.biorxiv.org/eval_get1.php?url={url}&doi={doi}", timeout=10
-        )
-        # For some reason, the request data comes back with "\ufeff" and then also has an open paren ( and a closed paren )
-        escaped_json_res = json.loads(res.text.strip("\ufeff(").rstrip(res.text[-1]))
-        count = 0
-        for message in escaped_json_res["messages"]:
-            count += message["count_tweets"] + message["count_retweets"]
-        return count
-    except Exception as e:
-        print(e)
-        sentry.log_error(e)
-        return 0
-
-
 @app.task(queue=QUEUE_PULL_PAPERS)
 def pull_openalex_author_works(user_id, openalex_id):
     from paper.models import Paper
@@ -894,12 +760,14 @@ def pull_openalex_author_works(user_id, openalex_id):
 
 @periodic_task(
     # run at 6:00 AM UTC (10:00 PM PST)
-    run_every=crontab(minute=00, hour=6), priority=3, queue=QUEUE_PULL_PAPERS
+    run_every=crontab(minute=00, hour=6),
+    priority=3,
+    queue=QUEUE_PULL_PAPERS,
 )
 def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
     """
     Pull new works (papers) from OpenAlex.
-    
+
     This looks complicated because we're trying to handle retries and logging.
     But simply:
     1. Get new works from OpenAlex in batches
@@ -921,11 +789,15 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
         # figure out when we should start fetching from.
         # if we have an existing successful run, we start from the last successful run
         try:
-            last_successful_run_log = PaperFetchLog.objects.filter(
-                source=PaperFetchLog.OPENALEX,
-                fetch_type=PaperFetchLog.FETCH_NEW,
-                status=PaperFetchLog.SUCCESS,
-            ).order_by("-started_date").first()
+            last_successful_run_log = (
+                PaperFetchLog.objects.filter(
+                    source=PaperFetchLog.OPENALEX,
+                    fetch_type=PaperFetchLog.FETCH_NEW,
+                    status=PaperFetchLog.SUCCESS,
+                )
+                .order_by("-started_date")
+                .first()
+            )
 
             if last_successful_run_log:
                 date_to_fetch_from = last_successful_run_log.started_date
@@ -965,17 +837,19 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
             last_successful_run_log = PaperFetchLog.objects.get(id=paper_fetch_log_id)
             date_to_fetch_from = last_successful_run_log.fetch_since_date
         except Exception as e:
-            sentry.log_error(e, message=f"Failed to get last log for id {paper_fetch_log_id}")
+            sentry.log_error(
+                e, message=f"Failed to get last log for id {paper_fetch_log_id}"
+            )
             # consider this a failed run
             PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
                 status=PaperFetchLog.FAILED,
                 completed_date=datetime.now(),
             )
             return False
-        
+
         sentry.log_info(f"Retrying OpenAlex pull: {paper_fetch_log_id}")
 
-    if retry > 2: # too many retries
+    if retry > 2:  # too many retries
         if paper_fetch_log_id is not None:
             PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
                 status=PaperFetchLog.FAILED,
@@ -995,8 +869,7 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
 
         while True:
             works, next_cursor = open_alex.get_new_works_batch(
-                since_date=date_to_fetch_from,
-                next_cursor=next_cursor
+                since_date=date_to_fetch_from, next_cursor=next_cursor
             )
             # if we've reached the end of the results, exit the loop
             if next_cursor is None or works is None or len(works) == 0:
@@ -1007,7 +880,7 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
             if total_papers_processed >= start_index:
                 works_to_process = works
             elif total_papers_processed + len(works) >= start_index:
-                works_to_process = works[start_index - total_papers_processed:]
+                works_to_process = works[start_index - total_papers_processed :]
             if works_to_process is not None:
                 _process_openalex_works_batch.apply_async(
                     (works_to_process,),
@@ -1029,7 +902,7 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
         pull_new_openalex_works.apply_async(
             (total_papers_processed, retry + 1, paper_fetch_log_id),
             priority=4,
-            countdown=10 + (retry * 2)
+            countdown=10 + (retry * 2),
         )
         # update total_papers_processed in the log
         if paper_fetch_log_id is not None:
@@ -1100,9 +973,13 @@ def _process_openalex_works_batch(works):
             try:
                 paper.save()
             except IntegrityError as e:
-                sentry.log_error(e, message=f"Failed to save paper, DOI already exists: {paper.doi}")
+                sentry.log_error(
+                    e, message=f"Failed to save paper, DOI already exists: {paper.doi}"
+                )
             except Exception as e:
-                sentry.log_error(e, message=f"Failed to save paper, unexpected error: {paper.doi}")
+                sentry.log_error(
+                    e, message=f"Failed to save paper, unexpected error: {paper.doi}"
+                )
 
             # if the paper is from biorXiv, we want to add it to the biorXiv Community Reviews hub
             # so that it can get auto-assigned a peer-review with enough upvotes.
@@ -1115,7 +992,9 @@ def _process_openalex_works_batch(works):
     # batch create authors
     if new_paper_ids and len(new_paper_ids) > 0:
         try:
-            add_orcid_authors_batch.apply_async((new_paper_ids,), priority=5, countdown=5)
+            add_orcid_authors_batch.apply_async(
+                (new_paper_ids,), priority=5, countdown=5
+            )
         except Exception as e:
             sentry.log_error(e, message="Failed to batch create authors")
 
@@ -1181,17 +1060,21 @@ def _process_openalex_works_batch(works):
     # batch add papers to biorXiv hub
     if paper_ids_to_add_to_biorxiv_hub and len(paper_ids_to_add_to_biorxiv_hub) > 0:
         # batch fetch papers
-        papers_to_add_to_biorxiv_hub = Paper.objects.filter(id__in=paper_ids_to_add_to_biorxiv_hub).only("id", "unified_document", "hubs")
+        papers_to_add_to_biorxiv_hub = Paper.objects.filter(
+            id__in=paper_ids_to_add_to_biorxiv_hub
+        ).only("id", "unified_document", "hubs")
 
         with transaction.atomic():
             biorxiv_hub_id = 436
-            
+
             for paper in papers_to_add_to_biorxiv_hub:
                 try:
                     paper.hubs.add(biorxiv_hub_id)
                     paper.unified_document.hubs.add(biorxiv_hub_id)
                 except Exception as e:
-                    sentry.log_error(e, message=f"Failed to add paper to biorXiv hub: {paper.id}")
+                    sentry.log_error(
+                        e, message=f"Failed to add paper to biorXiv hub: {paper.id}"
+                    )
                     continue
 
     # batch create concepts and hubs
