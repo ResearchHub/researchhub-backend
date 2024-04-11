@@ -192,7 +192,7 @@ class CitationEntryViewSet(ModelViewSet):
                 citation.save(update_fields=["attachment"])
 
             serializer = MinimalCitationEntrySerializer(citation)
-            return Response(serializer.data)
+            return Response(serializer.data, status=res.status_code)
 
     @action(detail=True, methods=["post"])
     def add_paper_as_citation(self, request, pk):
@@ -249,7 +249,7 @@ class CitationEntryViewSet(ModelViewSet):
                 citation.save(update_fields=["attachment"])
 
                 serializer = MinimalCitationEntrySerializer(citation)
-                return Response(serializer.data)
+                return Response(serializer.data, status=res.status_code)
 
             return Response({}, status=res.status_code)
 
