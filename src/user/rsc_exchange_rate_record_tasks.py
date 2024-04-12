@@ -13,8 +13,11 @@ RECORDED_CURRENCY = USD
 
 
 def COIN_GECKO_LOOKUP_URI(currency=USD):
-    return "https://api.coingecko.com/api/v3/simple/price?ids={coin_ids}&vs_currencies={currency}&precision={precision}".format(
-        coin_ids=RSC_COIN_GECKO_ID, currency=currency, precision="10"
+    return "https://api.coingecko.com/api/v3/simple/price?ids={coin_ids}&vs_currencies={currency}&precision={precision}&x_cg_demo_api_key={coin_gecko_api_key}".format(
+        coin_ids=RSC_COIN_GECKO_ID,
+        currency=currency,
+        precision="10",
+        coin_gecko_api_key=COIN_GECKO_API_KEY,
     )
 
 
