@@ -1,3 +1,4 @@
+import datetime
 import random
 
 from django.contrib.contenttypes.models import ContentType
@@ -68,9 +69,7 @@ def create_random_default_user(unique_value, moderator=False):
 def create_organization(
     name="Organization", description="Organization description", slug="org"
 ):
-    return Organization.objects.create(
-        name=name, description=description, slug=slug
-    )
+    return Organization.objects.create(name=name, description=description, slug=slug)
 
 
 def create_user(
@@ -107,6 +106,15 @@ def create_moderator(
 def create_random_authenticated_user_with_reputation(unique_value, reputation):
     user = create_random_authenticated_user(unique_value)
     user.reputation = reputation
+    user.save()
+    return user
+
+
+def create_old_random_authenticated_user_with_reputation(unique_value, reputation):
+    user = create_random_authenticated_user_with_reputation(unique_value, reputation)
+    user.created_date = datetime.datetime(
+        year=2020, month=1, day=1, tzinfo=datetime.timezone.utc
+    )
     user.save()
     return user
 

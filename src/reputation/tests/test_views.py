@@ -1,7 +1,7 @@
 import re
 import time
 from datetime import datetime
-from unittest import skip
+from unittest import mock, skip
 
 import requests_mock
 from django.contrib.admin.models import LogEntry
@@ -13,11 +13,18 @@ from reputation.distributor import Distributor
 from reputation.models import Withdrawal
 from reputation.tests.helpers import create_deposit, create_withdrawals
 from user.rsc_exchange_rate_record_tasks import RSC_COIN_GECKO_ID
-from user.tests.helpers import create_random_authenticated_user
+from user.tests.helpers import (
+    create_old_random_authenticated_user_with_reputation,
+    create_random_authenticated_user,
+)
 from utils.test_helpers import (
     get_authenticated_get_response,
     get_authenticated_post_response,
 )
+
+
+def mocked_execute_erc20_transfer(w3, sender, sender_signing_key, contract, to, amount):
+    return "tx_hash"
 
 
 class ReputationViewsTests(APITestCase):
@@ -96,21 +103,26 @@ class ReputationViewsTests(APITestCase):
 
         self.assertEqual(response.status_code, 403)
 
-    def test_regular_user_can_withdraw_rsc(self):
-        user = create_random_authenticated_user("rep_user")
+    @mock.patch(
+        "reputation.lib.execute_erc20_transfer",
+        side_effect=mocked_execute_erc20_transfer,
+    )
+    def test_regular_user_can_withdraw_rsc(self, mocked):
+        user = create_old_random_authenticated_user_with_reputation("rep_user", 1000)
+        create_deposit(user)
         self.client.force_authenticate(user)
 
         response = self.client.post(
             "/api/withdrawal/",
             {
                 "agreed_to_terms": True,
-                "amount": "333",
+                "amount": "550",
                 "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
                 "transaction_fee": 15,
             },
         )
 
-        self.assertNotEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 201)
 
     @skip
     def test_user_can_only_see_own_withdrawals(self):
