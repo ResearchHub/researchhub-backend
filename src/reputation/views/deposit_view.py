@@ -82,35 +82,17 @@ class DepositViewSet(viewsets.ReadOnlyModelViewSet):
     )
     def start_deposit_rsc(self, request):
         """
-        Ping the async-service to start the process of depositing RSC
+        Create a pending deposit that will be updated by a celery task
         """
 
-        url = ASYNC_SERVICE_HOST + "/ethereum/deposit"
-        deposit = Deposit.objects.create(
+        Deposit.objects.create(
             user=request.user,
             amount=request.data.get("amount"),
             from_address=request.data.get("from_address"),
             transaction_hash=request.data.get("transaction_hash"),
         )
-        message_raw = {
-            "deposit_id": deposit.id,
-            "tx_hash": deposit.transaction_hash,
-            "amount": deposit.amount,
-            "from_address": deposit.from_address,
-            "user_id": deposit.user.id,
-        }
-        signature, message, public_key = ethereum.utils.sign_message(
-            message_raw, WEB3_SHARED_SECRET
-        )
-        data = {
-            "signature": signature,
-            "message": message.hex(),
-            "public_key": public_key,
-        }
-        response = http_request(POST, url, data=json.dumps(data), timeout=10)
-        response.raise_for_status()
-        logging.info(response.content)
-        return Response(status=response.status_code)
+
+        return Response(200)
 
 
 class WithdrawalViewSet(viewsets.ModelViewSet):
