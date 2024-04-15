@@ -82,6 +82,7 @@ segment-analytics-python = "^2.2.3"
 urllib3 = "1.26.18"
 aiohttp = "3.9.3"
 cryptography = "42.0.5"
+requests-mock = "^1.12.1"
 
 [tool.poetry.dev-dependencies]
 

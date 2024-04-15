@@ -1,7 +1,9 @@
+import re
 import time
 from datetime import datetime
 from unittest import skip
 
+import requests_mock
 from django.contrib.admin.models import LogEntry
 from pytz import utc
 from rest_framework.test import APITestCase
@@ -10,6 +12,7 @@ from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.models import Withdrawal
 from reputation.tests.helpers import create_deposit, create_withdrawals
+from user.rsc_exchange_rate_record_tasks import RSC_COIN_GECKO_ID
 from user.tests.helpers import create_random_authenticated_user
 from utils.test_helpers import (
     get_authenticated_get_response,
@@ -21,6 +24,21 @@ class ReputationViewsTests(APITestCase):
     def setUp(self):
         create_withdrawals(10)
         self.all_withdrawals = len(Withdrawal.objects.all())
+        self.mocker = requests_mock.Mocker()
+        self.mocker.start()
+
+        # Mock calls to etherscan
+        etherscan_matcher = re.compile("https://api.etherscan.io/.*")
+        self.mocker.get(etherscan_matcher, json={"result": {"SafeGasPrice": "30"}})
+
+        # Mock calls to coingecko
+        coingecko_matcher = re.compile("https://api.coingecko.com/.*")
+        self.mocker.get(
+            coingecko_matcher, json={RSC_COIN_GECKO_ID: {"usd": 0.01, "eth": 0.0001}}
+        )
+
+    def tearDown(self):
+        self.mocker.stop()
 
     def test_deposit_user_can_list_deposits(self):
         user = create_random_authenticated_user("deposit_user")
