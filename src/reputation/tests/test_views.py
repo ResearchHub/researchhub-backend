@@ -10,6 +10,7 @@ from rest_framework.test import APITestCase
 
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
+from reputation.lib import PendingWithdrawal
 from reputation.models import Withdrawal
 from reputation.tests.helpers import create_deposit, create_withdrawals
 from user.rsc_exchange_rate_record_tasks import RSC_COIN_GECKO_ID
@@ -103,26 +104,25 @@ class ReputationViewsTests(APITestCase):
 
         self.assertEqual(response.status_code, 403)
 
-    @mock.patch(
-        "reputation.lib.execute_erc20_transfer",
-        side_effect=mocked_execute_erc20_transfer,
-    )
-    def test_regular_user_can_withdraw_rsc(self, mocked):
+    def test_regular_user_can_withdraw_rsc(self):
         user = create_old_random_authenticated_user_with_reputation("rep_user", 1000)
         create_deposit(user)
         self.client.force_authenticate(user)
 
-        response = self.client.post(
-            "/api/withdrawal/",
-            {
-                "agreed_to_terms": True,
-                "amount": "550",
-                "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-                "transaction_fee": 15,
-            },
-        )
+        with mock.patch.object(
+            PendingWithdrawal, "complete_token_transfer", return_value=None
+        ):
+            response = self.client.post(
+                "/api/withdrawal/",
+                {
+                    "agreed_to_terms": True,
+                    "amount": "550",
+                    "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "transaction_fee": 15,
+                },
+            )
 
-        self.assertEqual(response.status_code, 201)
+            self.assertEqual(response.status_code, 201)
 
     @skip
     def test_user_can_only_see_own_withdrawals(self):
