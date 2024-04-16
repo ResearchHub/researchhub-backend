@@ -900,7 +900,10 @@ if not DEVELOPMENT:
     GROBID_SERVER = "http://172.31.7.56:8000"
 
 # Etherscan API Key
-ETHERSCAN_API_KEY = os.environ.get("ETHERSCAN_API_KEY", "")
+ETHERSCAN_API_KEY = os.environ.get("ETHERSCAN_API_KEY", keys.ETHERSCAN_API_KEY)
+
+# CoinGecko API Key
+COIN_GECKO_API_KEY = os.environ.get("COIN_GECKO_API_KEY", keys.COIN_GECKO_API_KEY)
 
 # Segment analytics
 analytics.write_key = os.environ.get("SEGMENT_WRITE_KEY", keys.SEGMENT_WRITE_KEY)

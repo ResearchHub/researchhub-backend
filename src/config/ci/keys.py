@@ -59,3 +59,6 @@ SERP_API_KEY = os.environ.get("SERP_API_KEY", "")
 OPENALEX_KEY = os.environ.get("OPENALEX_KEY", "")
 ORCID_REDIRECT_URL = os.environ.get("ORCID_REDIRECT_URL", "")
 SEGMENT_WRITE_KEY = os.environ.get("SEGMENT_WRITE_KEY", "")
+
+ETHERSCAN_API_KEY = os.environ.get("ETHERSCAN_API_KEY", "")
+COIN_GECKO_API_KEY = os.environ.get("COIN_GECKO_API_KEY", "")
