@@ -1383,16 +1383,17 @@ files = [
 
 [[package]]
 name = "django-elasticsearch-dsl"
-version = "7.2.2"
+version = "7.3"
 description = "Wrapper around elasticsearch-dsl-py for django models"
 optional = false
 python-versions = "*"
 files = [
-    {file = "django-elasticsearch-dsl-7.2.2.tar.gz", hash = "sha256:811d3909b3387fd55c19d9bbcf0e9a9b234f085df3f8422d59e7519a5f733e0e"},
-    {file = "django_elasticsearch_dsl-7.2.2-py2.py3-none-any.whl", hash = "sha256:3c58a254a6318b169eb904d41d802924b99ea8e53ddc2c596ebba90506cf47fa"},
+    {file = "django-elasticsearch-dsl-7.3.tar.gz", hash = "sha256:084a790edf26131a7897d13a3b5c08a6e129ca145b2b3fcbc2b2d4e902a919c1"},
+    {file = "django_elasticsearch_dsl-7.3-py2.py3-none-any.whl", hash = "sha256:c1be1c6d25ee6e99dc246282a4f6de8cc0630d0f8d9863ed512c0baa9d21be94"},
 ]
 
 [package.dependencies]
+elasticsearch-dsl = ">=7.2.0,<8.0.0"
 six = "*"
 
 [[package]]
@@ -5691,4 +5692,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "93b2cc66bba2192316a046894efda887b8cd79ab17a0b41691666f481c54eca2"
+content-hash = "80eb934458c44e3a809400fb4db15803fcc5284c6d69d50b07e16fe4b267d471"

@@ -653,9 +653,9 @@ django-elasticsearch-debug-toolbar==2.0.0 ; python_version >= "3.8" and python_v
 django-elasticsearch-dsl-drf==0.20.8 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:90bf300fb96ebac5cb0b3fa21601e37f1b1231a57aac4b5a001a11c52db59d74 \
     --hash=sha256:9effbd541bb25becb39454b694de20d0f5a2c9e5bf7b629fcd8f9c9505b9320a
-django-elasticsearch-dsl==7.2.2 ; python_version >= "3.8" and python_version < "4.0" \
-    --hash=sha256:3c58a254a6318b169eb904d41d802924b99ea8e53ddc2c596ebba90506cf47fa \
-    --hash=sha256:811d3909b3387fd55c19d9bbcf0e9a9b234f085df3f8422d59e7519a5f733e0e
+django-elasticsearch-dsl==7.3 ; python_version >= "3.8" and python_version < "4.0" \
+    --hash=sha256:084a790edf26131a7897d13a3b5c08a6e129ca145b2b3fcbc2b2d4e902a919c1 \
+    --hash=sha256:c1be1c6d25ee6e99dc246282a4f6de8cc0630d0f8d9863ed512c0baa9d21be94
 django-extensions==3.0.9 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:6809c89ca952f0e08d4e0766bc0101dfaf508d7649aced1180c091d737046ea7 \
     --hash=sha256:dc663652ac9460fd06580a973576820430c6d428720e874ae46b041fa63e0efa
