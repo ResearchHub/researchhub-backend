@@ -53,7 +53,8 @@ class PurchaseViewSet(viewsets.ModelViewSet):
 
     @track_event
     def create(self, request):
-        user = request.user
+        user = User.objects.select_for_update().get(id=request.user.id)
+
         data = request.data
 
         amount = data["amount"]
