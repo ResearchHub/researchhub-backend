@@ -165,6 +165,10 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         return Response(200)
 
     def create(self, request):
+        return Response(
+            "Deposits are suspended for the time being. Please be patient as we work to turn deposits back on",
+            status=400,
+        )
         if timezone.now() < timezone.make_aware(timezone.datetime(2020, 9, 1)):
             return Response(
                 "Withdrawals are disabled until September 1, 2020", status=400
