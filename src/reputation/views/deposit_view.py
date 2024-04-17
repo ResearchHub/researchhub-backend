@@ -67,6 +67,10 @@ class DepositViewSet(viewsets.ReadOnlyModelViewSet):
         This is a request to deposit RSC from our researchhub-async-service
         TODO: Add a websocket call here so we can ping the frontend that the transaction completed
         """
+        return Response(
+            "Withdrawals are suspended for the time being. Please be patient as we work to turn withdrawals back on",
+            status=400,
+        )
         deposit = Deposit.objects.get(id=request.data.get("deposit_id"))
         amt = deposit.amount
         user = deposit.user
@@ -84,6 +88,10 @@ class DepositViewSet(viewsets.ReadOnlyModelViewSet):
         """
         Create a pending deposit that will be updated by a celery task
         """
+        return Response(
+            "Deposits are suspended for the time being. Please be patient as we work to turn deposits back on",
+            status=400,
+        )
 
         Deposit.objects.create(
             user=request.user,
