@@ -68,7 +68,7 @@ class DepositViewSet(viewsets.ReadOnlyModelViewSet):
         TODO: Add a websocket call here so we can ping the frontend that the transaction completed
         """
         return Response(
-            "Withdrawals are suspended for the time being. Please be patient as we work to turn withdrawals back on",
+            "Deposits are suspended for the time being. Please be patient as we work to turn deposits back on",
             status=400,
         )
         deposit = Deposit.objects.get(id=request.data.get("deposit_id"))
@@ -174,7 +174,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
     def create(self, request):
         return Response(
-            "Deposits are suspended for the time being. Please be patient as we work to turn deposits back on",
+            "Withdrawals are suspended for the time being. Please be patient as we work to turn withdrawals back on",
             status=400,
         )
         if timezone.now() < timezone.make_aware(timezone.datetime(2020, 9, 1)):
