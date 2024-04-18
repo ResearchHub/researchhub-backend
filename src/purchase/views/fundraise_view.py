@@ -1,18 +1,18 @@
 import decimal
 
-from django.db import transaction
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from analytics.tasks import track_revenue_event
-from purchase.related_models.constants import (
-  MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC,
-  MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC
-)
 from purchase.models import Balance, Fundraise, Purchase
+from purchase.related_models.constants import (
+    MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC,
+    MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC,
+)
 from purchase.related_models.constants.currency import RSC, USD
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.purchase_serializer import DynamicPurchaseSerializer
@@ -97,7 +97,9 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         try:
             goal_amount = decimal.Decimal(goal_amount)
             if goal_amount <= 0:
-                return Response({"message": "goal_amount must be greater than 0"}, status=400)
+                return Response(
+                    {"message": "goal_amount must be greater than 0"}, status=400
+                )
         except Exception as e:
             log_error(e)
             return Response({"detail": "Invalid goal_amount"}, status=400)
@@ -146,7 +148,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             return Response(
                 {"message": "Fundraise must be for a preregistration"}, status=400
             )
-        
+
         # Get recipient user object
         recipient_user = None
         if recipient_user_id:
@@ -156,7 +158,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
                     return Response({"message": "User does not exist"}, status=400)
             except User.DoesNotExist:
                 return Response({"message": "User does not exist"}, status=400)
-            
+
         with transaction.atomic():
             # Create fundraise object
             fundraise = Fundraise.objects.create(
@@ -233,7 +235,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         except Exception as e:
             log_error(e)
             return Response({"detail": "Invalid amount"}, status=400)
-        
+
         # Check if amount is within limits
         if (
             amount < MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC
@@ -277,12 +279,14 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         # Calculate fees
         fee, rh_fee, dao_fee, fee_object = calculate_bounty_fees(amount)
 
-        # Check if user has enough balance in their wallet
-        user_balance = user.get_balance()
-        if user_balance - (amount + fee) < 0:
-            return Response({"message": "Insufficient balance"}, status=400)
-        
         with transaction.atomic():
+            user = User.objects.select_for_update().get(id=user.id)
+
+            # Check if user has enough balance in their wallet
+            user_balance = user.get_balance()
+            if user_balance - (amount + fee) < 0:
+                return Response({"message": "Insufficient balance"}, status=400)
+
             # Create purchase object
             # In the future, we may want to have the user POST /purchases and then call this EP with an ID.
             # Especially for on-chain purchases.
