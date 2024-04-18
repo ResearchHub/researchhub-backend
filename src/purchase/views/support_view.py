@@ -10,21 +10,13 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from analytics.amplitude import track_event
-from purchase.models import (
-    Balance,
-    Support,
-)
-from purchase.serializers import (
-    SupportSerializer,
-)
+from purchase.models import Balance, Support
+from purchase.serializers import SupportSerializer
 from purchase.tasks import send_support_email
 from researchhub.settings import BASE_FRONTEND_URL
 from user.models import Author, User
 from user.serializers import UserSerializer
-from utils.permissions import (
-    CreateOrUpdateIfAllowed,
-    CreateOrUpdateOrReadOnly,
-)
+from utils.permissions import CreateOrUpdateIfAllowed, CreateOrUpdateOrReadOnly
 from utils.throttles import THROTTLE_CLASSES
 
 
@@ -92,6 +84,7 @@ class SupportViewSet(viewsets.ModelViewSet):
                 return Response("Insufficient Funds", status=402)
 
         with transaction.atomic():
+            sender = User.objects.select_for_update().get(id=sender.id)
             support = Support.objects.create(
                 payment_type=payment_type,
                 duration=payment_option,
