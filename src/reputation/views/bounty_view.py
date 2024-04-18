@@ -215,14 +215,15 @@ class BountyViewSet(viewsets.ModelViewSet):
         item_object_id = data.get("item_object_id", 0)
         amount = str(data.get("amount", "0"))
 
-        response = _create_bounty_checks(user, amount, item_content_type)
-        if not isinstance(response, tuple):
-            return response
-        else:
-            amount, fee_amount, rh_fee, dao_fee, current_bounty_fee = response
-
         with transaction.atomic():
             user = User.objects.select_for_update().get(id=user.id)
+
+            response = _create_bounty_checks(user, amount, item_content_type)
+            if not isinstance(response, tuple):
+                return response
+            else:
+                amount, fee_amount, rh_fee, dao_fee, current_bounty_fee = response
+
             deduct_bounty_fees(user, fee_amount, rh_fee, dao_fee, current_bounty_fee)
             bounty = _create_bounty(
                 user,
