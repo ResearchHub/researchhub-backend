@@ -1,7 +1,5 @@
-import json
-import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime
 
 from web3 import Web3
 
