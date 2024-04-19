@@ -648,11 +648,6 @@ ELASTICSEARCH_DSL_SIGNAL_PROCESSOR = "search.celery.CelerySignalProcessor"
 # Web3
 # https://web3py.readthedocs.io/en/stable/
 
-WEB3_SHARED_SECRET = os.environ.get(
-    "WEB3_SHARED_SECRET",
-    "0x0000000000000000000000000000000000000000000000000000000000000000",
-)
-
 # Mainnet
 WEB3_RSC_ADDRESS = os.environ.get("WEB3_RSC_ADDRESS", keys.WEB3_RSC_ADDRESS)
 
