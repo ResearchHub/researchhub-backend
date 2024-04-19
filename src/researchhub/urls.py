@@ -235,7 +235,6 @@ urlpatterns = [
         "api/moderators/get_editors_by_contributions/",
         editor_views.get_editors_by_contributions,
     ),
-    path("api/reputation/distribute_rsc/", reputation.views.distribute_rsc),
     path(
         "api/rsc/get_rsc_circulating_supply",
         reputation.views.get_rsc_circulating_supply,

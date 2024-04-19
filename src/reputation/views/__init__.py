@@ -16,7 +16,6 @@ from purchase.models import Balance
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.models import PaidStatusModelMixin, Withdrawal
-from reputation.permissions import DistributionWhitelist
 
 # Do not remove these imports
 # Used for urls.py
@@ -37,22 +36,6 @@ EXCLUDED_TOKEN_ADDRS = (
     Web3.to_checksum_address("0xe3648e99b6e68a09e28428790d12b357f081dbe0"),
     Web3.to_checksum_address("0xc4cfa2bdae08416312faa0b72758e1f3750f81e3"),
 )
-
-
-@api_view(http_method_names=[POST])
-@permission_classes([DistributionWhitelist])
-def distribute_rsc(request):
-    data = request.data
-    recipient_id = data.get("recipient_id")
-    amount = data.get("amount")
-
-    user = User.objects.get(id=recipient_id)
-    distribution = Dist("REWARD", amount, give_rep=False)
-    distributor = Distributor(distribution, user, user, time.time(), user)
-    distributor.distribute()
-
-    response = Response({"data": f"Gave {amount} RSC to {user.email}"}, status=200)
-    return response
 
 
 @api_view([GET])
