@@ -15,8 +15,8 @@ from reputation.models import Withdrawal
 from reputation.tests.helpers import create_deposit, create_withdrawals
 from user.rsc_exchange_rate_record_tasks import RSC_COIN_GECKO_ID
 from user.tests.helpers import (
-    create_old_random_authenticated_user_with_reputation,
     create_random_authenticated_user,
+    create_random_authenticated_user_with_reputation,
 )
 from utils.test_helpers import (
     get_authenticated_get_response,
@@ -105,7 +105,11 @@ class ReputationViewsTests(APITestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_regular_user_can_withdraw_rsc(self):
-        user = create_old_random_authenticated_user_with_reputation("rep_user", 1000)
+        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.save()
+
         create_deposit(user)
         self.client.force_authenticate(user)
 

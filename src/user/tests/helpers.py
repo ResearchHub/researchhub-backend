@@ -110,15 +110,6 @@ def create_random_authenticated_user_with_reputation(unique_value, reputation):
     return user
 
 
-def create_old_random_authenticated_user_with_reputation(unique_value, reputation):
-    user = create_random_authenticated_user_with_reputation(unique_value, reputation)
-    user.created_date = datetime.datetime(
-        year=2020, month=1, day=1, tzinfo=datetime.timezone.utc
-    )
-    user.save()
-    return user
-
-
 def create_author(
     user=None,
     first_name=TestData.first_name,
