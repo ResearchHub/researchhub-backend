@@ -11,7 +11,6 @@ from django.http.request import HttpRequest
 from rest_framework.request import Request
 
 from citation.constants import BIBTEX_TO_CITATION_TYPES, JOURNAL_ARTICLE
-from citation.exceptions import GrobidProcessingError
 from citation.models import CitationEntry
 from citation.schema import (
     generate_json_for_bibtex_entry,
@@ -30,7 +29,6 @@ from paper.paper_upload_tasks import (
 )
 from paper.serializers import PaperSubmissionSerializer
 from paper.utils import download_pdf, pdf_copyright_allows_display
-from researchhub.settings import AWS_STORAGE_BUCKET_NAME, GROBID_SERVER
 from user.models import User
 from utils.aws import lambda_compress_and_linearize_pdf
 from utils.bibtex import BibTeXEntry
@@ -39,38 +37,10 @@ from utils.parsers import get_pure_doi
 from utils.sentry import log_error
 
 
-def get_pdf_header_data(path):
-    url = f"{GROBID_SERVER}/header_extract"
-    request_data = {
-        "s3_file_path": f"{path}",
-        "bucket_name": f"{AWS_STORAGE_BUCKET_NAME}",
-    }
-    try:
-        response = requests.post(url, data=request_data, timeout=10)
-        data = response.json()
-        status = data.get("status")
-        if status == 200:
-            return data.get("data", {})
-    except requests.ConnectionError as e:
-        log_error(e)
-        raise GrobidProcessingError(e, "GROBID - Request to Grobid server timed out")
-
-    raise GrobidProcessingError(
-        "GROBID - Could not extract data", "Grobid queue is most likely full"
-    )
-
-
-def get_citation_entry_from_pdf(
-    path, filename, user_id, organization_id, project_id, use_grobid
-):
-    pdf = None
-    if use_grobid:
-        header_data = get_pdf_header_data(path)
-        doi = header_data.get("doi", None)
-    else:
-        pdf = default_storage.open(path)
-        header_data = pdf2doi.pdf2doi_singlefile(pdf)
-        doi = header_data.get("identifier")
+def get_citation_entry_from_pdf(path, filename, user_id, organization_id, project_id):
+    pdf = default_storage.open(path)
+    header_data = pdf2doi.pdf2doi_singlefile(pdf)
+    doi = header_data.get("identifier")
 
     citation_entry = CitationEntry.objects.filter(
         doi=doi,
