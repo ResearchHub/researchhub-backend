@@ -4,7 +4,6 @@ from time import time
 
 import pytz
 
-from researchhub.settings import REFERRAL_PROGRAM
 from researchhub_case.constants.case_constants import APPROVED
 
 
@@ -205,13 +204,6 @@ ResearchhubPostCensored = Distribution(
 )
 NeutralVote = Distribution("NEUTRAL_VOTE", 0, give_rep=False, reputation=0)
 
-ReferralInvitedBonus = Distribution(
-    REFERRAL_PROGRAM["INVITED_DISTRIBUTION_TYPE"],
-    REFERRAL_PROGRAM["INVITED_EARN_AMOUNT"],
-    give_rep=False,
-    reputation=0,
-)
-
 
 def create_purchase_distribution(user, amount):
     return Distribution("PURCHASE", amount, False)
@@ -292,7 +284,6 @@ DISTRIBUTION_TYPE_CHOICES = [
     (SummaryDownvoted.name, SummaryDownvoted.name),
     (HypothesisUpvoted.name, HypothesisUpvoted.name),
     (HypothesisDownvoted.name, HypothesisDownvoted.name),
-    (ReferralInvitedBonus.name, ReferralInvitedBonus.name),
     ("UPVOTE_RSC_POT", "UPVOTE_RSC_POT"),
     ("STORED_PAPER_POT", "STORED_PAPER_POT"),
     ("REWARD", "REWARD"),
