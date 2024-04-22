@@ -1,1 +1,0 @@
-from .related_models.referral_invite import ReferralInvite
