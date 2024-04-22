@@ -1,7 +1,5 @@
-import json
-import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime
 
 from web3 import Web3
 
@@ -12,12 +10,9 @@ from mailing_list.lib import base_email_context
 from reputation.models import Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
 from researchhub.settings import (
-    ASYNC_SERVICE_HOST,
     WEB3_KEYSTORE_ADDRESS,
-    WEB3_SHARED_SECRET,
     w3,
 )
-from utils.http import RequestMethods, http_request
 from utils.message import send_email_message
 from utils.sentry import log_error
 
@@ -371,20 +366,10 @@ class PendingWithdrawal:
         return token_payout
 
     def _request_transfer(self, token):
-        url = ASYNC_SERVICE_HOST + "/ethereum/erc20transfer"
-        message = {
-            "balance_record": self.balance_record_id,
-            "withdrawal": self.withdrawal.id,
-            "token": token,
-            "to": self.withdrawal.to_address,
-            "amount": self.token_payout,
-        }
-
         contract = w3.eth.contract(
             abi=contract_abi, address=Web3.to_checksum_address(RSC_CONTRACT_ADDRESS)
         )
         amount = int(self.amount)
-        paid = False
         to = self.withdrawal.to_address
         tx_hash = execute_erc20_transfer(
             w3, WEB3_KEYSTORE_ADDRESS, PRIVATE_KEY, contract, to, amount
