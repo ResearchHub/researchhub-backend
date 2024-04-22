@@ -224,7 +224,6 @@ INSTALLED_APPS = [
     "user",
     "new_feature_release",
     "peer_review",
-    "referral",
     "review",
     "feed",
 ]
