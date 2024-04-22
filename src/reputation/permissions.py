@@ -5,7 +5,6 @@ from django.contrib.contenttypes.models import ContentType
 from rest_framework.permissions import BasePermission
 
 from reputation.models import Bounty
-from researchhub.settings import DIST_WHITELIST
 from researchhub_document.models import ResearchhubUnifiedDocument
 from utils.http import PATCH, POST, RequestMethods
 from utils.permissions import AuthorizationBasedPermission
@@ -37,17 +36,6 @@ class AllowWithdrawalIfNotSuspecious(BasePermission):
         ):
             return False
         return True
-
-
-class DistributionWhitelist(BasePermission):
-    def has_permission(self, request, view):
-        user = request.user
-        if user.is_anonymous:
-            return False
-
-        if user.email in DIST_WHITELIST:
-            return True
-        return False
 
 
 class UserCanApproveBounty(BasePermission):

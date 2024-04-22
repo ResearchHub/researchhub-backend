@@ -565,12 +565,6 @@ EMAIL_WHITELIST = [
     "taki@researchhub.com",
 ]
 
-# Whitelist for distributing RSC
-DIST_WHITELIST = [
-    "pdj7@georgetown.edu",
-    "patricklu@researchhub.com",
-]
-
 SIFT_MODERATION_WHITELIST = [35747, 34581, 36837, 35436, 14, 33287, 34416]
 
 # Sentry
