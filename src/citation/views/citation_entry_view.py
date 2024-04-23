@@ -143,9 +143,6 @@ class CitationEntryViewSet(ModelViewSet):
         project_id = data.get("project_id")
         creator_id = data.get("creator_id")
 
-        # Temporary condition to use Grobid or pdf2doi
-        use_grobid = data.get("use_grobid", "False") == "True"
-
         if project_id == "None" or project_id is None:
             project_id = None
 
@@ -155,7 +152,6 @@ class CitationEntryViewSet(ModelViewSet):
             creator_id,
             organization_id,
             project_id,
-            use_grobid,
         )
         return Response(status=200)
 
