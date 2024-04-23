@@ -79,6 +79,20 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         with transaction.atomic():
             user = User.objects.select_for_update().get(id=user.id)
 
+            # Check if a purchase was already created for this client ID. If a purchase exists
+            # the user probably accidentally double clicked submit and we should return an error.
+            purchase = Purchase.objects.filter(
+                user=user,
+                client_id=data.get("client_id"),
+            ).first()
+            if purchase:
+                return Response(
+                    {
+                        "detail": "A purchase with this client ID already exists.",
+                    },
+                    status=400,
+                )
+
             purchase_data = {
                 "amount": amount,
                 "user": user.id,

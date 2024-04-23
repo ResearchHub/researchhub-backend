@@ -29,6 +29,7 @@ class Purchase(PaidStatusModelMixin):
         (FUNDRAISE_CONTRIBUTION, FUNDRAISE_CONTRIBUTION),
     ]
 
+    client_id = models.CharField(max_length=255, null=True, blank=True, db_index=True)
     user = models.ForeignKey(
         "user.User", on_delete=models.CASCADE, related_name="purchases"
     )
