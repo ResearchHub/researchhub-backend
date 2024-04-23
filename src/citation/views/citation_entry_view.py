@@ -23,7 +23,6 @@ from citation.constants import ARTICLE, CITATION_TYPE_FIELDS, JOURNAL_ARTICLE
 from citation.filters import CitationEntryFilter
 from citation.models import CitationEntry, CitationProject
 from citation.permissions import (
-    PDFUploadsS3CallBack,
     UserBelongsToOrganization,
     UserCanViewCitation,
 )
@@ -134,7 +133,7 @@ class CitationEntryViewSet(ModelViewSet):
         return Response(res, status=200)
 
     @track_event
-    @action(detail=False, methods=["post"], permission_classes=[PDFUploadsS3CallBack])
+    @action(detail=False, methods=["post"])
     def upload_pdfs_callback(self, request):
         data = request.data
         path = data.get("path")

@@ -1,8 +1,7 @@
 from rest_framework.permissions import BasePermission
 
-from researchhub.settings import LAMBDA_IPS
 from user.models import Organization
-from utils.http import RequestMethods, get_client_ip
+from utils.http import RequestMethods
 
 
 class UserIsAdminOfProject(BasePermission):
@@ -17,18 +16,6 @@ class UserIsAdminOfProject(BasePermission):
     def has_object_permission(self, request, view, obj):
         requestor = request.user
         return obj.get_is_user_admin(requestor) or obj.user == requestor
-
-
-class PDFUploadsS3CallBack(BasePermission):
-    message = "Permission Denied: Endpoint restricted to S3 Lambda trigger"
-
-    def has_permission(self, request, view):
-        # TODO: Remove this callback permission. We should always use the callback
-        return True
-        # client_ip = get_client_ip(request)
-        # if client_ip not in LAMBDA_IPS:
-        #     return False
-        # return True
 
 
 class UserCanViewCitation(BasePermission):
