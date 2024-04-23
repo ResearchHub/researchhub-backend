@@ -150,12 +150,6 @@ router.register(
 )
 
 router.register(
-    r"external_author_claim_case",
-    researchhub_case_views.ExternalAuthorClaimCaseViewSet,
-    basename="external_author_claim_case",
-)
-
-router.register(
     r"researchhubpost",
     researchhub_document_views.ResearchhubPostViewSet,
     basename="researchhubpost",
