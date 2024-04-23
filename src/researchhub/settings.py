@@ -476,9 +476,7 @@ AWS_SECRET_ACCESS_KEY = os.environ.get(
 )
 
 # AWS Lambda
-AWS_SCHOLARLY_LAMBDA = (
-    "arn:aws:lambda:us-west-2:794128250202:function:ResearchHub-Scholarly"
-)
+
 AWS_GHOSTSCRIPT_LAMBDA = (
     "arn:aws:lambda:us-west-2:794128250202:function:researchhub-ghostscript"
 )
