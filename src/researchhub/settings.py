@@ -476,14 +476,7 @@ AWS_SECRET_ACCESS_KEY = os.environ.get(
 )
 
 # AWS Lambda
-if DEVELOPMENT:
-    LAMBDA_IPS = ["127.0.0.1", "localhost"]
-else:
-    LAMBDA_IPS = ["35.82.37.191", "35.83.152.234"]
 
-AWS_SCHOLARLY_LAMBDA = (
-    "arn:aws:lambda:us-west-2:794128250202:function:ResearchHub-Scholarly"
-)
 AWS_GHOSTSCRIPT_LAMBDA = (
     "arn:aws:lambda:us-west-2:794128250202:function:researchhub-ghostscript"
 )
