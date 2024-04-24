@@ -56,6 +56,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         data = request.data
 
         amount = data["amount"]
+        client_id = data["client_id"]
         purchase_method = data["purchase_method"]
         purchase_type = data["purchase_type"]
         content_type_str = data["content_type"]
@@ -76,6 +77,17 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         content_type = ContentType.objects.get(model=content_type_str)
         with transaction.atomic():
             user = User.objects.select_for_update().get(id=user.id)
+
+            cached_client_id = cache.get(f"purchase_client_id_{client_id}")
+            if cached_client_id:
+                return Response(
+                    {
+                        "detail": "This purchase has already been processed",
+                    },
+                    status=400,
+                )
+
+            cache.set(f"purchase_client_id_{client_id}", True, timeout=60)
 
             purchase_data = {
                 "amount": amount,
