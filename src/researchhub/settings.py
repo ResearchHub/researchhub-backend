@@ -118,36 +118,6 @@ if ELASTIC_BEANSTALK:
                 headers=EC2_METADATA_TOKEN_HEADER,
             ).text
         )
-        # ALLOWED_HOSTS.append(
-        #     requests.get('http://172.31.19.162/latest/meta-data/local-ipv4',
-        #                  timeout=0.01).text
-        # )
-        # ALLOWED_HOSTS.append(
-        #     requests.get('http://54.200.83.4/latest/meta-data/local-ipv4',
-        #                  timeout=0.01).text
-        # )
-        # # Production private ips
-        # ALLOWED_HOSTS.append(
-        #     requests.get('http://172.31.0.82/latest/meta-data/local-ipv4',
-        #                  timeout=0.01).text
-        # )
-        # ALLOWED_HOSTS.append(
-        #     requests.get('http://172.31.9.43/latest/meta-data/local-ipv4',
-        #                  timeout=0.01).text
-        # )
-        # # Staging private ips
-        # ALLOWED_HOSTS.append(
-        #     requests.get('http://172.31.8.17/latest/meta-data/local-ipv4',
-        #                  timeout=0.01).text
-        # )
-        # ALLOWED_HOSTS.append(
-        #     requests.get('http://172.31.6.81/latest/meta-data/local-ipv4',
-        #                  timeout=0.01).text
-        # )
-        # ALLOWED_HOSTS.append(
-        #     requests.get('http://172.31.5.32/latest/meta-data/local-ipv4',
-        #                  timeout=0.01).text
-        # )
 
     except requests.exceptions.RequestException:
         pass
@@ -272,9 +242,6 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
-
-# if not TESTING:
-#     MIDDLEWARE.append('profiler.middleware.profiler.ProfileMiddleware')
 
 if USE_DEBUG_TOOLBAR:
     INSTALLED_APPS += ["debug_toolbar"]
@@ -585,16 +552,6 @@ if PRODUCTION or STAGING:
         integrations=[DjangoIntegration()],
         environment=SENTRY_ENVIRONMENT,
     )
-
-# sentry_sdk.init(
-#     dsn=os.environ.get("SENTRY_DSN", keys.SENTRY_DSN),
-
-#     # To set a uniform sample rate
-#     # Set traces_sample_rate to 1.0 to capture 100%
-#     # of transactions for performance monitoring.
-#     # We recommend adjusting this value in production,
-#     traces_sample_rate=1.0,
-# )
 
 # Search (Elastic)
 
