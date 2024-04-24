@@ -1,6 +1,5 @@
 import datetime
 import decimal
-import json
 import time
 
 from django.contrib.contenttypes.models import ContentType
@@ -30,12 +29,11 @@ from reputation.distributor import Distributor
 from reputation.models import Contribution, SupportFee
 from reputation.tasks import create_contribution
 from reputation.utils import calculate_support_fees, deduct_support_fees
-from researchhub.settings import ASYNC_SERVICE_HOST, BASE_FRONTEND_URL
+from researchhub.settings import BASE_FRONTEND_URL
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.filters import HOT
 from researchhub_document.utils import reset_unified_document_cache
 from user.models import Action, User
-from utils.http import RequestMethods, http_request
 from utils.permissions import CreateOrReadOnly
 from utils.throttles import THROTTLE_CLASSES
 
@@ -227,25 +225,6 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             countdown=10,
         )
         return Response(serializer_data, status=201)
-
-    def update(self, request, *args, **kwargs):
-        response = super().update(request, *args, **kwargs)
-        purchase = self.get_object()
-        purchase.group = purchase.get_aggregate_group()
-        purchase.save()
-
-        if purchase.transaction_hash:
-            self.track_paid_status(purchase.id, purchase.transaction_hash)
-        return response
-
-    def track_paid_status(self, purchase_id, transaction_hash):
-        url = ASYNC_SERVICE_HOST + "/ethereum/track_purchase"
-        data = {"purchase": purchase_id, "transaction_hash": transaction_hash}
-        response = http_request(
-            RequestMethods.POST, url, data=json.dumps(data), timeout=3
-        )
-        response.raise_for_status()
-        return response
 
     @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
     def aggregate_user_promotions(self, request, pk=None):

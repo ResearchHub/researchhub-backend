@@ -692,16 +692,6 @@ CHANNEL_LAYERS = {
     },
 }
 
-# Async service
-
-if PRODUCTION:
-    ASYNC_SERVICE_HOST = "http://ec2-52-37-62-135.us-west-2.compute.amazonaws.com"
-elif STAGING:
-    ASYNC_SERVICE_HOST = "http://ec2-52-38-164-185.us-west-2.compute.amazonaws.com"
-else:
-    ASYNC_SERVICE_HOST = os.environ.get("ASYNC_SERVICE_HOST", "http://localhost:8080")
-
-
 # APM
 
 elastic_token = os.environ.get("ELASTIC_APM_SECRET_TOKEN", "")
