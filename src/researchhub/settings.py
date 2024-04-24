@@ -224,7 +224,6 @@ INSTALLED_APPS = [
     "user",
     "new_feature_release",
     "peer_review",
-    "referral",
     "review",
     "feed",
 ]
@@ -792,29 +791,6 @@ TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", keys.TRANSPOSE_KEY)
 
 # OpenAlex API
 OPENALEX_KEY = os.environ.get("OPENALEX_KEY", keys.OPENALEX_KEY)
-
-
-REFERRAL_PROGRAM = {
-    "REFERER_DISTRIBUTION_TYPE": "REFERRAL_REFERER_EARNINGS",
-    "INVITED_DISTRIBUTION_TYPE": "REFERRAL_INVITED_BONUS",
-    # Referrer will receive a bonus defined as a percetage of the invited person's earnings.
-    # The bonus will be paid by RH
-    "REFERER_EARN_PCT": 0.07,
-    "INVITED_EARN_AMOUNT": 0,
-    # Time period in which referer will receive earnings defined by
-    # invited join date + value below
-    "ELIGIBLE_TIME_PERIOD_IN_MONTHS": 6,
-    # Only pay referrer earnings if invitee earns in one of these transactions
-    "ELIGIBLE_TRANSACTIONS": [
-        "RhCOMMENT_UPVOTED",
-        "RESEARCHHUB_POST_UPVOTED",
-        "HYPOTHESIS_UPVOTED",
-        "PAPER_UPVOTED",
-        "REWARD",
-        "PURCHASE",
-        "BOUNTY_PAYOUT",
-    ],
-}
 
 # Etherscan API Key
 ETHERSCAN_API_KEY = os.environ.get("ETHERSCAN_API_KEY", keys.ETHERSCAN_API_KEY)

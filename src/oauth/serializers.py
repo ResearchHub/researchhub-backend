@@ -16,7 +16,6 @@ from oauth.serializers import *
 from reputation import distributions
 from reputation.distributor import Distributor
 from reputation.models import Distribution
-from researchhub.settings import REFERRAL_PROGRAM
 from user.models import User
 from utils import sentry
 from utils.siftscience import check_user_risk, events_api, update_user_risk_score
@@ -238,26 +237,6 @@ class SocialLoginSerializer(serializers.Serializer):
                 if invited_by_flag_not_set:
                     user.invited_by = referral_user
                     user.save()
-
-                    has_invited_been_paid = Distribution.objects.filter(
-                        distribution_type=REFERRAL_PROGRAM["INVITED_DISTRIBUTION_TYPE"],
-                        recipient_id=user.id,
-                    ).exists()
-
-                    if not has_invited_been_paid:
-                        try:
-                            referral_bonus = Distributor(
-                                distribution=distributions.ReferralInvitedBonus,
-                                recipient=user,
-                                giver=referral_user,
-                                db_record=user,
-                                timestamp=time(),
-                            )
-                            referral_bonus.distribute()
-                        except Exception as error:
-                            print(error)
-                            sentry.log_error(error)
-
         except Exception as e:
             sentry.log_error(e)
             pass

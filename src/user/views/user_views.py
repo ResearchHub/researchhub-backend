@@ -42,7 +42,6 @@ from reputation.serializers import (
 from reputation.views import BountyViewSet
 from researchhub.settings import (
     EMAIL_WHITELIST,
-    REFERRAL_PROGRAM,
     SIFT_MODERATION_WHITELIST,
     SIFT_WEBHOOK_SECRET_KEY,
 )
@@ -116,41 +115,6 @@ class UserViewSet(viewsets.ModelViewSet):
             user_to_be_deleted.delete()
             author_profile.delete()
             return Response(status=204)
-
-    @action(detail=False, methods=["GET"], permission_classes=[IsAuthenticated])
-    def get_referred_users(self, request):
-        invited = User.objects.filter(invited_by=request.user).annotate(
-            rsc_earned=Sum(
-                "reputation_handed_out__amount",
-                filter=(
-                    Q(
-                        reputation_handed_out__distribution_type="REFERRAL_REFERER_EARNINGS"
-                    )
-                    & Q(reputation_handed_out__recipient_id=request.user)
-                ),
-            ),
-            benefits_expire_on=models.ExpressionWrapper(
-                models.F("created_date")
-                + timedelta(
-                    days=REFERRAL_PROGRAM["ELIGIBLE_TIME_PERIOD_IN_MONTHS"] * 30
-                ),
-                output_field=models.DateTimeField(),
-            ),
-        )
-
-        return Response(
-            DynamicUserSerializer(
-                invited,
-                many=True,
-                _include_fields=(
-                    "created_date",
-                    "id",
-                    "author_profile",
-                    "rsc_earned",
-                    "benefits_expire_on",
-                ),
-            ).data
-        )
 
     def get_queryset(self):
         # TODO: Remove this override
