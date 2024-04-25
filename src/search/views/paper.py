@@ -174,7 +174,7 @@ class PaperDocumentView(DocumentViewSet):
         super(PaperDocumentView, self).__init__(*args, **kwargs)
 
     def _filter_queryset(self, request):
-        queryset = self.search
+        queryset = self.get_queryset()
 
         for backend in list(self.filter_backends):
             queryset = backend().filter_queryset(
