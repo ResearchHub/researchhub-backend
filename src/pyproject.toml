@@ -21,7 +21,7 @@ django-extensions = "3.0.9"
 smart-open = "5.2.1"
 pre-commit = "2.17.0"
 django-ses = "3.5.2"
-web3 = "6.15.1"
+web3 = {version = "6.17.1", extras = ["tester"]}
 django-silk = "5.0.2"
 django-dbbackup = "4.0.2"
 celery = "4.4.7"

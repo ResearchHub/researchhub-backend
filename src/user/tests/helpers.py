@@ -68,9 +68,7 @@ def create_random_default_user(unique_value, moderator=False):
 def create_organization(
     name="Organization", description="Organization description", slug="org"
 ):
-    return Organization.objects.create(
-        name=name, description=description, slug=slug
-    )
+    return Organization.objects.create(name=name, description=description, slug=slug)
 
 
 def create_user(

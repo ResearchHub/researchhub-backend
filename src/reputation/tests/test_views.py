@@ -1,7 +1,7 @@
 import re
 import time
 from datetime import datetime
-from unittest import skip
+from unittest import mock, skip
 
 import requests_mock
 from django.contrib.admin.models import LogEntry
@@ -10,14 +10,22 @@ from rest_framework.test import APITestCase
 
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
+from reputation.lib import PendingWithdrawal
 from reputation.models import Withdrawal
 from reputation.tests.helpers import create_deposit, create_withdrawals
 from user.rsc_exchange_rate_record_tasks import RSC_COIN_GECKO_ID
-from user.tests.helpers import create_random_authenticated_user
+from user.tests.helpers import (
+    create_random_authenticated_user,
+    create_random_authenticated_user_with_reputation,
+)
 from utils.test_helpers import (
     get_authenticated_get_response,
     get_authenticated_post_response,
 )
+
+
+def mocked_execute_erc20_transfer(w3, sender, sender_signing_key, contract, to, amount):
+    return "tx_hash"
 
 
 class ReputationViewsTests(APITestCase):
@@ -96,21 +104,29 @@ class ReputationViewsTests(APITestCase):
 
         self.assertEqual(response.status_code, 403)
 
+    @skip  # Skip until withdrawals are reenabled.
     def test_regular_user_can_withdraw_rsc(self):
-        user = create_random_authenticated_user("rep_user")
+        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.save()
+
+        create_deposit(user)
         self.client.force_authenticate(user)
 
-        response = self.client.post(
-            "/api/withdrawal/",
-            {
-                "agreed_to_terms": True,
-                "amount": "333",
-                "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
-                "transaction_fee": 15,
-            },
-        )
-
-        self.assertNotEqual(response.status_code, 403)
+        with mock.patch.object(
+            PendingWithdrawal, "complete_token_transfer", return_value=None
+        ):
+            response = self.client.post(
+                "/api/withdrawal/",
+                {
+                    "agreed_to_terms": True,
+                    "amount": "550",
+                    "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "transaction_fee": 15,
+                },
+            )
+            self.assertEqual(response.status_code, 201)
 
     @skip
     def test_user_can_only_see_own_withdrawals(self):

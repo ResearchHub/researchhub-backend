@@ -1,3 +1,6 @@
+from django.contrib.contenttypes.models import ContentType
+
+from purchase.models import Balance
 from reputation.models import Deposit, Withdrawal
 from user.tests.helpers import create_random_default_user
 
@@ -10,9 +13,9 @@ def create_deposit(
     amount="1500.0",
     from_address=ADDRESS_1,
 ):
-    Deposit.objects.create(
-        user=user, amount=amount, from_address=from_address
-    )
+    Deposit.objects.create(user=user, amount=amount, from_address=from_address)
+    deposit_content_type = ContentType.objects.get(model="deposit")
+    Balance.objects.create(amount=amount, user=user, content_type=deposit_content_type)
 
 
 def create_withdrawals(count):
