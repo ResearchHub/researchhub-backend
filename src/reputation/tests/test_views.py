@@ -104,6 +104,7 @@ class ReputationViewsTests(APITestCase):
 
         self.assertEqual(response.status_code, 403)
 
+    @skip  # Skip until withdrawals are reenabled.
     def test_regular_user_can_withdraw_rsc(self):
         user = create_random_authenticated_user_with_reputation("rep_user", 1000)
         user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
@@ -125,7 +126,6 @@ class ReputationViewsTests(APITestCase):
                     "transaction_fee": 15,
                 },
             )
-
             self.assertEqual(response.status_code, 201)
 
     @skip
