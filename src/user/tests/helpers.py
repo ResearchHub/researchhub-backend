@@ -1,4 +1,3 @@
-import datetime
 import random
 
 from django.contrib.contenttypes.models import ContentType
