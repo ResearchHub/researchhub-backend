@@ -45,7 +45,7 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
         )
 
         response = self._post_support_response(
-            purchaser, post.id, "researchhubpost", tip_amount
+            purchaser, post.id, "client_id_1", "researchhubpost", tip_amount
         )
         self.assertContains(response, "id", status_code=201)
 
@@ -68,7 +68,7 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
         )
 
         response = self._post_support_response(
-            purchaser, post.id, "researchhubpost", tip_amount
+            purchaser, post.id, "client_id_2", "researchhubpost", tip_amount
         )
         self.assertContains(response, "id", status_code=201)
 
@@ -125,7 +125,9 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
             amount="10000", user=user, content_type=DISTRIBUTION_CONTENT_TYPE
         )
 
-        response = self._post_support_response(user, paper.id, "paper", amount)
+        response = self._post_support_response(
+            user, paper.id, "client_id_3", "paper", amount
+        )
         self.assertContains(response, "id", status_code=201)
         self.assertTrue(Escrow.objects.filter(hold_type=Escrow.AUTHOR_RSC).count() == 1)
         author_pot = Escrow.objects.filter(hold_type=Escrow.AUTHOR_RSC).first()
@@ -146,7 +148,7 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
         )
 
         response = self._post_support_response(
-            user, post.id, "researchhubpost", tip_amount
+            user, post.id, "client_id_4", "researchhubpost", tip_amount
         )
         self.assertContains(response, "id", status_code=201)
         purchase_id = response.data["id"]
@@ -193,7 +195,7 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
         )
 
         response = self._post_support_response(
-            user, comment.id, "rhcommentmodel", tip_amount
+            user, comment.id, "client_id_5", "rhcommentmodel", tip_amount
         )
         self.assertContains(response, "id", status_code=201)
         purchase_id = response.data["id"]
@@ -224,7 +226,35 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
         )
         self.assertEqual(poster_balance_amount, float(tip_amount))
 
-    def _post_support_response(self, user, object_id, content_type, amount=10):
+    def test_repeat_request_support_comment_distribution(self):
+        user = create_random_authenticated_user("rep_user")
+        poster = create_random_authenticated_user("rep_user")
+        post = create_post(created_by=poster)
+        comment = create_rh_comment(created_by=poster, post=post)
+        client_id = "client_id_6"
+
+        tip_amount = 100
+
+        # give the user 10,000 RSC
+        DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model="distribution")
+        Balance.objects.create(
+            amount="10000", user=user, content_type=DISTRIBUTION_CONTENT_TYPE
+        )
+
+        response = self._post_support_response(
+            user, comment.id, client_id, "rhcommentmodel", tip_amount
+        )
+        self.assertContains(response, "id", status_code=201)
+
+        # make a second request with the same client_id which should fail.
+        response = self._post_support_response(
+            user, comment.id, client_id, "rhcommentmodel", tip_amount
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def _post_support_response(
+        self, user, object_id, client_id, content_type, amount=10
+    ):
         url = "/api/purchase/"
         return get_authenticated_post_response(
             user,
@@ -235,5 +265,6 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
                 "object_id": object_id,
                 "purchase_method": "OFF_CHAIN",
                 "purchase_type": "BOOST",
+                "client_id": client_id,
             },
         )
