@@ -157,6 +157,15 @@ class PaperDocumentView(DocumentViewSet):
                         }
                     }
                 },
+                # Boost papers with citations
+                {
+                    "script_score": {
+                        "script": {
+                            "source": "if (doc['citations'].value > 0) { return doc['citations'].value; } else { return 1; }",
+                            "lang": "painless",
+                        }
+                    }
+                },
                 # Boost papers with abstract
                 {"filter": Q("exists", field="abstract"), "weight": 3},
                 # Boost papers that have a pdf which can be displayed
