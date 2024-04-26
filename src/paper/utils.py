@@ -742,12 +742,12 @@ def pdf_copyright_allows_display(paper):
         return False
 
     # we can only show papers that allow for commercial use
-    if license in ["cc-by", "cc-by-sa", "cc-by-nd", "public-domain"]:
+    if license in ["cc-by", "cc-by-sa", "cc-by-nd", "public-domain", "mit", "pd"]:
         return True
 
     # only rely on oa_status if license is null or unknown
     # otherwise license is non-usable for us
-    if license in [None, "", "unknown"]:
+    if license in [None, "", "unknown", "unspecified-oa"]:
         if oa_status in [None, "", "green", "gold"]:
             return True
 
