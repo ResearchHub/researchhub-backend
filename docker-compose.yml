@@ -13,7 +13,7 @@ services:
     command: sh -c "echo never > /sys/kernel/mm/transparent_hugepage/enabled"
     privileged: true
   postgres:
-    image: postgres:14.1-alpine
+    image: postgres:16.1-alpine
     restart: always
     ports:
       - '5433:5432'
