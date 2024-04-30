@@ -6,17 +6,20 @@ import pytz
 from celery.decorators import periodic_task
 from celery.task.schedules import crontab
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from django.db.models import DurationField, F
 from django.db.models.functions import Cast
+from web3 import Web3
 
+from ethereum.lib import RSC_CONTRACT_ADDRESS
 from mailing_list.lib import base_email_context
 from notification.models import Notification
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
-from reputation.lib import check_hotwallet, check_pending_withdrawal
+from reputation.lib import check_hotwallet, check_pending_withdrawal, contract_abi
 from reputation.models import Bounty, Contribution, Deposit
 from researchhub.celery import QUEUE_BOUNTIES, QUEUE_CONTRIBUTIONS, QUEUE_PURCHASES, app
-from researchhub.settings import PRODUCTION, w3
+from researchhub.settings import PRODUCTION, WEB3_KEYSTORE_ADDRESS, w3
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     ALL,
@@ -30,6 +33,8 @@ from utils.message import send_email_message
 from utils.sentry import log_error, log_info
 
 DEFAULT_REWARD = 1000000
+
+TRANSACTION_AGE_LIMIT = 60 * 60 * 6  # 6 hours
 
 
 @app.task(queue=QUEUE_CONTRIBUTIONS)
@@ -103,21 +108,63 @@ def create_author_contribution(contribution_type, user_id, unified_doc_id, objec
     Contribution.objects.bulk_create(contributions)
 
 
-def check_transaction_success(transaction_hash):
+def get_transaction_receipt(transaction_hash):
     # Check if connected successfully
     if not w3.is_connected():
-        return "Failed to connect to Ethereum node."
+        raise Exception("Failed to connect to Ethereum node.")
 
-    try:
-        # Get transaction receipt
-        tx_receipt = w3.eth.get_transaction_receipt(transaction_hash)
+    # Get transaction receipt
+    return w3.eth.get_transaction_receipt(transaction_hash)
 
-        # Check if transaction was successful
-        return tx_receipt.status == 1
-    except Exception as e:
-        log_error(e)
-        print(e)
-        return False
+
+def check_transaction_success(transaction_hash):
+    return get_transaction_receipt(transaction_hash)["status"] == 1
+
+
+def get_transaction(transaction_hash):
+    # Check if connected successfully
+    if not w3.is_connected():
+        raise Exception("Failed to connect to Ethereum node.")
+
+    return w3.eth.get_transaction(transaction_hash)
+
+
+def get_block(block_number):
+    # Check if connected successfully
+    if not w3.is_connected():
+        raise Exception("Failed to connect to Ethereum node.")
+
+    return w3.eth.get_block(block_number)
+
+
+def get_contract():
+    # Check if connected successfully
+    if not w3.is_connected():
+        raise Exception("Failed to connect to Ethereum node.")
+
+    return w3.eth.contract(
+        abi=contract_abi, address=Web3.to_checksum_address(RSC_CONTRACT_ADDRESS)
+    )
+
+
+def evaluate_transaction(transaction_hash):
+    tx = get_transaction(transaction_hash)
+    block = get_block(tx["blockNumber"])
+
+    contract = get_contract()
+
+    func_name, func_params = contract.decode_function_input(tx["input"])
+    is_transfer = func_name["fn_name"] == "transfer"
+    is_correct_to_address = func_params["to"] == WEB3_KEYSTORE_ADDRESS
+    block_timestamp = datetime.fromtimestamp(block["timestamp"])
+    is_recent_transaction = block_timestamp > datetime.now() - timedelta(
+        seconds=TRANSACTION_AGE_LIMIT
+    )
+
+    return (
+        is_transfer and is_correct_to_address and is_recent_transaction,
+        func_params["_amount"],
+    )
 
 
 @periodic_task(
@@ -126,16 +173,50 @@ def check_transaction_success(transaction_hash):
     queue=QUEUE_PURCHASES,
 )
 def check_deposits():
-    deposits = Deposit.objects.filter(paid_status=None)
+    # Sort by created date to ensure a malicious user doesn't attempt to take credit for
+    # a deposit made by another user. This is a temporary solution until we add signed messages
+    # to validate users own wallets.
+    deposits = Deposit.objects.filter(paid_status=None).order_by("created_date")
+
     for deposit in deposits.iterator():
-        amt = deposit.amount
-        user = deposit.user
-        transaction_successful = check_transaction_success(deposit.transaction_hash)
-        if transaction_successful:
-            distribution = Dist("DEPOSIT", amt, give_rep=False)
-            distributor = Distributor(distribution, user, user, time.time(), user)
-            distributor.distribute()
+        # If a deposit is not resolved after 6 hours, mark it as failed
+        if deposit.created_date < datetime.now(pytz.UTC) - timedelta(
+            seconds=TRANSACTION_AGE_LIMIT
+        ):
+            deposit.set_paid_failed()
+            continue
+
+        deposit_previously_paid = Deposit.objects.filter(
+            transaction_hash=deposit.transaction_hash, paid_status="PAID"
+        )
+
+        if deposit_previously_paid.exists():
             deposit.set_paid()
+            continue
+
+        user = deposit.user
+        try:
+            transaction_success = check_transaction_success(deposit.transaction_hash)
+            if not transaction_success:
+                deposit.set_paid_failed()
+                continue
+
+            valid_deposit, deposit_amount = evaluate_transaction(
+                deposit.transaction_hash
+            )
+            if not valid_deposit:
+                deposit.set_paid_failed()
+                continue
+
+            with transaction.atomic():
+                distribution = Dist("DEPOSIT", deposit_amount, give_rep=False)
+                distributor = Distributor(distribution, user, user, time.time(), user)
+                distributor.distribute()
+                deposit.amount = deposit_amount
+                deposit.set_paid()
+        except Exception as e:
+            log_error(e)
+            deposit.set_paid_pending()
 
 
 @periodic_task(
