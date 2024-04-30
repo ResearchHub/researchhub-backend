@@ -247,10 +247,11 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
         self.assertContains(response, "id", status_code=201)
 
         # make a second request with the same client_id which should fail.
-        response = self._post_support_response(
+        response_repeat_call = self._post_support_response(
             user, comment.id, client_id, "rhcommentmodel", tip_amount
         )
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data, response_repeat_call.data)
+        self.assertEqual(response_repeat_call.status_code, 201)
 
     def _post_support_response(
         self, user, object_id, client_id, content_type, amount=10

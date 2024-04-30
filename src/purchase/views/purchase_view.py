@@ -78,16 +78,12 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         with transaction.atomic():
             user = User.objects.select_for_update().get(id=user.id)
 
-            cached_client_id = cache.get(f"purchase_client_id_{client_id}")
-            if cached_client_id:
+            cached_serialized_data = cache.get(f"purchase_client_id_{client_id}")
+            if cached_serialized_data:
                 return Response(
-                    {
-                        "detail": "This purchase has already been processed",
-                    },
-                    status=400,
+                    cached_serialized_data,
+                    status=201,
                 )
-
-            cache.set(f"purchase_client_id_{client_id}", True, timeout=60)
 
             purchase_data = {
                 "amount": amount,
@@ -218,6 +214,8 @@ class PurchaseViewSet(viewsets.ModelViewSet):
 
         serializer = self.serializer_class(purchase, context=context)
         serializer_data = serializer.data
+
+        cache.set(f"purchase_client_id_{client_id}", serializer_data, timeout=3600)
 
         if recipient and user:
             self.send_purchase_notification(
