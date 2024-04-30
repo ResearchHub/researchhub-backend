@@ -189,9 +189,8 @@ def check_deposits():
         deposit_previously_paid = Deposit.objects.filter(
             transaction_hash=deposit.transaction_hash, paid_status="PAID"
         )
-
         if deposit_previously_paid.exists():
-            deposit.set_paid()
+            deposit.set_paid_failed()
             continue
 
         user = deposit.user
