@@ -212,10 +212,10 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 )
                 distributor.distribute()
 
-        serializer = self.serializer_class(purchase, context=context)
-        serializer_data = serializer.data
+            serializer = self.serializer_class(purchase, context=context)
+            serializer_data = serializer.data
 
-        cache.set(f"purchase_client_id_{client_id}", serializer_data, timeout=3600)
+            cache.set(f"purchase_client_id_{client_id}", serializer_data, timeout=3600)
 
         if recipient and user:
             self.send_purchase_notification(
