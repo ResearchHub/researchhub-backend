@@ -34,7 +34,6 @@ from researchhub.settings import (
     GOOGLE_YOLO_REDIRECT_URL,
     RECAPTCHA_SECRET_KEY,
     RECAPTCHA_VERIFY_URL,
-    SOCIALACCOUNT_PROVIDERS,
     keys,
 )
 from user.models import Author, UserApiToken
