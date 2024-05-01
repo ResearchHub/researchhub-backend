@@ -20,7 +20,6 @@ from allauth.utils import get_request_param
 from dj_rest_auth.registration.views import SocialLoginView
 from dj_rest_auth.views import LoginView
 from django.dispatch import receiver
-from mailchimp_marketing import Client
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -33,8 +32,6 @@ from oauth.utils import get_orcid_names
 from researchhub.settings import (
     GOOGLE_REDIRECT_URL,
     GOOGLE_YOLO_REDIRECT_URL,
-    MAILCHIMP_LIST_ID,
-    MAILCHIMP_SERVER,
     RECAPTCHA_SECRET_KEY,
     RECAPTCHA_VERIFY_URL,
     SOCIALACCOUNT_PROVIDERS,
@@ -243,19 +240,6 @@ def user_signed_up_(request, user, **kwargs):
 
     else:
         return None
-
-
-@receiver(user_signed_up)
-def mailchimp_add_user(request, user, **kwargs):
-    """Adds user email to MailChimp"""
-    mailchimp = Client()
-    mailchimp.set_config({"api_key": keys.MAILCHIMP_KEY, "server": MAILCHIMP_SERVER})
-
-    try:
-        member_info = {"email_address": user.email, "status": "subscribed"}
-        mailchimp.lists.add_list_member(MAILCHIMP_LIST_ID, member_info)
-    except Exception as error:
-        sentry.log_error(error, message=error.text)
 
 
 @receiver(user_signed_up)
