@@ -3059,23 +3059,6 @@ htmlsoup = ["BeautifulSoup4"]
 source = ["Cython (==0.29.37)"]
 
 [[package]]
-name = "mailchimp-marketing"
-version = "3.0.80"
-description = "Mailchimp Marketing API"
-optional = false
-python-versions = "*"
-files = [
-    {file = "mailchimp_marketing-3.0.80-py3-none-any.whl", hash = "sha256:a5bcb3ebd3be60908c65af765f8195724e6fd2d61ecf6da667a794c5bc7b84d3"},
-]
-
-[package.dependencies]
-certifi = ">=2017.4.17"
-python-dateutil = ">=2.1"
-requests = ">=2.23"
-six = ">=1.10"
-urllib3 = ">=1.23"
-
-[[package]]
 name = "manubot"
 version = "0.5.3"
 description = "\"Python utilities for Manubot: Manuscripts, open and automated\""
@@ -6008,4 +5991,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "31f6eed59c445955c5930f2e604263aa2c4536b76490e63c7c43972f860b4bf7"
+content-hash = "4bb3d29f89c8ea3f87962bb51b4862f9349db5690b56530d4cf9b6283d421faf"

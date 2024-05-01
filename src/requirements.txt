@@ -1321,8 +1321,6 @@ lxml==4.9.4 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:f99768232f036b4776ce419d3244a04fe83784bce871b16d2c2e984c7fcea847 \
     --hash=sha256:fd814847901df6e8de13ce69b84c31fc9b3fb591224d6762d0b256d510cbf382 \
     --hash=sha256:fdb325b7fba1e2c40b9b1db407f85642e32404131c08480dd652110fc908561b
-mailchimp-marketing==3.0.80 ; python_version >= "3.8" and python_version < "4.0" \
-    --hash=sha256:a5bcb3ebd3be60908c65af765f8195724e6fd2d61ecf6da667a794c5bc7b84d3
 manubot==0.5.3 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:c3c9de141098ef0bad61159d83203ee5c3142187080f3182e58459adbcb7001b \
     --hash=sha256:e125b2496583203f15b8ff4f68b7e10187e7664719c7da9634eac0f57ea62868
