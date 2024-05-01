@@ -34,9 +34,13 @@ class TaskTests(APITestCase):
         return _mock_get_block_data
 
     def mock_decode_function_input_data(self, input):
-        function_name = {"fn_name": "transfer"}
+        class FunctionName:
+            def __init__(self, fn_name):
+                self.fn_name = fn_name
 
-        function_params = {"to": WEB3_KEYSTORE_ADDRESS, "_amount": 2000}
+        function_name = FunctionName("transfer")
+
+        function_params = {"_to": WEB3_KEYSTORE_ADDRESS, "_amount": 2000}
         return (function_name, function_params)
 
     def setUp(self):
@@ -76,7 +80,7 @@ class TaskTests(APITestCase):
         user = create_random_authenticated_user("deposit_user")
 
         deposit1 = create_deposit(
-            user, "2000.0", "from_address_1", "transaction_hash_1"
+            user, "2000.5", "from_address_1", "transaction_hash_1"
         )
 
         deposit2 = create_deposit(

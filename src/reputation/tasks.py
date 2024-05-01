@@ -7,7 +7,7 @@ from celery.decorators import periodic_task
 from celery.task.schedules import crontab
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import DurationField, F
+from django.db.models import DurationField, F, Q
 from django.db.models.functions import Cast
 from web3 import Web3
 
@@ -154,8 +154,8 @@ def evaluate_transaction(transaction_hash):
     contract = get_contract()
 
     func_name, func_params = contract.decode_function_input(tx["input"])
-    is_transfer = func_name["fn_name"] == "transfer"
-    is_correct_to_address = func_params["to"] == WEB3_KEYSTORE_ADDRESS
+    is_transfer = func_name.fn_name == "transfer"
+    is_correct_to_address = func_params["_to"] == WEB3_KEYSTORE_ADDRESS
     block_timestamp = datetime.fromtimestamp(block["timestamp"])
     is_recent_transaction = block_timestamp > datetime.now() - timedelta(
         seconds=PENDING_TRANSACTION_TTL
@@ -176,7 +176,9 @@ def check_deposits():
     # Sort by created date to ensure a malicious user doesn't attempt to take credit for
     # a deposit made by another user. This is a temporary solution until we add signed messages
     # to validate users own wallets.
-    deposits = Deposit.objects.filter(paid_status=None).order_by("created_date")
+    deposits = Deposit.objects.filter(
+        Q(paid_status=None) | Q(paid_status="PENDING")
+    ).order_by("created_date")
 
     for deposit in deposits.iterator():
         # If a deposit is not resolved after our set TTL, mark it as failed
@@ -197,7 +199,7 @@ def check_deposits():
         try:
             transaction_success = check_transaction_success(deposit.transaction_hash)
             if not transaction_success:
-                deposit.set_paid_failed()
+                deposit.set_paid_pending()
                 continue
 
             valid_deposit, deposit_amount = evaluate_transaction(
