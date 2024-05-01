@@ -12,10 +12,18 @@ def create_deposit(
     user,
     amount="1500.0",
     from_address=ADDRESS_1,
+    transaction_hash="0x",
 ):
-    Deposit.objects.create(user=user, amount=amount, from_address=from_address)
+    deposit = Deposit.objects.create(
+        user=user,
+        amount=amount,
+        from_address=from_address,
+        transaction_hash=transaction_hash,
+    )
     deposit_content_type = ContentType.objects.get(model="deposit")
     Balance.objects.create(amount=amount, user=user, content_type=deposit_content_type)
+
+    return deposit
 
 
 def create_withdrawals(count):
