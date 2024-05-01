@@ -11,7 +11,6 @@ from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.models import Deposit
 from reputation.serializers import DepositSerializer
-from utils.permissions import APIPermission
 
 
 class DepositViewSet(viewsets.ReadOnlyModelViewSet):
@@ -25,24 +24,6 @@ class DepositViewSet(viewsets.ReadOnlyModelViewSet):
             return Deposit.objects.all()
         else:
             return Deposit.objects.filter(user=user)
-
-    @action(detail=False, methods=["post"], permission_classes=[APIPermission])
-    def deposit_rsc(self, request):
-        """
-        This is a request to deposit RSC from our researchhub-async-service
-        TODO: Add a websocket call here so we can ping the frontend that the transaction completed
-        """
-        return Response(
-            "Deposits are suspended for the time being. Please be patient as we work to turn deposits back on",
-            status=400,
-        )
-        deposit = Deposit.objects.get(id=request.data.get("deposit_id"))
-        amt = deposit.amount
-        user = deposit.user
-        distribution = Dist("DEPOSIT", amt, give_rep=False)
-        distributor = Distributor(distribution, user, user, time.time(), user)
-        distributor.distribute()
-        return Response({"message": "Deposit successful"})
 
     @action(
         detail=False,
