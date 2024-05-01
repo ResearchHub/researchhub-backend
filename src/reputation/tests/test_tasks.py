@@ -7,7 +7,7 @@ from rest_framework.test import APITestCase
 from web3.contract import Contract
 from web3.types import BlockData, TxData, TxReceipt
 
-from reputation.tasks import TRANSACTION_AGE_LIMIT, check_deposits
+from reputation.tasks import PENDING_TRANSACTION_TTL, check_deposits
 from reputation.tests.helpers import create_deposit
 from researchhub.settings import WEB3_KEYSTORE_ADDRESS
 from user.tests.helpers import create_random_authenticated_user
@@ -113,7 +113,7 @@ class TaskTests(APITestCase):
 
         deposit = create_deposit(user, "2000.0", "from_address_4", "transaction_hash_4")
         deposit.created_date = deposit.created_date - timedelta(
-            seconds=TRANSACTION_AGE_LIMIT + 1
+            seconds=PENDING_TRANSACTION_TTL + 1
         )
         deposit.save()
 
@@ -126,7 +126,7 @@ class TaskTests(APITestCase):
     def test_old_transaction_hash(self):
         # Reset the mock for get_block_data to return a block with an old timestamp.
         self.mock_get_block.side_effect = self.mock_get_block_data(
-            time.time() - TRANSACTION_AGE_LIMIT - 1
+            time.time() - PENDING_TRANSACTION_TTL - 1
         )
 
         user = create_random_authenticated_user("deposit_user")

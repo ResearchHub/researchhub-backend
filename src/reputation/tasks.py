@@ -34,7 +34,7 @@ from utils.sentry import log_error, log_info
 
 DEFAULT_REWARD = 1000000
 
-TRANSACTION_AGE_LIMIT = 60 * 60 * 6  # 6 hours
+PENDING_TRANSACTION_TTL = 60 * 60 * 1  # 1 hour
 
 
 @app.task(queue=QUEUE_CONTRIBUTIONS)
@@ -158,7 +158,7 @@ def evaluate_transaction(transaction_hash):
     is_correct_to_address = func_params["to"] == WEB3_KEYSTORE_ADDRESS
     block_timestamp = datetime.fromtimestamp(block["timestamp"])
     is_recent_transaction = block_timestamp > datetime.now() - timedelta(
-        seconds=TRANSACTION_AGE_LIMIT
+        seconds=PENDING_TRANSACTION_TTL
     )
 
     return (
@@ -179,9 +179,9 @@ def check_deposits():
     deposits = Deposit.objects.filter(paid_status=None).order_by("created_date")
 
     for deposit in deposits.iterator():
-        # If a deposit is not resolved after 6 hours, mark it as failed
+        # If a deposit is not resolved after our set TTL, mark it as failed
         if deposit.created_date < datetime.now(pytz.UTC) - timedelta(
-            seconds=TRANSACTION_AGE_LIMIT
+            seconds=PENDING_TRANSACTION_TTL
         ):
             deposit.set_paid_failed()
             continue
@@ -214,7 +214,7 @@ def check_deposits():
                 deposit.amount = deposit_amount
                 deposit.set_paid()
         except Exception as e:
-            log_error(e)
+            log_error(e, "Failed to process deposit")
             deposit.set_paid_pending()
 
 
