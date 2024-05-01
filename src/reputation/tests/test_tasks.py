@@ -1,7 +1,7 @@
 import time
 from datetime import timedelta
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from rest_framework.test import APITestCase
 from web3.contract import Contract
@@ -50,15 +50,13 @@ class TaskTests(APITestCase):
         )
         self.get_transaction_patcher = patch("reputation.tasks.get_transaction")
         self.get_block_patcher = patch("reputation.tasks.get_block")
-        self.decode_function_input_patcher = patch(
-            "web3.contract.Contract.decode_function_input"
-        )
+        self.get_contract_patcher = patch("reputation.tasks.get_contract")
 
         # Start the patchers and get the mock objects
         self.mock_get_transaction_receipt = self.get_transaction_receipt_patcher.start()
         self.mock_get_transaction = self.get_transaction_patcher.start()
         self.mock_get_block = self.get_block_patcher.start()
-        self.mock_decode_function_input = self.decode_function_input_patcher.start()
+        self.mock_get_contract = self.get_contract_patcher.start()
 
         # Set the return values for the mock objects
         self.mock_get_transaction_receipt.side_effect = (
@@ -66,9 +64,12 @@ class TaskTests(APITestCase):
         )
         self.mock_get_transaction.side_effect = self.mock_get_transaction_data
         self.mock_get_block.side_effect = self.mock_get_block_data(time.time())
-        self.mock_decode_function_input.side_effect = (
+
+        mock_contract = Mock()
+        mock_contract.decode_function_input.side_effect = (
             self.mock_decode_function_input_data
         )
+        self.mock_get_contract.return_value = mock_contract
 
     def tearDown(self):
         # Stop the patchers
