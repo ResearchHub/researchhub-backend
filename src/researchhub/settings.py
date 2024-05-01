@@ -678,10 +678,6 @@ if elastic_token:
         ),
     }
 
-# MailChimp
-MAILCHIMP_SERVER = "us4"
-MAILCHIMP_LIST_ID = os.environ.get("MAILCHIMP_LIST_ID", keys.MAILCHIMP_LIST_ID)
-
 MORALIS_API_KEY = os.environ.get("MORALIS_API_KEY", keys.MORALIS_API_KEY)
 
 # Recaptcha
