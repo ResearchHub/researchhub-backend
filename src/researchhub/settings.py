@@ -750,11 +750,6 @@ CROSSREF_API_URL = (
     else "https://test.crossref.org/servlet/deposit"
 )
 
-# Async Service API Key
-ASYNC_SERVICE_API_KEY = os.environ.get(
-    "ASYNC_SERVICE_API_KEY", keys.ASYNC_SERVICE_API_KEY or "testapikeyservice"
-)
-
 WEB3_NETWORK = os.environ.get("WEB3_NETWORK", keys.WEB3_NETWORK)
 WEB3_KEYSTORE_BUCKET = os.environ.get("WEB3_KEYSTORE_BUCKET", keys.WEB3_KEYSTORE_BUCKET)
 WEB3_KEYSTORE_FILE = os.environ.get("WEB3_KEYSTORE_FILE", keys.WEB3_KEYSTORE_FILE)
