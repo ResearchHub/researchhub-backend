@@ -362,8 +362,6 @@ Add the keystore file to the config directory
 > Ask a team member for the file or create one from MyEtherWallet
 > https://www.myetherwallet.com/create-wallet
 
-Make sure you have added the Infura keys (see above^)
-
 ### Testing
 
 Run the test suite:
