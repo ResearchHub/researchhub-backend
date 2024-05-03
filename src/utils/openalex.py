@@ -283,6 +283,20 @@ class OpenAlex:
         cursor = next_cursor if next_cursor != "*" else None
         return institutions, cursor
 
+    def get_topics(self, next_cursor="*", page=1, batch_size=100):
+        filters = {
+            "page": page,
+            "per-page": batch_size,
+            "cursor": next_cursor,
+        }
+
+        response = self._get("topics", filters=filters)
+        topics = response.get("results", [])
+
+        next_cursor = response.get("meta", {}).get("next_cursor")
+        cursor = next_cursor if next_cursor != "*" else None
+        return topics, cursor
+
     def get_new_works_batch(
         self,
         since_date,

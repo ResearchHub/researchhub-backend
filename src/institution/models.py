@@ -112,6 +112,7 @@ class Institution(DefaultModel):
     def upsert_from_openalex(institution):
         mapped = {
             "openalex_id": institution["id"],
+            "updated_date": institution["updated_date"],
             "display_name": institution["display_name"],
             "ror_id": institution["ror"],
             "country_code": institution["country_code"],
