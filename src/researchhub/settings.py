@@ -201,6 +201,7 @@ INSTALLED_APPS = [
     "bullet_point",
     "citation",
     "discussion",
+    "institution",
     "ethereum",
     "google_analytics",
     "hub",

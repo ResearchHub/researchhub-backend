@@ -1,9 +1,9 @@
 import datetime
 import math
+from unicodedata import normalize
 
 from paper.exceptions import DOINotFoundError
 from paper.utils import check_url_contains_pdf, format_raw_authors
-from unicodedata import normalize
 from researchhub.settings import OPENALEX_KEY
 from utils.aws import download_pdf
 from utils.parsers import rebuild_sentence_from_inverted_index
@@ -109,12 +109,12 @@ class OpenAlex:
                 output_json[key] = value
 
         return output_json
-    
+
     def parse_to_paper_format(self, work):
-        doi = work.get("doi", work.get('ids', {}).get('doi', ''))
+        doi = work.get("doi", work.get("ids", {}).get("doi", ""))
         if doi is None:
             raise DOINotFoundError(f"No DOI found for work: {work}")
-        
+
         # remove https://doi.org/ from doi
         doi = doi.replace("https://doi.org/", "")
 
@@ -158,7 +158,9 @@ class OpenAlex:
             "pdf_license": primary_location.get("license", None),
             "pdf_license_url": url,
             "retrieved_from_external_source": True,
-            "external_source": source.get("display_name", None) or source.get("name", None) or source.get("publisher", None),
+            "external_source": source.get("display_name", None)
+            or source.get("name", None)
+            or source.get("publisher", None),
             "citations": work.get("cited_by_count", 0),
             "open_alex_raw_json": work,
         }
@@ -267,8 +269,25 @@ class OpenAlex:
         except Exception as e:
             return []
 
+    def get_institutions(self, next_cursor="*", page=1, batch_size=100):
+        filters = {
+            "page": page,
+            "per-page": batch_size,
+            "cursor": next_cursor,
+        }
+
+        response = self._get("institutions", filters=filters)
+        institutions = response.get("results", [])
+
+        next_cursor = response.get("meta", {}).get("next_cursor")
+        cursor = next_cursor if next_cursor != "*" else None
+        return institutions, cursor
+
     def get_new_works_batch(
-        self, since_date, type="article", next_cursor="*",
+        self,
+        since_date,
+        type="article",
+        next_cursor="*",
         batch_size=100,
     ):
         """
@@ -285,7 +304,7 @@ class OpenAlex:
         """
         # Format the date in YYYY-MM-DD format
         formatted_date = since_date.strftime("%Y-%m-%d")
-        
+
         # Build the filter
         oa_filter = f"from_created_date:{formatted_date},type:{type}"
         filters = {
