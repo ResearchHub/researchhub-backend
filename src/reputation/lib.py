@@ -9,10 +9,7 @@ from ethereum.lib import RSC_CONTRACT_ADDRESS, execute_erc20_transfer, get_priva
 from mailing_list.lib import base_email_context
 from reputation.models import Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
-from researchhub.settings import (
-    WEB3_KEYSTORE_ADDRESS,
-    w3,
-)
+from researchhub.settings import WEB3_WALLET_ADDRESS, w3
 from utils.message import send_email_message
 from utils.sentry import log_error
 
@@ -372,7 +369,7 @@ class PendingWithdrawal:
         amount = int(self.amount)
         to = self.withdrawal.to_address
         tx_hash = execute_erc20_transfer(
-            w3, WEB3_KEYSTORE_ADDRESS, PRIVATE_KEY, contract, to, amount
+            w3, WEB3_WALLET_ADDRESS, PRIVATE_KEY, contract, to, amount
         )
         self.withdrawal.transaction_hash = tx_hash
         self.withdrawal.save()
@@ -422,10 +419,10 @@ def check_hotwallet():
     contract = w3.eth.contract(
         abi=contract_abi, address=Web3.to_checksum_address(RSC_CONTRACT_ADDRESS)
     )
-    rsc_balance_wei = contract.functions.balanceOf(WEB3_KEYSTORE_ADDRESS).call()
+    rsc_balance_wei = contract.functions.balanceOf(WEB3_WALLET_ADDRESS).call()
     decimals = contract.functions.decimals().call()
     rsc_balance_eth = rsc_balance_wei / (10**decimals)
-    eth_balance_wei = w3.eth.get_balance(WEB3_KEYSTORE_ADDRESS)
+    eth_balance_wei = w3.eth.get_balance(WEB3_WALLET_ADDRESS)
     eth_balanace_eth = eth_balance_wei / (10**18)
     send_email = False
     outer_subject = "RSC is running low in the hotwallet"

@@ -9,7 +9,7 @@ from web3.types import BlockData, TxData, TxReceipt
 
 from reputation.tasks import PENDING_TRANSACTION_TTL, check_deposits
 from reputation.tests.helpers import create_deposit
-from researchhub.settings import WEB3_KEYSTORE_ADDRESS
+from researchhub.settings import WEB3_WALLET_ADDRESS
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -40,7 +40,7 @@ class TaskTests(APITestCase):
 
         function_name = FunctionName("transfer")
 
-        function_params = {"_to": WEB3_KEYSTORE_ADDRESS, "_amount": 2000}
+        function_params = {"_to": WEB3_WALLET_ADDRESS, "_amount": 2000}
         return (function_name, function_params)
 
     def setUp(self):
