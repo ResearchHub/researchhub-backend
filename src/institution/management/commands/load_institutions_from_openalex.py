@@ -1,11 +1,7 @@
-from sqlite3 import IntegrityError
-
 from django.core.management.base import BaseCommand
 
 from institution.models import Institution
 from utils.openalex import OpenAlex
-
-# def
 
 
 class Command(BaseCommand):
@@ -27,22 +23,18 @@ class Command(BaseCommand):
             institutions, cursor = open_alex.get_institutions(
                 page=1, next_cursor=cursor
             )
-            print("institutions", len(institutions))
-            print("cursor", cursor)
 
-            if current_page == 3:
-                return
+            for institution in institutions:
+                try:
+                    Institution.upsert_from_openalex(institution)
+                except Exception as e:
+                    print(
+                        "Failed to create institution:",
+                        institution["id"],
+                        "page:",
+                        current_page,
+                        "Exception:",
+                        e,
+                    )
 
             current_page += 1
-
-        return
-
-        for institution in institutions:
-            try:
-                print("Creating institution: " + institution["display_name"])
-                Institution.objects.create(
-                    openalex_id=institution["openalex_id"],
-                    display_name=institution["display_name"],
-                )
-            except IntegrityError:
-                print("Institution already exists: " + institution["display_name"])
