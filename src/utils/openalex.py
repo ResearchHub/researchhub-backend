@@ -135,6 +135,7 @@ class OpenAlex:
         title = normalize("NFKD", work.get("title", "") or "").strip()
         raw_authors = work.get("authorships", [])
         concepts = work.get("concepts", [])
+        topics = work.get("topics", [])
 
         pdf_license = primary_location.get("license", None)
         if pdf_license is None:
@@ -168,7 +169,7 @@ class OpenAlex:
         if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
             paper["pdf_url"] = oa_pdf_url
 
-        return paper, concepts
+        return paper, concepts, topics
 
     def get_data_from_doi(self, doi):
         filters = {"filter": f"doi:{doi}"}

@@ -274,6 +274,58 @@ class Paper(AbstractGenericReactionModel):
     pdf_url_svf = SearchVectorField(null=True, blank=True)
     doi_svf = SearchVectorField(null=True, blank=True)
 
+    # https://docs.openalex.org/api-entities/works/work-object#type
+    work_type = models.CharField(
+        blank=True,
+        null=True,
+        max_length=100,
+    )
+
+    # https://docs.openalex.org/api-entities/works/work-object#id
+    openalex_id = models.CharField(
+        blank=True,
+        null=True,
+        unique=True,
+        max_length=255,
+    )
+
+    # https://docs.openalex.org/api-entities/works/work-object#ids
+    pubmed_id = models.CharField(
+        blank=True,
+        null=True,
+        unique=True,
+        max_length=255,
+    )
+
+    # https://docs.openalex.org/api-entities/works/work-object#ids
+    pubmed_central_id = models.CharField(
+        blank=True,
+        null=True,
+        unique=True,
+        max_length=255,
+    )
+
+    # https://docs.openalex.org/api-entities/works/work-object#ids
+    mag_id = models.CharField(
+        blank=True,
+        null=True,
+        unique=True,
+        max_length=255,
+    )
+
+    # https://docs.openalex.org/api-entities/works/work-object#is_retracted
+    is_retracted = models.BooleanField(
+        blank=True,
+        null=True,
+    )
+
+    # https://docs.openalex.org/api-entities/works/work-object#language
+    language = models.CharField(
+        blank=True,
+        null=True,
+        max_length=10,
+    )
+
     class Meta:
         indexes = (
             HashIndex(fields=("url",), name="paper_paper_url_hix"),
