@@ -22,9 +22,9 @@ from celery.utils.log import get_task_logger
 from django.apps import apps
 from django.contrib.postgres.search import SearchQuery
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
 from django.core.files import File
 from django.core.files.base import ContentFile
-from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from habanero import Crossref
@@ -250,8 +250,8 @@ def add_orcid_authors(paper_id):
 def add_orcid_authors_batch(paper_ids):
     paper_ids = [id for id in paper_ids if id is not None]
 
-    from utils.orcid import orcid_api
     from paper.models import Paper
+    from utils.orcid import orcid_api
 
     papers = Paper.objects.filter(id__in=paper_ids).only("doi", "alternate_ids")
 
@@ -868,8 +868,8 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
         open_alex = OpenAlex()
 
         while True:
-            works, next_cursor = open_alex.get_new_works_batch(
-                since_date=date_to_fetch_from, next_cursor=next_cursor
+            works, next_cursor = open_alex.get_works(
+                type="article", since_date=date_to_fetch_from, next_cursor=next_cursor
             )
             # if we've reached the end of the results, exit the loop
             if next_cursor is None or works is None or len(works) == 0:

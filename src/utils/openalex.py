@@ -110,7 +110,7 @@ class OpenAlex:
 
         return output_json
 
-    def parse_to_paper_format(self, work):
+    def build_paper_from_openalex_work(self, work):
         doi = work.get("doi", work.get("ids", {}).get("doi", ""))
         if doi is None:
             raise DOINotFoundError(f"No DOI found for work: {work}")
@@ -297,30 +297,27 @@ class OpenAlex:
         cursor = next_cursor if next_cursor != "*" else None
         return topics, cursor
 
-    def get_new_works_batch(
+    def get_works(
         self,
-        since_date,
-        type="article",
+        since_date=None,
+        type=None,
         next_cursor="*",
         batch_size=100,
+        openalex_ids=None,
     ):
-        """
-        Get works published after the specified date.
-
-        Args:
-            since_date (datetime.date): Date to start searching for new papers.
-            next_cursor (str): Pagination cursor for API requests.
-            batch_size (int): Number of works to fetch in each request.
-
-        Returns:
-            list: List of new works since the given date.
-            cursor (str): Pagination cursor for the next request.
-        """
-        # Format the date in YYYY-MM-DD format
-        formatted_date = since_date.strftime("%Y-%m-%d")
-
         # Build the filter
-        oa_filter = f"from_created_date:{formatted_date},type:{type}"
+        oa_filter = ""
+        if type:
+            oa_filter = f"type:{type}"
+
+        if since_date:
+            # Format the date in YYYY-MM-DD format
+            formatted_date = since_date.strftime("%Y-%m-%d")
+            oa_filter += f"from_created_date:{formatted_date}"
+
+        if openalex_ids:
+            oa_filter = f"ids.openalex:{'|'.join(openalex_ids)}"
+
         filters = {
             "filter": oa_filter,
             "per-page": batch_size,

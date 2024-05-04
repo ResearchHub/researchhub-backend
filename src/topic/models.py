@@ -1,6 +1,9 @@
 from django.contrib.postgres.fields import ArrayField
 from django.db import models
 
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from utils.models import DefaultModel
 
 
@@ -100,3 +103,21 @@ class Topic(DefaultModel):
         else:
             topic = Topic.objects.create(**mapped)
         return topic
+
+
+class UnifiedDocumentTopics(DefaultModel):
+    unified_document = models.ForeignKey(
+        ResearchhubUnifiedDocument,
+        on_delete=models.CASCADE,
+    )
+
+    topic = models.ForeignKey(
+        "topic.Topic",
+        related_name="through_unified_document",
+        blank=True,
+        on_delete=models.CASCADE,
+    )
+
+    relevancy_score = models.FloatField(
+        default=0.0,
+    )
