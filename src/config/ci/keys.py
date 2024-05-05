@@ -4,6 +4,7 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "test")
 
 AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID", "NOT_REAL")
 AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY", "NOT_REAL")
+AWS_REGION_NAME = os.environ.get("AWS_REGION_NAME", "")
 
 GHOSTSCRIPT_LAMBDA_ARN = os.environ.get("GHOSTSCRIPT_LAMBDA_ARN", "NOT_REAL")
 

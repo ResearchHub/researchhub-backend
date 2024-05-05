@@ -473,6 +473,7 @@ AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID", keys.AWS_ACCESS_KEY_ID)
 AWS_SECRET_ACCESS_KEY = os.environ.get(
     "AWS_SECRET_ACCESS_KEY", keys.AWS_SECRET_ACCESS_KEY
 )
+AWS_REGION_NAME = os.environ.get("AWS_REGION_NAME", keys.AWS_REGION_NAME)
 
 # AWS Lambda
 
@@ -498,14 +499,14 @@ AWS_STORAGE_BUCKET_NAME = os.environ.get(
 
 AWS_S3_CUSTOM_DOMAIN = os.environ.get("AWS_S3_CUSTOM_DOMAIN", None)
 
-AWS_S3_REGION_NAME = os.environ.get("AWS_S3_REGION_NAME", "us-west-2")
+AWS_S3_REGION_NAME = AWS_REGION_NAME
 
 AWS_S3_FILE_OVERWRITE = False
 AWS_DEFAULT_ACL = None
 
 # Email
 
-AWS_SES_REGION_NAME = "us-west-2"
+AWS_SES_REGION_NAME = AWS_REGION_NAME
 AWS_SES_REGION_ENDPOINT = "email.us-west-2.amazonaws.com"
 
 EMAIL_BACKEND = "django_ses.SESBackend"
