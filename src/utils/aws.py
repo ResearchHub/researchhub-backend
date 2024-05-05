@@ -10,7 +10,7 @@ from django.utils.text import slugify
 from paper.utils import get_pdf_from_url
 from researchhub.settings import (
     AWS_ACCESS_KEY_ID,
-    AWS_GHOSTSCRIPT_LAMBDA,
+    GHOSTSCRIPT_LAMBDA_ARN,
     AWS_S3_REGION_NAME,
     AWS_SECRET_ACCESS_KEY,
     AWS_STORAGE_BUCKET_NAME,
@@ -95,7 +95,7 @@ def lambda_compress_and_linearize_pdf(key, file_name):
         service_name="lambda", region_name=AWS_S3_REGION_NAME
     )
     response = lambda_client.invoke(
-        FunctionName=AWS_GHOSTSCRIPT_LAMBDA,
+        FunctionName=GHOSTSCRIPT_LAMBDA_ARN,
         InvocationType="Event",
         Payload=data_bytes,
     )
