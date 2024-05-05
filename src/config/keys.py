@@ -5,6 +5,8 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "development")
 AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID", "")
 AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
 
+GHOSTSCRIPT_LAMBDA_ARN = os.environ.get("GHOSTSCRIPT_LAMBDA_ARN", "")
+
 ORCID_CLIENT_ID = os.environ.get("ORCID_CLIENT_ID")
 ORCID_CLIENT_SECRET = os.environ.get("ORCID_CLIENT_SECRET")
 ORCID_ACCESS_TOKEN = os.environ.get("ORCID_ACCESS_TOKEN")
