@@ -427,7 +427,7 @@ def check_hotwallet():
     send_email = False
     outer_subject = "RSC is running low in the hotwallet"
 
-    if rsc_balance_eth <= 300000:
+    if rsc_balance_eth <= 50000:
         outer_subject = "RSC is running low in the hotwallet"
         send_email = True
 
