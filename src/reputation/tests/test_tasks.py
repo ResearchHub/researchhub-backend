@@ -40,7 +40,7 @@ class TaskTests(APITestCase):
 
         function_name = FunctionName("transfer")
 
-        function_params = {"_to": WEB3_WALLET_ADDRESS, "_amount": 2000}
+        function_params = {"_to": WEB3_WALLET_ADDRESS, "_amount": 2000 * 10**18}
         return (function_name, function_params)
 
     def setUp(self):
