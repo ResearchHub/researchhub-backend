@@ -476,8 +476,8 @@ AWS_SECRET_ACCESS_KEY = os.environ.get(
 
 # AWS Lambda
 
-AWS_GHOSTSCRIPT_LAMBDA = (
-    "arn:aws:lambda:us-west-2:794128250202:function:researchhub-ghostscript"
+GHOSTSCRIPT_LAMBDA_ARN = os.environ.get(
+    "GHOSTSCRIPT_LAMBDA_ARN", keys.GHOSTSCRIPT_LAMBDA_ARN,
 )
 
 ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 7
