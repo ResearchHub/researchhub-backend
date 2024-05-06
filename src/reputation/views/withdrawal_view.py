@@ -30,8 +30,8 @@ from reputation.permissions import AllowWithdrawalIfNotSuspecious
 from reputation.serializers import WithdrawalSerializer
 from researchhub.settings import (
     ETHERSCAN_API_KEY,
-    WEB3_KEYSTORE_ADDRESS,
     WEB3_RSC_ADDRESS,
+    WEB3_WALLET_ADDRESS,
 )
 from user.models import Action
 from user.serializers import UserSerializer
@@ -93,7 +93,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
             if transfer and Web3.to_checksum_address(
                 from_addr
-            ) == Web3.to_checksum_address(WEB3_KEYSTORE_ADDRESS):
+            ) == Web3.to_checksum_address(WEB3_WALLET_ADDRESS):
                 withdrawal = Withdrawal.objects.get(transaction_hash=transaction_hash)
                 withdrawal.paid_status = PaidStatusModelMixin.PAID
                 withdrawal.save()

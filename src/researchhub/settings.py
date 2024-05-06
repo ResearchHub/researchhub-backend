@@ -756,10 +756,10 @@ WEB3_KEYSTORE_FILE = os.environ.get("WEB3_KEYSTORE_FILE", keys.WEB3_KEYSTORE_FIL
 WEB3_KEYSTORE_PASSWORD = os.environ.get(
     "WEB3_KEYSTORE_PASSWORD", keys.WEB3_KEYSTORE_PASSWORD
 )
-WEB3_KEYSTORE_ADDRESS = os.environ.get("", keys.WEB3_KEYSTORE_ADDRESS)
+WEB3_WALLET_ADDRESS = os.environ.get("WEB3_WALLET_ADDRESS", keys.WEB3_WALLET_ADDRESS)
 
-PROVIDER_URL = os.environ.get("PROVIDER_URL", keys.PROVIDER_URL)
-http_provider = Web3.HTTPProvider(PROVIDER_URL)
+WEB3_PROVIDER_URL = os.environ.get("WEB3_PROVIDER_URL", keys.WEB3_PROVIDER_URL)
+http_provider = Web3.HTTPProvider(WEB3_PROVIDER_URL)
 # If test then use mock provider
 if TESTING:
     http_provider = Web3.EthereumTesterProvider()

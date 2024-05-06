@@ -19,7 +19,7 @@ from reputation.distributor import Distributor
 from reputation.lib import check_hotwallet, check_pending_withdrawal, contract_abi
 from reputation.models import Bounty, Contribution, Deposit
 from researchhub.celery import QUEUE_BOUNTIES, QUEUE_CONTRIBUTIONS, QUEUE_PURCHASES, app
-from researchhub.settings import PRODUCTION, WEB3_KEYSTORE_ADDRESS, w3
+from researchhub.settings import PRODUCTION, WEB3_WALLET_ADDRESS, w3
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     ALL,
@@ -155,7 +155,7 @@ def evaluate_transaction(transaction_hash):
 
     func_name, func_params = contract.decode_function_input(tx["input"])
     is_transfer = func_name.fn_name == "transfer"
-    is_correct_to_address = func_params["_to"] == WEB3_KEYSTORE_ADDRESS
+    is_correct_to_address = func_params["_to"] == WEB3_WALLET_ADDRESS
     block_timestamp = datetime.fromtimestamp(block["timestamp"])
     is_recent_transaction = block_timestamp > datetime.now() - timedelta(
         seconds=PENDING_TRANSACTION_TTL
