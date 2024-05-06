@@ -163,7 +163,7 @@ def evaluate_transaction(transaction_hash):
 
     return (
         is_transfer and is_correct_to_address and is_recent_transaction,
-        func_params["_amount"],
+        func_params["_amount"] / (10**18),  # Convert from smallest denomination
     )
 
 
