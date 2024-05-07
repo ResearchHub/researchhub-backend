@@ -22,10 +22,7 @@ from analytics.amplitude import track_event
 from citation.constants import ARTICLE, CITATION_TYPE_FIELDS, JOURNAL_ARTICLE
 from citation.filters import CitationEntryFilter
 from citation.models import CitationEntry, CitationProject
-from citation.permissions import (
-    UserBelongsToOrganization,
-    UserCanViewCitation,
-)
+from citation.permissions import UserBelongsToOrganization, UserCanViewCitation
 from citation.schema import (
     generate_json_for_rh_paper,
     generate_json_for_rh_post,
@@ -154,6 +151,7 @@ class CitationEntryViewSet(ModelViewSet):
         )
         return Response(status=200)
 
+    @track_event
     @action(detail=True, methods=["post"])
     def add_post_as_citation(self, request, pk):
         user = request.user
@@ -189,6 +187,7 @@ class CitationEntryViewSet(ModelViewSet):
             serializer = MinimalCitationEntrySerializer(citation)
             return Response(serializer.data, status=res.status_code)
 
+    @track_event
     @action(detail=True, methods=["post"])
     def add_paper_as_citation(self, request, pk):
         user = request.user
