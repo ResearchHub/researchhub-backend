@@ -16,7 +16,7 @@ from mailing_list.lib import base_email_context
 from notification.models import Notification
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
-from reputation.lib import check_hotwallet, check_pending_withdrawal, contract_abi
+from reputation.lib import check_hotwallet, check_pending_withdrawals, contract_abi
 from reputation.models import Bounty, Contribution, Deposit
 from researchhub.celery import QUEUE_BOUNTIES, QUEUE_CONTRIBUTIONS, QUEUE_PURCHASES, app
 from researchhub.settings import PRODUCTION, WEB3_WALLET_ADDRESS, w3
@@ -225,8 +225,8 @@ def check_deposits():
     priority=4,
     queue=QUEUE_PURCHASES,
 )
-def check_pending_withdrawals():
-    check_pending_withdrawal()
+def check_pending_withdrawals_task():
+    check_pending_withdrawals()
 
 
 @periodic_task(

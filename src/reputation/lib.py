@@ -397,18 +397,22 @@ def evaluate_transaction_hash(
     return paid_status, paid_date
 
 
-def check_pending_withdrawal():
+def check_pending_withdrawals():
     """
-    Checks pending withdrawal and sees if it's completed
+    Checks pending withdrawals and sees if they have completed
     """
     pending_withdrawals = Withdrawal.objects.filter(
         paid_status=PaidStatusModelMixin.PENDING
     )
     for withdrawal in pending_withdrawals:
-        paid_status, paid_date = evaluate_transaction_hash(withdrawal.transaction_hash)
-        withdrawal.paid_status = paid_status
-        withdrawal.paid_date = paid_date
-        withdrawal.save()
+        check_pending_withdrawal(withdrawal)
+
+
+def check_pending_withdrawal(withdrawal):
+    paid_status, paid_date = evaluate_transaction_hash(withdrawal.transaction_hash)
+    withdrawal.paid_status = paid_status
+    withdrawal.paid_date = paid_date
+    withdrawal.save()
 
 
 def check_hotwallet():
