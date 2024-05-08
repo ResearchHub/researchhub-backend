@@ -410,7 +410,7 @@ def create_automated_bounty(item):
             json_content = {
                 "ops": [
                     {
-                        "insert": "The ResearchHub Foundation is assigning a peer review bounty of $150 in ResearchCoin to incentivize the peer review of this preprint. This will be awarded to an individual who performs a high-quality peer review. Anyone can perform a peer review and receive rewards from upvotes/tips, but only those who provide a high-quality, thorough peer review are eligible for the bounty.\n\n"
+                        "insert": "The ResearchHub Foundation is assigning a peer review bounty of $150 in ResearchCoin to incentivize the peer review of this preprint. Anyone can perform a peer review and receive rewards from upvotes/tips, but only those who provide a high-quality, thorough peer review are eligible for the bounty.\n\n"
                     },
                     {"attributes": {"bold": True}, "insert": "Requirements: "},
                     {
