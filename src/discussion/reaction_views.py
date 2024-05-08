@@ -410,31 +410,53 @@ def create_automated_bounty(item):
             json_content = {
                 "ops": [
                     {
-                        "insert": "The ResearchHub Foundation is assigning a peer review bounty of $150 in ResearchCoin to incentivize the peer review of this Biorxiv preprint. This will be awarded to an individual who performs a high quality peer review. Anyone can perform a peer review and receive rewards from upvotes/tips, but only those who provide a high quality thorough peer review are eligible for the bounty.\n\n"
+                        "insert": "The ResearchHub Foundation is assigning a peer review bounty of $150 in ResearchCoin to incentivize the peer review of this preprint. Anyone can perform a peer review and receive rewards from upvotes/tips, but only those who provide a high-quality, thorough peer review are eligible for the bounty.\n\n"
                     },
-                    {"insert": "Requirements: ", "attributes": {"bold": True}},
+                    {"attributes": {"bold": True}, "insert": "Requirements: "},
                     {
-                        "insert": "\n\n30 day turnaround time from the date of this bounty"
+                        "insert": "\n\n30-day turnaround time from the date of this bounty"
                     },
-                    {"insert": "\n", "attributes": {"list": "bullet"}},
+                    {"attributes": {"list": "ordered"}, "insert": "\n"},
                     {
-                        "insert": 'Use the rating system in the "Peer Reviews" tab for all 5 criteria (overall, impact, methods, results, discussion) but the content within each is flexible (in-line comments can be used here instead of a block of text in each section, but a star rating should still be made in the "Peer Review" Tab)'
+                        "insert": "At the start, briefly mention your credentials, and whether the following review will be an expert peer review or a community peer review (from a non-expert)"
                     },
-                    {"insert": "\n", "attributes": {"list": "bullet"}},
+                    {"attributes": {"list": "ordered"}, "insert": "\n"},
                     {
-                        "insert": "Include a section at the end for areas you may be deficient in, so the readers have context around your peer review"
+                        "insert": 'Use the rating system in the "Peer Reviews" tab for all 5 criteria (overall, impact, methods, results, discussion) but the content within each is flexible (in-line comments can be used here instead of a block of text in each section)'
                     },
-                    {"insert": "\n", "attributes": {"list": "bullet"}},
+                    {"attributes": {"list": "ordered"}, "insert": "\n"},
                     {
-                        "insert": "Blatant use of AI generation will not be tolerated, but can be used in conjunction with your detailed human feedback"
+                        "insert": "Include a section at the end of your review for areas you have strengths and weaknesses in"
                     },
-                    {"insert": "\n", "attributes": {"list": "bullet"}},
+                    {"attributes": {"list": "ordered"}, "insert": "\n"},
+                    {"insert": "Blatant use of AI generation will not be tolerated"},
+                    {"attributes": {"list": "ordered"}, "insert": "\n"},
                     {
-                        "insert": "Comment within this thread in the bounty section in order to be awarded the peer review bounty upon completion"
+                        "insert": "Comment within this thread in the bounty section to be awarded the peer review bounty upon completion"
                     },
-                    {"insert": "\n", "attributes": {"list": "bullet"}},
+                    {"attributes": {"list": "ordered"}, "insert": "\n"},
+                    {"insert": "Here is a "},
+                    {
+                        "attributes": {
+                            "link": "https://docs.google.com/document/d/1RFbXVquF7FzaGNYDpo3VDGRz-MqWxLhHiTNzwJaqG8k/edit"
+                        },
+                        "insert": "guide",
+                    },
+                    {
+                        "insert": " for “How to Peer Review” with examples of good peer reviews. We encourage you to read it before providing your review"
+                    },
+                    {"attributes": {"list": "ordered"}, "insert": "\n"},
+                    {
+                        "insert": "Decision on the bounty award will solely depend on quality and timely submission of peer review as deemed by our Editorial Team"
+                    },
+                    {"attributes": {"list": "ordered"}, "insert": "\n"},
+                    {
+                        "insert": "If you have any questions you may join our discord (https://discord.gg/researchhub) or email our Editor Lead Maulik Dhandha (maulik.editor@researchhub.foundation)"
+                    },
+                    {"attributes": {"list": "ordered"}, "insert": "\n"},
                 ]
             }
+
             thread = RhCommentThreadModel.objects.create(
                 thread_type="GENERIC_COMMENT",
                 content_type_id=item_content_type.id,
