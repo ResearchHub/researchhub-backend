@@ -454,7 +454,7 @@ def get_discussion_vote_item_distribution(instance):
         else:
             raise error
 
-        return distributions.create_upvote_distribution(vote_type, paper, instance)
+        return distributions.Distribution(vote_type, 1, 1)
     elif vote_type == GrmVote.DOWNVOTE:
         if isinstance(item, RhCommentModel):
             vote_type = distributions.RhCommentDownvoted

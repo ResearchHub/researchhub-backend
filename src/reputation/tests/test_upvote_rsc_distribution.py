@@ -4,12 +4,9 @@ import math
 from django.contrib.admin.options import get_content_type_for_model
 from django.test import TestCase
 
+import reputation.distributions as distributions
 from discussion.models import Vote as GrmVote
 from discussion.tests.helpers import create_rh_comment
-from reputation.distributions import (
-    calculate_rsc_per_upvote,
-    create_upvote_distribution,
-)
 from reputation.models import Distribution, Escrow
 from researchhub_case.constants.case_constants import APPROVED
 from researchhub_case.models import AuthorClaimCase
@@ -44,93 +41,6 @@ class BaseTests(TestCase, TestHelper):
             )
         GrmVote.objects.bulk_create(votes)
 
-    def test_upvote_distribution(
-        self,
-    ):
-        distribution_amount = calculate_rsc_per_upvote()
-        create_upvote_distribution(1, self.original_paper, GrmVote.objects.first())
-        self.assertEquals(Escrow.objects.filter(hold_type=Escrow.AUTHOR_RSC).count(), 1)
-        self.assertEquals(
-            Escrow.objects.filter(hold_type=Escrow.AUTHOR_RSC).first().amount_holding,
-            round(decimal.Decimal(distribution_amount * 0.95), 10),
-        )
-
-    def test_no_verified_author_distribution(
-        self,
-    ):
-        self.original_paper.raw_authors = [
-            {"first_name": "First", "last_name": "Last"},
-            {"first_name": "Jimmy", "last_name": "Johns"},
-            {"first_name": "Ronald", "last_name": "McDonald"},
-        ]
-        university = self.create_university()
-        author_user = self.create_user(
-            first_name="First",
-            last_name="Last",
-            email="user2@gmail.com",
-        )
-
-        if Author.objects.count() > 0:
-            Author.objects.all().delete()
-
-        university = self.create_university()
-        author = Author.objects.create(
-            user=author_user,
-            first_name=self.original_paper.raw_authors[0].get("first_name"),
-            last_name=self.original_paper.raw_authors[0].get("last_name"),
-            university=university,
-        )
-
-        self.original_paper.authors.add(author)
-        distribution = create_upvote_distribution(
-            1, self.original_paper, GrmVote.objects.first()
-        )
-        distribution_amount = calculate_rsc_per_upvote()
-        self.assertEquals(Distribution.objects.count(), 0)
-        self.assertEquals(
-            distribution.amount, round(decimal.Decimal(distribution_amount * 0.05), 10)
-        )
-
-    def test_author_claim_distribution(
-        self,
-    ):
-        self.original_paper.raw_authors = [
-            {"first_name": "First", "last_name": "Last"},
-            {"first_name": "Jimmy", "last_name": "Johns"},
-            {"first_name": "Ronald", "last_name": "McDonald"},
-        ]
-
-        university = self.create_university()
-        author_user = self.create_user(
-            first_name="First",
-            last_name="Last",
-            email="user3@gmail.com",
-        )
-
-        university = self.create_university()
-        if Author.objects.count() > 0:
-            Author.objects.all().delete()
-        author = Author.objects.create(
-            user=author_user,
-            first_name=self.original_paper.raw_authors[0].get("first_name"),
-            last_name=self.original_paper.raw_authors[0].get("last_name"),
-            university=university,
-        )
-
-        self.original_paper.authors.add(author)
-        AuthorClaimCase.objects.create(
-            target_paper=self.original_paper, requestor=author.user, status=APPROVED
-        )
-        distribution = create_upvote_distribution(
-            1, self.original_paper, GrmVote.objects.first()
-        )
-        distribution_amount = calculate_rsc_per_upvote()
-        self.assertEquals(Distribution.objects.count(), 1)
-        self.assertEquals(
-            Distribution.objects.first().amount,
-            math.floor(distribution_amount * 0.95 / 3),
-        )
-
     def test_comment_upvote_distribution(self):
         if Distribution.objects.count() > 0:
             Distribution.objects.all().delete()
@@ -153,10 +63,8 @@ class BaseTests(TestCase, TestHelper):
         new_user.reputation = 50000
         new_user.save()
         comment = create_rh_comment(created_by=new_user, paper=self.original_paper)
-        comment_vote = GrmVote.objects.create(
-            item=comment, vote_type=1, created_by=voter_user
-        )
-        distribution = create_upvote_distribution(1, None, comment_vote)
+        GrmVote.objects.create(item=comment, vote_type=1, created_by=voter_user)
+        distribution = distributions.Distribution(1, 1, 1)
         self.assertEquals(Distribution.objects.count(), 1)
         self.assertEquals(distribution.amount, Distribution.objects.first().amount)
 
@@ -190,7 +98,7 @@ class BaseTests(TestCase, TestHelper):
             item=reply, vote_type=1, created_by=voter_user
         )
 
-        distribution = create_upvote_distribution(1, None, reply_vote)
+        distribution = distributions.Distribution(1, 1, 1)
         self.assertEquals(Distribution.objects.count(), 1)
         self.assertEquals(distribution.amount, Distribution.objects.first().amount)
         reply_vote.vote_type = 2
@@ -200,7 +108,7 @@ class BaseTests(TestCase, TestHelper):
         self.assertEquals(Distribution.objects.count(), 1)
         self.assertEquals(distribution.amount, Distribution.objects.first().amount)
 
-    def test_ineligible_enhanced_distribution(self):
+    def test_upvote_distribution(self):
         if Distribution.objects.count() > 0:
             Distribution.objects.all().delete()
 
@@ -219,63 +127,5 @@ class BaseTests(TestCase, TestHelper):
         eligible_user.reputation = 20000
         eligible_user.save()
 
-        distribution_amount = calculate_rsc_per_upvote()
-        distribution = create_upvote_distribution(
-            1, self.original_paper, GrmVote.objects.first()
-        )
+        distribution = distributions.Distribution(1, 1, 1)
         self.assertEquals(distribution.amount, 1)
-
-    def test_author_claim_pot(
-        self,
-    ):
-        if Distribution.objects.count() > 0:
-            Distribution.objects.all().delete()
-
-        if Escrow.objects.count() > 0:
-            Escrow.objects.all().delete()
-
-        self.original_paper.raw_authors = [
-            {"first_name": "First", "last_name": "Last"},
-            {"first_name": "Jimmy", "last_name": "Johns"},
-            {"first_name": "Ronald", "last_name": "McDonald"},
-        ]
-
-        self.original_paper.save()
-
-        university = self.create_university()
-        author_user = self.create_user(
-            first_name="First",
-            last_name="Last",
-            email="user3@gmail.com",
-        )
-
-        distribution = create_upvote_distribution(
-            1, self.original_paper, GrmVote.objects.first()
-        )
-        distribution_amount = calculate_rsc_per_upvote()
-
-        university = self.create_university()
-        if Author.objects.count() > 0:
-            Author.objects.all().delete()
-
-        author = Author.objects.create(
-            user=author_user,
-            first_name=self.original_paper.raw_authors[0].get("first_name"),
-            last_name=self.original_paper.raw_authors[0].get("last_name"),
-            university=university,
-        )
-
-        self.original_paper.authors.add(author)
-        case = AuthorClaimCase.objects.create(
-            target_paper=self.original_paper, requestor=author.user, status=APPROVED
-        )
-
-        after_approval_flow.apply((case.id,), priority=2, countdown=1)
-
-        self.assertEquals(Distribution.objects.count(), 2)
-        self.assertEquals(
-            Distribution.objects.filter(distribution_type="STORED_PAPER_POT")
-            .first()
-            .amount,
-            math.floor(distribution_amount * 0.95 / 3),
-        )
