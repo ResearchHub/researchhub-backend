@@ -164,6 +164,13 @@ class OpenAlex:
             or source.get("publisher", None),
             "citations": work.get("cited_by_count", 0),
             "open_alex_raw_json": work,
+            "openalex_id": work.get("id", None),
+            "is_retracted": work.get("is_retracted", None),
+            "mag_id": work.get("ids", {}).get("mag", None),
+            "pubmed_id": work.get("ids", {}).get("pmid", None),
+            "pubmed_central_id": work.get("ids", {}).get("pmcid", None),
+            "work_type": work.get("type", None),
+            "language": work.get("language", None),
         }
 
         if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):

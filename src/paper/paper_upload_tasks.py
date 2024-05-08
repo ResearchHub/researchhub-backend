@@ -438,7 +438,7 @@ def celery_openalex(self, celery_data):
             if doi_paper_check.exists():
                 duplicate_ids = doi_paper_check.values_list("id", flat=True)
                 raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
-            
+
             data, concepts = open_alex.parse_to_paper_format(result)
 
             paper_concepts = open_alex.hydrate_paper_concepts(concepts)
@@ -622,7 +622,7 @@ def celery_create_paper(self, celery_data):
     except Exception as e:
         raise e
 
-    create_paper_concepts_and_hubs.apply_async(
+    create_paper_concepts_and_hubs_from_openalex.apply_async(
         (
             paper_id,
             paper_concepts,
@@ -636,56 +636,44 @@ def celery_create_paper(self, celery_data):
 
 
 @app.task(queue=QUEUE_PAPER_METADATA)
-def create_paper_concepts_and_hubs(paper_id, paper_concepts):
-    """
-    Creates concepts and hubs for a paper, or updates them if they already exist.
-    """
-    for paper_concept in paper_concepts:
-        try:
-            logger.info(f"concepts in celery_create_paper: {paper_concepts}")
+def create_paper_concepts_and_hubs_from_openalex(paper_id, concepts):
+    from django.db import transaction
 
-            # Every time a concept is created, an associated hub is also created
-            concept = Concept.create_or_update(paper_concept)
-        except Exception as e:
-            print("Failed to save concepts fo paper" + str(paper_id))
-            print(
-                {
-                    "concept": concept,
-                    "paper_concept": paper_concept,
-                }
-            )
-            sentry.log_error(
-                e,
-                message={
-                    "concept": concept,
-                    "paper_concept": paper_concept,
-                },
-            )
-
-        associate_hubs_with_paper.apply_async(
-            (paper_id, concept.id, paper_concept),
-            priority=2,
-            countdown=1,
-        )
-
-
-@app.task(queue=QUEUE_PAPER_METADATA)
-def associate_hubs_with_paper(paper_id, concept_id, paper_concept):
     from paper.models import Paper
 
-    paper = Paper.objects.get(id=paper_id)
-    hubs = Hub.objects.filter(concept__id=concept_id)
-
-    if hubs.count() > 0:
-        paper.hubs.add(*hubs)
-        paper.unified_document.hubs.add(*hubs)
-        paper.unified_document.concepts.add(
-            concept_id,
-            through_defaults={
-                "relevancy_score": paper_concept["score"],
-                "level": paper_concept["level"],
-            },
+    for openalex_concept in concepts:
+        print(
+            f"Upserting concept {openalex_concept['id']} / {openalex_concept['display_name']}"
         )
+
+        concept = None
+        try:
+            concept = Concept.upsert_from_openalex(openalex_concept)
+        except Exception as e:
+            sentry.log_error(
+                e,
+                message=f"Failed to create concept {openalex_concept['id']} / {openalex_concept['display_name']}",
+            )
+            continue
+
+        try:
+            with transaction.atomic():
+                paper = Paper.objects.get(id=paper_id)
+                paper.unified_document.concepts.add(
+                    concept.id,
+                    through_defaults={
+                        "relevancy_score": openalex_concept["score"],
+                        "level": openalex_concept["level"],
+                    },
+                )
+                hub = Hub.objects.get(concept__id=concept.id)
+                paper.hubs.add(hub)
+
+        except Exception as e:
+            sentry.log_error(
+                e,
+                message=f"Failed to associate concept {concept.id} to paper {paper_id}",
+            )
 
 
 @app.task(queue=QUEUE_PAPER_METADATA)

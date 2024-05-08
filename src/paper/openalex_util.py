@@ -4,17 +4,19 @@ from django.apps import apps
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
+from django.db.models import Q
 
 import utils.sentry as sentry
 from paper.utils import get_cache_key
 from purchase.models import Wallet
+from tag.models import Concept
 from utils.http import check_url_contains_pdf
 from utils.openalex import OpenAlex
 
 
 def process_openalex_works(works):
     from paper.models import Paper
-    from paper.paper_upload_tasks import create_paper_concepts_and_hubs
+    from paper.paper_upload_tasks import create_paper_concepts_and_hubs_from_openalex
 
     open_alex = OpenAlex()
 
@@ -22,24 +24,29 @@ def process_openalex_works(works):
     dois = [doi for doi in dois if doi is not None]
     # if dois have https://doi.org/ prefix, remove them
     dois = [doi.replace("https://doi.org/", "") for doi in dois]
+    openalex_ids = [work.get("id") for work in works]
 
     # batch fetch existing papers
-    existing_papers_query = Paper.objects.filter(doi__in=dois).only("doi", "id")
-    existing_papers = {paper.doi: paper for paper in existing_papers_query}
+    existing_papers_query = (
+        Paper.objects.filter(Q(doi__in=dois) | Q(openalex_id__in=openalex_ids))
+        .only("doi", "id")
+        .distinct()
+    )
+    existing_paper_map = {paper.doi: paper for paper in existing_papers_query}
 
+    # Split works into two buckets: create and update
     create_papers = []
     update_papers = []
-
     for work in works:
         doi = work.get("doi")
         if doi is None:
             print(f"No Doi for result: {work}")
             continue
 
-        existing_paper = existing_papers.get(doi)
+        existing_paper = existing_paper_map.get(doi)
         if existing_paper is None:
             doi = doi.replace("https://doi.org/", "")
-            existing_paper = existing_papers.get(doi)
+            existing_paper = existing_paper_map.get(doi)
 
         if existing_paper is not None:
             update_papers.append((existing_paper, work))
@@ -49,26 +56,25 @@ def process_openalex_works(works):
     paper_id_to_concepts = {}
     paper_ids_to_add_to_biorxiv_hub = []
 
-    # we can't use Paper.objects.bulk_create because there's generated fields,
-    # and we can't exclude the generated fields (e.g. doi_svf) from the bulk_create.
-    # so we just do it in a transaction.
+    # Create new papers
     new_paper_ids = []
     with transaction.atomic():
         for work in create_papers:
             data, raw_concepts, raw_topics = open_alex.build_paper_from_openalex_work(
                 work
             )
-            concepts = open_alex.hydrate_paper_concepts(raw_concepts)
+
+            concepts = raw_concepts  # open_alex.hydrate_paper_concepts(raw_concepts)
             paper = Paper(**data)
-            # we don't do .full_clean() since it performs a unique check on doi, url
-            # and we don't need to check for uniques since we already did that above.
+
+            # Validate paper
             try:
                 paper.clean_fields()
                 paper.clean()
             except ValidationError as e:
                 sentry.log_error(e, message=f"Failed to validate paper: {paper.doi}")
                 continue
-            paper.get_abstract_backup()
+
             paper.get_pdf_link()
 
             try:
@@ -100,7 +106,8 @@ def process_openalex_works(works):
     # setup papers for batch update
     for existing_paper, work in update_papers:
         data, raw_concepts, raw_topics = open_alex.build_paper_from_openalex_work(work)
-        concepts = open_alex.hydrate_paper_concepts(raw_concepts)
+
+        concepts = raw_concepts  # open_alex.hydrate_paper_concepts(raw_concepts)
 
         # we didn't fetch all fields in the initial paper query (we used .only()),
         # so we need to explicitly fetch them if we want to update them.
@@ -116,12 +123,30 @@ def process_openalex_works(works):
                 "is_open_access",
                 "open_alex_raw_json",
                 "external_source",
+                "work_type",
+                "openalex_id",
+                "is_retracted",
+                "mag_id",
+                "pubmed_id",
+                "pubmed_central_id",
+                "work_type",
+                "language",
             ]
         )
 
         existing_paper.paper_publish_date = data.get("paper_publish_date")
         existing_paper.alternate_ids = data.get("alternate_ids", {})
         existing_paper.citations = data.get("citations")
+        existing_paper.openalex_id = data.get("openalex_id")
+        existing_paper.is_retracted = data.get("is_retracted")
+        existing_paper.mag_id = data.get("mag_id")
+        existing_paper.pubmed_id = data.get("pubmed_id")
+        existing_paper.pubmed_central_id = data.get("pubmed_central_id")
+        existing_paper.work_type = data.get("work_type")
+        existing_paper.language = data.get("language")
+
+        print(f"Updating paper {existing_paper.id} with openalex_id {data.get('id')}")
+
         if existing_paper.abstract is None:
             existing_paper.abstract = data.get("abstract")
         if data.get("pdf_license") is not None:
@@ -149,6 +174,13 @@ def process_openalex_works(works):
             "oa_status",
             "is_open_access",
             "open_alex_raw_json",
+            "openalex_id",
+            "is_retracted",
+            "mag_id",
+            "pubmed_id",
+            "pubmed_central_id",
+            "work_type",
+            "language",
         ]
         papers_to_update = [paper for paper, _ in update_papers]
         try:
@@ -176,14 +208,6 @@ def process_openalex_works(works):
                     )
                     continue
 
-    # batch create concepts and hubs
-    # for paper_id, concepts in paper_id_to_concepts.items():
-    #     # TODO: We should batch create concepts and hubs
-    #     try:
-    #         create_paper_concepts_and_hubs.apply_async(
-    #             (paper_id, concepts),
-    #             priority=5,
-    #             countdown=1,
-    #         )
-    #     except Exception as e:
-    #         sentry.log_error(e, message="Failed to batch create concepts and hubs")
+    # Upsert concepts and associate to papers
+    for paper_id, concepts in paper_id_to_concepts.items():
+        create_paper_concepts_and_hubs_from_openalex(paper_id, concepts)

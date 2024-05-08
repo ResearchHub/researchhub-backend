@@ -67,7 +67,7 @@ class Command(BaseCommand):
         start_id = kwargs["start_id"]
         to_id = kwargs["to_id"]
         mode = kwargs["mode"]
-        batch_size = 5
+        batch_size = 30
 
         if mode == "backfill":
             current_id = start_id
