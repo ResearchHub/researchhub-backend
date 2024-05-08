@@ -1,5 +1,4 @@
 import datetime
-import decimal
 from time import time
 
 import pytz
@@ -79,62 +78,6 @@ def calculate_rsc_per_upvote():
     rsc_distribute *= 1 - GROWTH
 
     return int(rsc_distribute)
-
-
-def create_upvote_distribution(vote_type, paper=None, vote=None):
-    from reputation.models import Escrow
-    from user.utils import calculate_eligible_enhanced_upvotes
-
-    eligible_enhanced_upvote = False
-    if vote:
-        eligible_enhanced_upvote = calculate_eligible_enhanced_upvotes(vote.created_by)
-
-    if not eligible_enhanced_upvote:
-        return Distribution(vote_type, 1, 1)
-
-    distribution_amount = calculate_rsc_per_upvote()
-
-    if paper:
-        from reputation.distributor import Distributor
-        from researchhub_case.models import AuthorClaimCase
-
-        author_distribution_amount = round(
-            decimal.Decimal(distribution_amount * 0.95), 10
-        )
-        distribution_amount *= round(
-            decimal.Decimal(0.05), 10
-        )  # authors get 95% of the upvote score
-        distributed_amount = decimal.Decimal(0)
-        author_count = paper.true_author_count()
-
-        for author in paper.authors.all():
-            if (
-                author.user
-                and AuthorClaimCase.objects.filter(
-                    target_paper=paper, requestor=author.user, status=APPROVED
-                ).exists()
-            ):
-                timestamp = time()
-                amt = author_distribution_amount / author_count
-                distributor = Distributor(
-                    Distribution(vote_type, amt),
-                    author.user,
-                    paper,
-                    timestamp,
-                    vote.created_by,
-                    paper.hubs.all(),
-                )
-                record = distributor.distribute()
-                distributed_amount += amt
-
-        Escrow.objects.create(
-            created_by=vote.created_by,
-            item=paper,
-            amount_holding=author_distribution_amount - distributed_amount,
-            hold_type=Escrow.AUTHOR_RSC,
-        )
-
-    return Distribution(vote_type, distribution_amount, 1)
 
 
 FlagPaper = Distribution("FLAG_PAPER", -1, give_rep=True, reputation=-1)
