@@ -10,13 +10,22 @@ from django.utils.text import slugify
 from paper.utils import get_pdf_from_url
 from researchhub.settings import (
     AWS_ACCESS_KEY_ID,
-    GHOSTSCRIPT_LAMBDA_ARN,
+    AWS_ACCOUNT_ID,
+    AWS_REGION_NAME,
     AWS_S3_REGION_NAME,
     AWS_SECRET_ACCESS_KEY,
     AWS_STORAGE_BUCKET_NAME,
+    GHOSTSCRIPT_LAMBDA_ARN,
 )
 from utils.http import check_url_contains_pdf
 from utils.sentry import log_error
+
+
+PERSONALIZE = "personalize"
+
+
+def get_arn(service, resource):
+    return f"arn:aws:{service}:{AWS_REGION_NAME}:{AWS_ACCOUNT_ID}:{resource}"
 
 
 def get_s3_object_name(key):
