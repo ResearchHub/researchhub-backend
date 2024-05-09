@@ -67,19 +67,20 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         permission_classes=[],
     )
     def oz_webhook(self, request):
-        return Response(
-            "Withdrawals are suspended for the time being. Please be patient as we work to turn withdrawals back on",
-            status=400,
-        )
+        # return Response(
+        #     "Withdrawals are suspended for the time being. Please be patient as we work to turn withdrawals back on",
+        #     status=400,
+        # )
         body = json.loads(request.body.decode("utf-8"))
         with sentry_sdk.push_scope() as scope:
             scope.set_extra("data", body)
         manual_hook = request.GET.get("manual", False)
         if not manual_hook:
             Webhook.objects.create(body=body, from_host=request.headers["Host"])
-        print(body)
+        sentry.log_info(body)
 
         for event in body.get("events", []):
+            sentry.log_info(event)
             transaction_hash = event.get("hash")
             from_addr = event.get("transaction", {}).get("from")
             if transaction_hash is None:
