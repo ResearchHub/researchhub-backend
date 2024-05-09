@@ -14,6 +14,9 @@ from paper.related_models.paper_model import Paper
 from reputation.related_models.bounty import Bounty
 from reputation.serializers.bounty_serializer import DynamicBountySerializer
 from researchhub.serializers import DynamicModelFieldSerializer
+from researchhub.settings import (
+    AWS_REGION_NAME,
+)
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.serializers.rh_comment_serializer import (
     DynamicRhCommentSerializer,
@@ -29,6 +32,10 @@ from user.models import Action
 from user.serializers import DynamicUserSerializer
 from utils import sentry
 from utils.http import get_user_from_request
+from utils.aws import (
+    get_arn,
+    PERSONALIZE,
+)
 
 
 class FeedPagination(PageNumberPagination):
@@ -373,11 +380,9 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
 
     def _get_ranked_recent_object_ids(self, user_id):
         personalize_runtime = boto3.client(
-            "personalize-runtime", region_name="us-west-2"
+            "personalize-runtime", region_name=AWS_REGION_NAME
         )
-        user_ranking_campaign_arn = (
-            "arn:aws:personalize:us-west-2:794128250202:campaign/hp-re-ranking"
-        )
+        user_ranking_campaign_arn = get_arn(PERSONALIZE, "campaign/hp-re-ranking")
 
         open_bounties = Bounty.objects.filter(
             status="OPEN",
@@ -439,44 +444,29 @@ class FeedViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({"error": "user_id is required"}, status=400)
 
         personalize_runtime = boto3.client(
-            "personalize-runtime", region_name="us-west-2"
+            "personalize-runtime", region_name=AWS_REGION_NAME
         )
 
         ranked_object_ids = self._get_ranked_recent_object_ids(user_id)
 
-        recs_campaign_arn = "arn:aws:personalize:us-west-2:794128250202:campaign/recs"
+        recs_campaign_arn = get_arn(PERSONALIZE, "campaign/recs")
 
         filters = [
-            # {
-            #     "item_type": "bounty",
-            #     "arn": "arn:aws:personalize:us-west-2:794128250202:filter/bounties-only",
-            #     "num_results": 2,
-            # },
             {
                 "item_type": "paper",
-                "arn": "arn:aws:personalize:us-west-2:794128250202:filter/papers-only",
+                "arn": get_arn(PERSONALIZE, "filter/papers-only"),
                 "num_results": 4,
             },
             {
                 "item_type": "post",
-                "arn": "arn:aws:personalize:us-west-2:794128250202:filter/posts-only",
+                "arn": get_arn(PERSONALIZE, "filter/posts-only"),
                 "num_results": 4,
             },
-            # {
-            #     "item_type": "preregistration",
-            #     "arn": "arn:aws:personalize:us-west-2:794128250202:filter/preregistrations-only",
-            #     "num_results": 1,
-            # },
             {
                 "item_type": "question",
-                "arn": "arn:aws:personalize:us-west-2:794128250202:filter/questions-only",
+                "arn": get_arn(PERSONALIZE, "filter/questions-only"),
                 "num_results": 2,
             },
-            # {
-            #     "item_type": "comment",
-            #     "arn": "arn:aws:personalize:us-west-2:794128250202:filter/comments-only",
-            #     "num_results": 7,
-            # },
         ]
 
         rec_ids = []
