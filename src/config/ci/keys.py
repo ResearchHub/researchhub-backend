@@ -2,9 +2,10 @@ import os
 
 SECRET_KEY = os.environ.get("SECRET_KEY", "test")
 
+AWS_ACCOUNT_ID = os.environ.get("AWS_ACCOUNT_ID", "awsAccountId1")
 AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID", "NOT_REAL")
 AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY", "NOT_REAL")
-AWS_REGION_NAME = os.environ.get("AWS_REGION_NAME", "")
+AWS_REGION_NAME = os.environ.get("AWS_REGION_NAME", "awsRegionName1")
 AWS_SES_REGION_ENDPOINT = os.environ.get("AWS_SES_REGION_ENDPOINT", "")
 
 GHOSTSCRIPT_LAMBDA_ARN = os.environ.get("GHOSTSCRIPT_LAMBDA_ARN", "NOT_REAL")
