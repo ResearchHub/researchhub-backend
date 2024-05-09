@@ -2,6 +2,9 @@ import datetime
 import math
 from unicodedata import normalize
 
+from dateutil import parser
+from django.utils.timezone import get_current_timezone, is_aware, make_aware
+
 from paper.exceptions import DOINotFoundError
 from paper.utils import check_url_contains_pdf, format_raw_authors
 from researchhub.settings import OPENALEX_KEY
@@ -343,3 +346,32 @@ class OpenAlex:
         next_cursor = response.get("meta", {}).get("next_cursor")
         cursor = next_cursor if next_cursor != "*" else None
         return works, cursor
+
+    @classmethod
+    def normalize_dates(self, generic_openalex_object):
+        has_dates = (
+            generic_openalex_object["updated_date"]
+            and generic_openalex_object["created_date"]
+        )
+        if has_dates:
+            openalex_updated_date = parser.parse(
+                generic_openalex_object["updated_date"]
+            )
+            openalex_created_date = parser.parse(
+                generic_openalex_object["created_date"]
+            )
+
+            generic_openalex_object["updated_date"] = openalex_updated_date
+            generic_openalex_object["created_date"] = openalex_created_date
+            if not is_aware(openalex_updated_date):
+                generic_openalex_object["updated_date"] = make_aware(
+                    generic_openalex_object["updated_date"],
+                    timezone=get_current_timezone(),
+                )
+            if not is_aware(openalex_created_date):
+                generic_openalex_object["created_date"] = make_aware(
+                    generic_openalex_object["created_date"],
+                    timezone=get_current_timezone(),
+                )
+
+        return generic_openalex_object
