@@ -6,7 +6,7 @@ from topic.models import Topic
 from utils.openalex import OpenAlex
 
 
-def process_batch(queryset):
+def process_existing_paper_batch(queryset):
     OA = OpenAlex()
 
     oa_ids = []
@@ -20,24 +20,6 @@ def process_batch(queryset):
     works, cursor = OA.get_works(openalex_ids=oa_ids)
 
     process_openalex_works(works)
-    # for work in works:
-    #     try:
-
-    #         unsaved_paper = OA.build_paper_from_openalex_work(work)
-    #     except Exception as e:
-    #         print("Failed to build paper:", work["id"], "Exception:", e)
-    #         continue
-
-    #     try:
-    #         paper = Paper.objects.filter(openalex_id=work["id"])
-
-    #         if paper.exists():
-    #             paper.update(**unsaved_paper)
-    #         else:
-    #             paper = Paper.objects.create(**unsaved_paper)
-    #     except Exception as e:
-    #         print("Failed to save paper:", work["id"], "Exception:", e)
-    #         continue
 
 
 class Command(BaseCommand):
@@ -69,6 +51,8 @@ class Command(BaseCommand):
         mode = kwargs["mode"]
         batch_size = 30
 
+        print("mode", mode)
+
         if mode == "backfill":
             current_id = start_id
             to_id = to_id or Paper.objects.all().order_by("-id").first().id
@@ -90,7 +74,35 @@ class Command(BaseCommand):
                     queryset.count(),
                 )
 
-                process_batch(queryset)
+                process_existing_paper_batch(queryset)
 
                 # Update cursor
                 current_id += batch_size
+        elif mode == "load":
+            OA = OpenAlex()
+            BIORXIV_OPENALEX_SOURCE_ID = "s4306402567"
+
+            works, cursor = OA.get_works(source_id=BIORXIV_OPENALEX_SOURCE_ID)
+            process_openalex_works(works)
+            # for work in works:
+            #     try:
+            #         unsaved_paper, concepts, topics = OA.build_paper_from_openalex_work(work)
+            #     except Exception as e:
+            #         print("Failed to build paper:", work["id"], "Exception:", e)
+            #         continue
+
+            #     print('unsaved_paper', unsaved_paper)
+
+            #     try:
+            #         paper = Paper.objects.filter(openalex_id=work["id"])
+
+            #         if paper.exists():
+            #             for key, value in work.items():
+            #                 setattr(paper, key, value)
+
+            #             paper.save()
+            #         else:
+            #             paper = Paper.objects.create(**unsaved_paper)
+            #     except Exception as e:
+            #         print("Failed to save paper:", work["id"], "Exception:", e)
+            #         continue

@@ -312,25 +312,31 @@ class OpenAlex:
         next_cursor="*",
         batch_size=100,
         openalex_ids=None,
+        source_id=None,
     ):
         # Build the filter
-        oa_filter = ""
+        oa_filters = []
         if type:
-            oa_filter = f"type:{type}"
+            oa_filters.append(f"type:{type}")
+
+        if source_id:
+            oa_filters.append(f"primary_location.source.id:{source_id}")
 
         if since_date:
             # Format the date in YYYY-MM-DD format
             formatted_date = since_date.strftime("%Y-%m-%d")
-            oa_filter += f"from_created_date:{formatted_date}"
+            oa_filters.append(f"from_created_date:{formatted_date}")
 
         if openalex_ids:
-            oa_filter = f"ids.openalex:{'|'.join(openalex_ids)}"
+            oa_filters = f"ids.openalex:{'|'.join(openalex_ids)}"
 
         filters = {
-            "filter": oa_filter,
+            "filter": ",".join(oa_filters),
             "per-page": batch_size,
             "cursor": next_cursor,
         }
+
+        print('",".join(oa_filters)', ",".join(oa_filters))
 
         response = self._get("works", filters=filters)
         works = response.get("results", [])
