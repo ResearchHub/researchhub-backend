@@ -31,12 +31,9 @@ class UserCaptchaThrottle(UserRateThrottle):
         if (
             (self.rate is None)
             or (request.method in SAFE_METHODS)
-            or (
-                request.user.is_authenticated
-                and (request.user.email is not None)
-            )
+            or (request.user.is_authenticated and (request.user.email is not None))
             or (request.user.is_authenticated and request.user.moderator)
-            or (request.user.email in EMAIL_WHITELIST)
+            or (request.user.is_authenticated and request.user.email in EMAIL_WHITELIST)
         ):
             return True
 
