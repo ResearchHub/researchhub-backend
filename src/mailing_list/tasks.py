@@ -23,32 +23,6 @@ from user.models import Action, User
 from utils.message import send_email_message
 
 
-@app.task(queue=QUEUE_NOTIFICATION)
-def notify_immediate(action_id):
-    pass
-    # actions_notifications([action_id], NotificationFrequencies.IMMEDIATE)
-
-
-# Disabling digests
-@periodic_task(run_every=crontab(minute="30", hour="1"), priority=7)
-def notify_daily():
-    return
-    send_hub_digest(NotificationFrequencies.DAILY)
-
-
-@periodic_task(run_every=crontab(minute="0", hour="*/3"), priority=7)
-def notify_three_hours():
-    return
-    send_hub_digest(NotificationFrequencies.THREE_HOUR)
-
-
-# Noon PST
-@periodic_task(run_every=crontab(minute=0, hour=20, day_of_week="friday"), priority=9)
-def notify_weekly():
-    return
-    send_hub_digest(NotificationFrequencies.WEEKLY)
-
-
 # Runs 12am pst (8am utc)
 @periodic_task(
     run_every=crontab(minute=0, hour=8, day_of_week="friday"),
