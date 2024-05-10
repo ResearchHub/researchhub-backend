@@ -11,7 +11,11 @@ from discussion.models import Comment, Reply, Thread
 from hub.models import Hub
 from paper.models import Paper, PaperSubmission
 from reputation.models import Bounty, Withdrawal
-from researchhub.settings import BASE_FRONTEND_URL, TESTING
+from researchhub.settings import (
+    ASSETS_BASE_URL,
+    BASE_FRONTEND_URL,
+    TESTING,
+)
 from researchhub_comment.models import RhCommentModel
 from summary.models import Summary
 from user.related_models.user_model import User
@@ -100,17 +104,13 @@ class Action(DefaultModel):
             verb = "created a new discussion on"
         elif act.content_type_name == "hypothesis":
             verb = "created a new hypothesis on"
-            doc_type_icon = "https://rh-email-assets.s3.us-west-2.amazonaws.com/icons/meta-study-512.png"
+            doc_type_icon = f"{ASSETS_BASE_URL}/icons/meta-study-512.png"
         elif act.content_type_name == "researchhub post":
             verb = "created a new post on"
-            doc_type_icon = (
-                "https://rh-email-assets.s3.us-west-2.amazonaws.com/icons/post-512.png"
-            )
+            doc_type_icon = f"{ASSETS_BASE_URL}/icons/post-512.png"
         elif act.content_type_name == "paper":
             verb = "uploaded a new paper"
-            doc_type_icon = (
-                "https://rh-email-assets.s3.us-west-2.amazonaws.com/icons/paper-512.png"
-            )
+            doc_type_icon = f"{ASSETS_BASE_URL}/icons/paper-512.png"
 
         noun = ""
         if act.content_type_name == "rh comment model":
@@ -132,7 +132,7 @@ class Action(DefaultModel):
         uni_doc = getattr(action_item, "unified_document", None)
         if uni_doc:
             if uni_doc.document_type == "QUESTION":
-                doc_type_icon = "https://rh-email-assets.s3.us-west-2.amazonaws.com/icons/question-512.png"
+                doc_type_icon = f"https://{ASSETS_BASE_URL}/icons/question-512.png"
             amount = uni_doc.related_bounties.aggregate(
                 total=Coalesce(Sum("amount"), 0, output_field=DecimalField())
             ).get("total", 0)

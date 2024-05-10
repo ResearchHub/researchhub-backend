@@ -4,7 +4,10 @@ from allauth.account.utils import user_pk_to_url_str
 from dj_rest_auth.registration.serializers import RegisterSerializer
 from dj_rest_auth.serializers import PasswordResetSerializer
 
-from researchhub.settings import BASE_FRONTEND_URL
+from researchhub.settings import (
+    ASSETS_BASE_URL,
+    BASE_FRONTEND_URL,
+)
 
 
 class CustomAccountAdapter(DefaultAccountAdapter):
@@ -34,6 +37,7 @@ class CustomResetPasswordForm(ResetPasswordForm):
             token = token_generator.make_token(user)
             reset_url = f"{BASE_FRONTEND_URL}/reset/{uid}/{token}"
             context = {
+                "assets_base_url": ASSETS_BASE_URL,
                 "user": user,
                 "request": request,
                 "email": email,

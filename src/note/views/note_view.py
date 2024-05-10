@@ -19,6 +19,7 @@ from note.models import Note, NoteContent
 from note.serializers import NoteContentSerializer, NoteSerializer
 from researchhub.pagination import MediumPageLimitPagination
 from researchhub.settings import (
+    ASSETS_BASE_URL,
     CKEDITOR_CLOUD_ACCESS_KEY,
     CKEDITOR_CLOUD_ENVIRONMENT_ID,
     TESTING,
@@ -508,7 +509,7 @@ def ckeditor_token(request):
     if profile_image.name:
         avatar = profile_image.url
     else:
-        avatar = "https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-blank-user.png"
+        avatar = f"{ASSETS_BASE_URL}/rh-blank-user.png"
 
     payload = {
         "aud": CKEDITOR_CLOUD_ENVIRONMENT_ID,

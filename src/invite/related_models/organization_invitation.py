@@ -1,7 +1,10 @@
 from django.db import models
 
 from invite.models import Invitation
-from researchhub.settings import BASE_FRONTEND_URL
+from researchhub.settings import (
+    ASSETS_BASE_URL,
+    BASE_FRONTEND_URL,
+)
 from researchhub_access_group.constants import ACCESS_TYPE_CHOICES, VIEWER
 from user.models import Organization
 from utils.message import send_email_message
@@ -29,6 +32,7 @@ class OrganizationInvitation(Invitation):
         subject = f"{inviter_name} has invited you to join {organization.name}"
         email_context = {
             "access_type": invite_type.lower(),
+            "assets_base_url": ASSETS_BASE_URL,
             "organization_title": organization.name,
             "organization_link": f"{BASE_FRONTEND_URL}/org/join/{key}",
             "inviter_name": inviter_name,
