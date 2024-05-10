@@ -55,18 +55,7 @@ class Action(DefaultModel):
         )
 
     def save(self, *args, **kwargs):
-        from mailing_list.tasks import notify_immediate
-
-        is_new = self.id is None
         super().save(*args, **kwargs)
-
-        if is_new:
-            if TESTING:
-                notify_immediate(self.id)
-            else:
-                notify_immediate.apply_async((self.id,), priority=5)
-
-            log_analytics_event.apply_async((self.id,), priority=5, countdown=10)
 
     def set_read(self):
         self.read_date = timezone.now()
