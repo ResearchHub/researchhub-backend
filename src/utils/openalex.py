@@ -176,8 +176,14 @@ class OpenAlex:
             "language": work.get("language", None),
         }
 
-        if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
-            paper["pdf_url"] = oa_pdf_url
+        locations = [work.get("primary_location", {})] + work.get("locations", [])
+        for location in locations:
+            if location.get("pdf_url", None):
+                paper["pdf_url"] = location.get("pdf_url")
+                break
+
+        # if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
+        #     paper["pdf_url"] = oa_pdf_url
 
         return paper, concepts, topics
 
@@ -349,10 +355,9 @@ class OpenAlex:
 
     @classmethod
     def normalize_dates(self, generic_openalex_object):
-        has_dates = (
-            generic_openalex_object["updated_date"]
-            and generic_openalex_object["created_date"]
-        )
+        has_dates = generic_openalex_object.get(
+            "updated_date"
+        ) and generic_openalex_object.get("created_date")
         if has_dates:
             openalex_updated_date = parser.parse(
                 generic_openalex_object["updated_date"]

@@ -98,21 +98,21 @@ class Topic(DefaultModel):
 
     # https://docs.openalex.org/api-entities/topics/topic-object#works_count
     works_count = models.IntegerField(
-        blank=False,
-        null=False,
+        blank=True,
+        null=True,
         default=0,
     )
 
     # https://docs.openalex.org/api-entities/topics/topic-object#cited_by_count
     cited_by_count = models.IntegerField(
-        blank=False,
-        null=False,
+        blank=True,
+        null=True,
         default=0,
     )
 
     # https://docs.openalex.org/api-entities/topics/topic-object#keywords
     keywords = ArrayField(
-        models.CharField(max_length=255), blank=True, null=False, default=list
+        models.CharField(max_length=255), blank=True, null=True, default=list
     )
 
     # https://docs.openalex.org/api-entities/topics/topic-object#created_date
@@ -128,7 +128,7 @@ class Topic(DefaultModel):
     )
 
     def upsert_from_openalex(oa_topic):
-        has_dates = oa_topic["updated_date"] and oa_topic["created_date"]
+        has_dates = oa_topic.get("updated_date") and oa_topic.get("created_date")
 
         # Normalize created, updated dates to format that is compatible with django
         oa_topic = OpenAlex.normalize_dates(oa_topic)
@@ -142,7 +142,9 @@ class Topic(DefaultModel):
         # if topic exists, determine if we need to update it
         needs_update = False
         if topic and has_dates:
-            needs_update = topic.openalex_updated_date < oa_topic["updated_date"]
+            needs_update = (not topic.openalex_updated_date) or (
+                topic.openalex_updated_date < oa_topic["updated_date"]
+            )
 
         # Upsert domain
         domain = None
@@ -205,15 +207,14 @@ class Topic(DefaultModel):
 
         # Upsert topic
         mapped = {
-            "openalex_id": oa_topic["id"],
-            "updated_date": oa_topic["updated_date"],
-            "display_name": oa_topic["display_name"],
-            "works_count": oa_topic["works_count"],
-            "cited_by_count": oa_topic["cited_by_count"],
-            "keywords": oa_topic["keywords"],
+            "openalex_id": oa_topic.get("id"),
+            "display_name": oa_topic.get("display_name"),
+            "works_count": oa_topic.get("works_count"),
+            "cited_by_count": oa_topic.get("cited_by_count"),
+            "keywords": oa_topic.get("keywords"),
             "subfield_id": subfield.id,
-            "openalex_updated_date": oa_topic["updated_date"],
-            "openalex_created_date": oa_topic["created_date"],
+            "openalex_updated_date": oa_topic.get("updated_date"),
+            "openalex_created_date": oa_topic.get("created_date"),
         }
         if not topic:
             topic = Topic.objects.create(**mapped)

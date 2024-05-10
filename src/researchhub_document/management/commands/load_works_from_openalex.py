@@ -51,8 +51,6 @@ class Command(BaseCommand):
         mode = kwargs["mode"]
         batch_size = 30
 
-        print("mode", mode)
-
         if mode == "backfill":
             current_id = start_id
             to_id = to_id or Paper.objects.all().order_by("-id").first().id
@@ -78,7 +76,7 @@ class Command(BaseCommand):
 
                 # Update cursor
                 current_id += batch_size
-        elif mode == "load":
+        elif mode == "fetch":
             OA = OpenAlex()
             BIORXIV_OPENALEX_SOURCE_ID = "s4306402567"
 

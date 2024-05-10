@@ -16,7 +16,7 @@ from utils.openalex import OpenAlex
 
 def process_openalex_works(works):
     from paper.models import Paper
-    from paper.paper_upload_tasks import create_paper_concepts_and_hubs_from_openalex
+    from paper.paper_upload_tasks import create_paper_related_tags
 
     open_alex = OpenAlex()
 
@@ -53,18 +53,19 @@ def process_openalex_works(works):
         else:
             create_papers.append(work)
 
-    paper_id_to_concepts = {}
+    paper_to_topics_and_concepts = {}
     paper_ids_to_add_to_biorxiv_hub = []
 
     # Create new papers
-    new_paper_ids = []
     with transaction.atomic():
         for work in create_papers:
-            data, raw_concepts, raw_topics = open_alex.build_paper_from_openalex_work(
-                work
-            )
+            (
+                data,
+                openalex_concepts,
+                openalex_topics,
+            ) = open_alex.build_paper_from_openalex_work(work)
 
-            concepts = raw_concepts  # open_alex.hydrate_paper_concepts(raw_concepts)
+            # concepts = openalex_concepts  # open_alex.hydrate_paper_concepts(openalex_concepts)
             paper = Paper(**data)
 
             # Validate paper
@@ -75,7 +76,7 @@ def process_openalex_works(works):
                 sentry.log_error(e, message=f"Failed to validate paper: {paper.doi}")
                 continue
 
-            paper.get_pdf_link()
+            # paper.get_pdf_link()
 
             try:
                 paper.save()
@@ -93,8 +94,10 @@ def process_openalex_works(works):
             if "bioRxiv" in paper.external_source:
                 paper_ids_to_add_to_biorxiv_hub.append(paper.id)
 
-            paper_id_to_concepts[paper.id] = concepts
-            new_paper_ids.append(paper.id)
+            paper_to_topics_and_concepts[paper.id] = (
+                openalex_concepts,
+                openalex_topics,
+            )
 
     # batch create authors
     # if new_paper_ids and len(new_paper_ids) > 0:
@@ -105,9 +108,13 @@ def process_openalex_works(works):
 
     # setup papers for batch update
     for existing_paper, work in update_papers:
-        data, raw_concepts, raw_topics = open_alex.build_paper_from_openalex_work(work)
+        (
+            data,
+            openalex_concepts,
+            openalex_topics,
+        ) = open_alex.build_paper_from_openalex_work(work)
 
-        concepts = raw_concepts  # open_alex.hydrate_paper_concepts(raw_concepts)
+        # concepts = openalex_concepts  # open_alex.hydrate_paper_concepts(openalex_concepts)
 
         # we didn't fetch all fields in the initial paper query (we used .only()),
         # so we need to explicitly fetch them if we want to update them.
@@ -145,8 +152,6 @@ def process_openalex_works(works):
         existing_paper.work_type = data.get("work_type")
         existing_paper.language = data.get("language")
 
-        print(f"Updating paper {existing_paper.id} with openalex_id {data.get('id')}")
-
         if existing_paper.abstract is None:
             existing_paper.abstract = data.get("abstract")
         if data.get("pdf_license") is not None:
@@ -156,7 +161,10 @@ def process_openalex_works(works):
         existing_paper.is_open_access = data.get("is_open_access")
         existing_paper.open_alex_raw_json = data.get("open_alex_raw_json")
 
-        paper_id_to_concepts[existing_paper.id] = concepts
+        paper_to_topics_and_concepts[existing_paper.id] = (
+            openalex_concepts,
+            openalex_topics,
+        )
 
         # if the paper is from biorXiv, we want to add it to the biorXiv Community Reviews hub
         # so that it can get auto-assigned a peer-review with enough upvotes.
@@ -209,5 +217,6 @@ def process_openalex_works(works):
                     continue
 
     # Upsert concepts and associate to papers
-    for paper_id, concepts in paper_id_to_concepts.items():
-        create_paper_concepts_and_hubs_from_openalex(paper_id, concepts)
+    for paper_id, topics_and_concepts in paper_to_topics_and_concepts.items():
+        openalex_concepts, openalex_topics = topics_and_concepts
+        create_paper_related_tags(paper_id, openalex_concepts, openalex_topics)

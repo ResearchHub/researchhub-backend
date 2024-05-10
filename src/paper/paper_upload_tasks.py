@@ -39,6 +39,7 @@ from researchhub_document.related_models.constants.document_type import (
     FILTER_OPEN_ACCESS,
 )
 from tag.models import Concept
+from topic.models import Topic
 from utils import sentry
 from utils.http import check_url_contains_pdf
 from utils.openalex import OpenAlex
@@ -622,7 +623,7 @@ def celery_create_paper(self, celery_data):
     except Exception as e:
         raise e
 
-    create_paper_concepts_and_hubs_from_openalex.apply_async(
+    create_paper_related_tags.apply_async(
         (
             paper_id,
             paper_concepts,
@@ -636,16 +637,34 @@ def celery_create_paper(self, celery_data):
 
 
 @app.task(queue=QUEUE_PAPER_METADATA)
-def create_paper_concepts_and_hubs_from_openalex(paper_id, concepts):
+def create_paper_related_tags(paper_id, openalex_concepts, openalex_topics):
     from django.db import transaction
 
     from paper.models import Paper
 
-    for openalex_concept in concepts:
-        print(
-            f"Upserting concept {openalex_concept['id']} / {openalex_concept['display_name']}"
-        )
+    for openalex_topic in openalex_topics:
+        topic = None
+        try:
+            topic = Topic.upsert_from_openalex(openalex_topic)
+        except Exception as e:
+            print("Exception", e)
 
+        try:
+            with transaction.atomic():
+                paper = Paper.objects.get(id=paper_id)
+                paper.unified_document.topics.add(
+                    topic.id,
+                    through_defaults={
+                        "relevancy_score": openalex_topic["score"],
+                    },
+                )
+        except Exception as e:
+            sentry.log_error(
+                e,
+                message=f"Failed to associate topic {topic.id} to paper {paper_id}",
+            )
+
+    for openalex_concept in openalex_concepts:
         concept = None
         try:
             concept = Concept.upsert_from_openalex(openalex_concept)

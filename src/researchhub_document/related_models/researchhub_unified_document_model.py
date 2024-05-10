@@ -68,6 +68,12 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
         blank=True,
         through="UnifiedDocumentConcepts",
     )
+    topics = models.ManyToManyField(
+        "topic.Topic",
+        related_name="documents",
+        blank=True,
+        through="topic.UnifiedDocumentTopics",
+    )
 
     class Meta:
         indexes = (
