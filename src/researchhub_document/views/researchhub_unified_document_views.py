@@ -142,7 +142,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             {
                 "name": "highly-cited",
                 "source": "personalize",
-                "campaign_arn": get_arn(PERSONALIZE, "recommendations3"),
+                "campaign_arn": get_arn(PERSONALIZE, "campaign/recommendations3"),
                 "filter_arn": get_arn(PERSONALIZE, "filter/highly-cited"),
                 "num_results": 100,
                 "dist_pct": 0.1,
