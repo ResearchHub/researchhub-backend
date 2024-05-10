@@ -33,12 +33,6 @@ def weekly_bounty_digest():
     send_bounty_digest(NotificationFrequencies.WEEKLY)
 
 
-"""
-from mailing_list.tasks import send_bounty_digest
-send_bounty_digest(10080)
-"""
-
-
 def send_bounty_digest(frequency):
     emails = []
     etl = EmailTaskLog.objects.create(emails="", notification_frequency=frequency)
