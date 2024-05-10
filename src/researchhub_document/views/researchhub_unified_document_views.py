@@ -51,8 +51,13 @@ from researchhub_document.views.custom.unified_document_pagination import (
     UNIFIED_DOC_PAGE_SIZE,
     UnifiedDocPagination,
 )
+from researchhub.settings import AWS_REGION_NAME
 from user.permissions import IsModerator
 from user.utils import reset_latest_acitvity_cache
+from utils.aws import (
+    get_arn,
+    PERSONALIZE,
+)
 from utils.permissions import ReadOnly
 
 
@@ -122,12 +127,10 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
     def _get_recommendation_buckets(self, user_id):
         personalize_runtime = boto3.client(
-            "personalize-runtime", region_name="us-west-2"
+            "personalize-runtime", region_name=AWS_REGION_NAME
         )
 
-        user_ranking_arn = (
-            "arn:aws:personalize:us-west-2:794128250202:campaign/user-ranking"
-        )
+        user_ranking_arn = get_arn(PERSONALIZE, "campaign/user-ranking")
 
         buckets = [
             {
@@ -139,39 +142,39 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             {
                 "name": "highly-cited",
                 "source": "personalize",
-                "campaign_arn": "arn:aws:personalize:us-west-2:794128250202:campaign/recommendations3",
-                "filter_arn": "arn:aws:personalize:us-west-2:794128250202:filter/highly-cited",
+                "campaign_arn": get_arn(PERSONALIZE, "campaign/recommendations3"),
+                "filter_arn": get_arn(PERSONALIZE, "filter/highly-cited"),
                 "num_results": 100,
                 "dist_pct": 0.1,
             },
             {
                 "name": "trending-citations",
                 "source": "personalize",
-                "campaign_arn": "arn:aws:personalize:us-west-2:794128250202:campaign/recommendations3",
-                "filter_arn": "arn:aws:personalize:us-west-2:794128250202:filter/trending-citations",
+                "campaign_arn": get_arn(PERSONALIZE, "campaign/recommendations3"),
+                "filter_arn": get_arn(PERSONALIZE, "filter/trending-citations"),
                 "num_results": 100,
                 "dist_pct": 0.25,
             },
             {
                 "name": "popular-on-social-media",
                 "source": "personalize",
-                "campaign_arn": "arn:aws:personalize:us-west-2:794128250202:campaign/recommendations3",
-                "filter_arn": "arn:aws:personalize:us-west-2:794128250202:filter/popular-on-social-media",
+                "campaign_arn": get_arn(PERSONALIZE, "campaign/recommendations3"),
+                "filter_arn": get_arn(PERSONALIZE, "filter/popular-on-social-media"),
                 "num_results": 100,
                 "dist_pct": 0.1,
             },
             {
                 "name": "only-papers",
                 "source": "personalize",
-                "campaign_arn": "arn:aws:personalize:us-west-2:794128250202:campaign/recommendations3",
-                "filter_arn": "arn:aws:personalize:us-west-2:794128250202:filter/only-papers",
+                "campaign_arn": get_arn(PERSONALIZE, "campaign/recommendations3"),
+                "filter_arn": get_arn(PERSONALIZE, "filter/only-papers"),
                 "num_results": 100,
                 "dist_pct": 0.1,
             },
             {
                 "name": "trending-on-rh",
                 "source": "personalize",
-                "campaign_arn": "arn:aws:personalize:us-west-2:794128250202:campaign/trending-on-rh",
+                "campaign_arn": get_arn(PERSONALIZE, "campaign/trending-on-rh"),
                 "filter_arn": None,
                 "num_results": 100,
                 "dist_pct": 0.15,
