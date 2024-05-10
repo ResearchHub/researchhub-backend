@@ -11,7 +11,7 @@
   <mj-body>
     <mj-section padding="0px">
       <mj-column>
-        <mj-image width="175px" padding="35px" src="https://rh-email-assets.s3-us-west-2.amazonaws.com/email_assets/ResearchHubLogo.png"></mj-image>
+        <mj-image width="175px" padding="35px" src="{{ assets_base_url }}/email_assets/ResearchHubLogo.png"></mj-image>
         <mj-text font-size="20px" font-weight="500" font-family="Roboto">Open Bounties</mj-text>
         <mj-text font-size="14px" font-weight="400" line-height="20px" font-family="Roboto" color="#241F3A">
           Hey {{ first_name }}, here are all the new open bounties from your hubs you’ve joined. Answer the bounties for a chance to earn RSC!
@@ -85,7 +85,7 @@
               <td style="padding:5px" />
               <td style="background:rgb(252, 242, 220);border-radius:4px;padding:2px 8px 2px 8px">
                 <div>
-                  <img width="15px" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/icons/rsc-512.png" style="vertical-align:text-top;margin-right:4px"></img>
+                  <img width="15px" src="{{ assets_base_url }}/icons/rsc-512.png" style="vertical-align:text-top;margin-right:4px"></img>
                   <span style="font-family:Roboto;font-size:14px;font-weight:500">
                     <a href="{{ action.link }}" target="_blank" style="color:rgb(255, 122, 0);text-decoration:none;">
                       {{ action.bounty_amount }}
