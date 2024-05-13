@@ -670,6 +670,7 @@ if elastic_token:
         "ENVIRONMENT": APP_ENV,
         "DJANGO_AUTOINSERT_MIDDLEWARE": False,
         "DISABLE_SEND": CELERY_WORKER or TESTING,
+        "TRANSACTION_SAMPLE_RATE": 0.1,
         "PROCESSORS": (
             "utils.elastic_apm.filter_processor",
             "elasticapm.processors.sanitize_stacktrace_locals",
