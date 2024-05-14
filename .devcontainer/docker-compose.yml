@@ -18,6 +18,10 @@ services:
       ELASTICSEARCH_HOST: http://elasticsearch:9200
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      AWS_S3_ENDPOINT_URL: http://localstack:4566
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_STORAGE_BUCKET_NAME: local-researchhub-bucket
     networks:
       - researchhub
 
@@ -49,9 +53,23 @@ services:
     networks:
       - researchhub
 
+  localstack:
+    image: localstack/localstack:latest
+    environment:
+      - SERVICES=s3
+      - DEBUG=1
+    ports:
+      - "4566:4566"
+      - "4572:4572"
+    volumes:
+      - localstack-data:/var/lib/localstack
+    networks:
+      - researchhub
+
 networks:
   researchhub:
     driver: bridge
 
 volumes:
   postgres-data:
+  localstack-data:
