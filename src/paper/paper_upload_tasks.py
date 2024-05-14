@@ -637,7 +637,7 @@ def celery_create_paper(self, celery_data):
 
 
 @app.task(queue=QUEUE_PAPER_METADATA)
-def create_paper_related_tags(paper_id, openalex_concepts, openalex_topics):
+def create_paper_related_tags(paper_id, openalex_concepts=[], openalex_topics=[]):
     from django.db import transaction
 
     from paper.models import Paper

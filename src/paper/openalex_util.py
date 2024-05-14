@@ -99,13 +99,6 @@ def process_openalex_works(works):
                 openalex_topics,
             )
 
-    # batch create authors
-    # if new_paper_ids and len(new_paper_ids) > 0:
-    #     try:
-    #         add_orcid_authors(new_paper_ids)
-    #     except Exception as e:
-    #         sentry.log_error(e, message="Failed to batch create authors")
-
     # Prepare papers for batch update
     for existing_paper, work in update_papers:
         (
