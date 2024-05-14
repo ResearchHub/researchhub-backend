@@ -20,23 +20,19 @@ class Command(BaseCommand):
         cursor = "*"
         while cursor:
             print("Processing page", current_page)
-            topics, cursor = open_alex.get_topics(page=1, next_cursor=cursor)
-
-            # print("topics", topics)
+            topics, cursor = open_alex.get_topics(page=page, next_cursor=cursor)
 
             for topic in topics:
-                Topic.upsert_from_openalex(topic)
-                # try:
-                #     Topic.upsert_from_openalex(topic)
-                # except Exception as e:
-                #     print(
-                #         "Failed to create topic:",
-                #         topic["id"],
-                #         "page:",
-                #         current_page,
-                #         "Exception:",
-                #         e,
-                #     )
+                try:
+                    Topic.upsert_from_openalex(topic)
+                except Exception as e:
+                    print(
+                        "Failed to create topic:",
+                        topic["id"],
+                        "page:",
+                        current_page,
+                        "Exception:",
+                        e,
+                    )
 
-            return
             current_page += 1
