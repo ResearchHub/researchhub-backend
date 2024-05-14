@@ -6,7 +6,7 @@ from topic.models import Topic
 from utils.openalex import OpenAlex
 
 
-def process_existing_paper_batch(queryset):
+def process_backfill_batch(queryset):
     OA = OpenAlex()
 
     oa_ids = []
@@ -72,7 +72,7 @@ class Command(BaseCommand):
                     queryset.count(),
                 )
 
-                process_existing_paper_batch(queryset)
+                process_backfill_batch(queryset)
 
                 # Update cursor
                 current_id += batch_size
@@ -80,27 +80,9 @@ class Command(BaseCommand):
             OA = OpenAlex()
             BIORXIV_OPENALEX_SOURCE_ID = "s4306402567"
 
-            works, cursor = OA.get_works(source_id=BIORXIV_OPENALEX_SOURCE_ID)
-            process_openalex_works(works)
-            # for work in works:
-            #     try:
-            #         unsaved_paper, concepts, topics = OA.build_paper_from_openalex_work(work)
-            #     except Exception as e:
-            #         print("Failed to build paper:", work["id"], "Exception:", e)
-            #         continue
-
-            #     print('unsaved_paper', unsaved_paper)
-
-            #     try:
-            #         paper = Paper.objects.filter(openalex_id=work["id"])
-
-            #         if paper.exists():
-            #             for key, value in work.items():
-            #                 setattr(paper, key, value)
-
-            #             paper.save()
-            #         else:
-            #             paper = Paper.objects.create(**unsaved_paper)
-            #     except Exception as e:
-            #         print("Failed to save paper:", work["id"], "Exception:", e)
-            #         continue
+            cursor = "*"
+            while cursor:
+                works, cursor = OA.get_works(
+                    source_id=BIORXIV_OPENALEX_SOURCE_ID, next_cursor=cursor
+                )
+                process_openalex_works(works)

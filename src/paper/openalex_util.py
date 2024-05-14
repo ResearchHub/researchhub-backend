@@ -76,8 +76,6 @@ def process_openalex_works(works):
                 sentry.log_error(e, message=f"Failed to validate paper: {paper.doi}")
                 continue
 
-            # paper.get_pdf_link()
-
             try:
                 paper.save()
             except IntegrityError as e:
