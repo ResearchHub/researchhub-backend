@@ -168,7 +168,7 @@ def evaluate_transaction(transaction_hash):
 
 
 @periodic_task(
-    run_every=crontab(minute="*/5"),
+    run_every=crontab(day="*/5"),
     priority=3,
     queue=QUEUE_PURCHASES,
 )
@@ -221,7 +221,7 @@ def check_deposits():
 
 
 @periodic_task(
-    run_every=crontab(minute="*/5"),
+    run_every=crontab(day="*/5"),
     priority=4,
     queue=QUEUE_PURCHASES,
 )
