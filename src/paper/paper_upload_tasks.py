@@ -686,6 +686,7 @@ def create_paper_related_tags(paper_id, openalex_concepts, openalex_topics):
                     },
                 )
                 hub = Hub.objects.get(concept__id=concept.id)
+                paper.unified_document.hubs.add(hub)
                 paper.hubs.add(hub)
 
         except Exception as e:

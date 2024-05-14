@@ -106,7 +106,7 @@ def process_openalex_works(works):
     #     except Exception as e:
     #         sentry.log_error(e, message="Failed to batch create authors")
 
-    # setup papers for batch update
+    # Prepare papers for batch update
     for existing_paper, work in update_papers:
         (
             data,
