@@ -5,6 +5,9 @@ from paper.related_models.paper_model import Paper
 from topic.models import Topic
 from utils.openalex import OpenAlex
 
+# To pull papers from bioRxiv use source param:
+# python manage.py load_works_from_openalex --mode backfill --source s4306402567
+
 
 def process_backfill_batch(queryset):
     OA = OpenAlex()
@@ -38,6 +41,12 @@ class Command(BaseCommand):
             help="Paper id to stop at",
         )
         parser.add_argument(
+            "--source",
+            default=None,
+            type=str,
+            help="The paper respository source to pull from",
+        )
+        parser.add_argument(
             "--mode",
             default="backfill",
             type=str,
@@ -48,7 +57,8 @@ class Command(BaseCommand):
         start_id = kwargs["start_id"]
         to_id = kwargs["to_id"]
         mode = kwargs["mode"]
-        batch_size = 30
+        source = kwargs["source"]
+        batch_size = 100
 
         if mode == "backfill":
             current_id = start_id
@@ -77,11 +87,8 @@ class Command(BaseCommand):
                 current_id += batch_size
         elif mode == "fetch":
             OA = OpenAlex()
-            BIORXIV_OPENALEX_SOURCE_ID = "s4306402567"
 
             cursor = "*"
             while cursor:
-                works, cursor = OA.get_works(
-                    source_id=BIORXIV_OPENALEX_SOURCE_ID, next_cursor=cursor
-                )
+                works, cursor = OA.get_works(source_id=source, next_cursor=cursor)
                 process_openalex_works(works)

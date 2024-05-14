@@ -345,8 +345,6 @@ class OpenAlex:
             "cursor": next_cursor,
         }
 
-        print('",".join(oa_filters)', ",".join(oa_filters))
-
         response = self._get("works", filters=filters)
         works = response.get("results", [])
         next_cursor = response.get("meta", {}).get("next_cursor")
@@ -355,6 +353,9 @@ class OpenAlex:
 
     @classmethod
     def normalize_dates(self, generic_openalex_object):
+        """Normalize the dates of an OpenAlex object such that
+        they include timezone information"""
+
         has_dates = generic_openalex_object.get(
             "updated_date"
         ) and generic_openalex_object.get("created_date")

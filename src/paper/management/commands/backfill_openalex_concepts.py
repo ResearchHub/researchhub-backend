@@ -65,7 +65,6 @@ class Command(BaseCommand):
                         result.get("concepts", [])
                     )
 
-                    print("paper_concepts", paper_concepts)
                     for paper_concept in paper_concepts:
                         concept = Concept.create_or_update(paper_concept)
                         paper.unified_document.concepts.add(
