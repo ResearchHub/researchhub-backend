@@ -18,7 +18,6 @@ def process_backfill_batch(queryset):
             oa_ids.append(just_id)
 
     works, cursor = OA.get_works(openalex_ids=oa_ids)
-
     process_openalex_works(works)
 
 

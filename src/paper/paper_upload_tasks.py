@@ -642,6 +642,13 @@ def create_paper_related_tags(paper_id, openalex_concepts=[], openalex_topics=[]
 
     from paper.models import Paper
 
+    paper = None
+    try:
+        paper = Paper.objects.get(id=paper_id)
+    except Paper.DoesNotExist:
+        sentry.log_info(f"Paper {paper_id} does not exist. Could not assign tags to it")
+        return
+
     for openalex_topic in openalex_topics:
         topic = None
         try:
@@ -651,7 +658,6 @@ def create_paper_related_tags(paper_id, openalex_concepts=[], openalex_topics=[]
 
         try:
             with transaction.atomic():
-                paper = Paper.objects.get(id=paper_id)
                 paper.unified_document.topics.add(
                     topic.id,
                     through_defaults={
@@ -677,7 +683,6 @@ def create_paper_related_tags(paper_id, openalex_concepts=[], openalex_topics=[]
 
         try:
             with transaction.atomic():
-                paper = Paper.objects.get(id=paper_id)
                 paper.unified_document.concepts.add(
                     concept.id,
                     through_defaults={
@@ -694,6 +699,19 @@ def create_paper_related_tags(paper_id, openalex_concepts=[], openalex_topics=[]
                 e,
                 message=f"Failed to associate concept {concept.id} to paper {paper_id}",
             )
+
+    # Add paper to bioRxiv hub if the associated source is bioRxiv
+    if "bioRxiv" in paper.external_source:
+        with transaction.atomic():
+            biorxiv_hub_id = 436
+
+            try:
+                paper.hubs.add(biorxiv_hub_id)
+                paper.unified_document.hubs.add(biorxiv_hub_id)
+            except Exception as e:
+                sentry.log_error(
+                    e, message=f"Failed to add paper to biorXiv hub: {paper.id}"
+                )
 
 
 @app.task(queue=QUEUE_PAPER_METADATA)

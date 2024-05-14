@@ -337,7 +337,7 @@ class OpenAlex:
             oa_filters.append(f"from_created_date:{formatted_date}")
 
         if openalex_ids:
-            oa_filters = f"ids.openalex:{'|'.join(openalex_ids)}"
+            oa_filters.append(f"ids.openalex:{'|'.join(openalex_ids)}")
 
         filters = {
             "filter": ",".join(oa_filters),

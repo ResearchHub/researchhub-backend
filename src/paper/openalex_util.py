@@ -40,7 +40,7 @@ def process_openalex_works(works):
     for work in works:
         doi = work.get("doi")
         if doi is None:
-            print(f"No Doi for result: {work}")
+            print(f"No Doi for result: {work.get('id')}")
             continue
 
         existing_paper = existing_paper_map.get(doi)
@@ -54,7 +54,6 @@ def process_openalex_works(works):
             create_papers.append(work)
 
     paper_to_topics_and_concepts = {}
-    paper_ids_to_add_to_biorxiv_hub = []
 
     # Create new papers
     with transaction.atomic():
@@ -73,7 +72,10 @@ def process_openalex_works(works):
                 paper.clean_fields()
                 paper.clean()
             except ValidationError as e:
-                sentry.log_error(e, message=f"Failed to validate paper: {paper.doi}")
+                sentry.log_error(
+                    e,
+                    message=f"Failed to validate paper: {paper.doi}, {work.get('id')}",
+                )
                 continue
 
             try:
@@ -86,16 +88,6 @@ def process_openalex_works(works):
                 sentry.log_error(
                     e, message=f"Failed to save paper, unexpected error: {paper.doi}"
                 )
-
-            # if the paper is from biorXiv, we want to add it to the biorXiv Community Reviews hub
-            # so that it can get auto-assigned a peer-review with enough upvotes.
-            if "bioRxiv" in paper.external_source:
-                paper_ids_to_add_to_biorxiv_hub.append(paper.id)
-
-            paper_to_topics_and_concepts[paper.id] = (
-                openalex_concepts,
-                openalex_topics,
-            )
 
     # Prepare papers for batch update
     for existing_paper, work in update_papers:
@@ -157,11 +149,6 @@ def process_openalex_works(works):
             openalex_topics,
         )
 
-        # if the paper is from biorXiv, we want to add it to the biorXiv Community Reviews hub
-        # so that it can get auto-assigned a peer-review with enough upvotes.
-        if "bioRxiv" in existing_paper.external_source:
-            paper_ids_to_add_to_biorxiv_hub.append(existing_paper.id)
-
     # perform batch update
     if update_papers and len(update_papers) > 0:
         fields_to_update = [
@@ -186,26 +173,6 @@ def process_openalex_works(works):
             Paper.objects.bulk_update(papers_to_update, fields_to_update)
         except Exception as e:
             sentry.log_error(e, message="Failed to bulk update papers")
-
-    # batch add papers to biorXiv hub
-    if paper_ids_to_add_to_biorxiv_hub and len(paper_ids_to_add_to_biorxiv_hub) > 0:
-        # batch fetch papers
-        papers_to_add_to_biorxiv_hub = Paper.objects.filter(
-            id__in=paper_ids_to_add_to_biorxiv_hub
-        ).only("id", "unified_document", "hubs")
-
-        with transaction.atomic():
-            biorxiv_hub_id = 436
-
-            for paper in papers_to_add_to_biorxiv_hub:
-                try:
-                    paper.hubs.add(biorxiv_hub_id)
-                    paper.unified_document.hubs.add(biorxiv_hub_id)
-                except Exception as e:
-                    sentry.log_error(
-                        e, message=f"Failed to add paper to biorXiv hub: {paper.id}"
-                    )
-                    continue
 
     # Upsert concepts and associate to papers
     for paper_id, topics_and_concepts in paper_to_topics_and_concepts.items():
