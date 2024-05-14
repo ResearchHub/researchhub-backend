@@ -424,7 +424,6 @@ def celery_crossref(self, celery_data):
 @app.task(bind=True, queue=QUEUE_PAPER_METADATA, ignore_result=False)
 def celery_openalex(self, celery_data):
     paper_data, submission_id = celery_data
-
     Paper = apps.get_model("paper.Paper")
 
     try:
@@ -440,10 +439,8 @@ def celery_openalex(self, celery_data):
                 duplicate_ids = doi_paper_check.values_list("id", flat=True)
                 raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
 
-            data, concepts = open_alex.parse_to_paper_format(result)
+            data, concepts, topics = open_alex.build_paper_from_openalex_work(result)
 
-            paper_concepts = open_alex.hydrate_paper_concepts(concepts)
-            data["concepts"] = paper_concepts
             response = {
                 **paper_data,
                 "data": data,
@@ -557,8 +554,8 @@ def celery_create_paper(self, celery_data):
     Paper = apps.get_model("paper.Paper")
     PaperSubmission = apps.get_model("paper.PaperSubmission")
     Contribution = apps.get_model("reputation.Contribution")
-    paper_concepts = paper_data.pop("concepts", [])
 
+    paper = None
     try:
         paper_submission = PaperSubmission.objects.get(id=submission_id)
         dois = paper_data.pop("dois", None)
@@ -623,17 +620,18 @@ def celery_create_paper(self, celery_data):
     except Exception as e:
         raise e
 
-    create_paper_related_tags.apply_async(
-        (
-            paper_id,
-            paper_concepts,
-        ),
-        priority=2,
-        countdown=1,
-    )
+    try:
+        openalex_data = paper_data.get("open_alex_raw_json", {})
+        topics = openalex_data.get("topics", [])
+        concepts = openalex_data.get("concepts", [])
+        create_paper_related_tags(paper.id, concepts, topics)
+
+    except Exception as e:
+        sentry.log_error(e, message=f"Failed to create paper tags for paper {paper.id}")
+
     paper_submission.notify_status()
 
-    return paper_id
+    return paper.id
 
 
 @app.task(queue=QUEUE_PAPER_METADATA)

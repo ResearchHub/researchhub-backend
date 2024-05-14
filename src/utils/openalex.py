@@ -131,7 +131,6 @@ class OpenAlex:
         oa = work.get("open_access", {})
         if oa is None:
             oa = {}
-        oa_pdf_url = oa.get("oa_url", None)
 
         url = primary_location.get("landing_page_url", None)
 
