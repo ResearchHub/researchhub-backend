@@ -182,9 +182,6 @@ class OpenAlex:
                 paper["pdf_url"] = location.get("pdf_url")
                 break
 
-        # if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
-        #     paper["pdf_url"] = oa_pdf_url
-
         return paper, concepts, topics
 
     def get_data_from_doi(self, doi):
