@@ -29,7 +29,7 @@
   <body>
     <div class="email-container">
       <div class="email-header">
-        <img class="img-logo" src="https://rh-email-assets.s3-us-west-2.amazonaws.com/researchlogo.png" />
+        <img class="img-logo" src="{{ assets_base_url }}/researchlogo.png" />
         <div class="header">
           {% if recipient %}
             {% if paper %}
@@ -106,19 +106,12 @@
           </div>
           <div class="paper-footer">
             <div class="paper-comments">
-              <img class="comments-logo" src="https://rh-email-assets.s3-us-west-2.amazonaws.com/email_assets/comments.png" />
+              <img class="comments-logo" src="{{ assets_base_url }}/email_assets/comments.png" />
               {{ paper.discussion_count }} Comment{{ paper.discussion_count|pluralize }}
             </div>
           </div>
       </a>
       {% endif %}
-      <!-- <div class="email-action-container">
-        {% if recipient %}
-          <div class="email-action-button"> See Contributions History </div>
-        {% else %}
-          <div class="email-action-button"> Manage Donations </div>
-        {% endif %}
-      </div> -->
     </div>
     <div class="footer">
       <a class="footer-link" href="{{opt_out}}">Unsubscribe from this list</a>

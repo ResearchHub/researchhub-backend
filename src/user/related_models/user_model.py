@@ -10,7 +10,11 @@ from django.utils import timezone
 from hub.models import Hub
 from mailing_list.models import EmailRecipient
 from reputation.models import PaidStatusModelMixin, Withdrawal
-from researchhub.settings import BASE_FRONTEND_URL, NO_ELASTIC
+from researchhub.settings import (
+    ASSETS_BASE_URL,
+    BASE_FRONTEND_URL,
+    NO_ELASTIC,
+)
 from researchhub_access_group.constants import EDITOR
 from user.tasks import handle_spam_user_task, update_elastic_registry
 from utils.message import send_email_message
@@ -201,6 +205,7 @@ class User(AbstractUser):
         recipient = [self.email]
         subject = "[Editor] Weekly Inactivity"
         email_context = {
+            "assets_base_url": ASSETS_BASE_URL,
             "name": f"{self.first_name} {self.last_name}",
             "paper_count": paper_count,
             "comment_count": comment_count,

@@ -2,7 +2,10 @@ from django.db import models
 
 from invite.models import Invitation
 from note.models import Note
-from researchhub.settings import BASE_FRONTEND_URL
+from researchhub.settings import (
+    ASSETS_BASE_URL,
+    BASE_FRONTEND_URL,
+)
 from researchhub_access_group.constants import ACCESS_TYPE_CHOICES, VIEWER
 from utils.message import send_email_message
 
@@ -27,6 +30,7 @@ class NoteInvitation(Invitation):
         subject = "ResearchHub | Note Collaboration"
         email_context = {
             "access_type": invite_type.lower(),
+            "assets_base_url": ASSETS_BASE_URL,
             "note_title": note.title,
             "note_link": f"{BASE_FRONTEND_URL}/note/join/{key}",
         }

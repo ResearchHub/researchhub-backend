@@ -84,7 +84,7 @@
 <body>
     <div class="email-container">
         <div class="email-header">
-            <img class="img-logo" src="https://rh-email-assets.s3-us-west-2.amazonaws.com/researchlogo.png" />
+            <img class="img-logo" src="{{ assets_base_url }}/researchlogo.png" />
             <div class="header-container">
                 <div class="header">
                     Your ResearchHub Digest
@@ -95,14 +95,14 @@
                             <a class="paper-card-link" href={{doc.get_url}}>
                                 <div class="paper-card">
                                     <div class="score-wrap">
-                                        <img class="vote-icon" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/upvote.png" height="11px" style="object-fit: contain; margin-bottom: 5px;" />
+                                        <img class="vote-icon" src="{{ assets_base_url }}/upvote.png" height="11px" style="object-fit: contain; margin-bottom: 5px;" />
                                         <div class="score"
                                             style="color: rgb(72, 192, 85); background: rgba(240, 240, 240, 0.5) !important; border-radius: 5px; width: 28px; height: 22px; display: flex; justify-content: center; align-items: center; text-align: center;">
                                             <span style="margin: auto;">
                                                 {{doc.score}}
                                             </span>
                                         </div>
-                                        <img class="vote-icon" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/downvote.png" height="11px" style="object-fit: contain; margin-top: 5px;" />
+                                        <img class="vote-icon" src="{{ assets_base_url }}/downvote.png" height="11px" style="object-fit: contain; margin-top: 5px;" />
                                     </div>
                                     <table class="paper-card-right">
                                         <tr class="paper-card-right-row" >
@@ -138,16 +138,16 @@
                                         </tr>
                                         <tr class="paper-card-right-row" style="display: flex; margin-top: 10px;">
                                             <td class="row-inner middle">
-                                                <img class="paper-card-icon icon-first middle" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-comment-icon.png" width="16px" style="margin-right: 4px;" />
+                                                <img class="paper-card-icon icon-first middle" src="{{ assets_base_url }}/rh-comment-icon.png" width="16px" style="margin-right: 4px;" />
                                                 <span class="middle" style="color: rgba(36, 31, 58, 0.6)">{{doc.get_document.get_discussion_count}}</span>
                                             </td>
                                             <td class="row-inner middle">
                                                 {% if doc.document_type == 'PAPER' %}
-                                                    <img class="paper-card-icon middle" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-paper-icon.png" width="16px" />
+                                                    <img class="paper-card-icon middle" src="{{ assets_base_url }}/rh-paper-icon.png" width="16px" />
                                                 {% elif doc.document_type == 'DISCUSSION' %}
-                                                    <img class="paper-card-icon middle" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-post-icon.png" width="16px" />
+                                                    <img class="paper-card-icon middle" src="{{ assets_base_url }}/rh-post-icon.png" width="16px" />
                                                 {% elif doc.document_type == 'HYPOTHESIS' %}
-                                                    <img class="paper-card-icon middle" src="https://rh-email-assets.s3.us-west-2.amazonaws.com/rh-hypothesis-icon.png" width="16px" />
+                                                    <img class="paper-card-icon middle" src="{{ assets_base_url }}/rh-hypothesis-icon.png" width="16px" />
                                                 {% endif %}
                                                 <span class="middle" style="color: rgba(36, 31, 58, 0.6)">
                                                     {% if doc.document_type == 'PAPER' %}

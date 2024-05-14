@@ -1,4 +1,7 @@
-from researchhub.settings import BASE_FRONTEND_URL
+from researchhub.settings import (
+    ASSETS_BASE_URL,
+    BASE_FRONTEND_URL,
+)
 
 
 class NotificationFrequencies:
@@ -9,6 +12,7 @@ class NotificationFrequencies:
 
 
 base_email_context = {
-    'opt_out': BASE_FRONTEND_URL + '/email/opt-out/',
-    'update_subscription': BASE_FRONTEND_URL + '/user/settings/'
+    "assets_base_url": ASSETS_BASE_URL,
+    "opt_out": BASE_FRONTEND_URL + "/email/opt-out/",
+    "update_subscription": BASE_FRONTEND_URL + "/user/settings/",
 }

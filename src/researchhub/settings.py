@@ -480,7 +480,8 @@ AWS_REGION_NAME = os.environ.get("AWS_REGION_NAME", keys.AWS_REGION_NAME)
 # AWS Lambda
 
 GHOSTSCRIPT_LAMBDA_ARN = os.environ.get(
-    "GHOSTSCRIPT_LAMBDA_ARN", keys.GHOSTSCRIPT_LAMBDA_ARN,
+    "GHOSTSCRIPT_LAMBDA_ARN",
+    keys.GHOSTSCRIPT_LAMBDA_ARN,
 )
 
 ACCOUNT_EMAIL_CONFIRMATION_EXPIRE_DAYS = 7
@@ -505,6 +506,11 @@ AWS_S3_REGION_NAME = AWS_REGION_NAME
 
 AWS_S3_FILE_OVERWRITE = False
 AWS_DEFAULT_ACL = None
+
+# Assets
+ASSETS_BASE_URL = os.environ.get(
+    "ASSETS_BASE_URL", "https://rh-email-assets.s3.us-west-2.amazonaws.com"
+)
 
 # Email
 
