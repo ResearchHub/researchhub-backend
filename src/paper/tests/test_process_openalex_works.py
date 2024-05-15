@@ -4,12 +4,6 @@ from rest_framework.test import APITestCase
 
 from paper.models import Paper
 from paper.openalex_util import process_openalex_works
-from researchhub_document.related_models.researchhub_unified_document_model import (
-    ResearchhubUnifiedDocument,
-    UnifiedDocumentConcepts,
-)
-from tag.models import Concept
-from topic.models import Topic, UnifiedDocumentTopics
 
 
 class ProcessOpenAlexWorksTests(APITestCase):
@@ -65,6 +59,8 @@ class ProcessOpenAlexWorksTests(APITestCase):
         work = self.works[0]
         work["title"] = "Old title"
         process_openalex_works([work])
+
+        print("testing*********")
 
         # Update paper
         work["title"] = "New title"
