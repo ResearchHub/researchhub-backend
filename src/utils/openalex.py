@@ -352,28 +352,30 @@ class OpenAlex:
         """Normalize the dates of an OpenAlex object such that
         they include timezone information"""
 
-        has_dates = generic_openalex_object.get(
+        _generic_openalex_object = generic_openalex_object.copy()
+
+        has_dates = _generic_openalex_object.get(
             "updated_date"
-        ) and generic_openalex_object.get("created_date")
+        ) and _generic_openalex_object.get("created_date")
         if has_dates:
             openalex_updated_date = parser.parse(
-                generic_openalex_object["updated_date"]
+                _generic_openalex_object["updated_date"]
             )
             openalex_created_date = parser.parse(
-                generic_openalex_object["created_date"]
+                _generic_openalex_object["created_date"]
             )
 
-            generic_openalex_object["updated_date"] = openalex_updated_date
-            generic_openalex_object["created_date"] = openalex_created_date
+            _generic_openalex_object["updated_date"] = openalex_updated_date
+            _generic_openalex_object["created_date"] = openalex_created_date
             if not is_aware(openalex_updated_date):
-                generic_openalex_object["updated_date"] = make_aware(
-                    generic_openalex_object["updated_date"],
+                _generic_openalex_object["updated_date"] = make_aware(
+                    _generic_openalex_object["updated_date"],
                     timezone=get_current_timezone(),
                 )
             if not is_aware(openalex_created_date):
-                generic_openalex_object["created_date"] = make_aware(
-                    generic_openalex_object["created_date"],
+                _generic_openalex_object["created_date"] = make_aware(
+                    _generic_openalex_object["created_date"],
                     timezone=get_current_timezone(),
                 )
 
-        return generic_openalex_object
+        return _generic_openalex_object

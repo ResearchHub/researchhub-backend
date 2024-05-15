@@ -60,8 +60,6 @@ class ProcessOpenAlexWorksTests(APITestCase):
         work["title"] = "Old title"
         process_openalex_works([work])
 
-        print("testing*********")
-
         # Update paper
         work["title"] = "New title"
         process_openalex_works([work])

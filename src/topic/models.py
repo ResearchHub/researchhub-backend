@@ -216,11 +216,13 @@ class Topic(DefaultModel):
             "openalex_updated_date": oa_topic.get("updated_date"),
             "openalex_created_date": oa_topic.get("created_date"),
         }
+
         if not topic:
             topic = Topic.objects.create(**mapped)
         elif needs_update:
             for key, value in mapped.items():
                 setattr(topic, key, value)
+
             topic.save()
 
         return topic

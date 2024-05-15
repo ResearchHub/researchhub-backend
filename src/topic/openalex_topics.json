@@ -1,0 +1,1450 @@
+{
+    "meta": {
+        "count": 4516,
+        "db_response_time_ms": 14,
+        "page": 1,
+        "per_page": 2,
+        "groups_count": null
+    },
+    "results": [
+        {
+            "id": "https://openalex.org/T11475",
+            "display_name": "Territorial Governance and Environmental Participation",
+            "description": "This cluster of papers explores the intersection of territorial governance, environmental participation, and sustainable development. It delves into topics such as citizen participation, local development, social justice, and community engagement in the context of rural territories. The papers also discuss the role of proximity and innovation in shaping public policy for sustainable and inclusive development.",
+            "keywords": [
+                "Territorial Governance",
+                "Environmental Participation",
+                "Sustainable Development",
+                "Citizen Participation",
+                "Local Development",
+                "Proximity and Innovation",
+                "Rural Territories",
+                "Public Policy",
+                "Social Justice",
+                "Community Engagement"
+            ],
+            "ids": {
+                "openalex": "https://openalex.org/T11475",
+                "wikipedia": "https://en.wikipedia.org/wiki/Territorial_governance"
+            },
+            "subfield": {
+                "id": "https://openalex.org/subfields/3312",
+                "display_name": "Sociology and Political Science"
+            },
+            "field": {
+                "id": "https://openalex.org/fields/33",
+                "display_name": "Social Sciences"
+            },
+            "domain": {
+                "id": "https://openalex.org/domains/2",
+                "display_name": "Social Sciences"
+            },
+            "siblings": [
+                {
+                    "id": "https://openalex.org/T12194",
+                    "display_name": "Addressing Racial and Ethnic Disparities in Healthcare through Cultural Competence"
+                },
+                {
+                    "id": "https://openalex.org/T13428",
+                    "display_name": "Anarchist Movements and Ideologies"
+                },
+                {
+                    "id": "https://openalex.org/T13764",
+                    "display_name": "Antonio Gramsci and his Relevance in Contemporary Politics"
+                },
+                {
+                    "id": "https://openalex.org/T12432",
+                    "display_name": "Arctic Shipping and Governance"
+                },
+                {
+                    "id": "https://openalex.org/T12936",
+                    "display_name": "Armed Conflict in Colombia"
+                },
+                {
+                    "id": "https://openalex.org/T12311",
+                    "display_name": "Biopolitics and State of Exception Studies"
+                },
+                {
+                    "id": "https://openalex.org/T13109",
+                    "display_name": "Black Liberation Theology and Social Justice"
+                },
+                {
+                    "id": "https://openalex.org/T13554",
+                    "display_name": "Brazilian Military Dictatorship and Cultural Resistance"
+                },
+                {
+                    "id": "https://openalex.org/T12525",
+                    "display_name": "British Imperialism in Australia and Beyond"
+                },
+                {
+                    "id": "https://openalex.org/T11042",
+                    "display_name": "Causes and Effects of Corruption"
+                },
+                {
+                    "id": "https://openalex.org/T13078",
+                    "display_name": "Chilean History and Politics under Pinochet's Regime"
+                },
+                {
+                    "id": "https://openalex.org/T14210",
+                    "display_name": "Christian-Muslim Relations in Historical Context"
+                },
+                {
+                    "id": "https://openalex.org/T12765",
+                    "display_name": "Civil Rights Movement and Black Studies"
+                },
+                {
+                    "id": "https://openalex.org/T14238",
+                    "display_name": "Cold War Feminism and Transnational Activism"
+                },
+                {
+                    "id": "https://openalex.org/T13581",
+                    "display_name": "Colonialism and Postcolonial Theory"
+                },
+                {
+                    "id": "https://openalex.org/T10747",
+                    "display_name": "Community Resilience to Natural Disasters"
+                },
+                {
+                    "id": "https://openalex.org/T13136",
+                    "display_name": "Community-based Tourism Development and Sustainability"
+                },
+                {
+                    "id": "https://openalex.org/T13560",
+                    "display_name": "Comparative Analysis of Networking Dynamics in the Middle East and Asia"
+                },
+                {
+                    "id": "https://openalex.org/T11696",
+                    "display_name": "Conflict Management and Negotiation Strategies"
+                },
+                {
+                    "id": "https://openalex.org/T13376",
+                    "display_name": "Criminal Justice System in Germany"
+                },
+                {
+                    "id": "https://openalex.org/T13455",
+                    "display_name": "Criminological Museums and Cultural Representations of Crime"
+                },
+                {
+                    "id": "https://openalex.org/T13783",
+                    "display_name": "Critical Analysis of Vulnerability and Resistance"
+                },
+                {
+                    "id": "https://openalex.org/T11384",
+                    "display_name": "Critical Race Theory in Education"
+                },
+                {
+                    "id": "https://openalex.org/T14504",
+                    "display_name": "Critical Social Theory and Economic Crisis Responses"
+                },
+                {
+                    "id": "https://openalex.org/T12397",
+                    "display_name": "Critical Theory and Social Pathologies"
+                },
+                {
+                    "id": "https://openalex.org/T13698",
+                    "display_name": "Critical Theory and Social Transformation"
+                },
+                {
+                    "id": "https://openalex.org/T11743",
+                    "display_name": "Critique of Political Economy and Capitalist Development"
+                },
+                {
+                    "id": "https://openalex.org/T13320",
+                    "display_name": "Cross-Cultural Relations and Global Governance"
+                },
+                {
+                    "id": "https://openalex.org/T11895",
+                    "display_name": "Cultural Capital and Social Class in Education"
+                },
+                {
+                    "id": "https://openalex.org/T11256",
+                    "display_name": "Democratization and Decentralization in Indonesia"
+                },
+                {
+                    "id": "https://openalex.org/T12969",
+                    "display_name": "Development, Justice, and Social Equity"
+                },
+                {
+                    "id": "https://openalex.org/T13589",
+                    "display_name": "Discourse Analysis and Social Change"
+                },
+                {
+                    "id": "https://openalex.org/T14422",
+                    "display_name": "Discourse Analysis in Social Sciences Research"
+                },
+                {
+                    "id": "https://openalex.org/T13843",
+                    "display_name": "Diverse Sexualities and Politics in Africa"
+                },
+                {
+                    "id": "https://openalex.org/T11645",
+                    "display_name": "Effects of Residential Segregation on Communities and Individuals"
+                },
+                {
+                    "id": "https://openalex.org/T13043",
+                    "display_name": "Emergence of Youth Cultures and Strategies of Disenchantment"
+                },
+                {
+                    "id": "https://openalex.org/T12284",
+                    "display_name": "Emotional Labor in Workplace Environments"
+                },
+                {
+                    "id": "https://openalex.org/T12259",
+                    "display_name": "Environmental Justice and Inequality in Urban Development"
+                },
+                {
+                    "id": "https://openalex.org/T12320",
+                    "display_name": "Epistemic Injustice and Social Oppression"
+                },
+                {
+                    "id": "https://openalex.org/T13724",
+                    "display_name": "Ethical and Political Consequences of Social Acceleration"
+                },
+                {
+                    "id": "https://openalex.org/T12700",
+                    "display_name": "Ethical and Societal Implications of Doping in Sport"
+                },
+                {
+                    "id": "https://openalex.org/T13969",
+                    "display_name": "Ethical Implications in Various Fields"
+                },
+                {
+                    "id": "https://openalex.org/T13076",
+                    "display_name": "Ethical Implications of Torture and Interrogation Practices"
+                },
+                {
+                    "id": "https://openalex.org/T11776",
+                    "display_name": "Ethnic Conflict in Northern Ireland"
+                },
+                {
+                    "id": "https://openalex.org/T13073",
+                    "display_name": "Ethnic Relations in China's Autonomous Regions"
+                },
+                {
+                    "id": "https://openalex.org/T14043",
+                    "display_name": "Evolution and Impact of Social Medicine in Latin America"
+                },
+                {
+                    "id": "https://openalex.org/T11474",
+                    "display_name": "Evolution and Impacts of Event Tourism"
+                },
+                {
+                    "id": "https://openalex.org/T11252",
+                    "display_name": "Evolution of Cooperation and Altruism in Social Systems"
+                },
+                {
+                    "id": "https://openalex.org/T12337",
+                    "display_name": "Fascism and Totalitarianism in Europe and Italy"
+                },
+                {
+                    "id": "https://openalex.org/T14140",
+                    "display_name": "Formation and Influence of Transnational Capitalist Class"
+                },
+                {
+                    "id": "https://openalex.org/T12295",
+                    "display_name": "Foucauldian Governmentality and Neoliberalism Studies"
+                },
+                {
+                    "id": "https://openalex.org/T13306",
+                    "display_name": "Gender, Identity, and Place in Geography Education"
+                },
+                {
+                    "id": "https://openalex.org/T13707",
+                    "display_name": "Geopolitics and Linguistic Analysis"
+                },
+                {
+                    "id": "https://openalex.org/T14077",
+                    "display_name": "Global Challenges and Inequalities in the Modern World"
+                },
+                {
+                    "id": "https://openalex.org/T13659",
+                    "display_name": "Global Expansion of National Human Rights Institutions"
+                },
+                {
+                    "id": "https://openalex.org/T13787",
+                    "display_name": "Global History and Society"
+                },
+                {
+                    "id": "https://openalex.org/T11350",
+                    "display_name": "Global Impact of Sex Work and Trafficking"
+                },
+                {
+                    "id": "https://openalex.org/T13135",
+                    "display_name": "Global Social Movements of the 1960s and 1970s"
+                },
+                {
+                    "id": "https://openalex.org/T14073",
+                    "display_name": "Global Water Crisis and Social Inequality"
+                },
+                {
+                    "id": "https://openalex.org/T13631",
+                    "display_name": "Globalization and its Impacts on Society"
+                },
+                {
+                    "id": "https://openalex.org/T12903",
+                    "display_name": "Globalization and Its Impacts on Society"
+                },
+                {
+                    "id": "https://openalex.org/T13162",
+                    "display_name": "Governance and Social Dynamics in Africa"
+                },
+                {
+                    "id": "https://openalex.org/T12651",
+                    "display_name": "Halal Tourism and Consumer Behavior"
+                },
+                {
+                    "id": "https://openalex.org/T12219",
+                    "display_name": "Historical and Social Dynamics in Canada"
+                },
+                {
+                    "id": "https://openalex.org/T14342",
+                    "display_name": "Historical Institutional Child Abuse and Redress"
+                },
+                {
+                    "id": "https://openalex.org/T13035",
+                    "display_name": "Human Rights and Development in Global Governance"
+                },
+                {
+                    "id": "https://openalex.org/T12785",
+                    "display_name": "Identity and Democratization in Hong Kong"
+                },
+                {
+                    "id": "https://openalex.org/T13914",
+                    "display_name": "Imagery and Stereotypes in National Identity"
+                },
+                {
+                    "id": "https://openalex.org/T12693",
+                    "display_name": "Immigrant Entrepreneurship in Advanced Economies"
+                },
+                {
+                    "id": "https://openalex.org/T13032",
+                    "display_name": "Impact and Response to Covid-19 Pandemic in Indonesia"
+                },
+                {
+                    "id": "https://openalex.org/T13900",
+                    "display_name": "Impact of Austerity Politics in Greece and Southern Europe"
+                },
+                {
+                    "id": "https://openalex.org/T12656",
+                    "display_name": "Impact of Climate Change on Human Migration"
+                },
+                {
+                    "id": "https://openalex.org/T14473",
+                    "display_name": "Impact of Decentralization in Kerala, India"
+                },
+                {
+                    "id": "https://openalex.org/T14348",
+                    "display_name": "Impact of Early Marriage in Society"
+                },
+                {
+                    "id": "https://openalex.org/T12501",
+                    "display_name": "Impact of Gig Economy on Labor Market"
+                },
+                {
+                    "id": "https://openalex.org/T14176",
+                    "display_name": "Impact of Globalization on Society and Culture"
+                },
+                {
+                    "id": "https://openalex.org/T14352",
+                    "display_name": "Impact of Globalization on Society and Economy"
+                },
+                {
+                    "id": "https://openalex.org/T14383",
+                    "display_name": "Impact of Globalization on Society and Sustainability"
+                },
+                {
+                    "id": "https://openalex.org/T13017",
+                    "display_name": "Impact of Liquid Modernity on Society and Culture"
+                },
+                {
+                    "id": "https://openalex.org/T10318",
+                    "display_name": "Impact of Mass Incarceration on Society and Individuals"
+                },
+                {
+                    "id": "https://openalex.org/T13574",
+                    "display_name": "Impact of Parental Illness on Children and Families"
+                },
+                {
+                    "id": "https://openalex.org/T10609",
+                    "display_name": "Impact of Social Media on Consumer Behavior"
+                },
+                {
+                    "id": "https://openalex.org/T10355",
+                    "display_name": "Impact of Social Media on Well-being and Behavior"
+                },
+                {
+                    "id": "https://openalex.org/T13841",
+                    "display_name": "Impact of Social Norms on Behavior and Compliance"
+                },
+                {
+                    "id": "https://openalex.org/T10574",
+                    "display_name": "Impact of Social Structure on Crime and Delinquency"
+                },
+                {
+                    "id": "https://openalex.org/T13360",
+                    "display_name": "Imperialism and Global Capitalism Critique"
+                },
+                {
+                    "id": "https://openalex.org/T10446",
+                    "display_name": "Income Inequality and Poverty Dynamics"
+                },
+                {
+                    "id": "https://openalex.org/T13617",
+                    "display_name": "Inequality and Social Justice in Latin America"
+                },
+                {
+                    "id": "https://openalex.org/T11755",
+                    "display_name": "Influence of Climate on Human Conflict"
+                },
+                {
+                    "id": "https://openalex.org/T13521",
+                    "display_name": "Influence of Multicultural Factors on Adolescent Well-being"
+                },
+                {
+                    "id": "https://openalex.org/T13059",
+                    "display_name": "Influence of Religion on Environmental Concern and Activism"
+                },
+                {
+                    "id": "https://openalex.org/T12988",
+                    "display_name": "Institutionalization and Evolution of Social Sciences in Latin America"
+                },
+                {
+                    "id": "https://openalex.org/T14080",
+                    "display_name": "Interactions and Relationships within Family Structures"
+                },
+                {
+                    "id": "https://openalex.org/T14350",
+                    "display_name": "Interdependence in Science and Society"
+                },
+                {
+                    "id": "https://openalex.org/T14167",
+                    "display_name": "Interdisciplinary Consumer Studies and Policy Analysis"
+                },
+                {
+                    "id": "https://openalex.org/T11712",
+                    "display_name": "Intergenerational Family Relationships and Support"
+                },
+                {
+                    "id": "https://openalex.org/T12088",
+                    "display_name": "Intergenerational Mobility and Social Stratification"
+                },
+                {
+                    "id": "https://openalex.org/T10314",
+                    "display_name": "Intergroup Relations and Social Identity Theories"
+                },
+                {
+                    "id": "https://openalex.org/T11045",
+                    "display_name": "Internet Users' Information Privacy Concerns"
+                },
+                {
+                    "id": "https://openalex.org/T14337",
+                    "display_name": "Interplay of Religion and Media in Modern Society"
+                },
+                {
+                    "id": "https://openalex.org/T13823",
+                    "display_name": "Interplay of Religion and Social Dynamics"
+                },
+                {
+                    "id": "https://openalex.org/T13503",
+                    "display_name": "Intersectionality and Social Inequality"
+                },
+                {
+                    "id": "https://openalex.org/T14288",
+                    "display_name": "Intersections of Freedom of Speech and Civil Rights"
+                },
+                {
+                    "id": "https://openalex.org/T11203",
+                    "display_name": "Israeli-Palestinian Conflict and Ethnic Identity in Israel"
+                },
+                {
+                    "id": "https://openalex.org/T13915",
+                    "display_name": "Judicialization of Healthcare Access in Brazil"
+                },
+                {
+                    "id": "https://openalex.org/T14111",
+                    "display_name": "Kidnapping in Social Context"
+                },
+                {
+                    "id": "https://openalex.org/T12970",
+                    "display_name": "Labor Market Discrimination and Inequality in Employment"
+                },
+                {
+                    "id": "https://openalex.org/T12263",
+                    "display_name": "Local Turn in Peacebuilding and Resilience Governance"
+                },
+                {
+                    "id": "https://openalex.org/T13605",
+                    "display_name": "Maternal Filicide and Infanticide Research"
+                },
+                {
+                    "id": "https://openalex.org/T12730",
+                    "display_name": "Max Weber's Contributions to Sociology and Social Theory"
+                },
+                {
+                    "id": "https://openalex.org/T13718",
+                    "display_name": "Media Bias and Political Influence"
+                },
+                {
+                    "id": "https://openalex.org/T13947",
+                    "display_name": "Media Discourse and Social Movements Analysis"
+                },
+                {
+                    "id": "https://openalex.org/T13634",
+                    "display_name": "Media Influence on Middle Eastern Politics"
+                },
+                {
+                    "id": "https://openalex.org/T14000",
+                    "display_name": "Media Influence on Societal Dynamics"
+                },
+                {
+                    "id": "https://openalex.org/T14084",
+                    "display_name": "Methodology and Impact of Social Science Research"
+                },
+                {
+                    "id": "https://openalex.org/T10349",
+                    "display_name": "Migration Networks and Impacts on Labor Market"
+                },
+                {
+                    "id": "https://openalex.org/T14062",
+                    "display_name": "Migration, Borders, and Social Justice"
+                },
+                {
+                    "id": "https://openalex.org/T13534",
+                    "display_name": "Migration, Health, and Inequality in French Territories"
+                },
+                {
+                    "id": "https://openalex.org/T13692",
+                    "display_name": "Migration, Social Integration, and Public Policy Analysis"
+                },
+                {
+                    "id": "https://openalex.org/T13401",
+                    "display_name": "Modernity and Self-Identity in Global Society"
+                },
+                {
+                    "id": "https://openalex.org/T13098",
+                    "display_name": "Motivation and Behavior of Convention Attendees"
+                },
+                {
+                    "id": "https://openalex.org/T13228",
+                    "display_name": "Multiculturalism and Social Control in Singapore"
+                },
+                {
+                    "id": "https://openalex.org/T11120",
+                    "display_name": "Multilevel Perspectives on Prosocial Behavior and Volunteering"
+                },
+                {
+                    "id": "https://openalex.org/T12686",
+                    "display_name": "National Indifference and Identity Formation in Central Europe"
+                },
+                {
+                    "id": "https://openalex.org/T13824",
+                    "display_name": "National Symbols and Identity Construction"
+                },
+                {
+                    "id": "https://openalex.org/T11838",
+                    "display_name": "Organized Crime and Criminal Networks Analysis"
+                },
+                {
+                    "id": "https://openalex.org/T11506",
+                    "display_name": "Participation of Children in Research and Policy"
+                },
+                {
+                    "id": "https://openalex.org/T11944",
+                    "display_name": "Participatory Visual Research Methods in Social Science"
+                },
+                {
+                    "id": "https://openalex.org/T13620",
+                    "display_name": "Peace and Conflict Studies"
+                },
+                {
+                    "id": "https://openalex.org/T13014",
+                    "display_name": "Peace Education and Human Rights"
+                },
+                {
+                    "id": "https://openalex.org/T11488",
+                    "display_name": "Perceptions and Communication of Climate Change"
+                },
+                {
+                    "id": "https://openalex.org/T13537",
+                    "display_name": "Political Parties and Ideals"
+                },
+                {
+                    "id": "https://openalex.org/T10216",
+                    "display_name": "Politics and Social Implications of Immigration"
+                },
+                {
+                    "id": "https://openalex.org/T11859",
+                    "display_name": "Politics of Citizenship Education and Historical Thinking"
+                },
+                {
+                    "id": "https://openalex.org/T14300",
+                    "display_name": "Positivism and Social Change in the 19th Century"
+                },
+                {
+                    "id": "https://openalex.org/T14005",
+                    "display_name": "Post-Communist Europe: Transition, Identity, and Dissent"
+                },
+                {
+                    "id": "https://openalex.org/T13660",
+                    "display_name": "Postmodernism and Social Change"
+                },
+                {
+                    "id": "https://openalex.org/T13119",
+                    "display_name": "Power Dynamics and Societal Structures"
+                },
+                {
+                    "id": "https://openalex.org/T13550",
+                    "display_name": "Principles and Controversies in Qualitative Research"
+                },
+                {
+                    "id": "https://openalex.org/T12948",
+                    "display_name": "Public Attitudes and Beliefs towards People with Disabilities"
+                },
+                {
+                    "id": "https://openalex.org/T14053",
+                    "display_name": "Public Awareness for Sustainable Development"
+                },
+                {
+                    "id": "https://openalex.org/T13051",
+                    "display_name": "Qualitative Comparative Analysis in Social Science Research"
+                },
+                {
+                    "id": "https://openalex.org/T12679",
+                    "display_name": "Qualitative Data Collection and Analysis Methods"
+                },
+                {
+                    "id": "https://openalex.org/T11981",
+                    "display_name": "Qualitative Research Methods and Ethics"
+                },
+                {
+                    "id": "https://openalex.org/T14202",
+                    "display_name": "Qualitative Research Methods and Practices"
+                },
+                {
+                    "id": "https://openalex.org/T12807",
+                    "display_name": "Qualitative Research Methods in Social Sciences"
+                },
+                {
+                    "id": "https://openalex.org/T14440",
+                    "display_name": "Quality of Life in European Union Countries"
+                },
+                {
+                    "id": "https://openalex.org/T12375",
+                    "display_name": "Race, Politics, and Society in Cuba"
+                },
+                {
+                    "id": "https://openalex.org/T13982",
+                    "display_name": "Race, Power Dynamics, and Social Change"
+                },
+                {
+                    "id": "https://openalex.org/T12109",
+                    "display_name": "Racial Decoloniality and Intersectionality in Brazil"
+                },
+                {
+                    "id": "https://openalex.org/T10652",
+                    "display_name": "Racial Discrimination and Health Inequities"
+                },
+                {
+                    "id": "https://openalex.org/T12987",
+                    "display_name": "Religion and Politics in Brazil and Latin America"
+                },
+                {
+                    "id": "https://openalex.org/T11507",
+                    "display_name": "Religion and Secularism in Modern Society"
+                },
+                {
+                    "id": "https://openalex.org/T14235",
+                    "display_name": "Religion and Social Identity Analysis"
+                },
+                {
+                    "id": "https://openalex.org/T10893",
+                    "display_name": "Religious Diversity and Regulation in Chinese Society"
+                },
+                {
+                    "id": "https://openalex.org/T11573",
+                    "display_name": "Risk Perception and Communication in Society"
+                },
+                {
+                    "id": "https://openalex.org/T13456",
+                    "display_name": "Role of Faith-Based Organizations in Development and Social Services"
+                },
+                {
+                    "id": "https://openalex.org/T13576",
+                    "display_name": "Root Causes and Peacebuilding in Cyprus Conflict"
+                },
+                {
+                    "id": "https://openalex.org/T13003",
+                    "display_name": "Rural Revitalization Strategy in China"
+                },
+                {
+                    "id": "https://openalex.org/T14201",
+                    "display_name": "Secondary Analysis of Qualitative Data"
+                },
+                {
+                    "id": "https://openalex.org/T13055",
+                    "display_name": "Securitization and Global Health Governance"
+                },
+                {
+                    "id": "https://openalex.org/T11695",
+                    "display_name": "Service Delivery Protests in South Africa"
+                },
+                {
+                    "id": "https://openalex.org/T12503",
+                    "display_name": "Social Acceptance of Renewable Energy Innovation"
+                },
+                {
+                    "id": "https://openalex.org/T13802",
+                    "display_name": "Social and Cultural Development in Vietnam"
+                },
+                {
+                    "id": "https://openalex.org/T14490",
+                    "display_name": "Social and Economic Rights in Europe"
+                },
+                {
+                    "id": "https://openalex.org/T13132",
+                    "display_name": "Social and Environmental Impacts of Dam-induced Displacement"
+                },
+                {
+                    "id": "https://openalex.org/T11197",
+                    "display_name": "Social and Psychological Aspects of Online Gaming"
+                },
+                {
+                    "id": "https://openalex.org/T11239",
+                    "display_name": "Social Capital and Trust in Communities"
+                },
+                {
+                    "id": "https://openalex.org/T13888",
+                    "display_name": "Social Equity and Public Policy Analysis"
+                },
+                {
+                    "id": "https://openalex.org/T12892",
+                    "display_name": "Social Identity Theory and Exchange Relations"
+                },
+                {
+                    "id": "https://openalex.org/T13311",
+                    "display_name": "Social Ideology and Knowledge Production"
+                },
+                {
+                    "id": "https://openalex.org/T14476",
+                    "display_name": "Social Impact of Technological Revolution in Developing Countries"
+                },
+                {
+                    "id": "https://openalex.org/T13687",
+                    "display_name": "Social Inequities and Global Capitalism"
+                },
+                {
+                    "id": "https://openalex.org/T14389",
+                    "display_name": "Social Innovation and Interdisciplinary Research Networks"
+                },
+                {
+                    "id": "https://openalex.org/T14281",
+                    "display_name": "Social Media Use and Impact on Society"
+                },
+                {
+                    "id": "https://openalex.org/T14253",
+                    "display_name": "Social Movements and Cultural Change"
+                },
+                {
+                    "id": "https://openalex.org/T12609",
+                    "display_name": "Social Movements and Political Change in Latin America"
+                },
+                {
+                    "id": "https://openalex.org/T10070",
+                    "display_name": "Social Movements and Political Conflict Analysis"
+                },
+                {
+                    "id": "https://openalex.org/T12573",
+                    "display_name": "Social Network Analysis in Education and Communication"
+                },
+                {
+                    "id": "https://openalex.org/T13613",
+                    "display_name": "Social Sciences and Humanities in Latin America"
+                },
+                {
+                    "id": "https://openalex.org/T13491",
+                    "display_name": "Social Welfare and Political Economy in Brazil"
+                },
+                {
+                    "id": "https://openalex.org/T13469",
+                    "display_name": "Societal Collapse and Sustainable Development"
+                },
+                {
+                    "id": "https://openalex.org/T13610",
+                    "display_name": "Societal Impacts of Risk and Modernization"
+                },
+                {
+                    "id": "https://openalex.org/T13728",
+                    "display_name": "Societal Reactions to Moral Panics"
+                },
+                {
+                    "id": "https://openalex.org/T13525",
+                    "display_name": "Socio-Demographic and Political Dynamics in Cambodia"
+                },
+                {
+                    "id": "https://openalex.org/T13441",
+                    "display_name": "Socio-Ecological Dynamics of the Black Sea Region"
+                },
+                {
+                    "id": "https://openalex.org/T14142",
+                    "display_name": "Socio-Legal Studies in Multicultural Contexts"
+                },
+                {
+                    "id": "https://openalex.org/T13103",
+                    "display_name": "Socio-Political Dynamics in Lebanon"
+                },
+                {
+                    "id": "https://openalex.org/T13337",
+                    "display_name": "Socio-Political Dynamics of North Korea"
+                },
+                {
+                    "id": "https://openalex.org/T13835",
+                    "display_name": "Sociological Development and Global Governance"
+                },
+                {
+                    "id": "https://openalex.org/T13212",
+                    "display_name": "Sociological History and Epistemic Practices"
+                },
+                {
+                    "id": "https://openalex.org/T13300",
+                    "display_name": "Sociology of Communication and Power Relations"
+                },
+                {
+                    "id": "https://openalex.org/T13416",
+                    "display_name": "Sociology of Education and Curriculum Knowledge"
+                },
+                {
+                    "id": "https://openalex.org/T10153",
+                    "display_name": "Sociology of Public Action and Professional Practices"
+                },
+                {
+                    "id": "https://openalex.org/T11024",
+                    "display_name": "Sociomateriality in Information Systems Research"
+                },
+                {
+                    "id": "https://openalex.org/T13614",
+                    "display_name": "Solidarity Economy and Social Management"
+                },
+                {
+                    "id": "https://openalex.org/T13296",
+                    "display_name": "Sport, Leisure, and Public Policy Analysis"
+                },
+                {
+                    "id": "https://openalex.org/T13582",
+                    "display_name": "Stalking and Cyberstalking Research"
+                },
+                {
+                    "id": "https://openalex.org/T13632",
+                    "display_name": "Stigma and Dynamics of Non-Monogamous Relationships"
+                },
+                {
+                    "id": "https://openalex.org/T12953",
+                    "display_name": "Structure and Agency in Social Theory"
+                },
+                {
+                    "id": "https://openalex.org/T12635",
+                    "display_name": "Struggle for National Identity in Zimbabwean History"
+                },
+                {
+                    "id": "https://openalex.org/T11539",
+                    "display_name": "Survey Methodology and Response Rates Analysis"
+                },
+                {
+                    "id": "https://openalex.org/T13622",
+                    "display_name": "Territorial Studies in Southern Europe and North Africa"
+                },
+                {
+                    "id": "https://openalex.org/T10994",
+                    "display_name": "Terrorism and Radicalization Studies"
+                },
+                {
+                    "id": "https://openalex.org/T12443",
+                    "display_name": "The Delphi Method in Research and Consensus Building"
+                },
+                {
+                    "id": "https://openalex.org/T10722",
+                    "display_name": "The Dynamics of Work and Family Interactions"
+                },
+                {
+                    "id": "https://openalex.org/T13994",
+                    "display_name": "The Impact of Diversity and Innovation on Society"
+                },
+                {
+                    "id": "https://openalex.org/T14110",
+                    "display_name": "The Role of Religious Moderation in Society"
+                },
+                {
+                    "id": "https://openalex.org/T12231",
+                    "display_name": "The Role of Sociology in Public Discourse and Policy"
+                },
+                {
+                    "id": "https://openalex.org/T11147",
+                    "display_name": "The Spread of Misinformation Online"
+                },
+                {
+                    "id": "https://openalex.org/T10259",
+                    "display_name": "Theory of Social Practices in Education and Society"
+                },
+                {
+                    "id": "https://openalex.org/T10055",
+                    "display_name": "Tourism and its Impact on Communities"
+                },
+                {
+                    "id": "https://openalex.org/T12839",
+                    "display_name": "Toward a Sociology of Emergence in Modern Society"
+                },
+                {
+                    "id": "https://openalex.org/T14141",
+                    "display_name": "Transnational Social and Political Movements in the Colonial Era"
+                },
+                {
+                    "id": "https://openalex.org/T10927",
+                    "display_name": "Trust and Reputation Systems in Online Environments"
+                },
+                {
+                    "id": "https://openalex.org/T12143",
+                    "display_name": "Understanding Human Connection to Places"
+                },
+                {
+                    "id": "https://openalex.org/T14023",
+                    "display_name": "Understanding Social Systems and Human Interactions"
+                },
+                {
+                    "id": "https://openalex.org/T12720",
+                    "display_name": "Understanding Social Television Viewing and Interaction"
+                },
+                {
+                    "id": "https://openalex.org/T13881",
+                    "display_name": "Violence and Civilization in Sociological Perspective"
+                },
+                {
+                    "id": "https://openalex.org/T11647",
+                    "display_name": "Workplace Bullying and Harassment in Professional Environments"
+                },
+                {
+                    "id": "https://openalex.org/T14038",
+                    "display_name": "Youth and Public Policy in Brazil"
+                },
+                {
+                    "id": "https://openalex.org/T13747",
+                    "display_name": "Youth Identity Politics in Contemporary Russia"
+                },
+                {
+                    "id": "https://openalex.org/T12714",
+                    "display_name": "Youth Transitions and Social Inequality"
+                }
+            ],
+            "works_count": 615364,
+            "cited_by_count": 480815,
+            "updated_date": "2024-05-13T06:42:56.203906",
+            "created_date": "2024-01-23"
+        },
+        {
+            "id": "https://openalex.org/T13445",
+            "display_name": "American Political Thought and History",
+            "description": "This cluster of papers explores the development of American political thought and history, focusing on topics such as the American founding, constitutional government, religious freedom, public opinion, separation of church and state, presidential prerogative, early republic, federalism, political philosophy, and nationalism.",
+            "keywords": [
+                "American founding",
+                "Constitutional government",
+                "Religious freedom",
+                "Public opinion",
+                "Separation of church and state",
+                "Presidential prerogative",
+                "Early Republic",
+                "Federalism",
+                "Political philosophy",
+                "Nationalism"
+            ],
+            "ids": {
+                "openalex": "https://openalex.org/T13445",
+                "wikipedia": "https://en.wikipedia.org/wiki/American_political_history"
+            },
+            "subfield": {
+                "id": "https://openalex.org/subfields/3320",
+                "display_name": "Political Science and International Relations"
+            },
+            "field": {
+                "id": "https://openalex.org/fields/33",
+                "display_name": "Social Sciences"
+            },
+            "domain": {
+                "id": "https://openalex.org/domains/2",
+                "display_name": "Social Sciences"
+            },
+            "siblings": [
+                {
+                    "id": "https://openalex.org/T13494",
+                    "display_name": "British and International Counterinsurgency Strategies"
+                },
+                {
+                    "id": "https://openalex.org/T13572",
+                    "display_name": "Causes and Consequences of Security Policies and Practices"
+                },
+                {
+                    "id": "https://openalex.org/T13754",
+                    "display_name": "Central and Eastern Europe in Geopolitics"
+                },
+                {
+                    "id": "https://openalex.org/T13598",
+                    "display_name": "Challenges in Global Governance and Pluralism"
+                },
+                {
+                    "id": "https://openalex.org/T14171",
+                    "display_name": "Challenges of Digital Transformation in Justice Systems"
+                },
+                {
+                    "id": "https://openalex.org/T10777",
+                    "display_name": "Clientelism and Political Power in Latin America"
+                },
+                {
+                    "id": "https://openalex.org/T13653",
+                    "display_name": "Collaborative Federalism and Governance in Commonwealth Nations"
+                },
+                {
+                    "id": "https://openalex.org/T12956",
+                    "display_name": "Conflict and State Building in Myanmar"
+                },
+                {
+                    "id": "https://openalex.org/T12550",
+                    "display_name": "Conflict Reconstruction and State-Building in Central Asia"
+                },
+                {
+                    "id": "https://openalex.org/T13120",
+                    "display_name": "Consequences of Nuclear War and Global Security"
+                },
+                {
+                    "id": "https://openalex.org/T12332",
+                    "display_name": "Constitutional Rights and Legal Theory in Latin America"
+                },
+                {
+                    "id": "https://openalex.org/T14237",
+                    "display_name": "Construction of Bureaucracies and Political Dynamics"
+                },
+                {
+                    "id": "https://openalex.org/T12690",
+                    "display_name": "Cross-Border Regions in Europe and North America"
+                },
+                {
+                    "id": "https://openalex.org/T13773",
+                    "display_name": "Decent Work and International Labour Standards"
+                },
+                {
+                    "id": "https://openalex.org/T13158",
+                    "display_name": "Depoliticisation in British Politics and Society"
+                },
+                {
+                    "id": "https://openalex.org/T14282",
+                    "display_name": "Digital Sovereignty in Transition Economies"
+                },
+                {
+                    "id": "https://openalex.org/T13556",
+                    "display_name": "Diplomatic History and Cross-Cultural Relations"
+                },
+                {
+                    "id": "https://openalex.org/T14433",
+                    "display_name": "Economic and Political Transition in Post-Communist Countries"
+                },
+                {
+                    "id": "https://openalex.org/T10108",
+                    "display_name": "Empirical Analysis of Political Behavior and Institutions"
+                },
+                {
+                    "id": "https://openalex.org/T13897",
+                    "display_name": "Ethical and Historical Perspectives on Economics"
+                },
+                {
+                    "id": "https://openalex.org/T13504",
+                    "display_name": "Ethiopia-Eritrea Relations and Society"
+                },
+                {
+                    "id": "https://openalex.org/T14349",
+                    "display_name": "Eurasian Economic Integration and Geopolitics"
+                },
+                {
+                    "id": "https://openalex.org/T10289",
+                    "display_name": "European Integration and Governance Dynamics"
+                },
+                {
+                    "id": "https://openalex.org/T14336",
+                    "display_name": "European Integration and Regional Development in Ukraine"
+                },
+                {
+                    "id": "https://openalex.org/T12921",
+                    "display_name": "European Union Criminal Law and Justice Cooperation"
+                },
+                {
+                    "id": "https://openalex.org/T13948",
+                    "display_name": "European Union Immigration and Asylum Policies"
+                },
+                {
+                    "id": "https://openalex.org/T13993",
+                    "display_name": "European-Australian Political and Cultural Relations"
+                },
+                {
+                    "id": "https://openalex.org/T10953",
+                    "display_name": "Evolution and Impact of E-Government Initiatives"
+                },
+                {
+                    "id": "https://openalex.org/T13721",
+                    "display_name": "Evolution and Relevance of Political Science Research"
+                },
+                {
+                    "id": "https://openalex.org/T13057",
+                    "display_name": "Evolution of East Asian Developmental States"
+                },
+                {
+                    "id": "https://openalex.org/T13739",
+                    "display_name": "Evolution of Judicial Systems in Europe"
+                },
+                {
+                    "id": "https://openalex.org/T11461",
+                    "display_name": "Fiscal Decentralization and Governance in Political Economy"
+                },
+                {
+                    "id": "https://openalex.org/T11070",
+                    "display_name": "Formation and Impact of the Soviet Empire"
+                },
+                {
+                    "id": "https://openalex.org/T14443",
+                    "display_name": "Geopolitical and Economic Dynamics of Global Relations"
+                },
+                {
+                    "id": "https://openalex.org/T14302",
+                    "display_name": "Geopolitical Dynamics in Eastern Europe and EU Relations"
+                },
+                {
+                    "id": "https://openalex.org/T14417",
+                    "display_name": "Geopolitical Dynamics in Eurasia and Central Asia"
+                },
+                {
+                    "id": "https://openalex.org/T14200",
+                    "display_name": "Global Governance and Biopolitics Analysis"
+                },
+                {
+                    "id": "https://openalex.org/T12633",
+                    "display_name": "Global Governance and International Law"
+                },
+                {
+                    "id": "https://openalex.org/T13995",
+                    "display_name": "Global Governance and Legitimacy in International Relations"
+                },
+                {
+                    "id": "https://openalex.org/T11300",
+                    "display_name": "Global Governance in Education Policy Research"
+                },
+                {
+                    "id": "https://openalex.org/T12221",
+                    "display_name": "Global Governance of Cyber Security and Warfare"
+                },
+                {
+                    "id": "https://openalex.org/T13942",
+                    "display_name": "Global Human Rights and Development"
+                },
+                {
+                    "id": "https://openalex.org/T11971",
+                    "display_name": "Global Impact of World Wars and International Relations"
+                },
+                {
+                    "id": "https://openalex.org/T10546",
+                    "display_name": "Global Trends in Higher Education Internationalization"
+                },
+                {
+                    "id": "https://openalex.org/T13210",
+                    "display_name": "History and International Relations"
+                },
+                {
+                    "id": "https://openalex.org/T12764",
+                    "display_name": "History and Politics of Poland"
+                },
+                {
+                    "id": "https://openalex.org/T13998",
+                    "display_name": "Hubris Syndrome in Leadership and Politics"
+                },
+                {
+                    "id": "https://openalex.org/T14133",
+                    "display_name": "Human Rights and International Relations"
+                },
+                {
+                    "id": "https://openalex.org/T13369",
+                    "display_name": "Hybrid Warfare and International Relations"
+                },
+                {
+                    "id": "https://openalex.org/T13655",
+                    "display_name": "Impact of Border Security on North American Trade"
+                },
+                {
+                    "id": "https://openalex.org/T14338",
+                    "display_name": "Impact of Globalization on International Relations"
+                },
+                {
+                    "id": "https://openalex.org/T12767",
+                    "display_name": "Impact of Private International Law on European Union"
+                },
+                {
+                    "id": "https://openalex.org/T11076",
+                    "display_name": "Impact of Procedural Justice on Police Legitimacy"
+                },
+                {
+                    "id": "https://openalex.org/T14487",
+                    "display_name": "Impact of Science Funding Crisis in Brazil"
+                },
+                {
+                    "id": "https://openalex.org/T14032",
+                    "display_name": "Impact of World War I in Latin America"
+                },
+                {
+                    "id": "https://openalex.org/T12961",
+                    "display_name": "Institutions and Regional Development in European Union"
+                },
+                {
+                    "id": "https://openalex.org/T14457",
+                    "display_name": "Intellectual Property Rights and Media Regulation"
+                },
+                {
+                    "id": "https://openalex.org/T12572",
+                    "display_name": "Intelligence Studies and Analysis in Modern Context"
+                },
+                {
+                    "id": "https://openalex.org/T12619",
+                    "display_name": "Intergovernmental Relations in Multinational Federations"
+                },
+                {
+                    "id": "https://openalex.org/T10749",
+                    "display_name": "International Criminal Law and Human Rights Obligations"
+                },
+                {
+                    "id": "https://openalex.org/T13875",
+                    "display_name": "International Human Rights and Law"
+                },
+                {
+                    "id": "https://openalex.org/T10053",
+                    "display_name": "International Political Interactions"
+                },
+                {
+                    "id": "https://openalex.org/T13549",
+                    "display_name": "International Protection of Minority Rights"
+                },
+                {
+                    "id": "https://openalex.org/T14429",
+                    "display_name": "Italian Foreign Policy and Global Relations"
+                },
+                {
+                    "id": "https://openalex.org/T13710",
+                    "display_name": "Judicial Review in European Legal Systems"
+                },
+                {
+                    "id": "https://openalex.org/T13029",
+                    "display_name": "Kashmir Conflict and Indian Federalism"
+                },
+                {
+                    "id": "https://openalex.org/T13762",
+                    "display_name": "Labor Market Dynamics in Latin America and the Caribbean"
+                },
+                {
+                    "id": "https://openalex.org/T14003",
+                    "display_name": "Labor Relations and Social Security Systems"
+                },
+                {
+                    "id": "https://openalex.org/T12939",
+                    "display_name": "Legal and Constitutional Studies in Poland"
+                },
+                {
+                    "id": "https://openalex.org/T12669",
+                    "display_name": "Legal and Environmental Studies in Latin America"
+                },
+                {
+                    "id": "https://openalex.org/T13075",
+                    "display_name": "Legal and Policy Dimensions in Transnational Contexts"
+                },
+                {
+                    "id": "https://openalex.org/T14291",
+                    "display_name": "Legal and Regulatory Studies in Indonesia and China"
+                },
+                {
+                    "id": "https://openalex.org/T13763",
+                    "display_name": "Legal and Social Transformations in Europe"
+                },
+                {
+                    "id": "https://openalex.org/T14036",
+                    "display_name": "Legal Personhood for Artificial Intelligences"
+                },
+                {
+                    "id": "https://openalex.org/T13271",
+                    "display_name": "Legal Regulation in Global Society"
+                },
+                {
+                    "id": "https://openalex.org/T13196",
+                    "display_name": "Liberal Political Thought in 19th Century Europe"
+                },
+                {
+                    "id": "https://openalex.org/T14219",
+                    "display_name": "Local Economic Development in South Africa"
+                },
+                {
+                    "id": "https://openalex.org/T14209",
+                    "display_name": "Managing Global Public Goods in Globalization Era"
+                },
+                {
+                    "id": "https://openalex.org/T12645",
+                    "display_name": "Nazi Germany and Postwar Europe"
+                },
+                {
+                    "id": "https://openalex.org/T13501",
+                    "display_name": "Paradoxical Relationship between Criminal Law and Human Rights"
+                },
+                {
+                    "id": "https://openalex.org/T14515",
+                    "display_name": "Past, Present, and Future of International Lawmaking"
+                },
+                {
+                    "id": "https://openalex.org/T13826",
+                    "display_name": "Political Dynamics in Bangladesh: Identity, Violence, and Governance"
+                },
+                {
+                    "id": "https://openalex.org/T13476",
+                    "display_name": "Political Dynasties and Governance"
+                },
+                {
+                    "id": "https://openalex.org/T14284",
+                    "display_name": "Political Ecology in Latin America and Beyond"
+                },
+                {
+                    "id": "https://openalex.org/T10628",
+                    "display_name": "Political Economy and Governance in China"
+                },
+                {
+                    "id": "https://openalex.org/T13459",
+                    "display_name": "Political Governance and Leadership in Modern Societies"
+                },
+                {
+                    "id": "https://openalex.org/T13684",
+                    "display_name": "Political Science and Electoral Processes"
+                },
+                {
+                    "id": "https://openalex.org/T12723",
+                    "display_name": "Political Thought of Hannah Arendt"
+                },
+                {
+                    "id": "https://openalex.org/T10443",
+                    "display_name": "Politics and Economics of Welfare State"
+                },
+                {
+                    "id": "https://openalex.org/T12248",
+                    "display_name": "Politics and Poetics of Water Infrastructure"
+                },
+                {
+                    "id": "https://openalex.org/T14181",
+                    "display_name": "Politics and Professional Dynamics in Academia"
+                },
+                {
+                    "id": "https://openalex.org/T13002",
+                    "display_name": "Politics and Society in Southeast Asia"
+                },
+                {
+                    "id": "https://openalex.org/T10794",
+                    "display_name": "Politics of Islamic Reform in Middle East"
+                },
+                {
+                    "id": "https://openalex.org/T11397",
+                    "display_name": "Populism in Contemporary Politics"
+                },
+                {
+                    "id": "https://openalex.org/T13643",
+                    "display_name": "Predictive Legal Technology in Judicial Decision Making"
+                },
+                {
+                    "id": "https://openalex.org/T12986",
+                    "display_name": "Public Administration and Legal Studies"
+                },
+                {
+                    "id": "https://openalex.org/T13564",
+                    "display_name": "Public Policy Analysis and Higher Education in Brazil"
+                },
+                {
+                    "id": "https://openalex.org/T12687",
+                    "display_name": "Public Policy and Administration in Developing Nations"
+                },
+                {
+                    "id": "https://openalex.org/T12902",
+                    "display_name": "Public Policy and Governance in Latin America"
+                },
+                {
+                    "id": "https://openalex.org/T13988",
+                    "display_name": "Public Policy and Governance Studies"
+                },
+                {
+                    "id": "https://openalex.org/T14188",
+                    "display_name": "Public Policy and Social Development in Latin America"
+                },
+                {
+                    "id": "https://openalex.org/T13379",
+                    "display_name": "Reform of Family Law and Democratic Progress"
+                },
+                {
+                    "id": "https://openalex.org/T13352",
+                    "display_name": "Regional Integration in Latin America"
+                },
+                {
+                    "id": "https://openalex.org/T14441",
+                    "display_name": "Religious Politics in East Germany, 1957\u20131968"
+                },
+                {
+                    "id": "https://openalex.org/T14086",
+                    "display_name": "Rise of Privatized Military Industry and Security"
+                },
+                {
+                    "id": "https://openalex.org/T12156",
+                    "display_name": "Role of Public International Law in WTO Disputes"
+                },
+                {
+                    "id": "https://openalex.org/T13726",
+                    "display_name": "Science Diplomacy at the Intersection of S&T Policies and Foreign Affairs"
+                },
+                {
+                    "id": "https://openalex.org/T13291",
+                    "display_name": "The Future of Democracy and Democratic Theory"
+                },
+                {
+                    "id": "https://openalex.org/T12210",
+                    "display_name": "The Global Diffusion of Public Policies"
+                },
+                {
+                    "id": "https://openalex.org/T12752",
+                    "display_name": "The Responsibility to Protect in International Relations"
+                },
+                {
+                    "id": "https://openalex.org/T13086",
+                    "display_name": "The Sustainability and Future of Unrecognized Quasi-States"
+                },
+                {
+                    "id": "https://openalex.org/T10718",
+                    "display_name": "Theoretical Perspectives on Global Justice"
+                },
+                {
+                    "id": "https://openalex.org/T11783",
+                    "display_name": "Transformation of Political Landscape in Turkey"
+                },
+                {
+                    "id": "https://openalex.org/T13186",
+                    "display_name": "Transformation of Russian Economy and Society"
+                },
+                {
+                    "id": "https://openalex.org/T14492",
+                    "display_name": "Transitional Justice and International Law in Conflict Zones"
+                },
+                {
+                    "id": "https://openalex.org/T14402",
+                    "display_name": "Tunisian Revolution and Global Impact"
+                },
+                {
+                    "id": "https://openalex.org/T13000",
+                    "display_name": "World-Systems Analysis and Global Economic Development"
+                }
+            ],
+            "works_count": 445150,
+            "cited_by_count": 1292884,
+            "updated_date": "2024-05-13T05:46:32.822304",
+            "created_date": "2024-01-23"
+        }
+    ],
+    "group_by": []
+}
