@@ -85,3 +85,31 @@ class Concept(DefaultModel):
         stored_concept.save()
 
         return stored_concept
+
+    @classmethod
+    def upsert_from_openalex(cls, openalex_concept):
+        mapped = {
+            "openalex_id": openalex_concept["id"],
+            "display_name": openalex_concept["display_name"],
+        }
+
+        # Add optional fields that may not exist if the concept is a dehydrated concept.
+        # https://docs.openalex.org/api-entities/concepts/concept-object#the-dehydratedconcept-object
+        if "description" in openalex_concept:
+            mapped["description"] = openalex_concept["description"]
+        if "updated_date" in openalex_concept:
+            mapped["openalex_updated_date"] = openalex_concept["updated_date"]
+        if "created_date" in openalex_concept:
+            mapped["openalex_created_date"] = openalex_concept["created_date"]
+
+        concept = None
+        try:
+            concept = Concept.objects.get(openalex_id=openalex_concept["id"])
+
+            for key, value in mapped.items():
+                setattr(concept, key, value)
+            concept.save()
+        except Concept.DoesNotExist:
+            concept = cls.objects.create(**mapped)
+
+        return concept

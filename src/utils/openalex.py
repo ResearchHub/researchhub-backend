@@ -2,6 +2,9 @@ import datetime
 import math
 from unicodedata import normalize
 
+from dateutil import parser
+from django.utils.timezone import get_current_timezone, is_aware, make_aware
+
 from paper.exceptions import DOINotFoundError
 from paper.utils import check_url_contains_pdf, format_raw_authors
 from researchhub.settings import OPENALEX_KEY
@@ -110,7 +113,7 @@ class OpenAlex:
 
         return output_json
 
-    def parse_to_paper_format(self, work):
+    def build_paper_from_openalex_work(self, work):
         doi = work.get("doi", work.get("ids", {}).get("doi", ""))
         if doi is None:
             raise DOINotFoundError(f"No DOI found for work: {work}")
@@ -128,13 +131,13 @@ class OpenAlex:
         oa = work.get("open_access", {})
         if oa is None:
             oa = {}
-        oa_pdf_url = oa.get("oa_url", None)
 
         url = primary_location.get("landing_page_url", None)
 
         title = normalize("NFKD", work.get("title", "") or "").strip()
         raw_authors = work.get("authorships", [])
         concepts = work.get("concepts", [])
+        topics = work.get("topics", [])
 
         pdf_license = primary_location.get("license", None)
         if pdf_license is None:
@@ -163,12 +166,22 @@ class OpenAlex:
             or source.get("publisher", None),
             "citations": work.get("cited_by_count", 0),
             "open_alex_raw_json": work,
+            "openalex_id": work.get("id", None),
+            "is_retracted": work.get("is_retracted", None),
+            "mag_id": work.get("ids", {}).get("mag", None),
+            "pubmed_id": work.get("ids", {}).get("pmid", None),
+            "pubmed_central_id": work.get("ids", {}).get("pmcid", None),
+            "work_type": work.get("type", None),
+            "language": work.get("language", None),
         }
 
-        if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
-            paper["pdf_url"] = oa_pdf_url
+        locations = [work.get("primary_location", {})] + work.get("locations", [])
+        for location in locations:
+            if location.get("pdf_url", None):
+                paper["pdf_url"] = location.get("pdf_url")
+                break
 
-        return paper, concepts
+        return paper, concepts, topics
 
     def get_data_from_doi(self, doi):
         filters = {"filter": f"doi:{doi}"}
@@ -283,32 +296,47 @@ class OpenAlex:
         cursor = next_cursor if next_cursor != "*" else None
         return institutions, cursor
 
-    def get_new_works_batch(
+    def get_topics(self, next_cursor="*", page=1, batch_size=100):
+        filters = {
+            "page": page,
+            "per-page": batch_size,
+            "cursor": next_cursor,
+        }
+
+        response = self._get("topics", filters=filters)
+        topics = response.get("results", [])
+
+        next_cursor = response.get("meta", {}).get("next_cursor")
+        cursor = next_cursor if next_cursor != "*" else None
+        return topics, cursor
+
+    def get_works(
         self,
-        since_date,
-        type="article",
+        since_date=None,
+        type=None,
         next_cursor="*",
         batch_size=100,
+        openalex_ids=None,
+        source_id=None,
     ):
-        """
-        Get works published after the specified date.
-
-        Args:
-            since_date (datetime.date): Date to start searching for new papers.
-            next_cursor (str): Pagination cursor for API requests.
-            batch_size (int): Number of works to fetch in each request.
-
-        Returns:
-            list: List of new works since the given date.
-            cursor (str): Pagination cursor for the next request.
-        """
-        # Format the date in YYYY-MM-DD format
-        formatted_date = since_date.strftime("%Y-%m-%d")
-
         # Build the filter
-        oa_filter = f"from_created_date:{formatted_date},type:{type}"
+        oa_filters = []
+        if type:
+            oa_filters.append(f"type:{type}")
+
+        if source_id:
+            oa_filters.append(f"primary_location.source.id:{source_id}")
+
+        if since_date:
+            # Format the date in YYYY-MM-DD format
+            formatted_date = since_date.strftime("%Y-%m-%d")
+            oa_filters.append(f"from_created_date:{formatted_date}")
+
+        if openalex_ids:
+            oa_filters.append(f"ids.openalex:{'|'.join(openalex_ids)}")
+
         filters = {
-            "filter": oa_filter,
+            "filter": ",".join(oa_filters),
             "per-page": batch_size,
             "cursor": next_cursor,
         }
@@ -318,3 +346,36 @@ class OpenAlex:
         next_cursor = response.get("meta", {}).get("next_cursor")
         cursor = next_cursor if next_cursor != "*" else None
         return works, cursor
+
+    @classmethod
+    def normalize_dates(self, generic_openalex_object):
+        """Normalize the dates of an OpenAlex object such that
+        they include timezone information"""
+
+        _generic_openalex_object = generic_openalex_object.copy()
+
+        has_dates = _generic_openalex_object.get(
+            "updated_date"
+        ) and _generic_openalex_object.get("created_date")
+        if has_dates:
+            openalex_updated_date = parser.parse(
+                _generic_openalex_object["updated_date"]
+            )
+            openalex_created_date = parser.parse(
+                _generic_openalex_object["created_date"]
+            )
+
+            _generic_openalex_object["updated_date"] = openalex_updated_date
+            _generic_openalex_object["created_date"] = openalex_created_date
+            if not is_aware(openalex_updated_date):
+                _generic_openalex_object["updated_date"] = make_aware(
+                    _generic_openalex_object["updated_date"],
+                    timezone=get_current_timezone(),
+                )
+            if not is_aware(openalex_created_date):
+                _generic_openalex_object["created_date"] = make_aware(
+                    _generic_openalex_object["created_date"],
+                    timezone=get_current_timezone(),
+                )
+
+        return _generic_openalex_object

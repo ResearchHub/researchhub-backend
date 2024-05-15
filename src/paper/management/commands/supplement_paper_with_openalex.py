@@ -1,12 +1,16 @@
+from dateutil.parser import parse
 from django.core.management.base import BaseCommand
 from django.db.models import Q
+
+from paper.exceptions import DOINotFoundError
 from paper.models import Paper
 from utils.openalex import OpenAlex
-from paper.exceptions import DOINotFoundError
-from dateutil.parser import parse
+
 
 class Command(BaseCommand):
-    help = 'Supplement paper with OpenAlex data if the discussion count is greater than 0'
+    help = (
+        "Supplement paper with OpenAlex data if the discussion count is greater than 0"
+    )
 
     def handle(self, *args, **kwargs):
         papers = Paper.objects.filter(
@@ -24,7 +28,9 @@ class Command(BaseCommand):
 
             try:
                 openalex_work = open_alex.get_data_from_doi(paper.doi)
-                data, _ = open_alex.parse_to_paper_format(openalex_work)
+                data, concepts, topics = open_alex.build_paper_from_openalex_work(
+                    openalex_work
+                )
 
                 needs_update = False
                 if data.get("abstract") and not paper.abstract:
@@ -43,7 +49,9 @@ class Command(BaseCommand):
                     paper.open_alex_raw_json = data.get("open_alex_raw_json")
                     needs_update = True
                 if data.get("paper_publish_date") and not paper.paper_publish_date:
-                    paper.paper_publish_date = parse(data.get("paper_publish_date")).date()
+                    paper.paper_publish_date = parse(
+                        data.get("paper_publish_date")
+                    ).date()
                     needs_update = True
                 if data.get("alternate_ids") and not paper.alternate_ids:
                     paper.alternate_ids = data.get("alternate_ids")
@@ -58,13 +66,13 @@ class Command(BaseCommand):
                     Paper.objects.bulk_update(
                         updated_papers,
                         [
-                            'abstract',
-                            'pdf_license',
-                            'oa_status',
-                            'is_open_access',
-                            'open_alex_raw_json',
-                            'paper_publish_date',
-                            'alternate_ids',
+                            "abstract",
+                            "pdf_license",
+                            "oa_status",
+                            "is_open_access",
+                            "open_alex_raw_json",
+                            "paper_publish_date",
+                            "alternate_ids",
                         ],
                     )
                     total_papers_updated += len(updated_papers)
@@ -77,15 +85,19 @@ class Command(BaseCommand):
             Paper.objects.bulk_update(
                 updated_papers,
                 [
-                    'abstract',
-                    'pdf_license',
-                    'oa_status',
-                    'is_open_access',
-                    'open_alex_raw_json',
-                    'paper_publish_date',
-                    'alternate_ids',
+                    "abstract",
+                    "pdf_license",
+                    "oa_status",
+                    "is_open_access",
+                    "open_alex_raw_json",
+                    "paper_publish_date",
+                    "alternate_ids",
                 ],
             )
             total_papers_updated += len(updated_papers)
 
-        self.stdout.write(self.style.SUCCESS(f'Batch update completed. Updated {total_papers_updated} papers.'))
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Batch update completed. Updated {total_papers_updated} papers."
+            )
+        )
