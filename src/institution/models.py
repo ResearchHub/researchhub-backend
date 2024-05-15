@@ -2,6 +2,7 @@ from django.contrib.postgres.fields import ArrayField
 from django.db import models
 
 from utils.models import DefaultModel
+from utils.openalex import OpenAlex
 
 
 class Institution(DefaultModel):
@@ -109,37 +110,70 @@ class Institution(DefaultModel):
         models.CharField(max_length=255), blank=True, null=False, default=list
     )
 
-    def upsert_from_openalex(institution):
+    openalex_created_date = models.DateTimeField(
+        blank=True,
+        null=True,
+    )
+
+    openalex_updated_date = models.DateTimeField(
+        blank=True,
+        null=True,
+    )
+
+    def upsert_from_openalex(oa_institution):
+        has_dates = oa_institution.get("updated_date") and oa_institution.get(
+            "created_date"
+        )
+
+        # Normalize created, updated dates to format that is compatible with django
+        oa_institution = OpenAlex.normalize_dates(oa_institution)
+
+        institution = None
+        try:
+            institution = Institution.objects.get(openalex_id=oa_institution["id"])
+        except Institution.DoesNotExist:
+            pass
+
+        needs_update = False
+        if institution and has_dates:
+            needs_update = (not institution.openalex_updated_date) or (
+                institution.openalex_updated_date < oa_institution["updated_date"]
+            )
+
         mapped = {
-            "openalex_id": institution["id"],
-            "updated_date": institution["updated_date"],
-            "display_name": institution["display_name"],
-            "ror_id": institution["ror"],
-            "country_code": institution["country_code"],
-            "type": institution["type"],
-            "lineage": institution["lineage"],
-            "city": institution["geo"]["city"],
-            "region": institution["geo"]["region"],
-            "latitude": institution["geo"]["latitude"],
-            "longitude": institution["geo"]["longitude"],
-            "image_url": institution["image_url"],
-            "image_thumbnail_url": institution["image_thumbnail_url"],
-            "two_year_mean_citedness": institution["summary_stats"][
+            "openalex_id": oa_institution.get("id"),
+            "updated_date": oa_institution.get("updated_date"),
+            "display_name": oa_institution.get("display_name"),
+            "ror_id": oa_institution.get("ror"),
+            "country_code": oa_institution.get("country_code"),
+            "type": oa_institution.get("type"),
+            "lineage": oa_institution.get("lineage"),
+            "city": oa_institution.get("geo", {}).get("city"),
+            "region": oa_institution.get("geo", {}).get("region"),
+            "latitude": oa_institution.get("geo", {}).get("latitude"),
+            "longitude": oa_institution.get("geo", {}).get("longitude"),
+            "image_url": oa_institution.get("image_url"),
+            "image_thumbnail_url": oa_institution.get("image_thumbnail_url"),
+            "two_year_mean_citedness": oa_institution.get("summary_stats", {}).get(
                 "2yr_mean_citedness"
-            ],
-            "h_index": institution["summary_stats"]["h_index"],
-            "i10_index": institution["summary_stats"]["i10_index"],
-            "works_count": institution["works_count"],
-            "associated_institutions": list(
-                map(lambda obj: obj["id"], institution["associated_institutions"])
             ),
-            "display_name_alternatives": institution["display_name_alternatives"],
+            "h_index": oa_institution.get("summary_stats", {}).get("h_index"),
+            "i10_index": oa_institution.get("summary_stats", {}).get("i10_index"),
+            "works_count": oa_institution.get("works_count"),
+            "associated_institutions": list(
+                map(
+                    lambda obj: obj["id"], oa_institution.get("associated_institutions")
+                )
+            ),
+            "display_name_alternatives": oa_institution.get(
+                "display_name_alternatives"
+            ),
         }
 
-        inst = Institution.objects.filter(openalex_id=institution["id"])
-
-        if inst.exists():
-            inst.update(**mapped)
+        if needs_update:
+            for key, value in mapped.items():
+                setattr(institution, key, value)
+            institution.save()
         else:
-            inst = Institution.objects.create(**mapped)
-        return inst
+            institution = Institution.objects.create(**mapped)
+        return institution
