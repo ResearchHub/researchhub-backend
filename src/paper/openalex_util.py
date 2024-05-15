@@ -13,6 +13,35 @@ from tag.models import Concept
 from utils.http import check_url_contains_pdf
 from utils.openalex import OpenAlex
 
+# Only these particular fields will be updated when an OpenAlex
+# paper which matches an existing paper is found
+PAPER_FIELDS_ALLOWED_TO_UPDATE = [
+    "paper_publish_date",
+    "alternate_ids",
+    "citations",
+    "abstract",
+    "pdf_license",
+    "pdf_license_url",
+    "oa_status",
+    "is_open_access",
+    "open_alex_raw_json",
+    "external_source",
+    "work_type",
+    "openalex_id",
+    "is_retracted",
+    "mag_id",
+    "pubmed_id",
+    "pubmed_central_id",
+    "work_type",
+    "language",
+    "title",
+    "paper_title",
+    "doi",
+    "url",
+    "abstract",
+    "retrieved_from_external_source",
+]
+
 
 def process_openalex_works(works):
     from paper.models import Paper
@@ -64,7 +93,6 @@ def process_openalex_works(works):
                 openalex_topics,
             ) = open_alex.build_paper_from_openalex_work(work)
 
-            # concepts = openalex_concepts  # open_alex.hydrate_paper_concepts(openalex_concepts)
             paper = Paper(**data)
 
             # Validate paper
@@ -89,26 +117,10 @@ def process_openalex_works(works):
                     e, message=f"Failed to save paper, unexpected error: {paper.doi}"
                 )
 
-    # Only these particular fields will be updated
-    fields_to_update = [
-        "paper_publish_date",
-        "alternate_ids",
-        "citations",
-        "abstract",
-        "pdf_license",
-        "oa_status",
-        "is_open_access",
-        "open_alex_raw_json",
-        "external_source",
-        "work_type",
-        "openalex_id",
-        "is_retracted",
-        "mag_id",
-        "pubmed_id",
-        "pubmed_central_id",
-        "work_type",
-        "language",
-    ]
+            paper_to_topics_and_concepts[paper.id] = (
+                openalex_concepts,
+                openalex_topics,
+            )
 
     # Prepare papers for batch update
     for existing_paper, work in update_papers:
@@ -121,9 +133,9 @@ def process_openalex_works(works):
         # we didn't fetch all fields in the initial paper query (we used .only()),
         # so we need to explicitly fetch them if we want to update them.
         # otherwise django doesn't update them, e.g. paper_publish_date
-        existing_paper.refresh_from_db(fields=[*fields_to_update])
+        existing_paper.refresh_from_db(fields=[*PAPER_FIELDS_ALLOWED_TO_UPDATE])
 
-        for field in fields_to_update:
+        for field in PAPER_FIELDS_ALLOWED_TO_UPDATE:
             setattr(existing_paper, field, data.get(field))
 
         paper_to_topics_and_concepts[existing_paper.id] = (
@@ -133,7 +145,7 @@ def process_openalex_works(works):
 
     # perform batch update
     if update_papers and len(update_papers) > 0:
-        fields_to_update = [*fields_to_update]
+        fields_to_update = [*PAPER_FIELDS_ALLOWED_TO_UPDATE]
         papers_to_update = [paper for paper, _ in update_papers]
         try:
             Paper.objects.bulk_update(papers_to_update, fields_to_update)

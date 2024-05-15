@@ -652,7 +652,10 @@ def create_paper_related_tags(paper_id, openalex_concepts=[], openalex_topics=[]
         try:
             topic = Topic.upsert_from_openalex(openalex_topic)
         except Exception as e:
-            print("Exception", e)
+            sentry.log_error(
+                e,
+                message=f"Failed to create topic {topic.id} to paper {paper_id}",
+            )
 
         try:
             with transaction.atomic():
@@ -662,6 +665,7 @@ def create_paper_related_tags(paper_id, openalex_concepts=[], openalex_topics=[]
                         "relevancy_score": openalex_topic["score"],
                     },
                 )
+
         except Exception as e:
             sentry.log_error(
                 e,
