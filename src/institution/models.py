@@ -141,6 +141,8 @@ class Institution(DefaultModel):
             )
 
         mapped = {
+            "openalex_updated_date": oa_institution.get("updated_date"),
+            "openalex_created_date": oa_institution.get("created_date"),
             "openalex_id": oa_institution.get("id"),
             "updated_date": oa_institution.get("updated_date"),
             "display_name": oa_institution.get("display_name"),
