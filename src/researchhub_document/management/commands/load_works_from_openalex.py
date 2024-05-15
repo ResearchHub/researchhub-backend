@@ -89,6 +89,9 @@ class Command(BaseCommand):
             OA = OpenAlex()
 
             cursor = "*"
+            page = 1
             while cursor:
+                print("Processing page " + str(page))
                 works, cursor = OA.get_works(source_id=source, next_cursor=cursor)
                 process_openalex_works(works)
+                page += 1

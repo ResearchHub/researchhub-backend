@@ -703,7 +703,7 @@ def create_paper_related_tags(paper_id, openalex_concepts=[], openalex_topics=[]
             )
 
     # Add paper to bioRxiv hub if the associated source is bioRxiv
-    if "bioRxiv" in paper.external_source:
+    if paper.external_source and "bioRxiv" in paper.external_source:
         with transaction.atomic():
             biorxiv_hub_id = 436
 
