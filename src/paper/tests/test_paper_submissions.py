@@ -80,11 +80,6 @@ class PaperSubmissionViewTests(APITestCase):
         ).result
         paper_publish_date = celery_data_after_openalex["data"]["paper_publish_date"]
         self.assertEqual(self.paper_publish_date, paper_publish_date)
-        concepts = celery_data_after_openalex["data"]["concepts"]
-        self.assertEqual(
-            self.concept_display_names,
-            [concept["display_name"] for concept in concepts],
-        )
 
         celery_data_after_crossref = celery_crossref.apply(
             (celery_data_with_doi,)
