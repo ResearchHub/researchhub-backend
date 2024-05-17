@@ -48,6 +48,8 @@ from summary.models import Summary
 from utils.aws import lambda_compress_and_linearize_pdf
 from utils.http import check_url_contains_pdf, scraper_get_url
 
+from .authorship_model import Authorship
+
 DOI_IDENTIFIER = "10."
 ARXIV_IDENTIFIER = "arXiv:"
 HOT_SCORE_WEIGHT = 5

@@ -30,6 +30,7 @@ class Author(models.Model):
     updated_date = models.DateTimeField(auto_now=True)
     description = models.TextField(null=True, blank=True)
     h_index = models.IntegerField(default=0)
+    i10_index = models.IntegerField(default=0)
     profile_image = models.FileField(
         upload_to="uploads/author_profile_images/%Y/%m/%d",
         max_length=1024,
@@ -44,9 +45,6 @@ class Author(models.Model):
     )
     orcid_id = models.CharField(
         max_length=1024, default=None, null=True, blank=True, unique=True
-    )
-    orcid_account = models.ForeignKey(
-        SocialAccount, on_delete=models.SET_NULL, null=True, blank=True
     )
     openalex_ids = ArrayField(
         models.CharField(
@@ -65,10 +63,13 @@ class Author(models.Model):
     google_scholar = models.URLField(
         max_length=255, default=None, null=True, blank=True
     )
-    academic_verification = models.BooleanField(default=None, null=True, blank=True)
     claimed = models.BooleanField(default=True, null=True, blank=True)
     is_verified = models.BooleanField(default=False)
-    merged_with = models.ForeignKey("self", on_delete=SET_NULL, null=True, blank=True)
+    country_code = models.CharField(
+        blank=True,
+        null=True,
+        max_length=20,
+    )
 
     def __str__(self):
         university = self.university
