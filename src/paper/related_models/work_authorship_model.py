@@ -17,7 +17,13 @@ class WorkAuthorship(DefaultModel):
     institutions = models.ManyToManyField(
         "institution.Institution",
         related_name="authors",
-        blank=True,
+    )
+
+    work = models.ForeignKey(
+        "paper.paper",
+        on_delete=models.CASCADE,
+        related_name="authorships",
+        blank=False,
         null=True,
     )
 

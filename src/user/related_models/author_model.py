@@ -46,9 +46,6 @@ class Author(models.Model):
     orcid_id = models.CharField(
         max_length=1024, default=None, null=True, blank=True, unique=True
     )
-    orcid_account = models.ForeignKey(
-        SocialAccount, on_delete=models.SET_NULL, null=True, blank=True
-    )
     openalex_ids = ArrayField(
         models.CharField(
             max_length=64, default=None, null=True, blank=True, unique=True
@@ -66,10 +63,8 @@ class Author(models.Model):
     google_scholar = models.URLField(
         max_length=255, default=None, null=True, blank=True
     )
-    academic_verification = models.BooleanField(default=None, null=True, blank=True)
     claimed = models.BooleanField(default=True, null=True, blank=True)
     is_verified = models.BooleanField(default=False)
-    merged_with = models.ForeignKey("self", on_delete=SET_NULL, null=True, blank=True)
     country_code = models.CharField(
         blank=True,
         null=True,
