@@ -9,6 +9,7 @@ from hub.models import Hub
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
 from purchase.related_models.purchase_model import Purchase
 from researchhub_case.constants.case_constants import APPROVED
+from user.related_models.author_institution import AuthorInstitution
 from user.related_models.profile_image_storage import ProfileImageStorage
 from user.related_models.school_model import University
 from user.related_models.user_model import User
