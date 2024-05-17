@@ -72,6 +72,9 @@ class Author(models.Model):
         max_length=20,
     )
 
+    # AKA Impact Factor. Derived from OpenAlex:  https://en.wikipedia.org/wiki/Impact_factor
+    two_year_mean_citedness = models.FloatField(default=0)
+
     def __str__(self):
         university = self.university
         if university is None:
