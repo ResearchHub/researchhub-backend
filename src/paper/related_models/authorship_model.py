@@ -3,7 +3,7 @@ from django.db import models
 from utils.models import DefaultModel
 
 
-class WorkAuthorship(DefaultModel):
+class Authorship(DefaultModel):
     FIRST_AUTHOR_POSITION = "first"
     MIDDLE_AUTHOR_POSITION = "middle"
     LAST_AUTHOR_POSITION = "last"
@@ -19,7 +19,7 @@ class WorkAuthorship(DefaultModel):
         related_name="authors",
     )
 
-    work = models.ForeignKey(
+    paper = models.ForeignKey(
         "paper.paper",
         on_delete=models.CASCADE,
         related_name="authorships",
