@@ -22,7 +22,7 @@ class WorkAuthorship(DefaultModel):
     )
 
     author = models.ForeignKey(
-        "Author",
+        "user.Author",
         on_delete=models.CASCADE,
         related_name="authorships",
     )
