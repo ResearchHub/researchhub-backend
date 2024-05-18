@@ -8,8 +8,6 @@ from django.db.models import Q
 
 import utils.sentry as sentry
 from paper.utils import get_cache_key
-from purchase.models import Wallet
-from tag.models import Concept
 from utils.http import check_url_contains_pdf
 from utils.openalex import OpenAlex
 
@@ -44,8 +42,13 @@ PAPER_FIELDS_ALLOWED_TO_UPDATE = [
 
 
 def process_openalex_works(works):
+    from institution.models import Institution
     from paper.models import Paper
     from paper.paper_upload_tasks import create_paper_related_tags
+    from paper.related_models.authorship_model import Authorship
+    from purchase.models import Wallet
+    from tag.models import Concept
+    from user.related_models.author_model import Author
 
     open_alex = OpenAlex()
 
@@ -156,3 +159,40 @@ def process_openalex_works(works):
     for paper_id, topics_and_concepts in paper_to_topics_and_concepts.items():
         openalex_concepts, openalex_topics = topics_and_concepts
         create_paper_related_tags(paper_id, openalex_concepts, openalex_topics)
+
+    openalex_authorships = work.get("authorships")
+
+    print("work:", work)
+
+    for oa_authorship in openalex_authorships:
+        author_position = oa_authorship.get("author_position")
+        author_openalex_id = oa_authorship.get("author", {}).get("id")
+
+        author = None
+        try:
+            author = Author.objects.get(openalex_ids__contains=[author_openalex_id])
+        except Author.DoesNotExist:
+            author_name_parts = (
+                oa_authorship.get("author", {}).get("display_name").split(" ")
+            )
+            author = Author.objects.create(
+                first_name=author_name_parts[0],
+                last_name=author_name_parts[-1],
+                openalex_ids=[author_openalex_id],
+            )
+            Wallet.objects.create(author=author)
+
+            # Create authorship
+            affiliated_institutions = Institution.objects.filter(
+                openalex_id__in=[
+                    inst["id"] for inst in oa_authorship.get("institutions", [])
+                ]
+            )
+            authorship = Authorship.objects.create(
+                author=author,
+                author_position=author_position,
+                paper=paper,
+                institutions=affiliated_institutions,
+                is_corresponding=oa_authorship.get("is_corresponding"),
+                raw_author_name=oa_authorship.get("author", {}).get("display_name"),
+            )

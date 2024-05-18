@@ -95,3 +95,4 @@ class Command(BaseCommand):
                 works, cursor = OA.get_works(source_id=source, next_cursor=cursor)
                 process_openalex_works(works)
                 page += 1
+                return
