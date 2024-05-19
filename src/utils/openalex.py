@@ -310,6 +310,30 @@ class OpenAlex:
         cursor = next_cursor if next_cursor != "*" else None
         return topics, cursor
 
+    def get_authors(
+        self,
+        next_cursor="*",
+        batch_size=100,
+        openalex_ids=None,
+    ):
+        # Build the filter
+        oa_filters = []
+
+        if openalex_ids:
+            oa_filters.append(f"ids.openalex:{'|'.join(openalex_ids)}")
+
+        filters = {
+            "filter": ",".join(oa_filters),
+            "per-page": batch_size,
+            "cursor": next_cursor,
+        }
+
+        response = self._get("authors", filters=filters)
+        authors = response.get("results", [])
+        next_cursor = response.get("meta", {}).get("next_cursor")
+        cursor = next_cursor if next_cursor != "*" else None
+        return authors, cursor
+
     def get_works(
         self,
         since_date=None,

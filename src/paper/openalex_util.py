@@ -163,15 +163,20 @@ def process_openalex_works(works):
 
     # Upsert concepts and associate to papers
     for paper_id, paper_data in paper_to_openalex_data.items():
+        work = paper_data["openalex_work"]
         create_paper_related_tags(
             paper_id, paper_data["openalex_concepts"], paper_data["openalex_topics"]
         )
 
-        openalex_authorships = paper_data["openalex_work"].get("authorships")
+        openalex_authorships = work.get("authorships")
 
+        authors_need_additional_data_fetch = []
         for oa_authorship in openalex_authorships:
             author_position = oa_authorship.get("author_position")
             author_openalex_id = oa_authorship.get("author", {}).get("id")
+
+            just_id = author_openalex_id.split("/")[-1]
+            authors_need_additional_data_fetch.append(just_id)
 
             author = None
             try:
@@ -186,13 +191,6 @@ def process_openalex_works(works):
                     openalex_ids=[author_openalex_id],
                 )
                 Wallet.objects.create(author=author)
-
-            # Create authorship
-            affiliated_institutions = Institution.objects.filter(
-                openalex_id__in=[
-                    inst["id"] for inst in oa_authorship.get("institutions", [])
-                ]
-            )
 
             # Find or create authorship
             authorship, created = Authorship.objects.get_or_create(
@@ -220,3 +218,23 @@ def process_openalex_works(works):
 
             if new_institutions:
                 authorship.institutions.add(*new_institutions)
+
+        # Update authors with additional data
+        oa_authors, _ = open_alex.get_authors(
+            openalex_ids=authors_need_additional_data_fetch
+        )
+        for oa_author in oa_authors:
+            try:
+                author = Author.objects.get(
+                    openalex_ids__contains=[oa_author.get("id")]
+                )
+            except Author.DoesNotExist:
+                continue
+
+            author.i10_index = oa_author.get("summary_stats", {}).get("i10_index")
+            author.h_index = oa_author.get("summary_stats", {}).get("h_index")
+            author.two_year_mean_citedness = oa_author.get("summary_stats", {}).get(
+                "2yr_mean_citedness"
+            )
+            author.orcid_id = oa_author.get("orcid")
+            author.save()
