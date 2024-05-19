@@ -1,3 +1,4 @@
+import copy
 import logging
 
 from django.apps import apps
@@ -85,16 +86,18 @@ def process_openalex_works(works):
         else:
             create_papers.append(work)
 
-    paper_to_topics_and_concepts = {}
+    paper_to_openalex_data = {}
 
     # Create new papers
     with transaction.atomic():
         for work in create_papers:
+            _work = copy.deepcopy(work)
+
             (
                 data,
                 openalex_concepts,
                 openalex_topics,
-            ) = open_alex.build_paper_from_openalex_work(work)
+            ) = open_alex.build_paper_from_openalex_work(_work)
 
             paper = Paper(**data)
 
@@ -120,18 +123,20 @@ def process_openalex_works(works):
                     e, message=f"Failed to save paper, unexpected error: {paper.doi}"
                 )
 
-            paper_to_topics_and_concepts[paper.id] = (
-                openalex_concepts,
-                openalex_topics,
-            )
+            paper_to_openalex_data[paper.id] = {
+                "openalex_concepts": openalex_concepts,
+                "openalex_topics": openalex_topics,
+                "openalex_work": work,
+            }
 
     # Prepare papers for batch update
     for existing_paper, work in update_papers:
+        _work = copy.deepcopy(work)
         (
             data,
             openalex_concepts,
             openalex_topics,
-        ) = open_alex.build_paper_from_openalex_work(work)
+        ) = open_alex.build_paper_from_openalex_work(_work)
 
         # we didn't fetch all fields in the initial paper query (we used .only()),
         # so we need to explicitly fetch them if we want to update them.
@@ -141,10 +146,11 @@ def process_openalex_works(works):
         for field in PAPER_FIELDS_ALLOWED_TO_UPDATE:
             setattr(existing_paper, field, data.get(field))
 
-        paper_to_topics_and_concepts[existing_paper.id] = (
-            openalex_concepts,
-            openalex_topics,
-        )
+        paper_to_openalex_data[existing_paper.id] = {
+            "openalex_concepts": openalex_concepts,
+            "openalex_topics": openalex_topics,
+            "openalex_work": work,
+        }
 
     # perform batch update
     if update_papers and len(update_papers) > 0:
@@ -156,31 +162,30 @@ def process_openalex_works(works):
             sentry.log_error(e, message="Failed to bulk update papers")
 
     # Upsert concepts and associate to papers
-    for paper_id, topics_and_concepts in paper_to_topics_and_concepts.items():
-        openalex_concepts, openalex_topics = topics_and_concepts
-        create_paper_related_tags(paper_id, openalex_concepts, openalex_topics)
+    for paper_id, paper_data in paper_to_openalex_data.items():
+        create_paper_related_tags(
+            paper_id, paper_data["openalex_concepts"], paper_data["openalex_topics"]
+        )
 
-    openalex_authorships = work.get("authorships")
+        openalex_authorships = paper_data["openalex_work"].get("authorships")
 
-    print("work:", work)
+        for oa_authorship in openalex_authorships:
+            author_position = oa_authorship.get("author_position")
+            author_openalex_id = oa_authorship.get("author", {}).get("id")
 
-    for oa_authorship in openalex_authorships:
-        author_position = oa_authorship.get("author_position")
-        author_openalex_id = oa_authorship.get("author", {}).get("id")
-
-        author = None
-        try:
-            author = Author.objects.get(openalex_ids__contains=[author_openalex_id])
-        except Author.DoesNotExist:
-            author_name_parts = (
-                oa_authorship.get("author", {}).get("display_name").split(" ")
-            )
-            author = Author.objects.create(
-                first_name=author_name_parts[0],
-                last_name=author_name_parts[-1],
-                openalex_ids=[author_openalex_id],
-            )
-            Wallet.objects.create(author=author)
+            author = None
+            try:
+                author = Author.objects.get(openalex_ids__contains=[author_openalex_id])
+            except Author.DoesNotExist:
+                author_name_parts = (
+                    oa_authorship.get("author", {}).get("display_name").split(" ")
+                )
+                author = Author.objects.create(
+                    first_name=author_name_parts[0],
+                    last_name=author_name_parts[-1],
+                    openalex_ids=[author_openalex_id],
+                )
+                Wallet.objects.create(author=author)
 
             # Create authorship
             affiliated_institutions = Institution.objects.filter(
@@ -188,11 +193,30 @@ def process_openalex_works(works):
                     inst["id"] for inst in oa_authorship.get("institutions", [])
                 ]
             )
-            authorship = Authorship.objects.create(
+
+            # Find or create authorship
+            authorship, created = Authorship.objects.get_or_create(
                 author=author,
                 author_position=author_position,
-                paper=paper,
-                institutions=affiliated_institutions,
+                paper_id=paper_id,
                 is_corresponding=oa_authorship.get("is_corresponding"),
                 raw_author_name=oa_authorship.get("author", {}).get("display_name"),
             )
+
+            # Get affiliated institutions
+            affiliated_institutions = Institution.objects.filter(
+                openalex_id__in=[
+                    inst["id"] for inst in oa_authorship.get("institutions", [])
+                ]
+            )
+
+            # Set institutions to authorship if they are not already set
+            existing_institutions = authorship.institutions.all()
+            new_institutions = [
+                inst
+                for inst in affiliated_institutions
+                if inst not in existing_institutions
+            ]
+
+            if new_institutions:
+                authorship.institutions.add(*new_institutions)
