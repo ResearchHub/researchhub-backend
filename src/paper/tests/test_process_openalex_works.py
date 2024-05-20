@@ -4,6 +4,7 @@ from rest_framework.test import APITestCase
 
 from paper.models import Paper
 from paper.openalex_util import process_openalex_works
+from user.related_models.author_model import Author
 
 
 class ProcessOpenAlexWorksTests(APITestCase):
@@ -70,3 +71,14 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
         self.assertEqual(updated_paper.title, "New title")
         self.assertEqual(updated_paper.paper_title, "New title")
+
+    def test_create_authors_when_processing_work(self):
+        process_openalex_works(self.works)
+
+        dois = [work.get("doi") for work in self.works]
+        dois = [doi.replace("https://doi.org/", "") for doi in dois]
+        created_papers = Paper.objects.filter(doi__in=dois)
+
+        # Sample the first paper to ensure it has authors
+        paper_authors = created_papers.first().authors.all()
+        self.assertGreater(len(paper_authors), 0)
