@@ -82,3 +82,24 @@ class ProcessOpenAlexWorksTests(APITestCase):
         # Sample the first paper to ensure it has authors
         paper_authors = created_papers.first().authors.all()
         self.assertGreater(len(paper_authors), 0)
+
+    def test_create_authorships_when_processing_work(self):
+        process_openalex_works(self.works)
+
+        dois = [work.get("doi") for work in self.works]
+        dois = [doi.replace("https://doi.org/", "") for doi in dois]
+        paper = Paper.objects.filter(doi__in=dois).first()
+
+        authorships = paper.authorships.all()
+        self.assertGreater(len(authorships), 0)
+
+    def create_authorship_institutions_when_processing_work(self):
+        process_openalex_works(self.works)
+
+        dois = [work.get("doi") for work in self.works]
+        dois = [doi.replace("https://doi.org/", "") for doi in dois]
+        paper = Paper.objects.filter(doi__in=dois).first()
+
+        authorship = paper.authorships.first()
+        institutions = authorship.institutions.all()
+        self.assertGreater(len(institutions), 0)

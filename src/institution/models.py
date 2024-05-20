@@ -89,20 +89,20 @@ class Institution(DefaultModel):
     )
 
     # https://docs.openalex.org/api-entities/institutions/institution-object#2yr_mean_citedness
-    two_year_mean_citedness = models.FloatField(blank=False, null=False, default=0)
+    two_year_mean_citedness = models.FloatField(blank=True, null=True, default=0)
 
     # https://docs.openalex.org/api-entities/institutions/institution-object#summary_stats
-    h_index = models.IntegerField(blank=False, null=False, default=0)
+    h_index = models.IntegerField(blank=True, null=True, default=0)
 
     # https://docs.openalex.org/api-entities/institutions/institution-object#summary_stats
-    i10_index = models.IntegerField(blank=False, null=False, default=0)
+    i10_index = models.IntegerField(blank=True, null=True, default=0)
 
     # https://docs.openalex.org/api-entities/institutions/institution-object#works_count
-    works_count = models.IntegerField(blank=False, null=False, default=0)
+    works_count = models.IntegerField(blank=True, null=True, default=0)
 
     # https://docs.openalex.org/api-entities/institutions/institution-object#associated_institutions
     associated_institutions = ArrayField(
-        models.CharField(blank=False, null=False, max_length=500)
+        models.CharField(blank=True, null=True, max_length=500)
     )
 
     # https://docs.openalex.org/api-entities/institutions/institution-object#display_name_alternatives
@@ -164,11 +164,12 @@ class Institution(DefaultModel):
             "works_count": oa_institution.get("works_count"),
             "associated_institutions": list(
                 map(
-                    lambda obj: obj["id"], oa_institution.get("associated_institutions")
+                    lambda obj: obj["id"],
+                    oa_institution.get("associated_institutions", []),
                 )
             ),
             "display_name_alternatives": oa_institution.get(
-                "display_name_alternatives"
+                "display_name_alternatives", []
             ),
         }
 
@@ -176,6 +177,6 @@ class Institution(DefaultModel):
             for key, value in mapped.items():
                 setattr(institution, key, value)
             institution.save()
-        else:
+        elif not institution:
             institution = Institution.objects.create(**mapped)
         return institution

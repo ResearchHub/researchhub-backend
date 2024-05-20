@@ -208,23 +208,11 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
             raw_author_name=oa_authorship.get("author", {}).get("display_name"),
         )
 
-        # Get affiliated institutions
-        affiliated_institutions = Institution.objects.filter(
-            openalex_id__in=[
-                inst["id"] for inst in oa_authorship.get("institutions", [])
-            ]
-        )
-
         # Set institutions associated with authorships if they do not already exist
-        existing_institutions = authorship.institutions.all()
-        new_institutions = [
-            inst
-            for inst in affiliated_institutions
-            if inst not in existing_institutions
-        ]
-
-        if new_institutions:
-            authorship.institutions.add(*new_institutions)
+        for oa_inst in oa_authorship.get("institutions", []):
+            institution = Institution.upsert_from_openalex(oa_inst)
+            if institution:
+                authorship.institutions.add(institution)
 
     # Update authors with additional metadata from OpenAlex
     oa_authors, _ = open_alex.get_authors(
