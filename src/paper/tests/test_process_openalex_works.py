@@ -121,3 +121,21 @@ class ProcessOpenAlexWorksTests(APITestCase):
             process_openalex_works(self.works)
             author = Author.objects.filter(orcid_id__isnull=False).first()
             self.assertIsNotNone(author.orcid_id)
+
+    @patch.object(OpenAlex, "get_authors")
+    def test_author_summary_stats_are_set(self, mock_get_authors):
+        with open("./paper/tests/openalex_authors.json", "r") as file:
+            mock_data = json.load(file)
+            mock_get_authors.return_value = (mock_data["results"], None)
+
+            open_alex = OpenAlex()
+            open_alex.get_authors()
+
+            process_openalex_works(self.works)
+            author = Author.objects.filter(
+                openalex_ids__contains=[mock_data["results"][0]["id"]]
+            ).first()
+
+            self.assertGreater(author.h_index, 0)
+            self.assertGreater(author.two_year_mean_citedness, 0)
+            self.assertGreater(author.i10_index, 0)
