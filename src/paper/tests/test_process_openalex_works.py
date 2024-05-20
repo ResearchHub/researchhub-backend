@@ -1,10 +1,12 @@
 import json
+from unittest.mock import patch
 
 from rest_framework.test import APITestCase
 
 from paper.models import Paper
 from paper.openalex_util import process_openalex_works
 from user.related_models.author_model import Author
+from utils.openalex import OpenAlex
 
 
 class ProcessOpenAlexWorksTests(APITestCase):
@@ -103,3 +105,19 @@ class ProcessOpenAlexWorksTests(APITestCase):
         authorship = paper.authorships.first()
         institutions = authorship.institutions.all()
         self.assertGreater(len(institutions), 0)
+
+    @patch.object(OpenAlex, "get_authors")
+    def test_add_orcid_to_author_when_processing_work(self, mock_get_authors):
+        # Note: In actuality orcid value could be null but the payload in this
+        # test has an orcid value in order to test if orcid is set properly when exists in payload
+
+        with open("./paper/tests/openalex_authors.json", "r") as file:
+            mock_data = json.load(file)
+            mock_get_authors.return_value = (mock_data["results"], None)
+
+            open_alex = OpenAlex()
+            open_alex.get_authors()
+
+            process_openalex_works(self.works)
+            author = Author.objects.filter(orcid_id__isnull=False).first()
+            self.assertIsNotNone(author.orcid_id)
