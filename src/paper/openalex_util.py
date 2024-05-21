@@ -5,6 +5,7 @@ from django.db import IntegrityError, transaction
 from django.db.models import Q
 
 import utils.sentry as sentry
+from user.related_models.coauthor_model import CoAuthor
 from utils.openalex import OpenAlex
 
 # Only these particular fields will be updated when an OpenAlex
@@ -178,6 +179,7 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
     related_paper = Paper.objects.get(id=related_paper_id)
 
     authors_need_additional_data_fetch = []
+    authors_in_this_work = []
     for oa_authorship in openalex_authorships:
         author_position = oa_authorship.get("author_position")
         author_openalex_id = oa_authorship.get("author", {}).get("id")
@@ -208,6 +210,8 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
             raw_author_name=oa_authorship.get("author", {}).get("display_name"),
         )
 
+        authors_in_this_work.append(author)
+
         # Set institutions associated with authorships if they do not already exist
         for oa_inst in oa_authorship.get("institutions", []):
             institution = Institution.upsert_from_openalex(oa_inst)
@@ -234,3 +238,11 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
 
         # Associate paper with author
         related_paper.authors.add(author)
+
+    # Create co-author relationships
+    for i, author in enumerate(authors_in_this_work):
+        for coauthor in authors_in_this_work:
+            if author != coauthor:
+                CoAuthor.objects.get_or_create(
+                    author=author, coauthor=coauthor, paper_id=related_paper_id
+                )

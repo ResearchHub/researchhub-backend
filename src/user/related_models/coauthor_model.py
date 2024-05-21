@@ -3,7 +3,7 @@ from django.db import models
 
 class CoAuthor(models.Model):
     author = models.ForeignKey(
-        "user.Author", related_name="coauthor_relationships", on_delete=models.CASCADE
+        "user.Author", related_name="coauthors", on_delete=models.CASCADE
     )
     coauthor = models.ForeignKey(
         "user.Author", related_name="coauthored_with", on_delete=models.CASCADE
