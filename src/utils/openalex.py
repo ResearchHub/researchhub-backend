@@ -337,7 +337,7 @@ class OpenAlex:
     def get_works(
         self,
         since_date=None,
-        type=None,
+        types=None,
         next_cursor="*",
         batch_size=100,
         openalex_ids=None,
@@ -345,8 +345,8 @@ class OpenAlex:
     ):
         # Build the filter
         oa_filters = []
-        if type:
-            oa_filters.append(f"type:{type}")
+        if isinstance(types, list):
+            oa_filters.append(f"type:{'|'.join(types)}")
 
         if source_id:
             oa_filters.append(f"primary_location.source.id:{source_id}")

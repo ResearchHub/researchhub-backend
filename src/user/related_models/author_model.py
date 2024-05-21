@@ -46,7 +46,7 @@ class Author(models.Model):
         University, on_delete=models.SET_NULL, null=True, blank=True
     )
     orcid_id = models.CharField(
-        max_length=1024, default=None, null=True, blank=True, unique=True
+        max_length=1024, default=None, null=True, blank=True, unique=False
     )
     openalex_ids = ArrayField(
         models.CharField(

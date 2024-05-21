@@ -707,13 +707,17 @@ def create_paper_related_tags(paper_id, openalex_concepts=[], openalex_topics=[]
         with transaction.atomic():
             biorxiv_hub_id = 436
 
-            try:
-                paper.hubs.add(biorxiv_hub_id)
-                paper.unified_document.hubs.add(biorxiv_hub_id)
-            except Exception as e:
-                sentry.log_error(
-                    e, message=f"Failed to add paper to biorXiv hub: {paper.id}"
-                )
+            if Hub.objects.filter(id=biorxiv_hub_id).exists():
+                try:
+                    paper.hubs.add(biorxiv_hub_id)
+                    paper.unified_document.hubs.add(biorxiv_hub_id)
+                except Exception as e:
+                    sentry.log_error(
+                        e, message=f"Failed to add paper to biorXiv hub: {paper.id}"
+                    )
+            else:
+                # bioRxiv hub does not exist. This must be a staging / dev environment
+                pass
 
 
 @app.task(queue=QUEUE_PAPER_METADATA)

@@ -156,7 +156,9 @@ def process_openalex_works(works):
 
     # Upsert concepts and associate to papers
     for paper_id, paper_data in paper_to_openalex_data.items():
+        print("processing work: " + paper_data["openalex_work"]["id"])
         work = paper_data["openalex_work"]
+
         create_paper_related_tags(
             paper_id, paper_data["openalex_concepts"], paper_data["openalex_topics"]
         )

@@ -47,6 +47,12 @@ class Command(BaseCommand):
             help="The paper respository source to pull from",
         )
         parser.add_argument(
+            "--openalex_id",
+            default=None,
+            type=str,
+            help="The OpenAlex ID to pull",
+        )
+        parser.add_argument(
             "--mode",
             default="backfill",
             type=str,
@@ -56,6 +62,7 @@ class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         start_id = kwargs["start_id"]
         to_id = kwargs["to_id"]
+        openalex_id = kwargs["openalex_id"]
         mode = kwargs["mode"]
         source = kwargs["source"]
         batch_size = 100
@@ -90,11 +97,27 @@ class Command(BaseCommand):
 
             cursor = "*"
             page = 1
+            openalex_ids = None
+            openalex_types = None
+            if openalex_id:
+                print("Fetching single work with id: " + openalex_id)
+                openalex_ids = [openalex_id]
+            else:
+                openalex_types = [
+                    "article",
+                    "preprint",
+                    "review",
+                ]
+
             while cursor:
                 print("Processing page " + str(page))
                 works, cursor = OA.get_works(
-                    source_id=source, type="article", next_cursor=cursor
+                    source_id=source,
+                    types=openalex_types,
+                    next_cursor=cursor,
+                    openalex_ids=openalex_ids,
                 )
+
                 process_openalex_works(works)
                 page += 1
                 return
