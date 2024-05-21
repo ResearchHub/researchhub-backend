@@ -319,7 +319,7 @@ class OpenAlex:
         # Build the filter
         oa_filters = []
 
-        if openalex_ids:
+        if isinstance(openalex_ids, list):
             oa_filters.append(f"ids.openalex:{'|'.join(openalex_ids)}")
 
         filters = {
@@ -356,7 +356,7 @@ class OpenAlex:
             formatted_date = since_date.strftime("%Y-%m-%d")
             oa_filters.append(f"from_created_date:{formatted_date}")
 
-        if openalex_ids:
+        if isinstance(openalex_ids, list):
             oa_filters.append(f"ids.openalex:{'|'.join(openalex_ids)}")
 
         filters = {

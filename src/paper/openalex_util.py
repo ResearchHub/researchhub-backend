@@ -1,10 +1,12 @@
 import copy
+import logging
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 
 import utils.sentry as sentry
+from user.related_models.author_institution import AuthorInstitution
 from user.related_models.coauthor_model import CoAuthor
 from utils.openalex import OpenAlex
 
@@ -200,6 +202,11 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
                 openalex_ids=[author_openalex_id],
             )
             Wallet.objects.create(author=author)
+        except Exception as e:
+            continue
+
+        # Associate paper with author
+        related_paper.authors.add(author)
 
         # Find or create authorship
         authorship, created = Authorship.objects.get_or_create(
@@ -219,13 +226,27 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
                 authorship.institutions.add(institution)
 
     # Update authors with additional metadata from OpenAlex
-    oa_authors, _ = open_alex.get_authors(
-        openalex_ids=authors_need_additional_data_fetch
-    )
+    oa_authors = []
+    if len(authors_need_additional_data_fetch) > 0:
+        oa_authors, _ = open_alex.get_authors(
+            openalex_ids=authors_need_additional_data_fetch
+        )
+
+    print("authors_need_additional_data_fetch", authors_need_additional_data_fetch)
+    print("oa_authors", [a["id"] for a in oa_authors])
+
     for oa_author in oa_authors:
         try:
             author = Author.objects.get(openalex_ids__contains=[oa_author.get("id")])
-        except Author.DoesNotExist:
+        except Author.DoesNotExist as e:
+            # This should not happen but hey, anything can happen!
+            logging.warning(
+                f"Author with OpenAlex ID not found: {oa_author.get('id')}",
+            )
+            sentry.log_error(
+                e,
+                message=f"Author with OpenAlex ID {oa_author.get('id')} not found",
+            )
             continue
 
         author.i10_index = oa_author.get("summary_stats", {}).get("i10_index")
@@ -236,8 +257,23 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
         author.orcid_id = oa_author.get("orcid")
         author.save()
 
-        # Associate paper with author
-        related_paper.authors.add(author)
+        # Load all the institutions author is associated with
+        affiliations = oa_author.get("affiliations", [])
+        for affiliation in affiliations:
+            oa_institution = affiliation.get("institution")
+            years = affiliation.get("years", [])
+
+            institution = None
+            try:
+                institution = Institution.objects.get(openalex_id=oa_institution["id"])
+            except Institution.DoesNotExist as e:
+                continue
+
+            author_inst = AuthorInstitution.objects.get_or_create(
+                author=author,
+                institution=institution,
+                years=years,
+            )
 
     # Create co-author relationships
     for i, author in enumerate(authors_in_this_work):
