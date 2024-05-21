@@ -232,9 +232,6 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
             openalex_ids=authors_need_additional_data_fetch
         )
 
-    print("authors_need_additional_data_fetch", authors_need_additional_data_fetch)
-    print("oa_authors", [a["id"] for a in oa_authors])
-
     for oa_author in oa_authors:
         try:
             author = Author.objects.get(openalex_ids__contains=[oa_author.get("id")])
