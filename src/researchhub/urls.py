@@ -45,7 +45,7 @@ from peer_review.views import (
 from researchhub.settings import INSTALLED_APPS, USE_DEBUG_TOOLBAR
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from review.views.review_view import ReviewViewSet
-from user.views import editor_views
+from user.views import author_views, editor_views
 
 router = routers.DefaultRouter()
 
@@ -81,7 +81,7 @@ router.register(
     basename="paper_submission",
 )
 
-router.register(r"author", user.views.AuthorViewSet, basename="author")
+router.register(r"author", author_views.AuthorViewSet, basename="author")
 
 router.register(r"hub", hub.views.HubViewSet, basename="hub")
 

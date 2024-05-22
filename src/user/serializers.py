@@ -19,6 +19,7 @@ from discussion.models import Vote as GrmVote
 from hub.models import Hub
 from hub.serializers import DynamicHubSerializer, HubSerializer, SimpleHubSerializer
 from hypothesis.models import Hypothesis
+from institution.serializers import DynamicInstitutionSerializer
 from paper.models import Paper, PaperSubmission
 from purchase.models import Purchase
 from reputation.models import Bounty, Contribution, Withdrawal
@@ -39,6 +40,8 @@ from user.models import (
     UserApiToken,
     Verdict,
 )
+from user.related_models.author_institution import AuthorInstitution
+from user.related_models.coauthor_model import CoAuthor
 from user.related_models.gatekeeper_model import Gatekeeper
 from utils import sentry
 
@@ -1001,3 +1004,67 @@ class DynamicVerdictSerializer(DynamicModelFieldSerializer):
 
     def get_flagged_content_name(self, verdict):
         return verdict.flag.content_type.name
+
+
+class DynamicAuthorInstitutionSerializer(DynamicModelFieldSerializer):
+    institution = SerializerMethodField()
+
+    class Meta:
+        model = AuthorInstitution
+        fields = "__all__"
+
+    def get_institution(self, author_institution):
+        context = self.context
+        _context_fields = context.get("author_institution::get_institution", {})
+
+        institution = author_institution.institution
+        serializer = DynamicInstitutionSerializer(
+            institution, context=context, **_context_fields
+        )
+        return serializer.data
+
+
+class DynamicCoAuthorSerializer(DynamicModelFieldSerializer):
+    coauthor = SerializerMethodField()
+
+    class Meta:
+        model = CoAuthor
+        fields = "__all__"
+
+    def get_coauthor(self, coauthor):
+        context = self.context
+        _context_fields = context.get("coauthor::get_coauthor", {})
+
+        serializer = DynamicAuthorSerializer(
+            coauthor.coauthor, context=context, **_context_fields
+        )
+        return serializer.data
+
+
+class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
+    institutions = SerializerMethodField()
+    coauthors = SerializerMethodField()
+
+    class Meta:
+        model = Author
+        fields = "__all__"
+
+    def get_institutions(self, author):
+        context = self.context
+        _context_fields = context.get("author_profile::get_institutions", {})
+
+        serializer = DynamicAuthorInstitutionSerializer(
+            author.institutions, context=context, many=True, **_context_fields
+        )
+        return serializer.data
+
+    def get_coauthors(self, author):
+        context = self.context
+        _context_fields = context.get("author_profile::get_coauthors", {})
+        serializer = DynamicAuthorSerializer(
+            [co.coauthor for co in author.coauthors.all()],
+            context=context,
+            many=True,
+            **_context_fields,
+        )
+        return serializer.data
