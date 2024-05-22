@@ -18,5 +18,3 @@ class AuthorInstitution(DefaultModel):
     )
 
     years = ArrayField(models.IntegerField(), blank=True, default=list)
-
-    is_primary = models.BooleanField(default=False)
