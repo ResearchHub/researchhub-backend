@@ -40,3 +40,29 @@ jobs:
         with:
           name: deploy
           path: target/deploy.zip
+
+      - name: Configure AWS credentials with assume role
+        id: aws_credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.NEW_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.NEW_AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: arn:aws:iam::905418417735:role/researchhub/staging-assume-beanstalk-deploy
+          role-session-name: github-actions-beanstalk-session
+          role-duration-seconds: 1200
+          role-skip-session-tagging: true
+          aws-region: us-east-1
+          output-credentials: true
+
+      - name: Deploy to Elastic Beanstalk
+        uses: einaregilsson/beanstalk-deploy@v22
+        with:
+          aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
+          aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
+          application_name: staging-beanstalk-backend
+          environment_name: staging-beanstalk-backend
+          version_label: ${{ github.sha }}
+          use_existing_version_if_available: true
+          region: us-east-1
+          deployment_package: target/deploy.zip
+          wait_for_environment_recovery: 120
