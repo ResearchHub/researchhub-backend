@@ -5,6 +5,9 @@ from rest_framework.test import APITestCase
 
 from paper.models import Paper
 from paper.openalex_util import process_openalex_works
+from user.related_models.author_contribution_summary_model import (
+    AuthorContributionSummary,
+)
 from user.related_models.author_model import Author
 from utils.openalex import OpenAlex
 
@@ -195,3 +198,16 @@ class ProcessOpenAlexWorksTests(APITestCase):
             ).first()
 
             self.assertGreater(author.coauthors.count(), 0)
+
+    @patch.object(OpenAlex, "get_authors")
+    def test_create_contribution_activity(self, mock_get_authors):
+        with open("./paper/tests/openalex_authors.json", "r") as file:
+            mock_data = json.load(file)
+            mock_get_authors.return_value = (mock_data["results"], None)
+
+            process_openalex_works(self.works)
+            author = Author.objects.filter(
+                openalex_ids__contains=[mock_data["results"][0]["id"]]
+            ).first()
+
+            self.assertGreater(len(author.contribution_summaries.all()), 0)
