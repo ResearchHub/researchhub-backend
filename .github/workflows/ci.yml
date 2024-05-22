@@ -19,4 +19,20 @@ jobs:
         with:
           repository: "researchhub/researchhub-internal-utils"
           ref: main
+          path: researchhub-internal-utils
           token: ${{ secrets.PAT }}
+
+      - name: Copy Beanstalk configuration files
+        run: cp -r researchhub-internal-utils/deploy/backend/config/. src
+
+      - name: Generate Beantalk deployment package
+        run: |
+          mkdir -p target
+          cd src
+          zip -r ../target/deploy.zip .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy
+          path: target/deploy.zip
