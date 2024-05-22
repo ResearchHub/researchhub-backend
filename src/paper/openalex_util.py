@@ -276,7 +276,7 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
             except Exception as e:
                 sentry.log_error(
                     e,
-                    message=f"Failed to upsert author contribution summary for author: {author.id}",
+                    message=f"Failed to upsert author contribution summary for author: {str(author.id)}",
                 )
 
         # Load all the institutions author is associated with
