@@ -6,6 +6,9 @@ from django.db import IntegrityError, transaction
 from django.db.models import Q
 
 import utils.sentry as sentry
+from user.related_models.author_contribution_summary_model import (
+    AuthorContributionSummary,
+)
 from user.related_models.author_institution import AuthorInstitution
 from user.related_models.coauthor_model import CoAuthor
 from utils.openalex import OpenAlex
@@ -248,6 +251,7 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
             )
             continue
 
+        # Set misc author metadata
         author.i10_index = oa_author.get("summary_stats", {}).get("i10_index")
         author.h_index = oa_author.get("summary_stats", {}).get("h_index")
         author.two_year_mean_citedness = oa_author.get("summary_stats", {}).get(
@@ -255,6 +259,25 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
         )
         author.orcid_id = oa_author.get("orcid")
         author.save()
+
+        # Set author contribution/citation activity
+        activity_by_year = oa_author.get("counts_by_year", [])
+        for activity in activity_by_year:
+            try:
+                AuthorContributionSummary.objects.update_or_create(
+                    source=AuthorContributionSummary.SOURCE_OPENALEX,
+                    author=author,
+                    year=activity.get("year"),
+                    defaults={
+                        "works_count": activity.get("works_count", None),
+                        "citation_count": activity.get("cited_by_count", None),
+                    },
+                )
+            except Exception as e:
+                sentry.log_error(
+                    e,
+                    message=f"Failed to upsert author contribution summary for author: {str(author.id)}",
+                )
 
         # Load all the institutions author is associated with
         affiliations = oa_author.get("affiliations", [])
