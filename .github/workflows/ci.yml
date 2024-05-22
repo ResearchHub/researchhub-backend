@@ -23,7 +23,11 @@ jobs:
           token: ${{ secrets.PAT }}
 
       - name: Copy Beanstalk configuration files
-        run: cp -r researchhub-internal-utils/deploy/backend/config/. src
+        run: |
+          cp -r researchhub-internal-utils/deploy/backend/config/.ebextensions \
+            researchhub-internal-utils/deploy/backend/config/.platform \
+            researchhub-internal-utils/deploy/backend/config/Procfile \
+            src
 
       - name: Generate Beantalk deployment package
         run: |
