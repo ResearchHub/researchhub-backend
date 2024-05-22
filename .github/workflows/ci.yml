@@ -1,0 +1,22 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches:
+      - "feature/beanstalk-cicd"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout application repository
+        uses: actions/checkout@v4
+
+      - name: Checkout deploy repository
+        uses: actions/checkout@v4
+        with:
+          repository: "researchhub/researchhub-internal-utils"
+          ref: main
+          token: ${{ secrets.PAT }}
