@@ -221,6 +221,8 @@ class UserApiTokenSerializer(ModelSerializer):
 
 
 class DynamicAuthorSerializer(DynamicModelFieldSerializer):
+    count = IntegerField(read_only=True)
+
     class Meta:
         model = Author
         fields = "__all__"
@@ -1059,12 +1061,34 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
         return serializer.data
 
     def get_coauthors(self, author):
+        from django.db.models import Count
+
         context = self.context
         _context_fields = context.get("author_profile::get_coauthors", {})
+
+        coauthors = (
+            CoAuthor.objects.filter(author=author)
+            .values("coauthor", "coauthor__first_name", "coauthor__last_name")
+            .annotate(count=Count("coauthor"))
+            .order_by("-count")
+        )
+
+        # Prepare the data for serialization
+        coauthor_data = [
+            {
+                "id": co["coauthor"],
+                "first_name": co["coauthor__first_name"],
+                "last_name": co["coauthor__last_name"],
+                "count": co["count"],
+            }
+            for co in coauthors
+        ]
+
         serializer = DynamicAuthorSerializer(
-            [co.coauthor for co in author.coauthors.all()],
+            coauthor_data,
             context=context,
             many=True,
             **_context_fields,
         )
+
         return serializer.data

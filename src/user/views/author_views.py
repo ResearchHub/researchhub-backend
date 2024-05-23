@@ -149,6 +149,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                         "id",
                         "first_name",
                         "last_name",
+                        "count",
                     ]
                 },
                 "coauthor::get_coauthor": {
