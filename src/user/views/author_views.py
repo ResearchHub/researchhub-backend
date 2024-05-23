@@ -144,6 +144,13 @@ class AuthorViewSet(viewsets.ModelViewSet):
                         "institution",
                     ]
                 },
+                "author_profile::activity_by_year": {
+                    "_include_fields": [
+                        "year",
+                        "works_count",
+                        "citation_count",
+                    ]
+                },
                 "author_profile::get_coauthors": {
                     "_include_fields": [
                         "id",
@@ -176,6 +183,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 "created_date",
                 "country_code",
                 "coauthors",
+                "activity_by_year",
             ),
         )
         return Response(serializer.data, status=200)

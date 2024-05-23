@@ -40,6 +40,9 @@ from user.models import (
     UserApiToken,
     Verdict,
 )
+from user.related_models.author_contribution_summary_model import (
+    AuthorContributionSummary,
+)
 from user.related_models.author_institution import AuthorInstitution
 from user.related_models.coauthor_model import CoAuthor
 from user.related_models.gatekeeper_model import Gatekeeper
@@ -1046,10 +1049,23 @@ class DynamicCoAuthorSerializer(DynamicModelFieldSerializer):
 class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
     institutions = SerializerMethodField()
     coauthors = SerializerMethodField()
+    activity_by_year = SerializerMethodField()
 
     class Meta:
         model = Author
         fields = "__all__"
+
+    def get_activity_by_year(self, author):
+        context = self.context
+        _context_fields = context.get("author_profile::activity_by_year", {})
+
+        serializer = DynamicAuthorContributionSummarySerializer(
+            author.contribution_summaries.all(),
+            context=context,
+            many=True,
+            **_context_fields,
+        )
+        return serializer.data
 
     def get_institutions(self, author):
         context = self.context
@@ -1100,3 +1116,9 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
             **_context_fields,
         )
         return serializer.data
+
+
+class DynamicAuthorContributionSummarySerializer(DynamicModelFieldSerializer):
+    class Meta:
+        model = AuthorContributionSummary
+        fields = "__all__"
