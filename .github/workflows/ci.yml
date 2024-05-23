@@ -50,7 +50,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.NEW_AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.NEW_AWS_SECRET_ACCESS_KEY }}
-          role-to-assume: arn:aws:iam::905418417735:role/researchhub/staging-assume-beanstalk-deploy
+          role-to-assume: ${{ vars.STAGING_DEPLOY_ROLE_ARN }}
           role-session-name: github-actions-beanstalk-session
           role-duration-seconds: 1200
           role-skip-session-tagging: true
