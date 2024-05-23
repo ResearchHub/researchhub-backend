@@ -150,15 +150,10 @@ class AuthorViewSet(viewsets.ModelViewSet):
                         "first_name",
                         "last_name",
                         "count",
-                    ]
-                },
-                "coauthor::get_coauthor": {
-                    "_include_fields": [
-                        "id",
-                        "first_name",
-                        "last_name",
+                        "is_verified",
                         "profile_image",
-                        "paper",
+                        "headline",
+                        "description",
                     ]
                 },
             },

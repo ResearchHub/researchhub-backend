@@ -1068,17 +1068,26 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
 
         coauthors = (
             CoAuthor.objects.filter(author=author)
-            .values("coauthor", "coauthor__first_name", "coauthor__last_name")
+            .values(
+                "coauthor",
+                "coauthor__first_name",
+                "coauthor__last_name",
+                "coauthor__is_verified",
+                "coauthor__headline",
+                "coauthor__description",
+            )
             .annotate(count=Count("coauthor"))
             .order_by("-count")
         )
 
-        # Prepare the data for serialization
         coauthor_data = [
             {
                 "id": co["coauthor"],
                 "first_name": co["coauthor__first_name"],
                 "last_name": co["coauthor__last_name"],
+                "is_verified": co["coauthor__is_verified"],
+                "headline": co["coauthor__headline"],
+                "description": co["coauthor__description"],
                 "count": co["count"],
             }
             for co in coauthors
@@ -1090,5 +1099,4 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
             many=True,
             **_context_fields,
         )
-
         return serializer.data
