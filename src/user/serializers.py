@@ -2,6 +2,7 @@ import logging
 
 import dj_rest_auth.registration.serializers as rest_auth_serializers
 from django.contrib.contenttypes.models import ContentType
+from django.db import models
 from rest_framework.serializers import (
     CharField,
     IntegerField,
@@ -1050,10 +1051,26 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
     institutions = SerializerMethodField()
     coauthors = SerializerMethodField()
     activity_by_year = SerializerMethodField()
+    works_count = SerializerMethodField()
+    citation_count = SerializerMethodField()
+    summary_stats = SerializerMethodField()
 
     class Meta:
         model = Author
         fields = "__all__"
+
+    def get_summary_stats(self, author):
+        activity = author.contribution_summaries.all()
+        agg = activity.aggregate(
+            works_count=models.Sum("works_count"),
+            citation_count=models.Sum("citation_count"),
+        )
+
+        return {
+            "works_count": agg["works_count"],
+            "citation_count": agg["citation_count"],
+            "two_year_mean_citedness": author.two_year_mean_citedness,
+        }
 
     def get_activity_by_year(self, author):
         context = self.context

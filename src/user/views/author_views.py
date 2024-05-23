@@ -183,6 +183,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 "created_date",
                 "country_code",
                 "coauthors",
+                "summary_stats",
                 "activity_by_year",
             ),
         )

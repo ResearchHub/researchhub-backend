@@ -14,8 +14,8 @@ class AuthorContributionSummary(models.Model):
     author = models.ForeignKey(
         "user.Author", on_delete=models.CASCADE, related_name="contribution_summaries"
     )
-    works_count = models.IntegerField(null=True, blank=True)
-    citation_count = models.IntegerField(null=True, blank=True)
+    works_count = models.IntegerField(null=False, blank=True, default=0)
+    citation_count = models.IntegerField(null=False, blank=True, default=0)
     year = models.IntegerField(null=False, blank=False)
 
     class Meta:
