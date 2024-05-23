@@ -75,7 +75,7 @@ django-elasticsearch-dsl-drf = "0.20.8"
 q5-django-inlinecss = "0.0.2"
 pdf2doi = "1.5"
 beautifulsoup4 = "4.12.2"
-django-allauth = "0.48.0"
+django-allauth = "0.50.0"
 bibtexparser = {version = "^2.0.0b3", allow-prereleases = true}
 pyyaml = "6.0.1"
 segment-analytics-python = "^2.2.3"
