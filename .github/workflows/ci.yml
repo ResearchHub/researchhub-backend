@@ -3,7 +3,7 @@ name: Continuous Integration
 on:
   push:
     branches:
-      - "feature/beanstalk-cicd"
+      - master
   workflow_dispatch:
 
 jobs:
@@ -22,6 +22,9 @@ jobs:
           path: researchhub-internal-utils
           token: ${{ secrets.PAT }}
 
+      - name: Set short Git SHA
+        run: echo "SHORT_GIT_SHA=backend-$(echo $GITHUB_SHA | cut -c1-8)" >> "$GITHUB_ENV"
+
       - name: Copy Beanstalk configuration files
         run: |
           cp -r researchhub-internal-utils/deploy/backend/config/.ebextensions \
@@ -29,7 +32,7 @@ jobs:
             researchhub-internal-utils/deploy/backend/config/Procfile \
             src
 
-      - name: Generate Beantalk deployment package
+      - name: Generate Beanstalk deployment package
         run: |
           mkdir -p target
           cd src
@@ -38,7 +41,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: deploy
+          name: "deploy-${{ env.SHORT_GIT_SHA }}"
           path: target/deploy.zip
 
       - name: Configure AWS credentials with assume role
@@ -61,7 +64,7 @@ jobs:
           aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
           application_name: staging-beanstalk-backend
           environment_name: staging-beanstalk-backend
-          version_label: ${{ github.sha }}
+          version_label: ${{ env.SHORT_GIT_SHA }}
           use_existing_version_if_available: true
           region: us-east-1
           deployment_package: target/deploy.zip
