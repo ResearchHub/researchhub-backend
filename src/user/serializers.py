@@ -1060,15 +1060,15 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
         fields = "__all__"
 
     def get_summary_stats(self, author):
-        activity = author.contribution_summaries.all()
-        agg = activity.aggregate(
-            works_count=models.Sum("works_count"),
-            citation_count=models.Sum("citation_count"),
-        )
+        from django.db.models import Sum
+
+        citation_count = author.authored_papers.aggregate(
+            total_citations=Sum("citations")
+        )["total_citations"]
 
         return {
-            "works_count": agg["works_count"],
-            "citation_count": agg["citation_count"],
+            "works_count": author.authored_papers.count(),
+            "citation_count": citation_count,
             "two_year_mean_citedness": author.two_year_mean_citedness,
         }
 
@@ -1110,7 +1110,7 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
                 "coauthor__description",
             )
             .annotate(count=Count("coauthor"))
-            .order_by("-count")
+            .order_by("-count")[:10]
         )
 
         coauthor_data = [

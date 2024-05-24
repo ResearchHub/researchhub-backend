@@ -342,6 +342,7 @@ class OpenAlex:
         batch_size=100,
         openalex_ids=None,
         source_id=None,
+        openalex_author_id=None,
     ):
         # Build the filter
         oa_filters = []
@@ -358,6 +359,9 @@ class OpenAlex:
 
         if isinstance(openalex_ids, list):
             oa_filters.append(f"ids.openalex:{'|'.join(openalex_ids)}")
+
+        if openalex_author_id:
+            oa_filters.append(f"author.id:{openalex_author_id}")
 
         filters = {
             "filter": ",".join(oa_filters),

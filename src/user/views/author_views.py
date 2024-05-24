@@ -178,7 +178,6 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 "google_scholar",
                 "linkedin",
                 "twitter",
-                "two_year_mean_citedness",
                 "institutions",
                 "created_date",
                 "country_code",

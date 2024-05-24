@@ -53,6 +53,12 @@ class Command(BaseCommand):
             help="The OpenAlex ID to pull",
         )
         parser.add_argument(
+            "--openalex_author_id",
+            default=None,
+            type=str,
+            help="The OpenAlex Author ID to pull",
+        )
+        parser.add_argument(
             "--mode",
             default="backfill",
             type=str,
@@ -63,6 +69,7 @@ class Command(BaseCommand):
         start_id = kwargs["start_id"]
         to_id = kwargs["to_id"]
         openalex_id = kwargs["openalex_id"]
+        openalex_author_id = kwargs["openalex_author_id"]
         mode = kwargs["mode"]
         source = kwargs["source"]
         batch_size = 100
@@ -98,16 +105,16 @@ class Command(BaseCommand):
             cursor = "*"
             page = 1
             openalex_ids = None
-            openalex_types = None
+            openalex_types = [
+                "article",
+                "preprint",
+                "review",
+            ]
             if openalex_id:
                 print("Fetching single work with id: " + openalex_id)
                 openalex_ids = [openalex_id]
-            else:
-                openalex_types = [
-                    "article",
-                    "preprint",
-                    "review",
-                ]
+            elif openalex_author_id:
+                print("Fetching full author works for author: " + openalex_author_id)
 
             while cursor:
                 print("Processing page " + str(page))
@@ -116,8 +123,8 @@ class Command(BaseCommand):
                     types=openalex_types,
                     next_cursor=cursor,
                     openalex_ids=openalex_ids,
+                    openalex_author_id=openalex_author_id,
                 )
 
                 process_openalex_works(works)
                 page += 1
-                return
