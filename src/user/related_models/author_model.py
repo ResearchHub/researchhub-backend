@@ -9,7 +9,11 @@ from hub.models import Hub
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
 from purchase.related_models.purchase_model import Purchase
 from researchhub_case.constants.case_constants import APPROVED
+from user.related_models.author_contribution_summary_model import (
+    AuthorContributionSummary,
+)
 from user.related_models.author_institution import AuthorInstitution
+from user.related_models.coauthor_model import CoAuthor
 from user.related_models.profile_image_storage import ProfileImageStorage
 from user.related_models.school_model import University
 from user.related_models.user_model import User
@@ -18,6 +22,12 @@ fs = ProfileImageStorage()
 
 
 class Author(models.Model):
+    SOURCE_OPENALEX = "OPENALEX"
+    SOURCE_RESEARCHHUB = "RESEARCHHUB"
+    SOURCE_CHOICES = [
+        (SOURCE_OPENALEX, "OpenAlex"),
+        (SOURCE_RESEARCHHUB, "ResearchHub"),
+    ]
     user = models.OneToOneField(
         User,
         related_name="author_profile",
@@ -45,7 +55,7 @@ class Author(models.Model):
         University, on_delete=models.SET_NULL, null=True, blank=True
     )
     orcid_id = models.CharField(
-        max_length=1024, default=None, null=True, blank=True, unique=True
+        max_length=1024, default=None, null=True, blank=True, unique=False
     )
     openalex_ids = ArrayField(
         models.CharField(
@@ -71,6 +81,18 @@ class Author(models.Model):
         null=True,
         max_length=20,
     )
+
+    # Indicates whether the user was created through the RH platform or through another source such as OpenAlex
+    created_source = models.CharField(
+        max_length=20,
+        null=False,
+        blank=False,
+        choices=SOURCE_CHOICES,
+        default=SOURCE_RESEARCHHUB,
+    )
+
+    # Indicates the last time we did a full fetch from OpenAlex which includes all the works
+    last_full_fetch_from_openalex = models.DateTimeField(null=True, blank=True)
 
     # AKA Impact Factor. Derived from OpenAlex:  https://en.wikipedia.org/wiki/Impact_factor
     two_year_mean_citedness = models.FloatField(default=0)
