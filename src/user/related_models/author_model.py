@@ -91,6 +91,9 @@ class Author(models.Model):
         default=SOURCE_RESEARCHHUB,
     )
 
+    # Indicates the last time we did a full fetch from OpenAlex which includes all the works
+    last_full_fetch_from_openalex = models.DateTimeField(null=True, blank=True)
+
     # AKA Impact Factor. Derived from OpenAlex:  https://en.wikipedia.org/wiki/Impact_factor
     two_year_mean_citedness = models.FloatField(default=0)
 
