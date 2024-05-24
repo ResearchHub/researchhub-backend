@@ -22,6 +22,12 @@ fs = ProfileImageStorage()
 
 
 class Author(models.Model):
+    SOURCE_OPENALEX = "OPENALEX"
+    SOURCE_RESEARCHHUB = "RESEARCHHUB"
+    SOURCE_CHOICES = [
+        (SOURCE_OPENALEX, "OpenAlex"),
+        (SOURCE_RESEARCHHUB, "ResearchHub"),
+    ]
     user = models.OneToOneField(
         User,
         related_name="author_profile",
@@ -74,6 +80,15 @@ class Author(models.Model):
         blank=True,
         null=True,
         max_length=20,
+    )
+
+    # Indicates whether the user was created through the RH platform or through another source such as OpenAlex
+    created_source = models.CharField(
+        max_length=20,
+        null=False,
+        blank=False,
+        choices=SOURCE_CHOICES,
+        default=SOURCE_RESEARCHHUB,
     )
 
     # AKA Impact Factor. Derived from OpenAlex:  https://en.wikipedia.org/wiki/Impact_factor

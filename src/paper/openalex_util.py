@@ -205,6 +205,7 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
                 first_name=author_name_parts[0],
                 last_name=author_name_parts[-1],
                 openalex_ids=[author_openalex_id],
+                created_source=Author.SOURCE_OPENALEX,
             )
             Wallet.objects.create(author=author)
         except Exception as e:
