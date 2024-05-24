@@ -716,8 +716,8 @@ distlib==0.3.8 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:1530ea13e350031b6312d8580ddb6b27a104275a31106523b8f123787f494f64
 dj-rest-auth==2.2.8 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:9fb3492888185ede8b2064ad6803120c7b0b83ab08e2347a02e9b44282374242
-django-allauth==0.48.0 ; python_version >= "3.8" and python_version < "4.0" \
-    --hash=sha256:531821ce6a2278168054add13421776c9f8e565cf39926e799fa02d6c29da920
+django-allauth==0.50.0 ; python_version >= "3.8" and python_version < "4.0" \
+    --hash=sha256:ee3a174e249771caeb1d037e64b2704dd3c56cfec44f2058fae2214b224d35e8
 django-celery-beat==2.0.0 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:fdf1255eecfbeb770c6521fe3e69989dfc6373cd5a7f0fe62038d37f80f47e48 \
     --hash=sha256:fe0b2a1b31d4a6234fea4b31986ddfd4644a48fab216ce1843f3ed0ddd2e9097
