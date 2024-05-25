@@ -112,9 +112,14 @@ class Command(BaseCommand):
                 "preprint",
                 "review",
             ]
+
             if openalex_id:
                 print("Fetching single work with id: " + openalex_id)
-                openalex_ids = [openalex_id]
+                work = OA.get_work(
+                    openalex_id=openalex_id,
+                )
+
+                process_openalex_works([work])
             elif openalex_author_id:
                 print("Fetching full author works for author: " + openalex_author_id)
 

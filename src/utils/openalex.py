@@ -334,6 +334,12 @@ class OpenAlex:
         cursor = next_cursor if next_cursor != "*" else None
         return authors, cursor
 
+    def get_work(
+        self,
+        openalex_id=None,
+    ):
+        return self._get(f"works/{openalex_id}")
+
     def get_works(
         self,
         since_date=None,

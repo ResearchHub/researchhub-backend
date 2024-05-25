@@ -66,7 +66,15 @@ def process_openalex_works(works):
     # Split works into two buckets: create and update
     create_papers = []
     update_papers = []
+
     for work in works:
+        # When fetched in batch, OpneAlex will truncate authors beyond 100.
+        # If this is the case, we need to fetch the full work
+        # https://docs.openalex.org/api-entities/authors/limitations
+        if work.get("is_authors_truncated", False):
+            just_id = work.get("id").split("/")[-1]
+            work = open_alex.get_work(just_id)
+
         doi = work.get("doi")
         if doi is None:
             print(f"No Doi for result: {work.get('id')}")
@@ -85,45 +93,46 @@ def process_openalex_works(works):
     paper_to_openalex_data = {}
 
     # Create new papers
-    with transaction.atomic():
-        for work in create_papers:
-            _work = copy.deepcopy(work)
+    for work in create_papers:
+        _work = copy.deepcopy(work)
+        (
+            data,
+            openalex_concepts,
+            openalex_topics,
+        ) = open_alex.build_paper_from_openalex_work(_work)
 
-            (
-                data,
-                openalex_concepts,
-                openalex_topics,
-            ) = open_alex.build_paper_from_openalex_work(_work)
+        paper = Paper(**data)
 
-            paper = Paper(**data)
+        # Validate paper
+        try:
+            paper.clean_fields()
+            paper.clean()
+        except ValidationError as e:
+            sentry.log_error(
+                e,
+                message=f"Failed to validate paper: {paper.doi}, {work.get('id')}",
+            )
+            continue
 
-            # Validate paper
-            try:
-                paper.clean_fields()
-                paper.clean()
-            except ValidationError as e:
-                sentry.log_error(
-                    e,
-                    message=f"Failed to validate paper: {paper.doi}, {work.get('id')}",
-                )
-                continue
+        try:
+            paper.save()
 
-            try:
-                paper.save()
-            except IntegrityError as e:
-                sentry.log_error(
-                    e, message=f"Failed to save paper, DOI already exists: {paper.doi}"
-                )
-            except Exception as e:
-                sentry.log_error(
-                    e, message=f"Failed to save paper, unexpected error: {paper.doi}"
-                )
-
+            # Succeessfully saved paper, add to map
             paper_to_openalex_data[paper.id] = {
                 "openalex_concepts": openalex_concepts,
                 "openalex_topics": openalex_topics,
                 "openalex_work": work,
             }
+        except IntegrityError as e:
+            sentry.log_error(
+                e, message=f"Failed to save paper, DOI already exists: {paper.doi}"
+            )
+            continue
+        except Exception as e:
+            sentry.log_error(
+                e, message=f"Failed to save paper, unexpected error: {paper.doi}"
+            )
+            continue
 
     # Prepare papers for batch update
     for existing_paper, work in update_papers:
@@ -167,7 +176,18 @@ def process_openalex_works(works):
         )
 
         openalex_authorships = work.get("authorships")
-        process_openalex_authorships(openalex_authorships, paper_id)
+        if openalex_authorships and paper_id:
+            try:
+                process_openalex_authorships(openalex_authorships, paper_id)
+            except Exception as e:
+                sentry.log_error(
+                    e, message=f"Failed to process authorships for paper_id: {paper_id}"
+                )
+        else:
+            sentry.log_error(
+                None,
+                message=f"Authorships data is missing or paper_id is None for work: {work.get('id')}",
+            )
 
 
 def process_openalex_authorships(openalex_authorships, related_paper_id):
