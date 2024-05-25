@@ -1,8 +1,10 @@
 from django.core.management.base import BaseCommand
+from django.utils import timezone
 
 from paper.openalex_util import process_openalex_works
 from paper.related_models.paper_model import Paper
 from topic.models import Topic
+from user.related_models.author_model import Author
 from utils.openalex import OpenAlex
 
 # To pull papers from bioRxiv use source param:
@@ -128,3 +130,10 @@ class Command(BaseCommand):
 
                 process_openalex_works(works)
                 page += 1
+
+            if openalex_author_id:
+                print("Finished fetching all works for author: " + openalex_author_id)
+                full_openalex_id = "https://openalex.org/" + openalex_author_id
+                author = Author.objects.get(openalex_ids__contains=[full_openalex_id])
+                author.last_full_fetch_from_openalex = timezone.now()
+                author.save()
