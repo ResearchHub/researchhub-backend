@@ -2,6 +2,7 @@ import logging
 
 import dj_rest_auth.registration.serializers as rest_auth_serializers
 from django.contrib.contenttypes.models import ContentType
+from django.db import models
 from rest_framework.serializers import (
     CharField,
     IntegerField,
@@ -19,6 +20,7 @@ from discussion.models import Vote as GrmVote
 from hub.models import Hub
 from hub.serializers import DynamicHubSerializer, HubSerializer, SimpleHubSerializer
 from hypothesis.models import Hypothesis
+from institution.serializers import DynamicInstitutionSerializer
 from paper.models import Paper, PaperSubmission
 from purchase.models import Purchase
 from reputation.models import Bounty, Contribution, Withdrawal
@@ -39,6 +41,11 @@ from user.models import (
     UserApiToken,
     Verdict,
 )
+from user.related_models.author_contribution_summary_model import (
+    AuthorContributionSummary,
+)
+from user.related_models.author_institution import AuthorInstitution
+from user.related_models.coauthor_model import CoAuthor
 from user.related_models.gatekeeper_model import Gatekeeper
 from utils import sentry
 
@@ -218,6 +225,8 @@ class UserApiTokenSerializer(ModelSerializer):
 
 
 class DynamicAuthorSerializer(DynamicModelFieldSerializer):
+    count = IntegerField(read_only=True)
+
     class Meta:
         model = Author
         fields = "__all__"
@@ -1001,3 +1010,132 @@ class DynamicVerdictSerializer(DynamicModelFieldSerializer):
 
     def get_flagged_content_name(self, verdict):
         return verdict.flag.content_type.name
+
+
+class DynamicAuthorInstitutionSerializer(DynamicModelFieldSerializer):
+    institution = SerializerMethodField()
+
+    class Meta:
+        model = AuthorInstitution
+        fields = "__all__"
+
+    def get_institution(self, author_institution):
+        context = self.context
+        _context_fields = context.get("author_institution::get_institution", {})
+
+        institution = author_institution.institution
+        serializer = DynamicInstitutionSerializer(
+            institution, context=context, **_context_fields
+        )
+        return serializer.data
+
+
+class DynamicCoAuthorSerializer(DynamicModelFieldSerializer):
+    coauthor = SerializerMethodField()
+
+    class Meta:
+        model = CoAuthor
+        fields = "__all__"
+
+    def get_coauthor(self, coauthor):
+        context = self.context
+        _context_fields = context.get("coauthor::get_coauthor", {})
+
+        serializer = DynamicAuthorSerializer(
+            coauthor.coauthor, context=context, **_context_fields
+        )
+        return serializer.data
+
+
+class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
+    institutions = SerializerMethodField()
+    coauthors = SerializerMethodField()
+    activity_by_year = SerializerMethodField()
+    works_count = SerializerMethodField()
+    citation_count = SerializerMethodField()
+    summary_stats = SerializerMethodField()
+
+    class Meta:
+        model = Author
+        fields = "__all__"
+
+    def get_summary_stats(self, author):
+        from django.db.models import Sum
+
+        citation_count = author.authored_papers.aggregate(
+            total_citations=Sum("citations")
+        )["total_citations"]
+
+        return {
+            "works_count": author.authored_papers.count(),
+            "citation_count": citation_count,
+            "two_year_mean_citedness": author.two_year_mean_citedness,
+        }
+
+    def get_activity_by_year(self, author):
+        context = self.context
+        _context_fields = context.get("author_profile::activity_by_year", {})
+
+        serializer = DynamicAuthorContributionSummarySerializer(
+            author.contribution_summaries.all(),
+            context=context,
+            many=True,
+            **_context_fields,
+        )
+        return serializer.data
+
+    def get_institutions(self, author):
+        context = self.context
+        _context_fields = context.get("author_profile::get_institutions", {})
+
+        serializer = DynamicAuthorInstitutionSerializer(
+            author.institutions, context=context, many=True, **_context_fields
+        )
+        return serializer.data
+
+    def get_coauthors(self, author):
+        from django.db.models import Count
+
+        context = self.context
+        _context_fields = context.get("author_profile::get_coauthors", {})
+
+        coauthors = (
+            CoAuthor.objects.filter(author=author)
+            .values(
+                "coauthor",
+                "coauthor__first_name",
+                "coauthor__last_name",
+                "coauthor__is_verified",
+                "coauthor__headline",
+                "coauthor__description",
+            )
+            .annotate(count=Count("coauthor"))
+            .order_by("-count")[:10]
+        )
+
+        coauthor_data = [
+            {
+                "id": co["coauthor"],
+                "first_name": co["coauthor__first_name"],
+                "last_name": co["coauthor__last_name"],
+                "is_verified": co["coauthor__is_verified"],
+                "headline": co["coauthor__headline"],
+                "description": co["coauthor__description"],
+                "count": co["count"],
+            }
+            for co in coauthors
+        ]
+
+        serializer = DynamicAuthorSerializer(
+            coauthor_data,
+            context=context,
+            many=True,
+            **_context_fields,
+        )
+        return serializer.data
+
+
+class DynamicAuthorContributionSummarySerializer(DynamicModelFieldSerializer):
+    class Meta:
+        model = AuthorContributionSummary
+        fields = "__all__"

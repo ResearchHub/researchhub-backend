@@ -1,41 +1,824 @@
 {
     "meta": {
-        "count": 253809574,
-        "db_response_time_ms": 56,
+        "count": 107299944,
+        "db_response_time_ms": 132,
         "page": 1,
         "per_page": 2,
         "groups_count": null
     },
     "results": [
         {
-            "id": "https://openalex.org/W1775749144",
-            "doi": "https://doi.org/10.1016/s0021-9258(19)52451-6",
-            "title": "PROTEIN MEASUREMENT WITH THE FOLIN PHENOL REAGENT",
-            "display_name": "PROTEIN MEASUREMENT WITH THE FOLIN PHENOL REAGENT",
-            "publication_year": 1951,
-            "publication_date": "1951-11-01",
+            "id": "https://openalex.org/W1981368803",
+            "doi": "https://doi.org/10.1103/physrevlett.77.3865",
+            "title": "Generalized Gradient Approximation Made Simple",
+            "display_name": "Generalized Gradient Approximation Made Simple",
+            "publication_year": 1996,
+            "publication_date": "1996-10-28",
             "ids": {
-                "openalex": "https://openalex.org/W1775749144",
-                "doi": "https://doi.org/10.1016/s0021-9258(19)52451-6",
-                "mag": "1775749144",
-                "pmid": "https://pubmed.ncbi.nlm.nih.gov/14907713"
+                "openalex": "https://openalex.org/W1981368803",
+                "doi": "https://doi.org/10.1103/physrevlett.77.3865",
+                "mag": "1981368803",
+                "pmid": "https://pubmed.ncbi.nlm.nih.gov/10062328"
             },
             "language": "en",
             "primary_location": {
-                "is_oa": true,
-                "landing_page_url": "https://doi.org/10.1016/s0021-9258(19)52451-6",
+                "is_oa": false,
+                "landing_page_url": "https://doi.org/10.1103/physrevlett.77.3865",
                 "pdf_url": null,
                 "source": {
-                    "id": "https://openalex.org/S140251998",
-                    "display_name": "Journal of biological chemistry/\u0098The \u009cJournal of biological chemistry",
-                    "issn_l": "0021-9258",
+                    "id": "https://openalex.org/S24807848",
+                    "display_name": "Physical review letters",
+                    "issn_l": "0031-9007",
                     "issn": [
-                        "0021-9258",
-                        "1067-8816",
-                        "1083-351X"
+                        "0031-9007",
+                        "1079-7114",
+                        "1092-0145"
                     ],
-                    "is_oa": true,
-                    "is_in_doaj": true,
+                    "is_oa": false,
+                    "is_in_doaj": false,
+                    "host_organization": "https://openalex.org/P4310320261",
+                    "host_organization_name": "American Physical Society",
+                    "host_organization_lineage": [
+                        "https://openalex.org/P4310320261"
+                    ],
+                    "host_organization_lineage_names": [
+                        "American Physical Society"
+                    ],
+                    "type": "journal"
+                },
+                "license": null,
+                "license_id": null,
+                "version": null,
+                "is_accepted": false,
+                "is_published": false
+            },
+            "type": "article",
+            "type_crossref": "journal-article",
+            "indexed_in": [
+                "crossref",
+                "pubmed"
+            ],
+            "open_access": {
+                "is_oa": false,
+                "oa_status": "closed",
+                "oa_url": null,
+                "any_repository_has_fulltext": false
+            },
+            "authorships": [
+                {
+                    "author_position": "first",
+                    "author": {
+                        "id": "https://openalex.org/A5014987686",
+                        "display_name": "John P. Perdew",
+                        "orcid": "https://orcid.org/0000-0003-4237-824X"
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I114832834",
+                            "display_name": "Tulane University",
+                            "ror": "https://ror.org/04vmvtb21",
+                            "country_code": "US",
+                            "type": "education",
+                            "lineage": [
+                                "https://openalex.org/I114832834"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "US"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "John P. Perdew",
+                    "raw_affiliation_strings": [
+                        "Department of Physics and Quantum Theory Group, Tulane University, New Orleans, Louisiana 70118"
+                    ]
+                },
+                {
+                    "author_position": "middle",
+                    "author": {
+                        "id": "https://openalex.org/A5082307304",
+                        "display_name": "Kieron Burke",
+                        "orcid": "https://orcid.org/0000-0002-6159-0054"
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I114832834",
+                            "display_name": "Tulane University",
+                            "ror": "https://ror.org/04vmvtb21",
+                            "country_code": "US",
+                            "type": "education",
+                            "lineage": [
+                                "https://openalex.org/I114832834"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "US"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Kieron Burke",
+                    "raw_affiliation_strings": [
+                        "Department of Physics and Quantum Theory Group, Tulane University, New Orleans, Louisiana 70118"
+                    ]
+                },
+                {
+                    "author_position": "last",
+                    "author": {
+                        "id": "https://openalex.org/A5053648717",
+                        "display_name": "Matthias Ernzerhof",
+                        "orcid": "https://orcid.org/0000-0001-5679-8902"
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I114832834",
+                            "display_name": "Tulane University",
+                            "ror": "https://ror.org/04vmvtb21",
+                            "country_code": "US",
+                            "type": "education",
+                            "lineage": [
+                                "https://openalex.org/I114832834"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "US"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Matthias Ernzerhof",
+                    "raw_affiliation_strings": [
+                        "Department of Physics and Quantum Theory Group, Tulane University, New Orleans, Louisiana 70118"
+                    ]
+                }
+            ],
+            "countries_distinct_count": 1,
+            "institutions_distinct_count": 1,
+            "corresponding_author_ids": [],
+            "corresponding_institution_ids": [],
+            "apc_list": {
+                "value": 3750,
+                "currency": "USD",
+                "value_usd": 3750,
+                "provenance": "doaj"
+            },
+            "apc_paid": {
+                "value": 3750,
+                "currency": "USD",
+                "value_usd": 3750,
+                "provenance": "doaj"
+            },
+            "has_fulltext": true,
+            "fulltext_origin": "ngrams",
+            "cited_by_count": 160375,
+            "cited_by_percentile_year": {
+                "min": 99,
+                "max": 100
+            },
+            "biblio": {
+                "volume": "77",
+                "issue": "18",
+                "first_page": "3865",
+                "last_page": "3868"
+            },
+            "is_retracted": false,
+            "is_paratext": false,
+            "primary_topic": {
+                "id": "https://openalex.org/T10002",
+                "display_name": "Advancements in Density Functional Theory",
+                "score": 0.9998,
+                "subfield": {
+                    "id": "https://openalex.org/subfields/3107",
+                    "display_name": "Atomic and Molecular Physics, and Optics"
+                },
+                "field": {
+                    "id": "https://openalex.org/fields/31",
+                    "display_name": "Physics and Astronomy"
+                },
+                "domain": {
+                    "id": "https://openalex.org/domains/3",
+                    "display_name": "Physical Sciences"
+                }
+            },
+            "topics": [
+                {
+                    "id": "https://openalex.org/T10002",
+                    "display_name": "Advancements in Density Functional Theory",
+                    "score": 0.9998,
+                    "subfield": {
+                        "id": "https://openalex.org/subfields/3107",
+                        "display_name": "Atomic and Molecular Physics, and Optics"
+                    },
+                    "field": {
+                        "id": "https://openalex.org/fields/31",
+                        "display_name": "Physics and Astronomy"
+                    },
+                    "domain": {
+                        "id": "https://openalex.org/domains/3",
+                        "display_name": "Physical Sciences"
+                    }
+                },
+                {
+                    "id": "https://openalex.org/T11177",
+                    "display_name": "Quantum Coherence in Photosynthesis and Aqueous Systems",
+                    "score": 0.9997,
+                    "subfield": {
+                        "id": "https://openalex.org/subfields/3107",
+                        "display_name": "Atomic and Molecular Physics, and Optics"
+                    },
+                    "field": {
+                        "id": "https://openalex.org/fields/31",
+                        "display_name": "Physics and Astronomy"
+                    },
+                    "domain": {
+                        "id": "https://openalex.org/domains/3",
+                        "display_name": "Physical Sciences"
+                    }
+                },
+                {
+                    "id": "https://openalex.org/T11965",
+                    "display_name": "Quantum Effects in Helium Nanodroplets and Solids",
+                    "score": 0.9994,
+                    "subfield": {
+                        "id": "https://openalex.org/subfields/3107",
+                        "display_name": "Atomic and Molecular Physics, and Optics"
+                    },
+                    "field": {
+                        "id": "https://openalex.org/fields/31",
+                        "display_name": "Physics and Astronomy"
+                    },
+                    "domain": {
+                        "id": "https://openalex.org/domains/3",
+                        "display_name": "Physical Sciences"
+                    }
+                }
+            ],
+            "keywords": [
+                {
+                    "id": "https://openalex.org/keywords/electronic-structure-calculations",
+                    "display_name": "Electronic Structure Calculations",
+                    "score": 0.512978
+                }
+            ],
+            "concepts": [
+                {
+                    "id": "https://openalex.org/C2780586882",
+                    "wikidata": "https://www.wikidata.org/wiki/Q7520643",
+                    "display_name": "Simple (philosophy)",
+                    "level": 2,
+                    "score": 0.82514447
+                },
+                {
+                    "id": "https://openalex.org/C99844830",
+                    "wikidata": "https://www.wikidata.org/wiki/Q102441924",
+                    "display_name": "Scaling",
+                    "level": 2,
+                    "score": 0.6654375
+                },
+                {
+                    "id": "https://openalex.org/C121864883",
+                    "wikidata": "https://www.wikidata.org/wiki/Q677916",
+                    "display_name": "Statistical physics",
+                    "level": 1,
+                    "score": 0.6102829
+                },
+                {
+                    "id": "https://openalex.org/C170122806",
+                    "wikidata": "https://www.wikidata.org/wiki/Q1914828",
+                    "display_name": "Linear scale",
+                    "level": 2,
+                    "score": 0.55408573
+                },
+                {
+                    "id": "https://openalex.org/C121332964",
+                    "wikidata": "https://www.wikidata.org/wiki/Q413",
+                    "display_name": "Physics",
+                    "level": 0,
+                    "score": 0.49338427
+                },
+                {
+                    "id": "https://openalex.org/C3018272316",
+                    "wikidata": "https://www.wikidata.org/wiki/Q905186",
+                    "display_name": "Spin density",
+                    "level": 2,
+                    "score": 0.48516518
+                },
+                {
+                    "id": "https://openalex.org/C42704618",
+                    "wikidata": "https://www.wikidata.org/wiki/Q910917",
+                    "display_name": "Spin (aerodynamics)",
+                    "level": 2,
+                    "score": 0.43200958
+                },
+                {
+                    "id": "https://openalex.org/C9249130",
+                    "wikidata": "https://www.wikidata.org/wiki/Q898241",
+                    "display_name": "Local-density approximation",
+                    "level": 3,
+                    "score": 0.43061215
+                },
+                {
+                    "id": "https://openalex.org/C9059619",
+                    "wikidata": "https://www.wikidata.org/wiki/Q3272140",
+                    "display_name": "Kohn\u2013Sham equations",
+                    "level": 3,
+                    "score": 0.42569804
+                },
+                {
+                    "id": "https://openalex.org/C62520636",
+                    "wikidata": "https://www.wikidata.org/wiki/Q944",
+                    "display_name": "Quantum mechanics",
+                    "level": 1,
+                    "score": 0.35535908
+                },
+                {
+                    "id": "https://openalex.org/C86025842",
+                    "wikidata": "https://www.wikidata.org/wiki/Q5358432",
+                    "display_name": "Electronic structure",
+                    "level": 2,
+                    "score": 0.31023443
+                },
+                {
+                    "id": "https://openalex.org/C152365726",
+                    "wikidata": "https://www.wikidata.org/wiki/Q1048589",
+                    "display_name": "Density functional theory",
+                    "level": 2,
+                    "score": 0.29765612
+                },
+                {
+                    "id": "https://openalex.org/C26873012",
+                    "wikidata": "https://www.wikidata.org/wiki/Q214781",
+                    "display_name": "Condensed matter physics",
+                    "level": 1,
+                    "score": 0.2565789
+                },
+                {
+                    "id": "https://openalex.org/C33923547",
+                    "wikidata": "https://www.wikidata.org/wiki/Q395",
+                    "display_name": "Mathematics",
+                    "level": 0,
+                    "score": 0.20775574
+                },
+                {
+                    "id": "https://openalex.org/C97355855",
+                    "wikidata": "https://www.wikidata.org/wiki/Q11473",
+                    "display_name": "Thermodynamics",
+                    "level": 1,
+                    "score": 0.1649805
+                },
+                {
+                    "id": "https://openalex.org/C2524010",
+                    "wikidata": "https://www.wikidata.org/wiki/Q8087",
+                    "display_name": "Geometry",
+                    "level": 1,
+                    "score": 0.11068845
+                },
+                {
+                    "id": "https://openalex.org/C13280743",
+                    "wikidata": "https://www.wikidata.org/wiki/Q131089",
+                    "display_name": "Geodesy",
+                    "level": 1,
+                    "score": 0.0
+                },
+                {
+                    "id": "https://openalex.org/C205649164",
+                    "wikidata": "https://www.wikidata.org/wiki/Q1071",
+                    "display_name": "Geography",
+                    "level": 0,
+                    "score": 0.0
+                },
+                {
+                    "id": "https://openalex.org/C138885662",
+                    "wikidata": "https://www.wikidata.org/wiki/Q5891",
+                    "display_name": "Philosophy",
+                    "level": 0,
+                    "score": 0.0
+                },
+                {
+                    "id": "https://openalex.org/C111472728",
+                    "wikidata": "https://www.wikidata.org/wiki/Q9471",
+                    "display_name": "Epistemology",
+                    "level": 1,
+                    "score": 0.0
+                }
+            ],
+            "mesh": [],
+            "locations_count": 2,
+            "locations": [
+                {
+                    "is_oa": false,
+                    "landing_page_url": "https://doi.org/10.1103/physrevlett.77.3865",
+                    "pdf_url": null,
+                    "source": {
+                        "id": "https://openalex.org/S24807848",
+                        "display_name": "Physical review letters",
+                        "issn_l": "0031-9007",
+                        "issn": [
+                            "0031-9007",
+                            "1079-7114",
+                            "1092-0145"
+                        ],
+                        "is_oa": false,
+                        "is_in_doaj": false,
+                        "host_organization": "https://openalex.org/P4310320261",
+                        "host_organization_name": "American Physical Society",
+                        "host_organization_lineage": [
+                            "https://openalex.org/P4310320261"
+                        ],
+                        "host_organization_lineage_names": [
+                            "American Physical Society"
+                        ],
+                        "type": "journal"
+                    },
+                    "license": null,
+                    "license_id": null,
+                    "version": null,
+                    "is_accepted": false,
+                    "is_published": false
+                },
+                {
+                    "is_oa": false,
+                    "landing_page_url": "https://pubmed.ncbi.nlm.nih.gov/10062328",
+                    "pdf_url": null,
+                    "source": {
+                        "id": "https://openalex.org/S4306525036",
+                        "display_name": "PubMed",
+                        "issn_l": null,
+                        "issn": null,
+                        "is_oa": false,
+                        "is_in_doaj": false,
+                        "host_organization": "https://openalex.org/I1299303238",
+                        "host_organization_name": "National Institutes of Health",
+                        "host_organization_lineage": [
+                            "https://openalex.org/I1299303238"
+                        ],
+                        "host_organization_lineage_names": [
+                            "National Institutes of Health"
+                        ],
+                        "type": "repository"
+                    },
+                    "license": null,
+                    "license_id": null,
+                    "version": null,
+                    "is_accepted": false,
+                    "is_published": false
+                }
+            ],
+            "best_oa_location": null,
+            "sustainable_development_goals": [
+                {
+                    "display_name": "Affordable and clean energy",
+                    "score": 0.91,
+                    "id": "https://metadata.un.org/sdg/7"
+                }
+            ],
+            "grants": [],
+            "datasets": [],
+            "versions": [],
+            "referenced_works_count": 30,
+            "referenced_works": [
+                "https://openalex.org/W1970549136",
+                "https://openalex.org/W1979040280",
+                "https://openalex.org/W1983648185",
+                "https://openalex.org/W1984849570",
+                "https://openalex.org/W1987736292",
+                "https://openalex.org/W1997176674",
+                "https://openalex.org/W1997563366",
+                "https://openalex.org/W1998015449",
+                "https://openalex.org/W1998954599",
+                "https://openalex.org/W1998959670",
+                "https://openalex.org/W2000822641",
+                "https://openalex.org/W2004333877",
+                "https://openalex.org/W2010338931",
+                "https://openalex.org/W2012664688",
+                "https://openalex.org/W2017070764",
+                "https://openalex.org/W2023664897",
+                "https://openalex.org/W2039715700",
+                "https://openalex.org/W2040891489",
+                "https://openalex.org/W2041205942",
+                "https://openalex.org/W2046379387",
+                "https://openalex.org/W2049079467",
+                "https://openalex.org/W2049852309",
+                "https://openalex.org/W2061724428",
+                "https://openalex.org/W2070470894",
+                "https://openalex.org/W2071602054",
+                "https://openalex.org/W2076751112",
+                "https://openalex.org/W2086957099",
+                "https://openalex.org/W2088370223",
+                "https://openalex.org/W2230728100",
+                "https://openalex.org/W3206606417"
+            ],
+            "related_works": [
+                "https://openalex.org/W4319299196",
+                "https://openalex.org/W3183731174",
+                "https://openalex.org/W3110971345",
+                "https://openalex.org/W3104851593",
+                "https://openalex.org/W2060532266",
+                "https://openalex.org/W2051648115",
+                "https://openalex.org/W2047899451",
+                "https://openalex.org/W2046701024",
+                "https://openalex.org/W2032719166",
+                "https://openalex.org/W1966874709"
+            ],
+            "ngrams_url": "https://api.openalex.org/works/W1981368803/ngrams",
+            "abstract_inverted_index": {
+                "Generalized": [
+                    0
+                ],
+                "gradient": [
+                    1
+                ],
+                "approximations": [
+                    2
+                ],
+                "(GGA's)": [
+                    3
+                ],
+                "for": [
+                    4
+                ],
+                "the": [
+                    5,
+                    10,
+                    46,
+                    50,
+                    65,
+                    69
+                ],
+                "exchange-correlation": [
+                    6
+                ],
+                "energy": [
+                    7
+                ],
+                "improve": [
+                    8
+                ],
+                "upon": [
+                    9
+                ],
+                "local": [
+                    11
+                ],
+                "spin": [
+                    12
+                ],
+                "density": [
+                    13
+                ],
+                "(LSD)": [
+                    14
+                ],
+                "description": [
+                    15,
+                    63
+                ],
+                "of": [
+                    16,
+                    26,
+                    45,
+                    64,
+                    68
+                ],
+                "atoms,": [
+                    17
+                ],
+                "molecules,": [
+                    18
+                ],
+                "and": [
+                    19,
+                    78
+                ],
+                "solids.": [
+                    20
+                ],
+                "We": [
+                    21
+                ],
+                "present": [
+                    22
+                ],
+                "a": [
+                    23,
+                    27,
+                    79
+                ],
+                "simple": [
+                    24,
+                    28
+                ],
+                "derivation": [
+                    25
+                ],
+                "GGA,": [
+                    29
+                ],
+                "in": [
+                    30,
+                    37
+                ],
+                "which": [
+                    31
+                ],
+                "all": [
+                    32
+                ],
+                "parameters": [
+                    33
+                ],
+                "(other": [
+                    34
+                ],
+                "than": [
+                    35
+                ],
+                "those": [
+                    36
+                ],
+                "LSD)": [
+                    38
+                ],
+                "are": [
+                    39,
+                    55
+                ],
+                "fundamental": [
+                    40
+                ],
+                "constants.": [
+                    41
+                ],
+                "Only": [
+                    42
+                ],
+                "general": [
+                    43
+                ],
+                "features": [
+                    44
+                ],
+                "detailed": [
+                    47
+                ],
+                "construction": [
+                    48
+                ],
+                "underlying": [
+                    49
+                ],
+                "Perdew-Wang": [
+                    51
+                ],
+                "1991": [
+                    52
+                ],
+                "(PW91)": [
+                    53
+                ],
+                "GGA": [
+                    54
+                ],
+                "invoked.": [
+                    56
+                ],
+                "Improvements": [
+                    57
+                ],
+                "over": [
+                    58
+                ],
+                "PW91": [
+                    59
+                ],
+                "include": [
+                    60
+                ],
+                "an": [
+                    61
+                ],
+                "accurate": [
+                    62
+                ],
+                "linear": [
+                    66
+                ],
+                "response": [
+                    67
+                ],
+                "uniform": [
+                    70,
+                    76
+                ],
+                "electron": [
+                    71
+                ],
+                "gas,": [
+                    72
+                ],
+                "correct": [
+                    73
+                ],
+                "behavior": [
+                    74
+                ],
+                "under": [
+                    75
+                ],
+                "scaling,": [
+                    77
+                ],
+                "smoother": [
+                    80
+                ],
+                "potential.": [
+                    81
+                ]
+            },
+            "cited_by_api_url": "https://api.openalex.org/works?filter=cites:W1981368803",
+            "counts_by_year": [
+                {
+                    "year": 2024,
+                    "cited_by_count": 7184
+                },
+                {
+                    "year": 2023,
+                    "cited_by_count": 17542
+                },
+                {
+                    "year": 2022,
+                    "cited_by_count": 16694
+                },
+                {
+                    "year": 2021,
+                    "cited_by_count": 15502
+                },
+                {
+                    "year": 2020,
+                    "cited_by_count": 13823
+                },
+                {
+                    "year": 2019,
+                    "cited_by_count": 12184
+                },
+                {
+                    "year": 2018,
+                    "cited_by_count": 10853
+                },
+                {
+                    "year": 2017,
+                    "cited_by_count": 9921
+                },
+                {
+                    "year": 2016,
+                    "cited_by_count": 8821
+                },
+                {
+                    "year": 2015,
+                    "cited_by_count": 7847
+                },
+                {
+                    "year": 2014,
+                    "cited_by_count": 6836
+                },
+                {
+                    "year": 2013,
+                    "cited_by_count": 5974
+                },
+                {
+                    "year": 2012,
+                    "cited_by_count": 5168
+                }
+            ],
+            "updated_date": "2024-05-15T09:45:55.437331",
+            "created_date": "2016-06-24"
+        },
+        {
+            "id": "https://openalex.org/W2107277218",
+            "doi": "https://doi.org/10.1006/meth.2001.1262",
+            "title": "Analysis of Relative Gene Expression Data Using Real-Time Quantitative PCR and the 2\u2212\u0394\u0394CT Method",
+            "display_name": "Analysis of Relative Gene Expression Data Using Real-Time Quantitative PCR and the 2\u2212\u0394\u0394CT Method",
+            "publication_year": 2001,
+            "publication_date": "2001-12-01",
+            "ids": {
+                "openalex": "https://openalex.org/W2107277218",
+                "doi": "https://doi.org/10.1006/meth.2001.1262",
+                "mag": "2107277218",
+                "pmid": "https://pubmed.ncbi.nlm.nih.gov/11846609"
+            },
+            "language": "en",
+            "primary_location": {
+                "is_oa": false,
+                "landing_page_url": "https://doi.org/10.1006/meth.2001.1262",
+                "pdf_url": null,
+                "source": {
+                    "id": "https://openalex.org/S73539393",
+                    "display_name": "Methods",
+                    "issn_l": "1046-2023",
+                    "issn": [
+                        "1046-2023",
+                        "1095-9130"
+                    ],
+                    "is_oa": false,
+                    "is_in_doaj": false,
                     "host_organization": "https://openalex.org/P4310320990",
                     "host_organization_name": "Elsevier BV",
                     "host_organization_lineage": [
@@ -46,124 +829,58 @@
                     ],
                     "type": "journal"
                 },
-                "license": "cc-by",
-                "license_id": "https://openalex.org/licenses/cc-by",
-                "version": "publishedVersion",
-                "is_accepted": true,
-                "is_published": true
+                "license": null,
+                "license_id": null,
+                "version": null,
+                "is_accepted": false,
+                "is_published": false
             },
             "type": "article",
             "type_crossref": "journal-article",
             "indexed_in": [
-                "crossref"
+                "crossref",
+                "pubmed"
             ],
             "open_access": {
-                "is_oa": true,
-                "oa_status": "hybrid",
-                "oa_url": "https://doi.org/10.1016/s0021-9258(19)52451-6",
-                "any_repository_has_fulltext": true
+                "is_oa": false,
+                "oa_status": "closed",
+                "oa_url": null,
+                "any_repository_has_fulltext": false
             },
             "authorships": [
                 {
                     "author_position": "first",
                     "author": {
-                        "id": "https://openalex.org/A5067833651",
-                        "display_name": "Oliver H. Lowry",
-                        "orcid": null
+                        "id": "https://openalex.org/A5055590197",
+                        "display_name": "Kenneth J. Livak",
+                        "orcid": "https://orcid.org/0000-0001-9105-5856"
                     },
-                    "institutions": [
-                        {
-                            "id": "https://openalex.org/I204465549",
-                            "display_name": "Washington University in St. Louis",
-                            "ror": "https://ror.org/01yc7t268",
-                            "country_code": "US",
-                            "type": "education",
-                            "lineage": [
-                                "https://openalex.org/I204465549"
-                            ]
-                        }
-                    ],
+                    "institutions": [],
                     "countries": [
                         "US"
                     ],
                     "is_corresponding": false,
-                    "raw_author_name": "OliverH. Lowry",
+                    "raw_author_name": "Kenneth J. Livak",
                     "raw_affiliation_strings": [
-                        "the Department of Pharmacology, Washington University School oj Medicine, St. Louis, Missouri"
-                    ]
-                },
-                {
-                    "author_position": "middle",
-                    "author": {
-                        "id": "https://openalex.org/A5032482932",
-                        "display_name": "N. J. Rosebrough",
-                        "orcid": null
-                    },
-                    "institutions": [
-                        {
-                            "id": "https://openalex.org/I204465549",
-                            "display_name": "Washington University in St. Louis",
-                            "ror": "https://ror.org/01yc7t268",
-                            "country_code": "US",
-                            "type": "education",
-                            "lineage": [
-                                "https://openalex.org/I204465549"
-                            ]
-                        }
-                    ],
-                    "countries": [
-                        "US"
-                    ],
-                    "is_corresponding": false,
-                    "raw_author_name": "NiraJ. Rosebrough",
-                    "raw_affiliation_strings": [
-                        "the Department of Pharmacology, Washington University School oj Medicine, St. Louis, Missouri"
-                    ]
-                },
-                {
-                    "author_position": "middle",
-                    "author": {
-                        "id": "https://openalex.org/A5004071084",
-                        "display_name": "A. Farr",
-                        "orcid": null
-                    },
-                    "institutions": [
-                        {
-                            "id": "https://openalex.org/I204465549",
-                            "display_name": "Washington University in St. Louis",
-                            "ror": "https://ror.org/01yc7t268",
-                            "country_code": "US",
-                            "type": "education",
-                            "lineage": [
-                                "https://openalex.org/I204465549"
-                            ]
-                        }
-                    ],
-                    "countries": [
-                        "US"
-                    ],
-                    "is_corresponding": false,
-                    "raw_author_name": "A. Lewis Farr",
-                    "raw_affiliation_strings": [
-                        "the Department of Pharmacology, Washington University School oj Medicine, St. Louis, Missouri"
+                        "Applied Biosystems, Foster City, California, 94404"
                     ]
                 },
                 {
                     "author_position": "last",
                     "author": {
-                        "id": "https://openalex.org/A5074535928",
-                        "display_name": "Rose J. Randall",
-                        "orcid": null
+                        "id": "https://openalex.org/A5001854674",
+                        "display_name": "Thomas D. Schmittgen",
+                        "orcid": "https://orcid.org/0000-0002-2812-8546"
                     },
                     "institutions": [
                         {
-                            "id": "https://openalex.org/I204465549",
-                            "display_name": "Washington University in St. Louis",
-                            "ror": "https://ror.org/01yc7t268",
+                            "id": "https://openalex.org/I72951846",
+                            "display_name": "Washington State University",
+                            "ror": "https://ror.org/05dk0ce17",
                             "country_code": "US",
                             "type": "education",
                             "lineage": [
-                                "https://openalex.org/I204465549"
+                                "https://openalex.org/I72951846"
                             ]
                         }
                     ],
@@ -171,9 +888,9 @@
                         "US"
                     ],
                     "is_corresponding": false,
-                    "raw_author_name": "RoseJ. Randall",
+                    "raw_author_name": "Thomas D. Schmittgen",
                     "raw_affiliation_strings": [
-                        "the Department of Pharmacology, Washington University School oj Medicine, St. Louis, Missouri"
+                        "Department of Pharmaceutical Sciences, College of Pharmacy, Washington State University, Pullman, Washington, 99164-6534"
                     ]
                 }
             ],
@@ -182,36 +899,36 @@
             "corresponding_author_ids": [],
             "corresponding_institution_ids": [],
             "apc_list": {
-                "value": 2500,
+                "value": 3390,
                 "currency": "USD",
-                "value_usd": 2500,
+                "value_usd": 3390,
                 "provenance": "doaj"
             },
             "apc_paid": {
-                "value": 2500,
+                "value": 3390,
                 "currency": "USD",
-                "value_usd": 2500,
+                "value_usd": 3390,
                 "provenance": "doaj"
             },
             "has_fulltext": true,
-            "fulltext_origin": "pdf",
-            "cited_by_count": 305961,
+            "fulltext_origin": "ngrams",
+            "cited_by_count": 146346,
             "cited_by_percentile_year": {
                 "min": 99,
                 "max": 100
             },
             "biblio": {
-                "volume": "193",
-                "issue": "1",
-                "first_page": "265",
-                "last_page": "275"
+                "volume": "25",
+                "issue": "4",
+                "first_page": "402",
+                "last_page": "408"
             },
             "is_retracted": false,
             "is_paratext": false,
             "primary_topic": {
-                "id": "https://openalex.org/T10602",
-                "display_name": "Glycosylation in Health and Disease",
-                "score": 0.9678,
+                "id": "https://openalex.org/T11970",
+                "display_name": "Real-Time Polymerase Chain Reaction",
+                "score": 1.0,
                 "subfield": {
                     "id": "https://openalex.org/subfields/1312",
                     "display_name": "Molecular Biology"
@@ -227,9 +944,9 @@
             },
             "topics": [
                 {
-                    "id": "https://openalex.org/T10602",
-                    "display_name": "Glycosylation in Health and Disease",
-                    "score": 0.9678,
+                    "id": "https://openalex.org/T11970",
+                    "display_name": "Real-Time Polymerase Chain Reaction",
+                    "score": 1.0,
                     "subfield": {
                         "id": "https://openalex.org/subfields/1312",
                         "display_name": "Molecular Biology"
@@ -244,12 +961,12 @@
                     }
                 },
                 {
-                    "id": "https://openalex.org/T11399",
-                    "display_name": "Protein Metabolism in Exercise and Nutrition",
-                    "score": 0.951,
+                    "id": "https://openalex.org/T10604",
+                    "display_name": "Regulation of RNA Processing and Function",
+                    "score": 0.963,
                     "subfield": {
-                        "id": "https://openalex.org/subfields/1307",
-                        "display_name": "Cell Biology"
+                        "id": "https://openalex.org/subfields/1312",
+                        "display_name": "Molecular Biology"
                     },
                     "field": {
                         "id": "https://openalex.org/fields/13",
@@ -261,9 +978,9 @@
                     }
                 },
                 {
-                    "id": "https://openalex.org/T14135",
-                    "display_name": "Oxidation States in Biochemistry and Medicine",
-                    "score": 0.9502,
+                    "id": "https://openalex.org/T10885",
+                    "display_name": "Microarray Data Analysis and Gene Expression Profiling",
+                    "score": 0.9514,
                     "subfield": {
                         "id": "https://openalex.org/subfields/1312",
                         "display_name": "Molecular Biology"
@@ -280,66 +997,218 @@
             ],
             "keywords": [
                 {
-                    "id": "https://openalex.org/keywords/proteins",
-                    "display_name": "Proteins",
-                    "score": 0.536585
+                    "id": "https://openalex.org/keywords/real-time-pcr",
+                    "display_name": "Real-Time PCR",
+                    "score": 0.57883
+                },
+                {
+                    "id": "https://openalex.org/keywords/quantitative",
+                    "display_name": "Quantitative",
+                    "score": 0.528305
                 }
             ],
             "concepts": [
                 {
-                    "id": "https://openalex.org/C40875361",
-                    "wikidata": "https://www.wikidata.org/wiki/Q2356542",
-                    "display_name": "Reagent",
-                    "level": 2,
-                    "score": 0.97429305
+                    "id": "https://openalex.org/C48023723",
+                    "wikidata": "https://www.wikidata.org/wiki/Q856198",
+                    "display_name": "Real-time polymerase chain reaction",
+                    "level": 3,
+                    "score": 0.69824404
                 },
                 {
-                    "id": "https://openalex.org/C185592680",
-                    "wikidata": "https://www.wikidata.org/wiki/Q2329",
-                    "display_name": "Chemistry",
+                    "id": "https://openalex.org/C95986675",
+                    "wikidata": "https://www.wikidata.org/wiki/Q185168",
+                    "display_name": "Quantitative analysis (chemistry)",
+                    "level": 2,
+                    "score": 0.5139794
+                },
+                {
+                    "id": "https://openalex.org/C5072461",
+                    "wikidata": "https://www.wikidata.org/wiki/Q49506",
+                    "display_name": "Delta",
+                    "level": 2,
+                    "score": 0.51295155
+                },
+                {
+                    "id": "https://openalex.org/C70721500",
+                    "wikidata": "https://www.wikidata.org/wiki/Q177005",
+                    "display_name": "Computational biology",
+                    "level": 1,
+                    "score": 0.49055308
+                },
+                {
+                    "id": "https://openalex.org/C198531522",
+                    "wikidata": "https://www.wikidata.org/wiki/Q485146",
+                    "display_name": "Sample (material)",
+                    "level": 2,
+                    "score": 0.41298348
+                },
+                {
+                    "id": "https://openalex.org/C86803240",
+                    "wikidata": "https://www.wikidata.org/wiki/Q420",
+                    "display_name": "Biology",
                     "level": 0,
-                    "score": 0.8413831
+                    "score": 0.39520985
                 },
                 {
-                    "id": "https://openalex.org/C2777702071",
-                    "wikidata": "https://www.wikidata.org/wiki/Q130336",
-                    "display_name": "Phenol",
+                    "id": "https://openalex.org/C186060115",
+                    "wikidata": "https://www.wikidata.org/wiki/Q30336093",
+                    "display_name": "Biological system",
+                    "level": 1,
+                    "score": 0.35528326
+                },
+                {
+                    "id": "https://openalex.org/C41008148",
+                    "wikidata": "https://www.wikidata.org/wiki/Q21198",
+                    "display_name": "Computer science",
+                    "level": 0,
+                    "score": 0.33155608
+                },
+                {
+                    "id": "https://openalex.org/C153911025",
+                    "wikidata": "https://www.wikidata.org/wiki/Q7202",
+                    "display_name": "Molecular biology",
+                    "level": 1,
+                    "score": 0.3302499
+                },
+                {
+                    "id": "https://openalex.org/C104317684",
+                    "wikidata": "https://www.wikidata.org/wiki/Q7187",
+                    "display_name": "Gene",
                     "level": 2,
-                    "score": 0.56796163
+                    "score": 0.32891792
                 },
                 {
                     "id": "https://openalex.org/C43617362",
                     "wikidata": "https://www.wikidata.org/wiki/Q170050",
                     "display_name": "Chromatography",
                     "level": 1,
-                    "score": 0.5565455
+                    "score": 0.22815666
                 },
                 {
-                    "id": "https://openalex.org/C178790620",
-                    "wikidata": "https://www.wikidata.org/wiki/Q11351",
-                    "display_name": "Organic chemistry",
+                    "id": "https://openalex.org/C185592680",
+                    "wikidata": "https://www.wikidata.org/wiki/Q2329",
+                    "display_name": "Chemistry",
+                    "level": 0,
+                    "score": 0.22768846
+                },
+                {
+                    "id": "https://openalex.org/C54355233",
+                    "wikidata": "https://www.wikidata.org/wiki/Q7162",
+                    "display_name": "Genetics",
                     "level": 1,
-                    "score": 0.27057263
+                    "score": 0.22186163
+                },
+                {
+                    "id": "https://openalex.org/C121332964",
+                    "wikidata": "https://www.wikidata.org/wiki/Q413",
+                    "display_name": "Physics",
+                    "level": 0,
+                    "score": 0.17523903
+                },
+                {
+                    "id": "https://openalex.org/C1276947",
+                    "wikidata": "https://www.wikidata.org/wiki/Q333",
+                    "display_name": "Astronomy",
+                    "level": 1,
+                    "score": 0.0
                 }
             ],
-            "mesh": [],
+            "mesh": [
+                {
+                    "descriptor_ui": "D016133",
+                    "descriptor_name": "Polymerase Chain Reaction",
+                    "qualifier_ui": "Q000379",
+                    "qualifier_name": "methods",
+                    "is_major_topic": true
+                },
+                {
+                    "descriptor_ui": "D020133",
+                    "descriptor_name": "Reverse Transcriptase Polymerase Chain Reaction",
+                    "qualifier_ui": "",
+                    "qualifier_name": null,
+                    "is_major_topic": true
+                },
+                {
+                    "descriptor_ui": "D000465",
+                    "descriptor_name": "Algorithms",
+                    "qualifier_ui": "",
+                    "qualifier_name": null,
+                    "is_major_topic": false
+                },
+                {
+                    "descriptor_ui": "D001921",
+                    "descriptor_name": "Brain",
+                    "qualifier_ui": "",
+                    "qualifier_name": null,
+                    "is_major_topic": false
+                },
+                {
+                    "descriptor_ui": "D001921",
+                    "descriptor_name": "Brain",
+                    "qualifier_ui": "Q000378",
+                    "qualifier_name": "metabolism",
+                    "is_major_topic": false
+                },
+                {
+                    "descriptor_ui": "D002460",
+                    "descriptor_name": "Cell Line",
+                    "qualifier_ui": "",
+                    "qualifier_name": null,
+                    "is_major_topic": false
+                },
+                {
+                    "descriptor_ui": "D018076",
+                    "descriptor_name": "DNA, Complementary",
+                    "qualifier_ui": "",
+                    "qualifier_name": null,
+                    "is_major_topic": false
+                },
+                {
+                    "descriptor_ui": "D018076",
+                    "descriptor_name": "DNA, Complementary",
+                    "qualifier_ui": "Q000378",
+                    "qualifier_name": "metabolism",
+                    "is_major_topic": false
+                },
+                {
+                    "descriptor_ui": "D006801",
+                    "descriptor_name": "Humans",
+                    "qualifier_ui": "",
+                    "qualifier_name": null,
+                    "is_major_topic": false
+                },
+                {
+                    "descriptor_ui": "D016133",
+                    "descriptor_name": "Polymerase Chain Reaction",
+                    "qualifier_ui": "",
+                    "qualifier_name": null,
+                    "is_major_topic": false
+                },
+                {
+                    "descriptor_ui": "D013997",
+                    "descriptor_name": "Time Factors",
+                    "qualifier_ui": "",
+                    "qualifier_name": null,
+                    "is_major_topic": false
+                }
+            ],
             "locations_count": 2,
             "locations": [
                 {
-                    "is_oa": true,
-                    "landing_page_url": "https://doi.org/10.1016/s0021-9258(19)52451-6",
+                    "is_oa": false,
+                    "landing_page_url": "https://doi.org/10.1006/meth.2001.1262",
                     "pdf_url": null,
                     "source": {
-                        "id": "https://openalex.org/S140251998",
-                        "display_name": "Journal of biological chemistry/\u0098The \u009cJournal of biological chemistry",
-                        "issn_l": "0021-9258",
+                        "id": "https://openalex.org/S73539393",
+                        "display_name": "Methods",
+                        "issn_l": "1046-2023",
                         "issn": [
-                            "0021-9258",
-                            "1067-8816",
-                            "1083-351X"
+                            "1046-2023",
+                            "1095-9130"
                         ],
-                        "is_oa": true,
-                        "is_in_doaj": true,
+                        "is_oa": false,
+                        "is_in_doaj": false,
                         "host_organization": "https://openalex.org/P4310320990",
                         "host_organization_name": "Elsevier BV",
                         "host_organization_lineage": [
@@ -350,1129 +1219,32 @@
                         ],
                         "type": "journal"
                     },
-                    "license": "cc-by",
-                    "license_id": "https://openalex.org/licenses/cc-by",
-                    "version": "publishedVersion",
-                    "is_accepted": true,
-                    "is_published": true
-                },
-                {
-                    "is_oa": true,
-                    "landing_page_url": "https://www.jbc.org/article/S0021-9258(19)52451-6/pdf",
-                    "pdf_url": "https://www.jbc.org/article/S0021-9258(19)52451-6/pdf",
-                    "source": null,
                     "license": null,
                     "license_id": null,
-                    "version": "publishedVersion",
-                    "is_accepted": true,
-                    "is_published": true
-                }
-            ],
-            "best_oa_location": {
-                "is_oa": true,
-                "landing_page_url": "https://doi.org/10.1016/s0021-9258(19)52451-6",
-                "pdf_url": null,
-                "source": {
-                    "id": "https://openalex.org/S140251998",
-                    "display_name": "Journal of biological chemistry/\u0098The \u009cJournal of biological chemistry",
-                    "issn_l": "0021-9258",
-                    "issn": [
-                        "0021-9258",
-                        "1067-8816",
-                        "1083-351X"
-                    ],
-                    "is_oa": true,
-                    "is_in_doaj": true,
-                    "host_organization": "https://openalex.org/P4310320990",
-                    "host_organization_name": "Elsevier BV",
-                    "host_organization_lineage": [
-                        "https://openalex.org/P4310320990"
-                    ],
-                    "host_organization_lineage_names": [
-                        "Elsevier BV"
-                    ],
-                    "type": "journal"
+                    "version": null,
+                    "is_accepted": false,
+                    "is_published": false
                 },
-                "license": "cc-by",
-                "license_id": "https://openalex.org/licenses/cc-by",
-                "version": "publishedVersion",
-                "is_accepted": true,
-                "is_published": true
-            },
-            "sustainable_development_goals": [
-                {
-                    "display_name": "Clean water and sanitation",
-                    "id": "https://metadata.un.org/sdg/6",
-                    "score": 0.65
-                }
-            ],
-            "grants": [],
-            "datasets": [],
-            "versions": [],
-            "referenced_works_count": 18,
-            "referenced_works": [
-                "https://openalex.org/W1507976594",
-                "https://openalex.org/W1515052776",
-                "https://openalex.org/W1535643256",
-                "https://openalex.org/W1540384225",
-                "https://openalex.org/W1557790601",
-                "https://openalex.org/W1573055659",
-                "https://openalex.org/W1576013682",
-                "https://openalex.org/W195762992",
-                "https://openalex.org/W1979011732",
-                "https://openalex.org/W1979607356",
-                "https://openalex.org/W2051330591",
-                "https://openalex.org/W2149417143",
-                "https://openalex.org/W2415297835",
-                "https://openalex.org/W59369663",
-                "https://openalex.org/W8863503",
-                "https://openalex.org/W89669270",
-                "https://openalex.org/W951165088",
-                "https://openalex.org/W97662572"
-            ],
-            "related_works": [
-                "https://openalex.org/W4387497383",
-                "https://openalex.org/W2948807893",
-                "https://openalex.org/W2778153218",
-                "https://openalex.org/W2748952813",
-                "https://openalex.org/W2527526854",
-                "https://openalex.org/W2078814861",
-                "https://openalex.org/W2062208111",
-                "https://openalex.org/W1976181487",
-                "https://openalex.org/W170893625",
-                "https://openalex.org/W1531601525"
-            ],
-            "ngrams_url": "https://api.openalex.org/works/W1775749144/ngrams",
-            "abstract_inverted_index": {
-                "Since": [
-                    0
-                ],
-                "1922": [
-                    1
-                ],
-                "when": [
-                    2
-                ],
-                "Wu": [
-                    3
-                ],
-                "proposed": [
-                    4
-                ],
-                "the": [
-                    5,
-                    8,
-                    13,
-                    31,
-                    46,
-                    58,
-                    76,
-                    150,
-                    206,
-                    238,
-                    244
-                ],
-                "use": [
-                    6
-                ],
-                "of": [
-                    7,
-                    15,
-                    20,
-                    33,
-                    60,
-                    110,
-                    115,
-                    119,
-                    123,
-                    152,
-                    158,
-                    189,
-                    195,
-                    214,
-                    240,
-                    282
-                ],
-                "Folin": [
-                    9,
-                    218,
-                    245
-                ],
-                "phenol": [
-                    10,
-                    221
-                ],
-                "reagent": [
-                    11,
-                    26,
-                    47,
-                    222,
-                    246
-                ],
-                "for": [
-                    12,
-                    30,
-                    72,
-                    85,
-                    98,
-                    135,
-                    149,
-                    212
-                ],
-                "measurement": [
-                    14
-                ],
-                "proteins": [
-                    16,
-                    34
-                ],
-                "(l),": [
-                    17
-                ],
-                "a": [
-                    18,
-                    235,
-                    279
-                ],
-                "number": [
-                    19
-                ],
-                "modified": [
-                    21
-                ],
-                "analytical": [
-                    22
-                ],
-                "procedures": [
-                    23
-                ],
-                "ut.ilizing": [
-                    24
-                ],
-                "this": [
-                    25,
-                    79,
-                    241
-                ],
-                "have": [
-                    27
-                ],
-                "been": [
-                    28,
-                    104
-                ],
-                "reported": [
-                    29
-                ],
-                "determination": [
-                    32,
-                    151
-                ],
-                "in": [
-                    35,
-                    38,
-                    43,
-                    112,
-                    127,
-                    138,
-                    166,
-                    175,
-                    254,
-                    273
-                ],
-                "serum": [
-                    36,
-                    262
-                ],
-                "(2-G),": [
-                    37
-                ],
-                "antigen-antibody": [
-                    39
-                ],
-                "precipitates": [
-                    40
-                ],
-                "(7-9),": [
-                    41
-                ],
-                "and": [
-                    42,
-                    57,
-                    92,
-                    117,
-                    130,
-                    148,
-                    225,
-                    287
-                ],
-                "insulin": [
-                    44
-                ],
-                "(10).Although": [
-                    45
-                ],
-                "would": [
-                    48
-                ],
-                "seem": [
-                    49
-                ],
-                "to": [
-                    50,
-                    95,
-                    249,
-                    268
-                ],
-                "be": [
-                    51,
-                    96,
-                    258,
-                    276
-                ],
-                "recommended": [
-                    52
-                ],
-                "by": [
-                    53
-                ],
-                "its": [
-                    54,
-                    64,
-                    90,
-                    99
-                ],
-                "great": [
-                    55,
-                    70
-                ],
-                "sensitivity": [
-                    56
-                ],
-                "simplicity": [
-                    59
-                ],
-                "procedure": [
-                    61
-                ],
-                "possible": [
-                    62
-                ],
-                "with": [
-                    63,
-                    106,
-                    192,
-                    232
-                ],
-                "use,": [
-                    65
-                ],
-                "it": [
-                    66,
-                    102,
-                    251
-                ],
-                "has": [
-                    67,
-                    82,
-                    103
-                ],
-                "not": [
-                    68
-                ],
-                "found": [
-                    69
-                ],
-                "favor": [
-                    71
-                ],
-                "general": [
-                    73
-                ],
-                "biochemical": [
-                    74
-                ],
-                "purposes.In": [
-                    75
-                ],
-                "belief": [
-                    77
-                ],
-                "that": [
-                    78,
-                    89
-                ],
-                "reagent,": [
-                    80
-                ],
-                "nevertheless,": [
-                    81
-                ],
-                "considerable": [
-                    83
-                ],
-                "merit": [
-                    84
-                ],
-                "certain": [
-                    86
-                ],
-                "application,": [
-                    87
-                ],
-                "but": [
-                    88
-                ],
-                "peculiarities": [
-                    91
-                ],
-                "limitations": [
-                    93
-                ],
-                "need": [
-                    94
-                ],
-                "understood": [
-                    97
-                ],
-                "fullest": [
-                    100
-                ],
-                "exploitation,": [
-                    101
-                ],
-                "studied": [
-                    105
-                ],
-                "regard": [
-                    107
-                ],
-                "t.o": [
-                    108,
-                    234
-                ],
-                "effects": [
-                    109
-                ],
-                "variations": [
-                    111
-                ],
-                "pH,": [
-                    113
-                ],
-                "time": [
-                    114
-                ],
-                "reaction,": [
-                    116
-                ],
-                "concentration": [
-                    118
-                ],
-                "reactants,": [
-                    120
-                ],
-                "permissible": [
-                    121
-                ],
-                "levels": [
-                    122
-                ],
-                "reagents": [
-                    124
-                ],
-                "commonly": [
-                    125
-                ],
-                "used": [
-                    126
-                ],
-                "handling": [
-                    128
-                ],
-                "proteins,": [
-                    129
-                ],
-                "interfering": [
-                    131
-                ],
-                "subst.ances.Procedures": [
-                    132
-                ],
-                "are": [
-                    133
-                ],
-                "described": [
-                    134
-                ],
-                "measuring": [
-                    136
-                ],
-                "protein": [
-                    137
-                ],
-                "solution": [
-                    139,
-                    281
-                ],
-                "or": [
-                    140,
-                    145,
-                    180
-                ],
-                "after": [
-                    141,
-                    199
-                ],
-                "precipitation": [
-                    142
-                ],
-                "wit,h": [
-                    143
-                ],
-                "acids": [
-                    144
-                ],
-                "other": [
-                    146
-                ],
-                "agents,": [
-                    147
-                ],
-                "as": [
-                    153,
-                    155,
-                    208
-                ],
-                "little": [
-                    154
-                ],
-                "0.2": [
-                    156
-                ],
-                "y": [
-                    157,
-                    270
-                ],
-                "protein.": [
-                    159
-                ],
-                "MethodReagents-Reagent": [
-                    160
-                ],
-                "A,": [
-                    161
-                ],
-                "2": [
-                    162
-                ],
-                "per": [
-                    163,
-                    172,
-                    177,
-                    271
-                ],
-                "cent": [
-                    164,
-                    173,
-                    178
-                ],
-                "N&OX": [
-                    165
-                ],
-                "0.10": [
-                    167
-                ],
-                "N": [
-                    168,
-                    253
-                ],
-                "NaOH.Reagent": [
-                    169,
-                    215
-                ],
-                "B,": [
-                    170
-                ],
-                "0.5": [
-                    171
-                ],
-                "CuS04.5Hz0": [
-                    174
-                ],
-                "1": [
-                    176,
-                    193,
-                    200,
-                    252
-                ],
-                "sodium": [
-                    179
-                ],
-                "potassium": [
-                    181
-                ],
-                "tartrabe.Reagent": [
-                    182
-                ],
-                "C,": [
-                    183
-                ],
-                "alkaline": [
-                    184
-                ],
-                "copper": [
-                    185
-                ],
-                "solution.Mix": [
-                    186
-                ],
-                "50": [
-                    187
-                ],
-                "ml.": [
-                    188,
-                    194
-                ],
-                "Reagent": [
-                    190,
-                    196,
-                    209
-                ],
-                "A": [
-                    191
-                ],
-                "B.": [
-                    197
-                ],
-                "Discard": [
-                    198
-                ],
-                "day.Reagent": [
-                    201
-                ],
-                "D,": [
-                    202
-                ],
-                "carbonate-copper": [
-                    203
-                ],
-                "solution,": [
-                    204
-                ],
-                "is": [
-                    205
-                ],
-                "same": [
-                    207
-                ],
-                "C": [
-                    210
-                ],
-                "except": [
-                    211
-                ],
-                "omission": [
-                    213
-                ],
-                "E,": [
-                    216
-                ],
-                "diluted": [
-                    217,
-                    263
-                ],
-                "reagent.Titrate": [
-                    219
-                ],
-                "Folin-Ciocalteu": [
-                    220
-                ],
-                "((II),": [
-                    223
-                ],
-                "Eimer": [
-                    224
-                ],
-                "Amend,": [
-                    226
-                ],
-                "Fisher": [
-                    227
-                ],
-                "Scientific": [
-                    228
-                ],
-                "Company,": [
-                    229
-                ],
-                "New": [
-                    230
-                ],
-                "York)": [
-                    231
-                ],
-                "NaOH": [
-                    233
-                ],
-                "phenolphthalein": [
-                    236
-                ],
-                "end-point.On": [
-                    237
-                ],
-                "basis": [
-                    239
-                ],
-                "titration": [
-                    242
-                ],
-                "dilute": [
-                    243
-                ],
-                "(about": [
-                    247
-                ],
-                "2-fold)": [
-                    248
-                ],
-                "make": [
-                    250
-                ],
-                "acid.Working": [
-                    255
-                ],
-                "standards": [
-                    256
-                ],
-                "may": [
-                    257,
-                    275
-                ],
-                "prepared": [
-                    259
-                ],
-                "from": [
-                    260
-                ],
-                "human": [
-                    261
-                ],
-                "IOO-to": [
-                    264
-                ],
-                "lOOO-fold": [
-                    265
-                ],
-                "(approximately": [
-                    266
-                ],
-                "700": [
-                    267
-                ],
-                "70": [
-                    269
-                ],
-                "ml.).These": [
-                    272
-                ],
-                "turn": [
-                    274
-                ],
-                "checked": [
-                    277
-                ],
-                "against": [
-                    278
-                ],
-                "standard": [
-                    280
-                ],
-                "crystalline": [
-                    283
-                ],
-                "bovine": [
-                    284
-                ],
-                "albumin": [
-                    285
-                ],
-                "(Armour": [
-                    286
-                ]
-            },
-            "cited_by_api_url": "https://api.openalex.org/works?filter=cites:W1775749144",
-            "counts_by_year": [
-                {
-                    "year": 2024,
-                    "cited_by_count": 930
-                },
-                {
-                    "year": 2023,
-                    "cited_by_count": 2779
-                },
-                {
-                    "year": 2022,
-                    "cited_by_count": 3027
-                },
-                {
-                    "year": 2021,
-                    "cited_by_count": 3171
-                },
-                {
-                    "year": 2020,
-                    "cited_by_count": 3251
-                },
-                {
-                    "year": 2019,
-                    "cited_by_count": 3041
-                },
-                {
-                    "year": 2018,
-                    "cited_by_count": 3113
-                },
-                {
-                    "year": 2017,
-                    "cited_by_count": 3082
-                },
-                {
-                    "year": 2016,
-                    "cited_by_count": 3603
-                },
-                {
-                    "year": 2015,
-                    "cited_by_count": 4227
-                },
-                {
-                    "year": 2014,
-                    "cited_by_count": 4690
-                },
-                {
-                    "year": 2013,
-                    "cited_by_count": 4728
-                },
-                {
-                    "year": 2012,
-                    "cited_by_count": 4684
-                }
-            ],
-            "updated_date": "2024-05-14T18:58:37.540846",
-            "created_date": "2016-06-24"
-        },
-        {
-            "id": "https://openalex.org/W2100837269",
-            "doi": "https://doi.org/10.1038/227680a0",
-            "title": "Cleavage of Structural Proteins during the Assembly of the Head of Bacteriophage T4",
-            "display_name": "Cleavage of Structural Proteins during the Assembly of the Head of Bacteriophage T4",
-            "publication_year": 1970,
-            "publication_date": "1970-08-01",
-            "ids": {
-                "openalex": "https://openalex.org/W2100837269",
-                "doi": "https://doi.org/10.1038/227680a0",
-                "mag": "2100837269",
-                "pmid": "https://pubmed.ncbi.nlm.nih.gov/5432063"
-            },
-            "language": "en",
-            "primary_location": {
-                "is_oa": false,
-                "landing_page_url": "https://doi.org/10.1038/227680a0",
-                "pdf_url": null,
-                "source": {
-                    "id": "https://openalex.org/S137773608",
-                    "display_name": "Nature",
-                    "issn_l": "0028-0836",
-                    "issn": [
-                        "0028-0836",
-                        "1476-4687"
-                    ],
-                    "is_oa": false,
-                    "is_in_doaj": false,
-                    "host_organization": "https://openalex.org/P4310319908",
-                    "host_organization_name": "Nature Portfolio",
-                    "host_organization_lineage": [
-                        "https://openalex.org/P4310319908",
-                        "https://openalex.org/P4310319965"
-                    ],
-                    "host_organization_lineage_names": [
-                        "Nature Portfolio",
-                        "Springer Nature"
-                    ],
-                    "type": "journal"
-                },
-                "license": null,
-                "license_id": null,
-                "version": null,
-                "is_accepted": false,
-                "is_published": false
-            },
-            "type": "article",
-            "type_crossref": "journal-article",
-            "indexed_in": [
-                "crossref"
-            ],
-            "open_access": {
-                "is_oa": false,
-                "oa_status": "closed",
-                "oa_url": null,
-                "any_repository_has_fulltext": false
-            },
-            "authorships": [
-                {
-                    "author_position": "first",
-                    "author": {
-                        "id": "https://openalex.org/A5030122660",
-                        "display_name": "Ulrich K. Laemmli",
-                        "orcid": null
-                    },
-                    "institutions": [
-                        {
-                            "id": "https://openalex.org/I170203145",
-                            "display_name": "MRC Laboratory of Molecular Biology",
-                            "ror": "https://ror.org/00tw3jy02",
-                            "country_code": "GB",
-                            "type": "facility",
-                            "lineage": [
-                                "https://openalex.org/I170203145",
-                                "https://openalex.org/I4210087105",
-                                "https://openalex.org/I90344618"
-                            ]
-                        }
-                    ],
-                    "countries": [
-                        "GB"
-                    ],
-                    "is_corresponding": true,
-                    "raw_author_name": "Ulrich K. Laemmli",
-                    "raw_affiliation_strings": [
-                        "MRC Laboratory of Molecular Biology, Hills Road, Cambridge"
-                    ]
-                }
-            ],
-            "countries_distinct_count": 1,
-            "institutions_distinct_count": 1,
-            "corresponding_author_ids": [
-                "https://openalex.org/A5030122660"
-            ],
-            "corresponding_institution_ids": [
-                "https://openalex.org/I170203145"
-            ],
-            "apc_list": {
-                "value": 9750,
-                "currency": "EUR",
-                "value_usd": 11690,
-                "provenance": "doaj"
-            },
-            "apc_paid": {
-                "value": 9750,
-                "currency": "EUR",
-                "value_usd": 11690,
-                "provenance": "doaj"
-            },
-            "has_fulltext": false,
-            "cited_by_count": 234506,
-            "cited_by_percentile_year": {
-                "min": 99,
-                "max": 100
-            },
-            "biblio": {
-                "volume": "227",
-                "issue": "5259",
-                "first_page": "680",
-                "last_page": "685"
-            },
-            "is_retracted": false,
-            "is_paratext": false,
-            "primary_topic": {
-                "id": "https://openalex.org/T11048",
-                "display_name": "Ecology and Evolution of Viruses in Ecosystems",
-                "score": 0.998,
-                "subfield": {
-                    "id": "https://openalex.org/subfields/2303",
-                    "display_name": "Ecology"
-                },
-                "field": {
-                    "id": "https://openalex.org/fields/23",
-                    "display_name": "Environmental Science"
-                },
-                "domain": {
-                    "id": "https://openalex.org/domains/3",
-                    "display_name": "Physical Sciences"
-                }
-            },
-            "topics": [
-                {
-                    "id": "https://openalex.org/T11048",
-                    "display_name": "Ecology and Evolution of Viruses in Ecosystems",
-                    "score": 0.998,
-                    "subfield": {
-                        "id": "https://openalex.org/subfields/2303",
-                        "display_name": "Ecology"
-                    },
-                    "field": {
-                        "id": "https://openalex.org/fields/23",
-                        "display_name": "Environmental Science"
-                    },
-                    "domain": {
-                        "id": "https://openalex.org/domains/3",
-                        "display_name": "Physical Sciences"
-                    }
-                },
-                {
-                    "id": "https://openalex.org/T10015",
-                    "display_name": "RNA Sequencing Data Analysis",
-                    "score": 0.9838,
-                    "subfield": {
-                        "id": "https://openalex.org/subfields/1312",
-                        "display_name": "Molecular Biology"
-                    },
-                    "field": {
-                        "id": "https://openalex.org/fields/13",
-                        "display_name": "Biochemistry, Genetics and Molecular Biology"
-                    },
-                    "domain": {
-                        "id": "https://openalex.org/domains/1",
-                        "display_name": "Life Sciences"
-                    }
-                },
-                {
-                    "id": "https://openalex.org/T10044",
-                    "display_name": "Protein Structure Prediction and Analysis",
-                    "score": 0.9836,
-                    "subfield": {
-                        "id": "https://openalex.org/subfields/1312",
-                        "display_name": "Molecular Biology"
-                    },
-                    "field": {
-                        "id": "https://openalex.org/fields/13",
-                        "display_name": "Biochemistry, Genetics and Molecular Biology"
-                    },
-                    "domain": {
-                        "id": "https://openalex.org/domains/1",
-                        "display_name": "Life Sciences"
-                    }
-                }
-            ],
-            "keywords": [
-                {
-                    "id": "https://openalex.org/keywords/bacteriophage",
-                    "display_name": "Bacteriophage",
-                    "score": 0.499433
-                }
-            ],
-            "concepts": [
-                {
-                    "id": "https://openalex.org/C2776441376",
-                    "wikidata": "https://www.wikidata.org/wiki/Q165028",
-                    "display_name": "Bacteriophage",
-                    "level": 4,
-                    "score": 0.8466327
-                },
-                {
-                    "id": "https://openalex.org/C175156509",
-                    "wikidata": "https://www.wikidata.org/wiki/Q1990218",
-                    "display_name": "Cleavage (geology)",
-                    "level": 3,
-                    "score": 0.73753864
-                },
-                {
-                    "id": "https://openalex.org/C116084860",
-                    "wikidata": "https://www.wikidata.org/wiki/Q48255",
-                    "display_name": "Gel electrophoresis",
-                    "level": 2,
-                    "score": 0.48121265
-                },
-                {
-                    "id": "https://openalex.org/C185592680",
-                    "wikidata": "https://www.wikidata.org/wiki/Q2329",
-                    "display_name": "Chemistry",
-                    "level": 0,
-                    "score": 0.46676797
-                },
-                {
-                    "id": "https://openalex.org/C2780312720",
-                    "wikidata": "https://www.wikidata.org/wiki/Q5689100",
-                    "display_name": "Head (geology)",
-                    "level": 2,
-                    "score": 0.4361011
-                },
-                {
-                    "id": "https://openalex.org/C104317684",
-                    "wikidata": "https://www.wikidata.org/wiki/Q7187",
-                    "display_name": "Gene",
-                    "level": 2,
-                    "score": 0.41767645
-                },
-                {
-                    "id": "https://openalex.org/C86803240",
-                    "wikidata": "https://www.wikidata.org/wiki/Q420",
-                    "display_name": "Biology",
-                    "level": 0,
-                    "score": 0.39367613
-                },
-                {
-                    "id": "https://openalex.org/C55493867",
-                    "wikidata": "https://www.wikidata.org/wiki/Q7094",
-                    "display_name": "Biochemistry",
-                    "level": 1,
-                    "score": 0.3236053
-                },
-                {
-                    "id": "https://openalex.org/C70721500",
-                    "wikidata": "https://www.wikidata.org/wiki/Q177005",
-                    "display_name": "Computational biology",
-                    "level": 1,
-                    "score": 0.32033193
-                },
-                {
-                    "id": "https://openalex.org/C547475151",
-                    "wikidata": "https://www.wikidata.org/wiki/Q25419",
-                    "display_name": "Escherichia coli",
-                    "level": 3,
-                    "score": 0.1328496
-                },
-                {
-                    "id": "https://openalex.org/C151730666",
-                    "wikidata": "https://www.wikidata.org/wiki/Q7205",
-                    "display_name": "Paleontology",
-                    "level": 1,
-                    "score": 0.0
-                },
-                {
-                    "id": "https://openalex.org/C43369102",
-                    "wikidata": "https://www.wikidata.org/wiki/Q2307625",
-                    "display_name": "Fracture (geology)",
-                    "level": 2,
-                    "score": 0.0
-                }
-            ],
-            "mesh": [],
-            "locations_count": 1,
-            "locations": [
                 {
                     "is_oa": false,
-                    "landing_page_url": "https://doi.org/10.1038/227680a0",
+                    "landing_page_url": "https://pubmed.ncbi.nlm.nih.gov/11846609",
                     "pdf_url": null,
                     "source": {
-                        "id": "https://openalex.org/S137773608",
-                        "display_name": "Nature",
-                        "issn_l": "0028-0836",
-                        "issn": [
-                            "0028-0836",
-                            "1476-4687"
-                        ],
+                        "id": "https://openalex.org/S4306525036",
+                        "display_name": "PubMed",
+                        "issn_l": null,
+                        "issn": null,
                         "is_oa": false,
                         "is_in_doaj": false,
-                        "host_organization": "https://openalex.org/P4310319908",
-                        "host_organization_name": "Nature Portfolio",
+                        "host_organization": "https://openalex.org/I1299303238",
+                        "host_organization_name": "National Institutes of Health",
                         "host_organization_lineage": [
-                            "https://openalex.org/P4310319908",
-                            "https://openalex.org/P4310319965"
+                            "https://openalex.org/I1299303238"
                         ],
                         "host_organization_lineage_names": [
-                            "Nature Portfolio",
-                            "Springer Nature"
+                            "National Institutes of Health"
                         ],
-                        "type": "journal"
+                        "type": "repository"
                     },
                     "license": null,
                     "license_id": null,
@@ -1484,99 +1256,371 @@
             "best_oa_location": null,
             "sustainable_development_goals": [],
             "grants": [],
-            "referenced_works_count": 20,
+            "datasets": [],
+            "versions": [],
+            "referenced_works_count": 10,
             "referenced_works": [
-                "https://openalex.org/W1510011675",
-                "https://openalex.org/W1591624429",
-                "https://openalex.org/W1625660792",
-                "https://openalex.org/W1974447189",
-                "https://openalex.org/W1981333007",
-                "https://openalex.org/W1987077239",
-                "https://openalex.org/W1999197280",
-                "https://openalex.org/W2009651234",
-                "https://openalex.org/W2016311541",
-                "https://openalex.org/W2030138849",
-                "https://openalex.org/W2032258362",
-                "https://openalex.org/W2050132031",
-                "https://openalex.org/W2051897666",
-                "https://openalex.org/W2056070745",
-                "https://openalex.org/W2058000726",
-                "https://openalex.org/W2065627978",
-                "https://openalex.org/W2088608143",
-                "https://openalex.org/W2111301002",
-                "https://openalex.org/W2330047747",
-                "https://openalex.org/W2886607623"
+                "https://openalex.org/W1983241347",
+                "https://openalex.org/W2014588425",
+                "https://openalex.org/W2069943574",
+                "https://openalex.org/W2109970232",
+                "https://openalex.org/W2123325948",
+                "https://openalex.org/W2128088040",
+                "https://openalex.org/W2134343377",
+                "https://openalex.org/W2145879504",
+                "https://openalex.org/W2164578725",
+                "https://openalex.org/W4232459722"
             ],
             "related_works": [
-                "https://openalex.org/W3097502728",
-                "https://openalex.org/W4220903595",
-                "https://openalex.org/W1846827988",
-                "https://openalex.org/W2081138942",
-                "https://openalex.org/W2914091207",
-                "https://openalex.org/W2078051322",
-                "https://openalex.org/W1999543360",
-                "https://openalex.org/W2127903644",
-                "https://openalex.org/W4292513206",
-                "https://openalex.org/W2380469046"
+                "https://openalex.org/W4297616317",
+                "https://openalex.org/W4297616267",
+                "https://openalex.org/W4297615481",
+                "https://openalex.org/W4239373651",
+                "https://openalex.org/W4221046490",
+                "https://openalex.org/W3195406774",
+                "https://openalex.org/W3149097030",
+                "https://openalex.org/W3111070561",
+                "https://openalex.org/W2502651140",
+                "https://openalex.org/W2381983889"
             ],
-            "ngrams_url": "https://api.openalex.org/works/W2100837269/ngrams",
-            "abstract_inverted_index": null,
-            "cited_by_api_url": "https://api.openalex.org/works?filter=cites:W2100837269",
+            "ngrams_url": "https://api.openalex.org/works/W2107277218/ngrams",
+            "abstract_inverted_index": {
+                "The": [
+                    0,
+                    61,
+                    81
+                ],
+                "two": [
+                    1,
+                    107
+                ],
+                "most": [
+                    2
+                ],
+                "commonly": [
+                    3
+                ],
+                "used": [
+                    4
+                ],
+                "methods": [
+                    5
+                ],
+                "to": [
+                    6,
+                    33,
+                    51,
+                    68,
+                    87
+                ],
+                "analyze": [
+                    7,
+                    69
+                ],
+                "data": [
+                    8
+                ],
+                "from": [
+                    9,
+                    76
+                ],
+                "real-time,": [
+                    10,
+                    121
+                ],
+                "quantitative": [
+                    11,
+                    78,
+                    122
+                ],
+                "PCR": [
+                    12,
+                    31,
+                    41,
+                    79,
+                    123
+                ],
+                "experiments": [
+                    13
+                ],
+                "are": [
+                    14
+                ],
+                "absolute": [
+                    15
+                ],
+                "quantification": [
+                    16,
+                    21,
+                    38
+                ],
+                "and": [
+                    17,
+                    92,
+                    104
+                ],
+                "relative": [
+                    18,
+                    71
+                ],
+                "quantification.": [
+                    19
+                ],
+                "Absolute": [
+                    20
+                ],
+                "determines": [
+                    22
+                ],
+                "the": [
+                    23,
+                    30,
+                    40,
+                    44,
+                    70,
+                    89,
+                    95,
+                    102,
+                    110,
+                    118
+                ],
+                "input": [
+                    24
+                ],
+                "copy": [
+                    25
+                ],
+                "number,": [
+                    26
+                ],
+                "usually": [
+                    27
+                ],
+                "by": [
+                    28
+                ],
+                "relating": [
+                    29
+                ],
+                "signal": [
+                    32,
+                    42
+                ],
+                "a": [
+                    34,
+                    48,
+                    65
+                ],
+                "standard": [
+                    35
+                ],
+                "curve.": [
+                    36
+                ],
+                "Relative": [
+                    37
+                ],
+                "relates": [
+                    39
+                ],
+                "of": [
+                    43,
+                    53,
+                    83,
+                    94,
+                    106,
+                    109,
+                    120
+                ],
+                "target": [
+                    45
+                ],
+                "transcript": [
+                    46
+                ],
+                "in": [
+                    47,
+                    73,
+                    117
+                ],
+                "treatment": [
+                    49
+                ],
+                "group": [
+                    50
+                ],
+                "that": [
+                    52,
+                    113
+                ],
+                "another": [
+                    54
+                ],
+                "sample": [
+                    55
+                ],
+                "such": [
+                    56
+                ],
+                "as": [
+                    57
+                ],
+                "an": [
+                    58
+                ],
+                "untreated": [
+                    59
+                ],
+                "control.": [
+                    60
+                ],
+                "2\u2212\u0394\u0394CT": [
+                    62,
+                    96,
+                    111
+                ],
+                "method": [
+                    63,
+                    112
+                ],
+                "is": [
+                    64,
+                    86
+                ],
+                "convenient": [
+                    66
+                ],
+                "way": [
+                    67
+                ],
+                "changes": [
+                    72
+                ],
+                "gene": [
+                    74
+                ],
+                "expression": [
+                    75
+                ],
+                "real-time": [
+                    77
+                ],
+                "experiments.": [
+                    80
+                ],
+                "purpose": [
+                    82
+                ],
+                "this": [
+                    84
+                ],
+                "report": [
+                    85
+                ],
+                "present": [
+                    88,
+                    101
+                ],
+                "derivation,": [
+                    90
+                ],
+                "assumptions,": [
+                    91
+                ],
+                "applications": [
+                    93,
+                    105
+                ],
+                "method.": [
+                    97
+                ],
+                "In": [
+                    98
+                ],
+                "addition,": [
+                    99
+                ],
+                "we": [
+                    100
+                ],
+                "derivation": [
+                    103
+                ],
+                "variations": [
+                    108
+                ],
+                "may": [
+                    114
+                ],
+                "be": [
+                    115
+                ],
+                "useful": [
+                    116
+                ],
+                "analysis": [
+                    119
+                ],
+                "data.": [
+                    124
+                ]
+            },
+            "cited_by_api_url": "https://api.openalex.org/works?filter=cites:W2107277218",
             "counts_by_year": [
                 {
                     "year": 2024,
-                    "cited_by_count": 662
+                    "cited_by_count": 4588
                 },
                 {
                     "year": 2023,
-                    "cited_by_count": 1879
+                    "cited_by_count": 13082
                 },
                 {
                     "year": 2022,
-                    "cited_by_count": 2231
+                    "cited_by_count": 14530
                 },
                 {
                     "year": 2021,
-                    "cited_by_count": 2410
+                    "cited_by_count": 13942
                 },
                 {
                     "year": 2020,
-                    "cited_by_count": 2560
+                    "cited_by_count": 13022
                 },
                 {
                     "year": 2019,
-                    "cited_by_count": 2469
+                    "cited_by_count": 12263
                 },
                 {
                     "year": 2018,
-                    "cited_by_count": 2690
+                    "cited_by_count": 11221
                 },
                 {
                     "year": 2017,
-                    "cited_by_count": 2767
+                    "cited_by_count": 9988
                 },
                 {
                     "year": 2016,
-                    "cited_by_count": 3085
+                    "cited_by_count": 8488
                 },
                 {
                     "year": 2015,
-                    "cited_by_count": 3545
+                    "cited_by_count": 7654
                 },
                 {
                     "year": 2014,
-                    "cited_by_count": 3906
+                    "cited_by_count": 6898
                 },
                 {
                     "year": 2013,
-                    "cited_by_count": 4387
+                    "cited_by_count": 6254
                 },
                 {
                     "year": 2012,
-                    "cited_by_count": 4254
+                    "cited_by_count": 5452
                 }
             ],
-            "updated_date": "2024-05-08T22:51:42.412644",
+            "updated_date": "2024-05-15T22:29:26.487685",
             "created_date": "2016-06-24"
         }
     ],

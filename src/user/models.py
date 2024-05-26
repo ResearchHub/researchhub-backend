@@ -1,5 +1,4 @@
 from .related_models.action_model import Action
-from .related_models.author_citation_model import AuthorCitation
 from .related_models.author_model import Author
 from .related_models.follow_model import Follow
 from .related_models.gatekeeper_model import Gatekeeper
@@ -13,7 +12,6 @@ from .related_models.verdict_model import Verdict
 migratables = (
     Action,
     Author,
-    AuthorCitation,
     Follow,
     Major,
     ProfileImageStorage,

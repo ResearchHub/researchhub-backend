@@ -1,5 +1,6 @@
 # flake8: noqa
 from user.views.audit_views import AuditViewSet
+from user.views.author_views import AuthorViewSet
 from user.views.contribution_views import ContributionViewSet
 from user.views.editor_views import *
 from user.views.gatekeeper_view import GatekeeperViewSet

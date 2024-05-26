@@ -1,8 +1,10 @@
 from django.core.management.base import BaseCommand
+from django.utils import timezone
 
 from paper.openalex_util import process_openalex_works
 from paper.related_models.paper_model import Paper
 from topic.models import Topic
+from user.related_models.author_model import Author
 from utils.openalex import OpenAlex
 
 # To pull papers from bioRxiv use source param:
@@ -47,6 +49,18 @@ class Command(BaseCommand):
             help="The paper respository source to pull from",
         )
         parser.add_argument(
+            "--openalex_id",
+            default=None,
+            type=str,
+            help="The OpenAlex ID to pull",
+        )
+        parser.add_argument(
+            "--openalex_author_id",
+            default=None,
+            type=str,
+            help="The OpenAlex Author ID to pull",
+        )
+        parser.add_argument(
             "--mode",
             default="backfill",
             type=str,
@@ -56,6 +70,8 @@ class Command(BaseCommand):
     def handle(self, *args, **kwargs):
         start_id = kwargs["start_id"]
         to_id = kwargs["to_id"]
+        openalex_id = kwargs["openalex_id"]
+        openalex_author_id = kwargs["openalex_author_id"]
         mode = kwargs["mode"]
         source = kwargs["source"]
         batch_size = 100
@@ -90,8 +106,39 @@ class Command(BaseCommand):
 
             cursor = "*"
             page = 1
+            openalex_ids = None
+            openalex_types = [
+                "article",
+                "preprint",
+                "review",
+            ]
+
+            if openalex_id:
+                print("Fetching single work with id: " + openalex_id)
+                work = OA.get_work(
+                    openalex_id=openalex_id,
+                )
+
+                process_openalex_works([work])
+            elif openalex_author_id:
+                print("Fetching full author works for author: " + openalex_author_id)
+
             while cursor:
                 print("Processing page " + str(page))
-                works, cursor = OA.get_works(source_id=source, next_cursor=cursor)
+                works, cursor = OA.get_works(
+                    source_id=source,
+                    types=openalex_types,
+                    next_cursor=cursor,
+                    openalex_ids=openalex_ids,
+                    openalex_author_id=openalex_author_id,
+                )
+
                 process_openalex_works(works)
                 page += 1
+
+            if openalex_author_id:
+                print("Finished fetching all works for author: " + openalex_author_id)
+                full_openalex_id = "https://openalex.org/" + openalex_author_id
+                author = Author.objects.get(openalex_ids__contains=[full_openalex_id])
+                author.last_full_fetch_from_openalex = timezone.now()
+                author.save()

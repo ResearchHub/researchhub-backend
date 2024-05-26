@@ -310,19 +310,50 @@ class OpenAlex:
         cursor = next_cursor if next_cursor != "*" else None
         return topics, cursor
 
+    def get_authors(
+        self,
+        next_cursor="*",
+        batch_size=100,
+        openalex_ids=None,
+    ):
+        # Build the filter
+        oa_filters = []
+
+        if isinstance(openalex_ids, list):
+            oa_filters.append(f"ids.openalex:{'|'.join(openalex_ids)}")
+
+        filters = {
+            "filter": ",".join(oa_filters),
+            "per-page": batch_size,
+            "cursor": next_cursor,
+        }
+
+        response = self._get("authors", filters=filters)
+        authors = response.get("results", [])
+        next_cursor = response.get("meta", {}).get("next_cursor")
+        cursor = next_cursor if next_cursor != "*" else None
+        return authors, cursor
+
+    def get_work(
+        self,
+        openalex_id=None,
+    ):
+        return self._get(f"works/{openalex_id}")
+
     def get_works(
         self,
         since_date=None,
-        type=None,
+        types=None,
         next_cursor="*",
         batch_size=100,
         openalex_ids=None,
         source_id=None,
+        openalex_author_id=None,
     ):
         # Build the filter
         oa_filters = []
-        if type:
-            oa_filters.append(f"type:{type}")
+        if isinstance(types, list):
+            oa_filters.append(f"type:{'|'.join(types)}")
 
         if source_id:
             oa_filters.append(f"primary_location.source.id:{source_id}")
@@ -332,8 +363,11 @@ class OpenAlex:
             formatted_date = since_date.strftime("%Y-%m-%d")
             oa_filters.append(f"from_created_date:{formatted_date}")
 
-        if openalex_ids:
+        if isinstance(openalex_ids, list):
             oa_filters.append(f"ids.openalex:{'|'.join(openalex_ids)}")
+
+        if openalex_author_id:
+            oa_filters.append(f"author.id:{openalex_author_id}")
 
         filters = {
             "filter": ",".join(oa_filters),
