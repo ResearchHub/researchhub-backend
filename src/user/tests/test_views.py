@@ -1,7 +1,12 @@
+import json
+from unittest.mock import patch
+
 from django.test import TestCase
 from rest_framework.test import APITestCase
 
+from paper.openalex_util import process_openalex_works
 from user.tests.helpers import create_random_authenticated_user, create_user
+from utils.openalex import OpenAlex
 from utils.test_helpers import (
     get_authenticated_get_response,
     get_authenticated_patch_response,
@@ -32,6 +37,35 @@ class UserViewsTests(TestCase):
 
         user.refresh_from_db()
         self.assertTrue(user.has_seen_first_coin_modal)
+
+    @patch.object(OpenAlex, "get_authors")
+    def test_author_overview(self, mock_get_authors):
+        print("testing author overview")
+        from paper.models import Paper
+
+        works = None
+        with open("./paper/tests/openalex_works.json", "r") as file:
+            response = json.load(file)
+            works = response.get("results")
+
+        with open("./paper/tests/openalex_authors.json", "r") as file:
+            mock_data = json.load(file)
+            mock_get_authors.return_value = (mock_data["results"], None)
+
+            process_openalex_works(works)
+
+            dois = [work.get("doi") for work in works]
+            dois = [doi.replace("https://doi.org/", "") for doi in dois]
+
+            papers = Paper.objects.filter(doi__in=dois)
+            first_author = papers.first().authors.first()
+
+            url = f"/api/author/{first_author.id}/overview/"
+            response = self.client.get(
+                url,
+            )
+
+            self.assertGreater(response.data["count"], 0)
 
     def get_actions_response(self, user):
         url = f"/api/user/{user.id}/actions/"

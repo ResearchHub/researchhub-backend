@@ -47,7 +47,16 @@ from researchhub.settings import (
 )
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from researchhub_document.serializers import DynamicPostSerializer
+from researchhub_document.serializers.researchhub_unified_document_serializer import (
+    DynamicUnifiedDocumentSerializer,
+)
+from researchhub_document.views.researchhub_unified_document_views import (
+    ResearchhubUnifiedDocumentViewSet,
+)
 from review.models.review_model import Review
 from user.filters import AuthorFilter, UserFilter
 from user.models import Author, Follow, Major, University, User, UserApiToken
@@ -647,6 +656,55 @@ class AuthorViewSet(viewsets.ModelViewSet):
             },
         }
         return context
+
+    @action(
+        detail=True,
+        methods=["get"],
+    )
+    def overview(self, request, pk=None):
+        author = self.get_object()
+
+        # We want to only return a few documents for the overview section
+        NUM_DOCUMENTS_TO_FETCH = 4
+
+        # Fetch the authored papers and order by citations
+        authored_doc_ids = list(
+            author.authored_papers.filter(is_removed=False)
+            .order_by("-citations")
+            .values_list("unified_document_id", flat=True)
+        )[:NUM_DOCUMENTS_TO_FETCH]
+
+        documents = ResearchhubUnifiedDocument.objects.filter(id__in=authored_doc_ids)
+
+        # Maintain the ordering authored papers
+        documents_ordered = sorted(
+            documents, key=lambda x: authored_doc_ids.index(x.id)
+        )
+
+        context = ResearchhubUnifiedDocumentViewSet._get_serializer_context(self)
+        page = self.paginate_queryset(documents_ordered)
+
+        serializer = DynamicUnifiedDocumentSerializer(
+            page,
+            _include_fields=[
+                "id",
+                "created_date",
+                "documents",
+                "document_filter",
+                "document_type",
+                "hot_score",
+                "hubs",
+                "reviews",
+                "score",
+                "fundraise",
+            ],
+            many=True,
+            context=context,
+        )
+
+        serializer_data = serializer.data
+
+        return self.get_paginated_response(serializer_data)
 
     @action(
         detail=True,
