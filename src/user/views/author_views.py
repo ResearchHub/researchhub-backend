@@ -193,6 +193,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 "coauthors",
                 "summary_stats",
                 "activity_by_year",
+                "open_access_pct",
             ),
         )
         return Response(serializer.data, status=200)

@@ -1054,6 +1054,7 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
     works_count = SerializerMethodField()
     citation_count = SerializerMethodField()
     summary_stats = SerializerMethodField()
+    open_access_pct = SerializerMethodField()
 
     class Meta:
         model = Author
@@ -1083,6 +1084,13 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
             **_context_fields,
         )
         return serializer.data
+
+    def get_open_access_pct(self, author):
+        total_paper_count = author.authored_papers.count()
+        return (
+            author.authored_papers.filter(is_open_access=True).count()
+            / total_paper_count
+        )
 
     def get_institutions(self, author):
         context = self.context
