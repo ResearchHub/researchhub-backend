@@ -1055,10 +1055,22 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
     citation_count = SerializerMethodField()
     summary_stats = SerializerMethodField()
     open_access_pct = SerializerMethodField()
+    achievements = SerializerMethodField()
 
     class Meta:
         model = Author
         fields = "__all__"
+
+    def get_achievements(self, author):
+        summary_stats = self.get_summary_stats(author)
+        open_access_pct = self.get_open_access_pct(author)
+        achivements = []
+        if summary_stats["citation_count"] >= 1:
+            achivements.append("CITED_AUTHOR")
+        if open_access_pct >= 0.5:
+            achivements.append("OPEN_ACCESS")
+
+        return achivements
 
     def get_summary_stats(self, author):
         from django.db.models import Sum

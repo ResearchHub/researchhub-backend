@@ -40,7 +40,6 @@ class UserViewsTests(TestCase):
 
     @patch.object(OpenAlex, "get_authors")
     def test_author_overview(self, mock_get_authors):
-        print("testing author overview")
         from paper.models import Paper
 
         works = None

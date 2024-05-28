@@ -194,6 +194,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 "summary_stats",
                 "activity_by_year",
                 "open_access_pct",
+                "achievements",
             ),
         )
         return Response(serializer.data, status=200)
