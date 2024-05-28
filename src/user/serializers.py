@@ -1056,14 +1056,17 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
     summary_stats = SerializerMethodField()
     open_access_pct = SerializerMethodField()
     achievements = SerializerMethodField()
-    description = SerializerMethodField()
+    headline = SerializerMethodField()
 
     class Meta:
         model = Author
         fields = "__all__"
 
-    def get_description(self, author):
+    def get_headline(self, author):
         from collections import Counter
+
+        if author.headline:
+            return author.headline
 
         all_topics = []
         authored_papers = author.authored_papers.all()
