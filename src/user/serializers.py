@@ -1056,10 +1056,31 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
     summary_stats = SerializerMethodField()
     open_access_pct = SerializerMethodField()
     achievements = SerializerMethodField()
+    description = SerializerMethodField()
 
     class Meta:
         model = Author
         fields = "__all__"
+
+    def get_description(self, author):
+        from collections import Counter
+
+        all_topics = []
+        authored_papers = author.authored_papers.all()
+
+        for p in authored_papers:
+            unified_document = p.unified_document
+            all_topics += list(unified_document.topics.all())
+
+        topic_counts = Counter(all_topics)
+
+        # Sort topics by frequency
+        sorted_topics = sorted(topic_counts.items(), key=lambda x: x[1], reverse=True)
+
+        # Extract topics from sorted list
+        sorted_topics = [topic for topic, count in sorted_topics]
+
+        return "Author with expertise in " + sorted_topics[0].display_name
 
     def get_achievements(self, author):
         summary_stats = self.get_summary_stats(author)
