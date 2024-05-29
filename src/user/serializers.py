@@ -1054,10 +1054,47 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
     works_count = SerializerMethodField()
     citation_count = SerializerMethodField()
     summary_stats = SerializerMethodField()
+    open_access_pct = SerializerMethodField()
+    achievements = SerializerMethodField()
+    headline = SerializerMethodField()
 
     class Meta:
         model = Author
         fields = "__all__"
+
+    def get_headline(self, author):
+        from collections import Counter
+
+        if author.headline:
+            return author.headline
+
+        all_topics = []
+        authored_papers = author.authored_papers.all()
+
+        for p in authored_papers:
+            unified_document = p.unified_document
+            all_topics += list(unified_document.topics.all())
+
+        topic_counts = Counter(all_topics)
+
+        # Sort topics by frequency
+        sorted_topics = sorted(topic_counts.items(), key=lambda x: x[1], reverse=True)
+
+        # Extract topics from sorted list
+        sorted_topics = [topic for topic, count in sorted_topics]
+
+        return "Author with expertise in " + sorted_topics[0].display_name
+
+    def get_achievements(self, author):
+        summary_stats = self.get_summary_stats(author)
+        open_access_pct = self.get_open_access_pct(author)
+        achivements = []
+        if summary_stats["citation_count"] >= 1:
+            achivements.append("CITED_AUTHOR")
+        if open_access_pct >= 0.5:
+            achivements.append("OPEN_ACCESS")
+
+        return achivements
 
     def get_summary_stats(self, author):
         from django.db.models import Sum
@@ -1083,6 +1120,13 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
             **_context_fields,
         )
         return serializer.data
+
+    def get_open_access_pct(self, author):
+        total_paper_count = author.authored_papers.count()
+        return (
+            author.authored_papers.filter(is_open_access=True).count()
+            / total_paper_count
+        )
 
     def get_institutions(self, author):
         context = self.context
