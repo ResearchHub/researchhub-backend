@@ -1,10 +1,9 @@
 name: Continuous Integration
 
 on:
-# Deactivate until CI is tested:
-#  push:
-#    branches:
-#      - master
+  push:
+    branches:
+      - master
   workflow_dispatch:
     inputs:
       git_ref:
@@ -65,13 +64,39 @@ jobs:
           aws-region: us-west-2
           output-credentials: true
 
-      - name: Deploy Staging Backend API
+      - name: Deploy Staging Backend - API
         uses: einaregilsson/beanstalk-deploy@v22
         with:
           aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
           aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
           application_name: backend
           environment_name: staging-backend-api
+          version_label: ${{ env.SHORT_GIT_SHA }}
+          use_existing_version_if_available: true
+          region: us-west-2
+          deployment_package: target/deploy.zip
+          wait_for_environment_recovery: 120
+
+      - name: Deploy Staging Backend - Main Worker
+        uses: einaregilsson/beanstalk-deploy@v22
+        with:
+          aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
+          aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
+          application_name: backend
+          environment_name: staging-backend-worker-main
+          version_label: ${{ env.SHORT_GIT_SHA }}
+          use_existing_version_if_available: true
+          region: us-west-2
+          deployment_package: target/deploy.zip
+          wait_for_environment_recovery: 120
+
+      - name: Deploy Staging Backend - Cermine Worker
+        uses: einaregilsson/beanstalk-deploy@v22
+        with:
+          aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
+          aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
+          application_name: backend
+          environment_name: staging-backend-worker-cermine
           version_label: ${{ env.SHORT_GIT_SHA }}
           use_existing_version_if_available: true
           region: us-west-2
