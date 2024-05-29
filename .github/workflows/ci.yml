@@ -1,9 +1,10 @@
 name: Continuous Integration
 
 on:
-  push:
-    branches:
-      - master
+# Deactivate until CI is tested:
+#  push:
+#    branches:
+#      - master
   workflow_dispatch:
     inputs:
       git_ref:
