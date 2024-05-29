@@ -21,6 +21,7 @@ from paper.models import Paper
 from purchase.models import RscExchangeRate
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
+from reputation.utils import deduct_bounty_fees
 from reputation.views.bounty_view import _create_bounty, _create_bounty_checks
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_document.related_models.constants.document_type import (
@@ -492,6 +493,7 @@ def create_automated_bounty(item):
             else:
                 amount, fee_amount, rh_fee, dao_fee, current_bounty_fee = response
 
+            deduct_bounty_fees(user, fee_amount, rh_fee, dao_fee, current_bounty_fee)
             bounty = _create_bounty(
                 user,
                 data,
