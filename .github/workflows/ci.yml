@@ -64,13 +64,13 @@ jobs:
           aws-region: us-west-2
           output-credentials: true
 
-      - name: Deploy to Elastic Beanstalk
+      - name: Deploy Staging Backend API
         uses: einaregilsson/beanstalk-deploy@v22
         with:
           aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
           aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
-          application_name: staging-beanstalk-backend
-          environment_name: staging-beanstalk-backend
+          application_name: backend
+          environment_name: staging-backend-api
           version_label: ${{ env.SHORT_GIT_SHA }}
           use_existing_version_if_available: true
           region: us-west-2
