@@ -1,0 +1,79 @@
+name: Continuous Integration
+
+on:
+# Deactivate until CI is tested:
+#  push:
+#    branches:
+#      - master
+  workflow_dispatch:
+    inputs:
+      git_ref:
+        description: Git hash or branch to deploy
+        required: false
+        default: master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout application repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.git_ref }}
+
+      - name: Checkout deploy repository
+        uses: actions/checkout@v4
+        with:
+          repository: "researchhub/researchhub-internal-utils"
+          ref: main
+          path: researchhub-internal-utils
+          token: ${{ secrets.PAT }}
+
+      - name: Set short Git SHA
+        run: echo "SHORT_GIT_SHA=backend-$(echo $GITHUB_SHA | cut -c1-8)" >> "$GITHUB_ENV"
+
+      - name: Copy Beanstalk configuration files
+        run: |
+          cp -r researchhub-internal-utils/deploy/backend/config/.ebextensions \
+            researchhub-internal-utils/deploy/backend/config/.platform \
+            researchhub-internal-utils/deploy/backend/config/Procfile \
+            src
+
+      - name: Generate Beanstalk deployment package
+        run: |
+          mkdir -p target
+          cd src
+          zip -r ../target/deploy.zip .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: "deploy-${{ env.SHORT_GIT_SHA }}"
+          path: target/deploy.zip
+
+      - name: Configure AWS credentials with assume role
+        id: aws_credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.NEW_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.NEW_AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ vars.STAGING_DEPLOY_ROLE_ARN }}
+          role-session-name: github-actions-beanstalk-session
+          role-duration-seconds: 1200
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          output-credentials: true
+
+      - name: Deploy Staging Backend API
+        uses: einaregilsson/beanstalk-deploy@v22
+        with:
+          aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
+          aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
+          application_name: backend
+          environment_name: staging-backend-api
+          version_label: ${{ env.SHORT_GIT_SHA }}
+          use_existing_version_if_available: true
+          region: us-west-2
+          deployment_package: target/deploy.zip
+          wait_for_environment_recovery: 120
