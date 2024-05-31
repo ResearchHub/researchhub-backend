@@ -44,7 +44,7 @@ jobs:
         run: |
           mkdir -p target
           cd src
-          zip -r ../target/deploy.zip .
+          zip -r ../target/deploy.zip . -x '*.git*'
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
