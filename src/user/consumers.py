@@ -57,6 +57,7 @@ def get_dynamic_paper_serializer(data, **kwargs):
 
 class PaperSubmissionConsumer(AsyncWebsocketConsumer):
     async def connect(self):
+        print("connect...")
         if "user" not in self.scope:
             self.close(code=401)
             raise StopConsumer()
@@ -76,6 +77,7 @@ class PaperSubmissionConsumer(AsyncWebsocketConsumer):
             await self.accept(subprotocol="Token")
 
     async def receive(self, text_data=None, bytes_data=None):
+        print("receive...")
         # TODO: Sanitize data?
         data = json.loads(text_data)
         submission_id = data["paper_submission_id"]
@@ -84,6 +86,7 @@ class PaperSubmissionConsumer(AsyncWebsocketConsumer):
         await self.notify_paper_submission_status({"id": submission_id})
 
     async def disconnect(self, close_code):
+        print("disconnect...")
         if close_code == 401 or not hasattr(self, "room_group_name"):
             return
         else:
@@ -100,6 +103,7 @@ class PaperSubmissionConsumer(AsyncWebsocketConsumer):
         return data
 
     async def notify_paper_submission_status(self, event):
+        print("notify_paper_submission_status...")
         # Send message to webSocket (Frontend)
         extra_metadata = {}
         submission_id = event["id"]
