@@ -30,17 +30,18 @@ routing = {}
 if not CELERY_WORKER:
     routing["http"] = django_asgi_app
 
-if CELERY_WORKER or DEVELOPMENT:
-    routing["websocket"] = AllowedHostsOriginValidator(
-        TokenAuthMiddlewareStack(
-            URLRouter(
-                [
-                    *note.routing.websocket_urlpatterns,
-                    *notification.routing.websocket_urlpatterns,
-                    *user.routing.websocket_urlpatterns,
-                    *citation.routing.websocket_urlpatterns,
-                ]
-            )
+# FIXME: Runs on workers in the old accounts, but on webservers in the new account.
+# Add the condition `not CELERY_WORKER` once migrated into the new account.
+routing["websocket"] = AllowedHostsOriginValidator(
+    TokenAuthMiddlewareStack(
+        URLRouter(
+            [
+                *note.routing.websocket_urlpatterns,
+                *notification.routing.websocket_urlpatterns,
+                *user.routing.websocket_urlpatterns,
+                *citation.routing.websocket_urlpatterns,
+            ]
         )
     )
+)
 application = ProtocolTypeRouter(routing)
