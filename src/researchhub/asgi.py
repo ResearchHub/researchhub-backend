@@ -29,8 +29,6 @@ routing = {}
 
 if not CELERY_WORKER:
     routing["http"] = django_asgi_app
-
-if CELERY_WORKER or DEVELOPMENT:
     routing["websocket"] = AllowedHostsOriginValidator(
         TokenAuthMiddlewareStack(
             URLRouter(
@@ -43,4 +41,5 @@ if CELERY_WORKER or DEVELOPMENT:
             )
         )
     )
+
 application = ProtocolTypeRouter(routing)
