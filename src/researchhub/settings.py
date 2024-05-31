@@ -89,6 +89,7 @@ ALLOWED_HOSTS = [
     "127.0.0.1",  # localhost
     "localhost",
     "researchhub-web-researchhub.vercel.app",
+    "researchhub-web-git-point-to-new-staging-researchhub.vercel.app",
     r"^https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}/",
     r"https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}",
     r"researchhub(-[0-9]?)\.ngrok\.io",
