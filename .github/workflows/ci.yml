@@ -21,6 +21,10 @@ jobs:
         with:
           ref: ${{ github.event.inputs.git_ref }}
 
+      - name: Set short Git SHA
+        run: |        
+          echo "SHORT_GIT_SHA=backend-$(git rev-parse HEAD | cut -c1-8)" >> "$GITHUB_ENV"
+
       - name: Checkout deploy repository
         uses: actions/checkout@v4
         with:
@@ -28,9 +32,6 @@ jobs:
           ref: main
           path: researchhub-internal-utils
           token: ${{ secrets.PAT }}
-
-      - name: Set short Git SHA
-        run: echo "SHORT_GIT_SHA=backend-$(echo $GITHUB_SHA | cut -c1-8)" >> "$GITHUB_ENV"
 
       - name: Copy Beanstalk configuration files
         run: |
@@ -43,7 +44,7 @@ jobs:
         run: |
           mkdir -p target
           cd src
-          zip -r ../target/deploy.zip .
+          zip -r ../target/deploy.zip . -x '*.git*'
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
