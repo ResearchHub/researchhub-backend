@@ -122,6 +122,10 @@ if ELASTIC_BEANSTALK:
     except requests.exceptions.RequestException:
         pass
 
+    DJANGO_ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "")
+    if DJANGO_ALLOWED_HOSTS:
+        ALLOWED_HOSTS += DJANGO_ALLOWED_HOSTS.split(",")
+
 CORS_ALLOW_HEADERS = (
     *default_headers,
     "X-organization-id",
