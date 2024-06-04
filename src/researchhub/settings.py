@@ -228,6 +228,7 @@ INSTALLED_APPS = [
     "peer_review",
     "review",
     "feed",
+    "simple_history",
 ]
 
 SITE_ID = 1
