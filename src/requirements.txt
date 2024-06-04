@@ -764,6 +764,9 @@ django-ses==3.5.2 ; python_version >= "3.8" and python_version < "4.0" \
 django-silk==5.0.2 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:1cd58272a9fb7cb43ebe84084a9a21964c564871719db3d263b9ae021908309c \
     --hash=sha256:2520d583ef475a5d2f70a1cc5b4c911493709d654ab065a69434e3e050a44014
+django-simple-history==3.7.0 ; python_version >= "3.8" and python_version < "4.0" \
+    --hash=sha256:282cb2c4aa63f51547f17da7f2130abaa81ba01694676d19b88d52c94a57a52c \
+    --hash=sha256:ac3b7ca8b0d33f7ea6be8fe7fc98cf43415efa500ff5dfe736fbd1ebc0cf39f9
 django-storages==1.10.1 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:12de8fb2605b9b57bfaf54b075280d7cbb3b3ee1ca4bc9b9add147af87fe3a2c \
     --hash=sha256:652275ab7844538c462b62810276c0244866f345878256a9e0e86f5b1283ae18
