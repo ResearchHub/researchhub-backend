@@ -4,6 +4,8 @@ import logging
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.db.models import Q
+from django.utils.timezone import now
+from simple_history.utils import bulk_update_with_history
 
 import utils.sentry as sentry
 from user.related_models.author_contribution_summary_model import (
@@ -162,7 +164,7 @@ def process_openalex_works(works):
         fields_to_update = [*PAPER_FIELDS_ALLOWED_TO_UPDATE]
         papers_to_update = [paper for paper, _ in update_papers]
         try:
-            Paper.objects.bulk_update(papers_to_update, fields_to_update)
+            bulk_update_with_history(papers_to_update, Paper, fields_to_update)
         except Exception as e:
             sentry.log_error(e, message="Failed to bulk update papers")
 
