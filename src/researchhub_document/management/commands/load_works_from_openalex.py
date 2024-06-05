@@ -120,6 +120,7 @@ class Command(BaseCommand):
                 )
 
                 process_openalex_works([work])
+                return
             elif openalex_author_id:
                 print("Fetching full author works for author: " + openalex_author_id)
 

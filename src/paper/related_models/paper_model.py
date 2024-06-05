@@ -16,6 +16,7 @@ from django.db.models.functions import Cast, Extract
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 from manubot.cite.doi import get_doi_csl_item
 from manubot.cite.unpaywall import Unpaywall
+from simple_history.models import HistoricalRecords
 
 import utils.sentry as sentry
 from discussion.reaction_models import AbstractGenericReactionModel, Vote
@@ -59,6 +60,7 @@ HELP_TEXT_IS_PDF_REMOVED = "Hides the PDF because it infringes Copyright."
 
 
 class Paper(AbstractGenericReactionModel):
+    history = HistoricalRecords()
     FIELDS_TO_EXCLUDE = {"url_svf", "pdf_url_svf", "doi_svf"}
 
     REGULAR = "REGULAR"
