@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       deploy_env:
-        description: 'Select the target environment'
+        description: "Select the target environment"
         required: false
         default: staging
         type: choice
@@ -15,7 +15,7 @@ on:
           - staging
           - prod
       git_ref:
-        description: 'Enter Git hash or branch'
+        description: "Enter Git hash or branch"
         required: false
         default: master
 
@@ -35,7 +35,7 @@ jobs:
           ref: ${{ github.event.inputs.git_ref }}
 
       - name: Set short Git SHA
-        run: |        
+        run: |
           echo "SHORT_GIT_SHA=$(git rev-parse HEAD | cut -c1-8)" >> "$GITHUB_ENV"
 
       - name: Checkout deploy repository
