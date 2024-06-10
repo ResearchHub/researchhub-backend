@@ -85,39 +85,39 @@ jobs:
           aws-region: us-west-2
           output-credentials: true
 
-      - name: Deploy ${DEPLOY_ENV} Backend - API
+      - name: Deploy ${{ env.DEPLOY_ENV }} Backend - API
         uses: einaregilsson/beanstalk-deploy@v22
         with:
           aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
           aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
           application_name: backend
-          environment_name: ${DEPLOY_ENV}-backend-api
+          environment_name: ${{ env.DEPLOY_ENV }}-backend-api
           version_label: ${{ env.SHORT_GIT_SHA }}
           use_existing_version_if_available: true
           region: us-west-2
           deployment_package: target/deploy.zip
           wait_for_environment_recovery: 120
 
-      - name: Deploy ${DEPLOY_ENV} Backend - Main Worker
+      - name: Deploy ${{ env.DEPLOY_ENV }} Backend - Main Worker
         uses: einaregilsson/beanstalk-deploy@v22
         with:
           aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
           aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
           application_name: backend
-          environment_name: ${DEPLOY_ENV}-backend-worker-main
+          environment_name: ${{ env.DEPLOY_ENV }}-backend-worker-main
           version_label: ${{ env.SHORT_GIT_SHA }}
           use_existing_version_if_available: true
           region: us-west-2
           deployment_package: target/deploy.zip
           wait_for_environment_recovery: 120
 
-      - name: Deploy ${DEPLOY_ENV} Backend - Cermine Worker
+      - name: Deploy ${{ env.DEPLOY_ENV }} Backend - Cermine Worker
         uses: einaregilsson/beanstalk-deploy@v22
         with:
           aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
           aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
           application_name: backend
-          environment_name: ${DEPLOY_ENV}-backend-worker-cermine
+          environment_name: ${{ env.DEPLOY_ENV }}-backend-worker-cermine
           version_label: ${{ env.SHORT_GIT_SHA }}
           use_existing_version_if_available: true
           region: us-west-2
