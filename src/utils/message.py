@@ -4,15 +4,20 @@ from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from sentry_sdk import capture_exception
 
-from mailing_list.models import EmailRecipient
-from researchhub.settings import EMAIL_WHITELIST, PRODUCTION, TESTING
+from researchhub.settings import (
+    AWS_ACCOUNT_ID,
+    EMAIL_WHITELIST,
+    PRODUCTION,
+    TESTING,
+)
 
 
 def is_valid_email(email):
     if TESTING:
         return True
 
-    if not PRODUCTION:
+    # Temporarily enforce the email allowlist for all environments in the new accounts:
+    if not PRODUCTION or AWS_ACCOUNT_ID != "794128250202":
         return email in EMAIL_WHITELIST
     else:
         return True
