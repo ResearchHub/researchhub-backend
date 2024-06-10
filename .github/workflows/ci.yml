@@ -1,9 +1,10 @@
 name: Continuous Integration
 
 on:
-  push:
-    branches:
-      - master
+  workflow_run:
+    workflows: ["Automated Tests"]
+    types:
+      - completed
   workflow_dispatch:
     inputs:
       deploy_env:
@@ -20,8 +21,16 @@ on:
         default: master
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
+    if: |
+      ${{ github.event_name == 'workflow_dispatch' || 
+      (
+        github.event_name == 'workflow_run' && 
+        github.event.workflow_run.conclusion == 'success' && 
+        github.event.workflow_run.head_branch == 'master' &&
+        github.event.workflow_run.event == 'push'
+      )}}
 
     env:
       STAGING_DEPLOY_ROLE_ARN: ${{ vars.STAGING_DEPLOY_ROLE_ARN }}
