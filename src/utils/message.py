@@ -22,19 +22,6 @@ def is_valid_email(email):
     else:
         return True
 
-    # # TODO: Add regex validation
-    # try:
-    # recipient, created = EmailRecipient.objects.get_or_create(
-    # email=email
-    # )
-    # except Exception as e:
-    # print(e)
-
-    # return (email in EMAIL_WHITELIST) or (
-    # (not recipient.do_not_email)
-    # and (not recipient.is_opted_out)
-    # )
-
 
 def send_email_message(
     recipients,
