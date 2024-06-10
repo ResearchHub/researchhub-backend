@@ -20,7 +20,7 @@ on:
         default: master
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
 
     env:
