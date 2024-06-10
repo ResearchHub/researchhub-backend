@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       deploy_env:
-        description: 'Select the target environment'
+        description: "Select the target environment"
         required: false
         default: staging
         type: choice
@@ -15,7 +15,7 @@ on:
           - staging
           - prod
       git_ref:
-        description: 'Enter Git hash or branch'
+        description: "Enter Git hash or branch"
         required: false
         default: master
 
@@ -26,6 +26,7 @@ jobs:
     env:
       STAGING_DEPLOY_ROLE_ARN: ${{ vars.STAGING_DEPLOY_ROLE_ARN }}
       PROD_DEPLOY_ROLE_ARN: ${{ vars.PROD_DEPLOY_ROLE_ARN }}
+      DEPLOY_ENV: ${{ github.event.inputs.deploy_env || 'staging' }}
 
     steps:
       - name: Checkout application repository
@@ -34,7 +35,7 @@ jobs:
           ref: ${{ github.event.inputs.git_ref }}
 
       - name: Set short Git SHA
-        run: |        
+        run: |
           echo "SHORT_GIT_SHA=$(git rev-parse HEAD | cut -c1-8)" >> "$GITHUB_ENV"
 
       - name: Checkout deploy repository
@@ -67,8 +68,7 @@ jobs:
       - name: Get deploy role ARN
         id: get-role-arn
         run: |
-          deploy_env="${{ github.event.inputs.deploy_env }}"
-          role_arn_name=${deploy_env^^}_DEPLOY_ROLE_ARN
+          role_arn_name=${DEPLOY_ENV^^}_DEPLOY_ROLE_ARN
           role_arn=$(eval echo \$$role_arn_name)
           echo "::set-output name=role_arn::$role_arn"
 
@@ -85,39 +85,39 @@ jobs:
           aws-region: us-west-2
           output-credentials: true
 
-      - name: Deploy ${{ github.event.inputs.deploy_env }} Backend - API
+      - name: Deploy ${DEPLOY_ENV} Backend - API
         uses: einaregilsson/beanstalk-deploy@v22
         with:
           aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
           aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
           application_name: backend
-          environment_name: ${{ github.event.inputs.deploy_env }}-backend-api
+          environment_name: ${DEPLOY_ENV}-backend-api
           version_label: ${{ env.SHORT_GIT_SHA }}
           use_existing_version_if_available: true
           region: us-west-2
           deployment_package: target/deploy.zip
           wait_for_environment_recovery: 120
 
-      - name: Deploy ${{ github.event.inputs.deploy_env }} Backend - Main Worker
+      - name: Deploy ${DEPLOY_ENV} Backend - Main Worker
         uses: einaregilsson/beanstalk-deploy@v22
         with:
           aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
           aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
           application_name: backend
-          environment_name: ${{ github.event.inputs.deploy_env }}-backend-worker-main
+          environment_name: ${DEPLOY_ENV}-backend-worker-main
           version_label: ${{ env.SHORT_GIT_SHA }}
           use_existing_version_if_available: true
           region: us-west-2
           deployment_package: target/deploy.zip
           wait_for_environment_recovery: 120
 
-      - name: Deploy ${{ github.event.inputs.deploy_env }} Backend - Cermine Worker
+      - name: Deploy ${DEPLOY_ENV} Backend - Cermine Worker
         uses: einaregilsson/beanstalk-deploy@v22
         with:
           aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
           aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
           application_name: backend
-          environment_name: ${{ github.event.inputs.deploy_env }}-backend-worker-cermine
+          environment_name: ${DEPLOY_ENV}-backend-worker-cermine
           version_label: ${{ env.SHORT_GIT_SHA }}
           use_existing_version_if_available: true
           region: us-west-2
