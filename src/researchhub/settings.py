@@ -56,7 +56,7 @@ if DEVELOPMENT or TESTING:
 elif PRODUCTION:
     BASE_FRONTEND_URL = "https://www.researchhub.com"
 elif CLOUD:
-    BASE_FRONTEND_URL = "https://staging-web.researchhub.com"
+    BASE_FRONTEND_URL = "https://researchhub-web-staging.vercel.app"
 
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 
@@ -140,8 +140,7 @@ CORS_ORIGIN_WHITELIST = [
     "https://dev.researchhub.com",
     "https://researchnow.researchhub.com",
     "https://www.researchhub.com",
-    "https://staging-web.researchhub.com",
-    "https://staging-web2.researchhub.com",
+    "https://researchhub-web-staging.vercel.app",
     "https://researchhub.com",
     "http://10.0.2.2:3000",
     "http://127.0.0.1:3000",
