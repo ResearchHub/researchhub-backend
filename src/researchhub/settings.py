@@ -31,6 +31,7 @@ STAGING = "staging" in APP_ENV
 CELERY_WORKER = os.environ.get("CELERY_WORKER", False)
 ELASTIC_APM_OFF = os.environ.get("ELASTIC_APM_OFF", False)
 NO_ELASTIC = os.environ.get("NO_ELASTIC")
+APP_ENV_DOMAIN = "prod.researchhub.com" if PRODUCTION else f"{APP_ENV}.researchhub.com"
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
