@@ -3,6 +3,7 @@ name: Continuous Integration
 on:
   workflow_run:
     workflows: ["Automated Tests"]
+    branches: [master]
     types:
       - completed
   workflow_dispatch:
@@ -24,13 +25,11 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     if: |
-      ${{ github.event_name == 'workflow_dispatch' || 
+      github.event_name == 'workflow_dispatch' || 
       (
         github.event_name == 'workflow_run' && 
-        github.event.workflow_run.conclusion == 'success' && 
-        github.event.workflow_run.head_branch == 'master' &&
-        github.event.workflow_run.event == 'push'
-      )}}
+        github.event.workflow_run.conclusion == 'success'
+      )
 
     env:
       STAGING_DEPLOY_ROLE_ARN: ${{ vars.STAGING_DEPLOY_ROLE_ARN }}
@@ -45,7 +44,9 @@ jobs:
 
       - name: Set short Git SHA
         run: |
-          echo "SHORT_GIT_SHA=$(git rev-parse HEAD | cut -c1-8)" >> "$GITHUB_ENV"
+          SHORT_GIT_SHA=$(git rev-parse HEAD | cut -c1-8)
+          echo "SHORT_GIT_SHA=$SHORT_GIT_SHA" >> "$GITHUB_ENV"
+          echo "Git SHA: ${SHORT_GIT_SHA}"
 
       - name: Checkout deploy repository
         uses: actions/checkout@v4
