@@ -45,7 +45,9 @@ jobs:
 
       - name: Set short Git SHA
         run: |
-          echo "SHORT_GIT_SHA=$(git rev-parse HEAD | cut -c1-8)" >> "$GITHUB_ENV"
+          SHORT_GIT_SHA=$(git rev-parse HEAD | cut -c1-8)
+          echo "SHORT_GIT_SHA=$SHORT_GIT_SHA" >> "$GITHUB_ENV"
+          echo "Git SHA: ${SHORT_GIT_SHA}"
 
       - name: Checkout deploy repository
         uses: actions/checkout@v4
