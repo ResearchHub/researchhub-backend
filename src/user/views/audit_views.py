@@ -16,6 +16,7 @@ from mailing_list.lib import base_email_context
 from notification.models import Notification
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.views.rh_comment_view import censor_comment
+from researchhub.settings import APP_ENV_DOMAIN
 from user.filters import AuditDashboardFilterBackend
 from user.models import Action, User
 from user.permissions import IsModerator, UserIsEditor
@@ -506,5 +507,5 @@ class AuditViewSet(viewsets.GenericViewSet):
             subject,
             email_context,
             "flagged_and_removed_content.html",
-            "ResearchHub Digest <digest@researchhub.com>",
+            f"ResearchHub Digest <digest@{APP_ENV_DOMAIN}>",
         )

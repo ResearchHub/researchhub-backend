@@ -5,6 +5,7 @@ from django.template.loader import render_to_string
 from sentry_sdk import capture_exception
 
 from researchhub.settings import (
+    APP_ENV_DOMAIN,
     AWS_ACCOUNT_ID,
     EMAIL_WHITELIST,
     PRODUCTION,
@@ -29,7 +30,7 @@ def send_email_message(
     subject,
     email_context,
     html_template=None,
-    sender="ResearchHub <noreply@researchhub.com>",
+    sender=f"ResearchHub <noreply@{APP_ENV_DOMAIN}>",
 ):
     """Emails `message` to `recipients` and returns a dict with results in the
     following form:
