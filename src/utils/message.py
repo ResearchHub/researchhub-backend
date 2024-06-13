@@ -6,6 +6,7 @@ from sentry_sdk import capture_exception
 
 from researchhub.settings import (
     AWS_ACCOUNT_ID,
+    DEFAULT_FROM_EMAIL,
     EMAIL_WHITELIST,
     PRODUCTION,
     TESTING,
@@ -29,7 +30,7 @@ def send_email_message(
     subject,
     email_context,
     html_template=None,
-    sender="ResearchHub <noreply@researchhub.com>",
+    sender=f"ResearchHub <{DEFAULT_FROM_EMAIL}>",
 ):
     """Emails `message` to `recipients` and returns a dict with results in the
     following form:

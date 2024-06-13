@@ -71,7 +71,6 @@ def send_validation_email(case):
         "Please Verify Your Paper Claim",
         email_context,
         "author_claim_validation_email.html",
-        "ResearchHub <noreply@researchhub.com>",
     )
 
 
@@ -96,7 +95,6 @@ def send_verification_email(case, context):
         "Your account has been verified",
         email_context,
         "account_verified_email.html",
-        "ResearchHub <noreply@researchhub.com>",
     )
 
 
@@ -135,7 +133,6 @@ def send_approval_email(case, context):
         "Your paper claim request has been approved",
         email_context,
         "author_approval_email.html",
-        "ResearchHub <noreply@researchhub.com>",
     )
 
 
@@ -154,7 +151,6 @@ def send_rejection_email(case):
         "Your paper claim request has been denied",
         email_context,
         "author_rejection_email.html",
-        "ResearchHub <noreply@researchhub.com>",
     )
 
 

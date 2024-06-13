@@ -16,6 +16,7 @@ from mailing_list.lib import base_email_context
 from notification.models import Notification
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.views.rh_comment_view import censor_comment
+from researchhub.settings import EMAIL_DOMAIN
 from user.filters import AuditDashboardFilterBackend
 from user.models import Action, User
 from user.permissions import IsModerator, UserIsEditor
@@ -398,8 +399,7 @@ class AuditViewSet(viewsets.GenericViewSet):
                 {},
                 status=200,
             )
-        
-    
+
     @action(detail=False, methods=["post"])
     def remove_flagged_paper_pdf(self, request):
         flagger = request.user
@@ -412,7 +412,9 @@ class AuditViewSet(viewsets.GenericViewSet):
         with transaction.atomic():
             flags = Flag.objects.filter(id__in=data.get("flag_ids", []))
             for flag in flags.iterator():
-                if flag.content_type != ContentType.objects.get(app_label="paper", model="paper"):
+                if flag.content_type != ContentType.objects.get(
+                    app_label="paper", model="paper"
+                ):
                     continue
 
                 available_reasons = list(map(lambda r: r[0], FLAG_REASON_CHOICES))
@@ -436,7 +438,7 @@ class AuditViewSet(viewsets.GenericViewSet):
                 {},
                 status=200,
             )
-        
+
     def _remove_flagged_paper_pdf(self, flag):
         with transaction.atomic():
             paper = flag.item
@@ -506,5 +508,5 @@ class AuditViewSet(viewsets.GenericViewSet):
             subject,
             email_context,
             "flagged_and_removed_content.html",
-            "ResearchHub Digest <digest@researchhub.com>",
+            f"ResearchHub Digest <digest@{EMAIL_DOMAIN}>",
         )

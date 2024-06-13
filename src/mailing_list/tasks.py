@@ -16,7 +16,7 @@ from mailing_list.lib import base_email_context
 from mailing_list.models import EmailRecipient, EmailTaskLog, NotificationFrequencies
 from paper.models import Paper
 from researchhub.celery import QUEUE_NOTIFICATION, app
-from researchhub.settings import PRODUCTION, STAGING
+from researchhub.settings import EMAIL_DOMAIN, PRODUCTION, STAGING
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.views import ResearchhubUnifiedDocumentViewSet
 from user.models import Action, User
@@ -88,7 +88,7 @@ def send_bounty_digest(frequency):
             subject,
             email_context,
             "bounty_digest.html",
-            "ResearchHub Bounty Digest <digest@researchhub.com>",
+            f"ResearchHub Bounty Digest <digest@{EMAIL_DOMAIN}>",
         )
         emails += recipient
 
@@ -159,7 +159,7 @@ def send_editor_hub_digest(frequency):
                 subject,
                 email_context,
                 "editor_digest.html",
-                "ResearchHub Digest <digest@researchhub.com>",
+                f"ResearchHub Digest <digest@{EMAIL_DOMAIN}>",
             )
             emails += recipient
 
@@ -229,7 +229,7 @@ def send_hub_digest(frequency):
                 "preview_text": documents[0],
             },
             "weekly_digest_email.html",
-            "ResearchHub Digest <digest@researchhub.com>",
+            f"ResearchHub Digest <digest@{EMAIL_DOMAIN}>",
         )
         emails += recipient
     etl.emails = ",".join(emails)
