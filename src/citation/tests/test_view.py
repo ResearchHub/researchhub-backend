@@ -102,7 +102,7 @@ class CitationEntryViewTests(APITestCaseWithOrg):
         self.client.force_authenticate(self.authenticated_user)
 
         response = self.client.get(
-            "/api/citation_entry/url_search/?url=https://staging-backend.researchhub.com/api/paper/1001/",
+            "/api/citation_entry/url_search/?url=https://backend.staging.researchhub.com/api/paper/1001/",
         )
 
         self.assertEqual(response.status_code, 200)
