@@ -119,7 +119,9 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             note = Note.objects.get(id=note_id)
             organization = note.organization
             if not self._check_authors_in_org(authors, organization):
-                return Response("No permission to create note for organization", status=403)
+                return Response(
+                    "No permission to create note for organization", status=403
+                )
 
         try:
             with transaction.atomic():
@@ -213,10 +215,13 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         rh_post = ResearchhubPost.objects.get(id=rh_post_id)
 
         # Check if all given authors are in the same organization
-        note = Note.objects.get(id=rh_post.note_id)
-        organization = note.organization
-        if not self._check_authors_in_org(authors, organization):
-            return Response("No permission to update post for organization", status=403)
+        if rh_post.note_id:
+            note = Note.objects.get(id=rh_post.note_id)
+            organization = note.organization
+            if not self._check_authors_in_org(authors, organization):
+                return Response(
+                    "No permission to update post for organization", status=403
+                )
 
         created_by = request.user
         hubs = data.pop("hubs", None)
@@ -249,7 +254,12 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             unified_doc.hubs.set(hubs)
 
         reset_unified_document_cache(
-            document_type=[ALL.lower(), POSTS.lower(), PREREGISTRATION.lower(), QUESTION.lower()],
+            document_type=[
+                ALL.lower(),
+                POSTS.lower(),
+                PREREGISTRATION.lower(),
+                QUESTION.lower(),
+            ],
             filters=[NEW, DISCUSSED, UPVOTED, HOT],
         )
 
