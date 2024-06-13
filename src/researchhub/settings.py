@@ -82,7 +82,6 @@ if not (PRODUCTION or STAGING):
 
 ALLOWED_HOSTS = [
     ".elasticbeanstalk.com",
-    ".quantfive.org",
     ".researchhub-web-researchhub.vercel.app",
     ".researchhub.com",
     "127.0.0.1",  # localhost
