@@ -56,7 +56,7 @@ if DEVELOPMENT or TESTING:
 elif PRODUCTION:
     BASE_FRONTEND_URL = "https://www.researchhub.com"
 elif CLOUD:
-    BASE_FRONTEND_URL = "https://researchhub-web-staging.vercel.app"
+    BASE_FRONTEND_URL = "https://www.staging.researchhub.com"
 
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 
@@ -82,13 +82,12 @@ if not (PRODUCTION or STAGING):
 
 ALLOWED_HOSTS = [
     ".elasticbeanstalk.com",
-    ".quantfive.org",
     ".researchhub-web-researchhub.vercel.app",
-    ".researchhub-web-staging.vercel.app",
     ".researchhub.com",
     "127.0.0.1",  # localhost
     "localhost",
-    "researchhub-web-researchhub.vercel.app",
+    "staging.researchhub.com",
+    "www.staging.researchhub.com",
     r"^https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}/",
     r"https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}",
     r"researchhub(-[0-9]?)\.ngrok\.io",
@@ -140,8 +139,10 @@ CORS_ORIGIN_WHITELIST = [
     "https://dev.researchhub.com",
     "https://researchnow.researchhub.com",
     "https://www.researchhub.com",
-    "https://researchhub-web-staging.vercel.app",
+    "https://researchhub-web-researchhub.vercel.app",
     "https://researchhub.com",
+    "https://staging.researchhub.com",
+    "https://www.staging.researchhub.com",
     "http://10.0.2.2:3000",
     "http://127.0.0.1:3000",
     "https://word.researchhub.com",
