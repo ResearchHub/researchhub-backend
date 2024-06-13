@@ -219,7 +219,7 @@ def preload_latest_activity(hub_ids, ordering):
     hub_ids_str = hub_ids
     request_path = "/api/user/following_latest_activity/"
     if STAGING:
-        http_host = "staging-backend.researchhub.com"
+        http_host = "backend.staging.researchhub.com"
         protocol = "https"
     elif PRODUCTION:
         http_host = "backend.prod.researchhub.com"
