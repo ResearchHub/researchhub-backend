@@ -183,7 +183,7 @@ def send_hub_digest(frequency):
 
     request_path = "/api/researchhub_unified_document/get_unified_documents/"
     if STAGING:
-        http_host = "staging-backend.researchhub.com"
+        http_host = "backend.staging.researchhub.com"
         protocol = "https"
     elif PRODUCTION:
         http_host = "backend.researchhub.com"
