@@ -23,6 +23,7 @@ from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
 from hypothesis.models import Hypothesis
 from paper.models import Paper
 from paper.utils import get_cache_key
+from researchhub.settings import AWS_REGION_NAME
 from researchhub_document.filters import UnifiedDocumentFilter
 from researchhub_document.models import (
     FeaturedContent,
@@ -51,13 +52,9 @@ from researchhub_document.views.custom.unified_document_pagination import (
     UNIFIED_DOC_PAGE_SIZE,
     UnifiedDocPagination,
 )
-from researchhub.settings import AWS_REGION_NAME
 from user.permissions import IsModerator
 from user.utils import reset_latest_acitvity_cache
-from utils.aws import (
-    get_arn,
-    PERSONALIZE,
-)
+from utils.aws import PERSONALIZE, get_arn
 from utils.permissions import ReadOnly
 
 
@@ -142,7 +139,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             {
                 "name": "highly-cited",
                 "source": "personalize",
-                "campaign_arn": get_arn(PERSONALIZE, "campaign/recommendations3"),
+                "campaign_arn": get_arn(PERSONALIZE, "campaign/recommendations"),
                 "filter_arn": get_arn(PERSONALIZE, "filter/highly-cited"),
                 "num_results": 100,
                 "dist_pct": 0.1,
@@ -150,7 +147,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             {
                 "name": "trending-citations",
                 "source": "personalize",
-                "campaign_arn": get_arn(PERSONALIZE, "campaign/recommendations3"),
+                "campaign_arn": get_arn(PERSONALIZE, "campaign/recommendations"),
                 "filter_arn": get_arn(PERSONALIZE, "filter/trending-citations"),
                 "num_results": 100,
                 "dist_pct": 0.25,
@@ -158,7 +155,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             {
                 "name": "popular-on-social-media",
                 "source": "personalize",
-                "campaign_arn": get_arn(PERSONALIZE, "campaign/recommendations3"),
+                "campaign_arn": get_arn(PERSONALIZE, "campaign/recommendations"),
                 "filter_arn": get_arn(PERSONALIZE, "filter/popular-on-social-media"),
                 "num_results": 100,
                 "dist_pct": 0.1,
@@ -166,7 +163,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             {
                 "name": "only-papers",
                 "source": "personalize",
-                "campaign_arn": get_arn(PERSONALIZE, "campaign/recommendations3"),
+                "campaign_arn": get_arn(PERSONALIZE, "campaign/recommendations"),
                 "filter_arn": get_arn(PERSONALIZE, "filter/only-papers"),
                 "num_results": 100,
                 "dist_pct": 0.1,
@@ -174,7 +171,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             {
                 "name": "trending-on-rh",
                 "source": "personalize",
-                "campaign_arn": get_arn(PERSONALIZE, "campaign/trending-on-rh"),
+                "campaign_arn": get_arn(PERSONALIZE, "campaign/trending"),
                 "filter_arn": None,
                 "num_results": 100,
                 "dist_pct": 0.15,
