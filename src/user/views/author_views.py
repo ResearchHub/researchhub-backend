@@ -153,6 +153,15 @@ class AuthorViewSet(viewsets.ModelViewSet):
                         "institution",
                     ]
                 },
+                "author_profile::get_reputations": {
+                    "_include_fields": [
+                        "hub_id",
+                        "hub_name",
+                        "hub_slug",
+                        "score",
+                        "bins",
+                    ]
+                },
                 "author_profile::activity_by_year": {
                     "_include_fields": [
                         "year",

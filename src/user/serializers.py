@@ -1128,6 +1128,38 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
             / total_paper_count
         )
 
+    def get_reputations(self, author):
+        return [
+            {
+                "hub_id": 1,
+                "hub_name": "ResearchHub",
+                "hub_slug": "slug-1",
+                "score": 1982000,
+                "bins": [1000, 10000, 100000, 1000000],
+            },
+            {
+                "hub_id": 2,
+                "hub_name": "ResearchHub",
+                "hub_slug": "slug-2",
+                "score": 120000,
+                "bins": [1000, 10000, 100000, 1000000],
+            },
+            {
+                "hub_id": 3,
+                "hub_name": "ResearchHub",
+                "hub_slug": "slug-2",
+                "score": 100,
+                "bins": [1000, 10000, 100000, 1000000],
+            },
+            {
+                "hub_id": 4,
+                "hub_name": "ResearchHub",
+                "hub_slug": "slug-2",
+                "score": 12200,
+                "bins": [1000, 10000, 100000, 1000000],
+            },
+        ]
+
     def get_institutions(self, author):
         context = self.context
         _context_fields = context.get("author_profile::get_institutions", {})
