@@ -222,7 +222,7 @@ def preload_latest_activity(hub_ids, ordering):
         http_host = "backend.staging.researchhub.com"
         protocol = "https"
     elif PRODUCTION:
-        http_host = "backend.researchhub.com"
+        http_host = "backend.prod.researchhub.com"
         protocol = "https"
     else:
         http_host = "localhost:8000"
