@@ -200,6 +200,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 "created_date",
                 "country_code",
                 "coauthors",
+                "reputations",
                 "summary_stats",
                 "activity_by_year",
                 "open_access_pct",

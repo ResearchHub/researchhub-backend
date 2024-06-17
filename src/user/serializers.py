@@ -1050,6 +1050,7 @@ class DynamicCoAuthorSerializer(DynamicModelFieldSerializer):
 class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
     institutions = SerializerMethodField()
     coauthors = SerializerMethodField()
+    reputations = SerializerMethodField()
     activity_by_year = SerializerMethodField()
     works_count = SerializerMethodField()
     citation_count = SerializerMethodField()
@@ -1132,29 +1133,29 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
         return [
             {
                 "hub_id": 1,
-                "hub_name": "ResearchHub",
+                "hub_name": "Cell Biology",
                 "hub_slug": "slug-1",
                 "score": 1982000,
                 "bins": [1000, 10000, 100000, 1000000],
             },
             {
                 "hub_id": 2,
-                "hub_name": "ResearchHub",
+                "hub_name": "Biochemistry",
                 "hub_slug": "slug-2",
                 "score": 120000,
                 "bins": [1000, 10000, 100000, 1000000],
             },
             {
                 "hub_id": 3,
-                "hub_name": "ResearchHub",
-                "hub_slug": "slug-2",
+                "hub_name": "Bioinformatics",
+                "hub_slug": "slug-3",
                 "score": 100,
                 "bins": [1000, 10000, 100000, 1000000],
             },
             {
                 "hub_id": 4,
-                "hub_name": "ResearchHub",
-                "hub_slug": "slug-2",
+                "hub_name": "Bioengineering",
+                "hub_slug": "slug-4",
                 "score": 12200,
                 "bins": [1000, 10000, 100000, 1000000],
             },
