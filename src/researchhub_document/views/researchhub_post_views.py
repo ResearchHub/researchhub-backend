@@ -17,9 +17,7 @@ from analytics.amplitude import track_event
 from analytics.tasks import track_revenue_event
 from discussion.reaction_views import ReactionViewActionMixin
 from hub.models import Hub
-from note.models import NoteContent
 from note.related_models.note_model import Note
-from peer_review.serializers import PeerReviewRequestSerializer
 from purchase.models import Balance, Purchase
 from researchhub.settings import (
     BASE_FRONTEND_URL,
@@ -286,21 +284,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             return uni_doc
         except (KeyError, TypeError) as exception:
             print("create_unified_doc: ", exception)
-
-
-def request_peer_review(request, requested_by, post):
-    doc_version = NoteContent.objects.filter(note_id=post.note_id).latest("id")
-    serializer = PeerReviewRequestSerializer(
-        data={
-            "requested_by_user": requested_by.id,
-            "unified_document": post.unified_document_id,
-            "doc_version": doc_version.id,
-        },
-        context={"request": request},
-    )
-    serializer.is_valid(raise_exception=True)
-    serializer.save()
-    return serializer.data
 
 
 def generate_doi():
