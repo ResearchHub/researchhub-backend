@@ -75,6 +75,16 @@ class Hub(models.Model):
         blank=True,
     )
 
+    subfield = models.OneToOneField(
+        "topic.subfield",
+        related_name="hub",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+
+    is_used_for_rep = models.BooleanField(default=False)
+
     def __str__(self):
         return "{}, locked: {}".format(self.name, self.is_locked)
 
