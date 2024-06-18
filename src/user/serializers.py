@@ -1050,6 +1050,8 @@ class DynamicCoAuthorSerializer(DynamicModelFieldSerializer):
 class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
     institutions = SerializerMethodField()
     coauthors = SerializerMethodField()
+    reputation = SerializerMethodField()
+    reputation_list = SerializerMethodField()
     activity_by_year = SerializerMethodField()
     works_count = SerializerMethodField()
     citation_count = SerializerMethodField()
@@ -1127,6 +1129,68 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
             author.authored_papers.filter(is_open_access=True).count()
             / total_paper_count
         )
+
+    def get_reputation(self, author):
+        return {
+            "hub_id": 1,
+            "hub_name": "Cellular and Molecular Neuroscience",
+            "hub_slug": "slug-1",
+            "score": 198200,
+            "bins": [[0, 1000], [1000, 10000], [10000, 100000], [100000, 1000000]],
+        }
+
+    def get_reputation_list(self, author):
+        return [
+            {
+                "hub_id": 1,
+                "hub_name": "Cellular and Molecular Neuroscience",
+                "hub_slug": "slug-1",
+                "score": 198200,
+                "bins": [[0, 1000], [1000, 10000], [10000, 100000], [100000, 1000000]],
+            },
+            {
+                "hub_id": 2,
+                "hub_name": "Molecular Biology",
+                "hub_slug": "slug-2",
+                "score": 175000,
+                "bins": [[0, 1000], [1000, 10000], [10000, 100000], [100000, 1000000]],
+            },
+            {
+                "hub_id": 3,
+                "hub_name": "Cognitive Neuroscience",
+                "hub_slug": "slug-3",
+                "score": 65000,
+                "bins": [[0, 1000], [1000, 10000], [10000, 100000], [100000, 1000000]],
+            },
+            {
+                "hub_id": 4,
+                "hub_name": "Ophthalmology",
+                "hub_slug": "slug-4",
+                "score": 12200,
+                "bins": [[0, 1000], [1000, 10000], [10000, 100000], [100000, 1000000]],
+            },
+            {
+                "hub_id": 5,
+                "hub_name": "Endocrine and Autonomic Systems",
+                "hub_slug": "slug-5",
+                "score": 10000,
+                "bins": [[0, 1000], [1000, 10000], [10000, 100000], [100000, 1000000]],
+            },
+            {
+                "hub_id": 6,
+                "hub_name": "Artificial Intelligence",
+                "hub_slug": "slug-6",
+                "score": 1050,
+                "bins": [[0, 1000], [1000, 10000], [10000, 100000], [100000, 1000000]],
+            },
+            {
+                "hub_id": 7,
+                "hub_name": "Biomedical Engineering",
+                "hub_slug": "slug-7",
+                "score": 330,
+                "bins": [[0, 1000], [1000, 10000], [10000, 100000], [100000, 1000000]],
+            },
+        ]
 
     def get_institutions(self, author):
         context = self.context
