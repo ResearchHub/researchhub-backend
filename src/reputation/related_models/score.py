@@ -1,12 +1,12 @@
 from django.contrib.contenttypes.models import ContentType
-from django.contrib.postgres.fields import JSONField
 from django.db import models
+from django.db.models import JSONField
 
 from utils.models import DefaultModel
 
 
 class Score(DefaultModel):
-    author = models.ForeignKey("author.Author", on_delete=models.CASCADE, db_index=True)
+    author = models.ForeignKey("user.Author", on_delete=models.CASCADE, db_index=True)
     hub = models.ForeignKey("hub.Hub", on_delete=models.CASCADE, db_index=True)
     score = models.IntegerField(default=0)
 
