@@ -153,7 +153,16 @@ class AuthorViewSet(viewsets.ModelViewSet):
                         "institution",
                     ]
                 },
-                "author_profile::get_reputations": {
+                "author_profile::get_reputation": {
+                    "_include_fields": [
+                        "hub_id",
+                        "hub_name",
+                        "hub_slug",
+                        "score",
+                        "bins",
+                    ]
+                },
+                "author_profile::get_reputation_list": {
                     "_include_fields": [
                         "hub_id",
                         "hub_name",
@@ -200,7 +209,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 "created_date",
                 "country_code",
                 "coauthors",
-                "reputations",
+                "reputation",
+                "reputation_list",
                 "summary_stats",
                 "activity_by_year",
                 "open_access_pct",

@@ -1050,7 +1050,8 @@ class DynamicCoAuthorSerializer(DynamicModelFieldSerializer):
 class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
     institutions = SerializerMethodField()
     coauthors = SerializerMethodField()
-    reputations = SerializerMethodField()
+    reputation = SerializerMethodField()
+    reputation_list = SerializerMethodField()
     activity_by_year = SerializerMethodField()
     works_count = SerializerMethodField()
     citation_count = SerializerMethodField()
@@ -1129,7 +1130,16 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
             / total_paper_count
         )
 
-    def get_reputations(self, author):
+    def get_reputation(self, author):
+        return {
+            "hub_id": 1,
+            "hub_name": "Cell Biology",
+            "hub_slug": "slug-1",
+            "score": 1982000,
+            "bins": [1000, 10000, 100000, 1000000],
+        }
+
+    def get_reputation_list(self, author):
         return [
             {
                 "hub_id": 1,

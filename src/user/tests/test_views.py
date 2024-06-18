@@ -64,7 +64,8 @@ class UserViewsTests(TestCase):
                 url,
             )
 
-            self.assertGreater(len(response.data["reputations"]), 0)
+            self.assertGreater(response.data["reputation"]["score"], 0)
+            self.assertGreater(len(response.data["reputation_list"]), 0)
 
     @patch.object(OpenAlex, "get_authors")
     def test_author_overview(self, mock_get_authors):
