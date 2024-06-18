@@ -35,7 +35,7 @@ class ViewTests(APITestCase):
             object_id=self.organization.id,
             user=self.member_user,
         )
-        
+
         self.hub = create_hub("hub")
 
     def test_author_can_delete_doc(self):
@@ -51,8 +51,8 @@ class ViewTests(APITestCase):
                 "created_by": author.id,
                 "full_src": "body",
                 "is_public": True,
-                "renderable_text": "body",
-                "title": "title",
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
                 "hubs": [hub.id],
             },
         )
@@ -80,8 +80,8 @@ class ViewTests(APITestCase):
                 "created_by": author.id,
                 "full_src": "body",
                 "is_public": True,
-                "renderable_text": "body",
-                "title": "title",
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
                 "hubs": [hub.id],
             },
         )
@@ -110,8 +110,8 @@ class ViewTests(APITestCase):
                 "created_by": author.id,
                 "full_src": "body",
                 "is_public": True,
-                "renderable_text": "body",
-                "title": "title",
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
                 "hubs": [hub.id],
             },
         )
@@ -141,8 +141,8 @@ class ViewTests(APITestCase):
                 "created_by": author.id,
                 "full_src": "body",
                 "is_public": True,
-                "renderable_text": "body",
-                "title": "title",
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
                 "hubs": [hub.id],
             },
         )
@@ -173,8 +173,8 @@ class ViewTests(APITestCase):
                 "created_by": author.id,
                 "full_src": "body",
                 "is_public": True,
-                "renderable_text": "body",
-                "title": "title",
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
                 "hubs": [hub.id],
             },
         )
@@ -204,13 +204,55 @@ class ViewTests(APITestCase):
                 "created_by": author.id,
                 "full_src": "body",
                 "is_public": True,
-                "renderable_text": "body",
-                "title": "title",
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
                 "hubs": [hub.id],
             },
         )
 
         self.assertEqual(doc_response.status_code, 200)
+
+    def test_min_post_title_length(self):
+        author = create_random_default_user("author")
+        hub = create_hub()
+
+        self.client.force_authenticate(author)
+
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "DISCUSSION",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": "body",
+                "title": "short title",
+                "hubs": [hub.id],
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 400)
+
+    def test_min_post_body_length(self):
+        author = create_random_default_user("author")
+        hub = create_hub()
+
+        self.client.force_authenticate(author)
+
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "DISCUSSION",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": "short body",
+                "title": "long title long title long title",
+                "hubs": [hub.id],
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 400)
 
     def test_user_can_create_post_with_multiple_authors(self):
         note = create_note(self.admin_user, self.organization)
@@ -227,8 +269,8 @@ class ViewTests(APITestCase):
                 "hubs": [self.hub.id],
                 "is_public": True,
                 "note_id": note[0].id,
-                "renderable_text": "body",
-                "title": "title",
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
             },
         )
 
@@ -249,8 +291,8 @@ class ViewTests(APITestCase):
                 "hubs": [self.hub.id],
                 "is_public": True,
                 "note_id": note[0].id,
-                "renderable_text": "body",
-                "title": "title",
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
             },
         )
 
@@ -269,8 +311,8 @@ class ViewTests(APITestCase):
                 "full_src": "body",
                 "is_public": True,
                 "note_id": note[0].id,
-                "renderable_text": "body",
-                "title": "title",
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
                 "hubs": [self.hub.id],
             },
         )
@@ -281,17 +323,20 @@ class ViewTests(APITestCase):
             "/api/researchhubpost/",
             {
                 "post_id": doc_response.data["id"],
-                "title": "updated title",
                 "document_type": "DISCUSSION",
                 "created_by": self.admin_user.id,
                 "full_src": "body",
                 "is_public": True,
-                "renderable_text": "body",
+                "title": "updated title. updated title. updated title.",
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
                 "hubs": [self.hub.id],
             },
         )
 
-        self.assertEqual(updated_response.data["title"], "updated title")
+        self.assertEqual(
+            updated_response.data["title"],
+            "updated title. updated title. updated title.",
+        )
 
     def test_author_cannot_update_post_with_non_members(self):
         note = create_note(self.admin_user, self.organization)
@@ -306,8 +351,8 @@ class ViewTests(APITestCase):
                 "full_src": "body",
                 "is_public": True,
                 "note_id": note[0].id,
-                "renderable_text": "body",
-                "title": "title",
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
                 "hubs": [self.hub.id],
             },
         )
@@ -319,12 +364,12 @@ class ViewTests(APITestCase):
             {
                 "authors": [self.admin_author.id, self.non_member_author.id],
                 "post_id": doc_response.data["id"],
-                "title": "updated title",
                 "document_type": "DISCUSSION",
                 "created_by": self.admin_user.id,
                 "full_src": "body",
                 "is_public": True,
-                "renderable_text": "body",
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
                 "hubs": [self.hub.id],
             },
         )
@@ -347,8 +392,8 @@ class ViewTests(APITestCase):
                 "created_by": author.id,
                 "full_src": "body",
                 "is_public": True,
-                "renderable_text": "body",
-                "title": "title",
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
                 "hubs": [hub.id],
                 "note_id": note[0].id,
             },
@@ -361,106 +406,16 @@ class ViewTests(APITestCase):
             "/api/researchhubpost/",
             {
                 "post_id": doc_response.data["id"],
-                "title": "updated title",
                 "document_type": "DISCUSSION",
                 "created_by": author.id,
                 "full_src": "body",
                 "is_public": True,
-                "renderable_text": "body",
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
                 "hubs": [hub.id],
             },
         )
 
-        self.assertEqual(updated_response.status_code, 403)
-
-    def test_author_can_create_hypothesis(self):
-        author = create_random_default_user("author")
-        hub = create_hub()
-
-        self.client.force_authenticate(author)
-
-        doc_response = self.client.post(
-            "/api/hypothesis/",
-            {
-                "document_type": "HYPOTHESIS",
-                "created_by": author.id,
-                "full_src": "body",
-                "is_public": True,
-                "renderable_text": "body",
-                "title": "hypothesis",
-                "hubs": [hub.id],
-            },
-        )
-
-        self.assertEqual(doc_response.status_code, 200)
-
-    def test_author_can_update_hypothesis(self):
-        author = create_random_default_user("author")
-        hub = create_hub()
-
-        self.client.force_authenticate(author)
-
-        doc_response = self.client.post(
-            "/api/hypothesis/",
-            {
-                "document_type": "HYPOTHESIS",
-                "created_by": author.id,
-                "full_src": "body",
-                "is_public": True,
-                "renderable_text": "body",
-                "title": "title",
-                "hubs": [hub.id],
-            },
-        )
-        self.assertEqual(doc_response.status_code, 200)
-
-        updated_response = self.client.post(
-            f"/api/hypothesis/{doc_response.data['id']}/upsert/",
-            {
-                "hypothesis_id": doc_response.data["id"],
-                "title": "updated title",
-                "document_type": "HYPOTHESIS",
-                "full_src": "updated body",
-                "renderable_text": "body",
-            },
-        )
-        self.assertEqual(updated_response.status_code, 200)
-        self.assertEqual(updated_response.data["full_markdown"], "updated body")
-
-    def test_non_author_cannot_edit_hypothesis(self):
-        author = create_random_default_user("author")
-        non_author = create_random_default_user("non_author")
-        hub = create_hub()
-
-        self.client.force_authenticate(author)
-
-        doc_response = self.client.post(
-            "/api/hypothesis/",
-            {
-                "document_type": "HYPOTHESIS",
-                "created_by": author.id,
-                "full_src": "body",
-                "is_public": True,
-                "renderable_text": "body",
-                "title": "title",
-                "hubs": [hub.id],
-            },
-        )
-        self.assertEqual(doc_response.status_code, 200)
-
-        self.client.force_authenticate(non_author)
-
-        updated_response = self.client.post(
-            f"/api/hypothesis/{doc_response.data['id']}/upsert/",
-            {
-                "hypothesis_id": doc_response.data["id"],
-                "title": "updated title",
-                "document_type": "HYPOTHESIS",
-                "full_src": "updated body",
-                "renderable_text": "body",
-            },
-        )
-        self.assertEqual(updated_response.status_code, 403)
         self.assertEqual(updated_response.status_code, 403)
 
     def test_hub_editors_can_censor_papers(self):
@@ -529,8 +484,8 @@ class ViewTests(APITestCase):
                 "created_by": author.id,
                 "full_src": "body",
                 "is_public": True,
-                "renderable_text": "body",
-                "title": "title",
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
                 "hubs": [hub.id],
             },
         )
@@ -557,8 +512,8 @@ class ViewTests(APITestCase):
                 "created_by": author.id,
                 "full_src": "body",
                 "is_public": True,
-                "renderable_text": "body",
-                "title": "title",
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
                 "hubs": [hub.id],
             },
         )
@@ -585,8 +540,8 @@ class ViewTests(APITestCase):
                 "created_by": author.id,
                 "full_src": "body",
                 "is_public": True,
-                "renderable_text": "body",
-                "title": "title",
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
                 "hubs": [hub.id],
             },
         )

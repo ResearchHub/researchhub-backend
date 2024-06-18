@@ -62,6 +62,9 @@ from utils.sentry import log_error
 from utils.siftscience import SIFT_POST, sift_track
 from utils.throttles import THROTTLE_CLASSES
 
+MIN_POST_TITLE_LENGTH = 20
+MIN_POST_BODY_LENGTH = 50
+
 
 class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
     ordering = "-created_date"
@@ -113,6 +116,12 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         data = request.data
         authors = data.get("authors", [])
         note_id = data.get("note_id", None)
+        document_type = data.get("document_type")
+        editor_type = data.get("editor_type")
+        title = data.get("title", "")
+        assign_doi = data.get("assign_doi", False)
+        peer_review_is_requested = data.get("request_peer_review", False)
+        renderable_text = data.get("renderable_text", "")
 
         # If a note is provided, check if all given authors are in the same organization
         if note_id is not None:
@@ -123,14 +132,27 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     "No permission to create note for organization", status=403
                 )
 
+        if type(title) is not str or len(title) < MIN_POST_TITLE_LENGTH:
+            return Response(
+                {
+                    "msg": f"Title cannot be less than {MIN_POST_TITLE_LENGTH} characters"
+                },
+                400,
+            )
+        elif (
+            type(renderable_text) is not str
+            or len(renderable_text) < MIN_POST_BODY_LENGTH
+        ):
+            return Response(
+                {
+                    "msg": f"Post body cannot be less than {MIN_POST_BODY_LENGTH} characters"
+                },
+                400,
+            )
+
         try:
             with transaction.atomic():
                 created_by = request.user
-                document_type = data.get("document_type")
-                editor_type = data.get("editor_type")
-                title = data.get("title", "")
-                assign_doi = data.get("assign_doi", False)
-                peer_review_is_requested = data.get("request_peer_review", False)
                 doi = generate_doi() if assign_doi else None
 
                 if assign_doi and created_by.get_balance() - CROSSREF_DOI_RSC_FEE < 0:
@@ -225,9 +247,28 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
 
         created_by = request.user
         hubs = data.pop("hubs", None)
+        renderable_text = data.pop("renderable_text", "")
         title = data.get("title", "")
         assign_doi = data.get("assign_doi", False)
         doi = generate_doi() if assign_doi else None
+
+        if type(title) is not str or len(title) < MIN_POST_TITLE_LENGTH:
+            return Response(
+                {
+                    "msg": f"Title cannot be less than {MIN_POST_TITLE_LENGTH} characters"
+                },
+                400,
+            )
+        elif (
+            type(renderable_text) is not str
+            or len(renderable_text) < MIN_POST_BODY_LENGTH
+        ):
+            return Response(
+                {
+                    "msg": f"Post body cannot be less than {MIN_POST_BODY_LENGTH} characters"
+                },
+                400,
+            )
 
         if assign_doi and created_by.get_balance() - CROSSREF_DOI_RSC_FEE < 0:
             return Response("Insufficient Funds", status=402)
