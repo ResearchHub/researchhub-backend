@@ -6,7 +6,6 @@ The `urlpatterns` list routes URLs to views. For more information please see:
 
 import debug_toolbar
 from dj_rest_auth.views import (
-    LoginView,
     LogoutView,
     PasswordChangeView,
     PasswordResetConfirmView,
