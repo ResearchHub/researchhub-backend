@@ -296,6 +296,7 @@ urlpatterns = [
     path("email_notifications/", mailing_list.views.email_notifications),
     path("health/", researchhub.views.healthcheck),
     path("", researchhub.views.index, name="index"),
+    path("robots.txt", researchhub.views.robots_txt, name="robots_txt"),
 ]
 
 if "silk" in INSTALLED_APPS:

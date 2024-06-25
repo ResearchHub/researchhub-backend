@@ -38,3 +38,7 @@ def healthcheck(request):
 
     return Response({'PONG'})
 
+
+def robots_txt(request):
+    content = render_to_string("robots.txt")
+    return HttpResponse(content, content_type="text/plain")
