@@ -37,6 +37,12 @@ jobs:
       DEPLOY_ENV: ${{ github.event.inputs.deploy_env || 'staging' }}
 
     steps:
+      - name: Workflow details
+        run: |
+          echo "Event: ${{ github.event_name }}"
+          echo "Git reference: ${{ github.event.inputs.git_ref || github.ref }}"
+          echo "Environment: ${{ env.DEPLOY_ENV }}"
+
       - name: Checkout application repository
         uses: actions/checkout@v4
         with:
