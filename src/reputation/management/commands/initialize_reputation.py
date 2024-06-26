@@ -20,9 +20,15 @@ class Command(BaseCommand):
             type=int,
             help="ID of the user for whom to calculate reputation",
         )
+        parser.add_argument(
+            "version",
+            type=int,
+            help="Version of the algorithm to use",
+        )
 
     def handle(self, *args, **options):
         user_id = options["user_id"]
+        algorithm_version = options["version"]
         user = User.objects.get(id=user_id)
         author = user.author_profile
         authored_papers = author.authored_papers.all()
@@ -96,7 +102,7 @@ class Command(BaseCommand):
                     current_variable_counts["citations"] = total_citation_count
 
                     score_change = ScoreChange(
-                        algorithm_version=1,
+                        algorithm_version=algorithm_version,
                         algorithm_variables=algorithm_variables,
                         score_after_change=current_rep,
                         score_change=rep_change,

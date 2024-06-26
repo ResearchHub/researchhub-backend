@@ -23,6 +23,8 @@ class InitializeReputationCommandTestCase(TestCase):
         paper2 = create_paper(title="Paper 2")
         paper2.citations = 32
         paper2.save()
+        paper2.citations = 64
+        paper2.save()
 
         # Create test data for hubs table
         self.hub1 = Hub.objects.create(name="Hub 1", is_used_for_rep=True)
@@ -41,7 +43,6 @@ class InitializeReputationCommandTestCase(TestCase):
         self.attribute_paper_to_author(self.user, paper1)
         self.attribute_paper_to_author(self.user, paper2)
 
-        self.citation_count = 10  # TODO remove?
         self.bins = (
             [
                 [0, 1000],
@@ -59,7 +60,7 @@ class InitializeReputationCommandTestCase(TestCase):
         }
 
         # Create test data for algorithm_variables table
-        algorithm_variables1 = AlgorithmVariables.objects.create(
+        AlgorithmVariables.objects.create(
             variables={
                 "citations": {
                     "bins": self.citation_bins,
@@ -70,7 +71,7 @@ class InitializeReputationCommandTestCase(TestCase):
             hub=self.hub1,
         )
 
-        algorithm_variables2 = AlgorithmVariables.objects.create(
+        AlgorithmVariables.objects.create(
             variables={
                 "citations": {
                     "bins": self.citation_bins,
@@ -82,13 +83,13 @@ class InitializeReputationCommandTestCase(TestCase):
         )
 
     def test_initialize_reputation_command(self):
-        call_command("initialize_reputation", self.user.id)
+        call_command("initialize_reputation", self.user.id, 1)
 
         # Check if the score is created
         self.assertEqual(Score.objects.count(), 2)
 
         # Check if the score change is created
-        self.assertEqual(ScoreChange.objects.count(), 2)
+        self.assertEqual(ScoreChange.objects.count(), 3)
 
         # Check if the score is created with the correct score
         score1 = Score.objects.get(hub=self.hub1, author=self.user.author_profile)
@@ -100,11 +101,15 @@ class InitializeReputationCommandTestCase(TestCase):
 
         # Check if the score is created with the correct score
         score2 = Score.objects.get(hub=self.hub2, author=self.user.author_profile)
-        self.assertEqual(score2.score, 6100)
+        # 2*50 + 10*100 + 52*250 = 14100
+        self.assertEqual(score2.score, 14100)
 
         # Check if the score change is created with the correct score change
-        score_change2 = ScoreChange.objects.get(score=score2)
-        self.assertEqual(score_change2.score_change, 6100)
+        score_changes2 = ScoreChange.objects.filter(score=score2)
+        # 2*50 + 10*100 + 20*250 = 6100
+        self.assertEqual(score_changes2[0].score_change, 6100)
+        # 32*250 = 8000
+        self.assertEqual(score_changes2[1].score_change, 8000)
 
     def attribute_paper_to_author(self, user, paper):
         case = AuthorClaimCase.objects.create(
