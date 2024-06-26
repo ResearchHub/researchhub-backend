@@ -31,6 +31,9 @@ class Command(BaseCommand):
         algorithm_version = options["version"]
         user = User.objects.get(id=user_id)
         author = user.author_profile
+        self.calculate_author_score_hubs_citations(author, algorithm_version)
+
+    def calculate_author_score_hubs_citations(self, author, algorithm_version):
         authored_papers = author.authored_papers.all()
         for paper in authored_papers:
             historical_papers = paper.history.all().order_by("history_date")
@@ -90,12 +93,12 @@ class Command(BaseCommand):
                         previous_total_citation_count,
                         algorithm_variables.variables["citations"]["bins"],
                     )
-
                     current_rep = self.calculate_score_v1(
                         previous_total_citation_count + citation_change,
                         algorithm_variables.variables["citations"]["bins"],
                     )
 
+                    # Calculate the change in reputation
                     rep_change = current_rep - prev_rep
 
                     current_variable_counts = previous_variable_counts
