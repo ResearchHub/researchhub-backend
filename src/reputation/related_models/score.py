@@ -39,17 +39,8 @@ class ScoreChange(DefaultModel):
     )  # field name of the changed object, citation, upvote.
     variable_counts = JSONField(default=dict)
     # {
-    #     "total_citations": 10,
-    #     "total_votes": 5,
-    #     "citations": {
-    #         "id_1": 2,
-    #         "id_2": 5,
-    #         "id_3": 3,
-    #     },
-    #     "votes": {
-    #         "id_1": 4,
-    #         "id_2": 1,
-    #     },
+    #     "citations": 10,
+    #     "votes": 5,
     # }
     score = models.ForeignKey(
         "reputation.Score", on_delete=models.CASCADE, db_index=True
