@@ -18,8 +18,7 @@ class Command(BaseCommand):
 
         for subfield in subfields:
             try:
-                hub = Hub.objects.all()
-                continue
+                hub = Hub.objects.get(subfield=subfield)
             except Hub.DoesNotExist:
                 hub, created = Hub.objects.get_or_create(
                     name=subfield.display_name.lower(),

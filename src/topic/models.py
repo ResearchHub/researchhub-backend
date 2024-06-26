@@ -5,6 +5,7 @@ from django.contrib.postgres.fields import ArrayField
 from django.db import models
 from django.utils.timezone import get_current_timezone, is_aware, make_aware
 
+from hub.models import Hub
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -200,10 +201,31 @@ class Topic(DefaultModel):
                     "field_id": field.id,
                 }
             )
+
         elif needs_update:
             subfield.openalex_id = oa_topic["subfield"]["id"]
             subfield.display_name = oa_topic["subfield"]["display_name"]
             subfield.save()
+
+        # Create hub associated with subfield if one does not already exist
+        # Subfield hubs will be used for reputation calculation.
+        try:
+            hub, created = Hub.objects.get_or_create(
+                name=subfield.display_name.lower(),
+                defaults={"subfield": subfield, "is_used_for_rep": True},
+            )
+
+            if created:
+                print(
+                    f"Created new hub {hub.name} and associated with subfield {subfield.display_name}."
+                )
+            else:
+                hub.subfield = subfield
+                hub.is_used_for_rep = True
+                hub.save()
+        except Exception as e:
+            pass
+            print(f"Error creating hub {subfield.display_name}: {e}")
 
         # Upsert topic
         mapped = {

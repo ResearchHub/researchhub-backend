@@ -1,6 +1,6 @@
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
-from django.db.models import Sum
+from django.db.models import Q, Sum
 from slugify import slugify
 
 from researchhub_access_group.constants import EDITOR
@@ -127,6 +127,14 @@ class Hub(models.Model):
 
     def get_editor_permission_groups(self):
         return self.permissions.filter(access_type=EDITOR).all()
+
+    # There are a handful of OpenAlex subfields that have duplicate names
+    # but different IDs. This method will ensure that a corresponding hub is returned properly
+    @classmethod
+    def get_from_subfield(cls, subfield):
+        return Hub.objects.get(
+            Q(name=subfield.display_name.lower()) | Q(subfield_id=subfield.id)
+        )
 
     @classmethod
     def create_or_update_hub_from_concept(cls, concept):

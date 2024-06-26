@@ -651,13 +651,10 @@ def create_paper_related_tags(paper_id, openalex_concepts=[], openalex_topics=[]
         topic = None
         try:
             topic = Topic.upsert_from_openalex(openalex_topic)
-
-            # We want to associate the paper with subfield hubs
-            subfield_hub_res = Hub.objects.filter(subfield=topic.subfield)
-            if subfield_hub_res.exists():
-                subfield_hub = subfield_hub_res.first()
-                paper.hubs.add(subfield_hub)
-                paper.unified_document.hubs.add(subfield_hub)
+            # We want to associate the paper with subfield hub
+            subfield_hub = Hub.get_from_subfield(topic.subfield)
+            paper.hubs.add(subfield_hub)
+            paper.unified_document.hubs.add(subfield_hub)
 
         except Exception as e:
             sentry.log_error(
