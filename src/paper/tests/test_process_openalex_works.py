@@ -81,6 +81,24 @@ class ProcessOpenAlexWorksTests(APITestCase):
             self.assertGreater(len(paper_hubs), 0)
 
     @patch.object(OpenAlex, "get_authors")
+    def test_creating_papers_should_tag_with_reputation_hubs(self, mock_get_authors):
+        with open("./paper/tests/openalex_authors.json", "r") as file:
+            mock_data = json.load(file)
+            mock_get_authors.return_value = (mock_data["results"], None)
+
+            process_openalex_works(self.works)
+
+            dois = [work.get("doi") for work in self.works]
+            dois = [doi.replace("https://doi.org/", "") for doi in dois]
+            created_papers = Paper.objects.filter(doi__in=dois)
+
+            # Sample the first paper to ensure it has topics
+            paper_hubs = created_papers.first().unified_document.hubs.filter(
+                is_used_for_rep=True
+            )
+            self.assertGreater(len(paper_hubs), 0)
+
+    @patch.object(OpenAlex, "get_authors")
     def test_updating_existing_papers_from_openalex_works(self, mock_get_authors):
         with open("./paper/tests/openalex_authors.json", "r") as file:
             mock_data = json.load(file)

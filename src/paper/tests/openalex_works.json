@@ -249,6 +249,23 @@
                         "id": "https://openalex.org/domains/3",
                         "display_name": "Physical Sciences"
                     }
+                },
+                {
+                    "id": "https://openalex.org/T11399",
+                    "display_name": "Protein Metabolism in Exercise and Nutrition",
+                    "score": 0.951,
+                    "subfield": {
+                        "id": "https://openalex.org/subfields/1307",
+                        "display_name": "Cell Biology"
+                    },
+                    "field": {
+                        "id": "https://openalex.org/fields/13",
+                        "display_name": "Biochemistry, Genetics and Molecular Biology"
+                    },
+                    "domain": {
+                        "id": "https://openalex.org/domains/1",
+                        "display_name": "Life Sciences"
+                    }
                 }
             ],
             "keywords": [
