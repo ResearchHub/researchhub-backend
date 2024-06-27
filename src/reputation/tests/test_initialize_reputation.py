@@ -25,6 +25,9 @@ class InitializeReputationCommandTestCase(TestCase):
         paper2.save()
         paper2.citations = 64
         paper2.save()
+        paper3 = create_paper(title="Paper 3")
+        paper3.citations = 10
+        paper3.save()
 
         # Create test data for hubs table
         self.hub1 = Hub.objects.create(name="Hub 1", is_used_for_rep=True)
@@ -35,6 +38,7 @@ class InitializeReputationCommandTestCase(TestCase):
         paper1.hubs.add(self.hub1)
         paper2.hubs.add(self.hub2)
         paper2.hubs.add(self.hub3)
+        paper3.hubs.add(self.hub2)
 
         # Add user, an author is automatically created for this user.
         self.user = User.objects.create_user(username="user1", password="pass1")
@@ -42,6 +46,7 @@ class InitializeReputationCommandTestCase(TestCase):
         # Add author claim
         self.attribute_paper_to_author(self.user, paper1)
         self.attribute_paper_to_author(self.user, paper2)
+        self.attribute_paper_to_author(self.user, paper3)
 
         self.bins = (
             [
@@ -89,7 +94,7 @@ class InitializeReputationCommandTestCase(TestCase):
         self.assertEqual(Score.objects.count(), 2)
 
         # Check if the score change is created
-        self.assertEqual(ScoreChange.objects.count(), 3)
+        self.assertEqual(ScoreChange.objects.count(), 4)
 
         # Check if the score is created with the correct score
         score1 = Score.objects.get(hub=self.hub1, author=self.user.author_profile)
@@ -102,7 +107,7 @@ class InitializeReputationCommandTestCase(TestCase):
         # Check if the score is created with the correct score
         score2 = Score.objects.get(hub=self.hub2, author=self.user.author_profile)
         # 2*50 + 10*100 + 52*250 = 14100
-        self.assertEqual(score2.score, 14100)
+        self.assertEqual(score2.score, 16600)
 
         # Check if the score change is created with the correct score change
         score_changes2 = ScoreChange.objects.filter(score=score2)
@@ -110,6 +115,8 @@ class InitializeReputationCommandTestCase(TestCase):
         self.assertEqual(score_changes2[0].score_change, 6100)
         # 32*250 = 8000
         self.assertEqual(score_changes2[1].score_change, 8000)
+        # 10*250 = 2500
+        self.assertEqual(score_changes2[2].score_change, 2500)
 
     def attribute_paper_to_author(self, user, paper):
         case = AuthorClaimCase.objects.create(
