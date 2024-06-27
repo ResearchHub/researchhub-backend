@@ -797,7 +797,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             return Response(response, status=200)
         except Exception as error:
             log_error(error)
-            print(error)
             return Response(status=500)
 
     def calculate_paper_ordering(self, papers, ordering, start_date, end_date):
