@@ -725,8 +725,8 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
 
         return Response(open_alex_json, status=200)
 
-    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
-    def fetch_openalex_works_by_doi(self, request):
+    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
+    def fetch_publications_by_doi(self, request):
         doi_string = request.query_params.get("doi", None)
         rh_author = request.user.author_profile
 
@@ -883,22 +883,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         paper.edited_file_extract.save(
             filename, ContentFile(json.dumps(data).encode("utf8"))
         )
-        return Response(status=status.HTTP_200_OK)
-
-    @action(
-        detail=True,
-        methods=["patch"],
-        permission_classes=[IsAuthenticated, IsModeratorOrVerifiedAuthor],
-    )
-    def update_paper_authors(self, request, pk=None):
-        data = request.data
-        paper = self.get_object()
-
-        authors_to_add = data.get("add", [])
-        authors_to_remove = data.get("remove", [])
-        paper.authors.add(*authors_to_add)
-        paper.authors.remove(*authors_to_remove)
-
         return Response(status=status.HTTP_200_OK)
 
 

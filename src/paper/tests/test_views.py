@@ -39,7 +39,7 @@ class PaperApiTests(APITestCase):
                 mock_get_data_from_doi.return_value = json.load(single_work_file)
 
                 response = self.client.get(
-                    f"/api/paper/fetch_openalex_works_by_doi/?doi=10.1371/journal.pone.0305345",
+                    f"/api/paper/fetch_publications_by_doi/?doi=10.1371/journal.pone.0305345",
                 )
 
                 self.assertGreater(len(response.data["works"]), 0)
@@ -67,7 +67,7 @@ class PaperApiTests(APITestCase):
                 mock_get_data_from_doi.return_value = json.load(single_work_file)
 
                 response = self.client.get(
-                    f"/api/paper/fetch_openalex_works_by_doi/?doi=10.1371/journal.pone.0305345",
+                    f"/api/paper/fetch_publications_by_doi/?doi=10.1371/journal.pone.0305345",
                 )
 
                 self.assertEqual(len(response.data["works"]), 0)
@@ -99,7 +99,7 @@ class PaperApiTests(APITestCase):
                 author_id = "A5075662890"
 
                 response = self.client.get(
-                    f"/api/paper/fetch_openalex_works_by_doi/?doi=10.1371/journal.pone.0305345&author_id={author_id}",
+                    f"/api/paper/fetch_publications_by_doi/?doi=10.1371/journal.pone.0305345&author_id={author_id}",
                 )
 
                 self.assertEqual(response.data["selected_author_id"], author_id)
