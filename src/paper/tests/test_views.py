@@ -21,7 +21,6 @@ class PaperApiTests(APITestCase):
     def test_fetches_author_works_by_doi_if_name_matches(
         self, mock_get_works, mock_get_data_from_doi
     ):
-        print("TEST TO SEE IF THIS IS RUNNING ON GITHUB ")
         with open("./paper/tests/openalex_author_works.json", "r") as works_file:
             with open(
                 "./paper/tests/openalex_single_work.json", "r"
