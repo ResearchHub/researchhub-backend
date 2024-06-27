@@ -1,14 +1,109 @@
+import json
 import random
 from unittest import skip
+from unittest.mock import patch
 
 from django.test import Client, TestCase
+from rest_framework.test import APITestCase
 
 from paper.tests.helpers import create_paper
-from user.tests.helpers import create_random_authenticated_user
+from user.tests.helpers import create_random_authenticated_user, create_user
+from utils.openalex import OpenAlex
 from utils.test_helpers import (
     get_authenticated_delete_response,
     get_authenticated_post_response,
 )
+
+
+class PaperApiTests(APITestCase):
+    @patch.object(OpenAlex, "get_data_from_doi")
+    @patch.object(OpenAlex, "get_works")
+    def test_fetches_author_works_by_doi_if_name_matches(
+        self, mock_get_works, mock_get_data_from_doi
+    ):
+        print("TEST TO SEE IF THIS IS RUNNING ON GITHUB ")
+        with open("./paper/tests/openalex_author_works.json", "r") as works_file:
+            with open(
+                "./paper/tests/openalex_single_work.json", "r"
+            ) as single_work_file:
+                # Set up a user that has a matching name to the one in the mocked response
+                user_with_published_works = create_user(
+                    first_name="Yang",
+                    last_name="Wang",
+                    email="random_author@researchhub.com",
+                )
+                self.client.force_authenticate(user_with_published_works)
+
+                # Mock responses for OpenAlex API calls
+                mock_data = json.load(works_file)
+                mock_get_works.return_value = (mock_data["results"], None)
+                mock_get_data_from_doi.return_value = json.load(single_work_file)
+
+                response = self.client.get(
+                    f"/api/paper/fetch_openalex_works_by_doi/?doi=10.1371/journal.pone.0305345",
+                )
+
+                self.assertGreater(len(response.data["works"]), 0)
+
+    @patch.object(OpenAlex, "get_data_from_doi")
+    @patch.object(OpenAlex, "get_works")
+    def test_cannot_fetch_author_works_by_doi_if_name_mismatch(
+        self, mock_get_works, mock_get_data_from_doi
+    ):
+        with open("./paper/tests/openalex_author_works.json", "r") as works_file:
+            with open(
+                "./paper/tests/openalex_single_work.json", "r"
+            ) as single_work_file:
+                # Set up a user that has a matching name to the one in the mocked response
+                user_with_published_works = create_user(
+                    first_name="Name",
+                    last_name="Mismatch",
+                    email="random_author@researchhub.com",
+                )
+                self.client.force_authenticate(user_with_published_works)
+
+                # Mock responses for OpenAlex API calls
+                mock_data = json.load(works_file)
+                mock_get_works.return_value = (mock_data["results"], None)
+                mock_get_data_from_doi.return_value = json.load(single_work_file)
+
+                response = self.client.get(
+                    f"/api/paper/fetch_openalex_works_by_doi/?doi=10.1371/journal.pone.0305345",
+                )
+
+                self.assertEqual(len(response.data["works"]), 0)
+                self.assertGreater(len(response.data["available_authors"]), 0)
+
+    @patch.object(OpenAlex, "get_data_from_doi")
+    @patch.object(OpenAlex, "get_works")
+    def test_fetch_author_works_by_doi_can_accept_optional_author_id(
+        self, mock_get_works, mock_get_data_from_doi
+    ):
+        with open("./paper/tests/openalex_author_works.json", "r") as works_file:
+            with open(
+                "./paper/tests/openalex_single_work.json", "r"
+            ) as single_work_file:
+                # Set up a user that has a matching name to the one in the mocked response
+                user_with_published_works = create_user(
+                    first_name="Name",
+                    last_name="Mismatch",
+                    email="random_author@researchhub.com",
+                )
+                self.client.force_authenticate(user_with_published_works)
+
+                # Mock responses for OpenAlex API calls
+                mock_data = json.load(works_file)
+                mock_get_works.return_value = (mock_data["results"], None)
+                mock_get_data_from_doi.return_value = json.load(single_work_file)
+
+                # Override author guessing by explicilty providing author_id
+                author_id = "A5075662890"
+
+                response = self.client.get(
+                    f"/api/paper/fetch_openalex_works_by_doi/?doi=10.1371/journal.pone.0305345&author_id={author_id}",
+                )
+
+                self.assertEqual(response.data["selected_author_id"], author_id)
 
 
 class PaperViewsTests(TestCase):
