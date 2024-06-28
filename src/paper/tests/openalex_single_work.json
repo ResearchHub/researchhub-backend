@@ -1,0 +1,1367 @@
+{
+  "id": "https://openalex.org/W4399771148",
+  "doi": "https://doi.org/10.1371/journal.pone.0305345",
+  "title": "Influence of the atmospheric environment on spatial variation of lung cancer incidence in China",
+  "display_name": "Influence of the atmospheric environment on spatial variation of lung cancer incidence in China",
+  "publication_year": 2024,
+  "publication_date": "2024-06-18",
+  "ids": {
+    "openalex": "https://openalex.org/W4399771148",
+    "doi": "https://doi.org/10.1371/journal.pone.0305345",
+    "pmid": "https://pubmed.ncbi.nlm.nih.gov/38889132"
+  },
+  "language": "en",
+  "primary_location": {
+    "is_oa": true,
+    "landing_page_url": "https://doi.org/10.1371/journal.pone.0305345",
+    "pdf_url": "https://journals.plos.org/plosone/article/file?id=10.1371/journal.pone.0305345&type=printable",
+    "source": {
+      "id": "https://openalex.org/S202381698",
+      "display_name": "PloS one",
+      "issn_l": "1932-6203",
+      "issn": [
+        "1932-6203"
+      ],
+      "is_oa": true,
+      "is_in_doaj": true,
+      "host_organization": "https://openalex.org/P4310315706",
+      "host_organization_name": "Public Library of Science",
+      "host_organization_lineage": [
+        "https://openalex.org/P4310315706"
+      ],
+      "host_organization_lineage_names": [
+        "Public Library of Science"
+      ],
+      "type": "journal"
+    },
+    "license": "cc-by",
+    "license_id": "https://openalex.org/licenses/cc-by",
+    "version": "publishedVersion",
+    "is_accepted": true,
+    "is_published": true
+  },
+  "type": "article",
+  "type_crossref": "journal-article",
+  "indexed_in": [
+    "crossref",
+    "pubmed"
+  ],
+  "open_access": {
+    "is_oa": true,
+    "oa_status": "gold",
+    "oa_url": "https://journals.plos.org/plosone/article/file?id=10.1371/journal.pone.0305345&type=printable",
+    "any_repository_has_fulltext": false
+  },
+  "authorships": [
+    {
+      "author_position": "first",
+      "author": {
+        "id": "https://openalex.org/A5075662890",
+        "display_name": "Hong Yu",
+        "orcid": "https://orcid.org/0000-0002-6735-4474"
+      },
+      "institutions": [
+        {
+          "id": "https://openalex.org/I120825670",
+          "display_name": "Yunnan Normal University",
+          "ror": "https://ror.org/00sc9n023",
+          "country_code": "CN",
+          "type": "education",
+          "lineage": [
+            "https://openalex.org/I120825670"
+          ]
+        }
+      ],
+      "countries": [
+        "CN"
+      ],
+      "is_corresponding": true,
+      "raw_author_name": "Haishi Yu",
+      "raw_affiliation_strings": [
+        "Yunnan Normal University Hospital, Kunming, Yunnan, China"
+      ],
+      "affiliations": [
+        {
+          "raw_affiliation_string": "Yunnan Normal University Hospital, Kunming, Yunnan, China",
+          "institution_ids": [
+            "https://openalex.org/I120825670"
+          ]
+        }
+      ]
+    },
+    {
+      "author_position": "middle",
+      "author": {
+        "id": "https://openalex.org/A5068835581",
+        "display_name": "Yang Wang",
+        "orcid": "https://orcid.org/0000-0002-3651-7517"
+      },
+      "institutions": [
+        {
+          "id": "https://openalex.org/I120825670",
+          "display_name": "Yunnan Normal University",
+          "ror": "https://ror.org/00sc9n023",
+          "country_code": "CN",
+          "type": "education",
+          "lineage": [
+            "https://openalex.org/I120825670"
+          ]
+        }
+      ],
+      "countries": [
+        "CN"
+      ],
+      "is_corresponding": true,
+      "raw_author_name": "Yang Wang",
+      "raw_affiliation_strings": [
+        "Faculty of Geography, Yunnan Normal University, Kunming, Yunnan, China"
+      ],
+      "affiliations": [
+        {
+          "raw_affiliation_string": "Faculty of Geography, Yunnan Normal University, Kunming, Yunnan, China",
+          "institution_ids": [
+            "https://openalex.org/I120825670"
+          ]
+        }
+      ]
+    },
+    {
+      "author_position": "middle",
+      "author": {
+        "id": "https://openalex.org/A5071774068",
+        "display_name": "Xiaoli Yue",
+        "orcid": "https://orcid.org/0000-0002-0313-0797"
+      },
+      "institutions": [
+        {
+          "id": "https://openalex.org/I120825670",
+          "display_name": "Yunnan Normal University",
+          "ror": "https://ror.org/00sc9n023",
+          "country_code": "CN",
+          "type": "education",
+          "lineage": [
+            "https://openalex.org/I120825670"
+          ]
+        }
+      ],
+      "countries": [
+        "CN"
+      ],
+      "is_corresponding": true,
+      "raw_author_name": "Xiaoli Yue",
+      "raw_affiliation_strings": [
+        "Faculty of Geography, Yunnan Normal University, Kunming, Yunnan, China"
+      ],
+      "affiliations": [
+        {
+          "raw_affiliation_string": "Faculty of Geography, Yunnan Normal University, Kunming, Yunnan, China",
+          "institution_ids": [
+            "https://openalex.org/I120825670"
+          ]
+        }
+      ]
+    },
+    {
+      "author_position": "last",
+      "author": {
+        "id": "https://openalex.org/A5051283786",
+        "display_name": "Hongou Zhang",
+        "orcid": null
+      },
+      "institutions": [
+        {
+          "id": "https://openalex.org/I4210147158",
+          "display_name": "Guangzhou Institute of Geography",
+          "ror": "https://ror.org/03tbxt129",
+          "country_code": "CN",
+          "type": "facility",
+          "lineage": [
+            "https://openalex.org/I4210147158"
+          ]
+        },
+        {
+          "id": "https://openalex.org/I4210103524",
+          "display_name": "Guangdong Academy of Sciences",
+          "ror": "https://ror.org/01g9hkj35",
+          "country_code": "CN",
+          "type": "government",
+          "lineage": [
+            "https://openalex.org/I4210103524"
+          ]
+        }
+      ],
+      "countries": [
+        "CN"
+      ],
+      "is_corresponding": true,
+      "raw_author_name": "Hong\u2019ou Zhang",
+      "raw_affiliation_strings": [
+        "Guangzhou Institute of Geography, Guangdong Academy of Sciences, Guangzhou, Guangdong, China"
+      ],
+      "affiliations": [
+        {
+          "raw_affiliation_string": "Guangzhou Institute of Geography, Guangdong Academy of Sciences, Guangzhou, Guangdong, China",
+          "institution_ids": [
+            "https://openalex.org/I4210147158",
+            "https://openalex.org/I4210103524"
+          ]
+        }
+      ]
+    }
+  ],
+  "countries_distinct_count": 1,
+  "institutions_distinct_count": 3,
+  "corresponding_author_ids": [
+    "https://openalex.org/A5075662890",
+    "https://openalex.org/A5068835581",
+    "https://openalex.org/A5071774068",
+    "https://openalex.org/A5051283786"
+  ],
+  "corresponding_institution_ids": [
+    "https://openalex.org/I120825670",
+    "https://openalex.org/I120825670",
+    "https://openalex.org/I120825670",
+    "https://openalex.org/I4210147158",
+    "https://openalex.org/I4210103524"
+  ],
+  "apc_list": {
+    "value": 1805,
+    "currency": "USD",
+    "value_usd": 1805,
+    "provenance": "doaj"
+  },
+  "apc_paid": {
+    "value": 1805,
+    "currency": "USD",
+    "value_usd": 1805,
+    "provenance": "doaj"
+  },
+  "fwci": null,
+  "has_fulltext": false,
+  "cited_by_count": 0,
+  "cited_by_percentile_year": {
+    "min": 0,
+    "max": 91
+  },
+  "biblio": {
+    "volume": "19",
+    "issue": "6",
+    "first_page": "e0305345",
+    "last_page": "e0305345"
+  },
+  "is_retracted": false,
+  "is_paratext": false,
+  "primary_topic": {
+    "id": "https://openalex.org/T10190",
+    "display_name": "Health Effects of Air Pollution",
+    "score": 0.9997,
+    "subfield": {
+      "id": "https://openalex.org/subfields/2307",
+      "display_name": "Health, Toxicology and Mutagenesis"
+    },
+    "field": {
+      "id": "https://openalex.org/fields/23",
+      "display_name": "Environmental Science"
+    },
+    "domain": {
+      "id": "https://openalex.org/domains/3",
+      "display_name": "Physical Sciences"
+    }
+  },
+  "topics": [
+    {
+      "id": "https://openalex.org/T10190",
+      "display_name": "Health Effects of Air Pollution",
+      "score": 0.9997,
+      "subfield": {
+        "id": "https://openalex.org/subfields/2307",
+        "display_name": "Health, Toxicology and Mutagenesis"
+      },
+      "field": {
+        "id": "https://openalex.org/fields/23",
+        "display_name": "Environmental Science"
+      },
+      "domain": {
+        "id": "https://openalex.org/domains/3",
+        "display_name": "Physical Sciences"
+      }
+    },
+    {
+      "id": "https://openalex.org/T11244",
+      "display_name": "Impact of Climate Change on Human Health",
+      "score": 0.9851,
+      "subfield": {
+        "id": "https://openalex.org/subfields/2307",
+        "display_name": "Health, Toxicology and Mutagenesis"
+      },
+      "field": {
+        "id": "https://openalex.org/fields/23",
+        "display_name": "Environmental Science"
+      },
+      "domain": {
+        "id": "https://openalex.org/domains/3",
+        "display_name": "Physical Sciences"
+      }
+    },
+    {
+      "id": "https://openalex.org/T12781",
+      "display_name": "Determinants of Health Care Expenditure and Longevity",
+      "score": 0.9592,
+      "subfield": {
+        "id": "https://openalex.org/subfields/3600",
+        "display_name": "General Health Professions"
+      },
+      "field": {
+        "id": "https://openalex.org/fields/36",
+        "display_name": "Health Professions"
+      },
+      "domain": {
+        "id": "https://openalex.org/domains/4",
+        "display_name": "Health Sciences"
+      }
+    }
+  ],
+  "keywords": [
+    {
+      "id": "https://openalex.org/keywords/exposure-assessment",
+      "display_name": "Exposure Assessment",
+      "score": 0.434317
+    }
+  ],
+  "concepts": [
+    {
+      "id": "https://openalex.org/C2776256026",
+      "wikidata": "https://www.wikidata.org/wiki/Q47912",
+      "display_name": "Lung cancer",
+      "level": 2,
+      "score": 0.79681146
+    },
+    {
+      "id": "https://openalex.org/C61511704",
+      "wikidata": "https://www.wikidata.org/wiki/Q1671857",
+      "display_name": "Incidence (geometry)",
+      "level": 2,
+      "score": 0.7275592
+    },
+    {
+      "id": "https://openalex.org/C94747663",
+      "wikidata": "https://www.wikidata.org/wiki/Q7574086",
+      "display_name": "Spatial variability",
+      "level": 2,
+      "score": 0.5348386
+    },
+    {
+      "id": "https://openalex.org/C121608353",
+      "wikidata": "https://www.wikidata.org/wiki/Q12078",
+      "display_name": "Cancer",
+      "level": 2,
+      "score": 0.45559478
+    },
+    {
+      "id": "https://openalex.org/C159620131",
+      "wikidata": "https://www.wikidata.org/wiki/Q1938983",
+      "display_name": "Spatial analysis",
+      "level": 2,
+      "score": 0.44375673
+    },
+    {
+      "id": "https://openalex.org/C191935318",
+      "wikidata": "https://www.wikidata.org/wiki/Q148",
+      "display_name": "China",
+      "level": 2,
+      "score": 0.4415404
+    },
+    {
+      "id": "https://openalex.org/C2778527826",
+      "wikidata": "https://www.wikidata.org/wiki/Q1787017",
+      "display_name": "Cancer registry",
+      "level": 3,
+      "score": 0.41564658
+    },
+    {
+      "id": "https://openalex.org/C71924100",
+      "wikidata": "https://www.wikidata.org/wiki/Q11190",
+      "display_name": "Medicine",
+      "level": 0,
+      "score": 0.3464139
+    },
+    {
+      "id": "https://openalex.org/C143998085",
+      "wikidata": "https://www.wikidata.org/wiki/Q162555",
+      "display_name": "Oncology",
+      "level": 1,
+      "score": 0.2342484
+    },
+    {
+      "id": "https://openalex.org/C205649164",
+      "wikidata": "https://www.wikidata.org/wiki/Q1071",
+      "display_name": "Geography",
+      "level": 0,
+      "score": 0.22282165
+    },
+    {
+      "id": "https://openalex.org/C126322002",
+      "wikidata": "https://www.wikidata.org/wiki/Q11180",
+      "display_name": "Internal medicine",
+      "level": 1,
+      "score": 0.18144387
+    },
+    {
+      "id": "https://openalex.org/C105795698",
+      "wikidata": "https://www.wikidata.org/wiki/Q12483",
+      "display_name": "Statistics",
+      "level": 1,
+      "score": 0.1534613
+    },
+    {
+      "id": "https://openalex.org/C33923547",
+      "wikidata": "https://www.wikidata.org/wiki/Q395",
+      "display_name": "Mathematics",
+      "level": 0,
+      "score": 0.12377271
+    },
+    {
+      "id": "https://openalex.org/C2524010",
+      "wikidata": "https://www.wikidata.org/wiki/Q8087",
+      "display_name": "Geometry",
+      "level": 1,
+      "score": 0.0
+    },
+    {
+      "id": "https://openalex.org/C166957645",
+      "wikidata": "https://www.wikidata.org/wiki/Q23498",
+      "display_name": "Archaeology",
+      "level": 1,
+      "score": 0.0
+    }
+  ],
+  "mesh": [
+    {
+      "descriptor_ui": "D008175",
+      "descriptor_name": "Lung Neoplasms",
+      "qualifier_ui": "Q000453",
+      "qualifier_name": "epidemiology",
+      "is_major_topic": false
+    }
+  ],
+  "locations_count": 2,
+  "locations": [
+    {
+      "is_oa": true,
+      "landing_page_url": "https://doi.org/10.1371/journal.pone.0305345",
+      "pdf_url": "https://journals.plos.org/plosone/article/file?id=10.1371/journal.pone.0305345&type=printable",
+      "source": {
+        "id": "https://openalex.org/S202381698",
+        "display_name": "PloS one",
+        "issn_l": "1932-6203",
+        "issn": [
+          "1932-6203"
+        ],
+        "is_oa": true,
+        "is_in_doaj": true,
+        "host_organization": "https://openalex.org/P4310315706",
+        "host_organization_name": "Public Library of Science",
+        "host_organization_lineage": [
+          "https://openalex.org/P4310315706"
+        ],
+        "host_organization_lineage_names": [
+          "Public Library of Science"
+        ],
+        "type": "journal"
+      },
+      "license": "cc-by",
+      "license_id": "https://openalex.org/licenses/cc-by",
+      "version": "publishedVersion",
+      "is_accepted": true,
+      "is_published": true
+    },
+    {
+      "is_oa": false,
+      "landing_page_url": "https://pubmed.ncbi.nlm.nih.gov/38889132",
+      "pdf_url": null,
+      "source": {
+        "id": "https://openalex.org/S4306525036",
+        "display_name": "PubMed",
+        "issn_l": null,
+        "issn": null,
+        "is_oa": false,
+        "is_in_doaj": false,
+        "host_organization": "https://openalex.org/I1299303238",
+        "host_organization_name": "National Institutes of Health",
+        "host_organization_lineage": [
+          "https://openalex.org/I1299303238"
+        ],
+        "host_organization_lineage_names": [
+          "National Institutes of Health"
+        ],
+        "type": "repository"
+      },
+      "license": null,
+      "license_id": null,
+      "version": null,
+      "is_accepted": false,
+      "is_published": false
+    }
+  ],
+  "best_oa_location": {
+    "is_oa": true,
+    "landing_page_url": "https://doi.org/10.1371/journal.pone.0305345",
+    "pdf_url": "https://journals.plos.org/plosone/article/file?id=10.1371/journal.pone.0305345&type=printable",
+    "source": {
+      "id": "https://openalex.org/S202381698",
+      "display_name": "PloS one",
+      "issn_l": "1932-6203",
+      "issn": [
+        "1932-6203"
+      ],
+      "is_oa": true,
+      "is_in_doaj": true,
+      "host_organization": "https://openalex.org/P4310315706",
+      "host_organization_name": "Public Library of Science",
+      "host_organization_lineage": [
+        "https://openalex.org/P4310315706"
+      ],
+      "host_organization_lineage_names": [
+        "Public Library of Science"
+      ],
+      "type": "journal"
+    },
+    "license": "cc-by",
+    "license_id": "https://openalex.org/licenses/cc-by",
+    "version": "publishedVersion",
+    "is_accepted": true,
+    "is_published": true
+  },
+  "sustainable_development_goals": [
+    {
+      "score": 0.48,
+      "display_name": "Life on land",
+      "id": "https://metadata.un.org/sdg/15"
+    }
+  ],
+  "grants": [
+    {
+      "funder": "https://openalex.org/F4320321001",
+      "funder_display_name": "National Natural Science Foundation of China",
+      "award_id": "No. 42371221"
+    }
+  ],
+  "datasets": [],
+  "versions": [],
+  "referenced_works_count": 47,
+  "referenced_works": [
+    "https://openalex.org/W1934822394",
+    "https://openalex.org/W1972197297",
+    "https://openalex.org/W2008421346",
+    "https://openalex.org/W2020174682",
+    "https://openalex.org/W2027045554",
+    "https://openalex.org/W2028226037",
+    "https://openalex.org/W2041951983",
+    "https://openalex.org/W2047737515",
+    "https://openalex.org/W2078119739",
+    "https://openalex.org/W2083515615",
+    "https://openalex.org/W2095692489",
+    "https://openalex.org/W2107552147",
+    "https://openalex.org/W2118365591",
+    "https://openalex.org/W2126945850",
+    "https://openalex.org/W2129796649",
+    "https://openalex.org/W2147330627",
+    "https://openalex.org/W2205741118",
+    "https://openalex.org/W2221837786",
+    "https://openalex.org/W2557406305",
+    "https://openalex.org/W2589970108",
+    "https://openalex.org/W2740369742",
+    "https://openalex.org/W2759655344",
+    "https://openalex.org/W2781555790",
+    "https://openalex.org/W2795930135",
+    "https://openalex.org/W2799927540",
+    "https://openalex.org/W2912555445",
+    "https://openalex.org/W2923286005",
+    "https://openalex.org/W2943606118",
+    "https://openalex.org/W2967570100",
+    "https://openalex.org/W2997233435",
+    "https://openalex.org/W3003262297",
+    "https://openalex.org/W3007646725",
+    "https://openalex.org/W3008570167",
+    "https://openalex.org/W3013545923",
+    "https://openalex.org/W3013779198",
+    "https://openalex.org/W3021119615",
+    "https://openalex.org/W3022093651",
+    "https://openalex.org/W3022183256",
+    "https://openalex.org/W3096739599",
+    "https://openalex.org/W3107296998",
+    "https://openalex.org/W3113691894",
+    "https://openalex.org/W3116344537",
+    "https://openalex.org/W3188539135",
+    "https://openalex.org/W4200515119",
+    "https://openalex.org/W4214669832",
+    "https://openalex.org/W4280562493",
+    "https://openalex.org/W4280577365"
+  ],
+  "related_works": [
+    "https://openalex.org/W3098022034",
+    "https://openalex.org/W2967366602",
+    "https://openalex.org/W2391077311",
+    "https://openalex.org/W2376385980",
+    "https://openalex.org/W2363171232",
+    "https://openalex.org/W2129774558",
+    "https://openalex.org/W2064573700",
+    "https://openalex.org/W1997032381",
+    "https://openalex.org/W1496498748",
+    "https://openalex.org/W104140161"
+  ],
+  "ngrams_url": "https://api.openalex.org/works/W4399771148/ngrams",
+  "abstract_inverted_index": {
+    "Conducting": [
+      0
+    ],
+    "this": [
+      1,
+      67,
+      86
+    ],
+    "research": [
+      2,
+      95
+    ],
+    "contributes": [
+      3
+    ],
+    "to": [
+      4,
+      84,
+      154,
+      307
+    ],
+    "a": [
+      5,
+      116,
+      266,
+      295,
+      300,
+      308,
+      318,
+      337,
+      344,
+      382,
+      388
+    ],
+    "deeper": [
+      6
+    ],
+    "understanding": [
+      7,
+      369
+    ],
+    "of": [
+      8,
+      53,
+      66,
+      77,
+      80,
+      107,
+      161,
+      204,
+      238,
+      248,
+      254,
+      268,
+      297,
+      310,
+      346,
+      352,
+      361,
+      370,
+      375,
+      395
+    ],
+    "the": [
+      9,
+      21,
+      51,
+      54,
+      64,
+      75,
+      81,
+      100,
+      128,
+      157,
+      191,
+      220,
+      239,
+      244,
+      252,
+      357,
+      371,
+      393,
+      396
+    ],
+    "correlation": [
+      10,
+      105,
+      320
+    ],
+    "between": [
+      11,
+      322
+    ],
+    "atmospheric": [
+      12,
+      82,
+      132,
+      140,
+      229,
+      240,
+      286,
+      397
+    ],
+    "environmental": [
+      13,
+      27
+    ],
+    "quality": [
+      14
+    ],
+    "and": [
+      15,
+      19,
+      29,
+      33,
+      61,
+      103,
+      142,
+      147,
+      159,
+      182,
+      185,
+      216,
+      246,
+      282,
+      317,
+      324
+    ],
+    "lung": [
+      16,
+      30,
+      58,
+      71,
+      90,
+      108,
+      124,
+      165,
+      172,
+      192,
+      206,
+      222,
+      233,
+      255,
+      272,
+      279,
+      291,
+      314,
+      325,
+      340,
+      353,
+      376,
+      400
+    ],
+    "cancer": [
+      17,
+      31,
+      37,
+      59,
+      72,
+      91,
+      109,
+      125,
+      166,
+      173,
+      193,
+      207,
+      223,
+      234,
+      273,
+      280,
+      292,
+      315,
+      326,
+      341,
+      354,
+      377,
+      401
+    ],
+    "incidence,": [
+      18,
+      60,
+      281,
+      316,
+      327
+    ],
+    "provides": [
+      20
+    ],
+    "scientific": [
+      22
+    ],
+    "basis": [
+      23
+    ],
+    "for": [
+      24
+    ],
+    "formulating": [
+      25
+    ],
+    "effective": [
+      26
+    ],
+    "protection": [
+      28
+    ],
+    "prevention": [
+      32
+    ],
+    "control": [
+      34,
+      152
+    ],
+    "strategies.": [
+      35
+    ],
+    "Lung": [
+      36
+    ],
+    "incidence": [
+      38,
+      73,
+      110,
+      126,
+      174,
+      194,
+      208,
+      224,
+      293,
+      342,
+      355,
+      378
+    ],
+    "in": [
+      39,
+      57,
+      70,
+      89,
+      111,
+      175,
+      180,
+      198,
+      211,
+      243,
+      260,
+      271,
+      285,
+      303,
+      313,
+      331,
+      339,
+      356,
+      379
+    ],
+    "China": [
+      40,
+      176,
+      215,
+      362,
+      380
+    ],
+    "has": [
+      41,
+      177
+    ],
+    "strong": [
+      42
+    ],
+    "spatial": [
+      43,
+      55,
+      68,
+      87,
+      101,
+      104,
+      117,
+      183,
+      186,
+      372
+    ],
+    "variation.": [
+      44
+    ],
+    "However,": [
+      45
+    ],
+    "few": [
+      46
+    ],
+    "studies": [
+      47
+    ],
+    "have": [
+      48,
+      62
+    ],
+    "systematically": [
+      49,
+      155
+    ],
+    "revealed": [
+      50
+    ],
+    "characteristics": [
+      52,
+      106,
+      150,
+      374
+    ],
+    "variation": [
+      56,
+      69,
+      88,
+      102,
+      373
+    ],
+    "explained": [
+      63
+    ],
+    "causes": [
+      65
+    ],
+    "from": [
+      74
+    ],
+    "perspectives": [
+      76
+    ],
+    "multiple": [
+      78
+    ],
+    "components": [
+      79
+    ],
+    "environment": [
+      83,
+      133,
+      230,
+      241,
+      398
+    ],
+    "explain": [
+      85
+    ],
+    "incidence.": [
+      92,
+      167,
+      235,
+      274,
+      402
+    ],
+    "To": [
+      93
+    ],
+    "address": [
+      94
+    ],
+    "limitations,": [
+      96
+    ],
+    "we": [
+      97,
+      114
+    ],
+    "first": [
+      98
+    ],
+    "analyze": [
+      99,
+      156
+    ],
+    "China.": [
+      112
+    ],
+    "Then,": [
+      113
+    ],
+    "build": [
+      115
+    ],
+    "regression": [
+      118
+    ],
+    "model": [
+      119
+    ],
+    "using": [
+      120
+    ],
+    "GeoDa": [
+      121
+    ],
+    "software": [
+      122
+    ],
+    "with": [
+      123,
+      265,
+      336
+    ],
+    "as": [
+      127,
+      144,
+      151
+    ],
+    "dependent": [
+      129
+    ],
+    "variable,": [
+      130
+    ],
+    "five": [
+      131
+    ],
+    "factors\u2014particulate": [
+      134
+    ],
+    "matter": [
+      135
+    ],
+    "2.5": [
+      136
+    ],
+    "(PM2.5)": [
+      137
+    ],
+    "concentration,": [
+      138
+    ],
+    "temperature,": [
+      139
+    ],
+    "pressure,": [
+      141
+    ],
+    "elevation": [
+      143,
+      323,
+      332
+    ],
+    "explanatory": [
+      145
+    ],
+    "variables,": [
+      146
+    ],
+    "four": [
+      148
+    ],
+    "socio-economic": [
+      149
+    ],
+    "variables": [
+      153
+    ],
+    "influence": [
+      158,
+      250
+    ],
+    "intensity": [
+      160
+    ],
+    "these": [
+      162
+    ],
+    "factors": [
+      163,
+      351
+    ],
+    "on": [
+      164,
+      251,
+      381,
+      392,
+      399
+    ],
+    "The": [
+      168,
+      228,
+      348
+    ],
+    "results": [
+      169
+    ],
+    "show": [
+      170
+    ],
+    "that": [
+      171
+    ],
+    "apparent": [
+      178
+    ],
+    "changes": [
+      179
+    ],
+    "geographical": [
+      181,
+      359
+    ],
+    "unevenness,": [
+      184
+    ],
+    "autocorrelation": [
+      187
+    ],
+    "characteristics.": [
+      188
+    ],
+    "In": [
+      189
+    ],
+    "China,": [
+      190,
+      200,
+      213,
+      218
+    ],
+    "is": [
+      195,
+      225,
+      263,
+      305
+    ],
+    "relatively": [
+      196,
+      226
+    ],
+    "high": [
+      197,
+      205
+    ],
+    "Northeast": [
+      199
+    ],
+    "while": [
+      201,
+      385
+    ],
+    "some": [
+      202
+    ],
+    "areas": [
+      203
+    ],
+    "still": [
+      209
+    ],
+    "exist": [
+      210
+    ],
+    "Central": [
+      212
+    ],
+    "Southwest": [
+      214
+    ],
+    "South": [
+      217
+    ],
+    "although": [
+      219
+    ],
+    "overall": [
+      221
+    ],
+    "low.": [
+      227
+    ],
+    "significantly": [
+      231
+    ],
+    "affects": [
+      232,
+      278
+    ],
+    "Different": [
+      236
+    ],
+    "elements": [
+      237
+    ],
+    "vary": [
+      242
+    ],
+    "direction": [
+      245
+    ],
+    "extent": [
+      247
+    ],
+    "their": [
+      249
+    ],
+    "development": [
+      253
+    ],
+    "cancer.": [
+      256
+    ],
+    "A": [
+      257
+    ],
+    "1%": [
+      258,
+      289,
+      301,
+      334
+    ],
+    "increase": [
+      259,
+      270,
+      284,
+      302,
+      330
+    ],
+    "PM2.5": [
+      261
+    ],
+    "concentration": [
+      262
+    ],
+    "associated": [
+      264
+    ],
+    "level": [
+      267,
+      296,
+      309,
+      345
+    ],
+    "0.002975": [
+      269
+    ],
+    "Atmospheric": [
+      275
+    ],
+    "pressure": [
+      276,
+      287
+    ],
+    "positively": [
+      277
+    ],
+    "an": [
+      283,
+      329
+    ],
+    "by": [
+      288,
+      294,
+      333,
+      343
+    ],
+    "increases": [
+      290
+    ],
+    "0.026061.": [
+      298
+    ],
+    "Conversely,": [
+      299
+    ],
+    "temperature": [
+      304
+    ],
+    "linked": [
+      306
+    ],
+    "0.006443": [
+      311
+    ],
+    "decreases": [
+      312
+    ],
+    "negative": [
+      319
+    ],
+    "exists": [
+      321
+    ],
+    "where": [
+      328
+    ],
+    "correlates": [
+      335
+    ],
+    "decrease": [
+      338
+    ],
+    "0.000934.": [
+      347
+    ],
+    "core": [
+      349
+    ],
+    "influencing": [
+      350
+    ],
+    "seven": [
+      358
+    ],
+    "divisions": [
+      360
+    ],
+    "exhibit": [
+      363
+    ],
+    "variations.": [
+      364
+    ],
+    "This": [
+      365
+    ],
+    "study": [
+      366
+    ],
+    "facilitates": [
+      367
+    ],
+    "our": [
+      368
+    ],
+    "finer": [
+      383
+    ],
+    "scale,": [
+      384
+    ],
+    "also": [
+      386
+    ],
+    "offering": [
+      387
+    ],
+    "more": [
+      389
+    ],
+    "diverse": [
+      390
+    ],
+    "perspective": [
+      391
+    ],
+    "impact": [
+      394
+    ]
+  },
+  "cited_by_api_url": "https://api.openalex.org/works?filter=cites:W4399771148",
+  "counts_by_year": [],
+  "updated_date": "2024-06-20T17:43:32.036491",
+  "created_date": "2024-06-19"
+}

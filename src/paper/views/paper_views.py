@@ -69,6 +69,7 @@ from researchhub_document.related_models.constants.filters import (
     UPVOTED,
 )
 from researchhub_document.utils import reset_unified_document_cache
+from user.related_models.author_model import Author
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.openalex import OpenAlex
 from utils.permissions import CreateOrUpdateIfAllowed, HasAPIKey, PostOnly
@@ -724,6 +725,80 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
 
         return Response(open_alex_json, status=200)
 
+    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
+    def fetch_publications_by_doi(self, request):
+        doi_string = request.query_params.get("doi", None)
+        rh_author = request.user.author_profile
+
+        # Client has the ability (optional) to specify explicilty which OpenAlex ID it wants works for
+        openalex_author_id = request.query_params.get("author_id", None)
+
+        if doi_string is None:
+            return Response(status=404)
+        try:
+            # Sometimes user may pass in a doi as doi.org url.
+            doi_string = doi_string.replace("https://doi.org/", "")
+
+            # Fetch data from OpenAlex
+            open_alex_api = OpenAlex()
+            work = open_alex_api.get_data_from_doi(doi_string)
+
+            # Next we want to try and guess the author in the list of authors associated with the work.
+            # The guess doesn't have to be precise since the user will have the ability to select the correct author.
+            # In case we can't guess the author, we will return an error.
+            if not openalex_author_id:
+                for authorship in work.get("authorships", []):
+                    found_openalex_author = None
+                    openalex_author = authorship.get("author", {})
+                    openalex_author_name = (
+                        openalex_author.get("display_name", "").lower().split(" ")
+                    )
+
+                    rh_author_first_name = (rh_author.first_name or "").lower()
+                    rh_author_last_name = (rh_author.last_name or "").lower()
+
+                    if (
+                        rh_author_first_name == openalex_author_name[0]
+                        and rh_author_last_name == openalex_author_name[-1]
+                    ):
+                        found_openalex_author = openalex_author
+                    elif (
+                        found_openalex_author == None
+                        and rh_author_last_name == openalex_author_name[0]
+                    ):
+                        found_openalex_author = openalex_author
+                    elif (
+                        found_openalex_author == None
+                        and rh_author_first_name == openalex_author_name[-1]
+                    ):
+                        found_openalex_author = openalex_author
+
+                    if found_openalex_author:
+                        openalex_author_id = found_openalex_author.get("id", "").split(
+                            "/"
+                        )[-1]
+
+            # Fetch author works
+            author_works = []
+            if openalex_author_id:
+                author_works, cursor = open_alex_api.get_works(
+                    openalex_author_id=openalex_author_id, batch_size=200
+                )
+
+            response = {
+                "works": [work for work in author_works],
+                "selected_author_id": openalex_author_id,
+                "available_authors": [
+                    authorship.get("author")
+                    for authorship in work.get("authorships", [])
+                ],
+            }
+
+            return Response(response, status=200)
+        except Exception as error:
+            log_error(error)
+            return Response(status=500)
+
     def calculate_paper_ordering(self, papers, ordering, start_date, end_date):
         if "hot_score" in ordering:
             order_papers = papers.order_by(ordering)
@@ -808,22 +883,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         paper.edited_file_extract.save(
             filename, ContentFile(json.dumps(data).encode("utf8"))
         )
-        return Response(status=status.HTTP_200_OK)
-
-    @action(
-        detail=True,
-        methods=["patch"],
-        permission_classes=[IsAuthenticated, IsModeratorOrVerifiedAuthor],
-    )
-    def update_paper_authors(self, request, pk=None):
-        data = request.data
-        paper = self.get_object()
-
-        authors_to_add = data.get("add", [])
-        authors_to_remove = data.get("remove", [])
-        paper.authors.add(*authors_to_add)
-        paper.authors.remove(*authors_to_remove)
-
         return Response(status=status.HTTP_200_OK)
 
 
