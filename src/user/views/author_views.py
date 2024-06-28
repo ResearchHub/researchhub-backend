@@ -30,7 +30,7 @@ from discussion.serializers import DynamicThreadSerializer
 from hypothesis.related_models.hypothesis import Hypothesis
 from paper.models import Paper
 from paper.serializers import DynamicPaperSerializer
-from paper.tasks import pull_openalex_author_works
+from paper.tasks import pull_openalex_author_works, pull_openalex_author_works_batch
 from paper.utils import PAPER_SCORE_Q_ANNOTATION, get_cache_key
 from paper.views import PaperViewSet
 from reputation.models import Bounty, BountySolution, Contribution, Distribution
@@ -44,6 +44,7 @@ from researchhub.settings import (
     EMAIL_WHITELIST,
     SIFT_MODERATION_WHITELIST,
     SIFT_WEBHOOK_SECRET_KEY,
+    TESTING,
 )
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -126,6 +127,36 @@ class AuthorViewSet(viewsets.ModelViewSet):
             instance._prefetched_objects_cache = {}
 
         return Response(serializer.data)
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
+    def add_publications(self, request, pk=None):
+        author = request.user.author_profile
+        openalex_ids = request.data.get("openalex_ids", [])
+
+        # Optional field that may be passed in depending on the context
+        openalex_author_id = request.data.get("openalex_author_id", None)
+
+        # Associate this openalex id with the author
+        # This is necessary to ensure publication are associated with the right user
+        if openalex_author_id and openalex_author_id not in author.openalex_ids:
+            # OpenAlex ids are sometimes passed around as Urls or just ids
+            # In our case, we want to make sure we are saving the url version
+            if not "openalex.org" in openalex_author_id:
+                openalex_author_id = f"https://openalex.org/{openalex_author_id}"
+
+            author.openalex_ids.append(openalex_author_id)
+            author.save()
+
+        if len(openalex_ids) > 0:
+            if TESTING:
+                pull_openalex_author_works_batch(openalex_ids)
+            else:
+                pull_openalex_author_works_batch.apply_async(
+                    (openalex_ids,),
+                    priority=1,
+                )
+
+        return Response(status=200)
 
     @action(detail=True, methods=["get"], permission_classes=[AllowAny])
     def profile(self, request, pk=None):

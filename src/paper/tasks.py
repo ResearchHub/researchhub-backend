@@ -907,3 +907,24 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
                 total_papers_processed=total_papers_processed,
             )
         return False
+
+
+@app.task(queue=QUEUE_PULL_PAPERS)
+def pull_openalex_author_works_batch(openalex_ids):
+    open_alex_api = OpenAlex()
+
+    oa_ids = []
+    for id_as_url in openalex_ids:
+        just_id = id_as_url.split("/")[-1]
+        oa_ids.append(just_id)
+
+    works, cursor = open_alex_api.get_works(openalex_ids=oa_ids)
+    process_openalex_works(works)
+
+    # notification = Notification.objects.create(
+    #     item=instance,
+    #     unified_document=instance.unified_document,
+    #     notification_type=notification_type,
+    #     recipient=recipient,
+    #     action_user=creator,
+    # )

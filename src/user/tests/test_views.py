@@ -5,12 +5,50 @@ from django.test import TestCase
 from rest_framework.test import APITestCase
 
 from paper.openalex_util import process_openalex_works
+from paper.related_models.paper_model import Paper
 from user.tests.helpers import create_random_authenticated_user, create_user
 from utils.openalex import OpenAlex
 from utils.test_helpers import (
     get_authenticated_get_response,
     get_authenticated_patch_response,
 )
+
+
+class UserApiTests(APITestCase):
+    @patch.object(OpenAlex, "get_works")
+    def test_add_publications_to_author(self, mock_get_works):
+        with open("./paper/tests/openalex_author_works.json", "r") as works_file:
+            # Mock responses for OpenAlex API calls
+            mock_data = json.load(works_file)
+            mock_get_works.return_value = (mock_data["results"], None)
+
+            user_with_published_works = create_user(
+                first_name="Yang",
+                last_name="Wang",
+                email="random_author@researchhub.com",
+            )
+
+            self.client.force_authenticate(user_with_published_works)
+
+            # Get author work Ids first
+            openalex_api = OpenAlex()
+            author_works, cursor = openalex_api.get_works()
+            work_ids = [work["id"] for work in author_works]
+
+            # Add publications to author
+            url = f"/api/author/{user_with_published_works.author_profile.id}/add_publications/"
+            response = self.client.post(
+                url, {"openalex_ids": work_ids, "openalex_author_id": "A5068835581"}
+            )
+
+            # Verify at least one publication is created and credited to the author
+            paper = Paper.objects.get(openalex_id=author_works[0].get("id"))
+            self.assertEqual(
+                paper.authors.filter(
+                    id=user_with_published_works.author_profile.id
+                ).exists(),
+                True,
+            )
 
 
 class UserViewsTests(TestCase):
