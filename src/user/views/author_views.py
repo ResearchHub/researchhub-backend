@@ -149,10 +149,13 @@ class AuthorViewSet(viewsets.ModelViewSet):
 
         if len(openalex_ids) > 0:
             if TESTING:
-                pull_openalex_author_works_batch(openalex_ids)
+                pull_openalex_author_works_batch(openalex_ids, request.user.id)
             else:
                 pull_openalex_author_works_batch.apply_async(
-                    (openalex_ids,),
+                    (
+                        openalex_ids,
+                        request.user.id,
+                    ),
                     priority=1,
                 )
 

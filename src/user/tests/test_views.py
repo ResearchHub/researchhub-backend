@@ -50,6 +50,39 @@ class UserApiTests(APITestCase):
                 True,
             )
 
+    @patch.object(OpenAlex, "get_works")
+    def test_add_publications_to_should_notify_author_when_done(self, mock_get_works):
+        from notification.models import Notification
+
+        with open("./paper/tests/openalex_author_works.json", "r") as works_file:
+            # Mock responses for OpenAlex API calls
+            mock_data = json.load(works_file)
+            mock_get_works.return_value = (mock_data["results"], None)
+
+            user_with_published_works = create_user(
+                first_name="Yang",
+                last_name="Wang",
+                email="random_author@researchhub.com",
+            )
+
+            self.client.force_authenticate(user_with_published_works)
+
+            # Get author work Ids first
+            openalex_api = OpenAlex()
+            author_works, cursor = openalex_api.get_works()
+            work_ids = [work["id"] for work in author_works]
+
+            # Add publications to author
+            url = f"/api/author/{user_with_published_works.author_profile.id}/add_publications/"
+            response = self.client.post(
+                url, {"openalex_ids": work_ids, "openalex_author_id": "A5068835581"}
+            )
+
+            self.assertEqual(
+                Notification.objects.last().notification_type,
+                Notification.PUBLICATIONS_ADDED,
+            )
+
 
 class UserViewsTests(TestCase):
     def setUp(self):
