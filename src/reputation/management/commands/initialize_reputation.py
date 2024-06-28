@@ -34,6 +34,15 @@ class Command(BaseCommand):
         self.calculate_author_score_hubs_citations(author, algorithm_version)
 
     def calculate_author_score_hubs_citations(self, author, algorithm_version):
+        score_version = 1
+        try:
+            score = Score.objects.filter(author=author).latest("created_date")
+        except Score.DoesNotExist:
+            score = None
+
+        if score:
+            score_version = score.version + 1
+
         authored_papers = author.authored_papers.all()
         for paper in authored_papers:
             historical_papers = paper.history.all().order_by("history_date")
@@ -60,17 +69,22 @@ class Command(BaseCommand):
                     ).latest("created_date")
                     try:
                         score = Score.objects.get(author=author, hub=hub)
+                        if score.version != score_version:
+                            score.version = score_version
+                            score.score = 0
+                            score.save()
                     except Score.DoesNotExist:
                         score = Score(
                             author=author,
                             hub=hub,
+                            version=1,
                             score=0,
                         )
                         score.save()
 
                     try:
                         previous_score_change = ScoreChange.objects.filter(
-                            score=score
+                            score=score, score_version=score_version
                         ).latest("created_date")
                     except ScoreChange.DoesNotExist:
                         previous_score_change = None
@@ -115,6 +129,7 @@ class Command(BaseCommand):
                         changed_object_field="citations",
                         variable_counts=current_variable_counts,
                         score=score,
+                        score_version=score_version,
                     )
                     score_change.save()
 

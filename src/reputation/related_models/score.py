@@ -9,6 +9,7 @@ class Score(DefaultModel):
     author = models.ForeignKey("user.Author", on_delete=models.CASCADE, db_index=True)
     hub = models.ForeignKey("hub.Hub", on_delete=models.CASCADE, db_index=True)
     score = models.IntegerField(default=0)
+    version = models.IntegerField(default=1)
 
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
@@ -45,6 +46,9 @@ class ScoreChange(DefaultModel):
     score = models.ForeignKey(
         "reputation.Score", on_delete=models.CASCADE, db_index=True
     )
+    score_version = models.IntegerField(
+        default=1
+    )  # version of the score to allow for recalculation.
     created_date = models.DateTimeField(auto_now_add=True, db_index=True)
 
 
