@@ -236,12 +236,6 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
         # Associate paper with author
         related_paper.authors.add(author)
 
-        print("----------")
-        print(related_paper)
-        print(author, author.id)
-        print(related_paper.authors.all())
-        print("----------")
-
         # Find or create authorship
         authorship, created = Authorship.objects.get_or_create(
             author=author,
