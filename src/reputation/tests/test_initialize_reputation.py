@@ -118,6 +118,42 @@ class InitializeReputationCommandTestCase(TestCase):
         # 10*250 = 2500
         self.assertEqual(score_changes2[2].score_change, 2500)
 
+    def test_initialize_reputation_two_calls(self):
+        call_command("initialize_reputation", self.user.id, 1)
+        call_command("initialize_reputation", self.user.id, 1)
+
+        # Check if the score is created
+        self.assertEqual(Score.objects.count(), 2)
+
+        # Check if the score change is created
+        self.assertEqual(ScoreChange.objects.count(), 8)
+
+        # Check if the score is created with the correct score
+        score1 = Score.objects.get(hub=self.hub1, author=self.user.author_profile)
+        self.assertEqual(score1.score, 23100)
+
+        # Check if the score change is created with the correct score change
+        score_change1 = ScoreChange.objects.get(
+            score=score1, score_version=score1.version
+        )
+        self.assertEqual(score_change1.score_change, 23100)
+
+        # Check if the score is created with the correct score
+        score2 = Score.objects.get(hub=self.hub2, author=self.user.author_profile)
+        # 2*50 + 10*100 + 52*250 = 14100
+        self.assertEqual(score2.score, 16600)
+
+        # Check if the score change is created with the correct score change
+        score_changes2 = ScoreChange.objects.filter(
+            score=score2, score_version=score2.version
+        )
+        # 2*50 + 10*100 + 20*250 = 6100
+        self.assertEqual(score_changes2[0].score_change, 6100)
+        # 32*250 = 8000
+        self.assertEqual(score_changes2[1].score_change, 8000)
+        # 10*250 = 2500
+        self.assertEqual(score_changes2[2].score_change, 2500)
+
     def attribute_paper_to_author(self, user, paper):
         case = AuthorClaimCase.objects.create(
             target_paper=paper, requestor=user, status=APPROVED
