@@ -21,7 +21,7 @@ import note.routing
 import notification.routing
 import user.routing
 from notification.token_auth import TokenAuthMiddlewareStack
-from researchhub.settings import CELERY_WORKER, DEVELOPMENT
+from researchhub.settings import CELERY_WORKER
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "researchhub.settings")
 
@@ -29,19 +29,17 @@ routing = {}
 
 if not CELERY_WORKER:
     routing["http"] = django_asgi_app
-
-# FIXME: Runs on workers in the old accounts, but on webservers in the new account.
-# Add the condition `not CELERY_WORKER` once migrated into the new account.
-routing["websocket"] = AllowedHostsOriginValidator(
-    TokenAuthMiddlewareStack(
-        URLRouter(
-            [
-                *note.routing.websocket_urlpatterns,
-                *notification.routing.websocket_urlpatterns,
-                *user.routing.websocket_urlpatterns,
-                *citation.routing.websocket_urlpatterns,
-            ]
+    routing["websocket"] = AllowedHostsOriginValidator(
+        TokenAuthMiddlewareStack(
+            URLRouter(
+                [
+                    *note.routing.websocket_urlpatterns,
+                    *notification.routing.websocket_urlpatterns,
+                    *user.routing.websocket_urlpatterns,
+                    *citation.routing.websocket_urlpatterns,
+                ]
+            )
         )
     )
-)
+
 application = ProtocolTypeRouter(routing)
