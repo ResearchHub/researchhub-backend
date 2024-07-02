@@ -21,7 +21,7 @@ from celery.task.schedules import crontab
 from corsheaders.defaults import default_headers
 from sentry_sdk.integrations.django import DjangoIntegration
 from web3 import Web3
-
+from utils.dns import resolve_dns
 from utils.sentry import log_error
 
 APP_ENV = os.environ.get("APP_ENV") or "development"
@@ -121,9 +121,14 @@ if ELASTIC_BEANSTALK:
     except requests.exceptions.RequestException:
         pass
 
-    DJANGO_ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "")
-    if DJANGO_ALLOWED_HOSTS:
-        ALLOWED_HOSTS += DJANGO_ALLOWED_HOSTS.split(",")
+DJANGO_ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "")
+if DJANGO_ALLOWED_HOSTS:
+    hosts = [host.strip() for host in DJANGO_ALLOWED_HOSTS.split(",")]
+    ALLOWED_HOSTS += hosts
+    # Since AWS load balancers set the Host header to the load balancer's IP address
+    # we also add the resolved IP addresses to the allowed hosts:
+    ip_addresses = resolve_dns(hosts)
+    ALLOWED_HOSTS += ip_addresses
 
 CORS_ALLOW_HEADERS = (
     *default_headers,
