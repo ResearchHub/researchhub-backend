@@ -88,7 +88,7 @@
   <body>
     <div class="email-container">
       <div class="email-header">
-        <img class="img-logo" src="https://rh-email-assets.s3-us-west-2.amazonaws.com/researchlogo.png" />
+        <img class="img-logo" src="{{ assets_base_url }}/researchlogo.png" />
         <div class="header-container">
           <div class="header-2">
             Hello {{ requestor_name }},
@@ -97,7 +97,7 @@
             <div>
                 <p>
                     Congratulations, Your account is officially verified!
-                    <img class="badge" src="https://rh-email-assets.s3-us-west-2.amazonaws.com/badge.png" /> A verified badge will appear next to your name.
+                    <img class="badge" src="{{ assets_base_url }}/badge.png" /> A verified badge will appear next to your name.
                 </p>
                 <p>
                   We have verified your account due to a recent paper that was claimed by you on ResearchHub. The claim was for the paper "{{paper_title}}"".
