@@ -121,9 +121,23 @@ if ELASTIC_BEANSTALK:
     except requests.exceptions.RequestException:
         pass
 
-    DJANGO_ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "")
-    if DJANGO_ALLOWED_HOSTS:
-        ALLOWED_HOSTS += DJANGO_ALLOWED_HOSTS.split(",")
+DJANGO_ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "")
+if DJANGO_ALLOWED_HOSTS:
+    hosts = [host.strip() for host in DJANGO_ALLOWED_HOSTS.split(",")]
+    ALLOWED_HOSTS += hosts
+
+    # The AWS load balancers fronting the Beanstalk environment set the Host
+    # header to the load balancer's IP address. Therefore we also add the
+    # resolved IP addresses to the allowed hosts.
+    for host in hosts:
+        if host.endswith("elasticbeanstalk.com"):
+            import socket
+
+            try:
+                ips = list({info[4][0] for info in socket.getaddrinfo(host, None)})
+            except Exception:
+                pass
+            ALLOWED_HOSTS += ips
 
 CORS_ALLOW_HEADERS = (
     *default_headers,
