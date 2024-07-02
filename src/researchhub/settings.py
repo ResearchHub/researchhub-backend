@@ -534,7 +534,7 @@ AWS_DEFAULT_ACL = None
 
 # Assets
 ASSETS_BASE_URL = os.environ.get(
-    "ASSETS_BASE_URL", "https://rh-email-assets.s3.us-west-2.amazonaws.com"
+    "ASSETS_BASE_URL", "https://assets.staging.researchhub.com"
 )
 
 # Email
