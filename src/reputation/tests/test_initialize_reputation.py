@@ -4,6 +4,8 @@ from unittest.mock import patch
 from django.core.management import call_command
 from django.test import TestCase
 
+from discussion.reaction_models import Vote
+from discussion.tests.helpers import create_rh_comment, create_vote
 from hub.models import Hub
 from paper.models import Paper
 from paper.tests.helpers import create_paper
@@ -41,12 +43,27 @@ class InitializeReputationCommandTestCase(TestCase):
         paper3.hubs.add(self.hub2)
 
         # Add user, an author is automatically created for this user.
-        self.user = User.objects.create_user(username="user1", password="pass1")
+        self.user_author = User.objects.create_user(username="user1", password="pass1")
+        self.user_basic = User.objects.create_user(username="user2", password="pass2")
+
+        # Create comments
+        comment1 = create_rh_comment(paper=paper1, created_by=self.user_author)
+        comment2 = create_rh_comment(paper=paper1, created_by=self.user_author)
+
+        # Upvote comment 1
+        create_vote(self.user_author, comment1, Vote.UPVOTE)
+        create_vote(self.user_basic, comment1, Vote.UPVOTE)
+
+        # Downvote comment 2
+        create_vote(self.user_author, comment2, Vote.UPVOTE)
+
+        # Upvote paper 1
+        create_vote(self.user_author, paper1, Vote.UPVOTE)
 
         # Add author claim
-        self.attribute_paper_to_author(self.user, paper1)
-        self.attribute_paper_to_author(self.user, paper2)
-        self.attribute_paper_to_author(self.user, paper3)
+        self.attribute_paper_to_author(self.user_author, paper1)
+        self.attribute_paper_to_author(self.user_author, paper2)
+        self.attribute_paper_to_author(self.user_author, paper3)
 
         self.bins = (
             [
@@ -88,24 +105,32 @@ class InitializeReputationCommandTestCase(TestCase):
         )
 
     def test_initialize_reputation_command(self):
-        call_command("initialize_reputation", self.user.id, 1)
+        call_command("initialize_reputation", self.user_author.id, 1)
 
         # Check if the score is created
         self.assertEqual(Score.objects.count(), 2)
 
         # Check if the score change is created
-        self.assertEqual(ScoreChange.objects.count(), 4)
+        self.assertEqual(ScoreChange.objects.count(), 8)
 
         # Check if the score is created with the correct score
-        score1 = Score.objects.get(hub=self.hub1, author=self.user.author_profile)
-        self.assertEqual(score1.score, 23100)
+        score1 = Score.objects.get(
+            hub=self.hub1, author=self.user_author.author_profile
+        )
+        self.assertEqual(score1.score, 23104)
 
         # Check if the score change is created with the correct score change
-        score_change1 = ScoreChange.objects.get(score=score1)
-        self.assertEqual(score_change1.score_change, 23100)
+        score_changes1 = ScoreChange.objects.filter(score=score1)
+        self.assertEqual(score_changes1[0].score_change, 23100)
+        self.assertEqual(score_changes1[1].score_change, 1)
+        self.assertEqual(score_changes1[2].score_change, 1)
+        self.assertEqual(score_changes1[3].score_change, 1)
+        self.assertEqual(score_changes1[4].score_change, 1)
 
         # Check if the score is created with the correct score
-        score2 = Score.objects.get(hub=self.hub2, author=self.user.author_profile)
+        score2 = Score.objects.get(
+            hub=self.hub2, author=self.user_author.author_profile
+        )
         # 2*50 + 10*100 + 52*250 = 14100
         self.assertEqual(score2.score, 16600)
 
@@ -119,27 +144,37 @@ class InitializeReputationCommandTestCase(TestCase):
         self.assertEqual(score_changes2[2].score_change, 2500)
 
     def test_initialize_reputation_two_calls(self):
-        call_command("initialize_reputation", self.user.id, 1)
-        call_command("initialize_reputation", self.user.id, 1)
+        # This simulates a recalculation of the reputation.
+        call_command("initialize_reputation", self.user_author.id, 1)
+        call_command("initialize_reputation", self.user_author.id, 1)
 
         # Check if the score is created
         self.assertEqual(Score.objects.count(), 2)
 
         # Check if the score change is created
-        self.assertEqual(ScoreChange.objects.count(), 8)
+        self.assertEqual(ScoreChange.objects.count(), 16)
 
         # Check if the score is created with the correct score
-        score1 = Score.objects.get(hub=self.hub1, author=self.user.author_profile)
-        self.assertEqual(score1.score, 23100)
+        score1 = Score.objects.get(
+            hub=self.hub1, author=self.user_author.author_profile
+        )
+
+        self.assertEqual(score1.score, 23104)
 
         # Check if the score change is created with the correct score change
-        score_change1 = ScoreChange.objects.get(
+        score_changes1 = ScoreChange.objects.filter(
             score=score1, score_version=score1.version
         )
-        self.assertEqual(score_change1.score_change, 23100)
+        self.assertEqual(score_changes1[0].score_change, 23100)
+        self.assertEqual(score_changes1[1].score_change, 1)
+        self.assertEqual(score_changes1[2].score_change, 1)
+        self.assertEqual(score_changes1[3].score_change, 1)
+        self.assertEqual(score_changes1[4].score_change, 1)
 
         # Check if the score is created with the correct score
-        score2 = Score.objects.get(hub=self.hub2, author=self.user.author_profile)
+        score2 = Score.objects.get(
+            hub=self.hub2, author=self.user_author.author_profile
+        )
         # 2*50 + 10*100 + 52*250 = 14100
         self.assertEqual(score2.score, 16600)
 
@@ -147,6 +182,7 @@ class InitializeReputationCommandTestCase(TestCase):
         score_changes2 = ScoreChange.objects.filter(
             score=score2, score_version=score2.version
         )
+
         # 2*50 + 10*100 + 20*250 = 6100
         self.assertEqual(score_changes2[0].score_change, 6100)
         # 32*250 = 8000
