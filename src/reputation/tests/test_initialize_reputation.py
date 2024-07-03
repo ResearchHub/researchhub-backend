@@ -144,6 +144,7 @@ class InitializeReputationCommandTestCase(TestCase):
         self.assertEqual(score_changes2[2].score_change, 2500)
 
     def test_initialize_reputation_two_calls(self):
+        # This simulates a recalculation of the reputation.
         call_command("initialize_reputation", self.user_author.id, 1)
         call_command("initialize_reputation", self.user_author.id, 1)
 
