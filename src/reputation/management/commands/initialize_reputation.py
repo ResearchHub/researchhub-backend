@@ -8,8 +8,10 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 from django.db.models import Sum
 
+from discussion.models import Vote
 from paper.models import Paper
 from reputation.models import AlgorithmVariables, Score, ScoreChange
+from researchhub_comment.models import RhCommentThreadModel
 from user.models import User
 
 
@@ -32,16 +34,123 @@ class Command(BaseCommand):
         user = User.objects.get(id=user_id)
         author = user.author_profile
         self.calculate_author_score_hubs_citations(author, algorithm_version)
+        self.calculate_author_score_hubs_paper_votes(user, algorithm_version)
+        self.calculate_author_score_hubs_comments(user, algorithm_version)
+
+    def calculate_author_score_hubs_paper_votes(self, user, algorithm_version):
+        author = user.author_profile
+        score_version = Score.get_version(author)
+
+        authored_papers = author.authored_papers.all()
+        for paper in authored_papers:
+            votes = paper.votes.all()
+            hubs = paper.hubs.filter(is_used_for_rep=True)
+            for hub in hubs:
+                algorithm_variables = AlgorithmVariables.objects.filter(hub=hub).latest(
+                    "created_date"
+                )
+                score = Score.get_or_create_score(author, hub)
+
+                for vote in votes:
+                    if vote.vote_type == 1:
+                        vote_value = 1
+                    elif vote.vote_type == 2:
+                        vote_value = -1
+
+                    previous_score_change = ScoreChange.get_lastest_score_change(
+                        score, score_version, algorithm_version, algorithm_variables
+                    )
+
+                    previous_variable_counts = {
+                        "citations": 0,
+                        "votes": 0,
+                    }
+                    if previous_score_change:
+                        previous_variable_counts = previous_score_change.variable_counts
+
+                    current_variable_counts = previous_variable_counts
+                    current_variable_counts["votes"] = (
+                        current_variable_counts["votes"] + vote_value
+                    )
+
+                    current_rep = previous_score_change.score_after_change + vote_value
+
+                    score_change = ScoreChange(
+                        algorithm_version=algorithm_version,
+                        algorithm_variables=algorithm_variables,
+                        score_after_change=current_rep,
+                        score_change=vote_value,
+                        raw_value_change=vote_value,
+                        changed_content_type=ContentType.objects.get_for_model(Vote),
+                        changed_object_id=vote.id,
+                        changed_object_field="vote_type",
+                        variable_counts=current_variable_counts,
+                        score=score,
+                        score_version=score_version,
+                    )
+                    score_change.save()
+
+    def calculate_author_score_hubs_comments(self, user, algorithm_version):
+        author = user.author_profile
+        score_version = Score.get_version(author)
+
+        comments = RhCommentThreadModel.objects.filter(
+            content_type=ContentType.objects.get(model="paper"),
+            created_by=user,
+        )
+
+        for comment in comments:
+            paper = Paper.get(id=comment.object_id)
+            votes = paper.votes.all()
+
+            hubs = paper.hubs.filter(is_used_for_rep=True)
+            for hub in hubs:
+                algorithm_variables = AlgorithmVariables.objects.filter(hub=hub).latest(
+                    "created_date"
+                )
+                score = Score.get_or_create_score(author, hub)
+
+                for vote in votes:
+                    if vote.vote_type == 1:
+                        vote_value = 1
+                    elif vote.vote_type == 2:
+                        vote_value = -1
+
+                    previous_score_change = ScoreChange.get_lastest_score_change(
+                        score, score_version, algorithm_version, algorithm_variables
+                    )
+
+                    previous_variable_counts = {
+                        "citations": 0,
+                        "votes": 0,
+                    }
+                    if previous_score_change:
+                        previous_variable_counts = previous_score_change.variable_counts
+
+                    current_variable_counts = previous_variable_counts
+                    current_variable_counts["votes"] = (
+                        current_variable_counts["votes"] + vote_value
+                    )
+
+                    current_rep = previous_score_change.score_after_change + vote_value
+
+                    score_change = ScoreChange(
+                        algorithm_version=algorithm_version,
+                        algorithm_variables=algorithm_variables,
+                        score_after_change=current_rep,
+                        score_change=vote_value,
+                        raw_value_change=vote_value,
+                        changed_content_type=ContentType.objects.get_for_model(Vote),
+                        changed_object_id=vote.id,
+                        changed_object_field="vote_type",
+                        variable_counts=current_variable_counts,
+                        score=score,
+                        score_version=score_version,
+                    )
+                    score_change.save()
 
     def calculate_author_score_hubs_citations(self, author, algorithm_version):
-        score_version = 1
-        try:
-            score = Score.objects.filter(author=author).latest("created_date")
-        except Score.DoesNotExist:
-            score = None
-
-        if score:
-            score_version = score.version + 1
+        score_version = Score.get_version(author)
 
         authored_papers = author.authored_papers.all()
         for paper in authored_papers:
@@ -67,27 +176,11 @@ class Command(BaseCommand):
                     algorithm_variables = AlgorithmVariables.objects.filter(
                         hub=hub
                     ).latest("created_date")
-                    try:
-                        score = Score.objects.get(author=author, hub=hub)
-                        if score.version != score_version:
-                            score.version = score_version
-                            score.score = 0
-                            score.save()
-                    except Score.DoesNotExist:
-                        score = Score(
-                            author=author,
-                            hub=hub,
-                            version=1,
-                            score=0,
-                        )
-                        score.save()
+                    score = Score.get_or_create_score(author, hub)
 
-                    try:
-                        previous_score_change = ScoreChange.objects.filter(
-                            score=score, score_version=score_version
-                        ).latest("created_date")
-                    except ScoreChange.DoesNotExist:
-                        previous_score_change = None
+                    previous_score_change = ScoreChange.get_lastest_score_change(
+                        score, score_version, algorithm_version, algorithm_variables
+                    )
 
                     previous_total_citation_count = 0
                     previous_variable_counts = {

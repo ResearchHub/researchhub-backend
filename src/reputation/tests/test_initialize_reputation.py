@@ -130,6 +130,7 @@ class InitializeReputationCommandTestCase(TestCase):
 
         # Check if the score is created with the correct score
         score1 = Score.objects.get(hub=self.hub1, author=self.user.author_profile)
+
         self.assertEqual(score1.score, 23100)
 
         # Check if the score change is created with the correct score change
@@ -147,6 +148,7 @@ class InitializeReputationCommandTestCase(TestCase):
         score_changes2 = ScoreChange.objects.filter(
             score=score2, score_version=score2.version
         )
+
         # 2*50 + 10*100 + 20*250 = 6100
         self.assertEqual(score_changes2[0].score_change, 6100)
         # 32*250 = 8000

@@ -20,6 +20,32 @@ class Score(DefaultModel):
             "hub",
         )
 
+    @classmethod
+    def get_or_create_score(cls, author, hub):
+        try:
+            score = cls.objects.get(author=author, hub=hub)
+        except cls.DoesNotExist:
+            score = cls(
+                author=author,
+                hub=hub,
+                version=1,
+                score=0,
+            )
+            score.save()
+
+        return score
+
+    @classmethod
+    def get_version(cls, author):
+        try:
+            score_version = (
+                cls.objects.filter(author=author).latest("created_date").version
+            ) + 1
+        except cls.DoesNotExist:
+            score_version = 1
+
+        return score_version
+
 
 class ScoreChange(DefaultModel):
     algorithm_version = models.IntegerField(default=1)
@@ -50,6 +76,22 @@ class ScoreChange(DefaultModel):
         default=1
     )  # version of the score to allow for recalculation.
     created_date = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    @classmethod
+    def get_lastest_score_change(
+        cls, score, score_version, algorithm_version, algorithm_variables
+    ):
+        try:
+            previous_score_change = cls.objects.filter(
+                score=score,
+                score_version=score_version,
+                algorithm_version=algorithm_version,
+                algorithm_variables=algorithm_variables,
+            ).latest("created_date")
+        except cls.DoesNotExist:
+            previous_score_change = None
+
+        return previous_score_change
 
 
 # AlgorithmVariables stores the variables required to calculate the reputation score.
