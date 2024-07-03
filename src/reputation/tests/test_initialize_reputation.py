@@ -160,11 +160,6 @@ class InitializeReputationCommandTestCase(TestCase):
 
         self.assertEqual(score1.score, 23104)
 
-        for score_change in ScoreChange.objects.filter(score=score1):
-            print("score_change.score_change", score_change.score_change)
-            print("score_change.raw_value_change", score_change.raw_value_change)
-            print("score_change.score_version", score_change.score_version)
-
         # Check if the score change is created with the correct score change
         score_changes1 = ScoreChange.objects.filter(
             score=score1, score_version=score1.version
