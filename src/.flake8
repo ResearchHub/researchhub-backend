@@ -2,3 +2,4 @@
 exclude =
     migrations
 count = True
+max-line-length = 88
