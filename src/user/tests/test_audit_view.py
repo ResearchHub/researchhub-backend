@@ -110,7 +110,7 @@ class AuditViewTests(APITestCase):
                 "send_email": False,
             },
         )
-        self.assertEquals(http_response.status_code, 403)
+        self.assertEqual(http_response.status_code, 403)
 
     def test_editor_can_dismiss_flag(self):
         self.client.force_authenticate(self.test_editor)
@@ -121,7 +121,7 @@ class AuditViewTests(APITestCase):
         http_response = self.client.post(
             DISMISS_FLAGGED_CONTENT_URL, {"flag_ids": [target_flag.id]}
         )
-        self.assertEquals(http_response.status_code, 200)
+        self.assertEqual(http_response.status_code, 200)
 
     def test_reg_user_cannot_dismiss_flag(self):
         self.client.force_authenticate(self.reg_user)
@@ -132,4 +132,4 @@ class AuditViewTests(APITestCase):
         http_response = self.client.post(
             DISMISS_FLAGGED_CONTENT_URL, {"flag_ids": [target_flag.id]}
         )
-        self.assertEquals(http_response.status_code, 403)
+        self.assertEqual(http_response.status_code, 403)

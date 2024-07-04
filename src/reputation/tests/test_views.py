@@ -56,8 +56,8 @@ class ReputationViewsTests(APITestCase):
         self.client.force_authenticate(user)
         response = self.client.get("/api/deposit/")
 
-        self.assertEquals(response.status_code, 200)
-        self.assertEquals(response.data["count"], 1)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
 
     def test_deposit_user_cannot_list_other_deposits(self):
         user = create_random_authenticated_user("deposit_user")
@@ -68,8 +68,8 @@ class ReputationViewsTests(APITestCase):
         self.client.force_authenticate(other_user)
         response = self.client.get("/api/deposit/")
 
-        self.assertEquals(response.status_code, 200)
-        self.assertEquals(response.data["count"], 0)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 0)
 
     def test_deposit_deposit_staff_user_can_list_all_deposits(self):
         user1 = create_random_authenticated_user("user1")
@@ -84,8 +84,8 @@ class ReputationViewsTests(APITestCase):
         self.client.force_authenticate(staff_user)
         response = self.client.get("/api/deposit/")
 
-        self.assertEquals(response.status_code, 200)
-        self.assertEquals(response.data["count"], 2)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 2)
 
     def test_suspecious_user_cannot_withdraw_rsc(self):
         user = create_random_authenticated_user("rep_user")

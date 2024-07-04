@@ -19,7 +19,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
         Topic.upsert_from_openalex(topic)
 
         created_topic = Topic.objects.filter(openalex_id=topic["id"]).first()
-        self.assertEquals(created_topic.openalex_id, topic["id"])
+        self.assertEqual(created_topic.openalex_id, topic["id"])
 
     def test_update_topic(self):
         old_topic = self.topics[0]
@@ -36,7 +36,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
         Topic.upsert_from_openalex(new_topic)
 
         created_topic = Topic.objects.filter(openalex_id=new_topic["id"]).first()
-        self.assertEquals(created_topic.display_name, "new topic")
+        self.assertEqual(created_topic.display_name, "new topic")
 
     def test_create_topic_should_create_related_entities(self):
         topic = self.topics[0]
@@ -46,6 +46,6 @@ class ProcessOpenAlexWorksTests(APITestCase):
         field = subfield.field
         domain = field.domain
 
-        self.assertEquals(domain.openalex_id, topic["domain"]["id"])
-        self.assertEquals(subfield.openalex_id, topic["subfield"]["id"])
-        self.assertEquals(field.openalex_id, topic["field"]["id"])
+        self.assertEqual(domain.openalex_id, topic["domain"]["id"])
+        self.assertEqual(subfield.openalex_id, topic["subfield"]["id"])
+        self.assertEqual(field.openalex_id, topic["field"]["id"])
