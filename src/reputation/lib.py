@@ -333,7 +333,6 @@ contract_abi = [
 try:
     PRIVATE_KEY = get_private_key() if WEB3_KEYSTORE_BUCKET else None
 except Exception as e:
-    print(e)
     PRIVATE_KEY = None
     log_error(e)
 
