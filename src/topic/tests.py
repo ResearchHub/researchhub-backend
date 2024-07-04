@@ -3,8 +3,6 @@ from datetime import datetime
 
 from rest_framework.test import APITestCase
 
-from paper.models import Paper
-from paper.openalex_util import process_openalex_works
 from topic.models import Topic
 
 

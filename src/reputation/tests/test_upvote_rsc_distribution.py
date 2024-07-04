@@ -1,6 +1,3 @@
-import decimal
-import math
-
 from django.contrib.admin.options import get_content_type_for_model
 from django.test import TestCase
 
@@ -8,9 +5,6 @@ import reputation.distributions as distributions
 from discussion.models import Vote as GrmVote
 from discussion.tests.helpers import create_rh_comment
 from reputation.models import Distribution, Escrow
-from researchhub_case.constants.case_constants import APPROVED
-from researchhub_case.models import AuthorClaimCase
-from researchhub_case.tasks import after_approval_flow
 from user.models import Author
 from utils.test_helpers import TestHelper
 

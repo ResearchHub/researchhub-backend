@@ -5,7 +5,7 @@ from django.db import IntegrityError
 from django.test import TestCase, TransactionTestCase, tag
 from psycopg2.errors import UniqueViolation
 
-from paper.serializers import DynamicPaperSerializer, PaperSerializer
+from paper.serializers import DynamicPaperSerializer
 from paper.tasks import handle_duplicate_doi
 from paper.utils import (
     convert_journal_url_to_pdf_url,
