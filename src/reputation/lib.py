@@ -9,7 +9,7 @@ from ethereum.lib import RSC_CONTRACT_ADDRESS, execute_erc20_transfer, get_priva
 from mailing_list.lib import base_email_context
 from reputation.models import Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
-from researchhub.settings import WEB3_WALLET_ADDRESS, w3
+from researchhub.settings import WEB3_KEYSTORE_BUCKET, WEB3_WALLET_ADDRESS, w3
 from utils.message import send_email_message
 from utils.sentry import log_error
 
@@ -331,7 +331,7 @@ contract_abi = [
 ]
 
 try:
-    PRIVATE_KEY = get_private_key()
+    PRIVATE_KEY = get_private_key() if WEB3_KEYSTORE_BUCKET else None
 except Exception as e:
     print(e)
     PRIVATE_KEY = None
