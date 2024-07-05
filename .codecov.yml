@@ -1,3 +1,5 @@
 ignore:
   - "*/tests/*"
   - "*/tests.py"
+fixes:
+  - "/home/runner/work/researchhub-backend/researchhub-backend/::"
