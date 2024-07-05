@@ -44,7 +44,7 @@ from peer_review.views import (
 from researchhub.settings import INSTALLED_APPS, USE_DEBUG_TOOLBAR
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from review.views.review_view import ReviewViewSet
-from user.views import author_views, editor_views
+from user.views import author_views, editor_views, persona_webhook_view
 
 router = routers.DefaultRouter()
 
@@ -296,6 +296,11 @@ urlpatterns = [
     path("health/", researchhub.views.healthcheck),
     path("", researchhub.views.index, name="index"),
     path("robots.txt", researchhub.views.robots_txt, name="robots_txt"),
+    path(
+        "webhooks/persona/",
+        persona_webhook_view.PersonaWebhookView.as_view(),
+        name="persona_webhook",
+    ),
 ]
 
 if "silk" in INSTALLED_APPS:
