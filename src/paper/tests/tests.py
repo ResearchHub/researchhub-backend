@@ -5,7 +5,7 @@ from django.db import IntegrityError
 from django.test import TestCase, TransactionTestCase, tag
 from psycopg2.errors import UniqueViolation
 
-from paper.serializers import DynamicPaperSerializer, PaperSerializer
+from paper.serializers import DynamicPaperSerializer
 from paper.tasks import handle_duplicate_doi
 from paper.utils import (
     convert_journal_url_to_pdf_url,
@@ -168,14 +168,14 @@ class JournalPdfTests(TestCase):
             pdf_url, exists = convert_journal_url_to_pdf_url(url)
             if exists:
                 print(pdf_url)
-                self.assertEquals(pdf_url, self.pdf_test_urls[i])
+                self.assertEqual(pdf_url, self.pdf_test_urls[i])
 
     def test_pdf_to_journal(self):
         for i, url in enumerate(self.pdf_test_urls):
             journal_url, exists = convert_pdf_url_to_journal_url(url)
             if exists:
                 print(journal_url)
-                self.assertEquals(journal_url, self.journal_test_urls[i])
+                self.assertEqual(journal_url, self.journal_test_urls[i])
 
 
 class PaperPatchTest(TestCase, TestHelper, IntegrationTestHelper):
@@ -197,9 +197,9 @@ class PaperPatchTest(TestCase, TestHelper, IntegrationTestHelper):
         url = f"{self.base_url}{paper.id}/?make_public=true"
         response = client.patch(url, form, content_type="application/json")
         data = response.data
-        self.assertEquals(response.status_code, 200)
-        self.assertEquals(data["title"], updated_title)
-        self.assertEquals(
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(data["title"], updated_title)
+        self.assertEqual(
             data["raw_authors"], [{"first_name": "First", "last_name": "Last"}]
         )
 

@@ -1,6 +1,3 @@
-import decimal
-import math
-
 from django.contrib.admin.options import get_content_type_for_model
 from django.test import TestCase
 
@@ -8,9 +5,6 @@ import reputation.distributions as distributions
 from discussion.models import Vote as GrmVote
 from discussion.tests.helpers import create_rh_comment
 from reputation.models import Distribution, Escrow
-from researchhub_case.constants.case_constants import APPROVED
-from researchhub_case.models import AuthorClaimCase
-from researchhub_case.tasks import after_approval_flow
 from user.models import Author
 from utils.test_helpers import TestHelper
 
@@ -65,8 +59,8 @@ class BaseTests(TestCase, TestHelper):
         comment = create_rh_comment(created_by=new_user, paper=self.original_paper)
         GrmVote.objects.create(item=comment, vote_type=1, created_by=voter_user)
         distribution = distributions.Distribution(1, 1, 1)
-        self.assertEquals(Distribution.objects.count(), 1)
-        self.assertEquals(distribution.amount, Distribution.objects.first().amount)
+        self.assertEqual(Distribution.objects.count(), 1)
+        self.assertEqual(distribution.amount, Distribution.objects.first().amount)
 
     def test_upvote_downvote_upvote(self):
         if Distribution.objects.count() > 0:
@@ -99,14 +93,14 @@ class BaseTests(TestCase, TestHelper):
         )
 
         distribution = distributions.Distribution(1, 1, 1)
-        self.assertEquals(Distribution.objects.count(), 1)
-        self.assertEquals(distribution.amount, Distribution.objects.first().amount)
+        self.assertEqual(Distribution.objects.count(), 1)
+        self.assertEqual(distribution.amount, Distribution.objects.first().amount)
         reply_vote.vote_type = 2
         reply_vote.save()
         reply_vote.vote_type = 1
         reply_vote.save()
-        self.assertEquals(Distribution.objects.count(), 1)
-        self.assertEquals(distribution.amount, Distribution.objects.first().amount)
+        self.assertEqual(Distribution.objects.count(), 1)
+        self.assertEqual(distribution.amount, Distribution.objects.first().amount)
 
     def test_upvote_distribution(self):
         if Distribution.objects.count() > 0:
@@ -128,4 +122,4 @@ class BaseTests(TestCase, TestHelper):
         eligible_user.save()
 
         distribution = distributions.Distribution(1, 1, 1)
-        self.assertEquals(distribution.amount, 1)
+        self.assertEqual(distribution.amount, 1)

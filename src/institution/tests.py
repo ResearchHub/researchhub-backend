@@ -17,7 +17,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
         Institution.upsert_from_openalex(institution)
 
         created_inst = Institution.objects.filter(openalex_id=institution["id"]).first()
-        self.assertEquals(created_inst.openalex_id, institution["id"])
+        self.assertEqual(created_inst.openalex_id, institution["id"])
 
     def test_update_institution(self):
         old_institution = self.institutions[0]
@@ -38,4 +38,4 @@ class ProcessOpenAlexWorksTests(APITestCase):
         created_inst = Institution.objects.filter(
             openalex_id=new_institution["id"]
         ).first()
-        self.assertEquals(created_inst.display_name, "new topic")
+        self.assertEqual(created_inst.display_name, "new topic")

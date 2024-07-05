@@ -23,7 +23,7 @@ class ApprovalFlowTests(TestCase):
 
         after_approval_flow(case.id)
         requesting_user.refresh_from_db()
-        self.assertEquals(requesting_user.is_verified, True)
+        self.assertEqual(requesting_user.is_verified, True)
 
     def attribute_paper_to_author(self):
         requesting_user = create_random_default_user("2")
@@ -34,4 +34,4 @@ class ApprovalFlowTests(TestCase):
         after_approval_flow(case.id)
         requesting_user.refresh_from_db()
         self.paper.refresh_from_db()
-        self.assertEquals(self.paper.authors.first().id, requesting_user.id)
+        self.assertEqual(self.paper.authors.first().id, requesting_user.id)
