@@ -46,7 +46,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.8.5"
+          python-version: "3.8.16"
       - name: Updating pip
         working-directory: ./src
         run: |
