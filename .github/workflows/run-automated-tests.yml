@@ -63,4 +63,4 @@ jobs:
           cp config/ci/* config
           poetry run python manage.py migrate
           poetry run python manage.py collectstatic --noinput
-          poetry run python manage.py test --verbosity=2
+          poetry run coverage run manage.py test --verbosity=2
