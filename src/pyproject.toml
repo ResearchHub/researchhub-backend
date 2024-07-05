@@ -84,6 +84,7 @@ aiohttp = "3.9.5"
 cryptography = "42.0.5"
 requests-mock = "^1.12.1"
 django-simple-history = "3.7.0"
+coverage = ">=7.5.4"
 
 [tool.poetry.dev-dependencies]
 

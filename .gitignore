@@ -39,3 +39,6 @@ src/Dockerfile
 .elasticbeanstalk/*
 !.elasticbeanstalk/*.cfg.yml
 !.elasticbeanstalk/*.global.yml
+
+# Coverage
+.coverage
