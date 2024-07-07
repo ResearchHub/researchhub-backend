@@ -8,6 +8,7 @@ from django.utils.timezone import now
 from simple_history.utils import bulk_update_with_history
 
 import utils.sentry as sentry
+from institution.models import Institution
 from user.related_models.author_contribution_summary_model import (
     AuthorContributionSummary,
 )
@@ -219,6 +220,7 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
         author = None
         try:
             author = Author.objects.get(openalex_ids__contains=[author_openalex_id])
+
         except Author.DoesNotExist:
             author_name_parts = (
                 oa_authorship.get("author", {}).get("display_name").split(" ")
@@ -274,51 +276,7 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
             )
             continue
 
-        # Set misc author metadata
-        author.i10_index = oa_author.get("summary_stats", {}).get("i10_index")
-        author.h_index = oa_author.get("summary_stats", {}).get("h_index")
-        author.two_year_mean_citedness = oa_author.get("summary_stats", {}).get(
-            "2yr_mean_citedness"
-        )
-        author.orcid_id = oa_author.get("orcid")
-        author.save()
-
-        # Set author contribution/citation activity
-        activity_by_year = oa_author.get("counts_by_year", [])
-        for activity in activity_by_year:
-            try:
-                AuthorContributionSummary.objects.update_or_create(
-                    source=AuthorContributionSummary.SOURCE_OPENALEX,
-                    author=author,
-                    year=activity.get("year"),
-                    defaults={
-                        "works_count": activity.get("works_count", None),
-                        "citation_count": activity.get("cited_by_count", None),
-                    },
-                )
-            except Exception as e:
-                sentry.log_error(
-                    e,
-                    message=f"Failed to upsert author contribution summary for author: {str(author.id)}",
-                )
-
-        # Load all the institutions author is associated with
-        affiliations = oa_author.get("affiliations", [])
-        for affiliation in affiliations:
-            oa_institution = affiliation.get("institution")
-            years = affiliation.get("years", [])
-
-            institution = None
-            try:
-                institution = Institution.objects.get(openalex_id=oa_institution["id"])
-            except Institution.DoesNotExist as e:
-                continue
-
-            author_inst = AuthorInstitution.objects.get_or_create(
-                author=author,
-                institution=institution,
-                years=years,
-            )
+    merge_openalex_author_with_researchhub_author(oa_author, author)
 
     # Create co-author relationships
     for i, author in enumerate(authors_in_this_work):
@@ -327,3 +285,62 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
                 CoAuthor.objects.get_or_create(
                     author=author, coauthor=coauthor, paper_id=related_paper_id
                 )
+
+
+"""
+Merges the OpenAlex author data with the ResearchHub author data. This is necessary because the OpenAlex author data
+"""
+
+
+def merge_openalex_author_with_researchhub_author(openalex_author, researchhub_author):
+    # Set basic metadata fields
+    researchhub_author.i10_index = openalex_author.get("summary_stats", {}).get(
+        "i10_index"
+    )
+    researchhub_author.h_index = openalex_author.get("summary_stats", {}).get("h_index")
+    researchhub_author.two_year_mean_citedness = openalex_author.get(
+        "summary_stats", {}
+    ).get("2yr_mean_citedness")
+    researchhub_author.orcid_id = openalex_author.get("orcid")
+    researchhub_author.save()
+
+    # Associate this openalex id with the author
+    if openalex_author.id not in researchhub_author.openalex_ids:
+        researchhub_author.openalex_ids.append(openalex_author.id)
+        researchhub_author.save()
+
+    activity_by_year = openalex_author.get("counts_by_year", [])
+    for activity in activity_by_year:
+        try:
+            AuthorContributionSummary.objects.update_or_create(
+                source=AuthorContributionSummary.SOURCE_OPENALEX,
+                author=researchhub_author,
+                year=activity.get("year"),
+                defaults={
+                    "works_count": activity.get("works_count", None),
+                    "citation_count": activity.get("cited_by_count", None),
+                },
+            )
+        except Exception as e:
+            sentry.log_error(
+                e,
+                message=f"Failed to upsert author contribution summary for author: {str(author.id)}",
+            )
+
+    # Load all the institutions author is associated with
+    affiliations = openalex_author.get("affiliations", [])
+    for affiliation in affiliations:
+        oa_institution = affiliation.get("institution")
+        years = affiliation.get("years", [])
+
+        institution = None
+        try:
+            institution = Institution.objects.get(openalex_id=oa_institution["id"])
+        except Institution.DoesNotExist as e:
+            continue
+
+        author_inst = AuthorInstitution.objects.get_or_create(
+            author=researchhub_author,
+            institution=institution,
+            years=years,
+        )

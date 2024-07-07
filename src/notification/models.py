@@ -122,6 +122,7 @@ class Notification(models.Model):
         room = f"notification_{user.id}"
         notification_type = self.notification_type
         channel_layer = get_channel_layer()
+        print("channel_layer", channel_layer)
         async_to_sync(channel_layer.group_send)(
             room,
             {

@@ -2,10 +2,55 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models import Case, When
 
+import utils.sentry as sentry
+from paper.openalex_util import merge_openalex_author_with_researchhub_author
 from user.aggregates import TenPercentile, TwoPercentile
 from user.models import Organization, User
+from user.related_models.author_model import Author
 from user.tasks import preload_latest_activity
+from user.views.author_views import AuthorClaimException
+from utils.openalex import OpenAlex
 from utils.sentry import log_error
+
+
+def claim_author_profile(self, claiming_rh_author_id, openalex_author_id):
+    openalex_api = OpenAlex()
+
+    response, cursor = openalex_api.get_authors(openalex_ids=[openalex_author_id])
+    openalex_author = response[0]
+
+    if not openalex_author:
+        raise Exception("OpenAlex author not found")
+
+    rh_author_with_this_openalex_id = Author.objects.get(
+        openalex_ids__contains=[openalex_author_id]
+    )
+    claiming_rh_author = Author.objects.get(id=claiming_rh_author_id)
+
+    if claiming_rh_author_id == rh_author_with_this_openalex_id.id:
+        raise AuthorClaimException(AuthorClaimException.ALREADY_CLAIMED_BY_CURRENT_USER)
+    if (
+        claiming_rh_author_id != rh_author_with_this_openalex_id.id
+        and rh_author_with_this_openalex_id.user is not None
+    ):
+        raise AuthorClaimException(AuthorClaimException.ALREADY_CLAIMED_BY_ANOTHER_USER)
+    elif (
+        rh_author_with_this_openalex_id and rh_author_with_this_openalex_id.user is None
+    ):
+        # An author profile already exists but unclaimed by anyone
+        merge_openalex_author_with_researchhub_author(
+            openalex_author, claiming_rh_author
+        )
+
+        rh_author_with_this_openalex_id.merged_with_author_id = claiming_rh_author_id
+        rh_author_with_this_openalex_id.save()
+    else:
+        merge_openalex_author_with_researchhub_author(
+            openalex_author, claiming_rh_author
+        )
+
+    claim_author_profile.refresh_from_db()
+    return claim_author_profile
 
 
 def move_paper_to_author(target_paper, target_author, source_author=None):

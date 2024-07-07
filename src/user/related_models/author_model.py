@@ -97,6 +97,15 @@ class Author(models.Model):
     # AKA Impact Factor. Derived from OpenAlex:  https://en.wikipedia.org/wiki/Impact_factor
     two_year_mean_citedness = models.FloatField(default=0)
 
+    # An author's profile can be merged with another author's
+    merged_with_author_id = models.ForeignKey(
+        "self",
+        on_delete=SET_NULL,
+        null=True,
+        blank=True,
+        related_name="merged_authors",
+    )
+
     def __str__(self):
         university = self.university
         if university is None:
