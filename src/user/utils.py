@@ -6,14 +6,15 @@ import utils.sentry as sentry
 from paper.openalex_util import merge_openalex_author_with_researchhub_author
 from user.aggregates import TenPercentile, TwoPercentile
 from user.models import Organization, User
-from user.related_models.author_model import Author
 from user.tasks import preload_latest_activity
-from user.views.author_views import AuthorClaimException
 from utils.openalex import OpenAlex
 from utils.sentry import log_error
 
 
 def claim_author_profile(self, claiming_rh_author_id, openalex_author_id):
+    from user.related_models.author_model import Author
+    from user.views.author_views import AuthorClaimException
+
     openalex_api = OpenAlex()
 
     response, cursor = openalex_api.get_authors(openalex_ids=[openalex_author_id])
