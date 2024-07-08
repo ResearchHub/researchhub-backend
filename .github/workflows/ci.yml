@@ -86,7 +86,7 @@ jobs:
         run: |
           role_arn_name=${DEPLOY_ENV^^}_DEPLOY_ROLE_ARN
           role_arn=$(eval echo \$$role_arn_name)
-          echo "::set-output name=role_arn::$role_arn"
+          echo "role_arn=$role_arn" >> "$GITHUB_ENV"
 
       - name: Configure AWS credentials with assume role
         id: aws_credentials
