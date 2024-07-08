@@ -6,12 +6,11 @@ import json
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
-from django.db.models import Sum
 
 from discussion.models import Vote
 from paper.models import Paper
 from reputation.models import AlgorithmVariables, Score, ScoreChange
-from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
+from researchhub_comment.models import RhCommentThreadModel
 from user.models import User
 
 
