@@ -5,7 +5,6 @@ from rest_framework.permissions import AllowAny
 from rest_framework import status
 from django.conf import settings
 
-
 import hmac
 
 
@@ -33,6 +32,10 @@ class PersonaWebhookView(APIView):
             return Response(
                 {"message": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED
             )
+
+        # Currently a no-op
+        # FIXME: Replace with implementation
+        print(f"Webhook received: {request.body}")
 
         return Response(
             {"message": "Webhook successfully processed"}, status=status.HTTP_200_OK
