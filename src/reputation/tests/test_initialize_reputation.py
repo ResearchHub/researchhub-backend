@@ -1,5 +1,4 @@
 import json
-from unittest.mock import patch
 
 from django.core.management import call_command
 from django.test import TestCase
@@ -7,13 +6,12 @@ from django.test import TestCase
 from discussion.reaction_models import Vote
 from discussion.tests.helpers import create_rh_comment, create_vote
 from hub.models import Hub
-from paper.models import Paper
 from paper.tests.helpers import create_paper
 from reputation.models import AlgorithmVariables, Score, ScoreChange
 from researchhub_case.constants.case_constants import APPROVED
 from researchhub_case.models import AuthorClaimCase
 from researchhub_case.tasks import after_approval_flow
-from user.models import Author, User
+from user.models import User
 
 
 class InitializeReputationCommandTestCase(TestCase):
