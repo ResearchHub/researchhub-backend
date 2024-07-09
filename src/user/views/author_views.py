@@ -88,7 +88,7 @@ from user.serializers import (
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from user.utils import (
     calculate_show_referral,
-    claim_author_profile,
+    claim_openalex_author_profile,
     reset_latest_acitvity_cache,
 )
 from utils.http import POST, RequestMethods
@@ -148,13 +148,17 @@ class AuthorViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
-    def claim_profile_and_add_publictions(self, request, pk=None):
+    def claim_profile_and_add_publications(self, request, pk=None):
         author = request.user.author_profile
         openalex_ids = request.data.get("openalex_ids", [])
         openalex_author_id = request.data.get("openalex_author_id", None)
 
+        # Esnsure the openalex author id is a full url since it is the format stored in our system
+        if "openalex.org" not in openalex_author_id:
+            raise Exception("Invalid OpenAlex author ID")
+
         # Attempt to associate the openalex author id with the RH author
-        claim_author_profile(author.id, openalex_author_id)
+        claim_openalex_author_profile(author.id, openalex_author_id)
 
         if len(openalex_ids) > 0:
             if TESTING:

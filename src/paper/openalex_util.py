@@ -171,7 +171,6 @@ def process_openalex_works(works):
 
     # Upsert concepts and associate to papers
     for paper_id, paper_data in paper_to_openalex_data.items():
-        print("processing work: " + paper_data["openalex_work"]["id"])
         work = paper_data["openalex_work"]
 
         create_paper_related_tags(
@@ -220,7 +219,6 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
         author = None
         try:
             author = Author.objects.get(openalex_ids__contains=[author_openalex_id])
-
         except Author.DoesNotExist:
             author_name_parts = (
                 oa_authorship.get("author", {}).get("display_name").split(" ")
@@ -305,8 +303,8 @@ def merge_openalex_author_with_researchhub_author(openalex_author, researchhub_a
     researchhub_author.save()
 
     # Associate this openalex id with the author
-    if openalex_author.id not in researchhub_author.openalex_ids:
-        researchhub_author.openalex_ids.append(openalex_author.id)
+    if openalex_author["id"] not in researchhub_author.openalex_ids:
+        researchhub_author.openalex_ids.append(openalex_author["id"])
         researchhub_author.save()
 
     activity_by_year = openalex_author.get("counts_by_year", [])
