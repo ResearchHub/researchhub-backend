@@ -19,7 +19,7 @@ class CreateRepAlgoVarsTest(TestCase):
         call_command("create_rep_algo_vars")
 
         algo_vars = AlgorithmVariables.objects.all()
-        self.assertEqual(algo_vars.count(), 226)
+        self.assertEqual(algo_vars.count(), 244)
 
         hub = Hub.objects.get(slug="artificial-intelligence")
         algo_var = AlgorithmVariables.objects.get(hub=hub)
