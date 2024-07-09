@@ -65,7 +65,7 @@ def claim_openalex_author_profile(claiming_rh_author_id, openalex_author_id):
             mergeable_authors.append(rh_author_with_this_openalex_id)
 
     for mergable_author in mergeable_authors:
-        mergable_author.merged_with_author_id = claiming_rh_author_id
+        mergable_author.merged_with_author_id = claiming_rh_author
         mergable_author.save()
 
     merge_openalex_author_with_researchhub_author(openalex_author, claiming_rh_author)

@@ -98,7 +98,7 @@ class Author(models.Model):
     two_year_mean_citedness = models.FloatField(default=0)
 
     # An author's profile can be merged with another author's
-    merged_with_author_id = models.ForeignKey(
+    merged_with_author = models.ForeignKey(
         "self",
         on_delete=SET_NULL,
         null=True,

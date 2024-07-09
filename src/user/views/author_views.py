@@ -168,7 +168,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     priority=1,
                 )
 
-        return Response(status=200)
+        return Response(status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
     def add_publications(self, request, pk=None):
@@ -186,7 +186,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     priority=1,
                 )
 
-        return Response(status=200)
+        return Response(status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["get"], permission_classes=[AllowAny])
     def profile(self, request, pk=None):
