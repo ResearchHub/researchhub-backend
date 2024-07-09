@@ -11,6 +11,16 @@ from utils.openalex import OpenAlex
 from utils.sentry import log_error
 
 
+class AuthorClaimException(Exception):
+    ALREADY_CLAIMED_BY_CURRENT_USER = "ALREADY_CLAIMED_BY_CURRENT_USER"
+    ALREADY_CLAIMED_BY_ANOTHER_USER = "ALREADY_CLAIMED_BY_ANOTHER_USER"
+
+    def __init__(self, reason):
+        self.reason = reason
+        self.message = f"Cannot claim author profile: {reason}"
+        super().__init__(self.message)
+
+
 def claim_openalex_author_profile(claiming_rh_author_id, openalex_author_id):
     from user.related_models.author_model import Author
     from user.views.author_views import AuthorClaimException

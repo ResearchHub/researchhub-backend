@@ -87,6 +87,7 @@ from user.serializers import (
 )
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from user.utils import (
+    AuthorClaimException,
     calculate_show_referral,
     claim_openalex_author_profile,
     reset_latest_acitvity_cache,
@@ -96,16 +97,6 @@ from utils.openalex import OpenAlex
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.sentry import log_error, log_info
 from utils.throttles import THROTTLE_CLASSES
-
-
-class AuthorClaimException(Exception):
-    ALREADY_CLAIMED_BY_CURRENT_USER = "ALREADY_CLAIMED_BY_CURRENT_USER"
-    ALREADY_CLAIMED_BY_ANOTHER_USER = "ALREADY_CLAIMED_BY_ANOTHER_USER"
-
-    def __init__(self, reason):
-        self.reason = reason
-        self.message = f"Cannot claim author profile: {reason}"
-        super().__init__(self.message)
 
 
 class AuthorViewSet(viewsets.ModelViewSet):
@@ -158,7 +149,12 @@ class AuthorViewSet(viewsets.ModelViewSet):
             raise Exception("Invalid OpenAlex author ID")
 
         # Attempt to associate the openalex author id with the RH author
-        claim_openalex_author_profile(author.id, openalex_author_id)
+        try:
+            claim_openalex_author_profile(author.id, openalex_author_id)
+        except AuthorClaimException as e:
+            return Response({"reason": e.reason}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         if len(openalex_ids) > 0:
             if TESTING:
