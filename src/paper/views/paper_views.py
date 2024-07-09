@@ -736,8 +736,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def fetch_publications_by_doi(self, request):
         doi_string = request.query_params.get("doi", "")
-        # rh_author = request.user.author_profile
-        rh_author = Author.objects.get(id=10)
+        rh_author = request.user.author_profile
 
         # Client has the ability (optional) to specify explicilty which OpenAlex ID it wants works for
         openalex_author_id = request.query_params.get("author_id", None)
@@ -753,9 +752,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 open_alex_api = OpenAlex()
                 print("doi_string", doi_string)
                 work = open_alex_api.get_data_from_doi(doi_string)
-                print("work", work)
             except DOINotFoundError as e:
-                print("not found!!!")
                 return Response(status=404)
 
             # Next we want to try and guess the author in the list of authors associated with the work.

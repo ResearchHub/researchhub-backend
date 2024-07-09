@@ -277,9 +277,3 @@ class AuthorClaimTests(APITestCase):
                     claiming_user.author_profile.id,
                     unclaimed_author.merged_with_author.id,
                 )
-
-    def test_claimed_author_should_have_openalex_id(self):
-        pass
-
-    def test_unclaimed_author_profiles_with_claiming_user(self):
-        pass

@@ -6,6 +6,7 @@ from rest_framework.test import APITestCase
 
 from paper.openalex_util import process_openalex_works
 from paper.related_models.paper_model import Paper
+from user.related_models.author_model import Author
 from user.tests.helpers import create_random_authenticated_user, create_user
 from utils.openalex import OpenAlex
 from utils.test_helpers import (
@@ -22,11 +23,16 @@ class UserApiTests(APITestCase):
             mock_data = json.load(works_file)
             mock_get_works.return_value = (mock_data["results"], None)
 
+            author_openalex_id = "https://openalex.org/A5068835581"
             user_with_published_works = create_user(
                 first_name="Yang",
                 last_name="Wang",
                 email="random_author@researchhub.com",
             )
+            # By setting the author profile to this openalex id, we can later test that papers processed with matching
+            # author id will be attributed to this author. This is typically done via claim process.
+            user_with_published_works.author_profile.openalex_ids = [author_openalex_id]
+            user_with_published_works.author_profile.save()
 
             self.client.force_authenticate(user_with_published_works)
 
@@ -37,9 +43,7 @@ class UserApiTests(APITestCase):
 
             # Add publications to author
             url = f"/api/author/{user_with_published_works.author_profile.id}/add_publications/"
-            response = self.client.post(
-                url, {"openalex_ids": work_ids, "openalex_author_id": "A5068835581"}
-            )
+            response = self.client.post(url, {"openalex_ids": work_ids})
 
             # Verify at least one publication is created and credited to the author
             paper = Paper.objects.get(openalex_id=author_works[0].get("id"))
@@ -59,11 +63,16 @@ class UserApiTests(APITestCase):
             mock_data = json.load(works_file)
             mock_get_works.return_value = (mock_data["results"], None)
 
+            author_openalex_id = "https://openalex.org/A5068835581"
             user_with_published_works = create_user(
                 first_name="Yang",
                 last_name="Wang",
                 email="random_author@researchhub.com",
             )
+            # By setting the author profile to this openalex id, we can later test that papers processed with matching
+            # author id will be attributed to this author. This is typically done via claim process.
+            user_with_published_works.author_profile.openalex_ids = [author_openalex_id]
+            user_with_published_works.author_profile.save()
 
             self.client.force_authenticate(user_with_published_works)
 
@@ -74,9 +83,7 @@ class UserApiTests(APITestCase):
 
             # Add publications to author
             url = f"/api/author/{user_with_published_works.author_profile.id}/add_publications/"
-            response = self.client.post(
-                url, {"openalex_ids": work_ids, "openalex_author_id": "A5068835581"}
-            )
+            response = self.client.post(url, {"openalex_ids": work_ids})
 
             self.assertEqual(
                 Notification.objects.last().notification_type,
