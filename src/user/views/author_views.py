@@ -5,12 +5,14 @@ from hashlib import sha1
 from allauth.account.models import EmailAddress
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, models, transaction
 from django.db.models import Exists, F, OuterRef, Q, Sum
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.decorators import method_decorator
+from django.utils.timezone import now
 from django.views.decorators.cache import cache_page
 from django_filters.rest_framework import DjangoFilterBackend
 from requests.exceptions import HTTPError
@@ -24,13 +26,16 @@ from rest_framework.permissions import (
 )
 from rest_framework.response import Response
 from rest_framework.utils.urls import replace_query_param
+from simple_history.utils import bulk_update_with_history
 
+import utils.sentry as sentry
 from discussion.models import Comment, Reply, Thread
 from discussion.serializers import DynamicThreadSerializer
 from hypothesis.related_models.hypothesis import Hypothesis
 from paper.models import Paper
+from paper.openalex_util import merge_openalex_author_with_researchhub_author
 from paper.serializers import DynamicPaperSerializer
-from paper.tasks import pull_openalex_author_works
+from paper.tasks import pull_openalex_author_works, pull_openalex_author_works_batch
 from paper.utils import PAPER_SCORE_Q_ANNOTATION, get_cache_key
 from paper.views import PaperViewSet
 from reputation.models import Bounty, BountySolution, Contribution, Distribution
@@ -44,6 +49,7 @@ from researchhub.settings import (
     EMAIL_WHITELIST,
     SIFT_MODERATION_WHITELIST,
     SIFT_WEBHOOK_SECRET_KEY,
+    TESTING,
 )
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -80,7 +86,12 @@ from user.serializers import (
     UserSerializer,
 )
 from user.tasks import handle_spam_user_task, reinstate_user_task
-from user.utils import calculate_show_referral, reset_latest_acitvity_cache
+from user.utils import (
+    AuthorClaimException,
+    calculate_show_referral,
+    claim_openalex_author_profile,
+    reset_latest_acitvity_cache,
+)
 from utils.http import POST, RequestMethods
 from utils.openalex import OpenAlex
 from utils.permissions import CreateOrUpdateIfAllowed
@@ -126,6 +137,56 @@ class AuthorViewSet(viewsets.ModelViewSet):
             instance._prefetched_objects_cache = {}
 
         return Response(serializer.data)
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
+    def claim_profile_and_add_publications(self, request, pk=None):
+        author = request.user.author_profile
+        openalex_ids = request.data.get("openalex_ids", [])
+        openalex_author_id = request.data.get("openalex_author_id", None)
+
+        # Esnsure the openalex author id is a full url since it is the format stored in our system
+        if "openalex.org" not in openalex_author_id:
+            raise Exception("Invalid OpenAlex author ID")
+
+        # Attempt to associate the openalex author id with the RH author
+        try:
+            claim_openalex_author_profile(author.id, openalex_author_id)
+        except AuthorClaimException as e:
+            return Response({"reason": e.reason}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        if len(openalex_ids) > 0:
+            if TESTING:
+                pull_openalex_author_works_batch(openalex_ids, request.user.id)
+            else:
+                pull_openalex_author_works_batch.apply_async(
+                    (
+                        openalex_ids,
+                        request.user.id,
+                    ),
+                    priority=1,
+                )
+
+        return Response(status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
+    def add_publications(self, request, pk=None):
+        openalex_ids = request.data.get("openalex_ids", [])
+
+        if len(openalex_ids) > 0:
+            if TESTING:
+                pull_openalex_author_works_batch(openalex_ids, request.user.id)
+            else:
+                pull_openalex_author_works_batch.apply_async(
+                    (
+                        openalex_ids,
+                        request.user.id,
+                    ),
+                    priority=1,
+                )
+
+        return Response(status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["get"], permission_classes=[AllowAny])
     def profile(self, request, pk=None):

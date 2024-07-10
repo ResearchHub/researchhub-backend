@@ -2,10 +2,75 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models import Case, When
 
+import utils.sentry as sentry
+from paper.openalex_util import merge_openalex_author_with_researchhub_author
 from user.aggregates import TenPercentile, TwoPercentile
 from user.models import Organization, User
 from user.tasks import preload_latest_activity
+from utils.openalex import OpenAlex
 from utils.sentry import log_error
+
+
+class AuthorClaimException(Exception):
+    ALREADY_CLAIMED_BY_CURRENT_USER = "ALREADY_CLAIMED_BY_CURRENT_USER"
+    ALREADY_CLAIMED_BY_ANOTHER_USER = "ALREADY_CLAIMED_BY_ANOTHER_USER"
+
+    def __init__(self, reason):
+        self.reason = reason
+        self.message = f"Cannot claim author profile: {reason}"
+        super().__init__(self.message)
+
+
+def claim_openalex_author_profile(claiming_rh_author_id, openalex_author_id):
+    from user.related_models.author_model import Author
+    from user.views.author_views import AuthorClaimException
+
+    if "openalex.org" not in openalex_author_id:
+        raise Exception("Invalid OpenAlex author ID")
+
+    openalex_api = OpenAlex()
+
+    response, cursor = openalex_api.get_authors(openalex_ids=[openalex_author_id])
+    openalex_author = response[0]
+
+    if not openalex_author:
+        raise Exception("OpenAlex author not found")
+
+    claiming_rh_author = Author.objects.get(id=claiming_rh_author_id)
+
+    rh_authors_with_this_openalex_id = Author.objects.filter(
+        openalex_ids__contains=[openalex_author_id]
+    )
+
+    # This will hold a list of authors that can be merged with the claiming author
+    mergeable_authors = []
+    for rh_author_with_this_openalex_id in rh_authors_with_this_openalex_id:
+        already_claimed_by_this_user = (
+            claiming_rh_author_id == rh_author_with_this_openalex_id.id
+        )
+        already_claimed_by_another_user = (
+            claiming_rh_author_id != rh_author_with_this_openalex_id.id
+            and rh_author_with_this_openalex_id.user is not None
+        )
+
+        if already_claimed_by_this_user:
+            raise AuthorClaimException(
+                AuthorClaimException.ALREADY_CLAIMED_BY_CURRENT_USER
+            )
+        elif already_claimed_by_another_user:
+            raise AuthorClaimException(
+                AuthorClaimException.ALREADY_CLAIMED_BY_ANOTHER_USER
+            )
+        else:
+            mergeable_authors.append(rh_author_with_this_openalex_id)
+
+    for mergable_author in mergeable_authors:
+        mergable_author.merged_with_author_id = claiming_rh_author
+        mergable_author.save()
+
+    merge_openalex_author_with_researchhub_author(openalex_author, claiming_rh_author)
+
+    return claiming_rh_author
 
 
 def move_paper_to_author(target_paper, target_author, source_author=None):

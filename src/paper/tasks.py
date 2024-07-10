@@ -907,3 +907,30 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
                 total_papers_processed=total_papers_processed,
             )
         return False
+
+
+@app.task(queue=QUEUE_PULL_PAPERS)
+def pull_openalex_author_works_batch(
+    openalex_ids, user_id_to_notify_after_completion=None
+):
+    from notification.models import Notification
+    from user.related_models.user_model import User
+
+    open_alex_api = OpenAlex()
+
+    oa_ids = []
+    for id_as_url in openalex_ids:
+        just_id = id_as_url.split("/")[-1]
+        oa_ids.append(just_id)
+
+    works, cursor = open_alex_api.get_works(openalex_ids=oa_ids)
+    process_openalex_works(works)
+
+    if user_id_to_notify_after_completion:
+        user = User.objects.get(id=user_id_to_notify_after_completion)
+        Notification.objects.create(
+            item=user,
+            notification_type=Notification.PUBLICATIONS_ADDED,
+            recipient=user,
+            action_user=user,
+        )

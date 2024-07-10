@@ -29,7 +29,8 @@ from discussion.models import Vote as GrmVote
 from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
 from discussion.reaction_views import ReactionViewActionMixin
 from google_analytics.signals import get_event_hit_response
-from paper.exceptions import PaperSerializerError
+from notification.models import Notification
+from paper.exceptions import DOINotFoundError, PaperSerializerError
 from paper.filters import PaperFilter
 from paper.models import AdditionalFile, Figure, Paper, PaperSubmission
 from paper.paper_upload_tasks import celery_process_paper
@@ -725,9 +726,9 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
 
         return Response(open_alex_json, status=200)
 
-    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
+    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def fetch_publications_by_doi(self, request):
-        doi_string = request.query_params.get("doi", None)
+        doi_string = request.query_params.get("doi", "")
         rh_author = request.user.author_profile
 
         # Client has the ability (optional) to specify explicilty which OpenAlex ID it wants works for
@@ -737,11 +738,14 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             return Response(status=404)
         try:
             # Sometimes user may pass in a doi as doi.org url.
-            doi_string = doi_string.replace("https://doi.org/", "")
+            doi_string = doi_string.replace("https://doi.org/", "").strip()
 
-            # Fetch data from OpenAlex
-            open_alex_api = OpenAlex()
-            work = open_alex_api.get_data_from_doi(doi_string)
+            try:
+                # Fetch data from OpenAlex
+                open_alex_api = OpenAlex()
+                work = open_alex_api.get_data_from_doi(doi_string)
+            except DOINotFoundError as e:
+                return Response(status=404)
 
             # Next we want to try and guess the author in the list of authors associated with the work.
             # The guess doesn't have to be precise since the user will have the ability to select the correct author.
@@ -774,13 +778,12 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                         found_openalex_author = openalex_author
 
                     if found_openalex_author:
-                        openalex_author_id = found_openalex_author.get("id", "").split(
-                            "/"
-                        )[-1]
+                        openalex_author_id = found_openalex_author.get("id", "")
 
             # Fetch author works
             author_works = []
             if openalex_author_id:
+                openalex_author_id = openalex_author_id.split("/")[-1]
                 author_works, cursor = open_alex_api.get_works(
                     openalex_author_id=openalex_author_id, batch_size=200
                 )
