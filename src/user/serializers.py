@@ -1106,9 +1106,9 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
         )["total_citations"]
 
         return {
-            "works_count": author.authored_papers.count(),
-            "citation_count": citation_count,
-            "two_year_mean_citedness": author.two_year_mean_citedness,
+            "works_count": author.authored_papers.count() or 0,
+            "citation_count": citation_count or 0,
+            "two_year_mean_citedness": author.two_year_mean_citedness or 0,
         }
 
     def get_activity_by_year(self, author):
@@ -1125,10 +1125,14 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
 
     def get_open_access_pct(self, author):
         total_paper_count = author.authored_papers.count()
-        return (
-            author.authored_papers.filter(is_open_access=True).count()
-            / total_paper_count
-        )
+
+        if total_paper_count == 0:
+            return 0
+        else:
+            return (
+                author.authored_papers.filter(is_open_access=True).count()
+                / total_paper_count
+            )
 
     def get_reputation(self, author):
         return {
