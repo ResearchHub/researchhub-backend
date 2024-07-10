@@ -18,12 +18,11 @@ class Command(BaseCommand):
         bin_ranges = [1000, 10_000, 100_000, 1_000_000]
         vote = {"value": 1}
 
-        file_path = "../misc/rep_bins.csv"
+        file_path = "./reputation/misc/rep_bins.csv"
         with open(file_path, mode="r") as csvfile:
             reader = csv.DictReader(csvfile)
             with transaction.atomic():
                 for row in reader:
-                    print(row)
                     slug = "-".join(row["Subfield"].lower().split("_"))
                     slug_with_index = slug + "-1"
                     hub = Hub.objects.get(

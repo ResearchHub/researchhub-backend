@@ -9,7 +9,7 @@ from reputation.models import AlgorithmVariables
 
 class CreateRepAlgoVarsTest(TestCase):
     def test_create_rep_algo_vars(self):
-        file_path = "../misc/rep_bins.csv"
+        file_path = "./reputation/misc/rep_bins.csv"
         with open(file_path, newline="") as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
