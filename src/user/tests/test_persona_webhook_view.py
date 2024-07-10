@@ -4,7 +4,7 @@ import os
 
 class PersonaWebhookViewTests(SimpleTestCase):
 
-    WEBHOOK_SECRET = "wbhsec_researchhub"
+    webhook_secret = "wbhsec_researchhub"
 
     def setUp(self):
         self.webhook_approved_body = self.read_test_file(
@@ -16,7 +16,7 @@ class PersonaWebhookViewTests(SimpleTestCase):
         with open(file_path, "r") as file:
             return file.read()
 
-    @override_settings(PERSONA_WEBHOOK_SECRET=WEBHOOK_SECRET)
+    @override_settings(PERSONA_WEBHOOK_SECRET=webhook_secret)
     def test_post_webhook_without_signature(self):
         response = self.client.post(
             "/webhooks/persona/",
@@ -27,7 +27,7 @@ class PersonaWebhookViewTests(SimpleTestCase):
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.json(), {"message": "Unauthorized"})
 
-    @override_settings(PERSONA_WEBHOOK_SECRET=WEBHOOK_SECRET)
+    @override_settings(PERSONA_WEBHOOK_SECRET=webhook_secret)
     def test_post_webhook(self):
         response = self.client.post(
             "/webhooks/persona/",
@@ -41,7 +41,7 @@ class PersonaWebhookViewTests(SimpleTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"message": "Webhook successfully processed"})
 
-    @override_settings(PERSONA_WEBHOOK_SECRET=WEBHOOK_SECRET)
+    @override_settings(PERSONA_WEBHOOK_SECRET=webhook_secret)
     def test_post_webhook_with_invalid_signature(self):
         body = self.webhook_approved_body
         response = self.client.post(
