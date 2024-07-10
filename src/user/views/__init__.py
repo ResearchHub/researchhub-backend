@@ -7,3 +7,4 @@ from user.views.gatekeeper_view import GatekeeperViewSet
 from user.views.organization_view import OrganizationViewSet
 from user.views.user_api_token_view import UserApiTokenViewSet
 from user.views.user_views import *
+from user.views.persona_webhook_view import *
