@@ -50,7 +50,10 @@ def calculate_author_score_hubs_paper_votes(user, algorithm_version, score_versi
     authored_papers = author.authored_papers.all()
     with transaction.atomic():
         for paper in authored_papers:
-            votes = paper.votes.all()
+            votes = paper.votes.filter(vote_type__in=[1, 2])
+            if votes.count() == 0:
+                continue
+
             hubs = paper.hubs.filter(is_used_for_rep=True)
             for hub in hubs:
                 algorithm_variables = AlgorithmVariables.objects.filter(hub=hub).latest(
@@ -115,7 +118,9 @@ def calculate_author_score_hubs_comments(user, algorithm_version, score_version)
         comments = thread.rh_comments.all()
         for comment in comments:
             paper = Paper.objects.get(id=comment.thread.object_id)
-            votes = comment.votes.all()
+            votes = comment.votes.filter(vote_type__in=[1, 2])
+            if votes.count() == 0:
+                continue
 
             hubs = paper.hubs.filter(is_used_for_rep=True)
             for hub in hubs:
