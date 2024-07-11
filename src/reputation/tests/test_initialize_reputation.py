@@ -170,11 +170,13 @@ class InitializeReputationCommandTestCase(TestCase):
         )
 
         self.assertEqual(score1.score, 23104)
+        self.assertEqual(score1.version, 2)
 
         # Check if the score change is created with the correct score change
         score_changes1 = ScoreChange.objects.filter(
             score=score1, score_version=score1.version
         )
+        self.assertEqual(score_changes1.count(), 5)
         self.assertEqual(score_changes1[0].score_change, 23100)
         self.assertEqual(score_changes1[1].score_change, 1)
         self.assertEqual(score_changes1[2].score_change, 1)
@@ -187,12 +189,14 @@ class InitializeReputationCommandTestCase(TestCase):
         )
         # 2*50 + 10*100 + 52*250 = 14100
         self.assertEqual(score2.score, 16600)
+        self.assertEqual(score2.version, 2)
 
         # Check if the score change is created with the correct score change
         score_changes2 = ScoreChange.objects.filter(
             score=score2, score_version=score2.version
         )
 
+        self.assertEqual(score_changes2.count(), 3)
         # 2*50 + 10*100 + 20*250 = 6100
         self.assertEqual(score_changes2[0].score_change, 6100)
         # 32*250 = 8000
