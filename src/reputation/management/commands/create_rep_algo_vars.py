@@ -4,6 +4,7 @@ Creates the reputation algorithm variables for a given hub.
 
 import csv
 import json
+import os
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
@@ -11,6 +12,7 @@ from django.db.models import Q
 
 from hub.models import Hub
 from reputation.models import AlgorithmVariables
+from researchhub.settings import BASE_DIR
 
 
 class Command(BaseCommand):
@@ -18,7 +20,7 @@ class Command(BaseCommand):
         bin_ranges = [1000, 10_000, 100_000, 1_000_000]
         vote = {"value": 1}
 
-        file_path = "./reputation/misc/rep_bins.csv"
+        file_path = os.path.join(BASE_DIR, "reputation", "misc", "rep_bins.csv")
         with open(file_path, mode="r") as csvfile:
             reader = csv.DictReader(csvfile)
             with transaction.atomic():
