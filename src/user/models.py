@@ -8,6 +8,7 @@ from .related_models.school_model import Major, University
 from .related_models.user_api_token_model import UserApiToken
 from .related_models.user_model import User
 from .related_models.verdict_model import Verdict
+from .related_models.user_verification_model import UserVerification
 
 migratables = (
     Action,
@@ -20,5 +21,6 @@ migratables = (
     Organization,
     Gatekeeper,
     UserApiToken,
+    UserVerification,
     Verdict,
 )
