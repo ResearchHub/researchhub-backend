@@ -3,13 +3,13 @@
         "type": "event",
         "id": "evt_pSXHZmSpjEBpstmv4xwKR9m1Q3yX",
         "attributes": {
-            "name": "inquiry.approved",
+            "name": "inquiry.declined",
             "payload": {
                 "data": {
                     "type": "inquiry",
                     "id": "inq_AGa6mNLe7BfgZBopxR86A7WRdmUr",
                     "attributes": {
-                        "status": "approved",
+                        "status": "declined",
                         "reference-id": "$REFERENCE_ID",
                         "note": null,
                         "behaviors": {
