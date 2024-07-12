@@ -103,6 +103,7 @@ def calculate_author_score_hubs_paper_votes(user, algorithm_version, score_versi
                     score_change.save()
 
                     score.score = current_rep
+                    score.version = score_version
                     score.save()
 
 
@@ -171,6 +172,7 @@ def calculate_author_score_hubs_comments(user, algorithm_version, score_version)
                     score_change.save()
 
                     score.score = current_rep
+                    score.version = score_version
                     score.save()
 
 
@@ -249,6 +251,7 @@ def calculate_author_score_hubs_citations(author, algorithm_version, score_versi
                 score_change.save()
 
                 score.score = current_rep
+                score.version = score_version
                 score.save()
 
 
