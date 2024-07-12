@@ -140,7 +140,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
-        if user.reputation < 120:
+        if user.reputation < 110:
             return Response(
                 "Your reputation is too low to withdraw. Please contribute to the platform.",
                 status=400,
