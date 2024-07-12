@@ -64,8 +64,9 @@ jobs:
           poetry run python manage.py migrate
           poetry run python manage.py collectstatic --noinput
           poetry run coverage run manage.py test --verbosity=2
+          poetry run coverage xml -o coverage.xml
       - name: Upload Coverage Report to Codecov
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          file: ./src/.coverage
+          file: ./src/coverage.xml
