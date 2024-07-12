@@ -27,9 +27,9 @@ class CreateRepAlgoVarsTest(TestCase):
         self.assertEqual(
             algo_var.variables["citations"]["bins"],
             {
-                "[0, 1]": 1000,
-                "[1, 7]": 1500,
-                "[7, 21]": 6429,
-                "[21, 113]": 9783,
+                "[0, 7]": 143,
+                "[7, 21]": 643,
+                "[21, 113]": 978,
+                "[113, 147078]": 6,
             },
         )
