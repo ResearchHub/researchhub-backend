@@ -1,245 +1,245 @@
 Subfield,Bin 1 (90-100th %),Bin 2 (50-90th %),Bin 3 (10-50th %),Bin 4 (0-10th %)
-Accounting,67,12,4,1
-Acoustics_and_Ultrasonics,124,32,13,1
-Aerospace_Engineering,81,18,7,1
-Aging,271,70,28,1
-Agronomy_and_Crop_Science,96,22,8,1
-Algebra_and_Number_Theory,87,20,7,1
-Analytical_Chemistry,88,25,10,1
-Anatomy,15,4,2,1
-Anesthesiology_and_Pain_Medicine,94,25,9,1
-Animal_Science_and_Zoology,105,28,11,1
-Anthropology,60,11,4,1
-Applied_Mathematics,97,20,7,1
-Applied_Microbiology_and_Biotechnology,88,22,8,1
-Applied_Psychology,116,28,11,1
-Aquatic_Science,95,24,9,1
-Archeology,44,10,4,1
-Architecture,16,4,2,1
-Artificial_Intelligence,113,21,7,1
-Astronomy_and_Astrophysics,588,59,15,1
-Atmospheric_Science,241,47,15,1
-Atomic_and_Molecular_Physics_and_Optics,271,54,18,1
-Automotive_Engineering,81,18,6,1
-Behavioral_Neuroscience,183,53,23,1
-Biochemistry,149,43,18,1
-Bioengineering,81,26,11,1
-Biological_Psychiatry,147,44,19,1
-Biomaterials,190,50,20,1
-Biomedical_Engineering,174,41,14,1
-Biophysics,123,34,13,1
-Biotechnology,124,35,14,1
-Building_and_Construction,83,19,6,1
-Business_and_International_Management,35,8,3,1
-Cancer_Research,239,60,24,1
-Cardiology_and_Cardiovascular_Medicine,198,42,14,1
-Catalysis,188,49,20,1
-Cellular_and_Molecular_Neuroscience,268,67,27,1
-Cell_Biology,205,55,22,1
-Ceramics_and_Composites,136,36,14,1
-Chemical_Health_and_Safety,36,10,4,1
-Civil_and_Structural_Engineering,90,18,6,1
-Classics,35,6,2,1
-Clinical_Biochemistry,111,33,14,1
-Clinical_Psychology,134,28,9,1
-Cognitive_Neuroscience,253,51,17,1
-Communication,71,14,5,1
-Complementary_and_alternative_medicine,85,23,8,1
-Complementary_and_Manual_Therapy,67,20,7,1
-Computational_Mathematics,94,22,9,1
-Computational_Mechanics,113,25,9,1
-Computational_Theory_and_Mathematics,111,25,9,1
-Computer_Graphics_and_Computer-Aided_Design,69,13,5,1
-Computer_Networks_and_Communications,98,18,6,1
-Computer_Science_Applications,51,11,4,1
-Computer_Vision_and_Pattern_Recognition,106,21,7,1
-Condensed_Matter_Physics,233,49,18,1
-Conservation,26,7,3,1
-Control_and_Systems_Engineering,77,15,5,1
-Critical_Care_and_Intensive_Care_Medicine,113,29,11,1
-Cultural_Studies,25,5,2,1
-Demography,43,9,3,1
-Dermatology,101,27,10,1
-Development,27,6,3,1
-Developmental_and_Educational_Psychology,106,23,8,1
-Developmental_Biology,111,31,12,1
-Developmental_Neuroscience,172,47,18,1
-Discrete_Mathematics_and_Combinatorics,75,16,6,1
-Drug_Discovery,10,5,2,1
-Earth-Surface_Processes,97,25,9,1
-Ecological_Modeling,153,32,11,1
-Ecology,173,39,14,1
-Ecology_Evolution_Behavior_and_Systematics,113,26,9,1
-Economics_and_Econometrics,88,16,5,1
-Education,45,9,3,1
-Electrical_and_Electronic_Engineering,207,38,12,1
-Electrochemistry,119,37,17,1
-Electronic_Optical_and_Magnetic_Materials,259,57,21,1
-Emergency_Medical_Services,67,18,7,1
-Emergency_Medicine,88,23,9,1
-Endocrine_and_Autonomic_Systems,191,52,22,1
-Endocrinology,123,33,13,1
-Endocrinology_Diabetes_and_Metabolism,149,37,14,1
-Energy_Engineering_and_Power_Technology,70,14,5,1
-Environmental_Chemistry,155,40,15,1
-Environmental_Engineering,125,30,10,1
-Epidemiology,186,42,15,1
-Equine,94,27,11,1
-Experimental_and_Cognitive_Psychology,144,33,11,1
-Family_Practice,83,23,10,1
-Filtration_and_Separation,88,28,13,1
-Finance,99,19,6,1
-Fluid_Flow_and_Transfer_Processes,118,31,12,1
-Food_Science,101,24,8,1
-Forestry,30,7,3,1
-Fuel_Technology,20,6,3,1
-Gastroenterology,125,30,11,1
-Gender_Studies,76,18,7,1
-General_Agricultural_and_Biological_Sciences,28,7,3,1
-General_Arts_and_Humanities,9,3,2,1
-General_Decision_Sciences,189,41,15,1
-General_Dentistry,37,10,4,1
-General_Economics_Econometrics_and_Finance,63,12,4,1
-General_Energy,29,7,3,1
-General_Engineering,8,3,2,1
-General_Health_Professions,77,17,6,1
-General_Materials_Science,22,6,3,1
-General_Psychology,62,15,6,1
-General_Social_Sciences,16,4,2,1
-Genetics,218,49,17,1
-Geochemistry_and_Petrology,105,27,10,1
-Geography_Planning_and_Development,37,8,3,1
-Geology,48,11,4,1
-Geometry_and_Topology,114,25,9,1
-Geophysics,226,42,14,1
-Geriatrics_and_Gerontology,128,34,13,1
-Global_and_Planetary_Change,193,39,13,1
-Hardware_and_Architecture,89,18,7,1
-Health,113,27,10,1
-Health_Informatics,63,16,6,1
-Health_Information_Management,44,10,4,1
-Health_Toxicology_and_Mutagenesis,171,43,17,1
-Hematology,180,41,15,1
-Hepatology,183,43,16,1
-History,30,6,3,1
-History_and_Philosophy_of_Science,35,7,3,1
-Horticulture,68,17,6,1
-Human_Computer_Interaction,74,17,7,1
-Human_Factors_and_Ergonomics,30,7,3,1
-Immunology,282,65,24,1
-Immunology_and_Allergy,181,51,22,1
-Industrial_and_Manufacturing_Engineering,69,16,6,1
-Industrial_relations,9,3,2,1
-Infectious_Diseases,213,45,16,1
-Information_Systems,49,10,4,1
-Information_Systems_and_Management,57,12,4,1
-Inorganic_Chemistry,179,45,18,1
-Insect_Science,108,28,11,1
-Instrumentation,96,17,6,1
-Internal_Medicine,95,23,9,1
-Issues_ethics_and_legal_aspects,29,9,4,1
-Language_and_Linguistics,40,7,3,1
-Law,19,4,2,1
-Leadership_and_Management,20,6,3,1
-Library_and_Information_Sciences,30,9,4,1
-Life_span_and_Life_course_Studies,15,5,2,1
-Linguistics_and_Language,47,9,3,1
-Literature_and_Literary_Theory,35,7,3,1
-Management_Information_Systems,72,13,5,1
-Management_Monitoring_Policy_and_Law,51,10,4,1
-Management_of_Technology_and_Innovation,55,12,4,1
-Management_Science_and_Operations_Research,86,18,6,1
-Marketing,86,16,5,1
-Materials_Chemistry,279,58,20,1
-Mathematical_Physics,115,24,9,1
-Mechanical_Engineering,114,24,8,1
-Mechanics_of_Materials,103,24,8,1
-Media_Technology,50,12,5,1
-Medical_Laboratory_Technology,23,6,3,1
-Medical_Terminology,16,4,2,1
-Metals_and_Alloys,99,27,11,1
-Microbiology,116,32,13,1
-Modeling_and_Simulation,112,25,10,1
-Molecular_Biology,397,83,29,1
-Molecular_Medicine,160,47,20,1
-Museology,20,5,2,1
-Music,41,9,3,1
-Nature_and_Landscape_Conservation,151,33,11,1
-Nephrology,145,35,14,1
-Neurology,190,42,15,1
-Neuropsychology_and_Physiological_Psychology,70,17,6,1
-Nuclear_and_High_Energy_Physics,2292,154,34,1
-Nuclear_Energy_and_Engineering,28,8,3,1
-Numerical_Analysis,83,19,7,1
-Nutrition_and_Dietetics,130,36,14,1
-Obstetrics_and_Gynecology,121,30,11,1
-Occupational_Therapy,57,13,5,1
-Oceanography,175,35,12,1
-Ocean_Engineering,64,15,6,1
-Oncology,239,54,19,1
-Ophthalmology,132,30,11,1
-Oral_Surgery,94,23,9,1
-Organic_Chemistry,201,50,20,1
-Organizational_Behavior_and_Human_Resource_Management,101,18,6,1
-Orthodontics,111,29,11,1
-Orthopedics_and_Sports_Medicine,134,34,12,1
-Otorhinolaryngology,118,29,11,1
-Paleontology,166,38,14,1
-Parasitology,123,32,13,1
-Pathology_and_Forensic_Medicine,155,39,15,1
-Pediatrics_Perinatology_and_Child_Health,110,26,9,1
-Periodontics,104,28,11,1
-Pharmaceutical_Science,120,34,14,1
-Pharmacology,131,35,14,1
-Pharmacy,61,16,6,1
-Philosophy,43,9,3,1
-Physical_and_Theoretical_Chemistry,110,30,12,1
-Physical_Therapy_Sports_Therapy_and_Rehabilitation,80,16,5,1
-Physiology,194,47,17,1
-Plant_Science,173,36,12,1
-Political_Science_and_International_Relations,46,9,3,1
-Pollution,163,41,15,1
-Polymers_and_Plastics,155,40,15,1
-Process_Chemistry_and_Technology,130,38,16,1
-Psychiatry_and_Mental_health,167,39,14,1
-Public_Administration,77,18,7,1
-Public_Health_Environmental_and_Occupational_Health,131,30,11,1
-Pulmonary_and_Respiratory_Medicine,176,39,13,1
-Radiation,134,30,11,1
-Radiological_and_Ultrasound_Technology,64,18,7,1
-Rehabilitation,120,32,12,1
-Religious_studies,28,5,2,1
-Renewable_Energy_Sustainability_and_the_Environment,228,49,17,1
-Reproductive_Medicine,143,36,13,1
-Research_and_Theory,77,26,12,1
-Rheumatology,128,32,12,1
-Safety_Research,70,16,6,1
-Safety_Risk_Reliability_and_Quality,51,11,4,1
-Sensory_Systems,169,47,20,1
-Signal_Processing,82,18,7,1
-Small_Animals,81,23,9,1
-Social_Psychology,117,27,9,1
-Sociology_and_Political_Science,79,15,5,1
-Software,61,13,5,1
-Soil_Science,121,24,8,1
-Space_and_Planetary_Science,32,9,3,1
-Spectroscopy,151,42,17,1
-Speech_and_Hearing,62,16,6,1
-Statistical_and_Nonlinear_Physics,126,28,10,1
-Statistics_and_Probability,134,28,10,1
-Statistics_Probability_and_Uncertainty,79,18,7,1
-Strategy_and_Management,74,13,4,1
-Structural_Biology,157,40,16,1
-Surfaces_Coatings_and_Films,138,36,14,1
-Surgery,172,38,13,1
-Theoretical_Computer_Science,39,8,3,1
-Tourism_Leisure_and_Hospitality_Management,64,15,5,1
-Toxicology,88,30,14,1
-Transplantation,131,32,12,1
-Transportation,74,15,5,1
-Urban_Studies,29,6,3,1
-Urology,93,26,10,1
-Virology,244,56,22,1
-Visual_Arts_and_Performing_Arts,24,6,2,1
-Water_Science_and_Technology,129,28,9,1
-Radiology_Nuclear_Medicine_and_Imaging,155,36,13,1
+Accounting,"[114528, 67]","[67, 12]","[12, 4]","[4, 0]"
+Acoustics_and_Ultrasonics,"[10512, 124]","[124, 32]","[32, 13]","[13, 0]"
+Aerospace_Engineering,"[50008, 81]","[81, 18]","[18, 7]","[7, 0]"
+Aging,"[49141, 271]","[271, 70]","[70, 28]","[28, 0]"
+Agronomy_and_Crop_Science,"[38716, 96]","[96, 22]","[22, 8]","[8, 0]"
+Algebra_and_Number_Theory,"[6820, 87]","[87, 20]","[20, 7]","[7, 0]"
+Analytical_Chemistry,"[32507, 88]","[88, 25]","[25, 10]","[10, 0]"
+Anatomy,"[10079, 15]","[15, 4]","[4, 2]","[2, 0]"
+Anesthesiology_and_Pain_Medicine,"[14760, 94]","[94, 25]","[25, 9]","[9, 0]"
+Animal_Science_and_Zoology,"[188232, 105]","[105, 28]","[28, 11]","[11, 0]"
+Anthropology,"[14599, 60]","[60, 11]","[11, 4]","[4, 0]"
+Applied_Mathematics,"[25199, 97]","[97, 20]","[20, 7]","[7, 0]"
+Applied_Microbiology_and_Biotechnology,"[23385, 88]","[88, 22]","[22, 8]","[8, 0]"
+Applied_Psychology,"[78082, 116]","[116, 28]","[28, 11]","[11, 0]"
+Aquatic_Science,"[27464, 95]","[95, 24]","[24, 9]","[9, 0]"
+Archeology,"[6389, 44]","[44, 10]","[10, 4]","[4, 0]"
+Architecture,"[2449, 16]","[16, 4]","[4, 2]","[2, 0]"
+Artificial_Intelligence,"[147078, 113]","[113, 21]","[21, 7]","[7, 0]"
+Astronomy_and_Astrophysics,"[163250, 588]","[588, 59]","[59, 15]","[15, 0]"
+Atmospheric_Science,"[73685, 241]","[241, 47]","[47, 15]","[15, 0]"
+Atomic_and_Molecular_Physics_and_Optics,"[312150, 271]","[271, 54]","[54, 18]","[18, 0]"
+Automotive_Engineering,"[21256, 81]","[81, 18]","[18, 6]","[6, 0]"
+Behavioral_Neuroscience,"[101131, 183]","[183, 53]","[53, 23]","[23, 0]"
+Biochemistry,"[46042, 149]","[149, 43]","[43, 18]","[18, 0]"
+Bioengineering,"[24197, 81]","[81, 26]","[26, 11]","[11, 0]"
+Biological_Psychiatry,"[29719, 147]","[147, 44]","[44, 19]","[19, 0]"
+Biomaterials,"[85286, 190]","[190, 50]","[50, 20]","[20, 0]"
+Biomedical_Engineering,"[221131, 174]","[174, 41]","[41, 14]","[14, 0]"
+Biophysics,"[112905, 123]","[123, 34]","[34, 13]","[13, 0]"
+Biotechnology,"[24218, 124]","[124, 35]","[35, 14]","[14, 0]"
+Building_and_Construction,"[26054, 83]","[83, 19]","[19, 6]","[6, 0]"
+Business_and_International_Management,"[6349, 35]","[35, 8]","[8, 3]","[3, 0]"
+Cancer_Research,"[125671, 239]","[239, 60]","[60, 24]","[24, 0]"
+Cardiology_and_Cardiovascular_Medicine,"[159395, 198]","[198, 42]","[42, 14]","[14, 0]"
+Catalysis,"[32394, 188]","[188, 49]","[49, 20]","[20, 0]"
+Cellular_and_Molecular_Neuroscience,"[65746, 268]","[268, 67]","[67, 27]","[27, 0]"
+Cell_Biology,"[86452, 205]","[205, 55]","[55, 22]","[22, 0]"
+Ceramics_and_Composites,"[18682, 136]","[136, 36]","[36, 14]","[14, 0]"
+Chemical_Health_and_Safety,"[590, 36]","[36, 10]","[10, 4]","[4, 0]"
+Civil_and_Structural_Engineering,"[37296, 90]","[90, 18]","[18, 6]","[6, 0]"
+Classics,"[4959, 35]","[35, 6]","[6, 2]","[2, 0]"
+Clinical_Biochemistry,"[44565, 111]","[111, 33]","[33, 14]","[14, 0]"
+Clinical_Psychology,"[83777, 134]","[134, 28]","[28, 9]","[9, 0]"
+Cognitive_Neuroscience,"[129890, 253]","[253, 51]","[51, 17]","[17, 0]"
+Communication,"[15609, 71]","[71, 14]","[14, 5]","[5, 0]"
+Complementary_and_alternative_medicine,"[26655, 85]","[85, 23]","[23, 8]","[8, 0]"
+Complementary_and_Manual_Therapy,"[14001, 67]","[67, 20]","[20, 7]","[7, 0]"
+Computational_Mathematics,"[13216, 94]","[94, 22]","[22, 9]","[9, 0]"
+Computational_Mechanics,"[85989, 113]","[113, 25]","[25, 9]","[9, 0]"
+Computational_Theory_and_Mathematics,"[70509, 111]","[111, 25]","[25, 9]","[9, 0]"
+Computer_Graphics_and_Computer-Aided_Design,"[13247, 69]","[69, 13]","[13, 5]","[5, 0]"
+Computer_Networks_and_Communications,"[64139, 98]","[98, 18]","[18, 6]","[6, 0]"
+Computer_Science_Applications,"[17566, 51]","[51, 11]","[11, 4]","[4, 0]"
+Computer_Vision_and_Pattern_Recognition,"[305016, 106]","[106, 21]","[21, 7]","[7, 0]"
+Condensed_Matter_Physics,"[56330, 233]","[233, 49]","[49, 18]","[18, 0]"
+Conservation,"[4806, 26]","[26, 7]","[7, 3]","[3, 0]"
+Control_and_Systems_Engineering,"[63539, 77]","[77, 15]","[15, 5]","[5, 0]"
+Critical_Care_and_Intensive_Care_Medicine,"[54010, 113]","[113, 29]","[29, 11]","[11, 0]"
+Cultural_Studies,"[26259, 25]","[25, 5]","[5, 2]","[2, 0]"
+Demography,"[25991, 43]","[43, 9]","[9, 3]","[3, 0]"
+Dermatology,"[28008, 101]","[101, 27]","[27, 10]","[10, 0]"
+Development,"[13192, 27]","[27, 6]","[6, 3]","[3, 0]"
+Developmental_and_Educational_Psychology,"[54544, 106]","[106, 23]","[23, 8]","[8, 0]"
+Developmental_Biology,"[22541, 111]","[111, 31]","[31, 12]","[12, 0]"
+Developmental_Neuroscience,"[83053, 172]","[172, 47]","[47, 18]","[18, 0]"
+Discrete_Mathematics_and_Combinatorics,"[6858, 75]","[75, 16]","[16, 6]","[6, 0]"
+Drug_Discovery,"[88, 10]","[10, 5]","[5, 2]","[2, 0]"
+Earth-Surface_Processes,"[11395, 97]","[97, 25]","[25, 9]","[9, 0]"
+Ecological_Modeling,"[51373, 153]","[153, 32]","[32, 11]","[11, 0]"
+Ecology,"[240806, 173]","[173, 39]","[39, 14]","[14, 0]"
+Ecology_Evolution_Behavior_and_Systematics,"[42880, 113]","[113, 26]","[26, 9]","[9, 0]"
+Economics_and_Econometrics,"[61128, 88]","[88, 16]","[16, 5]","[5, 0]"
+Education,"[59896, 45]","[45, 9]","[9, 3]","[3, 0]"
+Electrical_and_Electronic_Engineering,"[143252, 207]","[207, 38]","[38, 12]","[12, 0]"
+Electrochemistry,"[41455, 119]","[119, 37]","[37, 17]","[17, 0]"
+Electronic_Optical_and_Magnetic_Materials,"[80840, 259]","[259, 57]","[57, 21]","[21, 0]"
+Emergency_Medical_Services,"[23304, 67]","[67, 18]","[18, 7]","[7, 0]"
+Emergency_Medicine,"[40392, 88]","[88, 23]","[23, 9]","[9, 0]"
+Endocrine_and_Autonomic_Systems,"[79118, 191]","[191, 52]","[52, 22]","[22, 0]"
+Endocrinology,"[39264, 123]","[123, 33]","[33, 13]","[13, 0]"
+Endocrinology_Diabetes_and_Metabolism,"[61825, 149]","[149, 37]","[37, 14]","[14, 0]"
+Energy_Engineering_and_Power_Technology,"[10161, 70]","[70, 14]","[14, 5]","[5, 0]"
+Environmental_Chemistry,"[31488, 155]","[155, 40]","[40, 15]","[15, 0]"
+Environmental_Engineering,"[62982, 125]","[125, 30]","[30, 10]","[10, 0]"
+Epidemiology,"[106821, 186]","[186, 42]","[42, 15]","[15, 0]"
+Equine,"[7425, 94]","[94, 27]","[27, 11]","[11, 0]"
+Experimental_and_Cognitive_Psychology,"[61443, 144]","[144, 33]","[33, 11]","[11, 0]"
+Family_Practice,"[10146, 83]","[83, 23]","[23, 10]","[10, 0]"
+Filtration_and_Separation,"[34449, 88]","[88, 28]","[28, 13]","[13, 0]"
+Finance,"[127720, 99]","[99, 19]","[19, 6]","[6, 0]"
+Fluid_Flow_and_Transfer_Processes,"[29817, 118]","[118, 31]","[31, 12]","[12, 0]"
+Food_Science,"[74291, 101]","[101, 24]","[24, 8]","[8, 0]"
+Forestry,"[3387, 30]","[30, 7]","[7, 3]","[3, 0]"
+Fuel_Technology,"[829, 20]","[20, 6]","[6, 3]","[3, 0]"
+Gastroenterology,"[47852, 125]","[125, 30]","[30, 11]","[11, 0]"
+Gender_Studies,"[20611, 76]","[76, 18]","[18, 7]","[7, 0]"
+General_Agricultural_and_Biological_Sciences,"[13138, 28]","[28, 7]","[7, 3]","[3, 0]"
+General_Arts_and_Humanities,"[2245, 9]","[9, 3]","[3, 0]","[1, 0]"
+General_Decision_Sciences,"[69500, 189]","[189, 41]","[41, 15]","[15, 0]"
+General_Dentistry,"[3208, 37]","[37, 10]","[10, 4]","[4, 0]"
+General_Economics_Econometrics_and_Finance,"[51439, 63]","[63, 12]","[12, 4]","[4, 0]"
+General_Energy,"[4037, 29]","[29, 7]","[7, 3]","[3, 0]"
+General_Engineering,"[513, 8]","[8, 3]","[3, 2]","[2, 0]"
+General_Health_Professions,"[106911, 77]","[77, 17]","[17, 6]","[6, 0]"
+General_Materials_Science,"[12978, 22]","[22, 6]","[6, 3]","[3, 0]"
+General_Psychology,"[7179, 62]","[62, 15]","[15, 6]","[6, 0]"
+General_Social_Sciences,"[5327, 16]","[16, 4]","[4, 2]","[2, 0]"
+Genetics,"[229945, 218]","[218, 49]","[49, 17]","[17, 0]"
+Geochemistry_and_Petrology,"[12869, 105]","[105, 27]","[27, 10]","[10, 0]"
+Geography_Planning_and_Development,"[15229, 37]","[37, 8]","[8, 3]","[3, 0]"
+Geology,"[11406, 48]","[48, 11]","[11, 4]","[4, 0]"
+Geometry_and_Topology,"[13968, 114]","[114, 25]","[25, 9]","[9, 0]"
+Geophysics,"[60920, 226]","[226, 42]","[42, 14]","[14, 0]"
+Geriatrics_and_Gerontology,"[42598, 128]","[128, 34]","[34, 13]","[13, 0]"
+Global_and_Planetary_Change,"[105481, 193]","[193, 39]","[39, 13]","[13, 0]"
+Hardware_and_Architecture,"[36389, 89]","[89, 18]","[18, 7]","[7, 0]"
+Health,"[64907, 113]","[113, 27]","[27, 10]","[10, 0]"
+Health_Informatics,"[6546, 63]","[63, 16]","[16, 6]","[6, 0]"
+Health_Information_Management,"[22916, 44]","[44, 10]","[10, 4]","[4, 0]"
+Health_Toxicology_and_Mutagenesis,"[97265, 171]","[171, 43]","[43, 17]","[17, 0]"
+Hematology,"[113063, 180]","[180, 41]","[41, 15]","[15, 0]"
+Hepatology,"[82575, 183]","[183, 43]","[43, 16]","[16, 0]"
+History,"[17589, 30]","[30, 6]","[6, 3]","[3, 0]"
+History_and_Philosophy_of_Science,"[36844, 35]","[35, 7]","[7, 3]","[3, 0]"
+Horticulture,"[3533, 68]","[68, 17]","[17, 6]","[6, 0]"
+Human_Computer_Interaction,"[23804, 74]","[74, 17]","[17, 7]","[7, 0]"
+Human_Factors_and_Ergonomics,"[20045, 30]","[30, 7]","[7, 3]","[3, 0]"
+Immunology,"[210759, 282]","[282, 65]","[65, 24]","[24, 0]"
+Immunology_and_Allergy,"[67345, 181]","[181, 51]","[51, 22]","[22, 0]"
+Industrial_and_Manufacturing_Engineering,"[37072, 69]","[69, 16]","[16, 6]","[6, 0]"
+Industrial_relations,"[385, 9]","[9, 3]","[3, 2]","[2, 0]"
+Infectious_Diseases,"[92986, 213]","[213, 45]","[45, 16]","[16, 0]"
+Information_Systems,"[146413, 49]","[49, 10]","[10, 4]","[4, 0]"
+Information_Systems_and_Management,"[94723, 57]","[57, 12]","[12, 4]","[4, 0]"
+Inorganic_Chemistry,"[141379, 179]","[179, 45]","[45, 18]","[18, 0]"
+Insect_Science,"[39032, 108]","[108, 28]","[28, 11]","[11, 0]"
+Instrumentation,"[8511, 96]","[96, 17]","[17, 6]","[6, 0]"
+Internal_Medicine,"[53627, 95]","[95, 23]","[23, 9]","[9, 0]"
+Issues_ethics_and_legal_aspects,"[14787, 29]","[29, 9]","[9, 4]","[4, 0]"
+Language_and_Linguistics,"[31314, 40]","[40, 7]","[7, 3]","[3, 0]"
+Law,"[7006, 19]","[19, 4]","[4, 2]","[2, 0]"
+Leadership_and_Management,"[472, 20]","[20, 6]","[6, 3]","[3, 0]"
+Library_and_Information_Sciences,"[1773, 30]","[30, 9]","[9, 4]","[4, 0]"
+Life_span_and_Life_course_Studies,"[340, 15]","[15, 5]","[5, 2]","[2, 0]"
+Linguistics_and_Language,"[13618, 47]","[47, 9]","[9, 3]","[3, 0]"
+Literature_and_Literary_Theory,"[17105, 35]","[35, 7]","[7, 3]","[3, 0]"
+Management_Information_Systems,"[82058, 72]","[72, 13]","[13, 5]","[5, 0]"
+Management_Monitoring_Policy_and_Law,"[30777, 51]","[51, 10]","[10, 4]","[4, 0]"
+Management_of_Technology_and_Innovation,"[21795, 55]","[55, 12]","[12, 4]","[4, 0]"
+Management_Science_and_Operations_Research,"[96627, 86]","[86, 18]","[18, 6]","[6, 0]"
+Marketing,"[28794, 86]","[86, 16]","[16, 5]","[5, 0]"
+Materials_Chemistry,"[240223, 279]","[279, 58]","[58, 20]","[20, 0]"
+Mathematical_Physics,"[29924, 115]","[115, 24]","[24, 9]","[9, 0]"
+Mechanical_Engineering,"[86739, 114]","[114, 24]","[24, 8]","[8, 0]"
+Mechanics_of_Materials,"[53408, 103]","[103, 24]","[24, 8]","[8, 0]"
+Media_Technology,"[36556, 50]","[50, 12]","[12, 5]","[5, 0]"
+Medical_Laboratory_Technology,"[2057, 23]","[23, 6]","[6, 3]","[3, 0]"
+Medical_Terminology,"[875, 16]","[16, 4]","[4, 2]","[2, 0]"
+Metals_and_Alloys,"[8796, 99]","[99, 27]","[27, 11]","[11, 0]"
+Microbiology,"[47512, 116]","[116, 32]","[32, 13]","[13, 0]"
+Modeling_and_Simulation,"[38808, 112]","[112, 25]","[25, 10]","[10, 0]"
+Molecular_Biology,"[312048, 397]","[397, 83]","[83, 29]","[29, 0]"
+Molecular_Medicine,"[60600, 160]","[160, 47]","[47, 20]","[20, 0]"
+Museology,"[24438, 20]","[20, 5]","[5, 2]","[2, 0]"
+Music,"[6861, 41]","[41, 9]","[9, 3]","[3, 0]"
+Nature_and_Landscape_Conservation,"[55906, 151]","[151, 33]","[33, 11]","[11, 0]"
+Nephrology,"[127390, 145]","[145, 35]","[35, 14]","[14, 0]"
+Neurology,"[99937, 190]","[190, 42]","[42, 15]","[15, 0]"
+Neuropsychology_and_Physiological_Psychology,"[16678, 70]","[70, 17]","[17, 6]","[6, 0]"
+Nuclear_and_High_Energy_Physics,"[1817189, 2291]","[2291, 154]","[154, 34]","[34, 0]"
+Nuclear_Energy_and_Engineering,"[596, 28]","[28, 8]","[8, 3]","[3, 0]"
+Numerical_Analysis,"[31606, 83]","[83, 19]","[19, 7]","[7, 0]"
+Nutrition_and_Dietetics,"[51310, 130]","[130, 36]","[36, 14]","[14, 0]"
+Obstetrics_and_Gynecology,"[40392, 121]","[121, 30]","[30, 11]","[11, 0]"
+Occupational_Therapy,"[7897, 57]","[57, 13]","[13, 5]","[5, 0]"
+Oceanography,"[51574, 175]","[175, 35]","[35, 12]","[12, 0]"
+Ocean_Engineering,"[19144, 64]","[64, 15]","[15, 6]","[6, 0]"
+Oncology,"[464866, 239]","[239, 54]","[54, 19]","[19, 0]"
+Ophthalmology,"[54948, 132]","[132, 30]","[30, 11]","[11, 0]"
+Oral_Surgery,"[30121, 94]","[94, 23]","[23, 9]","[9, 0]"
+Organic_Chemistry,"[84621, 201]","[201, 50]","[50, 20]","[20, 0]"
+Organizational_Behavior_and_Human_Resource_Management,"[65633, 101]","[101, 18]","[18, 6]","[6, 0]"
+Orthodontics,"[36294, 111]","[111, 29]","[29, 11]","[11, 0]"
+Orthopedics_and_Sports_Medicine,"[51343, 134]","[134, 34]","[34, 12]","[12, 0]"
+Otorhinolaryngology,"[40795, 118]","[118, 29]","[29, 11]","[11, 0]"
+Paleontology,"[26391, 166]","[166, 38]","[38, 14]","[14, 0]"
+Parasitology,"[69565, 123]","[123, 32]","[32, 13]","[13, 0]"
+Pathology_and_Forensic_Medicine,"[87770, 155]","[155, 39]","[39, 15]","[15, 0]"
+Pediatrics_Perinatology_and_Child_Health,"[54088, 110]","[110, 26]","[26, 9]","[9, 0]"
+Periodontics,"[39201, 104]","[104, 28]","[28, 11]","[11, 0]"
+Pharmaceutical_Science,"[27330, 120]","[120, 34]","[34, 14]","[14, 0]"
+Pharmacology,"[77327, 131]","[131, 35]","[35, 14]","[14, 0]"
+Pharmacy,"[19446, 61]","[61, 16]","[16, 6]","[6, 0]"
+Philosophy,"[16097, 43]","[43, 9]","[9, 3]","[3, 0]"
+Physical_and_Theoretical_Chemistry,"[39788, 110]","[110, 30]","[30, 12]","[12, 0]"
+Physical_Therapy_Sports_Therapy_and_Rehabilitation,"[32830, 80]","[80, 16]","[16, 5]","[5, 0]"
+Physiology,"[117801, 194]","[194, 47]","[47, 17]","[17, 0]"
+Plant_Science,"[100977, 173]","[173, 36]","[36, 12]","[12, 0]"
+Political_Science_and_International_Relations,"[26459, 46]","[46, 9]","[9, 3]","[3, 0]"
+Pollution,"[49606, 163]","[163, 41]","[41, 15]","[15, 0]"
+Polymers_and_Plastics,"[40238, 155]","[155, 40]","[40, 15]","[15, 0]"
+Process_Chemistry_and_Technology,"[13130, 130]","[130, 38]","[38, 16]","[16, 0]"
+Psychiatry_and_Mental_health,"[98245, 167]","[167, 39]","[39, 14]","[14, 0]"
+Public_Administration,"[14713, 77]","[77, 18]","[18, 7]","[7, 0]"
+Public_Health_Environmental_and_Occupational_Health,"[105872, 131]","[131, 30]","[30, 11]","[11, 0]"
+Pulmonary_and_Respiratory_Medicine,"[92080, 176]","[176, 39]","[39, 13]","[13, 0]"
+Radiation,"[19849, 134]","[134, 30]","[30, 11]","[11, 0]"
+Radiological_and_Ultrasound_Technology,"[9465, 64]","[64, 18]","[18, 7]","[7, 0]"
+Rehabilitation,"[31445, 120]","[120, 32]","[32, 12]","[12, 0]"
+Religious_studies,"[3062, 28]","[28, 5]","[5, 2]","[2, 0]"
+Renewable_Energy_Sustainability_and_the_Environment,"[191774, 228]","[228, 49]","[49, 17]","[17, 0]"
+Reproductive_Medicine,"[42314, 143]","[143, 36]","[36, 13]","[13, 0]"
+Research_and_Theory,"[5633, 77]","[77, 26]","[26, 12]","[12, 0]"
+Rheumatology,"[88509, 128]","[128, 32]","[32, 12]","[12, 0]"
+Safety_Research,"[48247, 70]","[70, 16]","[16, 6]","[6, 0]"
+Safety_Risk_Reliability_and_Quality,"[23110, 51]","[51, 11]","[11, 4]","[4, 0]"
+Sensory_Systems,"[39533, 169]","[169, 47]","[47, 20]","[20, 0]"
+Signal_Processing,"[33377, 82]","[82, 18]","[18, 7]","[7, 0]"
+Small_Animals,"[21439, 81]","[81, 23]","[23, 9]","[9, 0]"
+Social_Psychology,"[150335, 117]","[117, 27]","[27, 9]","[9, 0]"
+Sociology_and_Political_Science,"[60591, 79]","[79, 15]","[15, 5]","[5, 0]"
+Software,"[15354, 61]","[61, 13]","[13, 5]","[5, 0]"
+Soil_Science,"[55021, 121]","[121, 24]","[24, 8]","[8, 0]"
+Space_and_Planetary_Science,"[1906, 32]","[32, 9]","[9, 3]","[3, 0]"
+Spectroscopy,"[149717, 151]","[151, 42]","[42, 17]","[17, 0]"
+Speech_and_Hearing,"[13731, 62]","[62, 16]","[16, 6]","[6, 0]"
+Statistical_and_Nonlinear_Physics,"[124308, 126]","[126, 28]","[28, 10]","[10, 0]"
+Statistics_and_Probability,"[112535, 134]","[134, 28]","[28, 10]","[10, 0]"
+Statistics_Probability_and_Uncertainty,"[417050, 79]","[79, 18]","[18, 7]","[7, 0]"
+Strategy_and_Management,"[68143, 74]","[74, 13]","[13, 4]","[4, 0]"
+Structural_Biology,"[14676, 157]","[157, 40]","[40, 16]","[16, 0]"
+Surfaces_Coatings_and_Films,"[74423, 138]","[138, 36]","[36, 14]","[14, 0]"
+Surgery,"[135145, 172]","[172, 38]","[38, 13]","[13, 0]"
+Theoretical_Computer_Science,"[4708, 39]","[39, 8]","[8, 3]","[3, 0]"
+Tourism_Leisure_and_Hospitality_Management,"[4677, 64]","[64, 15]","[15, 5]","[5, 0]"
+Toxicology,"[9903, 88]","[88, 30]","[30, 14]","[14, 0]"
+Transplantation,"[29687, 131]","[131, 32]","[32, 12]","[12, 0]"
+Transportation,"[34199, 74]","[74, 15]","[15, 5]","[5, 0]"
+Urban_Studies,"[12229, 29]","[29, 6]","[6, 3]","[3, 0]"
+Urology,"[28769, 93]","[93, 26]","[26, 10]","[10, 0]"
+Virology,"[60089, 244]","[244, 56]","[56, 22]","[22, 0]"
+Visual_Arts_and_Performing_Arts,"[4221, 24]","[24, 6]","[6, 2]","[2, 0]"
+Water_Science_and_Technology,"[71378, 129]","[129, 28]","[28, 9]","[9, 0]"
+Radiology_Nuclear_Medicine_and_Imaging,"[69091, 155]","[155, 36]","[36, 13]","[13, 0]"
