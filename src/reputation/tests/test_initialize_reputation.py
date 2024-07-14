@@ -115,6 +115,7 @@ class InitializeReputationCommandTestCase(TestCase):
         score1 = Score.objects.get(
             hub=self.hub1, author=self.user_author.author_profile
         )
+
         self.assertEqual(score1.score, 23104)
 
         # Check if the score change is created with the correct score change
