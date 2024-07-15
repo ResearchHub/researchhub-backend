@@ -39,6 +39,7 @@ from user.models import (
     University,
     User,
     UserApiToken,
+    UserVerification,
     Verdict,
 )
 from user.related_models.author_contribution_summary_model import (
@@ -415,6 +416,7 @@ class UserEditableSerializer(ModelSerializer):
     organization_slug = SerializerMethodField()
     subscribed = SerializerMethodField()
     auth_provider = SerializerMethodField()
+    is_verified_v2 = SerializerMethodField()
 
     class Meta:
         model = User
@@ -466,6 +468,10 @@ class UserEditableSerializer(ModelSerializer):
             balance = user.get_balance(balances)
             return balance
         return None
+
+    def get_is_verified_v2(self, user):
+        user_verification = UserVerification.objects.filter(user=user).first()
+        return user_verification.is_verified if user_verification else False
 
     def get_organization_slug(self, user):
         try:

@@ -2,7 +2,8 @@ import json
 
 from django.test import TestCase
 
-from user.serializers import AuthorSerializer
+from user.models import UserVerification
+from user.serializers import AuthorSerializer, UserEditableSerializer
 from user.tests.helpers import create_university, create_user
 
 
@@ -23,3 +24,19 @@ class UserSerializersTests(TestCase):
         serializer = AuthorSerializer(self.user.author_profile)
         json_data = json.dumps(serializer.data)
         self.assertIn('"orcid_id": null', json_data)
+
+    def test_user_serializer_is_verified_v2(self):
+        UserVerification.objects.create(
+            user=self.user,
+            status=UserVerification.Status.APPROVED,
+        )
+        serializer = UserEditableSerializer(self.user)
+        self.assertTrue(serializer.data["is_verified_v2"])
+
+    def test_user_serializer_is_not_verified_v2(self):
+        UserVerification.objects.create(
+            user=self.user,
+            status=UserVerification.Status.DECLINED,
+        )
+        serializer = UserEditableSerializer(self.user)
+        self.assertFalse(serializer.data["is_verified_v2"])
