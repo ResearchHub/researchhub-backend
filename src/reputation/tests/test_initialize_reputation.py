@@ -1,5 +1,7 @@
 import json
+from unittest.mock import PropertyMock, patch
 
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.management import call_command
 from django.test import TestCase
 
@@ -7,6 +9,7 @@ from discussion.reaction_models import Vote
 from discussion.tests.helpers import create_rh_comment, create_vote
 from hub.models import Hub
 from paper.tests.helpers import create_paper
+from reputation.management.commands.initialize_reputation import calculate_user_score
 from reputation.models import AlgorithmVariables, Score, ScoreChange
 from researchhub_case.constants.case_constants import APPROVED
 from researchhub_case.models import AuthorClaimCase
@@ -43,6 +46,9 @@ class InitializeReputationCommandTestCase(TestCase):
         # Add user, an author is automatically created for this user.
         self.user_author = User.objects.create_user(username="user1", password="pass1")
         self.user_basic = User.objects.create_user(username="user2", password="pass2")
+        self.user_no_author = User.objects.create_user(
+            username="user3", password="pass3"
+        )
 
         # Create comments
         comment1 = create_rh_comment(paper=paper1, created_by=self.user_author)
@@ -237,6 +243,18 @@ class InitializeReputationCommandTestCase(TestCase):
         self.assertEqual(score_changes2[1].score_change, 8000)
         # 10*250 = 2500
         self.assertEqual(score_changes2[2].score_change, 2500)
+
+    @patch("user.models.User.author_profile", new_callable=PropertyMock)
+    def test_initialize_reputation_command_missing_author_profile(
+        self, mock_author_profile
+    ):
+        # Mock the author_profile to raise ObjectDoesNotExist
+        mock_author_profile.side_effect = ObjectDoesNotExist
+
+        result = calculate_user_score(self.user_no_author.id, 1)
+
+        # Check if the function returns the expected message
+        self.assertEqual(result, "User does not have an author profile.")
 
     def attribute_paper_to_author(self, user, paper):
         case = AuthorClaimCase.objects.create(
