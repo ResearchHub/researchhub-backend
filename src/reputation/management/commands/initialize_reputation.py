@@ -3,6 +3,7 @@ Calculate rep for a given author.
 """
 
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
@@ -14,7 +15,10 @@ from user.models import User
 
 def calculate_user_score(user_id, algorithm_version, recalculate=False):
     user = User.objects.get(id=user_id)
-    author = user.author_profile
+    try:
+        author = user.author_profile
+    except ObjectDoesNotExist:
+        return "User does not have an author profile."
 
     if not recalculate and is_already_calculated(author, algorithm_version):
         return "Reputation already calculated for this user and algorithm version. To recalculate, set the --recalculate flag to True."
