@@ -59,8 +59,22 @@ HELP_TEXT_IS_REMOVED = "Hides the paper because it is not allowed."
 HELP_TEXT_IS_PDF_REMOVED = "Hides the PDF because it infringes Copyright."
 
 
-class Paper(AbstractGenericReactionModel):
-    history = HistoricalRecords()
+class AbstractPaper(AbstractGenericReactionModel):
+    class Meta:
+        abstract = True
+
+    citations = models.IntegerField(default=0)
+
+    def citation_change(self, previous_paper):
+        previous_paper_citations = 0
+        if previous_paper is not None:
+            previous_paper_citations = previous_paper.citations
+
+        return self.citations - previous_paper_citations
+
+
+class Paper(AbstractPaper):
+    history = HistoricalRecords(bases=[AbstractPaper])
     FIELDS_TO_EXCLUDE = {"url_svf", "pdf_url_svf", "doi_svf"}
 
     REGULAR = "REGULAR"
@@ -102,7 +116,6 @@ class Paper(AbstractGenericReactionModel):
 
     views = models.IntegerField(default=0)
     downloads = models.IntegerField(default=0)
-    citations = models.IntegerField(default=0)
     open_alex_raw_json = models.JSONField(null=True, blank=True)
     automated_bounty_created = models.BooleanField(default=False)
 

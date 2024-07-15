@@ -20,29 +20,13 @@ def calculate_user_score(user_id, algorithm_version, recalculate=False):
     except ObjectDoesNotExist:
         return "User does not have an author profile."
 
-    if not recalculate and is_already_calculated(author, algorithm_version):
+    if not recalculate and author.is_hub_score_already_calculated(algorithm_version):
         return "Reputation already calculated for this user and algorithm version. To recalculate, set the --recalculate flag to True."
 
     score_version = Score.get_version(author)
     calculate_author_score_hubs_citations(author, algorithm_version, score_version)
     calculate_author_score_hubs_paper_votes(user, algorithm_version, score_version)
     calculate_author_score_hubs_comments(user, algorithm_version, score_version)
-
-
-def is_already_calculated(author, algo_version):
-    try:
-        score = Score.objects.filter(author=author).latest("created_date")
-    except Score.DoesNotExist:
-        return False
-
-    try:
-        ScoreChange.objects.filter(score=score, algorithm_version=algo_version).latest(
-            "created_date"
-        )
-    except ScoreChange.DoesNotExist:
-        return False
-
-    return True
 
 
 def calculate_author_score_hubs_paper_votes(user, algorithm_version, score_version):
@@ -122,8 +106,8 @@ def calculate_author_score_hubs_citations(author, algorithm_version, score_versi
             if i != 0:
                 previous_historical_paper = historical_papers[i - 1]
 
-            citation_change = paper_citation_change(
-                historical_paper, previous_historical_paper
+            citation_change = historical_paper.citation_change(
+                previous_historical_paper
             )
 
             if citation_change == 0:
@@ -140,14 +124,6 @@ def calculate_author_score_hubs_citations(author, algorithm_version, score_versi
                     "citations",
                     paper.id,
                 )
-
-
-def paper_citation_change(paper, previous_paper):
-    previous_paper_citations = 0
-    if previous_paper is not None:
-        previous_paper_citations = previous_paper.citations
-
-    return paper.citations - previous_paper_citations
 
 
 class Command(BaseCommand):

@@ -8,6 +8,7 @@ from discussion.reaction_models import Vote
 from hub.models import Hub
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
 from purchase.related_models.purchase_model import Purchase
+from reputation.models import Score, ScoreChange
 from researchhub_case.constants.case_constants import APPROVED
 from user.related_models.author_contribution_summary_model import (
     AuthorContributionSummary,
@@ -303,3 +304,18 @@ class Author(models.Model):
             paper_scores += 2 * aggregated_discussion_count["total_score"]
 
         return paper_scores + paper_count
+
+    def is_hub_score_already_calculated(self, algo_version):
+        try:
+            score = Score.objects.filter(author=self).latest("created_date")
+        except Score.DoesNotExist:
+            return False
+
+        try:
+            ScoreChange.objects.filter(
+                score=score, algorithm_version=algo_version
+            ).latest("created_date")
+        except ScoreChange.DoesNotExist:
+            return False
+
+        return True
