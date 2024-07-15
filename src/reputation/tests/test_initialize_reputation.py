@@ -9,7 +9,6 @@ from discussion.reaction_models import Vote
 from discussion.tests.helpers import create_rh_comment, create_vote
 from hub.models import Hub
 from paper.tests.helpers import create_paper
-from reputation.management.commands.initialize_reputation import calculate_user_score
 from reputation.models import AlgorithmVariables, Score, ScoreChange
 from researchhub_case.constants.case_constants import APPROVED
 from researchhub_case.models import AuthorClaimCase
@@ -251,7 +250,7 @@ class InitializeReputationCommandTestCase(TestCase):
         # Mock the author_profile to raise ObjectDoesNotExist
         mock_author_profile.side_effect = ObjectDoesNotExist
 
-        result = calculate_user_score(self.user_no_author.id, 1)
+        result = self.user_no_author.calculate_hub_scores(1)
 
         # Check if the function returns the expected message
         self.assertEqual(result, "User does not have an author profile.")

@@ -2,6 +2,7 @@ import uuid
 
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 from django.db.models import DecimalField, Q, Sum, Value
 from django.db.models.functions import Cast, Coalesce
@@ -10,13 +11,9 @@ from django.utils import timezone
 from hub.models import Hub
 from mailing_list.models import EmailRecipient
 from reputation.models import PaidStatusModelMixin, Withdrawal
-from researchhub.settings import (
-    ASSETS_BASE_URL,
-    BASE_FRONTEND_URL,
-    NO_ELASTIC,
-)
+from researchhub.settings import ASSETS_BASE_URL, BASE_FRONTEND_URL, NO_ELASTIC
 from researchhub_access_group.constants import EDITOR
-from user.tasks import handle_spam_user_task, update_elastic_registry
+from user.tasks import update_elastic_registry
 from utils.message import send_email_message
 from utils.siftscience import decisions_api
 from utils.throttles import UserSustainedRateThrottle
@@ -66,7 +63,7 @@ class User(AbstractUser):
     clicked_on_balance_date = models.DateTimeField(auto_now_add=True)
     country_code = models.CharField(max_length=4, null=True, blank=True)
     created_date = models.DateTimeField(auto_now_add=True)
-    
+
     # onboarding state
     has_seen_first_coin_modal = models.BooleanField(default=False)
     has_seen_orcid_connect_modal = models.BooleanField(default=False)
@@ -235,3 +232,14 @@ class User(AbstractUser):
 
     def frontend_view_link(self):
         return f"{BASE_FRONTEND_URL}/user/{self.author_profile.id}/overview"
+
+    def calculate_hub_scores(self, algorithm_version, recalculate=False):
+        try:
+            author = self.author_profile
+        except ObjectDoesNotExist:
+            return "User does not have an author profile."
+
+        author.calculate_hub_scores(
+            algorithm_version=algorithm_version,
+            recalculate=recalculate,
+        )

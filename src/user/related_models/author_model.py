@@ -1,20 +1,16 @@
-from allauth.socialaccount.models import SocialAccount
+from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import ArrayField
-from django.db import models
+from django.db import models, transaction
 from django.db.models import JSONField, Sum
 from django.db.models.deletion import SET_NULL
 
 from discussion.reaction_models import Vote
-from hub.models import Hub
+from paper.models import Paper
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
 from purchase.related_models.purchase_model import Purchase
 from reputation.models import Score, ScoreChange
 from researchhub_case.constants.case_constants import APPROVED
-from user.related_models.author_contribution_summary_model import (
-    AuthorContributionSummary,
-)
-from user.related_models.author_institution import AuthorInstitution
-from user.related_models.coauthor_model import CoAuthor
+from researchhub_comment.models import RhCommentThreadModel
 from user.related_models.profile_image_storage import ProfileImageStorage
 from user.related_models.school_model import University
 from user.related_models.user_model import User
@@ -305,7 +301,16 @@ class Author(models.Model):
 
         return paper_scores + paper_count
 
-    def is_hub_score_already_calculated(self, algo_version):
+    def calculate_hub_scores(self, algorithm_version, recalculate=False):
+        if not recalculate and self._is_hub_score_already_calculated(algorithm_version):
+            return
+
+        score_version = Score.get_version(self)
+        self._calculate_score_hubs_citations(algorithm_version, score_version)
+        self._calculate_score_hubs_paper_votes(algorithm_version, score_version)
+        self._calculate_score_hubs_comments(algorithm_version, score_version)
+
+    def _is_hub_score_already_calculated(self, algo_version):
         try:
             score = Score.objects.filter(author=self).latest("created_date")
         except Score.DoesNotExist:
@@ -319,3 +324,93 @@ class Author(models.Model):
             return False
 
         return True
+
+    def _calculate_score_hubs_paper_votes(self, algorithm_version, score_version):
+        authored_papers = self.authored_papers.all()
+        with transaction.atomic():
+            for paper in authored_papers:
+                votes = paper.votes.filter(vote_type__in=[1, 2])
+                if votes.count() == 0:
+                    continue
+
+                hubs = paper.hubs.filter(is_used_for_rep=True)
+                for hub in hubs:
+                    for vote in votes:
+                        if vote.vote_type == 1:
+                            vote_value = 1
+                        elif vote.vote_type == 2:
+                            vote_value = -1
+
+                        Score.update_score(
+                            self,
+                            hub,
+                            algorithm_version,
+                            score_version,
+                            vote_value,
+                            "votes",
+                            vote.id,
+                        )
+
+    def _calculate_score_hubs_comments(self, algorithm_version, score_version):
+        threads = RhCommentThreadModel.objects.filter(
+            content_type=ContentType.objects.get(model="paper"),
+            created_by=self.user,
+        )
+
+        for thread in threads:
+            comments = thread.rh_comments.all()
+            for comment in comments:
+                paper = Paper.objects.get(id=comment.thread.object_id)
+                votes = comment.votes.filter(vote_type__in=[1, 2])
+                if votes.count() == 0:
+                    continue
+
+                hubs = paper.hubs.filter(is_used_for_rep=True)
+                for hub in hubs:
+                    for vote in votes:
+                        if vote.vote_type == 1:
+                            vote_value = 1
+                        elif vote.vote_type == 2:
+                            vote_value = -1
+
+                        Score.update_score(
+                            self,
+                            hub,
+                            algorithm_version,
+                            score_version,
+                            vote_value,
+                            "votes",
+                            vote.id,
+                        )
+
+    def _calculate_score_hubs_citations(self, algorithm_version, score_version):
+        authored_papers = self.authored_papers.all()
+        for paper in authored_papers:
+            historical_papers = paper.history.all().order_by("history_date")
+            if len(historical_papers) == 0:
+                historical_papers = [paper]
+
+            hubs = paper.hubs.filter(is_used_for_rep=True)
+            for i, historical_paper in enumerate(historical_papers):
+                previous_historical_paper = None
+                if i != 0:
+                    previous_historical_paper = historical_papers[i - 1]
+
+                citation_change = historical_paper.citation_change(
+                    previous_historical_paper
+                )
+
+                if citation_change == 0:
+                    # If citation count hasn't changed, continue to the next paper history entry.
+                    continue
+
+                for hub in hubs:
+                    Score.update_score(
+                        self,
+                        hub,
+                        algorithm_version,
+                        score_version,
+                        citation_change,
+                        "citations",
+                        paper.id,
+                    )
