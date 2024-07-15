@@ -31,6 +31,11 @@ class Notification(models.Model):
     ACCOUNT_VERIFIED = "ACCOUNT_VERIFIED"
     FUNDRAISE_PAYOUT = "FUNDRAISE_PAYOUT"
     PUBLICATIONS_ADDED = "PUBLICATIONS_ADDED"
+    """
+    Used to notify users that their identify has been verified.
+    It is used in the user verification process.
+    """
+    IDENTITY_VERIFICATION_COMPLETED = "IDENTITY_VERIFICATION_COMPLETED"
 
     NOTIFICATION_TYPE_CHOICES = (
         (DEPRECATED, DEPRECATED),
@@ -48,6 +53,7 @@ class Notification(models.Model):
         (PAPER_CLAIMED, PAPER_CLAIMED),
         (FUNDRAISE_PAYOUT, FUNDRAISE_PAYOUT),
         (PUBLICATIONS_ADDED, PUBLICATIONS_ADDED),
+        (IDENTITY_VERIFICATION_COMPLETED, IDENTITY_VERIFICATION_COMPLETED),
     )
 
     notification_type = models.CharField(
