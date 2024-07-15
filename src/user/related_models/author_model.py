@@ -303,7 +303,9 @@ class Author(models.Model):
 
     def calculate_hub_scores(self, algorithm_version, recalculate=False):
         if not recalculate and self._is_hub_score_already_calculated(algorithm_version):
-            return
+            raise Exception(
+                "Reputation already calculated for this user and algorithm version. To recalculate, set the --recalculate flag to True."
+            )
 
         score_version = Score.get_version(self)
         self._calculate_score_hubs_citations(algorithm_version, score_version)

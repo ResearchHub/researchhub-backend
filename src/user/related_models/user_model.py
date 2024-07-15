@@ -234,10 +234,7 @@ class User(AbstractUser):
         return f"{BASE_FRONTEND_URL}/user/{self.author_profile.id}/overview"
 
     def calculate_hub_scores(self, algorithm_version, recalculate=False):
-        try:
-            author = self.author_profile
-        except ObjectDoesNotExist:
-            return "User does not have an author profile."
+        author = self.author_profile
 
         author.calculate_hub_scores(
             algorithm_version=algorithm_version,

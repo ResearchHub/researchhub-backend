@@ -23,4 +23,8 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         for user in User.objects.iterator():
-            user.calculate_hub_scores(options["version"], options["recalculate"])
+            try:
+                user.calculate_hub_scores(options["version"], options["recalculate"])
+            except Exception as e:
+                print(f"Error calculating rep for user {user.id}: {e}")
+                continue

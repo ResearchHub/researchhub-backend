@@ -250,10 +250,8 @@ class InitializeReputationCommandTestCase(TestCase):
         # Mock the author_profile to raise ObjectDoesNotExist
         mock_author_profile.side_effect = ObjectDoesNotExist
 
-        result = self.user_no_author.calculate_hub_scores(1)
-
-        # Check if the function returns the expected message
-        self.assertEqual(result, "User does not have an author profile.")
+        with self.assertRaises(ObjectDoesNotExist):
+            self.user_no_author.calculate_hub_scores(1)
 
     def attribute_paper_to_author(self, user, paper):
         case = AuthorClaimCase.objects.create(
