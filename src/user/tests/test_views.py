@@ -6,7 +6,7 @@ from rest_framework.test import APITestCase
 
 from paper.openalex_util import process_openalex_works
 from paper.related_models.paper_model import Paper
-from user.related_models.author_model import Author
+from reputation.models import Score
 from user.tests.helpers import create_random_authenticated_user, create_user
 from utils.openalex import OpenAlex
 from utils.test_helpers import (
@@ -136,6 +136,15 @@ class UserViewsTests(TestCase):
 
             papers = Paper.objects.filter(doi__in=dois)
             first_author = papers.first().authors.first()
+
+            hub = papers.first().hubs.first()
+
+            Score.objects.create(
+                author=first_author,
+                hub=hub,
+                version=1,
+                score=1900,
+            )
 
             url = f"/api/author/{first_author.id}/profile/"
             response = self.client.get(
