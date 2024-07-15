@@ -63,7 +63,7 @@ class InitializeReputationCommandTestCase(TestCase):
         self.attribute_paper_to_author(self.user_author, paper2)
         self.attribute_paper_to_author(self.user_author, paper3)
 
-        self.bins = (
+        bins = (
             [
                 [0, 1000],
                 [1000, 10000],
@@ -72,32 +72,64 @@ class InitializeReputationCommandTestCase(TestCase):
             ],
         )
 
-        self.citation_bins = {
+        old_vitation_bins = {
+            json.dumps((0, 2)): 5,
+            json.dumps((2, 12)): 10,
+            json.dumps((12, 200)): 25,
+            json.dumps((200, 2800)): 10,
+        }
+
+        citation_bins = {
             json.dumps((0, 2)): 50,
             json.dumps((2, 12)): 100,
             json.dumps((12, 200)): 250,
             json.dumps((200, 2800)): 100,
         }
 
-        # Create test data for algorithm_variables table
+        # Create an old unused algorithm_variables row
         AlgorithmVariables.objects.create(
             variables={
                 "citations": {
-                    "bins": self.citation_bins,
+                    "bins": old_vitation_bins,
                 },
                 "votes": {"value": 1},
-                "bins": self.citation_bins,
+                "bins": bins,
             },
             hub=self.hub1,
         )
 
+        # Create test data for algorithm_variables table
         AlgorithmVariables.objects.create(
             variables={
                 "citations": {
-                    "bins": self.citation_bins,
+                    "bins": citation_bins,
                 },
                 "votes": {"value": 1},
-                "bins": self.citation_bins,
+                "bins": bins,
+            },
+            hub=self.hub1,
+        )
+
+        # Create an old unused algorithm_variables row
+        AlgorithmVariables.objects.create(
+            variables={
+                "citations": {
+                    "bins": old_vitation_bins,
+                },
+                "votes": {"value": 1},
+                "bins": bins,
+            },
+            hub=self.hub2,
+        )
+
+        # Create test data for algorithm_variables table
+        AlgorithmVariables.objects.create(
+            variables={
+                "citations": {
+                    "bins": citation_bins,
+                },
+                "votes": {"value": 1},
+                "bins": bins,
             },
             hub=self.hub2,
         )
@@ -158,6 +190,7 @@ class InitializeReputationCommandTestCase(TestCase):
         # This simulates a recalculation of the reputation.
         call_command("initialize_reputation", 1)
         call_command("initialize_reputation", 1, "--recalculate", True)
+        call_command("initialize_reputation", 1)  # This should not recalculate
 
         # Check if the score is created
         self.assertEqual(Score.objects.count(), 2)
