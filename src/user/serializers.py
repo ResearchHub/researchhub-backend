@@ -2,13 +2,11 @@ import logging
 
 import dj_rest_auth.registration.serializers as rest_auth_serializers
 from django.contrib.contenttypes.models import ContentType
-from django.db import models
 from rest_framework.serializers import (
     CharField,
     IntegerField,
     ModelSerializer,
     PrimaryKeyRelatedField,
-    Serializer,
     SerializerMethodField,
 )
 
@@ -109,25 +107,6 @@ class AuthorSerializer(ModelSerializer):
     def get_total_score(self, author):
         if author.author_score > 0:
             return author.author_score
-        # else:
-        #     raw_score = Paper.objects.filter(
-        #         raw_authors__contains=[
-        #             {
-        #                 'first_name': author.first_name,
-        #                 'last_name': author.last_name
-        #             }
-        #         ]
-        #     ).aggregate(
-        #         Sum('score')
-        #     ).get('score__sum', 0) or 0
-
-        #     authored_score = author.authored_papers.aggregate(Sum('score')).get('score__sum', 0) or 0
-        #     total = raw_score + authored_score
-
-        #     if total > 0:
-        #         author.author_score = total
-        #         author.save()
-        #     return total
 
     def get_wallet(self, obj):
         from purchase.serializers import WalletSerializer
@@ -729,14 +708,10 @@ class UserActions:
                     data["paper_id"] = thread_paper.id
                 elif thread_post:
                     data["parent_content_type"] = "post"
-                    data[
-                        "paper_title"
-                    ] = (
+                    data["paper_title"] = (
                         thread_post.title
                     )  # paper_title instead of post_title for symmetry on the FE
-                    data[
-                        "paper_id"
-                    ] = (
+                    data["paper_id"] = (
                         thread_post.id
                     )  # paper_id instead of post_id to temporarily reduce refactoring on FE
 
