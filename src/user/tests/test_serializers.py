@@ -25,6 +25,16 @@ class UserSerializersTests(TestCase):
         json_data = json.dumps(serializer.data)
         self.assertIn('"orcid_id": null', json_data)
 
+    def test_user_serializer_is_verified(self):
+        self.user.is_verified = True
+        serializer = UserEditableSerializer(self.user)
+        self.assertTrue(serializer.data["is_verified"])
+
+    def test_user_serializer_is_not_verified(self):
+        self.user.is_verified = False
+        serializer = UserEditableSerializer(self.user)
+        self.assertFalse(serializer.data["is_verified"])
+
     def test_user_serializer_is_verified_v2(self):
         UserVerification.objects.create(
             user=self.user,
