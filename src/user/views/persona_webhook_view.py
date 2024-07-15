@@ -4,8 +4,10 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from rest_framework import status
 from django.conf import settings
+from user.models import UserVerification
 
 import hmac
+import json
 
 
 class PersonaWebhookView(APIView):
@@ -21,27 +23,83 @@ class PersonaWebhookView(APIView):
         """
         Process incoming webhook from Persona.
         """
-        persona_signature = request.headers.get("Persona-Signature")
+        try:
+            persona_signature = request.headers.get("Persona-Signature")
 
-        if not persona_signature:
+            if not persona_signature:
+                return Response(
+                    {"message": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED
+                )
+
+            if not self._validate_signature(request):
+                return Response(
+                    {"message": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED
+                )
+
+            self._process_payload(request)
+        except Exception as e:
+            print("Failed to process webhook payload", e)
             return Response(
-                {"message": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED
+                {"message": "Failed to process webhook"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
-        if not self.validate_signature(request):
-            return Response(
-                {"message": "Unauthorized"}, status=status.HTTP_401_UNAUTHORIZED
-            )
-
-        # Currently a no-op
-        # FIXME: Replace with implementation
-        print(f"Webhook received: {request.body}")
 
         return Response(
             {"message": "Webhook successfully processed"}, status=status.HTTP_200_OK
         )
 
-    def validate_signature(self, request: Request) -> bool:
+    def _get_nested_attr(self, data, keys, default=None):
+        if isinstance(keys, str):
+            keys = keys.split(".")
+
+        for key in keys:
+            try:
+                data = data[key]
+            except (TypeError, KeyError):
+                return default
+        return data
+
+    def _process_payload(self, request: Request):
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            raise ValueError("Invalid JSON payload")
+
+        persona_status = self._get_nested_attr(
+            data, "data.attributes.payload.data.attributes.status"
+        ).lower()
+        status = None
+        if persona_status == "approved":
+            status = UserVerification.Status.APPROVED
+        elif persona_status == "declined":
+            status = UserVerification.Status.DECLINED
+        elif persona_status == "pending":
+            status = UserVerification.Status.PENDING
+
+        reference_id = self._get_nested_attr(
+            data, "data.attributes.payload.data.attributes.reference-id"
+        )
+        first_name = self._get_nested_attr(
+            data, "data.attributes.payload.data.attributes.name-first"
+        )
+        last_name = self._get_nested_attr(
+            data, "data.attributes.payload.data.attributes.name-last"
+        )
+        inquiry_id = self._get_nested_attr(data, "data.attributes.payload.data.id")
+
+        user_verification, _ = UserVerification.objects.update_or_create(
+            defaults={
+                "user_id": reference_id,
+                "first_name": first_name,
+                "last_name": last_name,
+                "verified_by": UserVerification.Type.PERSONA,
+                "external_id": inquiry_id,
+                "status": status,
+            },
+        )
+        user_verification.save()
+
+    def _validate_signature(self, request: Request) -> bool:
         """
         Validate the signature of the incoming request.
 
@@ -52,10 +110,16 @@ class PersonaWebhookView(APIView):
             for value in request.headers["Persona-Signature"].split(",")
         ]
 
-        computed_digest = hmac.new(
-            settings.PERSONA_WEBHOOK_SECRET.encode(),
-            (t + "." + request.body.decode("utf-8")).encode(),
-            "sha256",
-        ).hexdigest()
+        computed_digest = self.create_digest(
+            settings.PERSONA_WEBHOOK_SECRET, t, request.body.decode("utf-8")
+        )
 
         return hmac.compare_digest(v1, computed_digest)
+
+    @classmethod
+    def create_digest(cls, key: str, t: str, body: str) -> str:
+        return hmac.new(
+            key.encode(),
+            (t + "." + body).encode(),
+            "sha256",
+        ).hexdigest()
