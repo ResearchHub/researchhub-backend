@@ -923,14 +923,21 @@ def pull_openalex_author_works_batch(
         just_id = id_as_url.split("/")[-1]
         oa_ids.append(just_id)
 
-    works, cursor = open_alex_api.get_works(openalex_ids=oa_ids)
-    process_openalex_works(works)
+    # divide openalex_ids into chunks of 100
+    # openalex api only allows 100 ids per request
+    chunk_size = 100
+    for i in range(0, len(oa_ids), chunk_size):
+        chunk = oa_ids[i : i + chunk_size]
+        works, cursor = open_alex_api.get_works(openalex_ids=chunk)
+        process_openalex_works(works)
 
     if user_id_to_notify_after_completion:
         user = User.objects.get(id=user_id_to_notify_after_completion)
-        Notification.objects.create(
+        notification = Notification.objects.create(
             item=user,
             notification_type=Notification.PUBLICATIONS_ADDED,
             recipient=user,
             action_user=user,
         )
+
+        notification.send_notification()

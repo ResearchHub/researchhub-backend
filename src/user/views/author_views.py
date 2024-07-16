@@ -139,24 +139,25 @@ class AuthorViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
-    def claim_profile_and_add_publications(self, request, pk=None):
+    def add_publications(self, request, pk=None):
         author = request.user.author_profile
         openalex_ids = request.data.get("openalex_ids", [])
         openalex_author_id = request.data.get("openalex_author_id", None)
 
         # Esnsure the openalex author id is a full url since it is the format stored in our system
         if "openalex.org" not in openalex_author_id:
-            raise Exception("Invalid OpenAlex author ID")
+            openalex_author_id = f"https://openalex.org/authors/{openalex_author_id}"
 
         # Attempt to associate the openalex author id with the RH author
         try:
             claim_openalex_author_profile(author.id, openalex_author_id)
         except AuthorClaimException as e:
-            return Response({"reason": e.reason}, status=status.HTTP_400_BAD_REQUEST)
+            pass
         except Exception as e:
             return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         if len(openalex_ids) > 0:
+            # if True:
             if TESTING:
                 pull_openalex_author_works_batch(openalex_ids, request.user.id)
             else:
@@ -170,23 +171,23 @@ class AuthorViewSet(viewsets.ModelViewSet):
 
         return Response(status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
-    def add_publications(self, request, pk=None):
-        openalex_ids = request.data.get("openalex_ids", [])
+    # @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
+    # def add_publications(self, request, pk=None):
+    #     openalex_ids = request.data.get("openalex_ids", [])
 
-        if len(openalex_ids) > 0:
-            if TESTING:
-                pull_openalex_author_works_batch(openalex_ids, request.user.id)
-            else:
-                pull_openalex_author_works_batch.apply_async(
-                    (
-                        openalex_ids,
-                        request.user.id,
-                    ),
-                    priority=1,
-                )
+    #     if len(openalex_ids) > 0:
+    #         if TESTING:
+    #             pull_openalex_author_works_batch(openalex_ids, request.user.id)
+    #         else:
+    #             pull_openalex_author_works_batch.apply_async(
+    #                 (
+    #                     openalex_ids,
+    #                     request.user.id,
+    #                 ),
+    #                 priority=1,
+    #             )
 
-        return Response(status=status.HTTP_200_OK)
+    #     return Response(status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["get"], permission_classes=[AllowAny])
     def profile(self, request, pk=None):
@@ -739,6 +740,52 @@ class AuthorViewSet(viewsets.ModelViewSet):
             },
         }
         return context
+
+    @action(
+        detail=True,
+        methods=["get"],
+    )
+    def publications(self, request, pk=None):
+        author = self.get_object()
+
+        # Fetch the authored papers and order by citations
+        authored_doc_ids = list(
+            author.authored_papers.filter(is_removed=False)
+            .order_by("-citations")
+            .values_list("unified_document_id", flat=True)
+        )
+
+        documents = ResearchhubUnifiedDocument.objects.filter(id__in=authored_doc_ids)
+
+        # Maintain the ordering authored papers
+        documents_ordered = sorted(
+            documents, key=lambda x: authored_doc_ids.index(x.id)
+        )
+
+        context = ResearchhubUnifiedDocumentViewSet._get_serializer_context(self)
+        page = self.paginate_queryset(documents_ordered)
+
+        serializer = DynamicUnifiedDocumentSerializer(
+            page,
+            _include_fields=[
+                "id",
+                "created_date",
+                "documents",
+                "document_filter",
+                "document_type",
+                "hot_score",
+                "hubs",
+                "reviews",
+                "score",
+                "fundraise",
+            ],
+            many=True,
+            context=context,
+        )
+
+        serializer_data = serializer.data
+
+        return self.get_paginated_response(serializer_data)
 
     @action(
         detail=True,
