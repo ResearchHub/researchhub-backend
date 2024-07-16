@@ -2,3 +2,8 @@ ignore:
   - "**/tests/*"
   - "**/tests.py"
   - "**/test_*.py"
+status:
+  patch:
+    default:
+      target: auto
+      threshold: 0.5%
