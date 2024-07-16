@@ -110,7 +110,7 @@ class PersonaWebhookView(APIView):
             recipient=user,
             action_user=user,
         )
-        self._notification_id = notification.id
+        notification.send_notification()
 
     def _validate_signature(self, request: Request) -> bool:
         """

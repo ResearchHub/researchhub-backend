@@ -2,6 +2,7 @@ from user.views import PersonaWebhookView
 from user.models import User, UserVerification
 from django.test import TestCase, override_settings
 from notification.models import Notification
+from unittest import mock
 
 import os
 
@@ -74,8 +75,9 @@ class PersonaWebhookViewTests(TestCase):
             digest, "0fd4586aa5cb67c098a920ed55906fb2669a2bb21c6ed2de58e4f5cfb79814c7"
         )
 
+    @mock.patch("notification.models.Notification.send_notification")
     @override_settings(PERSONA_WEBHOOK_SECRET=webhook_secret)
-    def test_post_webhook(self):
+    def test_post_webhook(self, send_notification_mock):
         # arrange
         user = User.objects.create(first_name="firstName1", last_name="lastName1")
 
@@ -114,9 +116,11 @@ class PersonaWebhookViewTests(TestCase):
             notification.notification_type, Notification.IDENTITY_VERIFICATION_COMPLETED
         )
         self.assertEqual(notification.item, user_verification)
+        send_notification_mock.assert_called_once()
 
+    @mock.patch("notification.models.Notification.send_notification")
     @override_settings(PERSONA_WEBHOOK_SECRET=webhook_secret)
-    def test_post_webhook_declined_status(self):
+    def test_post_webhook_declined_status(self, send_notification_mock):
         # arrange
         user = User.objects.create(first_name="firstName1", last_name="lastName1")
 
@@ -155,3 +159,4 @@ class PersonaWebhookViewTests(TestCase):
             notification.notification_type, Notification.IDENTITY_VERIFICATION_COMPLETED
         )
         self.assertEqual(notification.item, user_verification)
+        send_notification_mock.assert_called_once()
