@@ -43,7 +43,10 @@ class UserApiTests(APITestCase):
 
             # Add publications to author
             url = f"/api/author/{user_with_published_works.author_profile.id}/add_publications/"
-            response = self.client.post(url, {"openalex_ids": work_ids})
+            response = self.client.post(
+                url,
+                {"openalex_ids": work_ids, "openalex_author_id": author_openalex_id},
+            )
 
             # Verify at least one publication is created and credited to the author
             paper = Paper.objects.get(openalex_id=author_works[0].get("id"))
@@ -83,7 +86,10 @@ class UserApiTests(APITestCase):
 
             # Add publications to author
             url = f"/api/author/{user_with_published_works.author_profile.id}/add_publications/"
-            response = self.client.post(url, {"openalex_ids": work_ids})
+            response = self.client.post(
+                url,
+                {"openalex_ids": work_ids, "openalex_author_id": author_openalex_id},
+            )
 
             self.assertEqual(
                 Notification.objects.last().notification_type,

@@ -206,7 +206,7 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
 
     open_alex = OpenAlex()
     related_paper = Paper.objects.get(id=related_paper_id)
-
+    print(f"Processing authorships for paper: {related_paper.title}")
     authors_need_additional_data_fetch = []
     authors_in_this_work = []
     for oa_authorship in openalex_authorships:
@@ -216,10 +216,8 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
         just_id = author_openalex_id.split("/")[-1]
         authors_need_additional_data_fetch.append(just_id)
 
-        author = None
-        try:
-            author = Author.objects.get(openalex_ids__contains=[author_openalex_id])
-        except Author.DoesNotExist:
+        authors = Author.objects.filter(openalex_ids__contains=[author_openalex_id])
+        if not authors.exists():
             author_name_parts = (
                 oa_authorship.get("author", {}).get("display_name").split(" ")
             )
@@ -230,28 +228,27 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
                 created_source=Author.SOURCE_OPENALEX,
             )
             Wallet.objects.create(author=author)
-        except Exception as e:
-            continue
 
-        # Associate paper with author
-        related_paper.authors.add(author)
+        for author in authors:
+            # Associate paper with author
+            related_paper.authors.add(author)
 
-        # Find or create authorship
-        authorship, created = Authorship.objects.get_or_create(
-            author=author,
-            author_position=author_position,
-            paper=related_paper,
-            is_corresponding=oa_authorship.get("is_corresponding"),
-            raw_author_name=oa_authorship.get("author", {}).get("display_name"),
-        )
+            # Find or create authorship
+            authorship, created = Authorship.objects.get_or_create(
+                author=author,
+                author_position=author_position,
+                paper=related_paper,
+                is_corresponding=oa_authorship.get("is_corresponding"),
+                raw_author_name=oa_authorship.get("author", {}).get("display_name"),
+            )
 
-        authors_in_this_work.append(author)
+            authors_in_this_work.append(author)
 
-        # Set institutions associated with authorships if they do not already exist
-        for oa_inst in oa_authorship.get("institutions", []):
-            institution = Institution.upsert_from_openalex(oa_inst)
-            if institution:
-                authorship.institutions.add(institution)
+            # Set institutions associated with authorships if they do not already exist
+            for oa_inst in oa_authorship.get("institutions", []):
+                institution = Institution.upsert_from_openalex(oa_inst)
+                if institution:
+                    authorship.institutions.add(institution)
 
     # Update authors with additional metadata from OpenAlex
     oa_authors = []
@@ -262,19 +259,21 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
 
     for oa_author in oa_authors:
         try:
-            author = Author.objects.get(openalex_ids__contains=[oa_author.get("id")])
-        except Author.DoesNotExist as e:
-            # This should not happen but hey, anything can happen!
+            authors = Author.objects.filter(
+                openalex_ids__contains=[oa_author.get("id")]
+            )
+            for author in authors:
+                merge_openalex_author_with_researchhub_author(oa_author, author)
+
+        except Exception as e:
             logging.warning(
-                f"Author with OpenAlex ID not found: {oa_author.get('id')}",
+                f"Author with OpenAlex ID failed to be merged: {oa_author.get('id')}",
             )
             sentry.log_error(
                 e,
-                message=f"Author with OpenAlex ID {oa_author.get('id')} not found",
+                message=f"Author with OpenAlex ID failed to be merged {oa_author.get('id')}",
             )
             continue
-
-    merge_openalex_author_with_researchhub_author(oa_author, author)
 
     # Create co-author relationships
     for i, author in enumerate(authors_in_this_work):
@@ -322,7 +321,7 @@ def merge_openalex_author_with_researchhub_author(openalex_author, researchhub_a
         except Exception as e:
             sentry.log_error(
                 e,
-                message=f"Failed to upsert author contribution summary for author: {str(author.id)}",
+                message=f"Failed to upsert author contribution summary for author: {str(researchhub_author.id)}",
             )
 
     # Load all the institutions author is associated with
