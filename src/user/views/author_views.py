@@ -110,7 +110,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
             claim_openalex_author_profile(author.id, openalex_author_id)
         except AuthorClaimException as e:
             return Response({"reason": e.reason}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
+        except Exception:
             return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         if len(openalex_ids) > 0:
