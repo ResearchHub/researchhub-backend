@@ -343,15 +343,18 @@ class Author(models.Model):
                         elif vote.vote_type == 2:
                             vote_value = -1
 
-                        Score.update_score(
-                            self,
-                            hub,
-                            algorithm_version,
-                            score_version,
-                            vote_value,
-                            "votes",
-                            vote.id,
-                        )
+                        try:
+                            Score.update_score(
+                                self,
+                                hub,
+                                algorithm_version,
+                                score_version,
+                                vote_value,
+                                "votes",
+                                vote.id,
+                            )
+                        except Exception as e:
+                            print(e)
 
     def _calculate_score_hubs_comments(self, algorithm_version, score_version):
         threads = RhCommentThreadModel.objects.filter(
@@ -374,16 +377,18 @@ class Author(models.Model):
                             vote_value = 1
                         elif vote.vote_type == 2:
                             vote_value = -1
-
-                        Score.update_score(
-                            self,
-                            hub,
-                            algorithm_version,
-                            score_version,
-                            vote_value,
-                            "votes",
-                            vote.id,
-                        )
+                        try:
+                            Score.update_score(
+                                self,
+                                hub,
+                                algorithm_version,
+                                score_version,
+                                vote_value,
+                                "votes",
+                                vote.id,
+                            )
+                        except Exception as e:
+                            print(e)
 
     def _calculate_score_hubs_citations(self, algorithm_version, score_version):
         authored_papers = self.authored_papers.all()
@@ -407,12 +412,15 @@ class Author(models.Model):
                     continue
 
                 for hub in hubs:
-                    Score.update_score(
-                        self,
-                        hub,
-                        algorithm_version,
-                        score_version,
-                        citation_change,
-                        "citations",
-                        paper.id,
-                    )
+                    try:
+                        Score.update_score(
+                            self,
+                            hub,
+                            algorithm_version,
+                            score_version,
+                            citation_change,
+                            "citations",
+                            paper.id,
+                        )
+                    except Exception as e:
+                        print(e)

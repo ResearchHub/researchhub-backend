@@ -171,24 +171,6 @@ class AuthorViewSet(viewsets.ModelViewSet):
 
         return Response(status=status.HTTP_200_OK)
 
-    # @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
-    # def add_publications(self, request, pk=None):
-    #     openalex_ids = request.data.get("openalex_ids", [])
-
-    #     if len(openalex_ids) > 0:
-    #         if TESTING:
-    #             pull_openalex_author_works_batch(openalex_ids, request.user.id)
-    #         else:
-    #             pull_openalex_author_works_batch.apply_async(
-    #                 (
-    #                     openalex_ids,
-    #                     request.user.id,
-    #                 ),
-    #                 priority=1,
-    #             )
-
-    #     return Response(status=status.HTTP_200_OK)
-
     @action(detail=True, methods=["get"], permission_classes=[AllowAny])
     def profile(self, request, pk=None):
         author = self.get_object()

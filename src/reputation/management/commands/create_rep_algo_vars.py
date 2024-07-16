@@ -30,9 +30,13 @@ class Command(BaseCommand):
                 for row in reader:
                     slug = "-".join(row["Subfield"].lower().split("_"))
                     slug_with_index = slug + "-1"
-                    hub = Hub.objects.get(
-                        Q(slug=slug) | Q(slug=slug_with_index), is_used_for_rep=True
-                    )
+                    try:
+                        hub = Hub.objects.get(
+                            Q(slug=slug) | Q(slug=slug_with_index), is_used_for_rep=True
+                        )
+                    except Hub.DoesNotExist:
+                        print(f"Hub with slug {slug} not found")
+                        continue
 
                     bin_1 = ast.literal_eval(
                         row["Bin 1 (90-100th %)"]

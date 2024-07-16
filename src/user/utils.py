@@ -53,6 +53,11 @@ def claim_openalex_author_profile(claiming_rh_author_id, openalex_author_id):
             and rh_author_with_this_openalex_id.user is not None
         )
 
+        print("already_claimed_by_this_user", already_claimed_by_this_user)
+        print(
+            "rh_author_with_this_openalex_id.user", rh_author_with_this_openalex_id.user
+        )
+
         if already_claimed_by_this_user:
             raise AuthorClaimException(
                 AuthorClaimException.ALREADY_CLAIMED_BY_CURRENT_USER
