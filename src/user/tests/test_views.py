@@ -6,7 +6,7 @@ from rest_framework.test import APITestCase
 
 from paper.openalex_util import process_openalex_works
 from paper.related_models.paper_model import Paper
-from user.related_models.author_model import Author
+from reputation.models import Score
 from user.tests.helpers import create_random_authenticated_user, create_user
 from utils.openalex import OpenAlex
 from utils.test_helpers import (
@@ -137,6 +137,15 @@ class UserViewsTests(TestCase):
             papers = Paper.objects.filter(doi__in=dois)
             first_author = papers.first().authors.first()
 
+            hub = papers.first().hubs.first()
+
+            Score.objects.create(
+                author=first_author,
+                hub=hub,
+                version=1,
+                score=1900,
+            )
+
             url = f"/api/author/{first_author.id}/profile/"
             response = self.client.get(
                 url,
@@ -144,6 +153,35 @@ class UserViewsTests(TestCase):
 
             self.assertGreater(response.data["reputation"]["score"], 0)
             self.assertGreater(len(response.data["reputation_list"]), 0)
+
+    @patch.object(OpenAlex, "get_authors")
+    def test_get_author_profile_no_reputation(self, mock_get_authors):
+        from paper.models import Paper
+
+        works = None
+        with open("./paper/tests/openalex_works.json", "r") as file:
+            response = json.load(file)
+            works = response.get("results")
+
+        with open("./paper/tests/openalex_authors.json", "r") as file:
+            mock_data = json.load(file)
+            mock_get_authors.return_value = (mock_data["results"], None)
+
+            process_openalex_works(works)
+
+            dois = [work.get("doi") for work in works]
+            dois = [doi.replace("https://doi.org/", "") for doi in dois]
+
+            papers = Paper.objects.filter(doi__in=dois)
+            first_author = papers.first().authors.first()
+
+            url = f"/api/author/{first_author.id}/profile/"
+            response = self.client.get(
+                url,
+            )
+
+            self.assertIsNone(response.data["reputation"])
+            self.assertEqual(len(response.data["reputation_list"]), 0)
 
     @patch.object(OpenAlex, "get_authors")
     def test_author_overview(self, mock_get_authors):

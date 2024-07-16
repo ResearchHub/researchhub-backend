@@ -23,7 +23,7 @@ from hypothesis.models import Hypothesis
 from institution.serializers import DynamicInstitutionSerializer
 from paper.models import Paper, PaperSubmission
 from purchase.models import Purchase
-from reputation.models import Bounty, Contribution, Withdrawal
+from reputation.models import Bounty, Contribution, Score, Withdrawal
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import EDITOR
 from researchhub_access_group.serializers import DynamicPermissionSerializer
@@ -1135,82 +1135,51 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
             )
 
     def get_reputation(self, author):
+        score = Score.objects.filter(author=author).order_by("-score").first()
+
+        if score is None:
+            return None
+
+        hub = Hub.objects.get(id=score.hub_id)
+
         return {
             "hub": {
-                "id": 1,
-                "name": "Cellular and Molecular Neuroscience",
-                "slug": "slug-1",
+                "id": hub.id,
+                "name": hub.name,
+                "slug": hub.slug,
             },
-            "score": 198200,
-            "bins": [[0, 1000], [1000, 10000], [10000, 100000], [100000, 1000000]],
+            "score": score.score,
+            "bins": [
+                [0, 1000],
+                [1000, 10000],
+                [10000, 100000],
+                [100000, 1000000],
+            ],  # FIXME: Replace with bins from algo vars table
         }
 
     def get_reputation_list(self, author):
-        return [
-            {
-                "hub": {
-                    "id": 1,
-                    "name": "Cellular and Molecular Neuroscience",
-                    "slug": "slug-1",
-                },
-                "score": 198200,
-                "bins": [[0, 1000], [1000, 10000], [10000, 100000], [100000, 1000000]],
-            },
-            {
-                "hub": {
-                    "id": 2,
-                    "name": "Molecular Biology",
-                    "slug": "slug-2",
-                },
-                "score": 175000,
-                "bins": [[0, 1000], [1000, 10000], [10000, 100000], [100000, 1000000]],
-            },
-            {
-                "hub": {
-                    "id": 3,
-                    "name": "Cognitive Neuroscience",
-                    "slug": "slug-3",
-                },
-                "score": 65000,
-                "bins": [[0, 1000], [1000, 10000], [10000, 100000], [100000, 1000000]],
-            },
-            {
-                "hub": {
-                    "id": 4,
-                    "name": "Ophthalmology",
-                    "slug": "slug-4",
-                },
-                "score": 12200,
-                "bins": [[0, 1000], [1000, 10000], [10000, 100000], [100000, 1000000]],
-            },
-            {
-                "hub": {
-                    "id": 5,
-                    "name": "Endocrine and Autonomic Systems",
-                    "slug": "slug-5",
-                },
-                "score": 10000,
-                "bins": [[0, 1000], [1000, 10000], [10000, 100000], [100000, 1000000]],
-            },
-            {
-                "hub": {
-                    "id": 6,
-                    "name": "Artificial Intelligence",
-                    "slug": "slug-6",
-                },
-                "score": 1050,
-                "bins": [[0, 1000], [1000, 10000], [10000, 100000], [100000, 1000000]],
-            },
-            {
-                "hub": {
-                    "id": 7,
-                    "name": "Biomedical Engineering",
-                    "slug": "slug-7",
-                },
-                "score": 330,
-                "bins": [[0, 1000], [1000, 10000], [10000, 100000], [100000, 1000000]],
-            },
-        ]
+        scores = Score.objects.filter(author=author).order_by("-score")
+        reputation_list = []
+        for score in scores:
+            hub = Hub.objects.get(id=score.hub_id)
+            reputation_list.append(
+                {
+                    "hub": {
+                        "id": hub.id,
+                        "name": hub.name,
+                        "slug": hub.slug,
+                    },
+                    "score": score.score,
+                    "bins": [
+                        [0, 1000],
+                        [1000, 10000],
+                        [10000, 100000],
+                        [100000, 1000000],
+                    ],  # FIXME: Replace with bins from algo vars table
+                }
+            )
+
+        return reputation_list
 
     def get_institutions(self, author):
         context = self.context
