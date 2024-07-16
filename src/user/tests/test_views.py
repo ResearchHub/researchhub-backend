@@ -137,13 +137,21 @@ class UserViewsTests(TestCase):
             papers = Paper.objects.filter(doi__in=dois)
             first_author = papers.first().authors.first()
 
-            hub = papers.first().hubs.first()
+            hub1 = papers.first().hubs.first()
+            hub2 = papers.last().hubs.first()
 
             Score.objects.create(
                 author=first_author,
-                hub=hub,
+                hub=hub1,
                 version=1,
                 score=1900,
+            )
+
+            Score.objects.create(
+                author=first_author,
+                hub=hub2,
+                version=1,
+                score=1800,
             )
 
             url = f"/api/author/{first_author.id}/profile/"
@@ -151,8 +159,9 @@ class UserViewsTests(TestCase):
                 url,
             )
 
-            self.assertGreater(response.data["reputation"]["score"], 0)
-            self.assertGreater(len(response.data["reputation_list"]), 0)
+            self.assertEqual(response.data["reputation"]["score"], 1900)
+            self.assertEqual(response.data["reputation_list"][0]["score"], 1900)
+            self.assertEqual(response.data["reputation_list"][1]["score"], 1800)
 
     @patch.object(OpenAlex, "get_authors")
     def test_get_author_profile_no_reputation(self, mock_get_authors):
