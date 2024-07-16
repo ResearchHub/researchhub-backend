@@ -95,7 +95,11 @@ class AuthorViewSet(viewsets.ModelViewSet):
 
         return Response(serializer.data)
 
-    @action(detail=True, methods=["post"], permission_classes=[IsVerifiedUser])
+    @action(
+        detail=True,
+        methods=["post"],
+        permission_classes=[IsAuthenticated, IsVerifiedUser],
+    )
     def claim_profile_and_add_publications(self, request, pk=None):
         author = request.user.author_profile
         openalex_ids = request.data.get("openalex_ids", [])

@@ -4,6 +4,8 @@ from rest_framework.permissions import BasePermission
 from utils.http import DELETE, GET, POST, RequestMethods
 from utils.permissions import AuthorizationBasedPermission
 
+from django.conf import settings
+
 
 class UpdateAuthor(AuthorizationBasedPermission):
     message = "Action not permitted."
@@ -152,6 +154,10 @@ class IsVerifiedUser(BasePermission):
 
         if user.is_anonymous:
             return False
+
+        # FIXME: Remove the following condition after releasing to production
+        if settings.PRODUCTION:
+            return True
 
         user_verification = UserVerification.objects.filter(user=user).first()
         if not user_verification:
