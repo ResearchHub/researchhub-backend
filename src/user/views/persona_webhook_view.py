@@ -4,7 +4,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
 from rest_framework import status
 from django.conf import settings
-from user.models import UserVerification
+from user.models import User, UserVerification
+from notification.models import Notification
 
 import hmac
 import json
@@ -98,6 +99,18 @@ class PersonaWebhookView(APIView):
             },
         )
         user_verification.save()
+
+        self._create_notification(user_verification)
+
+    def _create_notification(self, user_verification: UserVerification):
+        user = User.objects.get(id=user_verification.user_id)
+        notification = Notification.objects.create(
+            item=user_verification,
+            notification_type=Notification.IDENTITY_VERIFICATION_COMPLETED,
+            recipient=user,
+            action_user=user,
+        )
+        self._notification_id = notification.id
 
     def _validate_signature(self, request: Request) -> bool:
         """

@@ -1,6 +1,7 @@
 from user.views import PersonaWebhookView
 from user.models import User, UserVerification
 from django.test import TestCase, override_settings
+from notification.models import Notification
 
 import os
 
@@ -103,6 +104,17 @@ class PersonaWebhookViewTests(TestCase):
         self.assertEqual(user_verification.status, UserVerification.Status.APPROVED)
         self.assertEqual(user_verification.is_verified, True)
 
+        # check that a notification has been created
+        notification = Notification.objects.filter(
+            action_user=user,
+            recipient=user,
+        ).last()
+        self.assertIsNotNone(notification)
+        self.assertEqual(
+            notification.notification_type, Notification.IDENTITY_VERIFICATION_COMPLETED
+        )
+        self.assertEqual(notification.item, user_verification)
+
     @override_settings(PERSONA_WEBHOOK_SECRET=webhook_secret)
     def test_post_webhook_declined_status(self):
         # arrange
@@ -132,3 +144,14 @@ class PersonaWebhookViewTests(TestCase):
         self.assertEqual(response.json(), {"message": "Webhook successfully processed"})
         self.assertEqual(user_verification.status, UserVerification.Status.DECLINED)
         self.assertEqual(user_verification.is_verified, False)
+
+        # check that a notification has been created
+        notification = Notification.objects.filter(
+            action_user=user,
+            recipient=user,
+        ).last()
+        self.assertIsNotNone(notification)
+        self.assertEqual(
+            notification.notification_type, Notification.IDENTITY_VERIFICATION_COMPLETED
+        )
+        self.assertEqual(notification.item, user_verification)
