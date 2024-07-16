@@ -1,3 +1,4 @@
+from user.models import UserVerification
 from rest_framework.permissions import BasePermission
 
 from utils.http import DELETE, GET, POST, RequestMethods
@@ -137,3 +138,23 @@ class HasVerificationPermission(BasePermission):
             return False
 
         return True
+
+
+class IsVerifiedUser(BasePermission):
+    """
+    Permission class to check if user identity is verified.
+    """
+
+    message = "User identity is not verified"
+
+    def has_permission(self, request, view):
+        user = request.user
+
+        if user.is_anonymous:
+            return False
+
+        user_verification = UserVerification.objects.filter(user=user).first()
+        if not user_verification:
+            return False
+
+        return user_verification.is_verified
