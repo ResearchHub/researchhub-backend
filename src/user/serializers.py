@@ -1138,7 +1138,7 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
         score = Score.objects.filter(author=author).order_by("-score").first()
 
         if score is None:
-            return {}
+            return None
 
         hub = Hub.objects.get(id=score.hub_id)
 
