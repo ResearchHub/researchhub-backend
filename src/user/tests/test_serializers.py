@@ -2,6 +2,8 @@ import json
 
 from django.test import TestCase
 
+from hub.models import Hub
+from reputation.models import Score
 from user.models import UserVerification
 from user.serializers import AuthorSerializer, UserEditableSerializer
 from user.tests.helpers import create_university, create_user
@@ -24,6 +26,26 @@ class UserSerializersTests(TestCase):
         serializer = AuthorSerializer(self.user.author_profile)
         json_data = json.dumps(serializer.data)
         self.assertIn('"orcid_id": null', json_data)
+
+    def test_author_serializer_with_reputation(self):
+        hub1 = Hub.objects.create(name="Hub 1")
+        hub2 = Hub.objects.create(name="Hub 2")
+        Score.objects.create(
+            author=self.user.author_profile,
+            hub=hub1,
+            score=900,
+        )
+
+        Score.objects.create(
+            author=self.user.author_profile,
+            hub=hub2,
+            score=1000,
+        )
+
+        serializer = AuthorSerializer(self.user.author_profile)
+        self.assertEqual(serializer.data["reputation_v2"]["score"], 1000)
+        self.assertEqual(serializer.data["reputation_list"][0]["score"], 1000)
+        self.assertEqual(serializer.data["reputation_list"][1]["score"], 900)
 
     def test_user_serializer_is_verified(self):
         self.user.is_verified = True

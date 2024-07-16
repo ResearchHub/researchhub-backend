@@ -62,6 +62,8 @@ class AuthorSerializer(ModelSerializer):
     num_posts = SerializerMethodField()
     orcid_id = SerializerMethodField()
     reputation = SerializerMethodField()
+    reputation_v2 = SerializerMethodField()
+    reputation_list = SerializerMethodField()
     sift_link = SerializerMethodField()
     total_score = SerializerMethodField()
     university = UniversitySerializer(required=False)
@@ -79,6 +81,8 @@ class AuthorSerializer(ModelSerializer):
             "num_posts",
             "orcid_id",
             "reputation",
+            "reputation_v2",
+            "reputation_list",
             "suspended_status",
             "sift_link",
             "total_score",
@@ -100,6 +104,53 @@ class AuthorSerializer(ModelSerializer):
         if obj.user is None:
             return 0
         return obj.user.reputation
+
+    def get_reputation_v2(self, author):
+        score = Score.objects.filter(author=author).order_by("-score").first()
+
+        if score is None:
+            return None
+
+        hub = Hub.objects.get(id=score.hub_id)
+
+        return {
+            "hub": {
+                "id": hub.id,
+                "name": hub.name,
+                "slug": hub.slug,
+            },
+            "score": score.score,
+            "bins": [
+                [0, 1000],
+                [1000, 10000],
+                [10000, 100000],
+                [100000, 1000000],
+            ],  # FIXME: Replace with bins from algo vars table
+        }
+
+    def get_reputation_list(self, author):
+        scores = Score.objects.filter(author=author).order_by("-score")
+        reputation_list = []
+        for score in scores:
+            hub = Hub.objects.get(id=score.hub_id)
+            reputation_list.append(
+                {
+                    "hub": {
+                        "id": hub.id,
+                        "name": hub.name,
+                        "slug": hub.slug,
+                    },
+                    "score": score.score,
+                    "bins": [
+                        [0, 1000],
+                        [1000, 10000],
+                        [10000, 100000],
+                        [100000, 1000000],
+                    ],  # FIXME: Replace with bins from algo vars table
+                }
+            )
+
+        return reputation_list
 
     def get_orcid_id(self, author):
         return author.orcid_id
@@ -708,10 +759,14 @@ class UserActions:
                     data["paper_id"] = thread_paper.id
                 elif thread_post:
                     data["parent_content_type"] = "post"
-                    data["paper_title"] = (
+                    data[
+                        "paper_title"
+                    ] = (
                         thread_post.title
                     )  # paper_title instead of post_title for symmetry on the FE
-                    data["paper_id"] = (
+                    data[
+                        "paper_id"
+                    ] = (
                         thread_post.id
                     )  # paper_id instead of post_id to temporarily reduce refactoring on FE
 
