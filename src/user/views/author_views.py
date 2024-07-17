@@ -149,7 +149,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
         openalex_ids = request.data.get("openalex_ids", [])
         openalex_author_id = request.data.get("openalex_author_id", None)
 
-        # Esnsure the openalex author id is a full url since it is the format stored in our system
+        # Ensure the openalex author id is a full url since it is the format stored in our system
         if "openalex.org" not in openalex_author_id:
             openalex_author_id = f"https://openalex.org/authors/{openalex_author_id}"
 
