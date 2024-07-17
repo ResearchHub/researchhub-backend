@@ -262,13 +262,6 @@ class Thread(BaseComment):
         null=True,
         blank=True,
     )
-    peer_review = models.ForeignKey(
-        "peer_review.PeerReview",
-        on_delete=models.SET_NULL,
-        related_name="threads",
-        blank=True,
-        null=True,
-    )
     review = models.ForeignKey(
         "review.Review",
         on_delete=models.SET_NULL,
@@ -318,10 +311,6 @@ class Thread(BaseComment):
         hypothesis = self.hypothesis
         if hypothesis:
             return hypothesis.unified_document
-
-        peer_review = self.peer_review
-        if peer_review:
-            return peer_review.unified_document
 
         citation = self.citation
         if citation:

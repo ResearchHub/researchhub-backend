@@ -38,7 +38,6 @@ from discussion.permissions import (
 from discussion.permissions import Vote as VotePermission
 from hypothesis.models import Citation, Hypothesis
 from paper.models import Paper
-from peer_review.models import PeerReview
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from researchhub.lib import get_document_id_from_path
@@ -80,7 +79,6 @@ RELATED_DISCUSSION_MODELS = {
     "citation": Citation,
     "hypothesis": Hypothesis,
     "paper": Paper,
-    "peer_review": PeerReview,
     "researchhub_post": ResearchhubPost,
 }
 

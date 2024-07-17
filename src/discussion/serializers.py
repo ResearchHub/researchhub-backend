@@ -218,23 +218,6 @@ class DynamicThreadSerializer(
 
         return None
 
-    def get_peer_review(self, obj):
-        from peer_review.serializers import DynamicPeerReviewSerializer
-
-        context = self.context
-        _context_fields = context.get("dis_dts_get_peer_review", {})
-
-        review = obj.peer_review
-        if review:
-            serializer = DynamicPeerReviewSerializer(
-                review,
-                context=context,
-                **_context_fields,
-            )
-            return serializer.data
-
-        return None
-
     def get_score(self, obj):
         return obj.calculate_score()
 
@@ -649,18 +632,6 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
     def get_review(self, obj):
         if obj.review:
             return ReviewSerializer(obj.review).data
-
-        return None
-
-    def get_peer_review(self, obj):
-        from peer_review.serializers import PeerReviewSerializer
-
-        review = obj.peer_review
-        if review:
-            serializer = PeerReviewSerializer(
-                review,
-            )
-            return serializer.data
 
         return None
 

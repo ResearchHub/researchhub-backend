@@ -155,12 +155,6 @@ class DynamicContributionSerializer(DynamicModelFieldSerializer):
             serializer = DynamicHypothesisSerializer(
                 obj, context=context, **_context_fields
             )
-        elif model_name == "peer review decision":
-            from peer_review.serializers import DynamicPeerReviewDecisionSerializer
-
-            serializer = DynamicPeerReviewDecisionSerializer(
-                obj, context=context, **_context_fields
-            )
         elif model_name == "bounty":
             serializer = DynamicBountySerializer(
                 obj, context=context, **_context_fields
