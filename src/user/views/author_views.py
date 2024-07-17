@@ -730,6 +730,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
     def publications(self, request, pk=None):
         author = self.get_object()
 
+        print("yoooooooo!")
+
         # Fetch the authored papers and order by citations
         authored_doc_ids = list(
             author.authored_papers.filter(is_removed=False)
