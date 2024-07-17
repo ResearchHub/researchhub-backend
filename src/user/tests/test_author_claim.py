@@ -4,10 +4,8 @@ from unittest.mock import patch
 from rest_framework.test import APITestCase
 
 from paper.openalex_util import process_openalex_works
-from paper.related_models.paper_model import Paper
 from user.models import UserVerification
 from user.tests.helpers import create_user
-from user.utils import AuthorClaimException
 from utils.openalex import OpenAlex
 
 
