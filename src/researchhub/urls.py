@@ -36,11 +36,6 @@ import search.urls
 import user.views
 from citation.views import CitationEntryViewSet, CitationProjectViewSet
 from feed.views import FeedViewSet
-from peer_review.views import (
-    PeerReviewInviteViewSet,
-    PeerReviewRequestViewSet,
-    PeerReviewViewSet,
-)
 from researchhub.settings import INSTALLED_APPS, USE_DEBUG_TOOLBAR
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from review.views.review_view import ReviewViewSet
@@ -189,15 +184,6 @@ router.register(
     r"user_external_token", user.views.UserApiTokenViewSet, basename="user_api_token"
 )
 
-router.register(r"peer_review", PeerReviewViewSet, basename="peer_review")
-
-router.register(
-    r"peer_review_requests", PeerReviewRequestViewSet, basename="peer_review_requests"
-)
-
-router.register(
-    r"peer_review_invites", PeerReviewInviteViewSet, basename="peer_review_invites"
-)
 router.register(
     r"researchhub_unified_document/([0-9]+)/review", ReviewViewSet, basename="review"
 )
