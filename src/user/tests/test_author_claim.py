@@ -49,12 +49,12 @@ class AuthorClaimTests(APITestCase):
 
                 # Get author work Ids first
                 openalex_api = OpenAlex()
-                results, cursor = openalex_api.get_works()
+                results, _ = openalex_api.get_works()
                 work_ids = [work["id"] for work in results]
 
                 # # Add publications to author
                 url = f"/api/author/{self.claiming_user.author_profile.id}/add_publications/"
-                response = self.client.post(
+                self.client.post(
                     url,
                     {
                         "openalex_ids": work_ids,
@@ -93,7 +93,7 @@ class AuthorClaimTests(APITestCase):
 
                 # # Add publications to author
                 url = f"/api/author/{self.claiming_user.author_profile.id}/add_publications/"
-                response = self.client.post(
+                self.client.post(
                     url,
                     {
                         "openalex_ids": work_ids,
@@ -134,7 +134,7 @@ class AuthorClaimTests(APITestCase):
 
                 # # Add publications to author
                 url = f"/api/author/{self.claiming_user.author_profile.id}/add_publications/"
-                response = self.client.post(
+                self.client.post(
                     url,
                     {
                         "openalex_ids": work_ids,
@@ -189,7 +189,7 @@ class AuthorClaimTests(APITestCase):
 
                 self.client.force_authenticate(self.claiming_user)
                 url = f"/api/author/{self.claiming_user.author_profile.id}/add_publications/"
-                response = self.client.post(
+                self.client.post(
                     url,
                     {
                         "openalex_ids": work_ids,

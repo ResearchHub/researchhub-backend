@@ -111,9 +111,9 @@ class AuthorViewSet(viewsets.ModelViewSet):
         # Attempt to associate the openalex author id with the RH author
         try:
             claim_openalex_author_profile(author.id, openalex_author_id)
-        except AuthorClaimException as e:
+        except AuthorClaimException:
             pass
-        except Exception as e:
+        except Exception:
             return Response(status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         if len(openalex_ids) > 0:
