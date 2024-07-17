@@ -74,6 +74,8 @@ class PersonaWebhookView(APIView):
             status = UserVerification.Status.APPROVED
         elif persona_status == "declined":
             status = UserVerification.Status.DECLINED
+        elif persona_status == "failed":
+            status = UserVerification.Status.FAILED
         elif persona_status == "pending":
             status = UserVerification.Status.PENDING
 
