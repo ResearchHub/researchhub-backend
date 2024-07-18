@@ -15,8 +15,16 @@ class UserVerification(models.Model):
         PERSONA = "PERSONA", _("Persona")
 
     class Status(models.TextChoices):
+        """
+        Status of the user verification based on the inquiry
+        status from Persona.
+
+        Also see: https://docs.withpersona.com/docs/events#types-of-events
+        """
+
         APPROVED = "APPROVED", _("Approved")
         DECLINED = "DECLINED", _("Declined")
+        FAILED = "FAILED", _("Failed")
         PENDING = "PENDING", _("Pending")
 
     user = models.OneToOneField(

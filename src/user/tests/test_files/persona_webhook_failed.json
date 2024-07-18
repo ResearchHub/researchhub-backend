@@ -1,0 +1,1276 @@
+{
+    "data": {
+        "type": "event",
+        "id": "evt_pSXHZmSpjEBpstmv4xwKR9m1Q3yX",
+        "attributes": {
+            "name": "inquiry.failed",
+            "payload": {
+                "data": {
+                    "type": "inquiry",
+                    "id": "inq_AGa6mNLe7BfgZBopxR86A7WRdmUr",
+                    "attributes": {
+                        "status": "failed",
+                        "reference-id": "$REFERENCE_ID",
+                        "note": null,
+                        "behaviors": {
+                            "request-spoof-attempts": 0,
+                            "user-agent-spoof-attempts": 0,
+                            "distraction-events": 1,
+                            "hesitation-baseline": 38048,
+                            "hesitation-count": 6,
+                            "hesitation-time": 30123,
+                            "shortcut-copies": 0,
+                            "shortcut-pastes": 0,
+                            "autofill-cancels": 13,
+                            "autofill-starts": 0,
+                            "devtools-open": false,
+                            "completion-time": 40.475461418,
+                            "hesitation-percentage": 79.17104709840201,
+                            "behavior-threat-level": "low"
+                        },
+                        "tags": [],
+                        "creator": "API",
+                        "reviewer-comment": null,
+                        "updated-at": "2024-07-08T14:29:24.000Z",
+                        "created-at": "2024-07-08T14:28:41.000Z",
+                        "started-at": "2024-07-08T14:29:00.000Z",
+                        "completed-at": "2024-07-08T14:29:21.000Z",
+                        "failed-at": null,
+                        "marked-for-review-at": null,
+                        "decisioned-at": "2024-07-08T14:29:24.000Z",
+                        "expired-at": null,
+                        "redacted-at": null,
+                        "previous-step-name": "selfie_658ab1_verification",
+                        "next-step-name": "success_ab25e1",
+                        "name-first": "ALEXANDER J",
+                        "name-middle": null,
+                        "name-last": "SAMPLE",
+                        "birthdate": "1977-07-17",
+                        "address-street-1": "600 CALIFORNIA STREET",
+                        "address-street-2": null,
+                        "address-city": "SAN FRANCISCO",
+                        "address-subdivision": "California",
+                        "address-subdivision-abbr": "CA",
+                        "address-postal-code": "941090000",
+                        "address-postal-code-abbr": "94109",
+                        "social-security-number": null,
+                        "identification-number": "I1234562",
+                        "email-address": null,
+                        "phone-number": null,
+                        "fields": {
+                            "current-government-id": {
+                                "type": "government_id",
+                                "value": {
+                                    "id": "doc_5XpFUPYagQdBivWicTiTahyuEe92",
+                                    "type": "Document::GovernmentId"
+                                }
+                            },
+                            "selected-country-code": {
+                                "type": "string",
+                                "value": "US"
+                            },
+                            "selected-id-class": {
+                                "type": "string",
+                                "value": "dl"
+                            },
+                            "address-street-1": {
+                                "type": "string",
+                                "value": "600 CALIFORNIA STREET"
+                            },
+                            "address-street-2": {
+                                "type": "string",
+                                "value": null
+                            },
+                            "address-city": {
+                                "type": "string",
+                                "value": "SAN FRANCISCO"
+                            },
+                            "address-subdivision": {
+                                "type": "string",
+                                "value": "CA"
+                            },
+                            "address-postal-code": {
+                                "type": "string",
+                                "value": "94109"
+                            },
+                            "address-country-code": {
+                                "type": "string",
+                                "value": "US"
+                            },
+                            "birthdate": {
+                                "type": "date",
+                                "value": "1977-07-17"
+                            },
+                            "expiration-date": {
+                                "type": "date",
+                                "value": "2029-07-08"
+                            },
+                            "email-address": {
+                                "type": "string",
+                                "value": null
+                            },
+                            "identification-class": {
+                                "type": "string",
+                                "value": "dl"
+                            },
+                            "identification-number": {
+                                "type": "string",
+                                "value": "I1234562"
+                            },
+                            "name-first": {
+                                "type": "string",
+                                "value": "ALEXANDER J"
+                            },
+                            "name-middle": {
+                                "type": "string",
+                                "value": null
+                            },
+                            "name-last": {
+                                "type": "string",
+                                "value": "SAMPLE"
+                            },
+                            "phone-number": {
+                                "type": "string",
+                                "value": null
+                            },
+                            "issue-date": {
+                                "type": "date",
+                                "value": "2023-07-08"
+                            },
+                            "issuing-authority": {
+                                "type": "string",
+                                "value": "CA"
+                            },
+                            "government-identification-number-map": {
+                                "type": "json",
+                                "value": null
+                            },
+                            "current-selfie": {
+                                "type": "selfie",
+                                "value": {
+                                    "id": "self_KMx36KvYe4fPuCuApTDmPcekmGQG",
+                                    "type": "Selfie::ProfileAndCenter"
+                                }
+                            }
+                        }
+                    },
+                    "relationships": {
+                        "account": {
+                            "data": {
+                                "type": "account",
+                                "id": "act_wU2yVJZ7gCTQiDHnKQksWSMUy8fv"
+                            }
+                        },
+                        "template": {
+                            "data": null
+                        },
+                        "inquiry-template": {
+                            "data": {
+                                "type": "inquiry-template",
+                                "id": "itmpl_nTqLfn7VChH2RxrAmL8AGVZovQEP"
+                            }
+                        },
+                        "inquiry-template-version": {
+                            "data": {
+                                "type": "inquiry-template-version",
+                                "id": "itmplv_bRgLc4NXswkwYhrAukv9kWoFBNKL"
+                            }
+                        },
+                        "reviewer": {
+                            "data": {
+                                "type": "workflow-run",
+                                "id": "wfr_UUUg3ZTGGpZHDzc6913n1Zm3BjFk"
+                            }
+                        },
+                        "reports": {
+                            "data": []
+                        },
+                        "verifications": {
+                            "data": [
+                                {
+                                    "type": "verification/government-id",
+                                    "id": "ver_sRmjdy6qBFmLd52Rs3wQugNRERnR"
+                                },
+                                {
+                                    "type": "verification/selfie",
+                                    "id": "ver_mFngSz9AUchYGNkF41PvSkcN1P7h"
+                                }
+                            ]
+                        },
+                        "sessions": {
+                            "data": [
+                                {
+                                    "type": "inquiry-session",
+                                    "id": "iqse_fRK6cZZCUbGGSovX3UT9cxaRroZH"
+                                }
+                            ]
+                        },
+                        "documents": {
+                            "data": [
+                                {
+                                    "type": "document/government-id",
+                                    "id": "doc_5XpFUPYagQdBivWicTiTahyuEe92"
+                                }
+                            ]
+                        },
+                        "selfies": {
+                            "data": [
+                                {
+                                    "type": "selfie/profile-and-center",
+                                    "id": "self_KMx36KvYe4fPuCuApTDmPcekmGQG"
+                                }
+                            ]
+                        }
+                    }
+                },
+                "included": [
+                    {
+                        "type": "account",
+                        "id": "act_wU2yVJZ7gCTQiDHnKQksWSMUy8fv",
+                        "attributes": {
+                            "reference-id": "referenceId1",
+                            "created-at": "2024-07-08T14:28:41.000Z",
+                            "updated-at": "2024-07-08T14:29:22.000Z",
+                            "redacted-at": null,
+                            "fields": {
+                                "name": {
+                                    "type": "hash",
+                                    "value": {
+                                        "first": {
+                                            "type": "string",
+                                            "value": "ALEXANDER J"
+                                        },
+                                        "middle": {
+                                            "type": "string",
+                                            "value": null
+                                        },
+                                        "last": {
+                                            "type": "string",
+                                            "value": "SAMPLE"
+                                        }
+                                    }
+                                },
+                                "address": {
+                                    "type": "hash",
+                                    "value": {
+                                        "street_1": {
+                                            "type": "string",
+                                            "value": "600 CALIFORNIA STREET"
+                                        },
+                                        "street_2": {
+                                            "type": "string",
+                                            "value": null
+                                        },
+                                        "subdivision": {
+                                            "type": "string",
+                                            "value": "CA"
+                                        },
+                                        "city": {
+                                            "type": "string",
+                                            "value": "SAN FRANCISCO"
+                                        },
+                                        "postal_code": {
+                                            "type": "string",
+                                            "value": "94109"
+                                        },
+                                        "country_code": {
+                                            "type": "string",
+                                            "value": "US"
+                                        }
+                                    }
+                                },
+                                "identification_numbers": {
+                                    "type": "array",
+                                    "value": [
+                                        {
+                                            "type": "hash",
+                                            "value": {
+                                                "identification_class": {
+                                                    "type": "string",
+                                                    "value": "dl"
+                                                },
+                                                "identification_number": {
+                                                    "type": "string",
+                                                    "value": "I1234562"
+                                                },
+                                                "issuing_country": {
+                                                    "type": "string",
+                                                    "value": "US"
+                                                }
+                                            }
+                                        }
+                                    ]
+                                },
+                                "birthdate": {
+                                    "type": "date",
+                                    "value": "1977-07-17"
+                                },
+                                "phone_number": {
+                                    "type": "string",
+                                    "value": null
+                                },
+                                "email_address": {
+                                    "type": "string",
+                                    "value": null
+                                },
+                                "selfie_photo": {
+                                    "type": "file",
+                                    "value": {
+                                        "filename": "center_photo_processed.jpg",
+                                        "byte_size": 148511,
+                                        "url": "https://files.withpersona.com/center_photo_processed.jpg?access_token=RETRACTED"
+                                    }
+                                }
+                            },
+                            "name-first": "ALEXANDER J",
+                            "name-middle": null,
+                            "name-last": "SAMPLE",
+                            "social-security-number": null,
+                            "address-street-1": "600 CALIFORNIA STREET",
+                            "address-street-2": null,
+                            "address-city": "SAN FRANCISCO",
+                            "address-subdivision": "CA",
+                            "address-postal-code": "94109",
+                            "country-code": "US",
+                            "birthdate": "1977-07-17",
+                            "phone-number": null,
+                            "email-address": null,
+                            "tags": [],
+                            "identification-numbers": {
+                                "dl": [
+                                    {
+                                        "issuing-country": "US",
+                                        "identification-class": "dl",
+                                        "identification-number": "I1234562",
+                                        "created-at": "2024-07-08T14:29:22.000Z",
+                                        "updated-at": "2024-07-08T14:29:22.000Z"
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    {
+                        "type": "inquiry-template",
+                        "id": "itmpl_nTqLfn7VChH2RxrAmL8AGVZovQEP",
+                        "attributes": {
+                            "status": "active",
+                            "name": "KYC: GovID + Selfie"
+                        },
+                        "relationships": {
+                            "latest-published-version": {
+                                "data": {
+                                    "type": "inquiry-template-version",
+                                    "id": "itmplv_bRgLc4NXswkwYhrAukv9kWoFBNKL"
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "type": "inquiry-template-version",
+                        "id": "itmplv_bRgLc4NXswkwYhrAukv9kWoFBNKL",
+                        "attributes": {
+                            "name-display": null,
+                            "status": "published",
+                            "enabled-locales": [
+                                "ar-EG",
+                                "bn",
+                                "cs",
+                                "cy",
+                                "da",
+                                "de",
+                                "el-GR",
+                                "en-US",
+                                "es-MX",
+                                "fi",
+                                "fr",
+                                "he",
+                                "hi",
+                                "hr",
+                                "hu",
+                                "id-ID",
+                                "it",
+                                "ja",
+                                "ko-KR",
+                                "lt",
+                                "ms",
+                                "nl-NL",
+                                "no",
+                                "pl",
+                                "pt-BR",
+                                "ro",
+                                "ru",
+                                "sk",
+                                "sv",
+                                "ta",
+                                "th",
+                                "tl",
+                                "tr-TR",
+                                "uk-UA",
+                                "vi",
+                                "zh-CN",
+                                "zh-TW"
+                            ],
+                            "created-at": "2024-06-06T14:48:47.136Z",
+                            "updated-at": "2024-06-06T14:48:49.739Z",
+                            "published-at": "2024-06-06T14:48:49.000Z",
+                            "theme": {
+                                "border-radius": null,
+                                "border-radius-modal": null,
+                                "border-radius-input": null,
+                                "border-width": null,
+                                "border-width-input": null,
+                                "button-background-image": null,
+                                "button-font-weight": null,
+                                "button-position": null,
+                                "button-shadow-strength": null,
+                                "button-text-transform": null,
+                                "color-button-primary": null,
+                                "color-button-secondary": null,
+                                "color-button-secondary-fill": null,
+                                "color-button-primary-fill-disabled": null,
+                                "color-button-secondary-fill-disabled": null,
+                                "color-error": null,
+                                "color-font": null,
+                                "color-font-button-primary": null,
+                                "color-font-button-secondary": null,
+                                "color-font-small": null,
+                                "color-font-title": null,
+                                "color-icon-header": null,
+                                "color-input-background": null,
+                                "color-input-border": null,
+                                "color-link": null,
+                                "color-modal-background": null,
+                                "color-primary": null,
+                                "color-progress-bar": null,
+                                "color-success": null,
+                                "color-warning": null,
+                                "color-divider": null,
+                                "color-dropdown-background": null,
+                                "color-dropdown-option": null,
+                                "font-family": null,
+                                "font-family-title": null,
+                                "font-url": null,
+                                "font-size-body": null,
+                                "font-size-header": null,
+                                "font-size-small": null,
+                                "line-height-body": null,
+                                "line-height-header": null,
+                                "line-height-small": null,
+                                "header-font-weight": null,
+                                "header-margin-bottom": null,
+                                "icon-color-primary": null,
+                                "icon-color-highlight": null,
+                                "icon-color-stroke": null,
+                                "icon-color-background": null,
+                                "icon-color-government-id-type": null,
+                                "icon-style": null,
+                                "input-style": null,
+                                "page-transition": null,
+                                "text-align": null,
+                                "text-decoration-line-link": null,
+                                "us-state-input-method": null,
+                                "vertical-options-style": null,
+                                "government-id-pictograph-position": null,
+                                "id-back-pictograph-height": null,
+                                "id-back-pictograph-url": null,
+                                "id-front-pictograph-height": null,
+                                "id-front-pictograph-url": null,
+                                "passport-front-pictograph-height": null,
+                                "passport-front-pictograph-url": null,
+                                "passport-signature-pictograph-height": null,
+                                "passport-signature-pictograph-url": null,
+                                "government-id-select-pictograph-height": null,
+                                "government-id-select-pictograph-url": null,
+                                "device-handoff-terms-text-position": null,
+                                "selfie-pictograph-url": null,
+                                "selfie-pictograph-height": null,
+                                "selfie-center-pictograph-url": null,
+                                "selfie-center-pictograph-height": null,
+                                "selfie-left-pictograph-url": null,
+                                "selfie-left-pictograph-height": null,
+                                "selfie-right-pictograph-url": null,
+                                "selfie-right-pictograph-height": null,
+                                "document-pictograph-position": null,
+                                "document-pictograph-height": null,
+                                "document-pictograph-url": null,
+                                "camera-support-pictograph-height": null,
+                                "camera-support-pictograph-url": null,
+                                "loading-pictograph-height": null,
+                                "loading-pictograph-url": null,
+                                "navbar-logo-display": null,
+                                "logo-url": null,
+                                "logo": null,
+                                "logo-data": null,
+                                "logo-filename": null
+                            }
+                        },
+                        "relationships": {
+                            "inquiry-template": {
+                                "data": {
+                                    "type": "inquiry-template",
+                                    "id": "itmpl_nTqLfn7VChH2RxrAmL8AGVZovQEP"
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "type": "workflow-run",
+                        "id": "wfr_UUUg3ZTGGpZHDzc6913n1Zm3BjFk",
+                        "attributes": {
+                            "status": "completed",
+                            "created-at": "2024-07-08T14:29:22.871Z",
+                            "completed-at": "2024-07-08T14:29:24.639+00:00"
+                        },
+                        "relationships": {
+                            "workflow-version": {
+                                "data": {
+                                    "type": "workflow-version",
+                                    "id": "wfv_Sv6YiDEFW3jX4B9o8PrinhuBYKmq"
+                                }
+                            },
+                            "workflow": {
+                                "data": {
+                                    "type": "workflow",
+                                    "id": "wfl_xnM9vNSPHCeb5T9bNC7kT84qHzcS"
+                                }
+                            },
+                            "creator": {
+                                "data": {
+                                    "type": "event",
+                                    "id": "evt_vrx7Tzn37FLDXSSiVFyhQnsMBoPT"
+                                }
+                            }
+                        },
+                        "meta": {
+                            "processing-time-seconds": 2
+                        }
+                    },
+                    {
+                        "type": "verification/government-id",
+                        "id": "ver_sRmjdy6qBFmLd52Rs3wQugNRERnR",
+                        "attributes": {
+                            "status": "passed",
+                            "created-at": "2024-07-08T14:28:59.000Z",
+                            "created-at-ts": 1720448939,
+                            "submitted-at": "2024-07-08T14:28:59.000Z",
+                            "submitted-at-ts": 1720448939,
+                            "completed-at": "2024-07-08T14:29:00.000Z",
+                            "completed-at-ts": 1720448940,
+                            "country-code": "US",
+                            "entity-confidence-score": 100.0,
+                            "entity-confidence-reasons": [
+                                "generic"
+                            ],
+                            "front-photo-url": "https://files.withpersona.com/EXLIBRISEN_DE_mp4.jpg?access_token=RETRACTED",
+                            "back-photo-url": null,
+                            "photo-urls": [
+                                {
+                                    "page": "front",
+                                    "url": "https://files.withpersona.com/EXLIBRISEN_DE_mp4.jpg?access_token=RETRACTED",
+                                    "normalized-url": "https://files.withpersona.com/EXLIBRISEN_DE_mp4.jpg?access_token=RETRACTED",
+                                    "original-urls": [
+                                        "https://files.withpersona.com/EXLIBRISEN_DE_mp4.png?access_token=RETRACTED"
+                                    ],
+                                    "byte-size": 238006
+                                }
+                            ],
+                            "selfie-photo": {
+                                "url": "https://files.withpersona.com/selfie_photo.jpg?access_token=RETRACTED",
+                                "byte-size": 238006
+                            },
+                            "selfie-photo-url": "https://files.withpersona.com/selfie_photo.jpg?access_token=RETRACTED",
+                            "video-url": null,
+                            "id-class": "dl",
+                            "capture-method": "upload",
+                            "name-first": "ALEXANDER J",
+                            "name-middle": null,
+                            "name-last": "SAMPLE",
+                            "name-suffix": null,
+                            "birthdate": "1977-07-17",
+                            "address-street-1": "600 CALIFORNIA STREET",
+                            "address-street-2": null,
+                            "address-city": "SAN FRANCISCO",
+                            "address-subdivision": "CA",
+                            "address-postal-code": "94109",
+                            "issuing-authority": "CA",
+                            "issuing-subdivision": "CA",
+                            "nationality": null,
+                            "document-number": null,
+                            "visa-status": null,
+                            "issue-date": "2023-07-08",
+                            "expiration-date": "2029-07-08",
+                            "designations": null,
+                            "birthplace": null,
+                            "endorsements": null,
+                            "height": null,
+                            "sex": "Male",
+                            "restrictions": null,
+                            "vehicle-class": null,
+                            "identification-number": "I1234562",
+                            "checks": [
+                                {
+                                    "name": "id_aamva_database_lookup",
+                                    "status": "not_applicable",
+                                    "reasons": [
+                                        "disabled_by_check_config"
+                                    ],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_account_comparison",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_age_comparison",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_age_inconsistency_detection",
+                                    "status": "not_applicable",
+                                    "reasons": [
+                                        "disabled_by_check_config"
+                                    ],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_attribute_comparison",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_barcode_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_barcode_inconsistency_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_blur_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_color_inconsistency_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_compromised_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_disallowed_country_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "required",
+                                    "metadata": {
+                                        "country-code": null,
+                                        "selected-country-code": null
+                                    }
+                                },
+                                {
+                                    "name": "id_disallowed_type_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "required",
+                                    "metadata": {
+                                        "country-code": null,
+                                        "detected-id-class": null,
+                                        "detected-id-designations": null,
+                                        "disallowed-id-designations": null,
+                                        "selected-id-classes": null
+                                    }
+                                },
+                                {
+                                    "name": "id_double_side_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_electronic_replica_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_entity_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_experimental_model_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_expired_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_extracted_properties_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_extraction_inconsistency_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {
+                                        "check-requirements": []
+                                    }
+                                },
+                                {
+                                    "name": "id_fabrication_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_glare_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_handwriting_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_inconsistent_repeat_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_inquiry_comparison",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_mrz_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_mrz_inconsistency_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_number_format_inconsistency_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_paper_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_po_box_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_portrait_clarity_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_portrait_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_public_figure_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_real_id_detection",
+                                    "status": "not_applicable",
+                                    "reasons": [
+                                        "disabled_by_check_config"
+                                    ],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_repeat_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_selfie_comparison",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_tamper_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_unprocessable_submission_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_valid_dates_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "id_video_quality_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                }
+                            ]
+                        },
+                        "relationships": {
+                            "inquiry": {
+                                "data": {
+                                    "type": "inquiry",
+                                    "id": "inq_AGa6mNLe7BfgZBopxR86A7WRdmUr"
+                                }
+                            },
+                            "template": {
+                                "data": null
+                            },
+                            "inquiry-template-version": {
+                                "data": {
+                                    "type": "inquiry-template-version",
+                                    "id": "itmplv_bRgLc4NXswkwYhrAukv9kWoFBNKL"
+                                }
+                            },
+                            "inquiry-template": {
+                                "data": {
+                                    "type": "inquiry-template",
+                                    "id": "itmpl_nTqLfn7VChH2RxrAmL8AGVZovQEP"
+                                }
+                            },
+                            "verification-template": {
+                                "data": {
+                                    "type": "verification-template/government-id",
+                                    "id": "vtmpl_rEpnFdChUAzcuWVC1KjsexP8u2h4"
+                                }
+                            },
+                            "verification-template-version": {
+                                "data": {
+                                    "type": "verification-template-version/government-id",
+                                    "id": "vtmplv_o9DK29MG57xgoW7WQ6SB1VHfa9bZ"
+                                }
+                            },
+                            "document": {
+                                "data": {
+                                    "type": "document/government-id",
+                                    "id": "doc_5XpFUPYagQdBivWicTiTahyuEe92"
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "type": "verification/selfie",
+                        "id": "ver_mFngSz9AUchYGNkF41PvSkcN1P7h",
+                        "attributes": {
+                            "status": "passed",
+                            "created-at": "2024-07-08T14:29:19.000Z",
+                            "created-at-ts": 1720448959,
+                            "submitted-at": "2024-07-08T14:29:19.000Z",
+                            "submitted-at-ts": 1720448959,
+                            "completed-at": "2024-07-08T14:29:20.000Z",
+                            "completed-at-ts": 1720448960,
+                            "country-code": null,
+                            "left-photo-url": "https://files.withpersona.com/left_photo_processed.jpg?access_token=RETRACTED",
+                            "center-photo-url": "https://files.withpersona.com/center_photo_processed.jpg?access_token=RETRACTED",
+                            "right-photo-url": "https://files.withpersona.com/right_photo_processed.jpg?access_token=RETRACTED",
+                            "photo-urls": [
+                                {
+                                    "page": "left_photo",
+                                    "url": "https://files.withpersona.com/left_photo_processed.jpg?access_token=RETRACTED",
+                                    "byte-size": 138496
+                                },
+                                {
+                                    "page": "center_photo",
+                                    "url": "https://files.withpersona.com/center_photo_processed.jpg?access_token=RETRACTED",
+                                    "byte-size": 148511
+                                },
+                                {
+                                    "page": "right_photo",
+                                    "url": "https://files.withpersona.com/right_photo_processed.jpg?access_token=RETRACTED",
+                                    "byte-size": 142820
+                                }
+                            ],
+                            "video-url": null,
+                            "center-photo-face-coordinates": null,
+                            "entity-confidence-reasons": [],
+                            "document-similarity-score": null,
+                            "selfie-similarity-score-left": null,
+                            "selfie-similarity-score-right": null,
+                            "checks": [
+                                {
+                                    "name": "selfie_attribute_comparison",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "selfie_id_comparison",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "selfie_pose_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "selfie_multiple_faces_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "selfie_pose_repeat_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "selfie_account_comparison",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "selfie_suspicious_entity_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "selfie_liveness_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "selfie_glasses_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "selfie_glare_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "selfie_experimental_model_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "selfie_portrait_quality_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "selfie_public_figure_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "selfie_age_comparison",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "selfie_face_covering_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                },
+                                {
+                                    "name": "selfie_video_quality_detection",
+                                    "status": "passed",
+                                    "reasons": [],
+                                    "requirement": "not_required",
+                                    "metadata": {}
+                                }
+                            ],
+                            "capture-method": "video"
+                        },
+                        "relationships": {
+                            "inquiry": {
+                                "data": {
+                                    "type": "inquiry",
+                                    "id": "inq_AGa6mNLe7BfgZBopxR86A7WRdmUr"
+                                }
+                            },
+                            "template": {
+                                "data": null
+                            },
+                            "inquiry-template-version": {
+                                "data": {
+                                    "type": "inquiry-template-version",
+                                    "id": "itmplv_bRgLc4NXswkwYhrAukv9kWoFBNKL"
+                                }
+                            },
+                            "inquiry-template": {
+                                "data": {
+                                    "type": "inquiry-template",
+                                    "id": "itmpl_nTqLfn7VChH2RxrAmL8AGVZovQEP"
+                                }
+                            },
+                            "verification-template": {
+                                "data": {
+                                    "type": "verification-template/selfie",
+                                    "id": "vtmpl_QNSHEjSLoSYPr5ynndDhZmTU7iaY"
+                                }
+                            },
+                            "verification-template-version": {
+                                "data": {
+                                    "type": "verification-template-version/selfie",
+                                    "id": "vtmplv_ZgvG1HCbDYAK7YrM4UjwpDMPAXY8"
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "type": "inquiry-session",
+                        "id": "iqse_fRK6cZZCUbGGSovX3UT9cxaRroZH",
+                        "attributes": {
+                            "status": "active",
+                            "created-at": "2024-07-08T14:28:42.000Z",
+                            "started-at": "2024-07-08T14:28:42.000Z",
+                            "expired-at": null,
+                            "ip-address": "87.157.115.169",
+                            "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+                            "os-name": "Mac",
+                            "os-full-version": "10.15.7",
+                            "device-type": "desktop",
+                            "device-name": null,
+                            "browser-name": "Chrome",
+                            "browser-full-version": "126.0.0.0",
+                            "mobile-sdk-name": null,
+                            "mobile-sdk-full-version": null,
+                            "device-handoff-method": null,
+                            "is-proxy": false,
+                            "is-tor": false,
+                            "is-datacenter": false,
+                            "is-vpn": false,
+                            "threat-level": "low",
+                            "country-code": "US",
+                            "country-name": "United States",
+                            "region-code": "CA",
+                            "region-name": "California",
+                            "latitude": 37.751,
+                            "longitude": -97.822
+                        },
+                        "relationships": {
+                            "inquiry": {
+                                "data": {
+                                    "type": "inquiry",
+                                    "id": "inq_AGa6mNLe7BfgZBopxR86A7WRdmUr"
+                                }
+                            },
+                            "device": {
+                                "data": {
+                                    "type": "device",
+                                    "id": "dev_NFwpMdZWywxUtvRrWi1pauW3GoyG"
+                                }
+                            }
+                        }
+                    },
+                    {
+                        "type": "document/government-id",
+                        "id": "doc_5XpFUPYagQdBivWicTiTahyuEe92",
+                        "attributes": {
+                            "status": "processed",
+                            "created-at": "2024-07-08T14:28:58.000Z",
+                            "processed-at": "2024-07-08T14:29:00.000Z",
+                            "processed-at-ts": 1720448940,
+                            "front-photo": {
+                                "filename": "EXLIBRISEN_DE_mp4.jpg",
+                                "url": "https://files.withpersona.com/EXLIBRISEN_DE_mp4.jpg?access_token=RETRACTED",
+                                "byte-size": 238006
+                            },
+                            "back-photo": null,
+                            "selfie-photo": {
+                                "filename": "selfie_photo.jpg",
+                                "url": "https://files.withpersona.com/selfie_photo.jpg?access_token=RETRACTED",
+                                "byte-size": 238006
+                            },
+                            "id-class": "dl",
+                            "name-first": "ALEXANDER J",
+                            "name-middle": null,
+                            "name-last": "SAMPLE",
+                            "name-suffix": null,
+                            "birthdate": "1977-07-17",
+                            "address-street-1": "600 CALIFORNIA STREET",
+                            "address-street-2": null,
+                            "address-city": "SAN FRANCISCO",
+                            "address-subdivision": "CA",
+                            "address-postal-code": "94109",
+                            "issuing-authority": "CA",
+                            "issuing-subdivision": "CA",
+                            "nationality": null,
+                            "document-number": null,
+                            "visa-status": null,
+                            "issue-date": "2023-07-08",
+                            "expiration-date": "2029-07-08",
+                            "designations": null,
+                            "birthplace": null,
+                            "height": null,
+                            "sex": "Male",
+                            "endorsements": null,
+                            "restrictions": null,
+                            "vehicle-class": null,
+                            "identification-number": "I1234562"
+                        },
+                        "relationships": {
+                            "inquiry": {
+                                "data": {
+                                    "type": "inquiry",
+                                    "id": "inq_AGa6mNLe7BfgZBopxR86A7WRdmUr"
+                                }
+                            },
+                            "template": {
+                                "data": null
+                            },
+                            "inquiry-template-version": {
+                                "data": {
+                                    "type": "inquiry-template-version",
+                                    "id": "itmplv_bRgLc4NXswkwYhrAukv9kWoFBNKL"
+                                }
+                            },
+                            "inquiry-template": {
+                                "data": {
+                                    "type": "inquiry-template",
+                                    "id": "itmpl_nTqLfn7VChH2RxrAmL8AGVZovQEP"
+                                }
+                            },
+                            "document-files": {
+                                "data": []
+                            }
+                        }
+                    },
+                    {
+                        "type": "selfie/profile-and-center",
+                        "id": "self_KMx36KvYe4fPuCuApTDmPcekmGQG",
+                        "attributes": {
+                            "status": "processed",
+                            "created-at": "2024-07-08T14:29:16.902Z",
+                            "processed-at": "2024-07-08T14:29:19.000Z"
+                        },
+                        "relationships": {
+                            "inquiry": {
+                                "data": {
+                                    "type": "inquiry",
+                                    "id": "inq_AGa6mNLe7BfgZBopxR86A7WRdmUr"
+                                }
+                            }
+                        }
+                    }
+                ]
+            },
+            "created-at": "2024-07-08T14:29:24.297Z"
+        }
+    }
+}
