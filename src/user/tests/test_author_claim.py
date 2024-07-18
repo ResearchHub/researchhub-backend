@@ -4,15 +4,31 @@ from unittest.mock import patch
 from rest_framework.test import APITestCase
 
 from paper.openalex_util import process_openalex_works
-from paper.related_models.paper_model import Paper
+from user.models import UserVerification
 from user.tests.helpers import create_user
-from user.utils import AuthorClaimException
 from utils.openalex import OpenAlex
 
 
 class AuthorClaimTests(APITestCase):
     def setUp(self):
-        self.user = create_user(email="random@example.com")
+        self.claiming_user = create_user(
+            email="random@example.com",
+            first_name="Yang",
+            last_name="Wang",
+        )
+        UserVerification.objects.create(
+            user=self.claiming_user,
+            status=UserVerification.Status.APPROVED,
+        )
+        self.second_claiming_user = create_user(
+            first_name="Yang",
+            last_name="Wang",
+            email="random_author2@researchhub.com",
+        )
+        UserVerification.objects.create(
+            user=self.second_claiming_user,
+            status=UserVerification.Status.APPROVED,
+        )
 
     @patch.object(OpenAlex, "get_authors")
     @patch.object(OpenAlex, "get_works")
@@ -28,22 +44,17 @@ class AuthorClaimTests(APITestCase):
                 mock_get_authors.return_value = (authors_data, None)
 
                 claiming_user_openalex_id = "https://openalex.org/A5068835581"
-                claiming_user = create_user(
-                    first_name="Yang",
-                    last_name="Wang",
-                    email="random_author@researchhub.com",
-                )
 
-                self.client.force_authenticate(claiming_user)
+                self.client.force_authenticate(self.claiming_user)
 
                 # Get author work Ids first
                 openalex_api = OpenAlex()
-                results, cursor = openalex_api.get_works()
+                results, _ = openalex_api.get_works()
                 work_ids = [work["id"] for work in results]
 
                 # # Add publications to author
-                url = f"/api/author/{claiming_user.author_profile.id}/add_publications/"
-                response = self.client.post(
+                url = f"/api/author/{self.claiming_user.author_profile.id}/add_publications/"
+                self.client.post(
                     url,
                     {
                         "openalex_ids": work_ids,
@@ -51,10 +62,10 @@ class AuthorClaimTests(APITestCase):
                     },
                 )
 
-                claiming_user.refresh_from_db()
+                self.claiming_user.refresh_from_db()
                 self.assertEquals(
                     claiming_user_openalex_id
-                    in claiming_user.author_profile.openalex_ids,
+                    in self.claiming_user.author_profile.openalex_ids,
                     True,
                 )
 
@@ -72,13 +83,8 @@ class AuthorClaimTests(APITestCase):
                 mock_get_authors.return_value = (authors_data, None)
 
                 claiming_user_openalex_id = "https://openalex.org/A5068835581"
-                claiming_user = create_user(
-                    first_name="Yang",
-                    last_name="Wang",
-                    email="random_author@researchhub.com",
-                )
 
-                self.client.force_authenticate(claiming_user)
+                self.client.force_authenticate(self.claiming_user)
 
                 # Get author work Ids first
                 openalex_api = OpenAlex()
@@ -86,8 +92,8 @@ class AuthorClaimTests(APITestCase):
                 work_ids = [work["id"] for work in results]
 
                 # # Add publications to author
-                url = f"/api/author/{claiming_user.author_profile.id}/add_publications/"
-                response = self.client.post(
+                url = f"/api/author/{self.claiming_user.author_profile.id}/add_publications/"
+                self.client.post(
                     url,
                     {
                         "openalex_ids": work_ids,
@@ -95,11 +101,11 @@ class AuthorClaimTests(APITestCase):
                     },
                 )
 
-                claiming_user.refresh_from_db()
+                self.claiming_user.refresh_from_db()
                 self.assertCountEqual(
                     [
                         p.openalex_id
-                        for p in claiming_user.author_profile.authored_papers.all()
+                        for p in self.claiming_user.author_profile.authored_papers.all()
                     ],
                     work_ids,
                 )
@@ -118,13 +124,8 @@ class AuthorClaimTests(APITestCase):
                 mock_get_authors.return_value = (authors_data, None)
 
                 claiming_user_openalex_id = "https://openalex.org/A5068835581"
-                claiming_user = create_user(
-                    first_name="Yang",
-                    last_name="Wang",
-                    email="random_author@researchhub.com",
-                )
 
-                self.client.force_authenticate(claiming_user)
+                self.client.force_authenticate(self.claiming_user)
 
                 # Get author work Ids first
                 openalex_api = OpenAlex()
@@ -132,8 +133,8 @@ class AuthorClaimTests(APITestCase):
                 work_ids = [work["id"] for work in results]
 
                 # # Add publications to author
-                url = f"/api/author/{claiming_user.author_profile.id}/add_publications/"
-                response = self.client.post(
+                url = f"/api/author/{self.claiming_user.author_profile.id}/add_publications/"
+                self.client.post(
                     url,
                     {
                         "openalex_ids": work_ids,
@@ -141,17 +142,18 @@ class AuthorClaimTests(APITestCase):
                     },
                 )
 
-                claiming_user.refresh_from_db()
+                self.claiming_user.refresh_from_db()
                 openalex_author = authors_data[0]
                 self.assertEquals(
-                    claiming_user.author_profile.orcid_id, openalex_author.get("orcid")
+                    self.claiming_user.author_profile.orcid_id,
+                    openalex_author.get("orcid"),
                 )
                 self.assertEquals(
-                    claiming_user.author_profile.two_year_mean_citedness,
+                    self.claiming_user.author_profile.two_year_mean_citedness,
                     openalex_author.get("summary_stats", {}).get("2yr_mean_citedness"),
                 )
                 self.assertEquals(
-                    claiming_user.author_profile.h_index,
+                    self.claiming_user.author_profile.h_index,
                     openalex_author.get("summary_stats", {}).get("h_index"),
                 )
 
@@ -180,21 +182,14 @@ class AuthorClaimTests(APITestCase):
                 )
                 self.assertEquals(unclaimed_author.user, None)
 
-                # Now let's try to claim this user
-                claiming_user = create_user(
-                    first_name="Yang",
-                    last_name="Wang",
-                    email="random_author@researchhub.com",
-                )
-
                 # Get author work Ids first
                 openalex_api = OpenAlex()
                 results, cursor = openalex_api.get_works()
                 work_ids = [work["id"] for work in results]
 
-                self.client.force_authenticate(claiming_user)
-                url = f"/api/author/{claiming_user.author_profile.id}/add_publications/"
-                response = self.client.post(
+                self.client.force_authenticate(self.claiming_user)
+                url = f"/api/author/{self.claiming_user.author_profile.id}/add_publications/"
+                self.client.post(
                     url,
                     {
                         "openalex_ids": work_ids,
@@ -202,9 +197,9 @@ class AuthorClaimTests(APITestCase):
                     },
                 )
 
-                claiming_user.refresh_from_db()
+                self.claiming_user.refresh_from_db()
                 unclaimed_author.refresh_from_db()
                 self.assertEquals(
-                    claiming_user.author_profile.id,
+                    self.claiming_user.author_profile.id,
                     unclaimed_author.merged_with_author.id,
                 )
