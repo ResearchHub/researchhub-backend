@@ -301,33 +301,18 @@ class Author(models.Model):
 
         return paper_scores + paper_count
 
-    def calculate_hub_scores(self, algorithm_version, recalculate=False):
-        if not recalculate and self._is_hub_score_already_calculated(algorithm_version):
+    def calculate_hub_scores(self, recalculate=False):
+        if not recalculate and Score.is_hub_score_already_calculated(self):
             raise Exception(
                 "Reputation already calculated for this user and algorithm version. To recalculate, set the --recalculate flag to True."
             )
 
         score_version = Score.get_version(self)
-        self._calculate_score_hubs_citations(algorithm_version, score_version)
-        self._calculate_score_hubs_paper_votes(algorithm_version, score_version)
-        self._calculate_score_hubs_comments(algorithm_version, score_version)
+        self._calculate_score_hubs_citations(score_version)
+        self._calculate_score_hubs_paper_votes(score_version)
+        self._calculate_score_hubs_comments(score_version)
 
-    def _is_hub_score_already_calculated(self, algo_version):
-        try:
-            score = Score.objects.filter(author=self).latest("created_date")
-        except Score.DoesNotExist:
-            return False
-
-        try:
-            ScoreChange.objects.filter(
-                score=score, algorithm_version=algo_version
-            ).latest("created_date")
-        except ScoreChange.DoesNotExist:
-            return False
-
-        return True
-
-    def _calculate_score_hubs_paper_votes(self, algorithm_version, score_version):
+    def _calculate_score_hubs_paper_votes(self, score_version):
         authored_papers = self.authored_papers.all()
         with transaction.atomic():
             for paper in authored_papers:
@@ -346,14 +331,13 @@ class Author(models.Model):
                         Score.update_score(
                             self,
                             hub,
-                            algorithm_version,
                             score_version,
                             vote_value,
                             "votes",
                             vote.id,
                         )
 
-    def _calculate_score_hubs_comments(self, algorithm_version, score_version):
+    def _calculate_score_hubs_comments(self, score_version):
         threads = RhCommentThreadModel.objects.filter(
             content_type=ContentType.objects.get(model="paper"),
             created_by=self.user,
@@ -378,14 +362,13 @@ class Author(models.Model):
                         Score.update_score(
                             self,
                             hub,
-                            algorithm_version,
                             score_version,
                             vote_value,
                             "votes",
                             vote.id,
                         )
 
-    def _calculate_score_hubs_citations(self, algorithm_version, score_version):
+    def _calculate_score_hubs_citations(self, score_version):
         authored_papers = self.authored_papers.all()
         for paper in authored_papers:
             historical_papers = paper.history.all().order_by("history_date")
@@ -410,7 +393,6 @@ class Author(models.Model):
                     Score.update_score(
                         self,
                         hub,
-                        algorithm_version,
                         score_version,
                         citation_change,
                         "citations",

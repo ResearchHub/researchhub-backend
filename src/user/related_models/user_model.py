@@ -233,10 +233,9 @@ class User(AbstractUser):
     def frontend_view_link(self):
         return f"{BASE_FRONTEND_URL}/user/{self.author_profile.id}/overview"
 
-    def calculate_hub_scores(self, algorithm_version, recalculate=False):
+    def calculate_hub_scores(self, recalculate=False):
         author = self.author_profile
 
         author.calculate_hub_scores(
-            algorithm_version=algorithm_version,
             recalculate=recalculate,
         )

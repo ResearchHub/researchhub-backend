@@ -6,6 +6,8 @@ from django.db.models import JSONField
 
 from utils.models import DefaultModel
 
+ALGORITHM_VERSION = 1
+
 
 class Score(DefaultModel):
     author = models.ForeignKey("user.Author", on_delete=models.CASCADE, db_index=True)
@@ -57,7 +59,6 @@ class Score(DefaultModel):
         cls,
         author,
         hub,
-        algorithm_version,
         score_version,
         raw_value_change,
         variable_key,
@@ -71,7 +72,6 @@ class Score(DefaultModel):
 
         score_change = ScoreChange.create_score_change(
             score,
-            algorithm_version,
             algorithm_variables,
             raw_value_change,
             variable_key,
@@ -84,6 +84,22 @@ class Score(DefaultModel):
         score.save()
 
         return score
+
+    @classmethod
+    def is_hub_score_already_calculated(self, author):
+        try:
+            score = Score.objects.filter(author=author).latest("created_date")
+        except Score.DoesNotExist:
+            return False
+
+        try:
+            ScoreChange.objects.filter(
+                score=score, algorithm_version=ALGORITHM_VERSION
+            ).latest("created_date")
+        except ScoreChange.DoesNotExist:
+            return False
+
+        return True
 
 
 class ScoreChange(DefaultModel):
@@ -117,14 +133,12 @@ class ScoreChange(DefaultModel):
     created_date = models.DateTimeField(auto_now_add=True, db_index=True)
 
     @classmethod
-    def get_lastest_score_change(
-        cls, score, score_version, algorithm_version, algorithm_variables
-    ):
+    def get_lastest_score_change(cls, score, score_version, algorithm_variables):
         try:
             previous_score_change = cls.objects.filter(
                 score=score,
                 score_version=score_version,
-                algorithm_version=algorithm_version,
+                algorithm_version=ALGORITHM_VERSION,
                 algorithm_variables=algorithm_variables,
             ).latest("created_date")
         except cls.DoesNotExist:
@@ -155,7 +169,6 @@ class ScoreChange(DefaultModel):
     def create_score_change(
         cls,
         score,
-        algorithm_version,
         algorithm_variables,
         raw_value_change,
         variable_key,
@@ -163,7 +176,7 @@ class ScoreChange(DefaultModel):
         score_version,
     ):
         previous_score_change = ScoreChange.get_lastest_score_change(
-            score, score_version, algorithm_version, algorithm_variables
+            score, score_version, algorithm_variables
         )
 
         previous_score = 0
@@ -183,7 +196,6 @@ class ScoreChange(DefaultModel):
         score_value_change = ScoreChange.calculate_score_change(
             score,
             algorithm_variables,
-            algorithm_version,
             variable_key,
             raw_value_change,
         )
@@ -193,7 +205,7 @@ class ScoreChange(DefaultModel):
         content_type = ScoreChange.get_content_type(variable_key)
 
         score_change = ScoreChange(
-            algorithm_version=algorithm_version,
+            algorithm_version=ALGORITHM_VERSION,
             algorithm_variables=algorithm_variables,
             score_after_change=current_rep,
             score_change=score_value_change,
@@ -214,12 +226,11 @@ class ScoreChange(DefaultModel):
         cls,
         score,
         algorithm_variables,
-        algorithm_version,
         variable_key,
         raw_value_change,
     ):
         previous_score_change = cls.get_lastest_score_change(
-            score, score.version, algorithm_version, algorithm_variables
+            score, score.version, algorithm_variables
         )
 
         previous_total_count = 0

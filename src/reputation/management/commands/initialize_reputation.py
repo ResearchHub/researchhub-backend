@@ -10,11 +10,6 @@ from user.models import User
 class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
-            "version",
-            type=int,
-            help="Version of the algorithm to use",
-        )
-        parser.add_argument(
             "--recalculate",
             type=bool,
             help="Recalculate reputation for this user/algo_version combination",
@@ -24,7 +19,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         for user in User.objects.iterator():
             try:
-                user.calculate_hub_scores(options["version"], options["recalculate"])
+                user.calculate_hub_scores(options["recalculate"])
             except Exception as e:
                 print(f"Error calculating rep for user {user.id}: {e}")
                 continue

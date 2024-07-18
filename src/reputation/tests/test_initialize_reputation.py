@@ -140,7 +140,7 @@ class InitializeReputationCommandTestCase(TestCase):
         )
 
     def test_initialize_reputation_command(self):
-        call_command("initialize_reputation", 1)
+        call_command("initialize_reputation")
 
         # Check if the score is created
         self.assertEqual(Score.objects.count(), 2)
@@ -182,8 +182,8 @@ class InitializeReputationCommandTestCase(TestCase):
     def test_initialize_reputation_two_calls(self):
         # This simulates a call that should not recalculate reputation, since optional
         # recalculate argument was not included.
-        call_command("initialize_reputation", 1)
-        call_command("initialize_reputation", 1)
+        call_command("initialize_reputation")
+        call_command("initialize_reputation")
 
         # Check if the score is created
         self.assertEqual(Score.objects.count(), 2)
@@ -193,9 +193,9 @@ class InitializeReputationCommandTestCase(TestCase):
 
     def test_initialize_reputation_command_two_calls_recalculate(self):
         # This simulates a recalculation of the reputation.
-        call_command("initialize_reputation", 1)
-        call_command("initialize_reputation", 1, "--recalculate", True)
-        call_command("initialize_reputation", 1)  # This should not recalculate
+        call_command("initialize_reputation")
+        call_command("initialize_reputation", "--recalculate", True)
+        call_command("initialize_reputation")  # This should not recalculate
 
         # Check if the score is created
         self.assertEqual(Score.objects.count(), 2)
