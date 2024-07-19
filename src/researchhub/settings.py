@@ -94,7 +94,7 @@ ALLOWED_HOSTS = [
 
 
 if not (PRODUCTION or STAGING):
-    ALLOWED_HOSTS += [".ngrok.io", "localhost", "10.0.2.2", "10.0.3.2"]
+    ALLOWED_HOSTS += [".ngrok.io", "localhost"]
 
 if ELASTIC_BEANSTALK:
     # This is for health checks
@@ -155,7 +155,6 @@ CORS_ORIGIN_WHITELIST = [
     "https://researchhub.com",
     "https://staging.researchhub.com",
     "https://www.staging.researchhub.com",
-    "http://10.0.2.2:3000",
     "http://127.0.0.1:3000",
     "https://word.researchhub.com",
 ]
