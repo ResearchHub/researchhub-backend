@@ -82,7 +82,6 @@ if not (PRODUCTION or STAGING):
 
 ALLOWED_HOSTS = [
     ".elasticbeanstalk.com",
-    ".researchhub-web-researchhub.vercel.app",
     ".researchhub.com",
     "127.0.0.1",  # localhost
     "localhost",
@@ -153,7 +152,6 @@ CORS_ORIGIN_WHITELIST = [
     "https://dev.researchhub.com",
     "https://researchnow.researchhub.com",
     "https://www.researchhub.com",
-    "https://researchhub-web-researchhub.vercel.app",
     "https://researchhub.com",
     "https://staging.researchhub.com",
     "https://www.staging.researchhub.com",
