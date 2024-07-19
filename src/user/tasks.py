@@ -272,50 +272,6 @@ def update_elastic_registry(user_id):
     registry.update(user_author)
 
 
-# Runs every Monday at 6am pst (2 utc)
-# @periodic_task(
-#     run_every=crontab(hour=14, minute=0, day_of_week=1),
-#     priority=5,
-#     queue=QUEUE_NOTIFICATION,
-# )
-# def notify_editor_inactivity():
-#     User = apps.get_model("user.User")
-
-#     last_week = timezone.now() - timedelta(days=7)
-#     editors = User.objects.editors()
-#     inactive_contributors = editors.annotate(
-#         paper_count=Count(
-#             "id",
-#             filter=Q(
-#                 contributions__contribution_type=Contribution.SUBMITTER,
-#                 contributions__created_date__gte=last_week,
-#             ),
-#         ),
-#         comment_count=Count(
-#             "id",
-#             filter=Q(
-#                 contributions__contribution_type=Contribution.COMMENTER,
-#                 contributions__created_date__gte=last_week,
-#             ),
-#         ),
-#         total_contributions=F("paper_count") + F("comment_count"),
-#     ).filter(total_contributions__lt=3)
-
-#     logging = []
-#     for inactive_contributor in inactive_contributors.iterator():
-#         paper_count = inactive_contributor.paper_count
-#         comment_count = inactive_contributor.comment_count
-#         logging.append(
-#             (
-#                 inactive_contributor.email,
-#                 f"Paper count: {paper_count}",
-#                 f"Comment count: {comment_count}",
-#             )
-#         )
-#         inactive_contributor.notify_inactivity(paper_count, comment_count)
-#     log_info(logging)
-
-
 @app.task
 def execute_editor_daily_payout_task():
     log_info(f"{APP_ENV}-running payout")
