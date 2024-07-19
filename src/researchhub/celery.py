@@ -4,6 +4,7 @@ import os
 import time
 
 from celery import Celery, chord
+from celery.schedules import crontab
 
 from reputation.exceptions import ReputationDistributorError, WithdrawalError
 
@@ -36,6 +37,170 @@ QUEUE_AUTHOR_CLAIM = "author_claim"
 QUEUE_PAPER_METADATA = "paper_metadata"
 QUEUE_BOUNTIES = "bounties"
 QUEUE_HUBS = "hubs"
+
+
+# Scheduled tasks
+
+
+app.conf.beat_schedule = {
+    "log-daily-uploads": {
+        "task": "paper.tasks.log_daily_uploads",
+        "schedule": crontab(minute=50, hour=23),
+        "options": {
+            "priority": 2,
+            "queue": QUEUE_EXTERNAL_REPORTING,
+        },
+    },
+}
+
+
+app.conf.beat_schedule = {
+    "pull-new-openalex-works": {
+        "task": "paper.tasks.pull_new_openalex_works",
+        "schedule": crontab(minute=0, hour=6),
+        "options": {
+            "priority": 3,
+            "queue": QUEUE_PULL_PAPERS,
+        },
+    },
+}
+
+app.conf.beat_schedule = {
+    "celery-update-hot-scores": {
+        "task": "paper.tasks.celery_update_hot_scores",
+        "schedule": crontab(minute=0, hour=0),
+        "options": {
+            "priority": 5,
+            "queue": QUEUE_HOT_SCORE,
+        },
+    },
+}
+
+
+app.conf.beat_schedule = {
+    "calculate-and-set-hub-counts": {
+        "task": "hub.tasks.calculate_and_set_hub_counts",
+        "schedule": crontab(minute=0, hour=0),
+        "options": {
+            "priority": 5,
+            "queue": QUEUE_HUBS,
+        },
+    },
+}
+
+
+app.conf.beat_schedule = {
+    "weekly-bounty-digest": {
+        "task": "mailing_list.tasks.weekly_bounty_digest",
+        "schedule": crontab(minute=0, hour=8, day_of_week="friday"),
+        "options": {
+            "priority": 9,
+            "queue": QUEUE_NOTIFICATION,
+        },
+    },
+}
+
+app.conf.beat_schedule = {
+    "execute-editor-daily-payout-task": {
+        "task": "user.tasks.execute_editor_daily_payout_task",
+        "schedule": crontab(hour=23, minute=5),
+        "options": {
+            "priority": 2,
+            "queue": QUEUE_PURCHASES,
+        },
+    },
+}
+
+app.conf.beat_schedule = {
+    "hourly-purchase-task": {
+        "task": "user.tasks.hourly_purchase_task",
+        "schedule": crontab(hour="*", minute=0),  # every hour
+        "options": {
+            "priority": 2,
+            "queue": QUEUE_PURCHASES,
+        },
+    },
+}
+
+app.conf.beat_schedule = {
+    "check-deposits": {
+        "task": "reputation.tasks.check_deposits",
+        "schedule": crontab(minute="*/5"),
+        "options": {
+            "priority": 3,
+            "queue": QUEUE_PURCHASES,
+        },
+    },
+}
+
+app.conf.beat_schedule = {
+    "check-deposits": {
+        "task": "reputation.tasks.check_pending_withdrawals",
+        "schedule": crontab(minute="*/5"),
+        "options": {
+            "priority": 4,
+            "queue": QUEUE_PURCHASES,
+        },
+    },
+}
+
+
+app.conf.beat_schedule = {
+    "update-purchases": {
+        "task": "purchase.tasks.update_purchases",
+        "schedule": crontab(minute="*/30"),
+        "options": {
+            "priority": 3,
+            "queue": QUEUE_PURCHASES,
+        },
+    },
+}
+
+app.conf.beat_schedule = {
+    "check-hotwallet-balance": {
+        "task": "reputation.tasks.check_hotwallet_balance",
+        "schedule": crontab(minute="*/30"),
+        "options": {
+            "priority": 4,
+            "queue": QUEUE_PURCHASES,
+        },
+    },
+}
+
+app.conf.beat_schedule = {
+    "check-open-bounties": {
+        "task": "reputation.tasks.check_open_bounties",
+        "schedule": crontab(hour="0, 6, 12, 18", minute=0),
+        "options": {
+            "priority": 4,
+            "queue": QUEUE_BOUNTIES,
+        },
+    },
+}
+
+
+app.conf.beat_schedule = {
+    "send-bounty-hub-notifications": {
+        "task": "reputation.tasks.send_bounty_hub_notifications",
+        "schedule": crontab(hour="0, 6, 12, 18", minute=0),
+        "options": {
+            "priority": 5,
+            "queue": QUEUE_BOUNTIES,
+        },
+    },
+}
+
+
+app.conf.beat_schedule = {
+    "recalc-hot-score-for-open-bounties": {
+        "task": "reputation.tasks.recalc_hot_score_for_open_bounties",
+        "schedule": crontab(hour=12, minute=0),
+        "options": {
+            "priority": 4,
+            "queue": QUEUE_BOUNTIES,
+        },
+    },
+}
 
 
 # Celery Debug/Test Functions

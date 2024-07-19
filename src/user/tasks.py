@@ -3,8 +3,6 @@ from datetime import timedelta
 
 from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
-from celery.decorators import periodic_task
-from celery.task.schedules import crontab
 from django.apps import apps
 from django.core.cache import cache
 from django.db.models import Count, F, Q
@@ -27,7 +25,6 @@ from reputation.models import Contribution
 from researchhub.celery import (
     QUEUE_CACHES,
     QUEUE_ELASTIC_SEARCH,
-    QUEUE_NOTIFICATION,
     QUEUE_PAPER_MISC,
     QUEUE_PURCHASES,
     app,
@@ -319,14 +316,7 @@ def update_elastic_registry(user_id):
 #     log_info(logging)
 
 
-# Runs at 3:05pm pst (11:05pm utc)
-@periodic_task(
-    run_every=crontab(hour=23, minute=5),
-    priority=2,
-    queue=QUEUE_PURCHASES,
-    name="execute_editor_daily_payout_task",
-    ignore_result=False,
-)
+@app.task
 def execute_editor_daily_payout_task():
     log_info(f"{APP_ENV}-running payout")
     result = editor_daily_payout_task()
@@ -334,11 +324,7 @@ def execute_editor_daily_payout_task():
     return result
 
 
-@periodic_task(
-    run_every=crontab(hour="*", minute=0),  # every hour
-    priority=2,
-    queue=QUEUE_PURCHASES,
-)
+@app.task
 def execute_rsc_exchange_rate_record_tasks():
     log_info(f"{APP_ENV}-running rsc_exchange_rate_record_tasks")
     result = rsc_exchange_rate_record_tasks()
