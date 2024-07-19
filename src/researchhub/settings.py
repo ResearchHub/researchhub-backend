@@ -17,7 +17,6 @@ import requests
 import segment.analytics as analytics
 import sentry_sdk
 import stripe
-from celery.task.schedules import crontab
 from corsheaders.defaults import default_headers
 from sentry_sdk.integrations.django import DjangoIntegration
 from web3 import Web3
@@ -735,20 +734,6 @@ GEOIP_PATH = os.path.join(BASE_DIR, "analytics")
 
 # Stripe
 stripe.api_key = os.environ.get("STRIPE_API_KEY", keys.STRIPE_API_KEY)
-
-# Reward Distribution
-REWARD_TIME = os.environ.get("REWARD_TIME", "0 0 1")  # Defaults weekly
-
-reward_time_hour, reward_time_day, reward_time_week = list(
-    map(int, REWARD_TIME.split(" "))
-)
-
-if reward_time_week:
-    REWARD_SCHEDULE = crontab(minute="0", hour="0", day_of_week="sunday")
-elif reward_time_day:
-    REWARD_SCHEDULE = crontab(minute="0", hour="0")
-elif reward_time_hour:
-    REWARD_SCHEDULE = crontab(minute="0", hour="*")
 
 # GEOIP_PATH = BASE_DIR + '/utils'
 
