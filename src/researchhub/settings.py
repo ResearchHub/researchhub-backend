@@ -89,12 +89,7 @@ ALLOWED_HOSTS = [
     "www.staging.researchhub.com",
     r"^https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}/",
     r"https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}",
-    r"researchhub(-[0-9]?)\.ngrok\.io",
 ]
-
-
-if not (PRODUCTION or STAGING):
-    ALLOWED_HOSTS += [".ngrok.io", "localhost"]
 
 if ELASTIC_BEANSTALK:
     # This is for health checks
