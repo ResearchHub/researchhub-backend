@@ -45,8 +45,6 @@ from purchase.models import Wallet
 from researchhub.celery import (
     QUEUE_CACHES,
     QUEUE_CERMINE,
-    QUEUE_EXTERNAL_REPORTING,
-    QUEUE_HOT_SCORE,
     QUEUE_PAPER_MISC,
     QUEUE_PULL_PAPERS,
     app,

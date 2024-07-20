@@ -1,13 +1,10 @@
 import logging
-from datetime import timedelta
 
 from allauth.socialaccount.models import SocialAccount
 from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.apps import apps
 from django.core.cache import cache
-from django.db.models import Count, F, Q
 from django.http.request import HttpRequest
-from django.utils import timezone
 from django_elasticsearch_dsl.registries import registry
 from rest_framework.request import Request
 
@@ -21,12 +18,10 @@ from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as GrmVote
 from paper.models import Paper
 from paper.utils import get_cache_key
-from reputation.models import Contribution
 from researchhub.celery import (
     QUEUE_CACHES,
     QUEUE_ELASTIC_SEARCH,
     QUEUE_PAPER_MISC,
-    QUEUE_PURCHASES,
     app,
 )
 from researchhub.settings import APP_ENV, PRODUCTION, STAGING
