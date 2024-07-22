@@ -25,13 +25,9 @@ class Score(DefaultModel):
         )
 
     @classmethod
-    def get_or_create_score(cls, author, hub, score_version=1):
+    def get_or_create_score(cls, author, hub):
         try:
             score = cls.objects.get(author=author, hub=hub)
-            if score.version != score_version:
-                score.version = score_version
-                score.score = 0
-                score.save()
         except cls.DoesNotExist:
             score = cls(
                 author=author,
@@ -44,7 +40,7 @@ class Score(DefaultModel):
         return score
 
     @classmethod
-    def get_version(cls, author):
+    def incrememnt_version(cls, author):
         try:
             score_version = (
                 cls.objects.filter(author=author).latest("created_date").version
@@ -52,14 +48,17 @@ class Score(DefaultModel):
         except cls.DoesNotExist:
             score_version = 1
 
-        return score_version
+        scores = cls.objects.filter(author=author)
+        for score in scores:
+            score.version = score_version
+            score.score = 0
+            score.save()
 
     @classmethod
     def update_score(
         cls,
         author,
         hub,
-        score_version,
         raw_value_change,
         variable_key,
         object_id,
@@ -68,7 +67,7 @@ class Score(DefaultModel):
             "created_date"
         )
 
-        score = cls.get_or_create_score(author, hub, score_version)
+        score = cls.get_or_create_score(author, hub)
 
         score_change = ScoreChange.create_score_change(
             score,
@@ -76,11 +75,10 @@ class Score(DefaultModel):
             raw_value_change,
             variable_key,
             object_id,
-            score_version,
+            score.version,
         )
 
         score.score = score_change.score_after_change
-        score.version = score_version
         score.save()
 
         return score

@@ -307,12 +307,12 @@ class Author(models.Model):
                 "Reputation already calculated for this user and algorithm version. To recalculate, set the --recalculate flag to True."
             )
 
-        score_version = Score.get_version(self)
-        self._calculate_score_hubs_citations(score_version)
-        self._calculate_score_hubs_paper_votes(score_version)
-        self._calculate_score_hubs_comments(score_version)
+        Score.incrememnt_version(self)
+        self._calculate_score_hubs_citations()
+        self._calculate_score_hubs_paper_votes()
+        self._calculate_score_hubs_comments()
 
-    def _calculate_score_hubs_paper_votes(self, score_version):
+    def _calculate_score_hubs_paper_votes(self):
         authored_papers = self.authored_papers.all()
         with transaction.atomic():
             for paper in authored_papers:
@@ -331,13 +331,12 @@ class Author(models.Model):
                         Score.update_score(
                             self,
                             hub,
-                            score_version,
                             vote_value,
                             "votes",
                             vote.id,
                         )
 
-    def _calculate_score_hubs_comments(self, score_version):
+    def _calculate_score_hubs_comments(self):
         threads = RhCommentThreadModel.objects.filter(
             content_type=ContentType.objects.get(model="paper"),
             created_by=self.user,
@@ -362,13 +361,12 @@ class Author(models.Model):
                         Score.update_score(
                             self,
                             hub,
-                            score_version,
                             vote_value,
                             "votes",
                             vote.id,
                         )
 
-    def _calculate_score_hubs_citations(self, score_version):
+    def _calculate_score_hubs_citations(self):
         authored_papers = self.authored_papers.all()
         for paper in authored_papers:
             historical_papers = paper.history.all().order_by("history_date")
@@ -393,8 +391,58 @@ class Author(models.Model):
                     Score.update_score(
                         self,
                         hub,
-                        score_version,
                         citation_change,
                         "citations",
                         paper.id,
                     )
+
+    def update_score_vote(self, vote, hubs):
+        for hub in hubs:
+            score = Score.get_or_create_score(self, hub)
+            previous_score_change = ScoreChange.objects.filter(
+                score=score, changed_object_id=vote.id
+            )
+            vote_value = 1
+            if vote.vote_type == Vote.UPVOTE:
+                if (
+                    previous_score_change
+                    and previous_score_change.raw_value_change == 1
+                ):
+                    continue
+                elif (
+                    previous_score_change
+                    and previous_score_change.raw_value_change == -1
+                ):
+                    vote_value = 2
+            elif vote.vote_type == Vote.DOWNVOTE:
+                if (
+                    previous_score_change
+                    and previous_score_change.raw_value_change == -1
+                ):
+                    continue
+                elif (
+                    previous_score_change
+                    and previous_score_change.raw_value_change == 1
+                ):
+                    vote_value = -2
+            elif vote.vote_type == Vote.NEUTRAL:
+                if (
+                    previous_score_change
+                    and previous_score_change.raw_value_change == -1
+                ):
+                    vote_value = 1
+                elif (
+                    previous_score_change
+                    and previous_score_change.raw_value_change == 1
+                ):
+                    vote_value = -1
+                else:
+                    continue
+
+            Score.update_score(
+                self,
+                hub,
+                vote_value,
+                "votes",
+                vote.id,
+            )

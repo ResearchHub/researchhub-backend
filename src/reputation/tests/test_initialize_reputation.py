@@ -49,25 +49,6 @@ class InitializeReputationCommandTestCase(TestCase):
             username="user3", password="pass3"
         )
 
-        # Create comments
-        comment1 = create_rh_comment(paper=paper1, created_by=self.user_author)
-        comment2 = create_rh_comment(paper=paper1, created_by=self.user_author)
-
-        # Upvote comment 1
-        create_vote(self.user_author, comment1, Vote.UPVOTE)
-        create_vote(self.user_basic, comment1, Vote.UPVOTE)
-
-        # Downvote comment 2
-        create_vote(self.user_author, comment2, Vote.UPVOTE)
-
-        # Upvote paper 1
-        create_vote(self.user_author, paper1, Vote.UPVOTE)
-
-        # Add author claim
-        self.attribute_paper_to_author(self.user_author, paper1)
-        self.attribute_paper_to_author(self.user_author, paper2)
-        self.attribute_paper_to_author(self.user_author, paper3)
-
         bins = (
             [
                 [0, 1000],
@@ -138,6 +119,25 @@ class InitializeReputationCommandTestCase(TestCase):
             },
             hub=self.hub2,
         )
+
+        # Create comments
+        comment1 = create_rh_comment(paper=paper1, created_by=self.user_author)
+        comment2 = create_rh_comment(paper=paper1, created_by=self.user_author)
+
+        # Upvote comment 1
+        create_vote(self.user_author, comment1, Vote.UPVOTE)
+        create_vote(self.user_basic, comment1, Vote.UPVOTE)
+
+        # Downvote comment 2
+        create_vote(self.user_author, comment2, Vote.UPVOTE)
+
+        # Upvote paper 1
+        create_vote(self.user_author, paper1, Vote.UPVOTE)
+
+        # Add author claim
+        self.attribute_paper_to_author(self.user_author, paper1)
+        self.attribute_paper_to_author(self.user_author, paper2)
+        self.attribute_paper_to_author(self.user_author, paper3)
 
     def test_initialize_reputation_command(self):
         call_command("initialize_reputation")
