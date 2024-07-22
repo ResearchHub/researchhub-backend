@@ -122,7 +122,12 @@ class DynamicContributionSerializer(DynamicModelFieldSerializer):
         model_name = contribution.content_type.name
         object_id = contribution.object_id
         model_class = contribution.content_type.model_class()
-        obj = model_class.objects.get(id=object_id)
+        obj = None
+        try:
+            obj = model_class.objects.get(id=object_id)
+        except model_class.DoesNotExist as e:
+            print(f"{model_name} with ID {object_id} does not exist: {e}")
+            return None
 
         if model_name == "paper":
             serializer = DynamicPaperSerializer(obj, context=context, **_context_fields)
@@ -198,6 +203,6 @@ class DynamicContributionSerializer(DynamicModelFieldSerializer):
         serializer = DynamicAuthorSerializer(
             Author.objects.get(user=contribution.user),
             context=context,
-            **_context_fields
+            **_context_fields,
         )
         return serializer.data
