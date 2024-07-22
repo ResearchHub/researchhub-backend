@@ -42,3 +42,4 @@ src/Dockerfile
 
 # Coverage
 .coverage
+coverage.xml
