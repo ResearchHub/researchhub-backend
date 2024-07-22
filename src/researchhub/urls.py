@@ -288,7 +288,7 @@ urlpatterns = [
     ),
     path("api/ckeditor/token/", note_views.note_view.ckeditor_token),
     path(
-        "api/popover/<int:pk>/get_user/",
+        "api/popover/<int:user_id>/get_user/",
         user.views.get_user_popover,
         name="popover_user",
     ),

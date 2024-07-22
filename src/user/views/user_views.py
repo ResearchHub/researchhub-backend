@@ -5,15 +5,14 @@ from hashlib import sha1
 from allauth.account.models import EmailAddress
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
-from django.db import IntegrityError, models, transaction
-from django.db.models import Exists, F, OuterRef, Q, Sum
+from django.db import IntegrityError, transaction
+from django.db.models import F, Q, Sum
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from django_filters.rest_framework import DjangoFilterBackend
-from requests.exceptions import HTTPError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -26,14 +25,11 @@ from rest_framework.response import Response
 from rest_framework.utils.urls import replace_query_param
 
 from discussion.models import Comment, Reply, Thread
-from discussion.serializers import DynamicThreadSerializer
-from hypothesis.related_models.hypothesis import Hypothesis
 from paper.models import Paper
 from paper.serializers import DynamicPaperSerializer
 from paper.tasks import pull_openalex_author_works
 from paper.utils import PAPER_SCORE_Q_ANNOTATION, get_cache_key
-from paper.views import PaperViewSet
-from reputation.models import Bounty, BountySolution, Contribution, Distribution
+from reputation.models import Bounty, Contribution, Distribution
 from reputation.serializers import (
     DynamicBountySerializer,
     DynamicBountySolutionSerializer,
@@ -46,21 +42,15 @@ from researchhub.settings import (
     SIFT_WEBHOOK_SECRET_KEY,
 )
 from researchhub_comment.models import RhCommentModel
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
-from researchhub_document.serializers import DynamicPostSerializer
-from review.models.review_model import Review
-from user.filters import AuthorFilter, UserFilter
+from user.filters import UserFilter
 from user.models import Author, Follow, Major, University, User, UserApiToken
 from user.permissions import (
     Censor,
-    DeleteAuthorPermission,
     DeleteUserPermission,
     HasVerificationPermission,
     RequestorIsOwnUser,
-    UpdateAuthor,
 )
 from user.serializers import (
-    AuthorEditableSerializer,
     AuthorSerializer,
     DynamicUserSerializer,
     MajorSerializer,
@@ -72,10 +62,7 @@ from user.serializers import (
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from user.utils import calculate_show_referral, reset_latest_acitvity_cache
 from utils.http import POST, RequestMethods
-from utils.openalex import OpenAlex
-from utils.permissions import CreateOrUpdateIfAllowed
 from utils.sentry import log_error, log_info
-from utils.throttles import THROTTLE_CLASSES
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -853,9 +840,9 @@ class UserViewSet(viewsets.ModelViewSet):
 
 @api_view([RequestMethods.GET])
 @permission_classes([AllowAny])
-def get_user_popover(request, pk=None):
-    user = get_object_or_404(User, pk=pk)
-    user = User.objects.get(id=pk)
+def get_user_popover(request, user_id=None):
+    user = get_object_or_404(User, pk=user_id)
+    user = User.objects.get(id=user_id)
     context = {
         "usr_dus_get_author_profile": {
             "_include_fields": (
