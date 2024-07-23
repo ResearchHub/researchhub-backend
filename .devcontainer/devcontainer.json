@@ -31,7 +31,8 @@
 		"vscode": {
 			"extensions": [
 				"ms-python.black-formatter",
-				"ms-python.flake8"
+				"ms-python.flake8",
+				"ms-python.isort"
 			],
 			"settings": {
 				"[python]": {
@@ -46,6 +47,8 @@
 				"flake8.args": [
 					"--max-line-length=88"
 				],
+				// Import sorting, see: https://github.com/microsoft/vscode-isort?tab=readme-ov-file#usage-and-features
+				"isort.args":["--profile", "black"],
 				"remote.autoForwardPorts": false
 			}
 		}
