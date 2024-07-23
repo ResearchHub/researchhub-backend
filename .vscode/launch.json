@@ -12,6 +12,20 @@
             ],
             "django": true,
             "autoStartBrowser": false
-        }
+        },
+        {
+            // Configuration options for debugging:
+            // https://code.visualstudio.com/docs/python/debugging#_set-configuration-options
+            "name": "Python: Django Tests",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/manage.py",
+            "args": [
+                "test",
+                "${fileDirname}",
+                "--keepdb"
+            ],
+            "django": true
+        },
     ]
 }
