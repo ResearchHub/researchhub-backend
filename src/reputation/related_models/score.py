@@ -4,6 +4,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models import JSONField
 
+from discussion.reaction_models import Vote
 from utils.models import DefaultModel
 
 ALGORITHM_VERSION = 1
@@ -61,6 +62,7 @@ class Score(DefaultModel):
         hub,
         raw_value_change,
         variable_key,
+        content_type,
         object_id,
     ):
         algorithm_variables = AlgorithmVariables.objects.filter(hub=hub).latest(
@@ -74,6 +76,7 @@ class Score(DefaultModel):
             algorithm_variables,
             raw_value_change,
             variable_key,
+            content_type,
             object_id,
             score.version,
         )
@@ -110,7 +113,7 @@ class ScoreChange(DefaultModel):
     raw_value_change = models.IntegerField()  # change of number of citations or votes.
     changed_content_type = models.ForeignKey(
         ContentType, on_delete=models.CASCADE
-    )  # content type of citation or vote.
+    )  # content type of paper, historical paper or vote.
     changed_object_id = (
         models.PositiveIntegerField()
     )  # id of the paper (with updated citation) or vote.
@@ -170,6 +173,7 @@ class ScoreChange(DefaultModel):
         algorithm_variables,
         raw_value_change,
         variable_key,
+        content_type,
         object_id,
         score_version,
     ):
@@ -200,7 +204,6 @@ class ScoreChange(DefaultModel):
         current_rep = previous_score + score_value_change
 
         field = ScoreChange.get_object_field(variable_key)
-        content_type = ScoreChange.get_content_type(variable_key)
 
         score_change = ScoreChange(
             algorithm_version=ALGORITHM_VERSION,
@@ -265,6 +268,20 @@ class ScoreChange(DefaultModel):
             rep += citation_count_curr_bin * val
 
         return rep
+
+    def vote_change(vote, previous_score_change):
+        vote_values = {
+            Vote.UPVOTE: 1,
+            Vote.DOWNVOTE: -1,
+            Vote.NEUTRAL: 0,
+        }
+
+        vote_value = vote_values[vote.vote_type]
+        previous_vote_value = 0
+        if previous_score_change:
+            previous_vote_value = previous_score_change.raw_value_change
+
+        return vote_value - previous_vote_value
 
 
 # AlgorithmVariables stores the variables required to calculate the reputation score.

@@ -156,7 +156,9 @@ class InitializeReputationCommandTestCase(TestCase):
         self.assertEqual(score1.score, 23104)
 
         # Check if the score change is created with the correct score change
-        score_changes1 = ScoreChange.objects.filter(score=score1)
+        score_changes1 = ScoreChange.objects.filter(score=score1).order_by(
+            "-score_change"
+        )
         self.assertEqual(score_changes1[0].score_change, 23100)
         self.assertEqual(score_changes1[1].score_change, 1)
         self.assertEqual(score_changes1[2].score_change, 1)

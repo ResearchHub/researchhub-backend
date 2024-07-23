@@ -355,7 +355,7 @@ def update_rep_score_vote(sender, instance, created, update_fields, **kwargs):
     if created:
         for author_recipient in author_recipients:
             if is_eligible_for_discussion_vote(author_recipient.user, voter):
-                author_recipient.update_score_vote(instance, hubs)
+                author_recipient.update_scores_vote(instance, hubs)
 
 
 @receiver(post_save, sender=GrmVote, dispatch_uid="discussion_vote")

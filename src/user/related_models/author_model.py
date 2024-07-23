@@ -302,12 +302,9 @@ class Author(models.Model):
         return paper_scores + paper_count
 
     def calculate_hub_scores(self, recalculate=False):
-        if not recalculate and Score.is_hub_score_already_calculated(self):
-            raise Exception(
-                "Reputation already calculated for this user and algorithm version. To recalculate, set the --recalculate flag to True."
-            )
+        if recalculate:
+            Score.incrememnt_version(self)
 
-        Score.incrememnt_version(self)
         self._calculate_score_hubs_citations()
         self._calculate_score_hubs_paper_votes()
         self._calculate_score_hubs_comments()
@@ -321,20 +318,8 @@ class Author(models.Model):
                     continue
 
                 hubs = paper.hubs.filter(is_used_for_rep=True)
-                for hub in hubs:
-                    for vote in votes:
-                        if vote.vote_type == 1:
-                            vote_value = 1
-                        elif vote.vote_type == 2:
-                            vote_value = -1
-
-                        Score.update_score(
-                            self,
-                            hub,
-                            vote_value,
-                            "votes",
-                            vote.id,
-                        )
+                for vote in votes:
+                    self.update_scores_vote(vote, hubs)
 
     def _calculate_score_hubs_comments(self):
         threads = RhCommentThreadModel.objects.filter(
@@ -351,20 +336,8 @@ class Author(models.Model):
                     continue
 
                 hubs = paper.hubs.filter(is_used_for_rep=True)
-                for hub in hubs:
-                    for vote in votes:
-                        if vote.vote_type == 1:
-                            vote_value = 1
-                        elif vote.vote_type == 2:
-                            vote_value = -1
-
-                        Score.update_score(
-                            self,
-                            hub,
-                            vote_value,
-                            "votes",
-                            vote.id,
-                        )
+                for vote in votes:
+                    self.update_scores_vote(vote, hubs)
 
     def _calculate_score_hubs_citations(self):
         authored_papers = self.authored_papers.all()
@@ -379,70 +352,74 @@ class Author(models.Model):
                 if i != 0:
                     previous_historical_paper = historical_papers[i - 1]
 
-                citation_change = historical_paper.citation_change(
-                    previous_historical_paper
+                self.update_scores_citation(
+                    historical_paper,
+                    previous_historical_paper,
+                    hubs,
                 )
 
-                if citation_change == 0:
-                    # If citation count hasn't changed, continue to the next paper history entry.
-                    continue
+    def update_scores_citation(self, historical_paper, previous_historical_paper, hubs):
+        citation_change = historical_paper.citation_change(previous_historical_paper)
+        if citation_change == 0:
+            return
 
-                for hub in hubs:
-                    Score.update_score(
-                        self,
-                        hub,
-                        citation_change,
-                        "citations",
-                        paper.id,
-                    )
+        paper_id = historical_paper.id
+        content_type = ContentType.objects.get_for_model(Paper)
+        if isinstance(historical_paper, Paper.history.model):
+            paper_id = historical_paper.history_id
+            content_type = ContentType.objects.get_for_model(Paper.history.model)
 
-    def update_score_vote(self, vote, hubs):
         for hub in hubs:
-            score = Score.get_or_create_score(self, hub)
-            previous_score_change = ScoreChange.objects.filter(
-                score=score, changed_object_id=vote.id
+            try:
+                score = Score.objects.get(
+                    hub=hub,
+                    author=self,
+                )
+                previous_score_change = ScoreChange.objects.get(
+                    score=score,
+                    changed_object_id=paper_id,
+                    changed_content_type=content_type,
+                    score_version=score.version,
+                )
+            except (Score.DoesNotExist, ScoreChange.DoesNotExist):
+                previous_score_change = None
+
+            if previous_score_change:
+                continue
+
+            Score.update_score(
+                self,
+                hub,
+                citation_change,
+                "citations",
+                content_type,
+                paper_id,
             )
-            vote_value = 1
-            if vote.vote_type == Vote.UPVOTE:
-                if (
-                    previous_score_change
-                    and previous_score_change.raw_value_change == 1
-                ):
-                    continue
-                elif (
-                    previous_score_change
-                    and previous_score_change.raw_value_change == -1
-                ):
-                    vote_value = 2
-            elif vote.vote_type == Vote.DOWNVOTE:
-                if (
-                    previous_score_change
-                    and previous_score_change.raw_value_change == -1
-                ):
-                    continue
-                elif (
-                    previous_score_change
-                    and previous_score_change.raw_value_change == 1
-                ):
-                    vote_value = -2
-            elif vote.vote_type == Vote.NEUTRAL:
-                if (
-                    previous_score_change
-                    and previous_score_change.raw_value_change == -1
-                ):
-                    vote_value = 1
-                elif (
-                    previous_score_change
-                    and previous_score_change.raw_value_change == 1
-                ):
-                    vote_value = -1
-                else:
-                    continue
+
+    def update_scores_vote(self, vote, hubs):
+        for hub in hubs:
+            content_type = ContentType.objects.get_for_model(Vote)
+
+            score = Score.get_or_create_score(self, hub)
+            previous_score_change = (
+                ScoreChange.objects.filter(
+                    score=score,
+                    changed_object_id=vote.id,
+                    changed_content_type=content_type,
+                    score_version=score.version,
+                )
+                .order_by("created_date")
+                .last()
+            )
+            vote_value = ScoreChange.vote_change(vote, previous_score_change)
+            if vote_value == 0:
+                continue
 
             Score.update_score(
                 self,
                 hub,
                 vote_value,
                 "votes",
+                content_type,
                 vote.id,
             )
