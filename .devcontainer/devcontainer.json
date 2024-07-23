@@ -37,7 +37,11 @@
 			"settings": {
 				"[python]": {
 					"editor.defaultFormatter": "ms-python.black-formatter",
-					"editor.formatOnSave": true
+					"editor.formatOnSave": true,
+					"editor.codeActionsOnSave": {
+						"source.organizeImports": "explicit",
+						"source.unusedImports": "never"
+					}
 				},
 				// Align line length between black and flake8 to black's default of 88.
 				// See: https://black.readthedocs.io/en/stable/the_black_code_style/current_style.html#line-length
