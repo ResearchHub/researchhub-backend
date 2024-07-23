@@ -15,7 +15,8 @@
 		"app:8000",
 		"elasticsearch:9200",
 		"postgres:5432",
-		"redis:6379"
+		"redis:6379",
+		"localstack:4566"
 	],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
