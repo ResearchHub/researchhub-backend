@@ -456,7 +456,7 @@ def create_automated_bounty(item):
                     {
                         "insert": "If you have any questions you may join our discord (https://discord.gg/researchhub) or email our Editor Lead, Maulik Dhandha (maulik.editor@researchhub.foundation)"
                     },
-                    {"attributes": {"list": "ordered"}, "insert": "\n\n"},
+                    {"insert": "\n\n"},
                     {
                         "insert": "We will award $150 in ResearchCoin (RSC) each for up to "
                     },
