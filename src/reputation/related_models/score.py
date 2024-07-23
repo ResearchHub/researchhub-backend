@@ -86,22 +86,6 @@ class Score(DefaultModel):
 
         return score
 
-    @classmethod
-    def is_hub_score_already_calculated(self, author):
-        try:
-            score = Score.objects.filter(author=author).latest("created_date")
-        except Score.DoesNotExist:
-            return False
-
-        try:
-            ScoreChange.objects.filter(
-                score=score, algorithm_version=ALGORITHM_VERSION
-            ).latest("created_date")
-        except ScoreChange.DoesNotExist:
-            return False
-
-        return True
-
 
 class ScoreChange(DefaultModel):
     algorithm_version = models.IntegerField(default=1)
