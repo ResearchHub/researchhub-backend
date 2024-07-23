@@ -47,6 +47,20 @@ def add_unified_doc(created, instance, **kwargs):
                 log_error("EXCPETION (add_unified_doc): ", e)
 
 
+@receiver(post_save, sender=Paper, dispatch_uid="update_rep_score")
+def update_rep_score(created, instance, update_fields, **kwargs):
+    authors = instance.authors.all()
+    historical_paper = instance.history.all().order_by("history_date").latest()
+    previous_historical_paper = historical_paper.prev_record
+
+    for author in authors:
+        author.update_scores_citation(
+            historical_paper,
+            previous_historical_paper,
+            instance.hubs.filter(is_used_for_rep=True),
+        )
+
+
 def check_file_updated(update_fields, file):
     if update_fields is not None and file:
         return "file" in update_fields

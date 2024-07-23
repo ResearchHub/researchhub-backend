@@ -345,7 +345,7 @@ def update_rep_score_vote(sender, instance, created, update_fields, **kwargs):
     hubs = None
     if isinstance(instance.item, Paper):
         author_recipients = instance.item.authors.all()
-        hubs = instance.item.hubs
+        hubs = instance.item.hubs.filter(is_used_for_rep=True)
     elif isinstance(
         instance.item, RhCommentModel
     ) and instance.item.thread.content_type == ContentType.objects.get(model="paper"):
