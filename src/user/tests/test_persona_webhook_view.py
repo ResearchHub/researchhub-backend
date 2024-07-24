@@ -1,10 +1,11 @@
-from user.views import PersonaWebhookView
-from user.models import User, UserVerification
-from django.test import TestCase, override_settings
-from notification.models import Notification
+import os
 from unittest import mock
 
-import os
+from django.test import TestCase, override_settings
+
+from notification.models import Notification
+from user.models import User, UserVerification
+from user.views import PersonaWebhookView
 
 
 class PersonaWebhookViewTests(TestCase):
