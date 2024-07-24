@@ -32,11 +32,6 @@ class Notification(models.Model):
     FUNDRAISE_PAYOUT = "FUNDRAISE_PAYOUT"
     PUBLICATIONS_ADDED = "PUBLICATIONS_ADDED"
     """
-    Used to notify users that their identify has been verified.
-    It is used in the user verification process.
-    """
-    IDENTITY_VERIFICATION_COMPLETED = "IDENTITY_VERIFICATION_COMPLETED"
-    """
     Used to indicate that a user's identity verification status has been updated.
     """
     IDENTITY_VERIFICATION_UPDATED = "IDENTITY_VERIFICATION_UPDATED"
@@ -57,7 +52,6 @@ class Notification(models.Model):
         (PAPER_CLAIMED, PAPER_CLAIMED),
         (FUNDRAISE_PAYOUT, FUNDRAISE_PAYOUT),
         (PUBLICATIONS_ADDED, PUBLICATIONS_ADDED),
-        (IDENTITY_VERIFICATION_COMPLETED, IDENTITY_VERIFICATION_COMPLETED),
         (IDENTITY_VERIFICATION_UPDATED, IDENTITY_VERIFICATION_UPDATED),
     )
 
