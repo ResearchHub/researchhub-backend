@@ -39,7 +39,7 @@ from researchhub_document.related_models.constants.document_type import (
     FILTER_OPEN_ACCESS,
 )
 from tag.models import Concept
-from topic.models import Topic
+from topic.models import Topic, UnifiedDocumentTopics
 from utils import sentry
 from utils.http import check_url_contains_pdf
 from utils.openalex import OpenAlex
@@ -647,7 +647,12 @@ def create_paper_related_tags(paper_id, openalex_concepts=[], openalex_topics=[]
         sentry.log_info(f"Paper {paper_id} does not exist. Could not assign tags to it")
         return
 
-    for openalex_topic in openalex_topics:
+    # Topics should already be sorted by score in descending order but, just in case, we sort them again
+    sorted_topics_by_score = sorted(
+        openalex_topics, key=lambda x: x["score"], reverse=True
+    )
+
+    for index, openalex_topic in enumerate(sorted_topics_by_score):
         topic = None
         try:
             topic = Topic.upsert_from_openalex(openalex_topic)
@@ -664,12 +669,26 @@ def create_paper_related_tags(paper_id, openalex_concepts=[], openalex_topics=[]
 
         try:
             with transaction.atomic():
-                paper.unified_document.topics.add(
-                    topic.id,
-                    through_defaults={
+                # Since topics are sorted by score, the first topic is the primary one
+                is_primary = True if index == 0 else False
+
+                (
+                    unified_document_topic,
+                    created,
+                ) = UnifiedDocumentTopics.objects.get_or_create(
+                    unified_document=paper.unified_document,
+                    topic_id=topic.id,
+                    defaults={
                         "relevancy_score": openalex_topic["score"],
+                        "is_primary": is_primary,
                     },
                 )
+
+                if not created:
+                    # If the entry already exists, update the is_primary and relevancy_score fields
+                    unified_document_topic.is_primary = is_primary
+                    unified_document_topic.relevancy_score = openalex_topic["score"]
+                    unified_document_topic.save()
 
         except Exception as e:
             sentry.log_error(

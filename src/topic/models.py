@@ -266,3 +266,7 @@ class UnifiedDocumentTopics(DefaultModel):
     relevancy_score = models.FloatField(
         default=0.0,
     )
+
+    is_primary = models.BooleanField(
+        default=False,
+    )
