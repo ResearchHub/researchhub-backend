@@ -4,7 +4,10 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models import JSONField
 
+from discussion.reaction_models import Vote
 from utils.models import DefaultModel
+
+ALGORITHM_VERSION = 1
 
 
 class Score(DefaultModel):
@@ -23,13 +26,9 @@ class Score(DefaultModel):
         )
 
     @classmethod
-    def get_or_create_score(cls, author, hub, score_version=1):
+    def get_or_create_score(cls, author, hub):
         try:
             score = cls.objects.get(author=author, hub=hub)
-            if score.version != score_version:
-                score.version = score_version
-                score.score = 0
-                score.save()
         except cls.DoesNotExist:
             score = cls(
                 author=author,
@@ -42,7 +41,7 @@ class Score(DefaultModel):
         return score
 
     @classmethod
-    def get_version(cls, author):
+    def incrememnt_version(cls, author):
         try:
             score_version = (
                 cls.objects.filter(author=author).latest("created_date").version
@@ -50,37 +49,39 @@ class Score(DefaultModel):
         except cls.DoesNotExist:
             score_version = 1
 
-        return score_version
+        scores = cls.objects.filter(author=author)
+        for score in scores:
+            score.version = score_version
+            score.score = 0
+            score.save()
 
     @classmethod
     def update_score(
         cls,
         author,
         hub,
-        algorithm_version,
-        score_version,
         raw_value_change,
         variable_key,
+        content_type,
         object_id,
     ):
         algorithm_variables = AlgorithmVariables.objects.filter(hub=hub).latest(
             "created_date"
         )
 
-        score = cls.get_or_create_score(author, hub, score_version)
+        score = cls.get_or_create_score(author, hub)
 
         score_change = ScoreChange.create_score_change(
             score,
-            algorithm_version,
             algorithm_variables,
             raw_value_change,
             variable_key,
+            content_type,
             object_id,
-            score_version,
+            score.version,
         )
 
         score.score = score_change.score_after_change
-        score.version = score_version
         score.save()
 
         return score
@@ -96,7 +97,7 @@ class ScoreChange(DefaultModel):
     raw_value_change = models.IntegerField()  # change of number of citations or votes.
     changed_content_type = models.ForeignKey(
         ContentType, on_delete=models.CASCADE
-    )  # content type of citation or vote.
+    )  # content type of paper, historical paper or vote.
     changed_object_id = (
         models.PositiveIntegerField()
     )  # id of the paper (with updated citation) or vote.
@@ -117,14 +118,12 @@ class ScoreChange(DefaultModel):
     created_date = models.DateTimeField(auto_now_add=True, db_index=True)
 
     @classmethod
-    def get_lastest_score_change(
-        cls, score, score_version, algorithm_version, algorithm_variables
-    ):
+    def get_lastest_score_change(cls, score, score_version, algorithm_variables):
         try:
             previous_score_change = cls.objects.filter(
                 score=score,
                 score_version=score_version,
-                algorithm_version=algorithm_version,
+                algorithm_version=ALGORITHM_VERSION,
                 algorithm_variables=algorithm_variables,
             ).latest("created_date")
         except cls.DoesNotExist:
@@ -155,15 +154,15 @@ class ScoreChange(DefaultModel):
     def create_score_change(
         cls,
         score,
-        algorithm_version,
         algorithm_variables,
         raw_value_change,
         variable_key,
+        content_type,
         object_id,
         score_version,
     ):
         previous_score_change = ScoreChange.get_lastest_score_change(
-            score, score_version, algorithm_version, algorithm_variables
+            score, score_version, algorithm_variables
         )
 
         previous_score = 0
@@ -183,17 +182,15 @@ class ScoreChange(DefaultModel):
         score_value_change = ScoreChange.calculate_score_change(
             score,
             algorithm_variables,
-            algorithm_version,
             variable_key,
             raw_value_change,
         )
         current_rep = previous_score + score_value_change
 
         field = ScoreChange.get_object_field(variable_key)
-        content_type = ScoreChange.get_content_type(variable_key)
 
         score_change = ScoreChange(
-            algorithm_version=algorithm_version,
+            algorithm_version=ALGORITHM_VERSION,
             algorithm_variables=algorithm_variables,
             score_after_change=current_rep,
             score_change=score_value_change,
@@ -214,12 +211,11 @@ class ScoreChange(DefaultModel):
         cls,
         score,
         algorithm_variables,
-        algorithm_version,
         variable_key,
         raw_value_change,
     ):
         previous_score_change = cls.get_lastest_score_change(
-            score, score.version, algorithm_version, algorithm_variables
+            score, score.version, algorithm_variables
         )
 
         previous_total_count = 0
@@ -256,6 +252,20 @@ class ScoreChange(DefaultModel):
             rep += citation_count_curr_bin * val
 
         return rep
+
+    def vote_change(vote, previous_score_change):
+        vote_values = {
+            Vote.UPVOTE: 1,
+            Vote.DOWNVOTE: -1,
+            Vote.NEUTRAL: 0,
+        }
+
+        vote_value = vote_values[vote.vote_type]
+        previous_vote_value = 0
+        if previous_score_change:
+            previous_vote_value = previous_score_change.raw_value_change
+
+        return vote_value - previous_vote_value
 
 
 # AlgorithmVariables stores the variables required to calculate the reputation score.
