@@ -36,6 +36,10 @@ class Notification(models.Model):
     It is used in the user verification process.
     """
     IDENTITY_VERIFICATION_COMPLETED = "IDENTITY_VERIFICATION_COMPLETED"
+    """
+    Used to indicate that a user's identity verification status has been updated.
+    """
+    IDENTITY_VERIFICATION_UPDATED = "IDENTITY_VERIFICATION_UPDATED"
 
     NOTIFICATION_TYPE_CHOICES = (
         (DEPRECATED, DEPRECATED),
@@ -54,6 +58,7 @@ class Notification(models.Model):
         (FUNDRAISE_PAYOUT, FUNDRAISE_PAYOUT),
         (PUBLICATIONS_ADDED, PUBLICATIONS_ADDED),
         (IDENTITY_VERIFICATION_COMPLETED, IDENTITY_VERIFICATION_COMPLETED),
+        (IDENTITY_VERIFICATION_UPDATED, IDENTITY_VERIFICATION_UPDATED),
     )
 
     notification_type = models.CharField(
