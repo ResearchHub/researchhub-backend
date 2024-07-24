@@ -76,7 +76,9 @@ class PersonaWebhookView(APIView):
             status = UserVerification.Status.DECLINED
         elif persona_status == "failed":
             status = UserVerification.Status.FAILED
-        elif persona_status == "pending":
+        elif persona_status == "marked-for-review":
+            status = UserVerification.Status.MARKED_FOR_REVIEW
+        else:
             status = UserVerification.Status.PENDING
 
         reference_id = self._get_nested_attr(

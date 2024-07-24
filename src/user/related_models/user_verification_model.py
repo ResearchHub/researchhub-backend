@@ -25,6 +25,7 @@ class UserVerification(models.Model):
         APPROVED = "APPROVED", _("Approved")
         DECLINED = "DECLINED", _("Declined")
         FAILED = "FAILED", _("Failed")
+        MARKED_FOR_REVIEW = "MARKED_FOR_REVIEW", _("Marked for Review")
         PENDING = "PENDING", _("Pending")
 
     user = models.OneToOneField(
