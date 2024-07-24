@@ -1,10 +1,11 @@
-from user.views import PersonaWebhookView
-from user.models import User, UserVerification
-from django.test import TestCase, override_settings
-from notification.models import Notification
+import os
 from unittest import mock
 
-import os
+from django.test import TestCase, override_settings
+
+from notification.models import Notification
+from user.models import User, UserVerification
+from user.views import PersonaWebhookView
 
 
 class PersonaWebhookViewTests(TestCase):
@@ -19,6 +20,9 @@ class PersonaWebhookViewTests(TestCase):
             "persona_webhook_declined.json"
         )
         self.webhook_failed_body = self.read_test_file("persona_webhook_failed.json")
+        self.webhook_marked_for_review_body = self.read_test_file(
+            "persona_webhook_marked_for_review.json"
+        )
 
     def read_test_file(self, filename):
         file_path = os.path.join(os.path.dirname(__file__), "test_files", filename)
@@ -191,6 +195,51 @@ class PersonaWebhookViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"message": "Webhook successfully processed"})
         self.assertEqual(user_verification.status, UserVerification.Status.FAILED)
+        self.assertEqual(user_verification.is_verified, False)
+
+        # check that a notification has been created
+        notification = Notification.objects.filter(
+            action_user=user,
+            recipient=user,
+        ).last()
+        self.assertIsNotNone(notification)
+        self.assertEqual(
+            notification.notification_type, Notification.IDENTITY_VERIFICATION_COMPLETED
+        )
+        self.assertEqual(notification.item, user_verification)
+        send_notification_mock.assert_called_once()
+
+    @mock.patch("notification.models.Notification.send_notification")
+    @override_settings(PERSONA_WEBHOOK_SECRET=webhook_secret)
+    def test_post_webhook_marked_for_review_status(self, send_notification_mock):
+        # arrange
+        user = User.objects.create(first_name="firstName1", last_name="lastName1")
+
+        # replace the reference-id placeholder in the body with the Id of the
+        # created user and recomputes the digest:
+        body = self.webhook_marked_for_review_body.replace(
+            '"reference-id": "$REFERENCE_ID"', f'"reference-id": "{user.id}"'
+        )
+        digest = PersonaWebhookView.create_digest(
+            self.webhook_secret, "1720448965", body
+        )
+
+        # act
+        response = self.client.post(
+            "/webhooks/persona/",
+            body,
+            content_type="application/json",
+            headers={"Persona-Signature": f"t=1720448965,v1={digest}"},
+        )
+
+        user_verification = UserVerification.objects.get(user=user)
+
+        # assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"message": "Webhook successfully processed"})
+        self.assertEqual(
+            user_verification.status, UserVerification.Status.MARKED_FOR_REVIEW
+        )
         self.assertEqual(user_verification.is_verified, False)
 
         # check that a notification has been created

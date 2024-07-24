@@ -1,5 +1,6 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
+
 from user.related_models.user_model import User
 
 
@@ -25,6 +26,7 @@ class UserVerification(models.Model):
         APPROVED = "APPROVED", _("Approved")
         DECLINED = "DECLINED", _("Declined")
         FAILED = "FAILED", _("Failed")
+        MARKED_FOR_REVIEW = "MARKED_FOR_REVIEW", _("Marked for Review")
         PENDING = "PENDING", _("Pending")
 
     user = models.OneToOneField(
