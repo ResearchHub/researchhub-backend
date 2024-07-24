@@ -118,7 +118,7 @@ class PersonaWebhookViewTests(TestCase):
         ).last()
         self.assertIsNotNone(notification)
         self.assertEqual(
-            notification.notification_type, Notification.IDENTITY_VERIFICATION_COMPLETED
+            notification.notification_type, Notification.IDENTITY_VERIFICATION_UPDATED
         )
         self.assertEqual(notification.item, user_verification)
         send_notification_mock.assert_called_once()
@@ -161,7 +161,7 @@ class PersonaWebhookViewTests(TestCase):
         ).last()
         self.assertIsNotNone(notification)
         self.assertEqual(
-            notification.notification_type, Notification.IDENTITY_VERIFICATION_COMPLETED
+            notification.notification_type, Notification.IDENTITY_VERIFICATION_UPDATED
         )
         self.assertEqual(notification.item, user_verification)
         send_notification_mock.assert_called_once()
@@ -204,7 +204,7 @@ class PersonaWebhookViewTests(TestCase):
         ).last()
         self.assertIsNotNone(notification)
         self.assertEqual(
-            notification.notification_type, Notification.IDENTITY_VERIFICATION_COMPLETED
+            notification.notification_type, Notification.IDENTITY_VERIFICATION_UPDATED
         )
         self.assertEqual(notification.item, user_verification)
         send_notification_mock.assert_called_once()
@@ -249,7 +249,7 @@ class PersonaWebhookViewTests(TestCase):
         ).last()
         self.assertIsNotNone(notification)
         self.assertEqual(
-            notification.notification_type, Notification.IDENTITY_VERIFICATION_COMPLETED
+            notification.notification_type, Notification.IDENTITY_VERIFICATION_UPDATED
         )
         self.assertEqual(notification.item, user_verification)
         send_notification_mock.assert_called_once()

@@ -111,7 +111,7 @@ class PersonaWebhookView(APIView):
         user = User.objects.get(id=user_verification.user_id)
         notification = Notification.objects.create(
             item=user_verification,
-            notification_type=Notification.IDENTITY_VERIFICATION_COMPLETED,
+            notification_type=Notification.IDENTITY_VERIFICATION_UPDATED,
             recipient=user,
             action_user=user,
         )
