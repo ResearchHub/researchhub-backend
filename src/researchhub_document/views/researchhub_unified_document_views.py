@@ -487,6 +487,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "raw_authors",
                     "twitter_score",
                     "citations",
+                    "authorships",
                 ]
             },
             "doc_duds_get_bounties": {
@@ -522,6 +523,15 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "answered",
                     "bounty_open",
                     "bounty_total_amount",
+                ]
+            },
+            "pap_dps_get_authorships": {
+                "_include_fields": [
+                    "id",
+                    "author_position",
+                    "author_id",
+                    "raw_author_name",
+                    "is_corresponding",
                 ]
             },
             "doc_dps_get_hubs": {

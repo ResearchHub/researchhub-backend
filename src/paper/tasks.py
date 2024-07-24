@@ -933,6 +933,12 @@ def pull_openalex_author_works_batch(
 
     if user_id_to_notify_after_completion:
         user = User.objects.get(id=user_id_to_notify_after_completion)
+
+        try:
+            user.author_profile.calculate_hub_scores(1, True)
+        except Exception as e:
+            sentry.log_error(e)
+
         notification = Notification.objects.create(
             item=user,
             notification_type=Notification.PUBLICATIONS_ADDED,

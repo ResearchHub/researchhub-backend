@@ -29,6 +29,7 @@ from paper.models import (
     Paper,
     PaperSubmission,
 )
+from paper.related_models.authorship_model import Authorship
 from paper.tasks import add_orcid_authors, celery_extract_pdf_sections, download_pdf
 from paper.utils import (
     check_file_is_url,
@@ -831,6 +832,17 @@ class PaperCitationSerializer(serializers.ModelSerializer):
         return JOURNAL_ARTICLE
 
 
+class DynamicAuthorshipSerializer(DynamicModelFieldSerializer):
+    author_id = serializers.SerializerMethodField()
+
+    class Meta:
+        fields = "__all__"
+        model = Authorship
+
+    def get_author_id(self, authorship):
+        return authorship.author.id
+
+
 class DynamicPaperSerializer(
     DynamicModelFieldSerializer, GenericReactionSerializerMixin
 ):
@@ -850,10 +862,22 @@ class DynamicPaperSerializer(
     file = serializers.SerializerMethodField()
     pdf_url = serializers.SerializerMethodField()
     pdf_copyright_allows_display = serializers.SerializerMethodField()
+    authorships = serializers.SerializerMethodField()
 
     class Meta:
         model = Paper
         fields = "__all__"
+
+    def get_authorships(self, paper):
+        context = self.context
+        _context_fields = context.get("pap_dps_get_authorships", {})
+
+        authorships = Authorship.objects.filter(paper=paper)
+
+        serializer = DynamicAuthorshipSerializer(
+            authorships, many=True, context=context, **_context_fields
+        )
+        return serializer.data
 
     def get_abstract_src_markdown(self, paper):
         try:
