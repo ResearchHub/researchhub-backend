@@ -159,9 +159,11 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
         return ",".join(self.hubs.values_list("name", flat=True))
 
     def get_primary_hub(self):
-        # FIXME: implement
-        # Fetch topics associated with document, identify primary topic, get subfield associated with it and then hub
-        pass
+        from topic.models import UnifiedDocumentTopics
+
+        return UnifiedDocumentTopics.objects.filter(
+            unified_document=self, is_primary=True
+        ).first()
 
     def get_document(self):
         if self.document_type == PAPER:
