@@ -7,6 +7,7 @@ from reputation.related_models.distribution import Distribution
 from reputation.related_models.distribution_amount import DistributionAmount
 from reputation.related_models.escrow import Escrow
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
+from reputation.related_models.paper_reward import HubCitationValue, PaperReward
 from reputation.related_models.score import AlgorithmVariables, Score, ScoreChange
 from reputation.related_models.support_fee import SupportFee
 from reputation.related_models.webhook import Webhook
