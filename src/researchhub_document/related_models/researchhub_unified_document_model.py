@@ -161,9 +161,16 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
     def get_primary_hub(self):
         from topic.models import UnifiedDocumentTopics
 
-        return UnifiedDocumentTopics.objects.filter(
+        primary_topic = UnifiedDocumentTopics.objects.filter(
             unified_document=self, is_primary=True
         ).first()
+
+        if primary_topic:
+            return Hub.objects.filter(
+                subfield_id=primary_topic.topic.subfield_id
+            ).first()
+
+        return None
 
     def get_document(self):
         if self.document_type == PAPER:
