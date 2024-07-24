@@ -31,12 +31,17 @@
 		"vscode": {
 			"extensions": [
 				"ms-python.black-formatter",
-				"ms-python.flake8"
+				"ms-python.flake8",
+				"ms-python.isort"
 			],
 			"settings": {
 				"[python]": {
 					"editor.defaultFormatter": "ms-python.black-formatter",
-					"editor.formatOnSave": true
+					"editor.formatOnSave": true,
+					"editor.codeActionsOnSave": {
+						"source.organizeImports": "explicit",
+						"source.unusedImports": "never"
+					}
 				},
 				// Align line length between black and flake8 to black's default of 88.
 				// See: https://black.readthedocs.io/en/stable/the_black_code_style/current_style.html#line-length
@@ -46,6 +51,8 @@
 				"flake8.args": [
 					"--max-line-length=88"
 				],
+				// Import sorting, see: https://github.com/microsoft/vscode-isort?tab=readme-ov-file#usage-and-features
+				"isort.args":["--profile", "black"],
 				"remote.autoForwardPorts": false
 			}
 		}
