@@ -55,6 +55,7 @@ class AuthorClaimCaseViewSet(ModelViewSet):
         user_verified = UserVerification.objects.filter(
             user_id=requestor_id, status=UserVerification.Status.APPROVED
         )
+
         if user_verified.exists():
             return True
 
