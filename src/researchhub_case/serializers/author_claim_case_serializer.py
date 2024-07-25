@@ -149,6 +149,7 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             "target_author_name",
             "preregistration_url",
             "open_data_url",
+            "version",
         ]
         read_only_fields = [
             "status",
