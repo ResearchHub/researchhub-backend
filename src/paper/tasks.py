@@ -928,7 +928,7 @@ def pull_openalex_author_works_batch(
     chunk_size = 100
     for i in range(0, len(oa_ids), chunk_size):
         chunk = oa_ids[i : i + chunk_size]
-        works, cursor = open_alex_api.get_works(openalex_ids=chunk)
+        works, _ = open_alex_api.get_works(openalex_ids=chunk)
         process_openalex_works(works)
 
     if user_id_to_notify_after_completion:

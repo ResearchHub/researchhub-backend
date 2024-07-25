@@ -30,7 +30,7 @@ def claim_openalex_author_profile(claiming_rh_author_id, openalex_author_id):
 
     openalex_api = OpenAlex()
 
-    response, cursor = openalex_api.get_authors(openalex_ids=[openalex_author_id])
+    response, _ = openalex_api.get_authors(openalex_ids=[openalex_author_id])
     openalex_author = response[0]
 
     if not openalex_author:
