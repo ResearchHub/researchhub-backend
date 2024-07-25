@@ -45,25 +45,8 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             target_paper_id=target_paper_id,
             moderator=moderator,
             requestor=requestor,
+            version=2,
         )
-
-        # Paper not on ResearchHub yet, upload it
-        if case.target_paper is None:
-            try:
-                pure_doi = get_pure_doi(target_paper_doi)
-                duplicate_paper = get_paper_by_doi_url(target_paper_doi)
-            except Paper.DoesNotExist:
-                # Paper is not on ResearchHub yet, upload it
-                data = {
-                    "uploaded_by": None,
-                    "doi": pure_doi,
-                }
-                submission = PaperSubmissionSerializer(data=data)
-                if submission.is_valid():
-                    submission = submission.save()
-                    celery_process_paper(submission.id)
-
-        trigger_email_validation_flow.apply_async((case.id,), priority=2, countdown=5)
 
         return case
 
@@ -120,7 +103,7 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             raise Exception(
                 f"Attempting to open a duplicate case for author {target_author_name} in paper {target_paper_id}"
             )
-        
+
         query = None
         if target_paper_id:
             query = Q(
