@@ -2,6 +2,7 @@ from django.db import models
 
 from paper.models import Paper
 from reputation.models import Escrow
+from reputation.related_models.paper_reward import PaperReward
 from researchhub_case.constants.case_constants import (
     AUTHOR_CLAIM_CASE_STATUS,
     INITIATED,
@@ -70,3 +71,28 @@ class AuthorClaimCase(AbstractResearchhubCase):
         blank=False,
     )
     claimed_rsc = models.ManyToManyField(Escrow, blank=True, related_name="claim_case")
+    preregistration_url = models.URLField(
+        blank=True,
+        help_text="URL to preregistration",
+        null=True,
+    )
+
+    open_data_url = models.URLField(
+        blank=True,
+        help_text="URL to open data",
+        null=True,
+    )
+
+    paper_reward = models.ForeignKey(
+        PaperReward,
+        blank=True,
+        null=True,
+        on_delete=models.PROTECT,
+    )
+
+    version = models.IntegerField(
+        default=1,
+        help_text="Version of the case",
+        null=False,
+        blank=False,
+    )
