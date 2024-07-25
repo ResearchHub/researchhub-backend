@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from hub.permissions import IsModerator
+from researchhub.settings import TESTING
 from researchhub_case.constants.case_constants import (
     ALLOWED_VALIDATION_ATTEMPT_COUNT,
     APPROVED,
@@ -161,7 +162,10 @@ class AuthorClaimCaseViewSet(ModelViewSet):
                 case.status = update_status
                 case.save()
 
-                after_approval_flow.apply((case_id,), priority=2, countdown=5)
+                if TESTING:
+                    after_approval_flow(case_id)
+                else:
+                    after_approval_flow.apply((case_id,), priority=2, countdown=5)
 
                 serializer = self.serializer_class(case)
                 return Response(serializer.data, status=200)

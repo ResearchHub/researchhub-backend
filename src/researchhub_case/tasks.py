@@ -33,8 +33,6 @@ def trigger_email_validation_flow(
             # Note: intentionally sending email before incrementing attempt
             send_validation_email(instance)
 
-            print("instance", instance)
-
             instance.validation_attempt_count += 1
             instance.save()
         except Exception as exception:
@@ -46,63 +44,20 @@ def after_approval_flow(case_id):
     instance = AuthorClaimCase.objects.get(id=case_id)
 
     if instance.status != APPROVED:
-        return
-    if instance.target_paper is None and instance.target_paper_doi is None:
-        raise Exception("Cannot approve claim because paper was not found")
+        Exception(
+            "Cannot continue with after approval flow since claim is not APPROVED"
+        )
 
     requestor = instance.requestor
     try:
-        total_amount_paid = 0
-
-        if requestor.is_verified is False:
-            # Set author profile to verified
-            requestor.set_verified(is_verified=True)
-
-            # In-app notification about verification approval
-            verification_notification = Notification.objects.create(
-                item=instance,
-                notification_type=Notification.ACCOUNT_VERIFIED,
-                recipient=requestor,
-                action_user=requestor,
-            )
-            verification_notification.send_notification()
-            send_verification_email(instance, context={})
-
-        if instance.target_paper:
-            reward_author_claim_case(requestor.author_profile, instance.target_paper)
-
-            # Clear caches associated with paper
-            instance.target_paper.unified_document.update_filter(FILTER_AUTHOR_CLAIMED)
-
-            # In-app notification about paper approval
-            claim_notification = Notification.objects.create(
-                item=instance,
-                notification_type=Notification.PAPER_CLAIMED,
-                unified_document=instance.target_paper.unified_document,
-                recipient=requestor,
-                action_user=requestor,
-            )
-            claim_notification.send_notification()
-        else:
-            # Paper not associated with case. Likely because user claimed via DOI and not via paper ID.
-            # We have a process to try and upload a paper that is claimed via DOI in case it does not exist.
-            # Let's fetch it and
-
-            try:
-                doi = get_pure_doi(instance.target_paper_doi)
-                paper = Paper.objects.get(doi=doi)
-                instance.target_paper = paper
-                instance.save()
-            except Exception as e:
-                # Paper does not exist
-                pass
-
-        if instance.target_paper:
-            move_paper_to_author(
-                instance.target_paper, instance.requestor.author_profile
-            )
-
-        send_approval_email(instance, context={"total_amount_paid": total_amount_paid})
+        # @kouts - Pay author + mark PaperReward as paid atomically
+        notification = Notification.objects.create(
+            item=instance,
+            notification_type=Notification.PAPER_CLAIM_PAYOUT,
+            recipient=requestor,
+            action_user=requestor,
+        )
+        notification.send_notification()
     except Exception as exception:
         print("exception", exception)
         sentry.log_error(exception)
@@ -113,6 +68,5 @@ def after_rejection_flow(
     case_id,
     notify_user=False,
 ):
-    instance = AuthorClaimCase.objects.get(id=case_id)
-    if instance.status == DENIED and notify_user is True:
-        send_rejection_email(instance)
+    # FIXME: Send rejection email (and in-app notification)
+    pass

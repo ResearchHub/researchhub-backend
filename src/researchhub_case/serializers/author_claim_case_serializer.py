@@ -6,7 +6,6 @@ from paper.models import Paper
 from paper.paper_upload_tasks import celery_process_paper
 from paper.serializers.paper_serializers import PaperSubmissionSerializer
 from researchhub_case.models import AuthorClaimCase
-from researchhub_case.tasks import trigger_email_validation_flow
 from user.models import User
 from user.related_models.user_verification_model import UserVerification
 from user.serializers import UserSerializer
@@ -41,6 +40,9 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             target_paper_doi,
         )
 
+        # @kouts - Create PaperReward in an atomic manner
+        # Then reference it in the AuthorClaimCase below
+
         case = AuthorClaimCase.objects.create(
             **validated_data,
             target_paper_id=target_paper_id,
@@ -48,8 +50,6 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             requestor=requestor,
             version=2,
         )
-
-        print("Case created", case.__dict__)
 
         return case
 

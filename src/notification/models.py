@@ -35,6 +35,10 @@ class Notification(models.Model):
     Used to indicate that a user's identity verification status has been updated.
     """
     IDENTITY_VERIFICATION_UPDATED = "IDENTITY_VERIFICATION_UPDATED"
+    """
+    Triggerd after user claimed a paper and received payout
+    """
+    PAPER_CLAIM_PAYOUT = "PAPER_CLAIM_PAYOUT"
 
     NOTIFICATION_TYPE_CHOICES = (
         (DEPRECATED, DEPRECATED),
@@ -53,6 +57,7 @@ class Notification(models.Model):
         (FUNDRAISE_PAYOUT, FUNDRAISE_PAYOUT),
         (PUBLICATIONS_ADDED, PUBLICATIONS_ADDED),
         (IDENTITY_VERIFICATION_UPDATED, IDENTITY_VERIFICATION_UPDATED),
+        (PAPER_CLAIM_PAYOUT, PAPER_CLAIM_PAYOUT),
     )
 
     notification_type = models.CharField(
