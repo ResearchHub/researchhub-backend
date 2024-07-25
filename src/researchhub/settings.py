@@ -82,7 +82,6 @@ if not (PRODUCTION or STAGING):
 
 ALLOWED_HOSTS = [
     ".elasticbeanstalk.com",
-    ".researchhub-web-researchhub.vercel.app",
     ".researchhub.com",
     "127.0.0.1",  # localhost
     "localhost",
@@ -90,12 +89,7 @@ ALLOWED_HOSTS = [
     "www.staging.researchhub.com",
     r"^https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}/",
     r"https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}",
-    r"researchhub(-[0-9]?)\.ngrok\.io",
 ]
-
-
-if not (PRODUCTION or STAGING):
-    ALLOWED_HOSTS += [".ngrok.io", "localhost", "10.0.2.2", "10.0.3.2"]
 
 if ELASTIC_BEANSTALK:
     # This is for health checks
@@ -153,11 +147,9 @@ CORS_ORIGIN_WHITELIST = [
     "https://dev.researchhub.com",
     "https://researchnow.researchhub.com",
     "https://www.researchhub.com",
-    "https://researchhub-web-researchhub.vercel.app",
     "https://researchhub.com",
     "https://staging.researchhub.com",
     "https://www.staging.researchhub.com",
-    "http://10.0.2.2:3000",
     "http://127.0.0.1:3000",
     "https://word.researchhub.com",
 ]
