@@ -53,7 +53,9 @@ class AuthorClaimTests(APITestCase):
                 work_ids = [work["id"] for work in results]
 
                 # # Add publications to author
-                url = f"/api/author/{self.claiming_user.author_profile.id}/add_publications/"
+                url = (
+                    f"/api/author/{self.claiming_user.author_profile.id}/publications/"
+                )
                 self.client.post(
                     url,
                     {
@@ -92,7 +94,9 @@ class AuthorClaimTests(APITestCase):
                 work_ids = [work["id"] for work in results]
 
                 # # Add publications to author
-                url = f"/api/author/{self.claiming_user.author_profile.id}/add_publications/"
+                url = (
+                    f"/api/author/{self.claiming_user.author_profile.id}/publications/"
+                )
                 self.client.post(
                     url,
                     {
@@ -133,7 +137,9 @@ class AuthorClaimTests(APITestCase):
                 work_ids = [work["id"] for work in results]
 
                 # # Add publications to author
-                url = f"/api/author/{self.claiming_user.author_profile.id}/add_publications/"
+                url = (
+                    f"/api/author/{self.claiming_user.author_profile.id}/publications/"
+                )
                 self.client.post(
                     url,
                     {
@@ -188,7 +194,9 @@ class AuthorClaimTests(APITestCase):
                 work_ids = [work["id"] for work in results]
 
                 self.client.force_authenticate(self.claiming_user)
-                url = f"/api/author/{self.claiming_user.author_profile.id}/add_publications/"
+                url = (
+                    f"/api/author/{self.claiming_user.author_profile.id}/publications/"
+                )
                 self.client.post(
                     url,
                     {
