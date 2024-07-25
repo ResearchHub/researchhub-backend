@@ -52,12 +52,21 @@ def update_rep_score(created, instance, update_fields, **kwargs):
     authors = instance.authors.all()
     historical_paper = instance.history.all().order_by("history_date").latest()
     previous_historical_paper = historical_paper.prev_record
+    unified_doc = instance.unified_document
+    if unified_doc is None:
+        print(f"Paper {instance.id} has no unified document")
+        return
+
+    hub = unified_doc.get_primary_hub()
+    if hub is None:
+        print(f"Paper {instance.id} has no primary hub")
+        return
 
     for author in authors:
         author.update_scores_citation(
             historical_paper,
             previous_historical_paper,
-            instance.hubs.filter(is_used_for_rep=True),
+            hub,
         )
 
 

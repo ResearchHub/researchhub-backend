@@ -342,20 +342,26 @@ def get_discussion_hubs(instance):
 def update_rep_score_vote(sender, instance, created, update_fields, **kwargs):
     voter = instance.created_by
     author_recipients = []
-    hubs = None
     if isinstance(instance.item, Paper):
         author_recipients = instance.item.authors.all()
-        hubs = instance.item.hubs.filter(is_used_for_rep=True)
+        hub = instance.item.unified_document.get_primary_hub()
+        if hub is None:
+            print(f"Paper {instance.item.id} has no primary hub")
+            return
+
     elif isinstance(
         instance.item, RhCommentModel
     ) and instance.item.thread.content_type == ContentType.objects.get(model="paper"):
         author_recipients = [instance.item.thread.created_by.author_profile]
         paper = Paper.objects.get(id=instance.item.thread.object_id)
-        hubs = paper.hubs.filter(is_used_for_rep=True)
+        hub = paper.unified_document.get_primary_hub()
+        if hub is None:
+            print(f"Paper {paper.id} has no primary hub")
+            return
     if created:
         for author_recipient in author_recipients:
             if is_eligible_for_discussion_vote(author_recipient.user, voter):
-                author_recipient.update_scores_vote(instance, hubs)
+                author_recipient.update_scores_vote(instance, hub)
 
 
 @receiver(post_save, sender=GrmVote, dispatch_uid="discussion_vote")
