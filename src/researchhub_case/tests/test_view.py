@@ -1,5 +1,6 @@
 from rest_framework.test import APITestCase
 
+from notification.models import Notification
 from paper.tests.helpers import create_paper
 from researchhub_case.constants.case_constants import PAPER_CLAIM
 from researchhub_case.models import AuthorClaimCase
@@ -106,6 +107,19 @@ class ViewTests(APITestCase):
         self.assertEqual(
             claim_create_response.data["open_data_url"], "https://opendata.example.com"
         )
+
+    def test_notifiy_user_after_claim_is_approved(self):
+        claim_create_response, paper = self._create_paper_claim_via_api(
+            self.verified_user
+        )
+        approve_response = self._approve_claim_via_api(claim_create_response.data["id"])
+
+        notification = Notification.objects.filter(
+            recipient=self.verified_user,
+            notification_type=Notification.PAPER_CLAIM_PAYOUT,
+        )
+
+        self.assertEqual(notification.exists(), True)
 
     def test_approving_claim_pays_rewards_to_user(self):
         ## Fixme: @kouts to implement
