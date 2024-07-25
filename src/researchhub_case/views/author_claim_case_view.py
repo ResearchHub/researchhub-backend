@@ -17,6 +17,7 @@ from researchhub_case.constants.case_constants import (
 from researchhub_case.models import AuthorClaimCase
 from researchhub_case.serializers import AuthorClaimCaseSerializer
 from researchhub_case.tasks import after_approval_flow, after_rejection_flow
+from user.related_models.user_verification_model import UserVerification
 from utils.http import GET, POST
 from utils.permissions import CreateOrReadOnly
 
@@ -46,12 +47,18 @@ class AuthorClaimCaseViewSet(ModelViewSet):
     def _can_claim_case(self, request) -> bool:
         data = request.data
         user = request.user
-        creator_id = data.get("creator")
         requestor_id = data.get("requestor")
+
         if user.moderator:
             return True
-        else:
-            return user.id == creator_id and user.id == requestor_id
+
+        user_verified = UserVerification.objects.filter(
+            user_id=requestor_id, status=UserVerification.Status.APPROVED
+        )
+        if user_verified.exists():
+            return True
+
+        return False
 
     @action(detail=False, methods=[GET], permission_classes=[IsModerator])
     def count(self, request, pk=None):
