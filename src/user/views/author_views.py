@@ -20,7 +20,6 @@ from paper.utils import PAPER_SCORE_Q_ANNOTATION
 from paper.views import PaperViewSet
 from reputation.models import Bounty, BountySolution, Contribution
 from reputation.serializers import DynamicContributionSerializer
-
 from researchhub.settings import TESTING
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -37,20 +36,13 @@ from researchhub_document.views.researchhub_unified_document_views import (
 from review.models.review_model import Review
 from user.filters import AuthorFilter
 from user.models import Author
-from user.permissions import (
-    DeleteAuthorPermission,
-    IsVerifiedUser,
-    UpdateAuthor,
-)
+from user.permissions import DeleteAuthorPermission, IsVerifiedUser, UpdateAuthor
 from user.serializers import (
     AuthorEditableSerializer,
     AuthorSerializer,
     DynamicAuthorProfileSerializer,
 )
-from user.utils import (
-    AuthorClaimException,
-    claim_openalex_author_profile,
-)
+from user.utils import AuthorClaimException, claim_openalex_author_profile
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 
