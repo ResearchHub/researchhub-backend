@@ -51,7 +51,7 @@ class UserApiTests(APITestCase):
             work_ids = [work["id"] for work in author_works]
 
             # Add publications to author
-            url = f"/api/author/{self.user_with_published_works.author_profile.id}/add_publications/"
+            url = f"/api/author/{self.user_with_published_works.author_profile.id}/publications/"
             self.client.post(
                 url,
                 {
@@ -86,7 +86,7 @@ class UserApiTests(APITestCase):
             work_ids = [work["id"] for work in author_works]
 
             # Add publications to author
-            url = f"/api/author/{self.user_with_published_works.author_profile.id}/add_publications/"
+            url = f"/api/author/{self.user_with_published_works.author_profile.id}/publications/"
             self.client.post(
                 url,
                 {
