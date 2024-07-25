@@ -121,6 +121,12 @@ class ViewTests(APITestCase):
 
         self.assertEqual(notification.exists(), True)
 
+    def test_ensure_new_claims_have_version_2(self):
+        claim_create_response, paper = self._create_paper_claim_via_api(
+            self.verified_user
+        )
+        self.assertEqual(claim_create_response.data["version"], 2)
+
     def test_approving_claim_pays_rewards_to_user(self):
         ## Fixme: @kouts to implement
         pass
