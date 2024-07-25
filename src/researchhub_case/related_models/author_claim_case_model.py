@@ -3,10 +3,7 @@ from django.db import models
 from paper.models import Paper
 from reputation.models import Escrow
 from reputation.related_models.paper_reward import PaperReward
-from researchhub_case.constants.case_constants import (
-    AUTHOR_CLAIM_CASE_STATUS,
-    INITIATED,
-)
+from researchhub_case.constants.case_constants import AUTHOR_CLAIM_CASE_STATUS, OPEN
 from researchhub_case.related_models.researchhub_case_abstract_model import (
     AbstractResearchhubCase,
 )
@@ -23,7 +20,7 @@ class AuthorClaimCase(AbstractResearchhubCase):
     )
     status = models.CharField(
         choices=AUTHOR_CLAIM_CASE_STATUS,
-        default=INITIATED,
+        default=OPEN,
         max_length=32,
         null=False,
     )

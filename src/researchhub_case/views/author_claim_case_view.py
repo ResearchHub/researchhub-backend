@@ -126,7 +126,8 @@ class AuthorClaimCaseViewSet(ModelViewSet):
                 return Response("Bad case status", status=400)
 
             target_case_set = AuthorClaimCase.objects.filter(
-                status__in=case_query_status
+                status__in=case_query_status,
+                version=2,
             ).order_by("-updated_date")
             page = self.paginate_queryset(target_case_set)
             serializer = self.serializer_class(page, many=True)
