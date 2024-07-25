@@ -3,6 +3,7 @@ from rest_framework.test import APITestCase
 from paper.tests.helpers import create_paper
 from researchhub_case.constants.case_constants import PAPER_CLAIM
 from researchhub_case.models import AuthorClaimCase
+from user.related_models.user_verification_model import UserVerification
 from user.tests.helpers import create_moderator, create_random_default_user
 
 
@@ -14,9 +15,17 @@ class ViewTests(APITestCase):
             raw_authors='[{"first_name": "jane", "last_name": "smith"}]',
         )
         self.moderator = create_moderator(first_name="moderator", last_name="moderator")
+        self.verified_user = create_random_default_user("verified user")
+        self.unverified_user = create_random_default_user("UNVERIFIED USER")
+
+        o = UserVerification.objects.create(
+            user=self.verified_user,
+            status=UserVerification.Status.APPROVED,
+        )
+
+        self.verified_user.refresh_from_db()
 
     def _create_paper_claim_via_api(self, claiming_user):
-        claiming_user = create_random_default_user("claiming_user")
         self.client.force_authenticate(claiming_user)
 
         paper = create_paper(
@@ -45,9 +54,9 @@ class ViewTests(APITestCase):
         return response
 
     def test_submit_paper_claim_shows_up_in_mod_dashboard(self):
-        claiming_user = create_random_default_user("claiming_user")
-
-        claim_create_response, paper = self._create_paper_claim_via_api(claiming_user)
+        claim_create_response, paper = self._create_paper_claim_via_api(
+            self.verified_user
+        )
         open_claims_response = self._get_open_claims()
 
         claim = open_claims_response.data["results"][0]
