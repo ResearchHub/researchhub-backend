@@ -33,7 +33,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
             self.assertEqual(len(created_papers), 2)
 
     @patch.object(OpenAlex, "get_authors")
-    def test_creating_papers_should_create_related_topics(self, mock_get_authors):
+    def test_creating_papers_should_create_related_concepts(self, mock_get_authors):
         with open("./paper/tests/openalex_authors.json", "r") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
@@ -49,7 +49,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
             self.assertGreater(len(paper_concepts), 0)
 
     @patch.object(OpenAlex, "get_authors")
-    def test_creating_papers_should_create_related_concepts(self, mock_get_authors):
+    def test_creating_papers_should_create_related_topics(self, mock_get_authors):
         with open("./paper/tests/openalex_authors.json", "r") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
