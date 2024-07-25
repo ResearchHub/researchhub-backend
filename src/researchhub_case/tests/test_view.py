@@ -25,6 +25,17 @@ class ViewTests(APITestCase):
 
         self.verified_user.refresh_from_db()
 
+    def _approve_claim_via_api(self, case_id):
+        self.client.force_authenticate(self.moderator)
+        return self.client.post(
+            "/api/author_claim_case/moderator/",
+            {
+                "case_id": case_id,
+                "notify_user": True,
+                "update_status": "APPROVED",
+            },
+        )
+
     def _create_paper_claim_via_api(self, claiming_user):
         self.client.force_authenticate(claiming_user)
 
@@ -42,6 +53,8 @@ class ViewTests(APITestCase):
                 "provided_email": "example@example.com",
                 "target_paper_id": paper.id,
                 "target_author_name": "some paper author",
+                "preregistration_url": "https://preregistration.example.com",
+                "open_data_url": "https://opendata.example.com",
             },
         )
 
@@ -64,16 +77,40 @@ class ViewTests(APITestCase):
         self.assertEqual(open_claims_response.data["count"], 1)
 
     def test_unverified_users_cannot_submit_claim(self):
-        unverified_user = create_random_default_user("unverified_user")
-        claim_create_response, paper = self._create_paper_claim_via_api(unverified_user)
+        claim_create_response, paper = self._create_paper_claim_via_api(
+            self.unverified_user
+        )
 
         self.assertEqual(claim_create_response.status_code, 403)
 
+    def test_mod_can_approve_claim(self):
+        claim_create_response, paper = self._create_paper_claim_via_api(
+            self.verified_user
+        )
+        approve_response = self._approve_claim_via_api(claim_create_response.data["id"])
+        self.assertEqual(approve_response.data["status"], "APPROVED")
+
+    def test_preregistration_url_available(self):
+        claim_create_response, paper = self._create_paper_claim_via_api(
+            self.verified_user
+        )
+        self.assertEqual(
+            claim_create_response.data["preregistration_url"],
+            "https://preregistration.example.com",
+        )
+
+    def test_opendata_url_available(self):
+        claim_create_response, paper = self._create_paper_claim_via_api(
+            self.verified_user
+        )
+        self.assertEqual(
+            claim_create_response.data["open_data_url"], "https://opendata.example.com"
+        )
+
     def test_approving_claim_pays_rewards_to_user(self):
+        ## Fixme: @kouts to implement
         pass
 
     def test_rejecting_claim_does_not_pay_rewards_to_user(self):
-        pass
-
-    def test_only_mods_can_view_claims(self):
+        ## Fixme: @kouts to implement
         pass

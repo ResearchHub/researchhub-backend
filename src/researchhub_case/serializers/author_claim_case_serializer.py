@@ -49,6 +49,8 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             version=2,
         )
 
+        print("Case created", case.__dict__)
+
         return case
 
     def get_paper(self, case):
@@ -145,6 +147,8 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             "target_paper_doi",
             "target_paper_title",
             "target_author_name",
+            "preregistration_url",
+            "open_data_url",
         ]
         read_only_fields = [
             "status",
