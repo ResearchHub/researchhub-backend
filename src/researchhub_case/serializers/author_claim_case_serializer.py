@@ -8,6 +8,7 @@ from paper.serializers.paper_serializers import PaperSubmissionSerializer
 from researchhub_case.models import AuthorClaimCase
 from researchhub_case.tasks import trigger_email_validation_flow
 from user.models import User
+from user.related_models.user_verification_model import UserVerification
 from user.serializers import UserSerializer
 from utils.parsers import get_pure_doi
 

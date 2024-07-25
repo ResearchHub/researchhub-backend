@@ -54,8 +54,11 @@ class ViewTests(APITestCase):
         self.assertEqual(claim["status"], "OPEN")
         self.assertEqual(open_claims_response.data["count"], 1)
 
-    def test_only_verified_users_can_submit_claim(self):
-        pass
+    def test_unverified_users_cannot_submit_claim(self):
+        unverified_user = create_random_default_user("unverified_user")
+        claim_create_response, paper = self._create_paper_claim_via_api(unverified_user)
+
+        self.assertEqual(claim_create_response.status_code, 403)
 
     def test_approving_claim_pays_rewards_to_user(self):
         pass
