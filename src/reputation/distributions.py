@@ -202,6 +202,11 @@ def create_stored_paper_pot(amount):
     return distribution
 
 
+def create_paper_reward_distribution(amount):
+    distribution = Distribution("PAPER_REWARD", amount, give_rep=False)
+    return distribution
+
+
 DISTRIBUTION_TYPE_CHOICES = [
     (FlagPaper.name, FlagPaper.name),
     (PaperUpvoted.name, PaperUpvoted.name),
@@ -229,6 +234,7 @@ DISTRIBUTION_TYPE_CHOICES = [
     (HypothesisDownvoted.name, HypothesisDownvoted.name),
     ("UPVOTE_RSC_POT", "UPVOTE_RSC_POT"),
     ("STORED_PAPER_POT", "STORED_PAPER_POT"),
+    ("PAPER_REWARD", "PAPER_REWARD"),
     ("REWARD", "REWARD"),
     ("PURCHASE", "PURCHASE"),
     (
