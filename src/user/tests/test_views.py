@@ -2,10 +2,10 @@ import json
 from unittest.mock import patch
 
 from django.test import TestCase
-from paper.related_models.authorship_model import Authorship
 from rest_framework.test import APITestCase
 
 from paper.openalex_util import process_openalex_works
+from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
 from reputation.models import Score
 from user.models import UserVerification
@@ -74,22 +74,30 @@ class UserApiTests(APITestCase):
         # Arrange
         self.client.force_authenticate(self.user_with_published_works)
 
-        paper = Paper.objects.create(
+        paper1 = Paper.objects.create(
             title="title1",
         )
         Authorship.objects.create(
-            author=self.user_with_published_works.author_profile, paper=paper
+            author=self.user_with_published_works.author_profile, paper=paper1
+        )
+        paper2 = Paper.objects.create(
+            title="title2",
+        )
+        Authorship.objects.create(
+            author=self.user_with_published_works.author_profile, paper=paper2
         )
 
         # Act
         url = f"/api/author/{self.user_with_published_works.author_profile.id}/publications/"
-        resp = self.client.delete(url, {"paper_ids": [paper.id]})
+        resp = self.client.delete(url, {"paper_ids": [paper1.id, paper2.id]})
 
         # Assert
         self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["count"], 2)
         self.assertFalse(
             Authorship.objects.filter(
-                author=self.user_with_published_works.author_profile, paper=paper
+                author=self.user_with_published_works.author_profile,
+                paper__id__in=[paper1.id, paper2.id],
             ).exists()
         )
 
@@ -102,7 +110,8 @@ class UserApiTests(APITestCase):
         resp = self.client.delete(url, {"paper_ids": [-1]})
 
         # Assert
-        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["count"], 0)
 
     def test_delete_publications_attempt_with_other_user(self):
         # Arrange
