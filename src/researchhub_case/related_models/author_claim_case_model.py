@@ -1,6 +1,7 @@
 from django.db import models
 
 from paper.models import Paper
+from paper.related_models.authorship_model import Authorship
 from reputation.models import Escrow
 from reputation.related_models.paper_reward import PaperReward
 from researchhub_case.constants.case_constants import AUTHOR_CLAIM_CASE_STATUS, OPEN
@@ -25,11 +26,11 @@ class AuthorClaimCase(AbstractResearchhubCase):
         null=False,
     )
     # TODO: Deprecate in next iteration. No longer used.
-    target_author = models.ForeignKey(
-        Author,
+    authorship = models.ForeignKey(
+        Authorship,
         blank=False,
         null=True,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="related_claim_cases",
     )
     target_paper_doi = models.CharField(max_length=255, null=True)
@@ -61,11 +62,6 @@ class AuthorClaimCase(AbstractResearchhubCase):
         null=True,
         on_delete=models.CASCADE,
         related_name="related_claim_cases",
-    )
-    target_author_name = models.CharField(
-        max_length=255,
-        null=True,
-        blank=False,
     )
     claimed_rsc = models.ManyToManyField(Escrow, blank=True, related_name="claim_case")
     preregistration_url = models.URLField(

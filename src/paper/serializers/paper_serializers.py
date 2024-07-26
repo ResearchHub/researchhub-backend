@@ -832,6 +832,12 @@ class PaperCitationSerializer(serializers.ModelSerializer):
         return JOURNAL_ARTICLE
 
 
+class AuthorshipSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Authorship
+        fields = "__all__"
+
+
 class DynamicAuthorshipSerializer(DynamicModelFieldSerializer):
     author_id = serializers.SerializerMethodField()
 
