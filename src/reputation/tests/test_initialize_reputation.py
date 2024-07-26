@@ -7,10 +7,8 @@ from django.test import TestCase
 
 from discussion.reaction_models import Vote
 from discussion.tests.helpers import create_rh_comment, create_vote
-from hub.models import Hub
 from paper.models import Paper
 from paper.openalex_util import process_openalex_works
-from paper.tests.helpers import create_paper
 from reputation.models import AlgorithmVariables, Score, ScoreChange
 from researchhub_case.constants.case_constants import APPROVED
 from researchhub_case.models import AuthorClaimCase

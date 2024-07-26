@@ -12,10 +12,18 @@ class HubCitationValue(models.Model):
     created_date = models.DateTimeField(auto_now_add=True)
 
     @classmethod
-    def calculate_rsc_reward(cls, paper, citation_change):
+    def calculate_rsc_reward(
+        cls, paper, citation_change, is_open_data, is_preregistered
+    ):
         hub = paper.unified_document.get_primary_hub()
         hub_citation_value = cls.objects.get(hub=hub).rsc_per_citation
         rsc_reward = citation_change * hub_citation_value
+
+        if is_open_data:
+            rsc_reward += citation_change * hub_citation_value * 3
+
+        if is_preregistered:
+            rsc_reward += citation_change * hub_citation_value * 2
 
         return rsc_reward
 
@@ -32,6 +40,8 @@ class PaperReward(models.Model):
         "reputation.Distribution",
         on_delete=models.CASCADE,
         default=None,
+        null=True,
+        blank=True,
     )
 
     created_date = models.DateTimeField(auto_now_add=True)
@@ -39,12 +49,14 @@ class PaperReward(models.Model):
 
     @classmethod
     def claim_paper_rewards(cls, paper, author, is_open_data, is_preregistered):
-        rsc_value = HubCitationValue.calculate_rsc_reward(paper, paper.citation)
-        paper_reward = cls(
+        rsc_value = HubCitationValue.calculate_rsc_reward(
+            paper, paper.citations, is_open_data, is_preregistered
+        )
+        paper_reward = cls.objects.create(
             paper=paper,
             author=author,
-            citation_change=paper.citation,
-            citation_count=paper.citation,
+            citation_change=paper.citations,
+            citation_count=paper.citations,
             rsc_value=rsc_value,
             is_open_data=is_open_data,
             is_preregistered=is_preregistered,
@@ -61,11 +73,11 @@ class PaperReward(models.Model):
                 paper=paper, author=author, distribution=None
             )
         except cls.DoesNotExist:
-            return Exception("There is no unpaid reward for this paper")
+            raise Exception("There is no unpaid reward for this paper")
 
         distribution = create_paper_reward_distribution(paper_reward.rsc_value)
-        distributor = Distributor(distribution, author.user, paper_reward, time.time())
-        distributor.distribute()
+        distributor = Distributor(distribution, author.user, paper_reward, time())
+        distribution = distributor.distribute()
 
         paper_reward.distribution = distribution
         paper_reward.save()
