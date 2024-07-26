@@ -1,11 +1,10 @@
 from django.db import models
 
 from paper.models import Paper
+from paper.related_models.authorship_model import Authorship
 from reputation.models import Escrow
-from researchhub_case.constants.case_constants import (
-    AUTHOR_CLAIM_CASE_STATUS,
-    INITIATED,
-)
+from reputation.related_models.paper_reward import PaperReward
+from researchhub_case.constants.case_constants import AUTHOR_CLAIM_CASE_STATUS, OPEN
 from researchhub_case.related_models.researchhub_case_abstract_model import (
     AbstractResearchhubCase,
 )
@@ -22,16 +21,16 @@ class AuthorClaimCase(AbstractResearchhubCase):
     )
     status = models.CharField(
         choices=AUTHOR_CLAIM_CASE_STATUS,
-        default=INITIATED,
+        default=OPEN,
         max_length=32,
         null=False,
     )
     # TODO: Deprecate in next iteration. No longer used.
-    target_author = models.ForeignKey(
-        Author,
+    authorship = models.ForeignKey(
+        Authorship,
         blank=False,
         null=True,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name="related_claim_cases",
     )
     target_paper_doi = models.CharField(max_length=255, null=True)
@@ -64,9 +63,29 @@ class AuthorClaimCase(AbstractResearchhubCase):
         on_delete=models.CASCADE,
         related_name="related_claim_cases",
     )
-    target_author_name = models.CharField(
-        max_length=255,
+    claimed_rsc = models.ManyToManyField(Escrow, blank=True, related_name="claim_case")
+    preregistration_url = models.URLField(
+        blank=True,
+        help_text="URL to preregistration",
         null=True,
+    )
+
+    open_data_url = models.URLField(
+        blank=True,
+        help_text="URL to open data",
+        null=True,
+    )
+
+    paper_reward = models.ForeignKey(
+        PaperReward,
+        blank=True,
+        null=True,
+        on_delete=models.PROTECT,
+    )
+
+    version = models.IntegerField(
+        default=1,
+        help_text="Version of the case",
+        null=False,
         blank=False,
     )
-    claimed_rsc = models.ManyToManyField(Escrow, blank=True, related_name="claim_case")

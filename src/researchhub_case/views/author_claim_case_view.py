@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from hub.permissions import IsModerator
+from researchhub.settings import TESTING
 from researchhub_case.constants.case_constants import (
     ALLOWED_VALIDATION_ATTEMPT_COUNT,
     APPROVED,
@@ -17,6 +18,7 @@ from researchhub_case.constants.case_constants import (
 from researchhub_case.models import AuthorClaimCase
 from researchhub_case.serializers import AuthorClaimCaseSerializer
 from researchhub_case.tasks import after_approval_flow, after_rejection_flow
+from user.related_models.user_verification_model import UserVerification
 from utils.http import GET, POST
 from utils.permissions import CreateOrReadOnly
 
@@ -46,12 +48,19 @@ class AuthorClaimCaseViewSet(ModelViewSet):
     def _can_claim_case(self, request) -> bool:
         data = request.data
         user = request.user
-        creator_id = data.get("creator")
         requestor_id = data.get("requestor")
+
         if user.moderator:
             return True
-        else:
-            return user.id == creator_id and user.id == requestor_id
+
+        user_verified = UserVerification.objects.filter(
+            user_id=requestor_id, status=UserVerification.Status.APPROVED
+        )
+
+        if user_verified.exists():
+            return True
+
+        return False
 
     @action(detail=False, methods=[GET], permission_classes=[IsModerator])
     def count(self, request, pk=None):
@@ -126,7 +135,8 @@ class AuthorClaimCaseViewSet(ModelViewSet):
                 return Response("Bad case status", status=400)
 
             target_case_set = AuthorClaimCase.objects.filter(
-                status__in=case_query_status
+                status__in=case_query_status,
+                version=2,
             ).order_by("-updated_date")
             page = self.paginate_queryset(target_case_set)
             serializer = self.serializer_class(page, many=True)
@@ -151,8 +161,14 @@ class AuthorClaimCaseViewSet(ModelViewSet):
 
                 case.status = update_status
                 case.save()
-                after_approval_flow.apply((case_id,), priority=2, countdown=5)
-                return Response("Success", status=200)
+
+                if TESTING:
+                    after_approval_flow(case_id)
+                else:
+                    after_approval_flow.apply((case_id,), priority=2, countdown=5)
+
+                serializer = self.serializer_class(case)
+                return Response(serializer.data, status=200)
             elif update_status == DENIED:
                 notify_user = request_data["notify_user"]
                 after_rejection_flow.apply_async(
