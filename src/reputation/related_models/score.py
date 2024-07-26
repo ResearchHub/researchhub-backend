@@ -38,15 +38,16 @@ class Score(DefaultModel):
             )
             score.save()
 
+        cls.objects.select_for_update().get(id=score.id)
+
         return score
 
     @classmethod
     def incrememnt_version(cls, author):
-        try:
-            score_version = (
-                cls.objects.filter(author=author).latest("created_date").version
-            ) + 1
-        except cls.DoesNotExist:
+        recent_score = cls.objects.filter(author=author).order_by("-version").first()
+        if recent_score:
+            score_version = recent_score.version + 1
+        else:
             score_version = 1
 
         scores = cls.objects.filter(author=author)

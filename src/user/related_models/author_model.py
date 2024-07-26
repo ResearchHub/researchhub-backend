@@ -305,27 +305,27 @@ class Author(models.Model):
         if recalculate:
             Score.incrememnt_version(self)
 
-        self._calculate_score_hub_citations()
-        self._calculate_score_hub_paper_votes()
-        self._calculate_score_hub_comments()
+        with transaction.atomic():
+            self._calculate_score_hub_citations()
+            self._calculate_score_hub_paper_votes()
+            self._calculate_score_hub_comments()
 
     def _calculate_score_hub_paper_votes(self):
         authored_papers = self.authored_papers.filter(
             work_type__in=["preprint", "article"]
         )
-        with transaction.atomic():
-            for paper in authored_papers:
-                votes = paper.votes.filter(vote_type__in=[1, 2])
-                if votes.count() == 0:
-                    continue
+        for paper in authored_papers:
+            votes = paper.votes.filter(vote_type__in=[1, 2])
+            if votes.count() == 0:
+                continue
 
-                hub = paper.unified_document.get_primary_hub()
-                if hub is None:
-                    print(f"Paper {paper.id} has no primary hub")
-                    continue
+            hub = paper.unified_document.get_primary_hub()
+            if hub is None:
+                print(f"Paper {paper.id} has no primary hub")
+                continue
 
-                for vote in votes:
-                    self.update_scores_vote(vote, hub)
+            for vote in votes:
+                self.update_scores_vote(vote, hub)
 
     def _calculate_score_hub_comments(self):
         threads = RhCommentThreadModel.objects.filter(
@@ -384,7 +384,7 @@ class Author(models.Model):
             content_type = ContentType.objects.get_for_model(Paper.history.model)
 
         try:
-            score = Score.objects.get(
+            score = Score.objects.select_for_update().get(
                 hub=hub,
                 author=self,
             )
