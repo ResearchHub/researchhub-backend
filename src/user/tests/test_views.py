@@ -48,7 +48,7 @@ class UserApiTests(APITestCase):
 
             # Get author work Ids first
             openalex_api = OpenAlex()
-            author_works, cursor = openalex_api.get_works()
+            author_works, _ = openalex_api.get_works()
             work_ids = [work["id"] for work in author_works]
 
             # Add publications to author
@@ -145,7 +145,7 @@ class UserApiTests(APITestCase):
 
             # Get author work Ids first
             openalex_api = OpenAlex()
-            author_works, cursor = openalex_api.get_works()
+            author_works, _ = openalex_api.get_works()
             work_ids = [work["id"] for work in author_works]
 
             # Add publications to author
