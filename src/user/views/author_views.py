@@ -14,6 +14,7 @@ from rest_framework.response import Response
 from discussion.serializers import DynamicThreadSerializer
 from hypothesis.related_models.hypothesis import Hypothesis
 from paper.models import Paper
+from paper.related_models.authorship_model import Authorship
 from paper.serializers import DynamicPaperSerializer
 from paper.tasks import pull_openalex_author_works_batch
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
@@ -647,9 +648,9 @@ class AuthorViewSet(viewsets.ModelViewSet):
 
         # Fetch the authored papers and order by citations
         authored_doc_ids = list(
-            author.authored_papers.filter(is_removed=False)
-            .order_by("-citations")
-            .values_list("unified_document_id", flat=True)
+            Authorship.objects.filter(author=author)
+            .order_by("-paper__citations")
+            .values_list("paper__unified_document_id", flat=True)
         )
 
         documents = ResearchhubUnifiedDocument.objects.filter(id__in=authored_doc_ids)
