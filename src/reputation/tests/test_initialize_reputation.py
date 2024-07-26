@@ -1,6 +1,8 @@
 import json
+import os
 from unittest.mock import PropertyMock, patch
 
+from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.management import call_command
 from django.test import TestCase
@@ -27,11 +29,19 @@ class InitializeReputationCommandTestCase(TestCase):
             username="user3", password="pass3"
         )
 
-        with open("./paper/tests/openalex_works.json", "r") as file:
+        works_file_path = os.path.join(
+            settings.BASE_DIR, "paper", "tests", "openalex_works.json"
+        )
+
+        with open(works_file_path, "r") as file:
             response = json.load(file)
             self.works = response.get("results")
 
-        with open("./paper/tests/openalex_authors.json", "r") as file:
+        authors_file_path = os.path.join(
+            settings.BASE_DIR, "paper", "tests", "openalex_authors.json"
+        )
+
+        with open(authors_file_path, "r") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 
