@@ -609,6 +609,21 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         data = {"found_file": url_is_pdf}
         return Response(data, status=status.HTTP_200_OK)
 
+    # @kouts - To implement this
+    @action(
+        detail=True,
+        methods=["get"],
+    )
+    def eligible_reward_summary(self, request, pk=None):
+        """
+        Provides information about rewards for which this paper is eligible for
+        """
+
+        summary = {
+            "base_rewards": 1234.56,
+        }
+        return Response(summary, status=200)
+
     @staticmethod
     def search_by_csl_item(csl_item):
         """
