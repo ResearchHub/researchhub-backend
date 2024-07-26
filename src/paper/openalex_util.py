@@ -333,10 +333,10 @@ def merge_openalex_author_with_researchhub_author(openalex_author, researchhub_a
         institution = None
         try:
             institution = Institution.objects.get(openalex_id=oa_institution["id"])
-        except Institution.DoesNotExist as e:
+        except Institution.DoesNotExist:
             continue
 
-        author_inst = AuthorInstitution.objects.get_or_create(
+        AuthorInstitution.objects.get_or_create(
             author=researchhub_author,
             institution=institution,
             years=years,
