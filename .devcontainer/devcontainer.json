@@ -53,6 +53,8 @@
 				],
 				// Import sorting, see: https://github.com/microsoft/vscode-isort?tab=readme-ov-file#usage-and-features
 				"isort.args":["--profile", "black"],
+				"python.analysis.autoImportCompletions": true,
+				"python.analysis.indexing": true,
 				"remote.autoForwardPorts": false
 			}
 		}
