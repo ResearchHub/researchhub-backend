@@ -2,6 +2,7 @@ import json
 from unittest.mock import patch
 
 from django.test import TestCase
+from paper.related_models.authorship_model import Authorship
 from rest_framework.test import APITestCase
 
 from paper.openalex_util import process_openalex_works
@@ -68,6 +69,68 @@ class UserApiTests(APITestCase):
                 ).exists(),
                 True,
             )
+
+    def test_delete_publications(self):
+        # Arrange
+        self.client.force_authenticate(self.user_with_published_works)
+
+        paper = Paper.objects.create(
+            title="title1",
+        )
+        Authorship.objects.create(
+            author=self.user_with_published_works.author_profile, paper=paper
+        )
+
+        # Act
+        url = f"/api/author/{self.user_with_published_works.author_profile.id}/publications/"
+        resp = self.client.delete(url, {"paper_ids": [paper.id]})
+
+        # Assert
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(
+            Authorship.objects.filter(
+                author=self.user_with_published_works.author_profile, paper=paper
+            ).exists()
+        )
+
+    def test_delete_publications_paper_not_found(self):
+        # Arrange
+        self.client.force_authenticate(self.user_with_published_works)
+
+        # Act
+        url = f"/api/author/{self.user_with_published_works.author_profile.id}/publications/"
+        resp = self.client.delete(url, {"paper_ids": [-1]})
+
+        # Assert
+        self.assertEqual(resp.status_code, 404)
+
+    def test_delete_publications_attempt_with_other_user(self):
+        # Arrange
+        other_user = create_user(
+            email="email1@researchhub.com",
+            first_name="firstName1",
+            last_name="lastName1",
+        )
+        self.client.force_authenticate(other_user)
+
+        paper = Paper.objects.create(
+            title="title1",
+        )
+        Authorship.objects.create(
+            author=self.user_with_published_works.author_profile, paper=paper
+        )
+
+        # Act
+        url = f"/api/author/{self.user_with_published_works.author_profile.id}/publications/"
+        resp = self.client.delete(url, {"paper_ids": [paper.id]})
+
+        # Assert
+        self.assertEqual(resp.status_code, 403)
+        self.assertTrue(
+            Authorship.objects.filter(
+                author=self.user_with_published_works.author_profile, paper=paper
+            ).exists()
+        )
 
     @patch.object(OpenAlex, "get_works")
     def test_add_publications_to_should_notify_author_when_done(self, mock_get_works):
