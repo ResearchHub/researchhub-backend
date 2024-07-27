@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.db.models import Q
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
@@ -8,6 +9,7 @@ from paper.serializers.paper_serializers import (
     AuthorshipSerializer,
     PaperSubmissionSerializer,
 )
+from reputation.related_models.paper_reward import PaperReward
 from researchhub_case.models import AuthorClaimCase
 from user.models import User
 from user.related_models.user_verification_model import UserVerification
@@ -35,7 +37,7 @@ class AuthorClaimCaseSerializer(ModelSerializer):
         requestor = User.objects.filter(id=requestor_id).first()
 
         # An exception will be thrown if paper does not exist
-        Paper.objects.get(id=target_paper_id)
+        paper = Paper.objects.get(id=target_paper_id)
 
         self.__check_uniqueness_on_create(
             requestor_id,
@@ -43,17 +45,23 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             authorship_id,
         )
 
-        # @kouts - Create PaperReward in an atomic manner
-        # Then reference it in the AuthorClaimCase below
+        with transaction.atomic():
+            paper_reward = PaperReward.claim_paper_rewards(
+                paper,
+                requestor.author_profile,
+                bool(open_data_url),
+                bool(preregistration_url),
+            )
 
-        case = AuthorClaimCase.objects.create(
-            **validated_data,
-            authorship_id=authorship_id,
-            target_paper_id=target_paper_id,
-            moderator=moderator,
-            requestor=requestor,
-            version=2,
-        )
+            case = AuthorClaimCase.objects.create(
+                **validated_data,
+                authorship_id=authorship_id,
+                target_paper_id=target_paper_id,
+                moderator=moderator,
+                requestor=requestor,
+                version=2,
+                paper_reward=paper_reward,
+            )
 
         return case
 
@@ -133,6 +141,7 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             "open_data_url",
             "version",
             "authorship",
+            "paper_reward",
         ]
         read_only_fields = [
             "status",
