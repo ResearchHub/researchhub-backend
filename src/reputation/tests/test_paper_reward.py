@@ -1,6 +1,8 @@
 import json
+import os
 from unittest.mock import patch
 
+from django.conf import settings
 from django.test import TestCase
 
 from paper.models import Paper
@@ -12,11 +14,17 @@ from utils.openalex import OpenAlex
 class PaperRewardTestCase(TestCase):
     @patch.object(OpenAlex, "get_authors")
     def setUp(self, mock_get_authors):
-        with open("./paper/tests/openalex_works.json", "r") as file:
+        works_file_path = os.path.join(
+            settings.BASE_DIR, "paper", "tests", "openalex_works.json"
+        )
+        with open(works_file_path, "r") as file:
             response = json.load(file)
             self.works = response.get("results")
 
-        with open("./paper/tests/openalex_authors.json", "r") as file:
+        authors_file_path = os.path.join(
+            settings.BASE_DIR, "paper", "tests", "openalex_authors.json"
+        )
+        with open(authors_file_path, "r") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 
@@ -24,11 +32,9 @@ class PaperRewardTestCase(TestCase):
 
             dois = [work.get("doi") for work in self.works]
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
-            created_papers = Paper.objects.filter(doi__in=dois)
+            created_papers = Paper.objects.filter(doi__in=dois).order_by("citations")
             self.paper1 = created_papers[0]
-            print("citation count: ", self.paper1.citations)
             self.paper2 = created_papers[1]
-            print("citation count: ", self.paper2.citations)
 
             self.paper1_hub = self.paper1.unified_document.get_primary_hub()
             self.paper2_hub = self.paper2.unified_document.get_primary_hub()
