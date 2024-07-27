@@ -1089,8 +1089,6 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
     reputation = SerializerMethodField()
     reputation_list = SerializerMethodField()
     activity_by_year = SerializerMethodField()
-    works_count = SerializerMethodField()
-    citation_count = SerializerMethodField()
     summary_stats = SerializerMethodField()
     open_access_pct = SerializerMethodField()
     achievements = SerializerMethodField()
