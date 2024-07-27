@@ -20,6 +20,7 @@ from hub.serializers import DynamicHubSerializer, HubSerializer, SimpleHubSerial
 from hypothesis.models import Hypothesis
 from institution.serializers import DynamicInstitutionSerializer
 from paper.models import Paper, PaperSubmission
+from paper.related_models.authorship_model import Authorship
 from purchase.models import Purchase
 from reputation.models import Bounty, Contribution, Score, Withdrawal
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -759,14 +760,10 @@ class UserActions:
                     data["paper_id"] = thread_paper.id
                 elif thread_post:
                     data["parent_content_type"] = "post"
-                    data[
-                        "paper_title"
-                    ] = (
+                    data["paper_title"] = (
                         thread_post.title
                     )  # paper_title instead of post_title for symmetry on the FE
-                    data[
-                        "paper_id"
-                    ] = (
+                    data["paper_id"] = (
                         thread_post.id
                     )  # paper_id instead of post_id to temporarily reduce refactoring on FE
 
@@ -1089,8 +1086,6 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
     reputation = SerializerMethodField()
     reputation_list = SerializerMethodField()
     activity_by_year = SerializerMethodField()
-    works_count = SerializerMethodField()
-    citation_count = SerializerMethodField()
     summary_stats = SerializerMethodField()
     open_access_pct = SerializerMethodField()
     achievements = SerializerMethodField()
@@ -1119,7 +1114,10 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
         sorted_topics = sorted(topic_counts.items(), key=lambda x: x[1], reverse=True)
 
         # Extract topics from sorted list
-        sorted_topics = [topic for topic, count in sorted_topics]
+        sorted_topics = [topic for topic, _ in sorted_topics]
+
+        if not sorted_topics:
+            return None
 
         return "Author with expertise in " + sorted_topics[0].display_name
 
@@ -1135,14 +1133,20 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
         return achivements
 
     def get_summary_stats(self, author):
-        from django.db.models import Sum
+        from django.db.models import Count, Sum
 
-        citation_count = author.authored_papers.aggregate(
-            total_citations=Sum("citations")
-        )["total_citations"]
+        citation_count, paper_count = (
+            Authorship.objects.filter(author=author)
+            .select_related("paper")
+            .aggregate(
+                citation_count=Sum("paper__citations"),
+                paper_count=Count("paper"),
+            )
+            .values()
+        )
 
         return {
-            "works_count": author.authored_papers.count() or 0,
+            "works_count": paper_count or 0,
             "citation_count": citation_count or 0,
             "two_year_mean_citedness": author.two_year_mean_citedness or 0,
         }

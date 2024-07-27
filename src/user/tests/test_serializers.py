@@ -3,9 +3,15 @@ import json
 from django.test import TestCase
 
 from hub.models import Hub
+from paper.related_models.authorship_model import Authorship
+from paper.related_models.paper_model import Paper
 from reputation.models import Score
 from user.models import UserVerification
-from user.serializers import AuthorSerializer, UserEditableSerializer
+from user.serializers import (
+    AuthorSerializer,
+    DynamicAuthorProfileSerializer,
+    UserEditableSerializer,
+)
 from user.tests.helpers import create_university, create_user
 
 
@@ -13,6 +19,18 @@ class UserSerializersTests(TestCase):
     def setUp(self):
         self.user = create_user(first_name="Serializ")
         self.university = create_university()
+        paper1 = Paper.objects.create(
+            title="title1",
+            citations=10,
+        )
+        paper2 = Paper.objects.create(
+            title="title2",
+            citations=20,
+        )
+        Authorship.objects.create(author=self.user.author_profile, paper=paper1)
+        Authorship.objects.create(author=self.user.author_profile, paper=paper2)
+
+        self.user_without_papers = create_user(email="email1@researchhub.com")
 
     def test_author_serializer_succeeds_without_user_or_university(self):
         data = {
@@ -72,3 +90,50 @@ class UserSerializersTests(TestCase):
         )
         serializer = UserEditableSerializer(self.user)
         self.assertFalse(serializer.data["is_verified_v2"])
+
+    def test_dynamic_author_serializer_headline(self):
+        # Arrange
+        self.user.author_profile.headline = "headline1"
+
+        # Act
+        serializer = DynamicAuthorProfileSerializer(self.user.author_profile)
+
+        # Assert
+        self.assertEqual(serializer.data["headline"], "headline1")
+
+    def test_dynamic_author_serializer_headline_without_headline_and_topics(self):
+        # Act
+        serializer = DynamicAuthorProfileSerializer(self.user.author_profile)
+
+        # Assert
+        self.assertIsNone(serializer.data["headline"])
+
+    def test_dynamic_author_serializer_summary_stats(self):
+        # Act
+        serializer = DynamicAuthorProfileSerializer(self.user.author_profile)
+
+        # Assert
+        self.assertEqual(
+            serializer.data["summary_stats"],
+            {
+                "citation_count": 30,
+                "two_year_mean_citedness": 0,
+                "works_count": 2,
+            },
+        )
+
+    def test_dynamic_author_serializer_summary_stats_without_papers(self):
+        # Act
+        serializer = DynamicAuthorProfileSerializer(
+            self.user_without_papers.author_profile
+        )
+
+        # Assert
+        self.assertEqual(
+            serializer.data["summary_stats"],
+            {
+                "citation_count": 0,
+                "two_year_mean_citedness": 0,
+                "works_count": 0,
+            },
+        )
