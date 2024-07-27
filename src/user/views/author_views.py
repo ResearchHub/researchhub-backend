@@ -724,6 +724,24 @@ class AuthorViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=True,
+        permission_classes=[IsAuthenticated, IsVerifiedUser],
+    )
+    @publications.mapping.delete
+    def delete_publications(self, request, pk=None):
+        paper_ids = request.data.get("paper_ids", [])
+
+        authorships = Authorship.objects.filter(paper__id__in=paper_ids)
+
+        for authorship in authorships:
+            if authorship.author != request.user.author_profile:
+                return Response(status=status.HTTP_403_FORBIDDEN)
+
+        count, _ = authorships.delete()
+
+        return Response({"count": count}, status=status.HTTP_200_OK)
+
+    @action(
+        detail=True,
         methods=["get"],
     )
     def overview(self, request, pk=None):
