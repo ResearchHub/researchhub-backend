@@ -38,6 +38,14 @@ class Score(DefaultModel):
             return 0.75 + 0.25 * ((self.score - 100000) / 900000)
 
     @classmethod
+    def get_scores(cls, author):
+        return cls.objects.filter(author=author)
+
+    @classmethod
+    def get_max_score(cls, author):
+        return cls.objects.filter(author=author).order_by("-score").first()
+
+    @classmethod
     def get_or_create_score(cls, author, hub):
         try:
             score = cls.objects.get(author=author, hub=hub)

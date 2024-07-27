@@ -6,6 +6,7 @@ from rest_framework.authtoken.models import Token
 from discussion.models import Thread
 from hub.models import Hub
 from hub.tests.helpers import create_hub
+from reputation.related_models.score import Score
 from researchhub_access_group.constants import EDITOR
 from researchhub_access_group.models import Permission
 from user.models import Action, Author, University, User
@@ -105,6 +106,8 @@ def create_moderator(
 def create_random_authenticated_user_with_reputation(unique_value, reputation):
     user = create_random_authenticated_user(unique_value)
     user.reputation = reputation
+    hub = Hub.objects.create(name="Hub")
+    Score.objects.create(author=user.author_profile, hub=hub, score=reputation)
     user.save()
     return user
 
