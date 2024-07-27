@@ -1,6 +1,8 @@
 import json
+import os
 from unittest.mock import PropertyMock, patch
 
+from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.management import call_command
 from django.test import TestCase
@@ -10,9 +12,6 @@ from discussion.tests.helpers import create_rh_comment, create_vote
 from paper.models import Paper
 from paper.openalex_util import process_openalex_works
 from reputation.models import AlgorithmVariables, Score, ScoreChange
-from researchhub_case.constants.case_constants import APPROVED
-from researchhub_case.models import AuthorClaimCase
-from researchhub_case.tasks import after_approval_flow
 from user.models import User
 from utils.openalex import OpenAlex
 
@@ -27,11 +26,17 @@ class InitializeReputationCommandTestCase(TestCase):
             username="user3", password="pass3"
         )
 
-        with open("./paper/tests/openalex_works.json", "r") as file:
+        works_file_path = os.path.join(
+            settings.BASE_DIR, "paper", "tests", "openalex_works.json"
+        )
+        with open(works_file_path, "r") as file:
             response = json.load(file)
             self.works = response.get("results")
 
-        with open("./paper/tests/openalex_authors.json", "r") as file:
+        authors_file_path = os.path.join(
+            settings.BASE_DIR, "paper", "tests", "openalex_authors.json"
+        )
+        with open(authors_file_path, "r") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 
@@ -39,7 +44,7 @@ class InitializeReputationCommandTestCase(TestCase):
 
             dois = [work.get("doi") for work in self.works]
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
-            created_papers = Paper.objects.filter(doi__in=dois)
+            created_papers = Paper.objects.filter(doi__in=dois).order_by("citations")
             self.paper1 = created_papers[0]
             self.paper2 = created_papers[1]
 
@@ -136,8 +141,8 @@ class InitializeReputationCommandTestCase(TestCase):
         create_vote(self.user_author, self.paper1, Vote.UPVOTE)
 
         # Add author claim
-        self.attribute_paper_to_author(self.user_author, self.paper1)
-        self.attribute_paper_to_author(self.user_author, self.paper2)
+        self.paper1.authors.add(self.user_author.author_profile)
+        self.paper2.authors.add(self.user_author.author_profile)
 
     def test_initialize_reputation_command(self):
         call_command("initialize_reputation")
@@ -265,7 +270,9 @@ class InitializeReputationCommandTestCase(TestCase):
         self.assertEqual(score_changes1[2].score_change, 1)
         self.assertEqual(score_changes1[3].score_change, 1)
         self.assertEqual(score_changes1[4].score_change, 1)
-        self.assertEqual(score_changes1[5].score_change, 0)  # TODO Should not
+        self.assertEqual(
+            score_changes1[5].score_change, 0
+        )  # Citation count out of range.
         self.assertEqual(score_changes1[6].score_change, -1)
         self.assertEqual(score_changes1[7].score_change, -1)
 
@@ -289,12 +296,3 @@ class InitializeReputationCommandTestCase(TestCase):
 
         with self.assertRaises(ObjectDoesNotExist):
             self.user_no_author.calculate_hub_scores(1)
-
-    def attribute_paper_to_author(self, user, paper):
-        case = AuthorClaimCase.objects.create(
-            target_paper=paper, requestor=user, status=APPROVED
-        )
-
-        after_approval_flow(case.id)
-        user.refresh_from_db()
-        paper.refresh_from_db()
