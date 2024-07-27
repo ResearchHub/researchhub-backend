@@ -10,9 +10,7 @@ from paper.models import Paper
 from paper.openalex_util import process_openalex_works
 from paper.related_models.authorship_model import Authorship
 from paper.tests.helpers import create_paper
-from reputation.related_models.paper_reward import HubCitationValue
-from researchhub_case.constants.case_constants import PAPER_CLAIM
-from researchhub_case.models import AuthorClaimCase
+from reputation.related_models.paper_reward import HubCitationValue, PaperReward
 from user.related_models.user_verification_model import UserVerification
 from user.tests.helpers import create_moderator, create_random_default_user
 from utils.openalex import OpenAlex
@@ -225,9 +223,25 @@ class ViewTests(APITestCase):
         self.assertIsNotNone(claim_create_response.data["paper_reward"])
 
     def test_approving_claim_pays_rewards_to_user(self):
-        ## Fixme: @kouts to implement
-        pass
+        claim_create_response, paper, _ = self._create_paper_claim_via_api(
+            self.verified_user, self.paper
+        )
+        self._approve_claim_via_api(claim_create_response.data["id"])
+
+        paper_reward = PaperReward.objects.get(
+            paper=paper, author=self.verified_user.author_profile
+        )
+        self.assertEqual(paper_reward.rsc_value, 878076.0)
+        self.assertIsNotNone(paper_reward.distribution)
 
     def test_rejecting_claim_does_not_pay_rewards_to_user(self):
-        ## Fixme: @kouts to implement
-        pass
+        claim_create_response, paper, _ = self._create_paper_claim_via_api(
+            self.verified_user, self.paper
+        )
+        self._reject_claim_via_api(claim_create_response.data["id"])
+
+        paper_reward = PaperReward.objects.get(
+            paper=paper, author=self.verified_user.author_profile
+        )
+        self.assertEqual(paper_reward.rsc_value, 878076.0)
+        self.assertIsNone(paper_reward.distribution)
