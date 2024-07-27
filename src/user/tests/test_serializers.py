@@ -91,8 +91,28 @@ class UserSerializersTests(TestCase):
         serializer = UserEditableSerializer(self.user)
         self.assertFalse(serializer.data["is_verified_v2"])
 
-    def test_dynamic_author_serializer_summary_stats(self):
+    def test_dynamic_author_serializer_headline(self):
+        # Arrange
+        self.user.author_profile.headline = "headline1"
+
+        # Act
         serializer = DynamicAuthorProfileSerializer(self.user.author_profile)
+
+        # Assert
+        self.assertEqual(serializer.data["headline"], "headline1")
+
+    def test_dynamic_author_serializer_headline_without_headline_and_topics(self):
+        # Act
+        serializer = DynamicAuthorProfileSerializer(self.user.author_profile)
+
+        # Assert
+        self.assertIsNone(serializer.data["headline"])
+
+    def test_dynamic_author_serializer_summary_stats(self):
+        # Act
+        serializer = DynamicAuthorProfileSerializer(self.user.author_profile)
+
+        # Assert
         self.assertEqual(
             serializer.data["summary_stats"],
             {
@@ -103,9 +123,12 @@ class UserSerializersTests(TestCase):
         )
 
     def test_dynamic_author_serializer_summary_stats_without_papers(self):
+        # Act
         serializer = DynamicAuthorProfileSerializer(
             self.user_without_papers.author_profile
         )
+
+        # Assert
         self.assertEqual(
             serializer.data["summary_stats"],
             {

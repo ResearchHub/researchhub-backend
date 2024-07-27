@@ -1114,7 +1114,10 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
         sorted_topics = sorted(topic_counts.items(), key=lambda x: x[1], reverse=True)
 
         # Extract topics from sorted list
-        sorted_topics = [topic for topic, count in sorted_topics]
+        sorted_topics = [topic for topic, _ in sorted_topics]
+
+        if not sorted_topics:
+            return None
 
         return "Author with expertise in " + sorted_topics[0].display_name
 
