@@ -1,5 +1,6 @@
 from notification.models import Notification
 from paper.related_models.paper_model import Paper
+from reputation.related_models.paper_reward import PaperReward
 from researchhub.celery import QUEUE_AUTHOR_CLAIM, app
 from researchhub_case.constants.case_constants import APPROVED, DENIED, INITIATED
 from researchhub_case.models import AuthorClaimCase
@@ -50,7 +51,9 @@ def after_approval_flow(case_id):
 
     requestor = instance.requestor
     try:
-        # @kouts - Pay author + mark PaperReward as paid atomically
+        paper = instance.target_paper
+        author = requestor.author_profile
+        PaperReward.distribute_paper_rewards(paper, author)
         notification = Notification.objects.create(
             item=instance,
             notification_type=Notification.PAPER_CLAIM_PAYOUT,
