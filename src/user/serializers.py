@@ -760,14 +760,10 @@ class UserActions:
                     data["paper_id"] = thread_paper.id
                 elif thread_post:
                     data["parent_content_type"] = "post"
-                    data[
-                        "paper_title"
-                    ] = (
+                    data["paper_title"] = (
                         thread_post.title
                     )  # paper_title instead of post_title for symmetry on the FE
-                    data[
-                        "paper_id"
-                    ] = (
+                    data["paper_id"] = (
                         thread_post.id
                     )  # paper_id instead of post_id to temporarily reduce refactoring on FE
 
