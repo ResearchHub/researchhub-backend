@@ -20,6 +20,7 @@ from hub.serializers import DynamicHubSerializer, HubSerializer, SimpleHubSerial
 from hypothesis.models import Hypothesis
 from institution.serializers import DynamicInstitutionSerializer
 from paper.models import Paper, PaperSubmission
+from paper.related_models.authorship_model import Authorship
 from purchase.models import Purchase
 from reputation.models import Bounty, Contribution, Score, Withdrawal
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -1133,14 +1134,20 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
         return achivements
 
     def get_summary_stats(self, author):
-        from django.db.models import Sum
+        from django.db.models import Count, Sum
 
-        citation_count = author.authored_papers.aggregate(
-            total_citations=Sum("citations")
-        )["total_citations"]
+        citation_count, paper_count = (
+            Authorship.objects.filter(author=author)
+            .select_related("paper")
+            .aggregate(
+                citation_count=Sum("paper__citations"),
+                paper_count=Count("paper"),
+            )
+            .values()
+        )
 
         return {
-            "works_count": author.authored_papers.count() or 0,
+            "works_count": paper_count or 0,
             "citation_count": citation_count or 0,
             "two_year_mean_citedness": author.two_year_mean_citedness or 0,
         }
