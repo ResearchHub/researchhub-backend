@@ -119,6 +119,7 @@ class Notification(models.Model):
                 "action_user",
                 "body",
                 "created_date",
+                "extra",
                 "id",
                 "notification_type",
                 "read",

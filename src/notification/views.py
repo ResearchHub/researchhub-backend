@@ -48,6 +48,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
                 "body",
                 "action_user",
                 "created_date",
+                "extra",
                 "id",
                 "navigation_url",
                 "notification_type",
