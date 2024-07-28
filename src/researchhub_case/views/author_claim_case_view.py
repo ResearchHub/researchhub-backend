@@ -53,14 +53,12 @@ class AuthorClaimCaseViewSet(ModelViewSet):
         if user.moderator:
             return True
 
-        user_verified = UserVerification.objects.filter(
-            user_id=requestor_id, status=UserVerification.Status.APPROVED
-        )
+        user_verification = UserVerification.objects.filter(user_id=requestor_id)
 
-        if user_verified.exists():
-            return True
+        if not user_verification.exists():
+            return False
 
-        return False
+        return user_verification.first().is_verified
 
     @action(detail=False, methods=[GET], permission_classes=[IsModerator])
     def count(self, request, pk=None):
