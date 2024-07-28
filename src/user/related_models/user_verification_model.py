@@ -46,4 +46,7 @@ class UserVerification(models.Model):
 
     @property
     def is_verified(self) -> bool:
+        """
+        A simplified boolean status indicating if the user is verified.
+        """
         return self.status == self.Status.APPROVED
