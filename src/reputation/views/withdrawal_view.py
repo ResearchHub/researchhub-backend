@@ -1,14 +1,11 @@
 import decimal
-import json
 import logging
 import os
 from datetime import datetime, timedelta
 
 import pytz
 import requests
-import sentry_sdk
 from django.contrib.admin.models import LogEntry
-from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils import timezone
@@ -18,22 +15,15 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from web3 import Web3
 
 from analytics.tasks import track_revenue_event
-from notification.models import Notification
 from purchase.models import Balance, RscExchangeRate
 from reputation.exceptions import WithdrawalError
 from reputation.lib import WITHDRAWAL_MINIMUM, PendingWithdrawal, gwei_to_eth
-from reputation.models import PaidStatusModelMixin, Webhook, Withdrawal
+from reputation.models import Withdrawal
 from reputation.permissions import AllowWithdrawalIfNotSuspecious
 from reputation.serializers import WithdrawalSerializer
-from researchhub.settings import (
-    ETHERSCAN_API_KEY,
-    WEB3_RSC_ADDRESS,
-    WEB3_WALLET_ADDRESS,
-)
-from user.models import Action
+from researchhub.settings import ETHERSCAN_API_KEY, WEB3_RSC_ADDRESS
 from user.serializers import UserSerializer
 from utils import sentry
 from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfAllowed, UserNotSpammer
