@@ -24,6 +24,8 @@ from reputation.models import Withdrawal
 from reputation.permissions import AllowWithdrawalIfNotSuspecious
 from reputation.serializers import WithdrawalSerializer
 from researchhub.settings import ETHERSCAN_API_KEY, WEB3_RSC_ADDRESS
+from user.related_models.user_model import User
+from user.related_models.user_verification_model import UserVerification
 from user.serializers import UserSerializer
 from utils import sentry
 from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfAllowed, UserNotSpammer
@@ -75,9 +77,11 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
-        if user.author_profile.get_rep_score() < 10:
+        if not self._can_withdraw(user):
             return Response(
-                "Your reputation is too low to withdraw. Please claim papers you have authored and contribute to the community to increase your reputation.",
+                "Your reputation is too low to withdraw. "
+                + "Please claim papers you have authored and contribute to the community to increase your reputation."
+                + "Alternatively, verify your identity to withdraw.",
                 status=400,
             )
 
@@ -125,6 +129,18 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         else:
             sentry.log_info(message)
             return Response(message, status=400)
+
+    def _can_withdraw(self, user: User) -> bool:
+        # User can withdraw if rep score is 10 or more
+        if user.author_profile.get_rep_score() >= 10:
+            return True
+
+        # ...or if the user's identity has been verified
+        user_verification = UserVerification.objects.filter(user=user).first()
+        if not user_verification:
+            return False
+
+        return user_verification.is_verified
 
     def list(self, request):
         # TODO: Do we really need the user on this list? Can we make some
