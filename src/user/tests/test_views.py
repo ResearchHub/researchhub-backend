@@ -134,7 +134,8 @@ class UserApiTests(APITestCase):
         resp = self.client.delete(url, {"paper_ids": [paper.id]})
 
         # Assert
-        self.assertEqual(resp.status_code, 403)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["count"], 0)
         self.assertTrue(
             Authorship.objects.filter(
                 author=self.user_with_published_works.author_profile, paper=paper
