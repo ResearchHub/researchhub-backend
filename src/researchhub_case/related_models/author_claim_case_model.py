@@ -30,7 +30,7 @@ class AuthorClaimCase(AbstractResearchhubCase):
         Authorship,
         blank=False,
         null=True,
-        on_delete=models.PROTECT,
+        on_delete=models.SET_NULL,
         related_name="related_claim_cases",
     )
     target_paper_doi = models.CharField(max_length=255, null=True)
