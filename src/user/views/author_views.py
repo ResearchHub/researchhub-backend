@@ -735,10 +735,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
             paper__id__in=paper_ids, author=request.user.author_profile
         )
 
-        print("authorships", authorships)
-
-        # count, _ = authorships.delete()
-        return Response({"count": authorships.count()}, status=status.HTTP_200_OK)
+        count, _ = authorships.delete()
+        return Response({"count": count}, status=status.HTTP_200_OK)
 
     @action(
         detail=True,
