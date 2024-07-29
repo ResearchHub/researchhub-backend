@@ -52,6 +52,7 @@ jobs:
         env:
           PIP_CONSTRAINT: constraints.txt
         run: |
+          echo "Current directory: $(pwd)"
           pip install wheel poetry -c constraints.txt
           poetry run pip install --upgrade pip -c constraints.txt
           poetry run pip install -U pip setuptools -c constraints.txt
