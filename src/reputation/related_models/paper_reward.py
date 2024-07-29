@@ -27,8 +27,6 @@ class HubCitationValue(models.Model):
             "bins"
         ].items():
             bin_range = eval(bin_range)
-            print("bin_range", bin_range)
-            print("citation_change", citation_change)
             if bin_range[0] <= citation_change < bin_range[1]:
                 hub_citation_variables = bin_value
                 break
