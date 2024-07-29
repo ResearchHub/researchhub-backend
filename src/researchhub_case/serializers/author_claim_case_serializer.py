@@ -78,6 +78,7 @@ class AuthorClaimCaseSerializer(ModelSerializer):
                 "title": paper.title,
                 "id": paper.id,
                 "slug": paper.slug,
+                "primary_hub": paper.unified_document.get_primary_hub().name,
             }
             return obj
         else:
