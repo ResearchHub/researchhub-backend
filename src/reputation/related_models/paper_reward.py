@@ -1,13 +1,18 @@
+import math
 from time import time
 
 from django.db import models
+from django.db.models import JSONField
 
 from reputation.distributions import create_paper_reward_distribution
 
 
 class HubCitationValue(models.Model):
     hub = models.ForeignKey("hub.Hub", on_delete=models.CASCADE, db_index=True)
-    rsc_per_citation = models.FloatField()
+    # {"citations":
+    #   {"bins":{(0, 2): {"slope": 0.29, "intercept": 10}, (2, 12): {"slope": 0.35, "intercept": 100}, (12, 200): {"slope": 0.40, "intercept": 200}, (200, 2800): {"slope": 0.53, "intercept": 300}}},
+    # }
+    variables = JSONField(null=True, blank=True, default=None)
 
     created_date = models.DateTimeField(auto_now_add=True)
 
@@ -16,16 +21,32 @@ class HubCitationValue(models.Model):
         cls, paper, citation_change, is_open_data, is_preregistered
     ):
         hub = paper.unified_document.get_primary_hub()
-        hub_citation_value = cls.objects.get(hub=hub).rsc_per_citation
-        rsc_reward = citation_change * hub_citation_value
+        hub_citation_value = cls.objects.filter(hub=hub).order_by("created_date").last()
+        hub_citation_variables = None
+        for bin_range, bin_value in hub_citation_value.variables["citations"][
+            "bins"
+        ].items():
+            bin_range = eval(bin_range)
+            print("bin_range", bin_range)
+            print("citation_change", citation_change)
+            if bin_range[0] <= citation_change < bin_range[1]:
+                hub_citation_variables = bin_value
+                break
+
+        rsc_reward = 10 ** (
+            math.log(citation_change, 10) * hub_citation_variables["slope"]
+            + hub_citation_variables["intercept"]
+        )
+
+        rsc_reward_with_multipliers = rsc_reward
 
         if is_open_data:
-            rsc_reward += citation_change * hub_citation_value * 3
+            rsc_reward_with_multipliers += rsc_reward * 3.0
 
         if is_preregistered:
-            rsc_reward += citation_change * hub_citation_value * 2
+            rsc_reward_with_multipliers += rsc_reward * 2.0
 
-        return rsc_reward
+        return rsc_reward_with_multipliers
 
 
 class PaperReward(models.Model):
