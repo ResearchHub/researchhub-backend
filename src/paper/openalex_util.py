@@ -247,6 +247,17 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
                 },
             )
 
+            # Update authorship if secondary fields have changed
+            if (
+                authorship.author_position != author_position
+                or authorship.is_corresponding != is_corresponding
+                or authorship.raw_author_name != raw_author_name
+            ):
+                authorship.author_position = author_position
+                authorship.is_corresponding = is_corresponding
+                authorship.raw_author_name = raw_author_name
+                authorship.save()
+
             authors_in_this_work.append(author)
 
             # Set institutions associated with authorships if they do not already exist
