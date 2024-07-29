@@ -22,29 +22,32 @@ class HubCitationValue(models.Model):
     ):
         hub = paper.unified_document.get_primary_hub()
         hub_citation_value = cls.objects.filter(hub=hub).order_by("created_date").last()
+        return hub_citation_value.rsc_reward_algo(
+            citation_change, is_open_data, is_preregistered
+        )
+
+    def rsc_reward_algo(self, citation_change, is_open_data, is_preregistered):
         hub_citation_variables = None
-        for bin_range, bin_value in hub_citation_value.variables["citations"][
-            "bins"
-        ].items():
+        for bin_range, bin_value in self.variables["citations"]["bins"].items():
             bin_range = eval(bin_range)
             if bin_range[0] <= citation_change < bin_range[1]:
                 hub_citation_variables = bin_value
                 break
 
-        rsc_reward = 10 ** (
+        rsc_reward_with_multipliers = 10 ** (
             math.log(citation_change, 10) * hub_citation_variables["slope"]
             + hub_citation_variables["intercept"]
         )
 
-        rsc_reward_with_multipliers = rsc_reward
+        rsc_reward = rsc_reward_with_multipliers
 
-        if is_open_data:
-            rsc_reward_with_multipliers += rsc_reward * 3.0
+        if not is_open_data:
+            rsc_reward -= (rsc_reward_with_multipliers / 6.0) * 3.0
 
-        if is_preregistered:
-            rsc_reward_with_multipliers += rsc_reward * 2.0
+        if not is_preregistered:
+            rsc_reward -= (rsc_reward_with_multipliers / 6.0) * 2.0
 
-        return rsc_reward_with_multipliers
+        return rsc_reward
 
 
 class PaperReward(models.Model):

@@ -63,7 +63,7 @@ class PaperRewardTestCase(TestCase):
 
         self.assertEqual(paper_reward.citation_change, self.paper1.citations)
         self.assertEqual(paper_reward.citation_count, self.paper1.citations)
-        self.assertEqual(paper_reward.rsc_value, 43.77609099046774)
+        self.assertEqual(paper_reward.rsc_value, (43.77609099046774 / 6.0))
         self.assertFalse(paper_reward.is_open_data)
         self.assertFalse(paper_reward.is_preregistered)
 
@@ -77,7 +77,7 @@ class PaperRewardTestCase(TestCase):
 
         self.assertEqual(paper_reward.citation_change, self.paper1.citations)
         self.assertEqual(paper_reward.citation_count, self.paper1.citations)
-        self.assertEqual(paper_reward.rsc_value, 43.77609099046774 * 4.0)
+        self.assertEqual(paper_reward.rsc_value, (43.77609099046774 / 6.0) * 4.0)
         self.assertTrue(paper_reward.is_open_data)
         self.assertFalse(paper_reward.is_preregistered)
 
@@ -91,7 +91,7 @@ class PaperRewardTestCase(TestCase):
 
         self.assertEqual(paper_reward.citation_change, self.paper1.citations)
         self.assertEqual(paper_reward.citation_count, self.paper1.citations)
-        self.assertEqual(paper_reward.rsc_value, 43.77609099046774 * 3.0)
+        self.assertEqual(paper_reward.rsc_value, (43.77609099046774 / 6.0) * 3.0)
         self.assertFalse(paper_reward.is_open_data)
         self.assertTrue(paper_reward.is_preregistered)
 
@@ -105,7 +105,7 @@ class PaperRewardTestCase(TestCase):
 
         self.assertEqual(paper_reward.citation_change, self.paper1.citations)
         self.assertEqual(paper_reward.citation_count, self.paper1.citations)
-        self.assertEqual(paper_reward.rsc_value, 43.77609099046774 * 6.0)
+        self.assertEqual(paper_reward.rsc_value, 43.77609099046774)
         self.assertTrue(paper_reward.is_open_data)
         self.assertTrue(paper_reward.is_preregistered)
 
@@ -123,3 +123,22 @@ class PaperRewardTestCase(TestCase):
         )
 
         self.assertIsNotNone(paper_reward.distribution)
+
+    def test_rsc_reward_algo_aerospace_top_bin(self):
+        hub_citation_value = HubCitationValue(
+            hub=self.paper1_hub,
+            variables={
+                "citations": {
+                    "bins": {
+                        "[1, 1000000]": {
+                            "slope": 1.247331107431,
+                            "intercept": -0.122606575151378,
+                        }
+                    }
+                }
+            },
+        )
+
+        rsc_reward = hub_citation_value.rsc_reward_algo(1430, True, True)
+
+        self.assertEqual(rsc_reward, 6503.4262371883115)

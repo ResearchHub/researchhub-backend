@@ -35,10 +35,17 @@ class Command(BaseCommand):
                     bins = {}
                     for v in range(1, 8):
                         bin = ast.literal_eval(row[f"Bin_{v}"])
+                        lower_bound = bin[0] + 1
+                        if v == 1:
+                            lower_bound = (
+                                1  # first bin starts at 1 so should not be incremented.
+                            )
+                        upper_bound = bin[1]
+
                         slope = ast.literal_eval(row[f"Slope_{v}"])
                         intercept = ast.literal_eval(row[f"Intercept_{v}"])
 
-                        bins[json.dumps([bin[0], bin[1]])] = json.dumps(
+                        bins[json.dumps([lower_bound, upper_bound])] = json.dumps(
                             {"slope": slope, "intercept": intercept}
                         )
 
