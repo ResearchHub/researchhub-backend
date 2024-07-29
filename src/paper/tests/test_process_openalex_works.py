@@ -146,7 +146,61 @@ class ProcessOpenAlexWorksTests(APITestCase):
             paper = Paper.objects.filter(doi__in=dois).first()
 
             authorships = paper.authorships.all()
-            self.assertGreater(len(authorships), 0)
+            self.assertEqual(len(authorships), 3)
+
+    @patch.object(OpenAlex, "get_authors")
+    def test_create_authorships_when_processing_work_twice(self, mock_get_authors):
+        with open("./paper/tests/openalex_authors.json", "r") as file:
+            # Arrange
+            mock_data = json.load(file)
+            mock_get_authors.return_value = (mock_data["results"], None)
+
+            # Act
+            process_openalex_works(self.works)
+            # Invoking the process twice should not create duplicate authorships
+            process_openalex_works(self.works)
+
+            # Assert
+            dois = [work.get("doi") for work in self.works]
+            dois = [doi.replace("https://doi.org/", "") for doi in dois]
+            paper = Paper.objects.filter(doi__in=dois).first()
+
+            authorships = paper.authorships.all()
+            self.assertEqual(len(authorships), 3)
+
+    @patch.object(OpenAlex, "get_authors")
+    def test_create_authorships_when_processing_work_with_field_updates(
+        self, mock_get_authors
+    ):
+        with open("./paper/tests/openalex_authors.json", "r") as file:
+            # Arrange
+            mock_data = json.load(file)
+            mock_get_authors.return_value = (mock_data["results"], None)
+
+            # Act
+            process_openalex_works(self.works)
+
+            # Changing some of the secondary attributes should not create duplicate
+            # authorships in a subsequent call
+            for work in self.works:
+                for authorship in work["authorships"]:
+                    authorship["is_corresponding"] = True
+                    authorship["author_position"] = "pos1"
+                    authorship["author"]["display_name"] = "name1"
+
+            process_openalex_works(self.works)
+
+            # Assert
+            dois = [work.get("doi") for work in self.works]
+            dois = [doi.replace("https://doi.org/", "") for doi in dois]
+            paper = Paper.objects.filter(doi__in=dois).first()
+
+            authorships = paper.authorships.all()
+            self.assertEqual(len(authorships), 3)
+            for authorship in authorships:
+                self.assertTrue(authorship.is_corresponding)
+                self.assertEqual(authorship.author_position, "pos1")
+                self.assertEqual(authorship.raw_author_name, "name1")
 
     @patch.object(OpenAlex, "get_authors")
     def create_authorship_institutions_when_processing_work(self, mock_get_authors):
