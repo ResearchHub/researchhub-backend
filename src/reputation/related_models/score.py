@@ -25,6 +25,18 @@ class Score(DefaultModel):
             "hub",
         )
 
+    # FIXME query score algorithm variables for bins.
+    @property
+    def percentile(self):
+        if self.score <= 1000:
+            return 0.25 * (self.score / 1000)
+        elif self.score <= 10000:
+            return 0.25 + 0.25 * ((self.score - 1000) / 9000)
+        elif self.score <= 100000:
+            return 0.5 + 0.25 * ((self.score - 10000) / 90000)
+        else:
+            return 0.75 + 0.25 * ((self.score - 100000) / 900000)
+
     @classmethod
     def get_or_create_score(cls, author, hub):
         try:
