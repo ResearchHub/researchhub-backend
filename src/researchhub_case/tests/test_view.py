@@ -179,6 +179,10 @@ class ViewTests(APITestCase):
 
         claim = open_claims_response.data["results"][0]
         self.assertEqual(claim["status"], "OPEN")
+        self.assertEqual(claim["paper"]["id"], paper.id)
+        self.assertEqual(
+            claim["paper"]["primary_hub"], paper.unified_document.get_primary_hub().name
+        )
         self.assertEqual(open_claims_response.data["count"], 1)
 
     def test_unverified_users_cannot_submit_claim(self):
