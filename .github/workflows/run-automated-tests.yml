@@ -52,7 +52,6 @@ jobs:
         run: |
           export PIP_CONSTRAINT=constraints.txt
           pip install wheel poetry --no-build-isolation
-          pip install --upgrade pip --no-build-isolation
       - name: Install Dependencies
         working-directory: ./src
         run: |
