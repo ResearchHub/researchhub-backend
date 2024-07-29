@@ -243,8 +243,13 @@ class UserViewsTests(TestCase):
             )
 
             self.assertEqual(response.data["reputation"]["score"], 1900)
+            self.assertEqual(response.data["reputation"]["percentile"], 0.275)
             self.assertEqual(response.data["reputation_list"][0]["score"], 1900)
+            self.assertEqual(response.data["reputation_list"][0]["percentile"], 0.275)
             self.assertEqual(response.data["reputation_list"][1]["score"], 1800)
+            self.assertEqual(
+                response.data["reputation_list"][1]["percentile"], 0.2722222222222222
+            )
 
     @patch.object(OpenAlex, "get_authors")
     def test_get_author_profile_no_reputation(self, mock_get_authors):
