@@ -44,10 +44,12 @@ class PaperRewardTestCase(TestCase):
             variables={
                 "citations": {
                     "bins": {
-                        json.dumps((1, 1000000)): {
-                            "slope": 0.32872014059165,
-                            "intercept": -0.0567277429812658,
-                        }
+                        json.dumps((1, 1000000)): json.dumps(
+                            {
+                                "slope": 0.32872014059165,
+                                "intercept": -0.0567277429812658,
+                            }
+                        )
                     }
                 }
             },
@@ -130,10 +132,12 @@ class PaperRewardTestCase(TestCase):
             variables={
                 "citations": {
                     "bins": {
-                        "[1, 1000000]": {
-                            "slope": 1.247331107431,
-                            "intercept": -0.122606575151378,
-                        }
+                        json.dumps((1, 1000000)): json.dumps(
+                            {
+                                "slope": 1.247331107431,
+                                "intercept": -0.122606575151378,
+                            }
+                        )
                     }
                 }
             },

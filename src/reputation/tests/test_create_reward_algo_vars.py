@@ -28,9 +28,7 @@ class CreateRewardAlgoVarsTestCase(TestCase):
         # Call the management command
         call_command("create_reward_algo_vars")
         # Assert that the reward algorithm variables are created for the hub
-        self.assertTrue(
-            HubCitationValue.objects.all().count(), 240
-        )  # Should be 244 but csv only has 240 at the moment.
+        self.assertEqual(HubCitationValue.objects.all().count(), 244)
 
     def test_aerospace_rewar_algo_vars(self):
         # Call the management command
@@ -41,49 +39,49 @@ class CreateRewardAlgoVarsTestCase(TestCase):
         self.assertDictEqual(
             algo_var.variables["citations"]["bins"],
             {
-                "[1, 3]": json.dumps(
+                json.dumps((1, 3)): json.dumps(
                     {
                         "slope": 0.26361953555166395,
                         "intercept": 0.38240072911003764,
                     }
                 ),
-                "[4, 10]": json.dumps(
+                json.dumps((4, 10)): json.dumps(
                     {
                         "slope": 0.5312640019045695,
                         "intercept": 0.24898386052475074,
                     }
                 ),
-                "[11, 26]": json.dumps(
+                json.dumps((11, 26)): json.dumps(
                     {
                         "slope": 0.9368936426887948,
                         "intercept": -0.1489352697586166,
                     }
                 ),
-                "[27, 60]": json.dumps(
+                json.dumps((27, 60)): json.dumps(
                     {
                         "slope": 1.3436077598045197,
                         "intercept": -0.708836932048057,
                     }
                 ),
-                "[61, 160]": json.dumps(
+                json.dumps((61, 160)): json.dumps(
                     {
                         "slope": 1.6530749281588402,
                         "intercept": -1.2517839350382407,
                     }
                 ),
-                "[161, 359]": json.dumps(
+                json.dumps((161, 359)): json.dumps(
                     {
                         "slope": 1.8666873929853267,
                         "intercept": -1.7541341132399557,
                     }
                 ),
-                "[360, 494]": json.dumps(
+                json.dumps((360, 494)): json.dumps(
                     {
                         "slope": 1.050832052541524,
                         "intercept": 0.4043890994381161,
                     }
                 ),
-                "[495, 1430]": json.dumps(
+                json.dumps((495, 1430)): json.dumps(
                     {
                         "slope": 1.247331107431001,
                         "intercept": -0.12260657515137785,
