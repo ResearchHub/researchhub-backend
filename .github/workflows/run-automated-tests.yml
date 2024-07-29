@@ -50,19 +50,16 @@ jobs:
       - name: Updating pip
         working-directory: ./src
         run: |
-          export PIP_CONSTRAINT=constraints.txt
           pip install --upgrade pip-tools pip wheel poetry
       - name: Install Dependencies
         working-directory: ./src
         run: |
           export PIP_CONSTRAINT=constraints.txt
           pip install autobahn
-          poetry run pip install autobahn
           poetry install
       - name: Run Tests
         working-directory: ./src
         run: |
-          export PIP_CONSTRAINT=constraints.txt
           cp config/ci/* config
           poetry run python manage.py migrate
           poetry run python manage.py collectstatic --noinput
