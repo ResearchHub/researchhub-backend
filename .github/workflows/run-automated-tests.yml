@@ -55,7 +55,7 @@ jobs:
         working-directory: ./src
         run: |
           export PIP_CONSTRAINT=constraints.txt
-          pip install autobahn
+          poetry run pip install autobahn
           poetry install
       - name: Run Tests
         working-directory: ./src
