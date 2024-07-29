@@ -50,8 +50,8 @@ jobs:
       - name: Updating pip
         working-directory: ./src
         run: |
-          pip install poetry
-          poetry run pip install --upgrade pip
+          pip install poetry -c constraints.txt
+          poetry run pip install --upgrade pip -c constraints.txt
           poetry run pip install -U pip setuptools -c constraints.txt
       - name: Install Dependencies
         working-directory: ./src
