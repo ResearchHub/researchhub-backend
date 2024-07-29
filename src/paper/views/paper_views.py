@@ -598,7 +598,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         try:
             paper_rewards = paper.paper_rewards
         except Exception:
-            return Response("Failed to get paper reward", status=400)
+            return Response("Failed to get paper reward", status=500)
 
         summary = {
             "base_rewards": paper_rewards,
