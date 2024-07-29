@@ -50,21 +50,24 @@ jobs:
       - name: Updating pip
         working-directory: ./src
         run: |
-          PIP_CONSTRAINT="$(pwd)/constraints.txt" pip install wheel poetry -c constraints.txt
-          PIP_CONSTRAINT="$(pwd)/constraints.txt" poetry run pip install --upgrade pip -c constraints.txt
-          PIP_CONSTRAINT="$(pwd)/constraints.txt" poetry run pip install -U pip setuptools -c constraints.txt
+          export PIP_CONSTRAINT=constraints.txt
+          pip install wheel poetry
+          poetry run pip install --upgrade pip
+          poetry run pip install -U pip setuptools
       - name: Install Dependencies
         working-directory: ./src
         run: |
-          PIP_CONSTRAINT="$(pwd)/constraints.txt" poetry install
+          export PIP_CONSTRAINT=constraints.txt
+          poetry install
       - name: Run Tests
         working-directory: ./src
         run: |
+          export PIP_CONSTRAINT=constraints.txt
           cp config/ci/* config
-          PIP_CONSTRAINT="$(pwd)/constraints.txt" poetry run python manage.py migrate
-          PIP_CONSTRAINT="$(pwd)/constraints.txt" poetry run python manage.py collectstatic --noinput
-          PIP_CONSTRAINT="$(pwd)/constraints.txt" poetry run coverage run manage.py test --verbosity=2
-          PIP_CONSTRAINT="$(pwd)/constraints.txt" poetry run coverage xml -o coverage.xml
+          poetry run python manage.py migrate
+          poetry run python manage.py collectstatic --noinput
+          poetry run coverage run manage.py test --verbosity=2
+          poetry run coverage xml -o coverage.xml
       - name: Upload Coverage Report to Codecov
         uses: codecov/codecov-action@v4
         with:
