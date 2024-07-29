@@ -33,7 +33,7 @@ class Command(BaseCommand):
 
                     citations = {}
                     bins = {}
-                    for v in range(1, 8):
+                    for v in range(1, 9):
                         bin = ast.literal_eval(row[f"Bin_{v}"])
                         lower_bound = bin[0] + 1
                         if v == 1:

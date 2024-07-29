@@ -6,6 +6,11 @@ from django.db.models import JSONField
 
 from reputation.distributions import create_paper_reward_distribution
 
+OPEN_DATA_MULTIPLIER = 3.0
+PREREGISTERED_MULTIPLIER = 2.0
+
+BASE_VALUE_DIVIDER = 6.0
+
 
 class HubCitationValue(models.Model):
     hub = models.ForeignKey("hub.Hub", on_delete=models.CASCADE, db_index=True)
@@ -30,7 +35,7 @@ class HubCitationValue(models.Model):
         hub_citation_variables = None
         for bin_range, bin_value in self.variables["citations"]["bins"].items():
             bin_range = eval(bin_range)
-            if bin_range[0] <= citation_change < bin_range[1]:
+            if bin_range[0] <= citation_change <= bin_range[1]:
                 hub_citation_variables = bin_value
                 break
 
@@ -40,12 +45,13 @@ class HubCitationValue(models.Model):
         )
 
         rsc_reward = rsc_reward_with_multipliers
+        base_rsc_reward = rsc_reward_with_multipliers / BASE_VALUE_DIVIDER
 
         if not is_open_data:
-            rsc_reward -= (rsc_reward_with_multipliers / 6.0) * 3.0
+            rsc_reward -= base_rsc_reward * OPEN_DATA_MULTIPLIER
 
         if not is_preregistered:
-            rsc_reward -= (rsc_reward_with_multipliers / 6.0) * 2.0
+            rsc_reward -= base_rsc_reward * PREREGISTERED_MULTIPLIER
 
         return rsc_reward
 
