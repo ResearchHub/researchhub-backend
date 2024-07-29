@@ -34,6 +34,7 @@ class HubCitationValue(models.Model):
         hub_citation_variables = None
         for bin_range, bin_value in self.variables["citations"]["bins"].items():
             bin_range = eval(bin_range)
+            bin_value = eval(bin_value)
             if bin_range[0] <= citation_change <= bin_range[1]:
                 hub_citation_variables = bin_value
                 break

@@ -28,7 +28,7 @@ class CreateRewardAlgoVarsTestCase(TestCase):
         # Call the management command
         call_command("create_reward_algo_vars")
         # Assert that the reward algorithm variables are created for the hub
-        self.assertTrue(HubCitationValue.objects.all().count(), 244)
+        self.assertEqual(HubCitationValue.objects.all().count(), 244)
 
     def test_aerospace_rewar_algo_vars(self):
         # Call the management command
