@@ -49,29 +49,22 @@ jobs:
           python-version: "3.8.16"
       - name: Updating pip
         working-directory: ./src
-        env:
-          PIP_CONSTRAINT: constraints.txt
         run: |
-          echo "Current directory: $(pwd)"
-          pip install wheel poetry -c constraints.txt
-          poetry run pip install --upgrade pip -c constraints.txt
-          poetry run pip install -U pip setuptools -c constraints.txt
+          PIP_CONSTRAINT="$(pwd)/constraints.txt" pip install wheel poetry -c constraints.txt
+          PIP_CONSTRAINT="$(pwd)/constraints.txt" poetry run pip install --upgrade pip -c constraints.txt
+          PIP_CONSTRAINT="$(pwd)/constraints.txt" poetry run pip install -U pip setuptools -c constraints.txt
       - name: Install Dependencies
         working-directory: ./src
-        env:
-          PIP_CONSTRAINT: constraints.txt
         run: |
-          poetry install
+          PIP_CONSTRAINT="$(pwd)/constraints.txt" poetry install
       - name: Run Tests
         working-directory: ./src
-        env:
-          PIP_CONSTRAINT: constraints.txt
         run: |
           cp config/ci/* config
-          poetry run python manage.py migrate
-          poetry run python manage.py collectstatic --noinput
-          poetry run coverage run manage.py test --verbosity=2
-          poetry run coverage xml -o coverage.xml
+          PIP_CONSTRAINT="$(pwd)/constraints.txt" poetry run python manage.py migrate
+          PIP_CONSTRAINT="$(pwd)/constraints.txt" poetry run python manage.py collectstatic --noinput
+          PIP_CONSTRAINT="$(pwd)/constraints.txt" poetry run coverage run manage.py test --verbosity=2
+          PIP_CONSTRAINT="$(pwd)/constraints.txt" poetry run coverage xml -o coverage.xml
       - name: Upload Coverage Report to Codecov
         uses: codecov/codecov-action@v4
         with:
