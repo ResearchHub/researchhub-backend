@@ -29,7 +29,6 @@ from discussion.models import Vote as GrmVote
 from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
 from discussion.reaction_views import ReactionViewActionMixin
 from google_analytics.signals import get_event_hit_response
-from notification.models import Notification
 from paper.exceptions import DOINotFoundError, PaperSerializerError
 from paper.filters import PaperFilter
 from paper.models import AdditionalFile, Figure, Paper, PaperSubmission
@@ -37,7 +36,6 @@ from paper.paper_upload_tasks import celery_process_paper
 from paper.permissions import (
     CreatePaper,
     IsAuthor,
-    IsModeratorOrVerifiedAuthor,
     UpdateOrDeleteAdditionalFile,
     UpdatePaper,
 )
@@ -52,7 +50,6 @@ from paper.serializers import (
 )
 from paper.tasks import censored_paper_cleanup
 from paper.utils import (
-    add_default_hub,
     clean_abstract,
     get_cache_key,
     get_csl_item,
@@ -70,7 +67,6 @@ from researchhub_document.related_models.constants.filters import (
     UPVOTED,
 )
 from researchhub_document.utils import reset_unified_document_cache
-from user.related_models.author_model import Author
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.openalex import OpenAlex
 from utils.permissions import CreateOrUpdateIfAllowed, HasAPIKey, PostOnly
