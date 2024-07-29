@@ -85,6 +85,7 @@ cryptography = "42.0.5"
 requests-mock = "^1.12.1"
 django-simple-history = "3.7.0"
 coverage = ">=7.5.4"
+wheel = "^0.43.0"
 
 [tool.poetry.dev-dependencies]
 
