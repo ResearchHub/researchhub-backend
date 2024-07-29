@@ -5,9 +5,6 @@ from rest_framework.test import APITestCase
 
 from paper.models import Paper
 from paper.openalex_util import process_openalex_works
-from user.related_models.author_contribution_summary_model import (
-    AuthorContributionSummary,
-)
 from user.related_models.author_model import Author
 from utils.openalex import OpenAlex
 
