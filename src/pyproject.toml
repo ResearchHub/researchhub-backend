@@ -6,7 +6,7 @@ authors = ["Your Name <you@example.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.8"
-setuptools = ">=70.3.0"
+setuptools = "<72.0.0"
 Django = ">=4.2.14"
 postgres = "^4.0"
 djangorestframework = "3.14.0"
