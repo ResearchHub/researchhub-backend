@@ -33,6 +33,7 @@ class Command(BaseCommand):
                         )
                     except Hub.DoesNotExist:
                         print(f"Hub {slug} does not exist.")
+                        continue
 
                     citations = {}
                     bins = {}
