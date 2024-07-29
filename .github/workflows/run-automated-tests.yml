@@ -56,7 +56,8 @@ jobs:
       - name: Install Dependencies
         working-directory: ./src
         run: |
-          poetry run pip install autobahn
+          echo "setuptools<72" > constraints.txt
+          PIP_CONSTRAINT=constraints.txt poetry run pip install autobahn
           poetry install
       - name: Run Tests
         working-directory: ./src
