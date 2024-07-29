@@ -1,4 +1,3 @@
-import datetime
 import math
 from unicodedata import normalize
 
@@ -6,7 +5,7 @@ from dateutil import parser
 from django.utils.timezone import get_current_timezone, is_aware, make_aware
 
 from paper.exceptions import DOINotFoundError
-from paper.utils import check_url_contains_pdf, format_raw_authors
+from paper.utils import format_raw_authors
 from researchhub.settings import OPENALEX_KEY
 from utils.aws import download_pdf
 from utils.parsers import rebuild_sentence_from_inverted_index
@@ -103,9 +102,9 @@ class OpenAlex:
                         if isinstance(value, str):
                             output_json[mapped_key] = value
                         else:
-                            output_json[
-                                mapped_key
-                            ] = rebuild_sentence_from_inverted_index(value)
+                            output_json[mapped_key] = (
+                                rebuild_sentence_from_inverted_index(value)
+                            )
                     else:
                         output_json[mapped_key] = value
             else:
@@ -350,6 +349,11 @@ class OpenAlex:
         source_id=None,
         openalex_author_id=None,
     ):
+        """
+        Fetches works from OpenAlex based on the given criteria.
+
+        Works published on ResearchHub are filtered out (by DOI).
+        """
         # Build the filter
         oa_filters = []
         if isinstance(types, list):
@@ -377,9 +381,19 @@ class OpenAlex:
 
         response = self._get("works", filters=filters)
         works = response.get("results", [])
+
+        # Filter out works that were published on ResearchHub,
+        # have a `researchhub` namespace in the DOI.
+        filtered_works = list(
+            filter(
+                lambda w: "/researchhub." not in w.get("doi", "").lower(),
+                works,
+            )
+        )
+
         next_cursor = response.get("meta", {}).get("next_cursor")
         cursor = next_cursor if next_cursor != "*" else None
-        return works, cursor
+        return filtered_works, cursor
 
     @classmethod
     def normalize_dates(self, generic_openalex_object):

@@ -29,7 +29,6 @@ from discussion.models import Vote as GrmVote
 from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
 from discussion.reaction_views import ReactionViewActionMixin
 from google_analytics.signals import get_event_hit_response
-from notification.models import Notification
 from paper.exceptions import DOINotFoundError, PaperSerializerError
 from paper.filters import PaperFilter
 from paper.models import AdditionalFile, Figure, Paper, PaperSubmission
@@ -37,7 +36,6 @@ from paper.paper_upload_tasks import celery_process_paper
 from paper.permissions import (
     CreatePaper,
     IsAuthor,
-    IsModeratorOrVerifiedAuthor,
     UpdateOrDeleteAdditionalFile,
     UpdatePaper,
 )
@@ -52,7 +50,6 @@ from paper.serializers import (
 )
 from paper.tasks import censored_paper_cleanup
 from paper.utils import (
-    add_default_hub,
     clean_abstract,
     get_cache_key,
     get_csl_item,
@@ -70,7 +67,6 @@ from researchhub_document.related_models.constants.filters import (
     UPVOTED,
 )
 from researchhub_document.utils import reset_unified_document_cache
-from user.related_models.author_model import Author
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.openalex import OpenAlex
 from utils.permissions import CreateOrUpdateIfAllowed, HasAPIKey, PostOnly
@@ -105,20 +101,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             "uploaded_by__subscribed_hubs",
             "authors",
             "authors__user",
-            # Prefetch(
-            #     'bullet_points',
-            #     queryset=BulletPoint.objects.filter(
-            #         is_head=True,
-            #         is_removed=False,
-            #         ordinal__isnull=False
-            #     ).order_by('ordinal')
-            # ),
-            # 'summary',
-            # 'summary__previous',
-            # 'summary__proposed_by__bookmarks',
-            # 'summary__proposed_by__subscribed_hubs',
-            # 'summary__proposed_by__author_profile',
-            # 'summary__paper',
             "moderators",
             "hubs",
             "hubs__subscribers",
@@ -135,7 +117,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         queryset = self.queryset
         ordering = query_params.get("ordering", None)
         external_source = query_params.get("external_source", False)
-        # queryset = queryset.filter(pdf_license__isnull=False)
 
         if (
             query_params.get("make_public")
@@ -265,17 +246,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         context = self._get_paper_context(request)
-
-        # Commenting out paper cache
-        # cache_key = get_cache_key("paper", instance.id)
-        # cache_hit = cache.get(cache_key)
-        # if cache_hit is not None:
-        #     vote = self.dynamic_serializer_class(context=context).get_user_vote(
-        #         instance
-        #     )
-        #     cache_hit["user_vote"] = vote
-        #     return Response(cache_hit)
-
         serializer = self.dynamic_serializer_class(
             instance,
             context=context,
@@ -341,8 +311,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             instance = self.get_object()
             self._send_created_location_ga_event(instance, request.user)
 
-        # Commenting out paper cache
-        # instance.reset_cache(use_celery=False)
         return response
 
     def _send_created_location_ga_event(self, instance, user):
@@ -454,9 +422,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             pass
         paper.is_removed = False
         paper.save()
-
-        # Commenting out paper cache
-        # paper.reset_cache(use_celery=False)
 
         reset_unified_document_cache(
             filters=[HOT, UPVOTED, DISCUSSED, NEW],
@@ -736,7 +701,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         try:
             open_alex = OpenAlex()
             open_alex_json = open_alex.get_data_from_doi(doi_string)
-        except Exception as e:
+        except Exception:
             return Response(status=404)
 
         return Response(open_alex_json, status=200)
@@ -759,7 +724,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 # Fetch data from OpenAlex
                 open_alex_api = OpenAlex()
                 work = open_alex_api.get_data_from_doi(doi_string)
-            except DOINotFoundError as e:
+            except DOINotFoundError:
                 return Response(status=404)
 
             # Next we want to try and guess the author in the list of authors associated with the work.
@@ -782,12 +747,12 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                     ):
                         found_openalex_author = openalex_author
                     elif (
-                        found_openalex_author == None
+                        found_openalex_author is None
                         and rh_author_last_name == openalex_author_name[0]
                     ):
                         found_openalex_author = openalex_author
                     elif (
-                        found_openalex_author == None
+                        found_openalex_author is None
                         and rh_author_first_name == openalex_author_name[-1]
                     ):
                         found_openalex_author = openalex_author
@@ -799,7 +764,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             author_works = []
             if openalex_author_id:
                 openalex_author_id = openalex_author_id.split("/")[-1]
-                author_works, cursor = open_alex_api.get_works(
+                author_works, _ = open_alex_api.get_works(
                     openalex_author_id=openalex_author_id, batch_size=200
                 )
 
