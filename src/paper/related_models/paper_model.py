@@ -38,6 +38,7 @@ from paper.utils import (
     populate_pdf_url_from_journal_url,
 )
 from purchase.models import Purchase
+from reputation.related_models.paper_reward import HubCitationValue
 from researchhub.lib import CREATED_LOCATIONS
 from researchhub.settings import TESTING
 from researchhub_comment.models import RhCommentThreadModel
@@ -965,6 +966,10 @@ class Paper(AbstractPaper):
         key = file.name
         file_name = key.split("/")[-1]
         return lambda_compress_and_linearize_pdf(key, file_name)
+
+    @property
+    def paper_rewards(self):
+        return HubCitationValue.calculate_base_claim_rsc_reward(self)
 
 
 class MetadataRetrievalAttempt(models.Model):
