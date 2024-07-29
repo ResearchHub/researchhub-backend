@@ -586,6 +586,9 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
 
         summary = {
             "base_rewards": 1234.56,
+            "open_access_multiplier": 1,
+            "open_data_multiplier": 3,
+            "preregistration_multiplier": 2,
         }
         return Response(summary, status=200)
 

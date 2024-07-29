@@ -10,6 +10,7 @@ from paper.serializers.paper_serializers import (
     PaperSubmissionSerializer,
 )
 from reputation.related_models.paper_reward import PaperReward
+from reputation.serializers.paper_reward_serializer import PaperRewardSerializer
 from researchhub_case.models import AuthorClaimCase
 from user.models import User
 from user.related_models.user_verification_model import UserVerification
@@ -24,6 +25,7 @@ class AuthorClaimCaseSerializer(ModelSerializer):
     requestor = SerializerMethodField()
     paper = SerializerMethodField(method_name="get_paper")
     authorship = SerializerMethodField()
+    paper_reward = SerializerMethodField()
 
     def create(self, validated_data):
         request_data = self.context.get("request").data
@@ -64,6 +66,10 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             )
 
         return case
+
+    def get_paper_reward(self, case):
+        serializer = PaperRewardSerializer(case.paper_reward)
+        return serializer.data
 
     def get_paper(self, case):
         paper = case.target_paper
