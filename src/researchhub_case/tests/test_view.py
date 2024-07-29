@@ -46,7 +46,16 @@ class ViewTests(APITestCase):
 
         HubCitationValue.objects.create(
             hub=self.paper.unified_document.get_primary_hub(),
-            rsc_per_citation=1.0,
+            variables={
+                "citations": {
+                    "bins": {
+                        json.dumps((1, 1000000)): {
+                            "slope": 0.32872014059165,
+                            "intercept": -0.0567277429812658,
+                        }
+                    }
+                }
+            },
         )
 
         o = UserVerification.objects.create(
@@ -231,7 +240,7 @@ class ViewTests(APITestCase):
         paper_reward = PaperReward.objects.get(
             paper=paper, author=self.verified_user.author_profile
         )
-        self.assertEqual(paper_reward.rsc_value, 878076.0)
+        self.assertEqual(paper_reward.rsc_value, 262.6565459428065)
         self.assertIsNotNone(paper_reward.distribution)
 
     def test_rejecting_claim_does_not_pay_rewards_to_user(self):
@@ -243,5 +252,5 @@ class ViewTests(APITestCase):
         paper_reward = PaperReward.objects.get(
             paper=paper, author=self.verified_user.author_profile
         )
-        self.assertEqual(paper_reward.rsc_value, 878076.0)
+        self.assertEqual(paper_reward.rsc_value, 262.6565459428065)
         self.assertIsNone(paper_reward.distribution)

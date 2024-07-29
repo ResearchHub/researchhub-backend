@@ -41,7 +41,16 @@ class PaperRewardTestCase(TestCase):
 
         HubCitationValue.objects.create(
             hub=self.paper1_hub,
-            rsc_per_citation=1.0,
+            variables={
+                "citations": {
+                    "bins": {
+                        json.dumps((1, 1000000)): {
+                            "slope": 0.32872014059165,
+                            "intercept": -0.0567277429812658,
+                        }
+                    }
+                }
+            },
         )
 
     def test_claim_paper_rewards(self):
@@ -54,7 +63,7 @@ class PaperRewardTestCase(TestCase):
 
         self.assertEqual(paper_reward.citation_change, self.paper1.citations)
         self.assertEqual(paper_reward.citation_count, self.paper1.citations)
-        self.assertEqual(paper_reward.rsc_value, 146346.0)
+        self.assertEqual(paper_reward.rsc_value, 43.77609099046774)
         self.assertFalse(paper_reward.is_open_data)
         self.assertFalse(paper_reward.is_preregistered)
 
@@ -68,7 +77,7 @@ class PaperRewardTestCase(TestCase):
 
         self.assertEqual(paper_reward.citation_change, self.paper1.citations)
         self.assertEqual(paper_reward.citation_count, self.paper1.citations)
-        self.assertEqual(paper_reward.rsc_value, 585384.0)
+        self.assertEqual(paper_reward.rsc_value, 43.77609099046774 * 4.0)
         self.assertTrue(paper_reward.is_open_data)
         self.assertFalse(paper_reward.is_preregistered)
 
@@ -82,7 +91,7 @@ class PaperRewardTestCase(TestCase):
 
         self.assertEqual(paper_reward.citation_change, self.paper1.citations)
         self.assertEqual(paper_reward.citation_count, self.paper1.citations)
-        self.assertEqual(paper_reward.rsc_value, 439038.0)
+        self.assertEqual(paper_reward.rsc_value, 43.77609099046774 * 3.0)
         self.assertFalse(paper_reward.is_open_data)
         self.assertTrue(paper_reward.is_preregistered)
 
@@ -96,7 +105,7 @@ class PaperRewardTestCase(TestCase):
 
         self.assertEqual(paper_reward.citation_change, self.paper1.citations)
         self.assertEqual(paper_reward.citation_count, self.paper1.citations)
-        self.assertEqual(paper_reward.rsc_value, 878076.0)
+        self.assertEqual(paper_reward.rsc_value, 43.77609099046774 * 6.0)
         self.assertTrue(paper_reward.is_open_data)
         self.assertTrue(paper_reward.is_preregistered)
 
