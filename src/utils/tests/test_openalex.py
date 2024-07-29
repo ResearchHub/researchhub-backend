@@ -2,8 +2,8 @@ import json
 import re
 
 import responses
-
 from django.test import TestCase
+
 from utils.openalex import OpenAlex
 
 

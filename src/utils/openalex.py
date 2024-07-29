@@ -1,4 +1,3 @@
-import datetime
 import math
 from unicodedata import normalize
 
@@ -6,7 +5,7 @@ from dateutil import parser
 from django.utils.timezone import get_current_timezone, is_aware, make_aware
 
 from paper.exceptions import DOINotFoundError
-from paper.utils import check_url_contains_pdf, format_raw_authors
+from paper.utils import format_raw_authors
 from researchhub.settings import OPENALEX_KEY
 from utils.aws import download_pdf
 from utils.parsers import rebuild_sentence_from_inverted_index
