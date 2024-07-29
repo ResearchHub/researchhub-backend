@@ -701,7 +701,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         try:
             open_alex = OpenAlex()
             open_alex_json = open_alex.get_data_from_doi(doi_string)
-        except Exception as e:
+        except Exception:
             return Response(status=404)
 
         return Response(open_alex_json, status=200)
@@ -724,7 +724,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 # Fetch data from OpenAlex
                 open_alex_api = OpenAlex()
                 work = open_alex_api.get_data_from_doi(doi_string)
-            except DOINotFoundError as e:
+            except DOINotFoundError:
                 return Response(status=404)
 
             # Next we want to try and guess the author in the list of authors associated with the work.
@@ -747,12 +747,12 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                     ):
                         found_openalex_author = openalex_author
                     elif (
-                        found_openalex_author == None
+                        found_openalex_author is None
                         and rh_author_last_name == openalex_author_name[0]
                     ):
                         found_openalex_author = openalex_author
                     elif (
-                        found_openalex_author == None
+                        found_openalex_author is None
                         and rh_author_first_name == openalex_author_name[-1]
                     ):
                         found_openalex_author = openalex_author
@@ -764,7 +764,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             author_works = []
             if openalex_author_id:
                 openalex_author_id = openalex_author_id.split("/")[-1]
-                author_works, cursor = open_alex_api.get_works(
+                author_works, _ = open_alex_api.get_works(
                     openalex_author_id=openalex_author_id, batch_size=200
                 )
 
