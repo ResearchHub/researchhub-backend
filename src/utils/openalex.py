@@ -387,7 +387,7 @@ class OpenAlex:
         # have a `researchhub` namespace in the DOI.
         filtered_works = list(
             filter(
-                lambda w: "/researchhub." not in w.get("doi", ""),
+                lambda w: "/researchhub." not in w.get("doi", "").lower(),
                 works,
             )
         )
