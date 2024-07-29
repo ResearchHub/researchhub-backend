@@ -57,6 +57,11 @@ from paper.utils import (
 )
 from purchase.models import Purchase
 from reputation.models import Contribution
+from reputation.related_models.paper_reward import (
+    OPEN_ACCESS_MULTIPLIER,
+    OPEN_DATA_MULTIPLIER,
+    PREREGISTERED_MULTIPLIER,
+)
 from researchhub.lib import get_document_id_from_path
 from researchhub.permissions import IsObjectOwnerOrModerator
 from researchhub_document.permissions import HasDocumentCensorPermission
@@ -574,7 +579,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         data = {"found_file": url_is_pdf}
         return Response(data, status=status.HTTP_200_OK)
 
-    # @kouts - To implement this
     @action(
         detail=True,
         methods=["get"],
@@ -583,12 +587,24 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         """
         Provides information about rewards for which this paper is eligible for
         """
+        paper_id = pk
+        if not paper_id:
+            return Response("paper_id is required", status=400)
+
+        paper = Paper.objects.get(id=paper_id)
+        if not paper:
+            return Response("Paper not found", status=404)
+
+        try:
+            paper_rewards = paper.paper_rewards
+        except Exception:
+            return Response("Failed to get paper reward", status=400)
 
         summary = {
-            "base_rewards": 1234.56,
-            "open_access_multiplier": 1,
-            "open_data_multiplier": 3,
-            "preregistration_multiplier": 2,
+            "base_rewards": paper_rewards,
+            "open_access_multiplier": OPEN_ACCESS_MULTIPLIER,
+            "open_data_multiplier": OPEN_DATA_MULTIPLIER,
+            "preregistration_multiplier": PREREGISTERED_MULTIPLIER,
         }
         return Response(summary, status=200)
 

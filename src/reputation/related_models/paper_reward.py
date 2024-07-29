@@ -6,10 +6,9 @@ from django.db.models import JSONField
 
 from reputation.distributions import create_paper_reward_distribution
 
+OPEN_ACCESS_MULTIPLIER = 1.0
 OPEN_DATA_MULTIPLIER = 3.0
 PREREGISTERED_MULTIPLIER = 2.0
-
-BASE_VALUE_DIVIDER = 6.0
 
 
 class HubCitationValue(models.Model):
@@ -45,7 +44,9 @@ class HubCitationValue(models.Model):
         )
 
         rsc_reward = rsc_reward_with_multipliers
-        base_rsc_reward = rsc_reward_with_multipliers / BASE_VALUE_DIVIDER
+        base_rsc_reward = rsc_reward_with_multipliers / (
+            OPEN_ACCESS_MULTIPLIER * OPEN_DATA_MULTIPLIER * PREREGISTERED_MULTIPLIER
+        )
 
         if not is_open_data:
             rsc_reward -= base_rsc_reward * OPEN_DATA_MULTIPLIER
@@ -54,6 +55,11 @@ class HubCitationValue(models.Model):
             rsc_reward -= base_rsc_reward * PREREGISTERED_MULTIPLIER
 
         return rsc_reward
+
+    # This method is used to calculate the base reward for the initial paper claim.
+    @classmethod
+    def calculate_base_claim_rsc_reward(cls, paper):
+        return cls.calculate_rsc_reward(paper, paper.citations, False, False)
 
 
 class PaperReward(models.Model):

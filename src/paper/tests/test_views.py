@@ -1,16 +1,18 @@
 import json
 import random
 from unittest import skip
-from unittest.mock import patch
+from unittest.mock import PropertyMock, patch
 
 from django.test import Client, TestCase
 from rest_framework.test import APITestCase
 
+from paper.models import Paper
 from paper.tests.helpers import create_paper
 from user.tests.helpers import create_random_authenticated_user, create_user
 from utils.openalex import OpenAlex
 from utils.test_helpers import (
     get_authenticated_delete_response,
+    get_authenticated_get_response,
     get_authenticated_post_response,
 )
 
@@ -153,6 +155,16 @@ class PaperViewsTests(TestCase):
             {"title": "Paper Uploaded via API Token", "paper_type": "REGULAR"},
         )
         self.assertEqual(res.status_code, 201)
+
+    @patch.object(Paper, "paper_rewards", new_callable=PropertyMock)
+    def test_eligible_reward_summary(self, mock_get_paper_reward):
+        url = self.base_url + f"{self.paper.id}/eligible_reward_summary/"
+        mock_get_paper_reward.return_value = 100
+        response = get_authenticated_get_response(self.user, url, {})
+
+        self.assertEqual(response.status_code, 200)
+        result = response.data
+        self.assertEqual(result["base_rewards"], 100)
 
     @skip
     def test_search_by_url_arxiv(self):
