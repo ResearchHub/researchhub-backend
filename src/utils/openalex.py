@@ -102,9 +102,9 @@ class OpenAlex:
                         if isinstance(value, str):
                             output_json[mapped_key] = value
                         else:
-                            output_json[
-                                mapped_key
-                            ] = rebuild_sentence_from_inverted_index(value)
+                            output_json[mapped_key] = (
+                                rebuild_sentence_from_inverted_index(value)
+                            )
                     else:
                         output_json[mapped_key] = value
             else:
