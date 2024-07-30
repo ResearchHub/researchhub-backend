@@ -132,12 +132,18 @@ class PaperRewardTestCase(TestCase):
             variables={
                 "citations": {
                     "bins": {
-                        json.dumps((1, 1000000)): json.dumps(
+                        json.dumps((1, 100)): json.dumps(
+                            {
+                                "slope": 0.247331107431,
+                                "intercept": -0.522606575151378,
+                            }
+                        ),
+                        json.dumps((101, 1000000)): json.dumps(
                             {
                                 "slope": 1.247331107431,
                                 "intercept": -0.122606575151378,
                             }
-                        )
+                        ),
                     }
                 }
             },
@@ -146,3 +152,57 @@ class PaperRewardTestCase(TestCase):
         rsc_reward = hub_citation_value.rsc_reward_algo(1430, True, True)
 
         self.assertEqual(rsc_reward, 6503.4262371883115)
+
+    def test_rsc_reward_algo_aerospace_first_bin(self):
+        hub_citation_value = HubCitationValue(
+            hub=self.paper1_hub,
+            variables={
+                "citations": {
+                    "bins": {
+                        json.dumps((1, 100)): json.dumps(
+                            {
+                                "slope": 0.247331107431,
+                                "intercept": -0.522606575151378,
+                            }
+                        ),
+                        json.dumps((101, 1000000)): json.dumps(
+                            {
+                                "slope": 1.247331107431,
+                                "intercept": -0.122606575151378,
+                            }
+                        ),
+                    }
+                }
+            },
+        )
+
+        rsc_reward = hub_citation_value.rsc_reward_algo(45, True, True)
+
+        self.assertEqual(rsc_reward, 0.7696341089640361)
+
+    def test_rsc_reward_algo_above_top_bin(self):
+        hub_citation_value = HubCitationValue(
+            hub=self.paper1_hub,
+            variables={
+                "citations": {
+                    "bins": {
+                        json.dumps((1, 100)): json.dumps(
+                            {
+                                "slope": 0.3,
+                                "intercept": -0.056,
+                            }
+                        ),
+                        json.dumps((101, 1000)): json.dumps(
+                            {
+                                "slope": 0.5,
+                                "intercept": 1.23,
+                            }
+                        ),
+                    },
+                }
+            },
+        )
+
+        rsc_reward = hub_citation_value.rsc_reward_algo(10000, True, True)
+
+        self.assertEqual(rsc_reward, 537.0317963702522)
