@@ -251,6 +251,11 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=["get"], permission_classes=(AllowAny,))
     def latest_contributions(self, request):
+        """
+        Returns the latest contribution made by users on the platform.
+        If an `author_id` is provided, it will return the latest contributions
+        made by that author.
+        """
         author_id = request.query_params.get("author_id")
         actions = self._get_latest_actions(author_id)
         page = self.paginate_queryset(actions)
