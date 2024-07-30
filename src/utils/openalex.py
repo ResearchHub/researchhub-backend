@@ -102,9 +102,9 @@ class OpenAlex:
                         if isinstance(value, str):
                             output_json[mapped_key] = value
                         else:
-                            output_json[mapped_key] = (
-                                rebuild_sentence_from_inverted_index(value)
-                            )
+                            output_json[
+                                mapped_key
+                            ] = rebuild_sentence_from_inverted_index(value)
                     else:
                         output_json[mapped_key] = value
             else:
@@ -386,7 +386,8 @@ class OpenAlex:
         # have a `researchhub` namespace in the DOI.
         filtered_works = list(
             filter(
-                lambda w: "/researchhub." not in w.get("doi", "").lower(),
+                lambda w: w.get("doi") is not None
+                and "/researchhub." not in w.get("doi", "").lower(),
                 works,
             )
         )
