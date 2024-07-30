@@ -295,4 +295,4 @@ class InitializeReputationCommandTestCase(TestCase):
         mock_author_profile.side_effect = ObjectDoesNotExist
 
         with self.assertRaises(ObjectDoesNotExist):
-            self.user_no_author.calculate_hub_scores(1)
+            self.user_no_author.calculate_hub_scores()
