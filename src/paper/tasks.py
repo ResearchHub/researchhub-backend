@@ -935,7 +935,7 @@ def pull_openalex_author_works_batch(
         user = User.objects.get(id=user_id_to_notify_after_completion)
 
         try:
-            user.author_profile.calculate_hub_scores(1, True)
+            user.author_profile.calculate_hub_scores(True)
         except Exception as e:
             sentry.log_error(e)
 
