@@ -233,14 +233,30 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
             # Associate paper with author
             related_paper.authors.add(author)
 
+            is_corresponding = oa_authorship.get("is_corresponding")
+            raw_author_name = oa_authorship.get("author", {}).get("display_name")
+
             # Find or create authorship
-            authorship, created = Authorship.objects.get_or_create(
+            authorship, _ = Authorship.objects.get_or_create(
                 author=author,
-                author_position=author_position,
                 paper=related_paper,
-                is_corresponding=oa_authorship.get("is_corresponding"),
-                raw_author_name=oa_authorship.get("author", {}).get("display_name"),
+                defaults={
+                    "author_position": author_position,
+                    "is_corresponding": is_corresponding,
+                    "raw_author_name": raw_author_name,
+                },
             )
+
+            # Update authorship if secondary fields have changed
+            if (
+                authorship.author_position != author_position
+                or authorship.is_corresponding != is_corresponding
+                or authorship.raw_author_name != raw_author_name
+            ):
+                authorship.author_position = author_position
+                authorship.is_corresponding = is_corresponding
+                authorship.raw_author_name = raw_author_name
+                authorship.save()
 
             authors_in_this_work.append(author)
 

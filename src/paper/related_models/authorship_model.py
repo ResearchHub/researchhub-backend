@@ -49,3 +49,10 @@ class Authorship(DefaultModel):
         null=True,
         blank=True,
     )
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["paper", "author"], name="unique_paper_author"
+            )
+        ]
