@@ -718,7 +718,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
     def doi_search_via_openalex(self, request):
         doi_string = request.query_params.get("doi", None)
         if doi_string is None:
-            return Response(status=404)
+            return Response(status=400)
         try:
             open_alex = OpenAlex()
             open_alex_json = open_alex.get_data_from_doi(doi_string)
@@ -736,7 +736,8 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         openalex_author_id = request.query_params.get("author_id", None)
 
         if doi_string is None:
-            return Response(status=404)
+            return Response(status=400)
+
         try:
             # Sometimes user may pass in a doi as doi.org url.
             doi_string = doi_string.replace("https://doi.org/", "").strip()
