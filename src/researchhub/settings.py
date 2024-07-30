@@ -698,7 +698,6 @@ if elastic_token:
         "DISABLE_SEND": CELERY_WORKER or TESTING,
         "TRANSACTION_SAMPLE_RATE": 0.1,
         "PROCESSORS": (
-            "utils.elastic_apm.filter_processor",
             "elasticapm.processors.sanitize_stacktrace_locals",
             "elasticapm.processors.sanitize_http_request_cookies",
             "elasticapm.processors.sanitize_http_headers",
