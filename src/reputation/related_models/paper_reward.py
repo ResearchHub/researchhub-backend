@@ -24,19 +24,31 @@ class HubCitationValue(models.Model):
     def calculate_rsc_reward(
         cls, paper, citation_change, is_open_data, is_preregistered
     ):
-        hub = paper.unified_document.get_primary_hub()
-        hub_citation_value = cls.objects.filter(hub=hub).order_by("created_date").last()
+        hub_citation_value = cls.get_hub_citation_value(
+            paper.unified_document.get_primary_hub()
+        )
         return hub_citation_value.rsc_reward_algo(
             citation_change, is_open_data, is_preregistered
         )
 
+    @classmethod
+    def get_hub_citation_value(cls, hub):
+        return cls.objects.filter(hub=hub).order_by("created_date").last()
+
     def rsc_reward_algo(self, citation_change, is_open_data, is_preregistered):
         hub_citation_variables = None
-        for bin_range, bin_value in self.variables["citations"]["bins"].items():
+        for bin_range, bin_value in sorted(
+            self.variables["citations"]["bins"].items(),
+            key=lambda item: eval(item[0])[1],
+            reverse=True,
+        ):
             bin_range = eval(bin_range)
             bin_value = eval(bin_value)
-            if bin_range[0] <= citation_change <= bin_range[1]:
+            if (
+                citation_change >= bin_range[0]
+            ):  # Since the bins are sorted by the upper bound, we can break once we find the a bin that citation is greater than lower bound.
                 hub_citation_variables = bin_value
+                citation_change = min(citation_change, bin_range[1])
                 break
 
         rsc_reward_with_multipliers = 10 ** (
@@ -74,6 +86,14 @@ class PaperReward(models.Model):
     distribution = models.ForeignKey(
         "reputation.Distribution",
         on_delete=models.CASCADE,
+        db_index=True,
+        default=None,
+        null=True,
+        blank=True,
+    )
+    hub_citation_value = models.ForeignKey(
+        "reputation.HubCitationValue",
+        on_delete=models.CASCADE,
         default=None,
         null=True,
         blank=True,
@@ -87,11 +107,17 @@ class PaperReward(models.Model):
         rsc_value = HubCitationValue.calculate_rsc_reward(
             paper, paper.citations, is_open_data, is_preregistered
         )
+
+        hub_citation_value = HubCitationValue.get_hub_citation_value(
+            paper.unified_document.get_primary_hub()
+        )
+
         paper_reward = cls.objects.create(
             paper=paper,
             author=author,
             citation_change=paper.citations,
             citation_count=paper.citations,
+            hub_citation_value=hub_citation_value,
             rsc_value=rsc_value,
             is_open_data=is_open_data,
             is_preregistered=is_preregistered,
