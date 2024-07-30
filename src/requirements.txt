@@ -2329,9 +2329,9 @@ sentry-sdk==1.43.0 ; python_version >= "3.8" and python_version < "4.0" \
 service-identity==24.1.0 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:6829c9d62fb832c2e1c435629b0a8c476e1929881f28bee4d20bc24161009221 \
     --hash=sha256:a28caf8130c8a5c1c7a6f5293faaf239bbfb7751e4862436920ee6f2616f568a
-setuptools==70.3.0 ; python_version >= "3.8" and python_version < "4.0" \
-    --hash=sha256:f171bab1dfbc86b132997f26a119f6056a57950d058587841a0082e8830f9dc5 \
-    --hash=sha256:fe384da74336c398e0d956d1cae0669bc02eed936cdb1d49b57de1990dc11ffc
+setuptools==72.1.0 ; python_version >= "3.8" and python_version < "4.0" \
+    --hash=sha256:5a03e1860cf56bb6ef48ce186b0e557fdba433237481a9a625176c2831be15d1 \
+    --hash=sha256:8d243eff56d095e5817f796ede6ae32941278f542e0f941867cc05ae52b162ec
 sgmllib3k==1.0.0 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:7868fb1c8bfa764c1ac563d3cf369c381d1325d36124933a726f29fcdaa812e9
 sift==5.4.0 ; python_version >= "3.8" and python_version < "4.0" \
