@@ -38,7 +38,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         qs = self.get_queryset()
         return self.filter_queryset(qs)
 
-    def _get_latest_actions(self):
+    def _get_latest_actions(self, author_id: str = None):
         actions = (
             self.get_filtered_queryset()
             .exclude(Q(is_removed=True) | Q(display=False))
@@ -56,6 +56,10 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
                 "user__author_profile",
             )
         )
+
+        if author_id:
+            actions = actions.filter(user__author_profile__id=author_id)
+
         return actions
 
     def _get_latest_actions_context(self):
@@ -247,7 +251,8 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=False, methods=["get"], permission_classes=(AllowAny,))
     def latest_contributions(self, request):
-        actions = self._get_latest_actions()
+        author_id = request.query_params.get("author_id")
+        actions = self._get_latest_actions(author_id)
         page = self.paginate_queryset(actions)
         serializer = DynamicActionSerializer(
             page,
