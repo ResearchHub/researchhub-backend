@@ -46,7 +46,12 @@ class OpenAlexTests(TestCase):
 
         # Assert
         self.assertEqual(len(works), 10)
-        self.assertFalse(any("/researchhub." in work.get("doi", "") for work in works))
+        self.assertFalse(
+            any(
+                work.get("doi") is not None and "/researchhub." in work.get("doi", "")
+                for work in works
+            )
+        )
 
     @responses.activate
     def test_get_data_from_doi_with_retry(self):
