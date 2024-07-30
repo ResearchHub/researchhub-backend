@@ -39,6 +39,7 @@ from paper.permissions import (
     UpdateOrDeleteAdditionalFile,
     UpdatePaper,
 )
+from paper.related_models.authorship_model import Authorship
 from paper.serializers import (
     AdditionalFileSerializer,
     BookmarkSerializer,
@@ -72,6 +73,7 @@ from researchhub_document.related_models.constants.filters import (
     UPVOTED,
 )
 from researchhub_document.utils import reset_unified_document_cache
+from user.related_models.author_model import Author
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.openalex import OpenAlex
 from utils.permissions import CreateOrUpdateIfAllowed, HasAPIKey, PostOnly
@@ -716,7 +718,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
     def doi_search_via_openalex(self, request):
         doi_string = request.query_params.get("doi", None)
         if doi_string is None:
-            return Response(status=404)
+            return Response(status=400)
         try:
             open_alex = OpenAlex()
             open_alex_json = open_alex.get_data_from_doi(doi_string)
@@ -734,7 +736,8 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         openalex_author_id = request.query_params.get("author_id", None)
 
         if doi_string is None:
-            return Response(status=404)
+            return Response(status=400)
+
         try:
             # Sometimes user may pass in a doi as doi.org url.
             doi_string = doi_string.replace("https://doi.org/", "").strip()
@@ -786,9 +789,10 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 author_works, _ = open_alex_api.get_works(
                     openalex_author_id=openalex_author_id, batch_size=200
                 )
+            unclaimed_works = self._filter_unclaimed_works(rh_author, author_works)
 
             response = {
-                "works": [work for work in author_works],
+                "works": unclaimed_works,
                 "selected_author_id": openalex_author_id,
                 "available_authors": [
                     authorship.get("author")
@@ -800,6 +804,19 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         except Exception as error:
             log_error(error)
             return Response(status=500)
+
+    def _filter_unclaimed_works(self, author: Author, openalex_works: list) -> list:
+        """
+        Returns a list of works that the author has not claimed yet.
+        """
+        authorships = Authorship.objects.filter(author=author)
+        claimed_works = Paper.objects.filter(
+            id__in=authorships.values_list("paper_id", flat=True)
+        ).values_list("openalex_id", flat=True)
+        unclaimed_works = list(
+            filter(lambda work: work["id"] not in claimed_works, openalex_works)
+        )
+        return unclaimed_works
 
     def calculate_paper_ordering(self, papers, ordering, start_date, end_date):
         if "hot_score" in ordering:

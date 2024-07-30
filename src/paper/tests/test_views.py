@@ -7,7 +7,9 @@ from django.test import Client, TestCase
 from rest_framework.test import APITestCase
 
 from paper.models import Paper
+from paper.related_models.authorship_model import Authorship
 from paper.tests.helpers import create_paper
+from paper.views.paper_views import PaperViewSet
 from user.tests.helpers import create_random_authenticated_user, create_user
 from utils.openalex import OpenAlex
 from utils.test_helpers import (
@@ -102,6 +104,52 @@ class PaperApiTests(APITestCase):
             )
 
             self.assertEqual(response.data["selected_author_id"], author_id)
+
+    def test_filter_unclaimed_works(self):
+        # Arrange
+        author = create_user(first_name="test_unclaimed_works").author_profile
+        openalex_works = [{"id": "openalex1"}, {"id": "openalex2"}, {"id": "openalex3"}]
+
+        paper = Paper.objects.create(openalex_id="openalex2")
+        Authorship.objects.create(author=author, paper=paper)
+
+        # Act
+        unclaimed_works = PaperViewSet()._filter_unclaimed_works(author, openalex_works)
+
+        # Assert
+        self.assertEqual(len(unclaimed_works), 2)
+        self.assertEqual(unclaimed_works, [{"id": "openalex1"}, {"id": "openalex3"}])
+
+    def test_filter_unclaimed_works_all_claimed(self):
+        # Arrange
+        author = create_user(first_name="test_unclaimed_works").author_profile
+        openalex_works = [{"id": "openalex1"}, {"id": "openalex2"}, {"id": "openalex3"}]
+
+        paper1 = Paper.objects.create(openalex_id="openalex1")
+        paper2 = Paper.objects.create(openalex_id="openalex2")
+        paper3 = Paper.objects.create(openalex_id="openalex3")
+
+        Authorship.objects.create(author=author, paper=paper1)
+        Authorship.objects.create(author=author, paper=paper2)
+        Authorship.objects.create(author=author, paper=paper3)
+
+        # Act
+        unclaimed_works = PaperViewSet()._filter_unclaimed_works(author, openalex_works)
+
+        # Assert
+        self.assertEqual(unclaimed_works, [])
+
+    def test_filter_unclaimed_works_none_claimed(self):
+        # Arrange
+        author = create_user(first_name="test_unclaimed_works").author_profile
+        openalex_works = [{"id": "openalex1"}, {"id": "openalex2"}, {"id": "openalex3"}]
+
+        # Act
+        unclaimed_works = PaperViewSet()._filter_unclaimed_works(author, openalex_works)
+
+        # Assert
+        self.assertEqual(len(unclaimed_works), 3)
+        self.assertEqual(unclaimed_works, openalex_works)
 
 
 class PaperViewsTests(TestCase):
