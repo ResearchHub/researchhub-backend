@@ -750,9 +750,9 @@ class AuthorViewSet(viewsets.ModelViewSet):
 
         # Fetch the authored papers and order by citations
         authored_doc_ids = list(
-            author.authored_papers.filter(is_removed=False)
-            .order_by("-citations")
-            .values_list("unified_document_id", flat=True)
+            Authorship.objects.filter(author=author)
+            .order_by("-paper__citations")
+            .values_list("paper__unified_document_id", flat=True)
         )[:NUM_DOCUMENTS_TO_FETCH]
 
         documents = ResearchhubUnifiedDocument.objects.filter(id__in=authored_doc_ids)
