@@ -170,8 +170,7 @@ class AuthorSerializer(ModelSerializer):
 
         try:
             return WalletSerializer(obj.wallet).data
-        except Exception as error:
-            # sentry.log_error(error)
+        except Exception:
             pass
 
     def get_sift_link(self, author):
