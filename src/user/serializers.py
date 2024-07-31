@@ -512,6 +512,7 @@ class UserEditableSerializer(ModelSerializer):
             return balance
         return None
 
+    # FIXME: is_verified_v2 should be available on user model and not on author. This is a shim for legacy reasons.
     def get_is_verified_v2(self, user):
         user_verification = UserVerification.objects.filter(user=user).first()
         return user_verification.is_verified if user_verification else False
