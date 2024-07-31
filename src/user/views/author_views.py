@@ -176,6 +176,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 "open_access_pct",
                 "achievements",
                 "education",
+                "user",
             ),
         )
         return Response(serializer.data, status=200)
