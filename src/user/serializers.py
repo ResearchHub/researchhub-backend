@@ -141,7 +141,7 @@ class AuthorSerializer(ModelSerializer):
         }
 
     def get_reputation_list(self, author):
-        scores = Score.objects.filter(author=author).order_by("-score")
+        scores = Score.objects.filter(author=author, score__gt=0).order_by("-score")
         reputation_list = []
         for score in scores:
             hub = Hub.objects.get(id=score.hub_id)
@@ -1288,7 +1288,7 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
         }
 
     def get_reputation_list(self, author):
-        scores = Score.objects.filter(author=author).order_by("-score")
+        scores = Score.objects.filter(author=author, score__gt=0).order_by("-score")
         reputation_list = []
         for score in scores:
             hub = Hub.objects.get(id=score.hub_id)

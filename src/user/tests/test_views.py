@@ -261,6 +261,7 @@ class UserViewsTests(TestCase):
 
             hub1 = papers.first().hubs.first()
             hub2 = papers.last().hubs.first()
+            hub3 = papers.first().hubs.last()
 
             Score.objects.create(
                 author=first_author,
@@ -276,11 +277,21 @@ class UserViewsTests(TestCase):
                 score=1800,
             )
 
+            Score.objects.create(
+                author=first_author,
+                hub=hub3,
+                version=1,
+                score=0,
+            )
+
             url = f"/api/author/{first_author.id}/profile/"
             response = self.client.get(
                 url,
             )
 
+            self.assertEqual(
+                len(response.data["reputation_list"]), 2
+            )  # Filter out 0 scores
             self.assertEqual(response.data["reputation"]["score"], 1900)
             self.assertEqual(response.data["reputation"]["percentile"], 0.275)
             self.assertEqual(response.data["reputation_list"][0]["score"], 1900)
