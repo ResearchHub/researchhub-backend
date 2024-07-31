@@ -1,14 +1,11 @@
 import decimal
-import json
 import logging
 import os
 from datetime import datetime, timedelta
 
 import pytz
 import requests
-import sentry_sdk
 from django.contrib.admin.models import LogEntry
-from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.utils import timezone
@@ -18,22 +15,17 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from web3 import Web3
 
 from analytics.tasks import track_revenue_event
-from notification.models import Notification
 from purchase.models import Balance, RscExchangeRate
 from reputation.exceptions import WithdrawalError
 from reputation.lib import WITHDRAWAL_MINIMUM, PendingWithdrawal, gwei_to_eth
-from reputation.models import PaidStatusModelMixin, Webhook, Withdrawal
+from reputation.models import Withdrawal
 from reputation.permissions import AllowWithdrawalIfNotSuspecious
 from reputation.serializers import WithdrawalSerializer
-from researchhub.settings import (
-    ETHERSCAN_API_KEY,
-    WEB3_RSC_ADDRESS,
-    WEB3_WALLET_ADDRESS,
-)
-from user.models import Action
+from researchhub.settings import ETHERSCAN_API_KEY, WEB3_RSC_ADDRESS
+from user.related_models.user_model import User
+from user.related_models.user_verification_model import UserVerification
 from user.serializers import UserSerializer
 from utils import sentry
 from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfAllowed, UserNotSpammer
@@ -61,61 +53,6 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         else:
             return Withdrawal.objects.filter(user=user)
 
-    @action(
-        detail=False,
-        methods=["POST"],
-        permission_classes=[],
-    )
-    def oz_webhook(self, request):
-        return Response(
-            "Withdrawals are suspended for the time being. Please be patient as we work to turn withdrawals back on",
-            status=400,
-        )
-        body = json.loads(request.body.decode("utf-8"))
-        with sentry_sdk.push_scope() as scope:
-            scope.set_extra("data", body)
-        manual_hook = request.GET.get("manual", False)
-        if not manual_hook:
-            Webhook.objects.create(body=body, from_host=request.headers["Host"])
-        print(body)
-
-        for event in body.get("events", []):
-            transaction_hash = event.get("hash")
-            from_addr = event.get("transaction", {}).get("from")
-            if transaction_hash is None:
-                continue
-
-            transfer = False
-            for reason in event.get("matchReasons", []):
-                if "transfer" in reason.get("signature", "").lower():
-                    transfer = True
-                    break
-
-            if transfer and Web3.to_checksum_address(
-                from_addr
-            ) == Web3.to_checksum_address(WEB3_WALLET_ADDRESS):
-                withdrawal = Withdrawal.objects.get(transaction_hash=transaction_hash)
-                withdrawal.paid_status = PaidStatusModelMixin.PAID
-                withdrawal.save()
-                withdrawal_content_type = get_content_type_for_model(Withdrawal)
-                action, action_created = Action.objects.get_or_create(
-                    user=withdrawal.user,
-                    content_type=withdrawal_content_type,
-                    object_id=withdrawal.id,
-                )
-
-                notification, notification_created = Notification.objects.get_or_create(
-                    content_type=withdrawal_content_type,
-                    object_id=withdrawal.id,
-                    action_user=withdrawal.user,
-                    recipient=withdrawal.user,
-                    notification_type=Notification.RSC_WITHDRAWAL_COMPLETE,
-                )
-
-                notification.send_notification()
-
-        return Response(200)
-
     def create(self, request):
         if LogEntry.objects.filter(
             object_repr="WITHDRAWAL_SWITCH", action_flag=3
@@ -140,9 +77,11 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 status=400,
             )
 
-        if user.reputation < 110:
+        if not self._can_withdraw(user):
             return Response(
-                "Your reputation is too low to withdraw. Please contribute to the platform.",
+                "Your reputation is too low to withdraw. "
+                + "Please claim papers you have authored and contribute to the community to increase your reputation."
+                + "Alternatively, verify your identity to withdraw.",
                 status=400,
             )
 
@@ -190,6 +129,18 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         else:
             sentry.log_info(message)
             return Response(message, status=400)
+
+    def _can_withdraw(self, user: User) -> bool:
+        # User can withdraw if rep score is 10 or more
+        if user.author_profile.get_rep_score() >= 10:
+            return True
+
+        # ...or if the user's identity has been verified
+        user_verification = UserVerification.objects.filter(user=user).first()
+        if not user_verification:
+            return False
+
+        return user_verification.is_verified
 
     def list(self, request):
         # TODO: Do we really need the user on this list? Can we make some

@@ -435,3 +435,10 @@ class Author(models.Model):
             content_type,
             vote.id,
         )
+
+    def get_rep_score(self):
+        score = Score.get_max_score(self)
+        if score is None:
+            return 0
+
+        return score.score

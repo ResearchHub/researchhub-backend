@@ -13,6 +13,8 @@ from reputation.distributor import Distributor
 from reputation.lib import PendingWithdrawal
 from reputation.models import Withdrawal
 from reputation.tests.helpers import create_deposit, create_withdrawals
+from reputation.views.withdrawal_view import WithdrawalViewSet
+from user.related_models.user_verification_model import UserVerification
 from user.rsc_exchange_rate_record_tasks import RSC_COIN_GECKO_ID
 from user.tests.helpers import (
     create_random_authenticated_user,
@@ -30,6 +32,7 @@ def mocked_execute_erc20_transfer(w3, sender, sender_signing_key, contract, to, 
 
 class ReputationViewsTests(APITestCase):
     def setUp(self):
+        self.withdrawal_view = WithdrawalViewSet()
         create_withdrawals(10)
         self.all_withdrawals = len(Withdrawal.objects.all())
         self.mocker = requests_mock.Mocker()
@@ -104,7 +107,6 @@ class ReputationViewsTests(APITestCase):
 
         self.assertEqual(response.status_code, 403)
 
-    @skip  # Skip until withdrawals are reenabled.
     def test_regular_user_can_withdraw_rsc(self):
         user = create_random_authenticated_user_with_reputation("rep_user", 1000)
         user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
@@ -163,6 +165,52 @@ class ReputationViewsTests(APITestCase):
             user, data={"amount": 505, "to_address": "0x0"}
         )
         self.assertEqual(response.status_code, 400)
+
+    def test_can_withdraw_with_sufficient_reputation(self):
+        # Arrange
+        user = create_random_authenticated_user_with_reputation("user1", 1000)
+
+        # Act
+        actual = self.withdrawal_view._can_withdraw(user)
+
+        # Assert
+        self.assertTrue(actual)
+
+    def test_can_withdraw_with_verification(self):
+        # Arrange
+        user = create_random_authenticated_user_with_reputation("user2", 0)
+        UserVerification.objects.create(
+            user=user, status=UserVerification.Status.APPROVED
+        )
+
+        # Act
+        actual = self.withdrawal_view._can_withdraw(user)
+
+        # Assert
+        self.assertTrue(actual)
+
+    def test_can_withdraw_fails_with_declined_status(self):
+        # Arrange
+        user = create_random_authenticated_user_with_reputation("user2", 0)
+        UserVerification.objects.create(
+            user=user, status=UserVerification.Status.DECLINED
+        )
+
+        # Act
+        actual = self.withdrawal_view._can_withdraw(user)
+
+        # Assert
+        self.assertFalse(actual)
+
+    def test_can_withdraw_fails_without_verification_record(self):
+        # Arrange
+        user = create_random_authenticated_user_with_reputation("user2", 0)
+
+        # Act
+        actual = self.withdrawal_view._can_withdraw(user)
+
+        # Assert
+        self.assertFalse(actual)
 
     """
     Helper methods

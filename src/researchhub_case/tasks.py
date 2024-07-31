@@ -1,3 +1,5 @@
+from django.db import transaction
+
 from notification.models import Notification
 from paper.related_models.paper_model import Paper
 from reputation.related_models.paper_reward import PaperReward
@@ -51,16 +53,17 @@ def after_approval_flow(case_id):
 
     requestor = instance.requestor
     try:
-        paper = instance.target_paper
-        author = requestor.author_profile
-        PaperReward.distribute_paper_rewards(paper, author)
-        notification = Notification.objects.create(
-            item=instance,
-            notification_type=Notification.PAPER_CLAIM_PAYOUT,
-            recipient=requestor,
-            action_user=requestor,
-        )
-        notification.send_notification()
+        with transaction.atomic():
+            paper = instance.target_paper
+            author = requestor.author_profile
+            PaperReward.distribute_paper_rewards(paper, author)
+            notification = Notification.objects.create(
+                item=instance,
+                notification_type=Notification.PAPER_CLAIM_PAYOUT,
+                recipient=requestor,
+                action_user=requestor,
+            )
+            notification.send_notification()
     except Exception as exception:
         print("exception", exception)
         sentry.log_error(exception)
