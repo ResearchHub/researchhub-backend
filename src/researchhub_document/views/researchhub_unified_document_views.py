@@ -531,12 +531,14 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "pap_dps_get_authorships": {
                 "_include_fields": [
                     "id",
+                    "author",
                     "author_position",
                     "author_id",
                     "raw_author_name",
                     "is_corresponding",
                 ]
             },
+            "authorship::get_author": {"_include_fields": ["id", "profile_image"]},
             "doc_dps_get_hubs": {
                 "_include_fields": [
                     "id",
