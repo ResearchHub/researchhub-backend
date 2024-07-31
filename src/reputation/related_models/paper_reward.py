@@ -9,6 +9,7 @@ from reputation.distributions import create_paper_reward_distribution
 OPEN_ACCESS_MULTIPLIER = 1.0
 OPEN_DATA_MULTIPLIER = 3.0
 PREREGISTERED_MULTIPLIER = 2.0
+REWARD_MULTIPLIER = 5.0
 
 
 class HubCitationValue(models.Model):
@@ -67,7 +68,7 @@ class HubCitationValue(models.Model):
         if not is_preregistered:
             rsc_reward -= base_rsc_reward * PREREGISTERED_MULTIPLIER
 
-        return rsc_reward
+        return rsc_reward * REWARD_MULTIPLIER
 
     # This method is used to calculate the base reward for the initial paper claim.
     @classmethod
