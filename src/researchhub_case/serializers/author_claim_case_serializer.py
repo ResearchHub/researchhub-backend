@@ -19,6 +19,8 @@ from utils.parsers import get_pure_doi
 
 from .researchhub_case_abstract_serializer import EXPOSABLE_FIELDS
 
+VERSION = 2
+
 
 class AuthorClaimCaseSerializer(ModelSerializer):
     moderator = SerializerMethodField(method_name="get_moderator")
@@ -61,7 +63,7 @@ class AuthorClaimCaseSerializer(ModelSerializer):
                 target_paper_id=target_paper_id,
                 moderator=moderator,
                 requestor=requestor,
-                version=2,
+                version=VERSION,
                 paper_reward=paper_reward,
             )
 
@@ -110,6 +112,7 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             requestor__id=requestor_id,
             target_paper_id=target_paper_id,
             status__in=["OPEN"],
+            version=VERSION,
         )
 
         has_open_case = AuthorClaimCase.objects.filter(
@@ -120,6 +123,7 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             requestor__id=requestor_id,
             target_paper_id=target_paper_id,
             status__in=["APPROVED"],
+            version=VERSION,
         )
 
         has_approved_case = AuthorClaimCase.objects.filter(
