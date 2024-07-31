@@ -1140,9 +1140,15 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
         if user is None:
             return None
 
+        is_verified = False
+        user_verification = UserVerification.objects.filter(user=user).first()
+        if user_verification:
+            is_verified = user_verification.is_verified
+
         return {
             "id": user.id,
             "created_date": user.created_date,
+            "is_verified": is_verified,
         }
 
     def get_achievements(self, author):

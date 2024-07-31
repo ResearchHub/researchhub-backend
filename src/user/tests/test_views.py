@@ -207,6 +207,9 @@ class UserViewsTests(TestCase):
     def test_get_author_profile_user(self):
         # Arrange
         user = create_random_default_user("user1")
+        UserVerification.objects.create(
+            user=user, status=UserVerification.Status.APPROVED
+        )
 
         # Act
         url = f"/api/author/{user.author_profile.id}/profile/"
@@ -219,6 +222,7 @@ class UserViewsTests(TestCase):
             {
                 "id": user.id,
                 "created_date": user.created_date,
+                "is_verified": True,
             },
         )
 
