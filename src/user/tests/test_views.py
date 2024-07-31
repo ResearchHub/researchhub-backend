@@ -9,7 +9,12 @@ from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
 from reputation.models import Score
 from user.models import UserVerification
-from user.tests.helpers import create_random_authenticated_user, create_user
+from user.related_models.author_model import Author
+from user.tests.helpers import (
+    create_random_authenticated_user,
+    create_random_default_user,
+    create_user,
+)
 from utils.openalex import OpenAlex
 from utils.test_helpers import (
     get_authenticated_get_response,
@@ -198,6 +203,40 @@ class UserViewsTests(TestCase):
 
         user.refresh_from_db()
         self.assertTrue(user.has_seen_first_coin_modal)
+
+    def test_get_author_profile_user(self):
+        # Arrange
+        user = create_random_default_user("user1")
+        UserVerification.objects.create(
+            user=user, status=UserVerification.Status.APPROVED
+        )
+
+        # Act
+        url = f"/api/author/{user.author_profile.id}/profile/"
+        response = self.client.get(url)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["user"],
+            {
+                "id": user.id,
+                "created_date": user.created_date,
+                "is_verified": True,
+            },
+        )
+
+    def test_get_author_profile_user_without_user(self):
+        # Arrange
+        author = Author.objects.create(first_name="firstName1", last_name="lastName1")
+
+        # Act
+        url = f"/api/author/{author.id}/profile/"
+        response = self.client.get(url)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["user"], None)
 
     @patch.object(OpenAlex, "get_authors")
     def test_get_author_profile_reputation(self, mock_get_authors):
