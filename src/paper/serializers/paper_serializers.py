@@ -840,6 +840,7 @@ class AuthorshipSerializer(serializers.ModelSerializer):
 
 class DynamicAuthorshipSerializer(DynamicModelFieldSerializer):
     author_id = serializers.SerializerMethodField()
+    author = serializers.SerializerMethodField()
 
     class Meta:
         fields = "__all__"
@@ -847,6 +848,16 @@ class DynamicAuthorshipSerializer(DynamicModelFieldSerializer):
 
     def get_author_id(self, authorship):
         return authorship.author.id
+
+    def get_author(self, authorship):
+        context = self.context
+        _context_fields = context.get("authorship::get_author", {})
+        serializer = DynamicAuthorSerializer(
+            authorship.author,
+            context=context,
+            **_context_fields,
+        )
+        return serializer.data
 
 
 class DynamicPaperSerializer(

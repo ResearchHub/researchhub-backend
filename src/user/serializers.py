@@ -1107,25 +1107,32 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
         if author.headline:
             return author.headline
 
-        all_topics = []
-        authored_papers = author.authored_papers.all()
+        try:
+            all_topics = []
+            authored_papers = author.authored_papers.all()
 
-        for p in authored_papers:
-            unified_document = p.unified_document
-            all_topics += list(unified_document.topics.all())
+            for p in authored_papers:
+                unified_document = p.unified_document
+                all_topics += list(unified_document.topics.all())
 
-        topic_counts = Counter(all_topics)
+            topic_counts = Counter(all_topics)
 
-        # Sort topics by frequency
-        sorted_topics = sorted(topic_counts.items(), key=lambda x: x[1], reverse=True)
+            # Sort topics by frequency
+            sorted_topics = sorted(
+                topic_counts.items(), key=lambda x: x[1], reverse=True
+            )
 
-        # Extract topics from sorted list
-        sorted_topics = [topic for topic, _ in sorted_topics]
+            # Extract topics from sorted list
+            sorted_topics = [topic for topic, _ in sorted_topics]
 
-        if not sorted_topics:
+            if not sorted_topics:
+                return None
+
+            return {
+                "title": "Author with expertise in " + sorted_topics[0].display_name
+            }
+        except Exception:
             return None
-
-        return "Author with expertise in " + sorted_topics[0].display_name
 
     def get_achievements(self, author):
         summary_stats = self.get_summary_stats(author)
