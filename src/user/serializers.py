@@ -70,6 +70,7 @@ class AuthorSerializer(ModelSerializer):
     university = UniversitySerializer(required=False)
     wallet = SerializerMethodField()
     suspended_status = SerializerMethodField()
+    is_verified_v2 = SerializerMethodField()
 
     class Meta:
         model = Author
@@ -90,6 +91,7 @@ class AuthorSerializer(ModelSerializer):
             "university",
             "wallet",
             "is_verified",
+            "is_verified_v2",
         ]
         read_only_fields = [
             "added_as_editor_date",
@@ -99,12 +101,20 @@ class AuthorSerializer(ModelSerializer):
             "num_posts",
             "merged_with",
             "is_verified",
+            "is_verified_v2",
         ]
 
     def get_reputation(self, obj):
         if obj.user is None:
             return 0
         return obj.user.reputation
+
+    def get_is_verified_v2(self, obj):
+        if obj.user is None:
+            return False
+
+        user_verification = UserVerification.objects.filter(user=obj.user).last()
+        return user_verification.is_verified if user_verification else False
 
     def get_reputation_v2(self, author):
         score = Score.objects.filter(author=author).order_by("-score").first()
