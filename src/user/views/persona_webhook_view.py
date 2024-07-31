@@ -94,8 +94,8 @@ class PersonaWebhookView(APIView):
         inquiry_id = self._get_nested_attr(data, "data.attributes.payload.data.id")
 
         user_verification, _ = UserVerification.objects.update_or_create(
+            user_id=reference_id,
             defaults={
-                "user_id": reference_id,
                 "first_name": first_name,
                 "last_name": last_name,
                 "verified_by": UserVerification.Type.PERSONA,
