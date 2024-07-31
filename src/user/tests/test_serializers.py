@@ -1,11 +1,17 @@
 import json
+import time
 
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
+from discussion.models import Vote as GrmVote
 from hub.models import Hub
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
-from reputation.models import Score
+from reputation.distributions import Distribution as Dist
+from reputation.distributor import Distributor
+from reputation.models import Distribution, Score
+from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from user.models import UserVerification
 from user.serializers import (
     AuthorSerializer,
@@ -18,6 +24,14 @@ from user.tests.helpers import create_university, create_user
 class UserSerializersTests(TestCase):
     def setUp(self):
         self.user = create_user(first_name="Serializ")
+
+        distribution = Dist("REWARD", 1000000000, give_rep=False)
+
+        distributor = Distributor(
+            distribution, self.user, self.user, time.time(), self.user
+        )
+        distributor.distribute()
+
         self.university = create_university()
         paper1 = Paper.objects.create(
             title="title1",
@@ -31,6 +45,25 @@ class UserSerializersTests(TestCase):
         Authorship.objects.create(author=self.user.author_profile, paper=paper2)
 
         self.user_without_papers = create_user(email="email1@researchhub.com")
+
+        for i in range(50):
+            Distribution.objects.create(
+                recipient=self.user,
+                proof_item_content_type=ContentType.objects.get_for_model(GrmVote),
+                reputation_amount=1,
+            )
+            thread = RhCommentThreadModel.objects.create(
+                object_id=paper1.id,
+                content_type=ContentType.objects.get_for_model(Paper),
+                created_by=self.user,
+            )
+
+            RhCommentModel.objects.create(
+                created_by=self.user,
+                comment_type="REVIEW",
+                is_removed=False,
+                thread_id=thread.id,
+            )
 
     def test_author_serializer_succeeds_without_user_or_university(self):
         data = {
@@ -116,8 +149,11 @@ class UserSerializersTests(TestCase):
         self.assertEqual(
             serializer.data["summary_stats"],
             {
+                "amount_funded": 0,
                 "citation_count": 30,
+                "peer_review_count": 50,
                 "two_year_mean_citedness": 0,
+                "upvote_count": 50,
                 "works_count": 2,
             },
         )
@@ -132,8 +168,11 @@ class UserSerializersTests(TestCase):
         self.assertEqual(
             serializer.data["summary_stats"],
             {
+                "amount_funded": 0,
                 "citation_count": 0,
+                "peer_review_count": 0,
                 "two_year_mean_citedness": 0,
+                "upvote_count": 0,
                 "works_count": 0,
             },
         )
