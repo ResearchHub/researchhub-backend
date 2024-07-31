@@ -246,7 +246,7 @@ class ViewTests(APITestCase):
         paper_reward = PaperReward.objects.get(
             paper=paper, author=self.verified_user.author_profile
         )
-        self.assertEqual(paper_reward.rsc_value, 43.77609099046774)
+        self.assertEqual(paper_reward.rsc_value, 43.77609099046774 * 5.0)
         self.assertIsNotNone(paper_reward.distribution)
 
     def test_rejecting_claim_does_not_pay_rewards_to_user(self):
@@ -258,5 +258,5 @@ class ViewTests(APITestCase):
         paper_reward = PaperReward.objects.get(
             paper=paper, author=self.verified_user.author_profile
         )
-        self.assertEqual(paper_reward.rsc_value, 43.77609099046774)
+        self.assertEqual(paper_reward.rsc_value, 43.77609099046774 * 5.0)
         self.assertIsNone(paper_reward.distribution)
