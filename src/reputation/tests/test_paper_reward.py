@@ -65,7 +65,7 @@ class PaperRewardTestCase(TestCase):
 
         self.assertEqual(paper_reward.citation_change, self.paper1.citations)
         self.assertEqual(paper_reward.citation_count, self.paper1.citations)
-        self.assertEqual(paper_reward.rsc_value, (43.77609099046774 / 6.0))
+        self.assertEqual(paper_reward.rsc_value, (43.77609099046774 / 6.0) * 5.0)
         self.assertFalse(paper_reward.is_open_data)
         self.assertFalse(paper_reward.is_preregistered)
 
@@ -79,7 +79,7 @@ class PaperRewardTestCase(TestCase):
 
         self.assertEqual(paper_reward.citation_change, self.paper1.citations)
         self.assertEqual(paper_reward.citation_count, self.paper1.citations)
-        self.assertEqual(paper_reward.rsc_value, (43.77609099046774 / 6.0) * 4.0)
+        self.assertEqual(paper_reward.rsc_value, (43.77609099046774 / 6.0) * 4.0 * 5.0)
         self.assertTrue(paper_reward.is_open_data)
         self.assertFalse(paper_reward.is_preregistered)
 
@@ -93,7 +93,7 @@ class PaperRewardTestCase(TestCase):
 
         self.assertEqual(paper_reward.citation_change, self.paper1.citations)
         self.assertEqual(paper_reward.citation_count, self.paper1.citations)
-        self.assertEqual(paper_reward.rsc_value, (43.77609099046774 / 6.0) * 3.0)
+        self.assertEqual(paper_reward.rsc_value, (43.77609099046774 / 6.0) * 3.0 * 5.0)
         self.assertFalse(paper_reward.is_open_data)
         self.assertTrue(paper_reward.is_preregistered)
 
@@ -107,7 +107,7 @@ class PaperRewardTestCase(TestCase):
 
         self.assertEqual(paper_reward.citation_change, self.paper1.citations)
         self.assertEqual(paper_reward.citation_count, self.paper1.citations)
-        self.assertEqual(paper_reward.rsc_value, 43.77609099046774)
+        self.assertEqual(paper_reward.rsc_value, 43.77609099046774 * 5.0)
         self.assertTrue(paper_reward.is_open_data)
         self.assertTrue(paper_reward.is_preregistered)
 
@@ -151,7 +151,7 @@ class PaperRewardTestCase(TestCase):
 
         rsc_reward = hub_citation_value.rsc_reward_algo(1430, True, True)
 
-        self.assertEqual(rsc_reward, 6503.4262371883115)
+        self.assertEqual(rsc_reward, 6503.4262371883115 * 5.0)
 
     def test_rsc_reward_algo_aerospace_first_bin(self):
         hub_citation_value = HubCitationValue(
@@ -178,7 +178,7 @@ class PaperRewardTestCase(TestCase):
 
         rsc_reward = hub_citation_value.rsc_reward_algo(45, True, True)
 
-        self.assertEqual(rsc_reward, 0.7696341089640361)
+        self.assertEqual(rsc_reward, 0.7696341089640361 * 5.0)
 
     def test_rsc_reward_algo_above_top_bin(self):
         hub_citation_value = HubCitationValue(
@@ -205,4 +205,4 @@ class PaperRewardTestCase(TestCase):
 
         rsc_reward = hub_citation_value.rsc_reward_algo(10000, True, True)
 
-        self.assertEqual(rsc_reward, 537.0317963702522)
+        self.assertEqual(rsc_reward, 537.0317963702522 * 5.0)
