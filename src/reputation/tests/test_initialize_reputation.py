@@ -11,6 +11,7 @@ from discussion.reaction_models import Vote
 from discussion.tests.helpers import create_rh_comment, create_vote
 from paper.models import Paper
 from paper.openalex_util import process_openalex_works
+from paper.related_models.authorship_model import Authorship
 from reputation.models import AlgorithmVariables, Score, ScoreChange
 from user.models import User
 from utils.openalex import OpenAlex
@@ -141,8 +142,14 @@ class InitializeReputationCommandTestCase(TestCase):
         create_vote(self.user_author, self.paper1, Vote.UPVOTE)
 
         # Add author claim
-        self.paper1.authors.add(self.user_author.author_profile)
-        self.paper2.authors.add(self.user_author.author_profile)
+        Authorship.objects.get_or_create(
+            author=self.user_author.author_profile,
+            paper=self.paper1,
+        )
+        Authorship.objects.get_or_create(
+            author=self.user_author.author_profile,
+            paper=self.paper2,
+        )
 
     def test_initialize_reputation_command(self):
         call_command("initialize_reputation")

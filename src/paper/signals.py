@@ -3,6 +3,7 @@ from django.dispatch import receiver
 from django.utils.crypto import get_random_string
 from django.utils.text import slugify
 
+from paper.related_models.authorship_model import Authorship
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     PAPER as PAPER_DOC_TYPE,
@@ -49,7 +50,9 @@ def add_unified_doc(created, instance, **kwargs):
 
 @receiver(post_save, sender=Paper, dispatch_uid="update_rep_score")
 def update_rep_score(created, instance, update_fields, **kwargs):
-    authors = instance.authors.all()
+    authorships = Authorship.objects.filter(paper=instance)
+    authors = [authorship.author for authorship in authorships]
+
     historical_paper = instance.history.all().order_by("history_date").latest()
     previous_historical_paper = historical_paper.prev_record
     unified_doc = instance.unified_document
