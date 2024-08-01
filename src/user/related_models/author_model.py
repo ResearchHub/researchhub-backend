@@ -6,6 +6,7 @@ from django.db.models.deletion import SET_NULL
 
 from discussion.reaction_models import Vote
 from paper.models import Paper
+from paper.related_models.authorship_model import Authorship
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
 from purchase.related_models.purchase_model import Purchase
 from reputation.models import Score, ScoreChange
@@ -311,9 +312,12 @@ class Author(models.Model):
             self._calculate_score_hub_comments()
 
     def _calculate_score_hub_paper_votes(self):
-        authored_papers = self.authored_papers.filter(
-            work_type__in=["preprint", "article"]
+        authorships = Authorship.objects.filter(author=self)
+        authored_papers = Paper.objects.filter(
+            id__in=authorships.values_list("paper_id", flat=True),
+            work_type__in=["preprint", "article"],
         )
+
         for paper in authored_papers:
             votes = paper.votes.filter(vote_type__in=[1, 2])
             if votes.count() == 0:
@@ -350,7 +354,12 @@ class Author(models.Model):
                     self.update_scores_vote(vote, hub)
 
     def _calculate_score_hub_citations(self):
-        authored_papers = self.authored_papers.all()
+        authorships = Authorship.objects.filter(author=self)
+        authored_papers = Paper.objects.filter(
+            id__in=authorships.values_list("paper_id", flat=True),
+            work_type__in=["preprint", "article"],
+        )
+
         for paper in authored_papers:
             historical_papers = paper.history.all().order_by("history_date")
             if len(historical_papers) == 0:

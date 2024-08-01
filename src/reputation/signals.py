@@ -16,6 +16,7 @@ from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as GrmVote
 from hypothesis.models import Citation, Hypothesis
 from paper.models import Paper
+from paper.related_models.authorship_model import Authorship
 from purchase.models import Purchase
 from reputation.distributor import Distributor
 from reputation.exceptions import ReputationSignalError
@@ -343,7 +344,9 @@ def update_rep_score_vote(sender, instance, created, update_fields, **kwargs):
     voter = instance.created_by
     author_recipients = []
     if isinstance(instance.item, Paper):
-        author_recipients = instance.item.authors.all()
+        authorships = Authorship.objects.filter(paper=instance.item)
+        author_recipients = [authorship.author for authorship in authorships]
+
         hub = instance.item.unified_document.get_primary_hub()
         if hub is None:
             print(f"Paper {instance.item.id} has no primary hub")
