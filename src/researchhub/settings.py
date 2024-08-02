@@ -547,6 +547,7 @@ EMAIL_WHITELIST = [
     "contact@notesalong.com",
     "pat@researchhub.com",
     "taki@researchhub.com",
+    "tyler@researchhub.com",
 ]
 
 SIFT_MODERATION_WHITELIST = [35747, 34581, 36837, 35436, 14, 33287, 34416]
