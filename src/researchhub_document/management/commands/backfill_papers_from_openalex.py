@@ -74,8 +74,7 @@ class Command(BaseCommand):
             print(
                 f"Total papers associated w/verified users: {len(paper_ids_of_verified_users)}"
             )
-            print(paper_ids_of_commentors)
-            print(paper_ids_of_verified_users)
+
             unique_paper_ids = list(
                 set(paper_ids_of_commentors + paper_ids_of_verified_users)
             )
