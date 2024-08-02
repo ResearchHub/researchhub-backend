@@ -9,9 +9,17 @@ from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
 from purchase.related_models.purchase_model import Purchase
-from reputation.models import Score, ScoreChange
+from reputation.models import (
+    Bounty,
+    Contribution,
+    Distribution,
+    Score,
+    ScoreChange,
+    Withdrawal,
+)
 from researchhub_case.constants.case_constants import APPROVED
 from researchhub_comment.models import RhCommentThreadModel
+from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from user.related_models.profile_image_storage import ProfileImageStorage
 from user.related_models.school_model import University
 from user.related_models.user_model import User
@@ -131,6 +139,52 @@ class Author(models.Model):
         return None
 
     @property
+    def open_access_pct(self):
+        authorships = Authorship.objects.filter(author=self)
+        authored_papers = Paper.objects.filter(
+            id__in=authorships.values_list("paper_id", flat=True),
+            work_type__in=["preprint", "article"],
+        )
+
+        total_paper_count = authored_papers.count()
+
+        if total_paper_count == 0:
+            return 0
+        else:
+            return (
+                self.authored_papers.filter(is_open_access=True).count()
+                / total_paper_count
+            )
+
+    @property
+    def citation_count(self):
+        from django.db.models import Sum
+
+        paper_citations_res = (
+            Authorship.objects.filter(author=self)
+            .select_related("paper")
+            .aggregate(
+                citation_count=Sum("paper__citations"),
+            )
+        )
+
+        return paper_citations_res.get("citation_count", 0)
+
+    @property
+    def paper_count(self):
+        from django.db.models import Count
+
+        paper_count_res = (
+            Authorship.objects.filter(author=self)
+            .select_related("paper")
+            .aggregate(
+                paper_count=Count("paper"),
+            )
+        )
+
+        return paper_count_res.get("paper_count", 0)
+
+    @property
     def person_types_indexing(self):
         person_types = ["author"]
         if self.user is not None:
@@ -149,6 +203,42 @@ class Author(models.Model):
         if self.user is not None:
             return self.user.reputation
         return 0
+
+    @property
+    def achievements(self):
+        upvote_count = getattr(self.user, "upvote_count", 0)
+        peer_review_count = getattr(self.user, "peer_review_count", 0)
+        amount_funded = getattr(self.user, "amount_funded", 0)
+
+        achievements = []
+        if self.citation_count >= 1:
+            achievements.append("CITED_AUTHOR")
+        if self.open_access_pct >= 0.5:
+            achievements.append("OPEN_ACCESS")
+        if upvote_count >= 10:
+            achievements.append("HIGHLY_UPVOTED_1")
+        if upvote_count >= 25:
+            achievements.append("HIGHLY_UPVOTED_2")
+        if upvote_count >= 100:
+            achievements.append("HIGHLY_UPVOTED_3")
+        if upvote_count >= 500:
+            achievements.append("HIGHLY_UPVOTED_4")
+        if upvote_count >= 1000:
+            achievements.append("HIGHLY_UPVOTED_5")
+        if peer_review_count >= 1:
+            achievements.append("EXPERT_PEER_REVIEWER_1")
+        if peer_review_count >= 5:
+            achievements.append("EXPERT_PEER_REVIEWER_2")
+        if peer_review_count >= 25:
+            achievements.append("EXPERT_PEER_REVIEWER_3")
+        if peer_review_count >= 100:
+            achievements.append("EXPERT_PEER_REVIEWER_4")
+        if peer_review_count >= 250:
+            achievements.append("EXPERT_PEER_REVIEWER_5")
+        if amount_funded > 1:
+            achievements.append("OPEN_SCIENCE_SUPPORTER")
+
+        return achievements
 
     @property
     def is_claimed(self):
