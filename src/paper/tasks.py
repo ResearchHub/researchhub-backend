@@ -870,7 +870,9 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
 
         while True:
             works, next_cursor = open_alex.get_works(
-                type="article", since_date=date_to_fetch_from, next_cursor=next_cursor
+                types=["article"],
+                since_date=date_to_fetch_from,
+                next_cursor=next_cursor,
             )
             # if we've reached the end of the results, exit the loop
             if next_cursor is None or works is None or len(works) == 0:
