@@ -114,6 +114,19 @@ jobs:
           deployment_package: target/deploy.zip
           wait_for_environment_recovery: 120
 
+      - name: Deploy ${{ env.DEPLOY_ENV }} Backend - Websocket
+        uses: einaregilsson/beanstalk-deploy@v22
+        with:
+          aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
+          aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
+          application_name: backend
+          environment_name: ${{ env.DEPLOY_ENV }}-backend-websocket
+          version_label: ${{ env.SHORT_GIT_SHA }}
+          use_existing_version_if_available: true
+          region: us-west-2
+          deployment_package: target/deploy.zip
+          wait_for_environment_recovery: 120
+
       - name: Deploy ${{ env.DEPLOY_ENV }} Backend - Main Worker
         uses: einaregilsson/beanstalk-deploy@v22
         with:
