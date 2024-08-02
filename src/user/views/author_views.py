@@ -213,7 +213,6 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 "coauthors",
                 "reputation",
                 "reputation_list",
-                "achievements",
                 "education",
                 "user",
             ),
