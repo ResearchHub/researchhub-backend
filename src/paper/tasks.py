@@ -174,7 +174,6 @@ def download_pdf(paper_id, retry=0):
                 (paper.id, retry + 1), priority=7, countdown=15 * (retry + 1)
             )
             return False
-        return
 
     csl_item = None
     pdf_url = None
