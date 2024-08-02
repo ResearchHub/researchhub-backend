@@ -7,11 +7,13 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 
 from paper.openalex_util import process_openalex_works
+from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
 from researchhub_case.related_models.author_claim_case_model import AuthorClaimCase
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
+from user.related_models.user_verification_model import UserVerification
 from utils.openalex import OpenAlex
 
 
@@ -53,15 +55,30 @@ class Command(BaseCommand):
             # First, get all papers associated with comments
             content_type = ContentType.objects.get_for_model(Paper)
             all_threads = RhCommentThreadModel.objects.filter(content_type=content_type)
-            unique_paper_ids = list(set([thread.object_id for thread in all_threads]))
+            paper_ids_of_commentors = list(
+                set([thread.object_id for thread in all_threads])
+            )
 
-            print(f"Total papers associated w/comments: {len(unique_paper_ids)}")
+            # Next, get all papers associated with users who verified their identity
+            verified_user_ids = UserVerification.objects.all().values_list(
+                "user_id", flat=True
+            )
+            authors_of_papers = Authorship.objects.filter(
+                author__user__in=verified_user_ids
+            )
+            paper_ids_of_verified_users = list(
+                set(authors_of_papers.values_list("paper_id", flat=True))
+            )
+
+            print(f"Total papers associated w/comments: {len(paper_ids_of_commentors)}")
+            print(
+                f"Total papers associated w/verified users: {len(paper_ids_of_verified_users)}"
+            )
+
+            unique_paper_ids = list(
+                set(paper_ids_of_commentors + paper_ids_of_verified_users)
+            )
             papers = papers.filter(id__in=unique_paper_ids)
-
-            # Get all claimed papers
-            claimed = Paper.objects.filter(authors__user__isnull=False)
-            print(f"Total claimed papers: {claimed.count()}")
-            papers = papers.union(claimed)
 
         for paper in papers:
             try:
