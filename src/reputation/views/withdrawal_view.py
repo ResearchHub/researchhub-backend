@@ -142,6 +142,22 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         return user_verification.is_verified
 
+    def _min_time_between_withdrawals(self, user: User) -> timedelta:
+        user_verification = UserVerification.objects.filter(user=user).first()
+        if user_verification and user_verification.is_verified:
+            # Verified users can withdraw every 24 hours
+            return timedelta(days=1)
+
+        return timedelta(weeks=2)
+
+    def _min_time_between_withdrawals_message(self, user: User) -> str:
+        user_verification = UserVerification.objects.filter(user=user).first()
+        if user_verification and user_verification.is_verified:
+            # Verified users can withdraw every 24 hours
+            return "You're limited to 1 withdrawal a day."
+
+        return "You're limited to 1 withdrawal every 2 weeks."
+
     def list(self, request):
         # TODO: Do we really need the user on this list? Can we make some
         # changes on the frontend so that we don't need to pass the user here?
@@ -243,10 +259,10 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             message = "You're account is new, please wait 2 weeks before withdrawing."
             return (False, message)
 
-        if address_timedelta < timedelta(days=14) or user_timedelta < timedelta(
+        if address_timedelta < timedelta(
             days=14
-        ):
-            message = "You're limited to 1 withdrawal every 2 weeks."
+        ) or user_timedelta < self._min_time_between_withdrawals(user):
+            message = self._min_time_between_withdrawals_message(user)
             return (False, message)
 
         return (True, None)
@@ -287,7 +303,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             .last()
         )
         if user.withdrawals.count() > 0 or last_withdrawal_tx:
-            time_ago = timezone.now() - timedelta(weeks=2)
+            time_ago = timezone.now() - self._min_time_between_withdrawals(user)
             minutes_ago = timezone.now() - timedelta(minutes=10)
             last_withdrawal = user.withdrawals.order_by("id").last()
             valid = True
