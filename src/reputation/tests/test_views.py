@@ -1,6 +1,6 @@
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest import mock, skip
 
 import requests_mock
@@ -211,6 +211,64 @@ class ReputationViewsTests(APITestCase):
 
         # Assert
         self.assertFalse(actual)
+
+    def test_min_time_between_withdrawals_verified(self):
+        # Arrange
+        user = create_random_authenticated_user_with_reputation("user2", 0)
+        UserVerification.objects.create(
+            user=user, status=UserVerification.Status.APPROVED
+        )
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.save()
+
+        # Act
+        actual = self.withdrawal_view._min_time_between_withdrawals(user)
+
+        # Assert
+        self.assertEqual(actual, timedelta(days=1))
+
+    def test_min_time_between_withdrawals_non_verified(self):
+        # Arrange
+        user = create_random_authenticated_user_with_reputation("user2", 0)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.save()
+
+        # Act
+        actual = self.withdrawal_view._min_time_between_withdrawals(user)
+
+        # Assert
+        self.assertEqual(actual, timedelta(days=14))
+
+    def test_min_time_between_withdrawals_message_verified(self):
+        # Arrange
+        user = create_random_authenticated_user_with_reputation("user2", 0)
+        UserVerification.objects.create(
+            user=user, status=UserVerification.Status.APPROVED
+        )
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.save()
+
+        # Act
+        actual = self.withdrawal_view._min_time_between_withdrawals_message(user)
+
+        # Assert
+        self.assertEqual(actual, "You're limited to 1 withdrawal a day.")
+
+    def test_min_time_between_withdrawals_message_non_verified(self):
+        # Arrange
+        user = create_random_authenticated_user_with_reputation("user2", 0)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.save()
+
+        # Act
+        actual = self.withdrawal_view._min_time_between_withdrawals_message(user)
+
+        # Assert
+        self.assertEqual(actual, "You're limited to 1 withdrawal every 2 weeks.")
 
     """
     Helper methods
