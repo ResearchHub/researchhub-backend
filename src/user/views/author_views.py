@@ -1,4 +1,5 @@
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from django.db.models import Q, Sum
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
@@ -88,6 +89,47 @@ class AuthorViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=True, methods=["get"], permission_classes=[AllowAny])
+    def summary_stats(self, request, pk=None):
+        author = self.get_object()
+        cache_key = f"author-{author.id}-summary-stats"
+        cache_hit = cache.get(cache_key)
+
+        if cache_hit:
+            return Response(cache_hit, 200)
+
+        serializer = DynamicAuthorProfileSerializer(
+            author,
+            _include_fields=[
+                "summary_stats",
+            ],
+        )
+
+        cache.set(cache_key, serializer.data, timeout=3600)
+
+        return Response(serializer.data, status=200)
+
+    @action(detail=True, methods=["get"], permission_classes=[AllowAny])
+    def achievements(self, request, pk=None):
+        author = self.get_object()
+        cache_key = f"author-{author.id}-achievements"
+        cache_hit = cache.get(cache_key)
+
+        if cache_hit:
+            return Response(cache_hit, 200)
+
+        author = self.get_object()
+        serializer = DynamicAuthorProfileSerializer(
+            author,
+            _include_fields=[
+                "achievements",
+            ],
+        )
+
+        cache.set(cache_key, serializer.data, timeout=3600)
+
+        return Response(serializer.data, status=200)
+
+    @action(detail=True, methods=["get"], permission_classes=[AllowAny])
     def profile(self, request, pk=None):
         author = self.get_object()
         serializer = DynamicAuthorProfileSerializer(
@@ -157,6 +199,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 "first_name",
                 "last_name",
                 "description",
+                "activity_by_year",
                 "headline",
                 "profile_image",
                 "orcid_id",
@@ -171,10 +214,6 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 "coauthors",
                 "reputation",
                 "reputation_list",
-                "summary_stats",
-                "activity_by_year",
-                "open_access_pct",
-                "achievements",
                 "education",
                 "user",
             ),

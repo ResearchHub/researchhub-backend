@@ -1103,7 +1103,6 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
     reputation_list = SerializerMethodField()
     activity_by_year = SerializerMethodField()
     summary_stats = SerializerMethodField()
-    open_access_pct = SerializerMethodField()
     achievements = SerializerMethodField()
     headline = SerializerMethodField()
     user = SerializerMethodField()
@@ -1111,6 +1110,9 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
     class Meta:
         model = Author
         fields = "__all__"
+
+    def get_achievements(self, author):
+        return author.achievements
 
     def get_headline(self, author):
         from collections import Counter
@@ -1162,83 +1164,18 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
             "is_verified": is_verified,
         }
 
-    def get_achievements(self, author):
-        summary_stats = self.get_summary_stats(author)
-        open_access_pct = self.get_open_access_pct(author)
-
-        achievements = []
-        if summary_stats["citation_count"] >= 1:
-            achievements.append("CITED_AUTHOR")
-        if open_access_pct >= 0.5:
-            achievements.append("OPEN_ACCESS")
-        if summary_stats["upvote_count"] >= 10:
-            achievements.append("HIGHLY_UPVOTED_1")
-        if summary_stats["upvote_count"] >= 25:
-            achievements.append("HIGHLY_UPVOTED_2")
-        if summary_stats["upvote_count"] >= 100:
-            achievements.append("HIGHLY_UPVOTED_3")
-        if summary_stats["upvote_count"] >= 500:
-            achievements.append("HIGHLY_UPVOTED_4")
-        if summary_stats["upvote_count"] >= 1000:
-            achievements.append("HIGHLY_UPVOTED_5")
-        if summary_stats["peer_review_count"] >= 1:
-            achievements.append("EXPERT_PEER_REVIEWER_1")
-        if summary_stats["peer_review_count"] >= 5:
-            achievements.append("EXPERT_PEER_REVIEWER_2")
-        if summary_stats["peer_review_count"] >= 25:
-            achievements.append("EXPERT_PEER_REVIEWER_3")
-        if summary_stats["peer_review_count"] >= 100:
-            achievements.append("EXPERT_PEER_REVIEWER_4")
-        if summary_stats["peer_review_count"] >= 250:
-            achievements.append("EXPERT_PEER_REVIEWER_5")
-        if summary_stats["amount_funded"] > 1:
-            achievements.append("OPEN_SCIENCE_SUPPORTER")
-
-        return achievements
-
     def get_summary_stats(self, author):
-        from django.db.models import Count, Sum
-
-        citation_count, paper_count = (
-            Authorship.objects.filter(author=author)
-            .select_related("paper")
-            .aggregate(
-                citation_count=Sum("paper__citations"),
-                paper_count=Count("paper"),
-            )
-            .values()
-        )
-
-        upvote_count = (
-            Distribution.objects.filter(
-                recipient=author.user,
-                proof_item_content_type=ContentType.objects.get_for_model(GrmVote),
-                reputation_amount=1,
-            ).aggregate(count=Count("id"))["count"]
-            or 0
-        )
-
-        amount_funded = (
-            Bounty.objects.filter(
-                created_by=author.user,
-                status=Bounty.CLOSED,
-            ).aggregate(total_amount=Sum("amount"))["total_amount"]
-            or 0
-        )
-
-        peer_review_count = RhCommentModel.objects.filter(
-            created_by=author.user,
-            comment_type="REVIEW",
-            is_removed=False,
-        ).aggregate(count=Count("id"))["count"]
-        return {
-            "works_count": paper_count or 0,
-            "citation_count": citation_count or 0,
+        stats = {
+            "works_count": author.paper_count,
+            "citation_count": author.citation_count,
             "two_year_mean_citedness": author.two_year_mean_citedness or 0,
-            "upvote_count": upvote_count,
-            "amount_funded": amount_funded,
-            "peer_review_count": peer_review_count,
+            "upvote_count": author.user.upvote_count if author.user else 0,
+            "amount_funded": author.user.amount_funded,
+            "peer_review_count": author.user.peer_review_count if author.user else 0,
+            "open_access_pct": author.open_access_pct,
         }
+
+        return stats
 
     def get_activity_by_year(self, author):
         context = self.context
@@ -1251,17 +1188,6 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
             **_context_fields,
         )
         return serializer.data
-
-    def get_open_access_pct(self, author):
-        total_paper_count = author.authored_papers.count()
-
-        if total_paper_count == 0:
-            return 0
-        else:
-            return (
-                author.authored_papers.filter(is_open_access=True).count()
-                / total_paper_count
-            )
 
     def get_reputation(self, author):
         score = Score.objects.filter(author=author).order_by("-score").first()

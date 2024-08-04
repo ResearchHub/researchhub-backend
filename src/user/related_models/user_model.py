@@ -10,7 +10,14 @@ from django.utils import timezone
 
 from hub.models import Hub
 from mailing_list.models import EmailRecipient
-from reputation.models import PaidStatusModelMixin, Withdrawal
+from reputation.models import (
+    Bounty,
+    Contribution,
+    Distribution,
+    PaidStatusModelMixin,
+    Score,
+    Withdrawal,
+)
 from researchhub.settings import ASSETS_BASE_URL, BASE_FRONTEND_URL, NO_ELASTIC
 from researchhub_access_group.constants import EDITOR
 from user.tasks import update_elastic_registry
@@ -242,3 +249,48 @@ class User(AbstractUser):
         author.calculate_hub_scores(
             recalculate=recalculate,
         )
+
+    @property
+    def upvote_count(self):
+        from django.db.models import Count, Sum
+
+        from discussion.models import Vote as GrmVote
+
+        upvote_count = (
+            Distribution.objects.filter(
+                recipient=self,
+                proof_item_content_type=ContentType.objects.get_for_model(GrmVote),
+                reputation_amount=1,
+            ).aggregate(count=Count("id"))["count"]
+            or 0
+        )
+
+        return upvote_count
+
+    @property
+    def amount_funded(self):
+        amount_funded = (
+            Bounty.objects.filter(
+                created_by=self,
+                status=Bounty.CLOSED,
+            ).aggregate(
+                total_amount=Sum("amount")
+            )["total_amount"]
+            or 0
+        )
+
+        return amount_funded
+
+    @property
+    def peer_review_count(self):
+        from django.db.models import Count, Sum
+
+        from researchhub_comment.related_models.rh_comment_model import RhCommentModel
+
+        peer_review_count = RhCommentModel.objects.filter(
+            created_by=self,
+            comment_type="REVIEW",
+            is_removed=False,
+        ).aggregate(count=Count("id"))["count"]
+
+        return peer_review_count
