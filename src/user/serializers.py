@@ -1103,7 +1103,6 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
     reputation_list = SerializerMethodField()
     activity_by_year = SerializerMethodField()
     summary_stats = SerializerMethodField()
-    open_access_pct = SerializerMethodField()
     achievements = SerializerMethodField()
     headline = SerializerMethodField()
     user = SerializerMethodField()
