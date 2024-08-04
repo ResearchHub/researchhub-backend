@@ -1196,12 +1196,13 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
 
         return achievements
 
-    def get_summary_stats(self, author):
+    def get_summary_stats(self, author: Author):
         from django.db.models import Count, Sum
+
+        user = author.user
 
         citation_count, paper_count = (
             Authorship.objects.filter(author=author)
-            .select_related("paper")
             .aggregate(
                 citation_count=Sum("paper__citations"),
                 paper_count=Count("paper"),
@@ -1209,35 +1210,30 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
             .values()
         )
 
-        upvote_count = (
-            Distribution.objects.filter(
-                recipient=author.user,
-                proof_item_content_type=ContentType.objects.get_for_model(GrmVote),
-                reputation_amount=1,
-            ).aggregate(count=Count("id"))["count"]
-            or 0
-        )
+        upvote_count = Distribution.objects.filter(
+            recipient=user,
+            proof_item_content_type=ContentType.objects.get_for_model(GrmVote),
+            reputation_amount=1,
+        ).aggregate(count=Count("id"))["count"]
 
-        amount_funded = (
-            Bounty.objects.filter(
-                created_by=author.user,
-                status=Bounty.CLOSED,
-            ).aggregate(total_amount=Sum("amount"))["total_amount"]
-            or 0
-        )
+        amount_funded = Bounty.objects.filter(
+            created_by=user,
+            status=Bounty.CLOSED,
+        ).aggregate(total_amount=Sum("amount"))["total_amount"]
 
         peer_review_count = RhCommentModel.objects.filter(
-            created_by=author.user,
+            created_by=user,
             comment_type="REVIEW",
             is_removed=False,
         ).aggregate(count=Count("id"))["count"]
+
         return {
             "works_count": paper_count or 0,
             "citation_count": citation_count or 0,
             "two_year_mean_citedness": author.two_year_mean_citedness or 0,
-            "upvote_count": upvote_count,
-            "amount_funded": amount_funded,
-            "peer_review_count": peer_review_count,
+            "upvote_count": upvote_count or 0,
+            "amount_funded": amount_funded or 0,
+            "peer_review_count": peer_review_count or 0,
         }
 
     def get_activity_by_year(self, author):
