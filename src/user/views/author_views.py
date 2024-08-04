@@ -199,6 +199,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 "first_name",
                 "last_name",
                 "description",
+                "activity_by_year",
                 "headline",
                 "profile_image",
                 "orcid_id",

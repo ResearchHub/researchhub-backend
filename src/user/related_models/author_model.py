@@ -143,7 +143,6 @@ class Author(models.Model):
         authorships = Authorship.objects.filter(author=self)
         authored_papers = Paper.objects.filter(
             id__in=authorships.values_list("paper_id", flat=True),
-            work_type__in=["preprint", "article"],
         )
 
         total_paper_count = authored_papers.count()
@@ -152,8 +151,7 @@ class Author(models.Model):
             return 0
         else:
             return (
-                self.authored_papers.filter(is_open_access=True).count()
-                / total_paper_count
+                authored_papers.filter(is_open_access=True).count() / total_paper_count
             )
 
     @property
@@ -240,7 +238,6 @@ class Author(models.Model):
 
         return achievements
 
-    @property
     def is_claimed(self):
         return (
             self.user is not None
