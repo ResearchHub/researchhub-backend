@@ -155,6 +155,7 @@ class UserSerializersTests(TestCase):
                 "two_year_mean_citedness": 0,
                 "upvote_count": 50,
                 "works_count": 2,
+                "open_access_pct": 0.0,
             },
         )
 

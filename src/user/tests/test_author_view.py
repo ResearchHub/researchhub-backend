@@ -58,4 +58,4 @@ class AuthorApiTests(APITestCase):
     def test_get_profile(self):
         url = f"/api/author/{self.user_with_published_works.author_profile.id}/profile/"
         response = self.client.get(url, {})
-        self.assertIn("profile", response.data)
+        self.assertIn("id", response.data)
