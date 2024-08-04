@@ -95,7 +95,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
         cache_hit = cache.get(cache_key)
 
         if cache_hit:
-            return Response(cache_hit)
+            return Response(cache_hit, 200)
 
         serializer = DynamicAuthorProfileSerializer(
             author,
@@ -115,7 +115,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
         cache_hit = cache.get(cache_key)
 
         if cache_hit:
-            return Response(cache_hit)
+            return Response(cache_hit, 200)
 
         author = self.get_object()
         serializer = DynamicAuthorProfileSerializer(
