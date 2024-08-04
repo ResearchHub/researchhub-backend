@@ -166,7 +166,7 @@ class Author(models.Model):
             )
         )
 
-        return paper_citations_res.get("citation_count", 0)
+        return paper_citations_res.get("citation_count") or 0
 
     @property
     def paper_count(self):
@@ -180,7 +180,7 @@ class Author(models.Model):
             )
         )
 
-        return paper_count_res.get("paper_count", 0)
+        return paper_count_res.get("paper_count") or 0
 
     @property
     def person_types_indexing(self):
