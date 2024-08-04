@@ -238,6 +238,7 @@ class Author(models.Model):
 
         return achievements
 
+    @property
     def is_claimed(self):
         return (
             self.user is not None

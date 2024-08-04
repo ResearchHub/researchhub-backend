@@ -1170,7 +1170,7 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
             "citation_count": author.citation_count,
             "two_year_mean_citedness": author.two_year_mean_citedness or 0,
             "upvote_count": author.user.upvote_count if author.user else 0,
-            "amount_funded": author.user.amount_funded,
+            "amount_funded": author.user.amount_funded if author.user else 0,
             "peer_review_count": author.user.peer_review_count if author.user else 0,
             "open_access_pct": author.open_access_pct,
         }
