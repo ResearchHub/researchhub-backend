@@ -715,18 +715,19 @@ zstd = ["zstandard (==0.22.0)"]
 
 [[package]]
 name = "celery-redbeat"
-version = "1.0.0"
+version = "2.2.0"
 description = "A Celery Beat Scheduler using Redis for persistent storage"
 optional = false
 python-versions = "*"
 files = [
-    {file = "celery-redbeat-1.0.0.tar.gz", hash = "sha256:36b98c32ea4ca6f6f1ccddc3fdb9f5cd7a4bd273650cf931c6c46fb7fbc60a91"},
+    {file = "celery-redbeat-2.2.0.tar.gz", hash = "sha256:71104729380d4eaefd91a9b7d270ba7851bfff9ad55a43ac8365acbb0c608b77"},
 ]
 
 [package.dependencies]
-celery = "*"
+"backports.zoneinfo" = {version = ">=0.2.1", markers = "python_version < \"3.9.0\""}
+celery = ">=5.0"
 python-dateutil = "*"
-redis = "*"
+redis = ">=3.2"
 tenacity = "*"
 
 [[package]]
@@ -6148,4 +6149,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "41a0858fe27a494e9eb366e5f9f6de8d50b053ff7359c4bd3ffab6b16d2b2aed"
+content-hash = "b089793210982f28614bb3e9ab1eed727d1dc3356fb10f1f711d10a9f9d5d814"
