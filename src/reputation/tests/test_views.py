@@ -5,6 +5,7 @@ from unittest import mock, skip
 
 import requests_mock
 from django.contrib.admin.models import LogEntry
+from django.utils import timezone
 from pytz import utc
 from rest_framework.test import APITestCase
 
@@ -128,6 +129,250 @@ class ReputationViewsTests(APITestCase):
                     "transaction_fee": 15,
                 },
             )
+            self.assertEqual(response.status_code, 201)
+
+    def test_verified_user_cannot_rewithdraw_rsc_within_24_hours(self):
+        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        UserVerification.objects.create(
+            user=user, status=UserVerification.Status.APPROVED
+        )
+        withdrawal = Withdrawal.objects.create(
+            user=user,
+            token_address="0x0123",
+            amount="100",
+            fee="10",
+            from_address="0x0123",
+            to_address="0x0123",
+            transaction_hash="0x0123",
+            paid_status="PAID",
+        )
+
+        withdrawal.created_date = timezone.now() - timedelta(hours=11)
+        withdrawal.save()
+
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.save()
+
+        create_deposit(user)
+        self.client.force_authenticate(user)
+
+        with mock.patch.object(
+            PendingWithdrawal, "complete_token_transfer", return_value=None
+        ):
+            response = self.client.post(
+                "/api/withdrawal/",
+                {
+                    "agreed_to_terms": True,
+                    "amount": "550",
+                    "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "transaction_fee": 15,
+                },
+            )
+
+            self.assertEqual(response.status_code, 400)
+
+    def test_verified_user_can_rewithdraw_rsc_after_24_hours(self):
+        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        UserVerification.objects.create(
+            user=user, status=UserVerification.Status.APPROVED
+        )
+        withdrawal = Withdrawal.objects.create(
+            user=user,
+            token_address="0x0123",
+            amount="100",
+            fee="10",
+            from_address="0x0123",
+            to_address="0x0123",
+            transaction_hash="0x0123",
+            paid_status="PAID",
+        )
+
+        withdrawal.created_date = timezone.now() - timedelta(hours=25)
+        withdrawal.save()
+
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.save()
+
+        create_deposit(user)
+        self.client.force_authenticate(user)
+
+        with mock.patch.object(
+            PendingWithdrawal, "complete_token_transfer", return_value=None
+        ):
+            response = self.client.post(
+                "/api/withdrawal/",
+                {
+                    "agreed_to_terms": True,
+                    "amount": "550",
+                    "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "transaction_fee": 15,
+                },
+            )
+
+            self.assertEqual(response.status_code, 201)
+
+    def test_unverified_user_cannot_rewithdraw_rsc_within_14_days(self):
+        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        withdrawal = Withdrawal.objects.create(
+            user=user,
+            token_address="0x0123",
+            amount="100",
+            fee="10",
+            from_address="0x0123",
+            to_address="0x0123",
+            transaction_hash="0x0123",
+            paid_status="PAID",
+        )
+
+        withdrawal.created_date = timezone.now() - timedelta(days=13)
+        withdrawal.save()
+
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.save()
+
+        create_deposit(user)
+        self.client.force_authenticate(user)
+
+        with mock.patch.object(
+            PendingWithdrawal, "complete_token_transfer", return_value=None
+        ):
+            response = self.client.post(
+                "/api/withdrawal/",
+                {
+                    "agreed_to_terms": True,
+                    "amount": "550",
+                    "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "transaction_fee": 15,
+                },
+            )
+
+            self.assertEqual(response.status_code, 400)
+
+    def test_verified_address_cannot_rewithdraw_rsc_within_24_hours(self):
+        other_user = create_random_authenticated_user("other_user")
+        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        UserVerification.objects.create(
+            user=user, status=UserVerification.Status.APPROVED
+        )
+        withdrawal = Withdrawal.objects.create(
+            user=other_user,
+            token_address="0x0123",
+            amount="100",
+            fee="10",
+            from_address="0x0123",
+            to_address="0x0123",
+            transaction_hash="0x0123",
+            paid_status="PAID",
+        )
+
+        withdrawal.created_date = timezone.now() - timedelta(hours=11)
+        withdrawal.save()
+
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.save()
+
+        create_deposit(user)
+        self.client.force_authenticate(user)
+
+        with mock.patch.object(
+            PendingWithdrawal, "complete_token_transfer", return_value=None
+        ):
+            response = self.client.post(
+                "/api/withdrawal/",
+                {
+                    "agreed_to_terms": True,
+                    "amount": "550",
+                    "to_address": "0x0123",
+                    "transaction_fee": 15,
+                },
+            )
+            self.assertEqual(response.status_code, 400)
+
+    def test_verified_address_can_rewithdraw_rsc_after_24_hours(self):
+        other_user = create_random_authenticated_user("other_user")
+        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        UserVerification.objects.create(
+            user=user, status=UserVerification.Status.APPROVED
+        )
+        withdrawal = Withdrawal.objects.create(
+            user=other_user,
+            token_address="0x0123",
+            amount="100",
+            fee="10",
+            from_address="0x0123",
+            to_address="0x0123",
+            transaction_hash="0x0123",
+            paid_status="PAID",
+        )
+
+        withdrawal.created_date = timezone.now() - timedelta(hours=25)
+        withdrawal.save()
+
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.save()
+
+        create_deposit(user)
+        self.client.force_authenticate(user)
+
+        with mock.patch.object(
+            PendingWithdrawal, "complete_token_transfer", return_value=None
+        ):
+            response = self.client.post(
+                "/api/withdrawal/",
+                {
+                    "agreed_to_terms": True,
+                    "amount": "550",
+                    "to_address": "0x0123",
+                    "transaction_fee": 15,
+                },
+            )
+
+            self.assertEqual(response.status_code, 201)
+
+    def test_new_verified_user_can_withdraw_rsc_immediately(self):
+        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        UserVerification.objects.create(
+            user=user, status=UserVerification.Status.APPROVED
+        )
+        withdrawal = Withdrawal.objects.create(
+            user=user,
+            token_address="0x0123",
+            amount="100",
+            fee="10",
+            from_address="0x0123",
+            to_address="0x0123",
+            transaction_hash="0x0123",
+            paid_status="PAID",
+        )
+
+        withdrawal.created_date = timezone.now() - timedelta(hours=25)
+        withdrawal.save()
+
+        user.date_joined = timezone.now()
+        user.created_date = timezone.now()
+        user.save()
+
+        create_deposit(user)
+        self.client.force_authenticate(user)
+
+        with mock.patch.object(
+            PendingWithdrawal, "complete_token_transfer", return_value=None
+        ):
+            response = self.client.post(
+                "/api/withdrawal/",
+                {
+                    "agreed_to_terms": True,
+                    "amount": "550",
+                    "to_address": "0x0123",
+                    "transaction_fee": 15,
+                },
+            )
+
             self.assertEqual(response.status_code, 201)
 
     @skip

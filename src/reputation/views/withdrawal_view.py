@@ -255,13 +255,19 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         user_two_weeks_delta = now - user.created_date
 
-        if user_two_weeks_delta < timedelta(days=14):
+        user_verification = UserVerification.objects.filter(user=user).first()
+        is_user_verified = user_verification and user_verification.is_verified
+
+        if user_two_weeks_delta < timedelta(days=14) and not is_user_verified:
             message = "You're account is new, please wait 2 weeks before withdrawing."
             return (False, message)
 
-        if address_timedelta < timedelta(
-            days=14
-        ) or user_timedelta < self._min_time_between_withdrawals(user):
+        min_time_between_withdrawals = self._min_time_between_withdrawals(user)
+
+        if (
+            address_timedelta < min_time_between_withdrawals
+            or user_timedelta < min_time_between_withdrawals
+        ):
             message = self._min_time_between_withdrawals_message(user)
             return (False, message)
 
