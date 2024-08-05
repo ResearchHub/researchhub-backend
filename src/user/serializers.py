@@ -141,27 +141,30 @@ class AuthorSerializer(ModelSerializer):
         }
 
     def get_reputation_list(self, author):
-        scores = Score.objects.filter(author=author, score__gt=0).order_by("-score")
-        reputation_list = []
-        for score in scores:
-            hub = Hub.objects.get(id=score.hub_id)
-            reputation_list.append(
-                {
-                    "hub": {
-                        "id": hub.id,
-                        "name": hub.name,
-                        "slug": hub.slug,
-                    },
-                    "score": score.score,
-                    "percentile": score.percentile,
-                    "bins": [
-                        [0, 1000],
-                        [1000, 10000],
-                        [10000, 100000],
-                        [100000, 1000000],
-                    ],  # FIXME: Replace with bins from algo vars table
-                }
-            )
+        scores = (
+            Score.objects.filter(author=author, score__gt=0)
+            .select_related("hub")
+            .order_by("-score")
+        )
+
+        reputation_list = [
+            {
+                "hub": {
+                    "id": score.hub.id,
+                    "name": score.hub.name,
+                    "slug": score.hub.slug,
+                },
+                "score": score.score,
+                "percentile": score.percentile,
+                "bins": [
+                    [0, 1000],
+                    [1000, 10000],
+                    [10000, 100000],
+                    [100000, 1000000],
+                ],  # FIXME: Replace with bins from algo vars table
+            }
+            for score in scores
+        ]
 
         return reputation_list
 
@@ -1214,27 +1217,29 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
         }
 
     def get_reputation_list(self, author):
-        scores = Score.objects.filter(author=author, score__gt=0).order_by("-score")
-        reputation_list = []
-        for score in scores:
-            hub = Hub.objects.get(id=score.hub_id)
-            reputation_list.append(
-                {
-                    "hub": {
-                        "id": hub.id,
-                        "name": hub.name,
-                        "slug": hub.slug,
-                    },
-                    "score": score.score,
-                    "percentile": score.percentile,
-                    "bins": [
-                        [0, 1000],
-                        [1000, 10000],
-                        [10000, 100000],
-                        [100000, 1000000],
-                    ],  # FIXME: Replace with bins from algo vars table
-                }
-            )
+        scores = (
+            Score.objects.filter(author=author, score__gt=0)
+            .select_related("hub")
+            .order_by("-score")
+        )
+        reputation_list = [
+            {
+                "hub": {
+                    "id": score.hub.id,
+                    "name": score.hub.name,
+                    "slug": score.hub.slug,
+                },
+                "score": score.score,
+                "percentile": score.percentile,
+                "bins": [
+                    [0, 1000],
+                    [1000, 10000],
+                    [10000, 100000],
+                    [100000, 1000000],
+                ],  # FIXME: Replace with bins from algo vars table
+            }
+            for score in scores
+        ]
 
         return reputation_list
 
