@@ -259,9 +259,12 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             message = "You're account is new, please wait 2 weeks before withdrawing."
             return (False, message)
 
-        if address_timedelta < timedelta(
-            days=14
-        ) or user_timedelta < self._min_time_between_withdrawals(user):
+        min_time_between_withdrawals = self._min_time_between_withdrawals(user)
+
+        if (
+            address_timedelta < min_time_between_withdrawals
+            or user_timedelta < min_time_between_withdrawals
+        ):
             message = self._min_time_between_withdrawals_message(user)
             return (False, message)
 
