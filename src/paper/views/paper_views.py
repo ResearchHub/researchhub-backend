@@ -727,7 +727,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
 
         return Response(open_alex_json, status=200)
 
-    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
+    @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def fetch_publications_by_doi(self, request):
         doi_string = request.query_params.get("doi", "")
         rh_author = request.user.author_profile
