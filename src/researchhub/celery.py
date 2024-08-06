@@ -202,6 +202,18 @@ app.conf.beat_schedule = {
     },
 }
 
+app.conf.beat_schedule = {
+    "dummy-task": {
+        "task": "researchhub.celery.dummy_task",
+        "schedule": crontab(minute="*/1"),
+    },
+}
+
+
+@app.task
+def dummy_task():
+    print("Dummy task running at: ", time.time())
+
 
 # Celery Debug/Test Functions
 @app.task(bind=True)

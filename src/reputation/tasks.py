@@ -167,6 +167,7 @@ def evaluate_transaction(transaction_hash):
 
 @app.task
 def check_deposits():
+    print("Checking deposits at: ", time.time())
     # Sort by created date to ensure a malicious user doesn't attempt to take credit for
     # a deposit made by another user. This is a temporary solution until we add signed messages
     # to validate users own wallets.
