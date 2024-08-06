@@ -1,18 +1,14 @@
 import codecs
 import json
 import logging
-import math
 import os
 import re
 import shutil
-import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from io import BytesIO
 from subprocess import PIPE, run
 from unicodedata import normalize
 
-import arxiv
-import feedparser
 import fitz
 import requests
 from bs4 import BeautifulSoup
@@ -22,7 +18,6 @@ from celery.utils.log import get_task_logger
 from django.apps import apps
 from django.contrib.postgres.search import SearchQuery
 from django.core.cache import cache
-from django.core.exceptions import ValidationError
 from django.core.files import File
 from django.core.files.base import ContentFile
 from django.db import IntegrityError, transaction
@@ -32,8 +27,6 @@ from PIL import Image
 from psycopg2.errors import UniqueViolation
 from pytz import timezone as pytz_tz
 
-from discussion.models import Comment, Thread
-from hub.models import Hub
 from paper.openalex_util import process_openalex_works
 from paper.utils import (
     check_crossref_title,
@@ -65,10 +58,9 @@ from researchhub_document.related_models.constants.filters import NEW
 from researchhub_document.utils import reset_unified_document_cache
 from tag.models import Concept
 from utils import sentry
-from utils.arxiv.categories import get_category_name
 from utils.http import check_url_contains_pdf
 from utils.openalex import OpenAlex
-from utils.parsers import get_license_by_url, rebuild_sentence_from_inverted_index
+from utils.parsers import rebuild_sentence_from_inverted_index
 
 logger = get_task_logger(__name__)
 
@@ -182,7 +174,6 @@ def download_pdf(paper_id, retry=0):
                 (paper.id, retry + 1), priority=7, countdown=15 * (retry + 1)
             )
             return False
-        return
 
     csl_item = None
     pdf_url = None
@@ -870,7 +861,9 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
 
         while True:
             works, next_cursor = open_alex.get_works(
-                type="article", since_date=date_to_fetch_from, next_cursor=next_cursor
+                types=["article"],
+                since_date=date_to_fetch_from,
+                next_cursor=next_cursor,
             )
             # if we've reached the end of the results, exit the loop
             if next_cursor is None or works is None or len(works) == 0:
