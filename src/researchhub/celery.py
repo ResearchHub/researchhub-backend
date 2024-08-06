@@ -3,10 +3,8 @@ from __future__ import absolute_import, unicode_literals
 import os
 import time
 
-from celery import Celery, chord
+from celery import Celery
 from celery.schedules import crontab
-
-from reputation.exceptions import ReputationDistributorError, WithdrawalError
 
 # Set the default Django settings module for the 'celery' program.
 # This must come before instantiating Celery apps.
