@@ -159,14 +159,4 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PURCHASES,
         },
     },
-    # FIXME: Remove dummy task
-    "dummy-task": {
-        "task": "researchhub.celery.dummy_task",
-        "schedule": crontab(minute="*/1"),
-    },
 }
-
-
-@app.task
-def dummy_task():
-    print("Dummy task running at: ", time.time())
