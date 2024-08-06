@@ -213,28 +213,30 @@ class Author(models.Model):
             achievements.append("CITED_AUTHOR")
         if self.open_access_pct >= 0.5:
             achievements.append("OPEN_ACCESS")
-        if upvote_count >= 10:
-            achievements.append("HIGHLY_UPVOTED_1")
-        if upvote_count >= 25:
-            achievements.append("HIGHLY_UPVOTED_2")
-        if upvote_count >= 100:
-            achievements.append("HIGHLY_UPVOTED_3")
-        if upvote_count >= 500:
-            achievements.append("HIGHLY_UPVOTED_4")
-        if upvote_count >= 1000:
-            achievements.append("HIGHLY_UPVOTED_5")
-        if peer_review_count >= 1:
-            achievements.append("EXPERT_PEER_REVIEWER_1")
-        if peer_review_count >= 5:
-            achievements.append("EXPERT_PEER_REVIEWER_2")
-        if peer_review_count >= 25:
-            achievements.append("EXPERT_PEER_REVIEWER_3")
-        if peer_review_count >= 100:
-            achievements.append("EXPERT_PEER_REVIEWER_4")
-        if peer_review_count >= 250:
-            achievements.append("EXPERT_PEER_REVIEWER_5")
         if amount_funded > 1:
             achievements.append("OPEN_SCIENCE_SUPPORTER")
+
+        if upvote_count >= 1000:
+            achievements.append("HIGHLY_UPVOTED_5")
+        elif upvote_count >= 500:
+            achievements.append("HIGHLY_UPVOTED_4")
+        elif upvote_count >= 100:
+            achievements.append("HIGHLY_UPVOTED_3")
+        elif upvote_count >= 25:
+            achievements.append("HIGHLY_UPVOTED_2")
+        elif upvote_count >= 10:
+            achievements.append("HIGHLY_UPVOTED_1")
+
+        if peer_review_count >= 250:
+            achievements.append("EXPERT_PEER_REVIEWER_5")
+        elif peer_review_count >= 100:
+            achievements.append("EXPERT_PEER_REVIEWER_4")
+        elif peer_review_count >= 25:
+            achievements.append("EXPERT_PEER_REVIEWER_3")
+        elif peer_review_count >= 5:
+            achievements.append("EXPERT_PEER_REVIEWER_2")
+        if peer_review_count >= 1:
+            achievements.append("EXPERT_PEER_REVIEWER_1")
 
         return achievements
 
