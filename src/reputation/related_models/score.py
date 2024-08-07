@@ -306,6 +306,22 @@ class ScoreChange(DefaultModel):
 
         return rep
 
+    def calculate_citation_score_v2(citation_count, bins, is_review_paper):
+        rep = 0
+        for key, val in bins.items():
+            key_tuple = json.loads(key)
+
+            citation_count_curr_bin = max(
+                min(citation_count, key_tuple[1]) - key_tuple[0], 0
+            )  # Take min of the citation count and the upper bound of the bin range then subtract the lower bound of the bin range and avoid going negative.
+            rep_change = citation_count_curr_bin * val
+            if is_review_paper:
+                rep_change /= 5
+
+            rep += rep_change
+
+        return rep
+
     def vote_change(vote, previous_score_change):
         vote_values = {
             Vote.UPVOTE: 1,
