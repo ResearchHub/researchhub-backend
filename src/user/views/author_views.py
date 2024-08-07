@@ -687,6 +687,11 @@ class AuthorViewSet(viewsets.ModelViewSet):
     )
     def publications(self, request, pk=None):
         author = self.get_object()
+        cache_key = f"author-{author.id}-publications"
+        cache_hit = cache.get(cache_key)
+
+        if cache_hit:
+            return Response(cache_hit, 200)
 
         # Fetch the authored papers and order by citations
         authored_doc_ids = list(
@@ -724,6 +729,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
         )
 
         serializer_data = serializer.data
+
+        cache.set(cache_key, serializer_data, timeout=3600)
 
         return self.get_paginated_response(serializer_data)
 
