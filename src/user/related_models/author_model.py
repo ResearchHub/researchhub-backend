@@ -235,7 +235,7 @@ class Author(models.Model):
             achievements.append("EXPERT_PEER_REVIEWER_3")
         elif peer_review_count >= 5:
             achievements.append("EXPERT_PEER_REVIEWER_2")
-        if peer_review_count >= 1:
+        elif peer_review_count >= 1:
             achievements.append("EXPERT_PEER_REVIEWER_1")
 
         return achievements

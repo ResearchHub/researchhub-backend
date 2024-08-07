@@ -63,6 +63,8 @@ class ViewTests(APITestCase):
         o = UserVerification.objects.create(
             user=self.verified_user,
             status=UserVerification.Status.APPROVED,
+            first_name=self.verified_user.first_name,
+            last_name=self.verified_user.last_name,
         )
 
         self.verified_user.refresh_from_db()
@@ -236,6 +238,19 @@ class ViewTests(APITestCase):
 
         self.assertEqual(claim_create_response.data["version"], 2)
         self.assertIsNotNone(claim_create_response.data["paper_reward"])
+
+    def test_claims_include_user_verification(self):
+        claim_create_response, paper, _ = self._create_paper_claim_via_api(
+            self.verified_user, self.paper
+        )
+
+        open_claims_response = self._get_open_claims()
+
+        claim = open_claims_response.data["results"][0]
+        self.assertEqual(
+            claim["user_verification"]["verified_name"],
+            self.verified_user.first_name + " " + self.verified_user.last_name,
+        )
 
     def test_approving_claim_pays_rewards_to_user(self):
         claim_create_response, paper, _ = self._create_paper_claim_via_api(

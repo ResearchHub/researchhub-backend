@@ -216,6 +216,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 "reputation_list",
                 "education",
                 "user",
+                "is_suspended",
             ),
         )
         return Response(serializer.data, status=200)
