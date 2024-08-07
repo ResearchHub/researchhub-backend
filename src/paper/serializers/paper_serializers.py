@@ -879,22 +879,10 @@ class DynamicPaperSerializer(
     file = serializers.SerializerMethodField()
     pdf_url = serializers.SerializerMethodField()
     pdf_copyright_allows_display = serializers.SerializerMethodField()
-    authorships = serializers.SerializerMethodField()
 
     class Meta:
         model = Paper
         fields = "__all__"
-
-    def get_authorships(self, paper):
-        context = self.context
-        _context_fields = context.get("pap_dps_get_authorships", {})
-
-        authorships = Authorship.objects.filter(paper=paper)
-
-        serializer = DynamicAuthorshipSerializer(
-            authorships, many=True, context=context, **_context_fields
-        )
-        return serializer.data
 
     def get_abstract_src_markdown(self, paper):
         try:
@@ -923,12 +911,25 @@ class DynamicPaperSerializer(
         return vote
 
     def get_authors(self, paper):
+        from paper.serializers.paper_serializers import DynamicAuthorshipSerializer
+
         context = self.context
         _context_fields = context.get("pap_dps_get_authors", {})
 
+        # The purpose of this loop is to decorate each author with their authorship before passing
+        # to the AuthorSerializer. That is because we have full context needed to fetch the authorship in this scope.
+        # Once passed to the AuthorSerializer, the paper will be lost.
+        all_authors = paper.authors.all()
+        for author in all_authors:
+            authorship = Authorship.objects.filter(author=author, paper=paper).first()
+            if authorship is None:
+                continue
+            author.authorship = authorship
+
         serializer = DynamicAuthorSerializer(
-            paper.authors.all(), many=True, context=context, **_context_fields
+            all_authors, many=True, context=context, **_context_fields
         )
+
         return serializer.data
 
     def get_boost_amount(self, paper):
