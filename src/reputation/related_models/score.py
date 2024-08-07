@@ -100,6 +100,32 @@ class Score(DefaultModel):
                 algorithm_variables=algorithm_variables,
             ).delete()
 
+    def update_score_vote(cls, author, hub, vote):
+        content_type = ContentType.objects.get_for_model(Vote)
+        score = Score.get_or_create_score(author, hub)
+        previous_score_change = (
+            ScoreChange.objects.filter(
+                score=score,
+                changed_object_id=vote.id,
+                changed_content_type=content_type,
+                score_version=score.version,
+            )
+            .order_by("created_date")
+            .last()
+        )
+        vote_value = ScoreChange.vote_change(vote, previous_score_change)
+        if vote_value == 0:
+            return
+
+        Score.update_score(
+            author,
+            hub,
+            vote_value,
+            "votes",
+            content_type,
+            vote.id,
+        )
+
 
 class ScoreChange(DefaultModel):
     algorithm_version = models.IntegerField(default=1)
@@ -193,9 +219,7 @@ class ScoreChange(DefaultModel):
         algorithm_variables = AlgorithmVariables.objects.filter(hub=score.hub).latest(
             "created_date"
         )
-        previous_score_change = ScoreChange.get_latest_score_change(
-            score, algorithm_variables
-        )
+        previous_score_change = cls.get_latest_score_change(score, algorithm_variables)
 
         previous_score = 0
         previous_variable_counts = {
@@ -211,7 +235,7 @@ class ScoreChange(DefaultModel):
             current_variable_counts[variable_key] + raw_value_change
         )
 
-        score_value_change = ScoreChange.calculate_score_change(
+        score_value_change = cls.calculate_score_change(
             score,
             algorithm_variables,
             variable_key,
@@ -219,9 +243,9 @@ class ScoreChange(DefaultModel):
         )
         current_rep = previous_score + score_value_change
 
-        field = ScoreChange.get_object_field(variable_key)
+        field = cls.get_object_field(variable_key)
 
-        score_change = ScoreChange(
+        score_change = cls(
             algorithm_version=ALGORITHM_VERSION,
             algorithm_variables=algorithm_variables,
             score_after_change=current_rep,

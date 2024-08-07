@@ -408,7 +408,7 @@ class Author(models.Model):
                 continue
 
             for vote in votes:
-                self.update_scores_vote(vote, hub)
+                Score.update_score_vote(self, hub, vote)
 
     def _calculate_score_hub_comments(self):
         threads = RhCommentThreadModel.objects.filter(
@@ -440,7 +440,7 @@ class Author(models.Model):
                     continue
 
                 for vote in votes:
-                    self.update_scores_vote(vote, hub)
+                    Score.update_score_vote(self, hub, vote)
 
     def _calculate_score_hub_citations(self):
         authored_papers = Paper.objects.filter(
@@ -503,28 +503,6 @@ class Author(models.Model):
             "citations",
             content_type,
             paper_id,
-        )
-
-    def update_scores_vote(self, vote, hub):
-        content_type = ContentType.objects.get_for_model(Vote)
-
-        score = Score.get_or_create_score(self, hub)
-        previous_score_change = ScoreChange.get_latest_score_change_object(
-            score,
-            vote.id,
-            content_type,
-        )
-        vote_value = ScoreChange.vote_change(vote, previous_score_change)
-        if vote_value == 0:
-            return
-
-        Score.update_score(
-            self,
-            hub,
-            vote_value,
-            "votes",
-            content_type,
-            vote.id,
         )
 
     def get_rep_score(self):

@@ -17,7 +17,7 @@ from paper.related_models.authorship_model import Authorship
 from purchase.models import Purchase
 from reputation.distributor import Distributor
 from reputation.exceptions import ReputationSignalError
-from reputation.models import Contribution, Distribution
+from reputation.models import Contribution, Distribution, Score
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost
 from user.utils import reset_latest_acitvity_cache
@@ -215,7 +215,7 @@ def update_rep_score_vote(sender, instance, created, update_fields, **kwargs):
     if created:
         for author_recipient in author_recipients:
             if is_eligible_for_discussion_vote(author_recipient.user, voter):
-                author_recipient.update_scores_vote(instance, hub)
+                Score.update_score_vote(author_recipient, hub, instance)
 
 
 @receiver(post_save, sender=GrmVote, dispatch_uid="discussion_vote")
