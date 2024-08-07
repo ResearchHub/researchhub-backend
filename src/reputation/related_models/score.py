@@ -99,13 +99,39 @@ class Score(DefaultModel):
             variable_key,
             content_type,
             object_id,
-            score.version,
         )
 
         score.score = score_change.score_after_change
         score.save()
 
         return score
+
+    @classmethod
+    def update_score_vote(cls, author, hub, vote):
+        content_type = ContentType.objects.get_for_model(Vote)
+        score = Score.get_or_create_score(author, hub)
+        previous_score_change = (
+            ScoreChange.objects.filter(
+                score=score,
+                changed_object_id=vote.id,
+                changed_content_type=content_type,
+                score_version=score.version,
+            )
+            .order_by("created_date")
+            .last()
+        )
+        vote_value = ScoreChange.vote_change(vote, previous_score_change)
+        if vote_value == 0:
+            return
+
+        Score.update_score(
+            author,
+            hub,
+            vote_value,
+            "votes",
+            content_type,
+            vote.id,
+        )
 
 
 class ScoreChange(DefaultModel):
@@ -180,10 +206,9 @@ class ScoreChange(DefaultModel):
         variable_key,
         content_type,
         object_id,
-        score_version,
     ):
-        previous_score_change = ScoreChange.get_lastest_score_change(
-            score, score_version, algorithm_variables
+        previous_score_change = cls.get_lastest_score_change(
+            score, score.version, algorithm_variables
         )
 
         previous_score = 0
@@ -200,7 +225,7 @@ class ScoreChange(DefaultModel):
             current_variable_counts[variable_key] + raw_value_change
         )
 
-        score_value_change = ScoreChange.calculate_score_change(
+        score_value_change = cls.calculate_score_change(
             score,
             algorithm_variables,
             variable_key,
@@ -208,9 +233,9 @@ class ScoreChange(DefaultModel):
         )
         current_rep = previous_score + score_value_change
 
-        field = ScoreChange.get_object_field(variable_key)
+        field = cls.get_object_field(variable_key)
 
-        score_change = ScoreChange(
+        score_change = cls(
             algorithm_version=ALGORITHM_VERSION,
             algorithm_variables=algorithm_variables,
             score_after_change=current_rep,
@@ -221,7 +246,7 @@ class ScoreChange(DefaultModel):
             changed_object_field=field,
             variable_counts=current_variable_counts,
             score=score,
-            score_version=score_version,
+            score_version=score.version,
         )
         score_change.save()
 
