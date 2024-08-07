@@ -429,6 +429,58 @@ class UserViewsTests(TestCase):
 
             self.assertGreater(response.data["count"], 0)
 
+    @patch.object(OpenAlex, "get_authors")
+    def test_author_overview_writes_to_cache(self, mock_get_authors):
+        # Arrange
+        from paper.models import Paper
+
+        works = None
+        with open("./paper/tests/openalex_works.json", "r") as file:
+            response = json.load(file)
+            works = response.get("results")
+
+        with open("./paper/tests/openalex_authors.json", "r") as file:
+            mock_data = json.load(file)
+            mock_get_authors.return_value = (mock_data["results"], None)
+
+            process_openalex_works(works)
+
+            dois = [work.get("doi") for work in works]
+            dois = [doi.replace("https://doi.org/", "") for doi in dois]
+
+            papers = Paper.objects.filter(doi__in=dois)
+            first_author = papers.first().authors.first()
+
+            # Act
+            url = f"/api/author/{first_author.id}/overview/"
+            response = self.client.get(
+                url,
+            )
+
+            # Assert
+            self.assertTrue(response.status_code, 200)
+            self.assertEqual(response.data["count"], 1)
+            cache_key = f"author-{first_author.id}-overview"
+            self.assertTrue(cache.get(cache_key))
+            self.assertEqual(len(cache.get(cache_key)), 1)
+
+    def test_author_overview_returns_from_cache(self, mock_get_authors):
+        # Arrange
+        author = Author.objects.create(first_name="firstName1", last_name="lastName1")
+        cached_data = ["cached"]
+        cache_key = f"author-{author.id}-overview"
+        cache.set(cache_key, cached_data)
+
+        # Act
+        url = f"/api/author/{author.id}/overview/"
+        response = self.client.get(
+            url,
+        )
+
+        # Assert
+        self.assertTrue(response.status_code, 200)
+        self.assertEqual(response.json(), cached_data)
+
     def get_actions_response(self, user):
         url = f"/api/user/{user.id}/actions/"
         return get_authenticated_get_response(user, url)
