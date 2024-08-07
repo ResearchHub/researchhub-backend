@@ -1,6 +1,7 @@
 import json
 from unittest.mock import patch
 
+from django.core.cache import cache
 from django.test import TestCase
 from rest_framework.test import APITestCase
 
@@ -41,6 +42,73 @@ class UserApiTests(APITestCase):
             self.author_openalex_id
         ]
         self.user_with_published_works.author_profile.save()
+
+    def test_get_publications(self):
+        # Arrange
+        self.client.force_authenticate(self.user_with_published_works)
+
+        paper1 = Paper.objects.create(
+            title="title1",
+        )
+        Authorship.objects.create(
+            author=self.user_with_published_works.author_profile, paper=paper1
+        )
+        paper2 = Paper.objects.create(
+            title="title2",
+        )
+        Authorship.objects.create(
+            author=self.user_with_published_works.author_profile, paper=paper2
+        )
+
+        # Act
+        url = f"/api/author/{self.user_with_published_works.author_profile.id}/publications/"
+        resp = self.client.get(url)
+
+        # Assert
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["count"], 2)
+
+    def test_get_publications_writes_to_cache(self):
+        # Arrange
+        self.client.force_authenticate(self.user_with_published_works)
+
+        paper = Paper.objects.create(
+            title="title1",
+        )
+        Authorship.objects.create(
+            author=self.user_with_published_works.author_profile, paper=paper
+        )
+
+        # Act
+        url = f"/api/author/{self.user_with_published_works.author_profile.id}/publications/"
+        resp = self.client.get(url)
+
+        # Assert
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()["count"], 1)
+        cache_key = (
+            f"author-{self.user_with_published_works.author_profile.id}-publications"
+        )
+        self.assertTrue(cache.get(cache_key))
+        self.assertEqual(cache.get(cache_key)[0]["documents"]["id"], paper.id)
+
+    def test_get_publications_reads_from_cache(self):
+        # Arrange
+        self.client.force_authenticate(self.user_with_published_works)
+
+        cached_data = ["cached"]
+        cache_key = (
+            f"author-{self.user_with_published_works.author_profile.id}-publications"
+        )
+        cache.set(cache_key, cached_data)
+
+        # Act
+        url = f"/api/author/{self.user_with_published_works.author_profile.id}/publications/"
+        resp = self.client.get(url)
+
+        # Assert
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json(), cached_data)
 
     @patch.object(OpenAlex, "get_works")
     def test_add_publications_to_author(self, mock_get_works):
