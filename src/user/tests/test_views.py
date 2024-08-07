@@ -112,7 +112,7 @@ class UserApiTests(APITestCase):
 
     @patch.object(OpenAlex, "get_works")
     def test_add_publications_to_author(self, mock_get_works):
-        with open("./paper/tests/openalex_author_works.json", "r") as works_file:
+        with open("./user/tests/openalex_author_works.json", "r") as works_file:
             # Mock responses for OpenAlex API calls
             mock_data = json.load(works_file)
             mock_get_works.return_value = (mock_data["results"], None)
@@ -219,7 +219,7 @@ class UserApiTests(APITestCase):
     def test_add_publications_to_should_notify_author_when_done(self, mock_get_works):
         from notification.models import Notification
 
-        with open("./paper/tests/openalex_author_works.json", "r") as works_file:
+        with open("./user/tests/openalex_author_works.json", "r") as works_file:
             # Mock responses for OpenAlex API calls
             mock_data = json.load(works_file)
             mock_get_works.return_value = (mock_data["results"], None)
@@ -314,11 +314,11 @@ class UserViewsTests(TestCase):
         from paper.models import Paper
 
         works = None
-        with open("./paper/tests/openalex_works.json", "r") as file:
+        with open("./user/tests/openalex_works.json", "r") as file:
             response = json.load(file)
             works = response.get("results")
 
-        with open("./paper/tests/openalex_authors.json", "r") as file:
+        with open("./user/tests/openalex_authors.json", "r") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 
@@ -377,11 +377,11 @@ class UserViewsTests(TestCase):
         from paper.models import Paper
 
         works = None
-        with open("./paper/tests/openalex_works.json", "r") as file:
+        with open("./user/tests/openalex_works.json", "r") as file:
             response = json.load(file)
             works = response.get("results")
 
-        with open("./paper/tests/openalex_authors.json", "r") as file:
+        with open("./user/tests/openalex_authors.json", "r") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 
@@ -406,11 +406,11 @@ class UserViewsTests(TestCase):
         from paper.models import Paper
 
         works = None
-        with open("./paper/tests/openalex_works.json", "r") as file:
+        with open("./user/tests/openalex_works.json", "r") as file:
             response = json.load(file)
             works = response.get("results")
 
-        with open("./paper/tests/openalex_authors.json", "r") as file:
+        with open("./user/tests/openalex_authors.json", "r") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 
@@ -435,11 +435,11 @@ class UserViewsTests(TestCase):
         from paper.models import Paper
 
         works = None
-        with open("./paper/tests/openalex_works.json", "r") as file:
+        with open("./user/tests/openalex_works.json", "r") as file:
             response = json.load(file)
             works = response.get("results")
 
-        with open("./paper/tests/openalex_authors.json", "r") as file:
+        with open("./user/tests/openalex_authors.json", "r") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
 
@@ -464,7 +464,7 @@ class UserViewsTests(TestCase):
             self.assertTrue(cache.get(cache_key))
             self.assertEqual(len(cache.get(cache_key)), 1)
 
-    def test_author_overview_returns_from_cache(self, mock_get_authors):
+    def test_author_overview_returns_from_cache(self):
         # Arrange
         author = Author.objects.create(first_name="firstName1", last_name="lastName1")
         cached_data = ["cached"]
