@@ -223,6 +223,9 @@ class UserViewsTests(TestCase):
                 "id": user.id,
                 "created_date": user.created_date,
                 "is_verified": True,
+                "is_suspended": False,
+                "probable_spammer": False,
+                "sift_url": f"https://console.sift.com/users/{user.id}?abuse_type=content_abuse",
             },
         )
 
