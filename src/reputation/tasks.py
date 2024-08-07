@@ -3,8 +3,6 @@ import time
 from datetime import datetime, timedelta
 
 import pytz
-from celery.decorators import periodic_task
-from celery.task.schedules import crontab
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import DurationField, F, Q
@@ -18,7 +16,7 @@ from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.lib import check_hotwallet, check_pending_withdrawal, contract_abi
 from reputation.models import Bounty, Contribution, Deposit
-from researchhub.celery import QUEUE_BOUNTIES, QUEUE_CONTRIBUTIONS, QUEUE_PURCHASES, app
+from researchhub.celery import QUEUE_CONTRIBUTIONS, app
 from researchhub.settings import PRODUCTION, WEB3_WALLET_ADDRESS, w3
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
@@ -167,11 +165,7 @@ def evaluate_transaction(transaction_hash):
     )
 
 
-@periodic_task(
-    run_every=crontab(minute="*/5"),
-    priority=3,
-    queue=QUEUE_PURCHASES,
-)
+@app.task
 def check_deposits():
     # Sort by created date to ensure a malicious user doesn't attempt to take credit for
     # a deposit made by another user. This is a temporary solution until we add signed messages
@@ -220,30 +214,18 @@ def check_deposits():
             deposit.set_paid_pending()
 
 
-@periodic_task(
-    run_every=crontab(minute="*/5"),
-    priority=4,
-    queue=QUEUE_PURCHASES,
-)
+@app.task
 def check_pending_withdrawals():
     check_pending_withdrawal()
 
 
-@periodic_task(
-    run_every=crontab(minute="*/30"),
-    priority=4,
-    queue=QUEUE_PURCHASES,
-)
+@app.task
 def check_hotwallet_balance():
     if PRODUCTION:
         check_hotwallet()
 
 
-@periodic_task(
-    run_every=crontab(hour="0, 6, 12, 18", minute=0),
-    priority=4,
-    queue=QUEUE_BOUNTIES,
-)
+@app.task
 def check_open_bounties():
     open_bounties = Bounty.objects.filter(
         status=Bounty.OPEN, parent__isnull=True
@@ -305,11 +287,7 @@ def check_open_bounties():
     )
 
 
-@periodic_task(
-    run_every=crontab(hour="0, 6, 12, 18", minute=0),
-    priority=5,
-    queue=QUEUE_BOUNTIES,
-)
+@app.task
 def send_bounty_hub_notifications():
     action_user = User.objects.get_community_account()
     open_bounties = Bounty.objects.filter(
@@ -355,11 +333,7 @@ def send_bounty_hub_notifications():
                     notification.send_notification()
 
 
-@periodic_task(
-    run_every=crontab(hour=12, minute=0),
-    priority=4,
-    queue=QUEUE_BOUNTIES,
-)
+@app.task
 def recalc_hot_score_for_open_bounties():
     open_bounties = Bounty.objects.filter(status=Bounty.OPEN)
 

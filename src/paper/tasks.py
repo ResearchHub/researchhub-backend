@@ -12,8 +12,6 @@ from unicodedata import normalize
 import fitz
 import requests
 from bs4 import BeautifulSoup
-from celery.decorators import periodic_task
-from celery.task.schedules import crontab
 from celery.utils.log import get_task_logger
 from django.apps import apps
 from django.contrib.postgres.search import SearchQuery
@@ -47,8 +45,6 @@ from purchase.models import Wallet
 from researchhub.celery import (
     QUEUE_CACHES,
     QUEUE_CERMINE,
-    QUEUE_EXTERNAL_REPORTING,
-    QUEUE_HOT_SCORE,
     QUEUE_PAPER_MISC,
     QUEUE_PULL_PAPERS,
     app,
@@ -565,7 +561,7 @@ def handle_duplicate_doi(new_paper, doi):
     new_paper.delete()
 
 
-@periodic_task(run_every=crontab(minute=0, hour=0), priority=5, queue=QUEUE_HOT_SCORE)
+@app.task
 def celery_update_hot_scores():
     Paper = apps.get_model("paper.Paper")
     start_date = datetime.now() - timedelta(days=4)
@@ -574,11 +570,7 @@ def celery_update_hot_scores():
         paper.calculate_hot_score()
 
 
-@periodic_task(
-    run_every=crontab(minute=50, hour=23),
-    priority=2,
-    queue=QUEUE_EXTERNAL_REPORTING,
-)
+@app.task
 def log_daily_uploads():
     from analytics.amplitude import Amplitude
 
@@ -750,12 +742,7 @@ def pull_openalex_author_works(user_id, openalex_id):
     return True
 
 
-@periodic_task(
-    # run at 6:00 AM UTC (10:00 PM PST)
-    run_every=crontab(minute=00, hour=6),
-    priority=3,
-    queue=QUEUE_PULL_PAPERS,
-)
+@app.task
 def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
     """
     Pull new works (papers) from OpenAlex.

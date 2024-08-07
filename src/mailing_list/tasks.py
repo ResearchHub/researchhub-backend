@@ -1,8 +1,6 @@
 import logging
 from datetime import timedelta
 
-from celery.decorators import periodic_task
-from celery.task.schedules import crontab
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
 from django.http.request import HttpRequest, QueryDict
@@ -15,7 +13,7 @@ from hypothesis.models import Hypothesis
 from mailing_list.lib import base_email_context
 from mailing_list.models import EmailRecipient, EmailTaskLog, NotificationFrequencies
 from paper.models import Paper
-from researchhub.celery import QUEUE_NOTIFICATION, app
+from researchhub.celery import app
 from researchhub.settings import EMAIL_DOMAIN, PRODUCTION, STAGING
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.views import ResearchhubUnifiedDocumentViewSet
@@ -23,12 +21,7 @@ from user.models import Action, User
 from utils.message import send_email_message
 
 
-# Runs 12am pst (8am utc)
-@periodic_task(
-    run_every=crontab(minute=0, hour=8, day_of_week="friday"),
-    priority=9,
-    queue=QUEUE_NOTIFICATION,
-)
+@app.task
 def weekly_bounty_digest():
     send_bounty_digest(NotificationFrequencies.WEEKLY)
 

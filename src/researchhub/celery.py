@@ -3,9 +3,8 @@ from __future__ import absolute_import, unicode_literals
 import os
 import time
 
-from celery import Celery, chord
-
-from reputation.exceptions import ReputationDistributorError, WithdrawalError
+from celery import Celery
+from celery.schedules import crontab
 
 # Set the default Django settings module for the 'celery' program.
 # This must come before instantiating Celery apps.
@@ -38,93 +37,126 @@ QUEUE_BOUNTIES = "bounties"
 QUEUE_HUBS = "hubs"
 
 
-# Celery Debug/Test Functions
-@app.task(bind=True)
-def debug_task(self):
-    print(f"Request: {self.request}")
+# Scheduled tasks
 
 
-@app.task(bind=True)
-def test_1(self, error_debug=False):
-    time.sleep(2)
-    print("Test 1")
-
-    if error_debug:
-        retries = self.request.retries
-        try:
-            print(f"Error 1: {retries}")
-            if retries == 0:
-                raise ReputationDistributorError("", "")
-            elif retries == 1:
-                raise WithdrawalError("", "")
-            print("Test 1 Good")
-        except (ReputationDistributorError, WithdrawalError) as exc:
-            raise self.retry(exc=exc, countdown=0)
-
-
-@app.task(bind=True)
-def test_2(self):
-    time.sleep(2)
-    print("Test 2")
-    return 2
-
-
-@app.task(bind=True)
-def test_3(self):
-    time.sleep(2)
-    print("Test 3")
-    return 3
-
-
-@app.task(bind=True)
-def test_4(self):
-    time.sleep(1)
-    print("Test 4")
-    return 4
-
-
-@app.task(bind=True)
-def test_5(self, nums):
-    return sum(nums)
-
-
-@app.task(bind=True)
-def test_6(self):
-    ch = chord([test_2.s(), test_3.s(), test_4.s()])(test_5.s())
-    return ch
-
-
-def run_chord_test():
-    ch = test_6()
-    print(ch)
-    return ch
-
-
-# Test Results
-"""
-from researchhub.celery import test_1, test_2, test_3, test_4
-
-test_4.apply_async(priority=5)
-test_3.apply_async(priority=5)
-test_2.apply_async(priority=1)
-test_1.apply_async(priority=1)
-
-4
-2
-1
-3
-
-
-
-test_1.apply_async(kwargs={'error_debug': True}, priority=1)
-test_2.apply_async(priority=1)
-test_3.apply_async(priority=1)
-test_4.apply_async(priority=1)
-
-1
-2
-3
-4
-1
-1
-"""
+app.conf.beat_schedule = {
+    # Hub
+    "hub_calculate-and-set-hub-counts": {
+        "task": "hub.tasks.calculate_and_set_hub_counts",
+        "schedule": crontab(minute=0, hour=0),
+        "options": {
+            "priority": 5,
+            "queue": QUEUE_HUBS,
+        },
+    },
+    # Mailing List
+    "mailinglist_weekly-bounty-digest": {
+        "task": "mailing_list.tasks.weekly_bounty_digest",
+        "schedule": crontab(minute=0, hour=8, day_of_week="friday"),
+        "options": {
+            "priority": 9,
+            "queue": QUEUE_NOTIFICATION,
+        },
+    },
+    # Paper
+    "paper_celery-update-hot-scores": {
+        "task": "paper.tasks.celery_update_hot_scores",
+        "schedule": crontab(minute=0, hour=0),
+        "options": {
+            "priority": 5,
+            "queue": QUEUE_HOT_SCORE,
+        },
+    },
+    "paper_log-daily-uploads": {
+        "task": "paper.tasks.log_daily_uploads",
+        "schedule": crontab(minute=50, hour=23),
+        "options": {
+            "priority": 2,
+            "queue": QUEUE_EXTERNAL_REPORTING,
+        },
+    },
+    "paper_pull-new-openalex-works": {
+        "task": "paper.tasks.pull_new_openalex_works",
+        "schedule": crontab(minute=0, hour=6),
+        "options": {
+            "priority": 3,
+            "queue": QUEUE_PULL_PAPERS,
+        },
+    },
+    # Purchase
+    "purchase_update-purchases": {
+        "task": "purchase.tasks.update_purchases",
+        "schedule": crontab(minute="*/30"),
+        "options": {
+            "priority": 3,
+            "queue": QUEUE_PURCHASES,
+        },
+    },
+    # Reputation
+    "reputation_check-deposits": {
+        "task": "reputation.tasks.check_deposits",
+        "schedule": crontab(minute="*/5"),
+        "options": {
+            "priority": 3,
+            "queue": QUEUE_PURCHASES,
+        },
+    },
+    "reputation_check-pending-withdrawals": {
+        "task": "reputation.tasks.check_pending_withdrawals",
+        "schedule": crontab(minute="*/5"),
+        "options": {
+            "priority": 4,
+            "queue": QUEUE_PURCHASES,
+        },
+    },
+    "reputation_check-hotwallet-balance": {
+        "task": "reputation.tasks.check_hotwallet_balance",
+        "schedule": crontab(minute="*/30"),
+        "options": {
+            "priority": 4,
+            "queue": QUEUE_PURCHASES,
+        },
+    },
+    "reputation_check-open-bounties": {
+        "task": "reputation.tasks.check_open_bounties",
+        "schedule": crontab(hour="0, 6, 12, 18", minute=0),
+        "options": {
+            "priority": 4,
+            "queue": QUEUE_BOUNTIES,
+        },
+    },
+    "reputation_send-bounty-hub-notifications": {
+        "task": "reputation.tasks.send_bounty_hub_notifications",
+        "schedule": crontab(hour="0, 6, 12, 18", minute=0),
+        "options": {
+            "priority": 5,
+            "queue": QUEUE_BOUNTIES,
+        },
+    },
+    "reputation_recalc-hot-score-for-open-bounties": {
+        "task": "reputation.tasks.recalc_hot_score_for_open_bounties",
+        "schedule": crontab(hour=12, minute=0),
+        "options": {
+            "priority": 4,
+            "queue": QUEUE_BOUNTIES,
+        },
+    },
+    # User
+    "user_execute-editor-daily-payout-task": {
+        "task": "user.tasks.execute_editor_daily_payout_task",
+        "schedule": crontab(hour=23, minute=5),
+        "options": {
+            "priority": 2,
+            "queue": QUEUE_PURCHASES,
+        },
+    },
+    "user_hourly-purchase-task": {
+        "task": "user.tasks.hourly_purchase_task",
+        "schedule": crontab(hour="*", minute=0),  # every hour
+        "options": {
+            "priority": 2,
+            "queue": QUEUE_PURCHASES,
+        },
+    },
+}

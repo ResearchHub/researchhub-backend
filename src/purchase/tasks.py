@@ -1,22 +1,16 @@
-from celery.decorators import periodic_task
-from celery.task.schedules import crontab
 from django.contrib.contenttypes.models import ContentType
 
 from mailing_list.lib import base_email_context
 from paper.models import Paper
 from purchase.models import Purchase, Support
-from researchhub.celery import QUEUE_NOTIFICATION, QUEUE_PURCHASES, app
+from researchhub.celery import QUEUE_NOTIFICATION, app
 from researchhub.settings import BASE_FRONTEND_URL
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.utils import reset_unified_document_cache
 from utils.message import send_email_message
 
 
-@periodic_task(
-    run_every=crontab(minute="*/30"),
-    priority=3,
-    queue=QUEUE_PURCHASES,
-)
+@app.task
 def update_purchases():
     PAPER_CONTENT_TYPE = ContentType.objects.get(app_label="paper", model="paper")
     purchases = Purchase.objects.filter(boost_time__gt=0)

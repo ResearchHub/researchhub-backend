@@ -1,19 +1,11 @@
-from datetime import timedelta
-
-from celery.decorators import periodic_task
-from celery.task.schedules import crontab
 from django.db.models import Count, F, Sum
 from django.db.models.functions import Coalesce
 
 from hub.models import Hub
-from researchhub.celery import QUEUE_HUBS
+from researchhub.celery import app
 
 
-@periodic_task(
-    run_every=crontab(minute=0, hour=0),
-    priority=5,
-    queue=QUEUE_HUBS,
-)
+@app.task
 def calculate_and_set_hub_counts():
     hubs = Hub.objects.annotate(
         total_paper_count=Count("related_documents"),
