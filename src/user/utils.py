@@ -2,7 +2,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models import Case, When
 
-import utils.sentry as sentry
 from paper.openalex_util import merge_openalex_author_with_researchhub_author
 from user.aggregates import TenPercentile, TwoPercentile
 from user.models import Organization, User
