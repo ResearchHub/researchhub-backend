@@ -9,6 +9,9 @@ from paper.openalex_util import process_openalex_works
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
 from reputation.models import Score
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.models import UserVerification
 from user.related_models.author_model import Author
 from user.tests.helpers import (
@@ -89,18 +92,23 @@ class UserApiTests(APITestCase):
         cache_key = (
             f"author-{self.user_with_published_works.author_profile.id}-publications"
         )
-        self.assertTrue(cache.get(cache_key))
-        self.assertEqual(cache.get(cache_key)[0]["documents"]["id"], paper.id)
+        self.assertEqual(cache.get(cache_key)[0].paper, paper)
 
     def test_get_publications_reads_from_cache(self):
         # Arrange
         self.client.force_authenticate(self.user_with_published_works)
 
-        cached_data = ["cached"]
+        paper = Paper.objects.create(
+            title="title1",
+        )
+        cached_data = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER", paper=paper
+        )
+
         cache_key = (
             f"author-{self.user_with_published_works.author_profile.id}-publications"
         )
-        cache.set(cache_key, cached_data)
+        cache.set(cache_key, [cached_data])
 
         # Act
         url = f"/api/author/{self.user_with_published_works.author_profile.id}/publications/"
@@ -108,7 +116,10 @@ class UserApiTests(APITestCase):
 
         # Assert
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json(), cached_data)
+        self.assertEqual(resp.json()["count"], 1)
+        self.assertEqual(
+            resp.json()["results"][0]["documents"]["id"], cached_data.paper.id
+        )
 
     @patch.object(OpenAlex, "get_works")
     def test_add_publications_to_author(self, mock_get_works):
