@@ -1,3 +1,4 @@
+from celery import chain
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db.models import Q, Sum
@@ -44,6 +45,7 @@ from user.serializers import (
     AuthorSerializer,
     DynamicAuthorProfileSerializer,
 )
+from user.tasks import invalidate_author_profile_caches
 from user.utils import AuthorClaimException, claim_openalex_author_profile
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
@@ -760,14 +762,12 @@ class AuthorViewSet(viewsets.ModelViewSet):
             # if True:
             if TESTING:
                 pull_openalex_author_works_batch(openalex_ids, request.user.id)
+                invalidate_author_profile_caches(author.id)
             else:
-                pull_openalex_author_works_batch.apply_async(
-                    (
-                        openalex_ids,
-                        request.user.id,
-                    ),
-                    priority=1,
-                )
+                chain(
+                    pull_openalex_author_works_batch.s(openalex_ids, request.user.id),
+                    invalidate_author_profile_caches.s(author.id),
+                ).apply_async(priority=1)
 
         return Response(status=status.HTTP_200_OK)
 
@@ -784,6 +784,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
         )
 
         count, _ = authorships.delete()
+        invalidate_author_profile_caches(request.user.author_profile.id)
         return Response({"count": count}, status=status.HTTP_200_OK)
 
     @action(
