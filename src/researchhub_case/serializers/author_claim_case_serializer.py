@@ -28,6 +28,7 @@ class AuthorClaimCaseSerializer(ModelSerializer):
     paper = SerializerMethodField(method_name="get_paper")
     authorship = SerializerMethodField()
     paper_reward = SerializerMethodField()
+    user_verification = SerializerMethodField()
 
     def create(self, validated_data):
         request_data = self.context.get("request").data
@@ -105,6 +106,17 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             return serializer.data
         return None
 
+    def get_user_verification(self, case):
+        if case.requestor is None:
+            return None
+
+        user_verification = UserVerification.objects.filter(user=case.requestor).last()
+        return {
+            "status": user_verification.status,
+            "verified_name": f"{user_verification.first_name} {user_verification.last_name}",
+            "status": user_verification.status,
+        }
+
     def __check_uniqueness_on_create(
         self, requestor_id, target_paper_id, authorship_id
     ):
@@ -153,6 +165,7 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             "version",
             "authorship",
             "paper_reward",
+            "user_verification",
         ]
         read_only_fields = [
             "status",

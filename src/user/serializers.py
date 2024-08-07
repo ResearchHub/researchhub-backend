@@ -775,14 +775,10 @@ class UserActions:
                     data["paper_id"] = thread_paper.id
                 elif thread_post:
                     data["parent_content_type"] = "post"
-                    data[
-                        "paper_title"
-                    ] = (
+                    data["paper_title"] = (
                         thread_post.title
                     )  # paper_title instead of post_title for symmetry on the FE
-                    data[
-                        "paper_id"
-                    ] = (
+                    data["paper_id"] = (
                         thread_post.id
                     )  # paper_id instead of post_id to temporarily reduce refactoring on FE
 
@@ -1165,6 +1161,9 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
             "id": user.id,
             "created_date": user.created_date,
             "is_verified": is_verified,
+            "is_suspended": user.is_suspended,
+            "probable_spammer": user.probable_spammer,
+            "sift_url": f"https://console.sift.com/users/{user.id}?abuse_type=content_abuse",
         }
 
     def get_summary_stats(self, author):
