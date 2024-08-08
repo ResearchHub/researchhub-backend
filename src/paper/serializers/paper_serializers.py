@@ -6,6 +6,7 @@ import rest_framework.serializers as serializers
 from django.contrib.admin.options import get_content_type_for_model
 from django.core.files.base import ContentFile
 from django.db import IntegrityError, transaction
+from django.db.models import Prefetch
 from django.http import QueryDict
 
 import utils.sentry as sentry
@@ -916,15 +917,21 @@ class DynamicPaperSerializer(
         context = self.context
         _context_fields = context.get("pap_dps_get_authors", {})
 
+        all_authors = paper.authors.prefetch_related(
+            Prefetch(
+                "authorships",
+                queryset=Authorship.objects.filter(paper=paper),
+                to_attr="paper_authorship",
+            )
+        ).all()
+
         # The purpose of this loop is to decorate each author with their authorship before passing
         # to the AuthorSerializer. That is because we have full context needed to fetch the authorship in this scope.
         # Once passed to the AuthorSerializer, the paper will be lost.
-        all_authors = paper.authors.all()
         for author in all_authors:
-            authorship = Authorship.objects.filter(author=author, paper=paper).first()
-            if authorship is None:
-                continue
-            author.authorship = authorship
+            author.authorship = (
+                author.paper_authorship[0] if author.paper_authorship else None
+            )
 
         serializer = DynamicAuthorSerializer(
             all_authors, many=True, context=context, **_context_fields
