@@ -151,8 +151,8 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PURCHASES,
         },
     },
-    "user_hourly-purchase-task": {
-        "task": "user.tasks.hourly_purchase_task",
+    "user_execute_rsc_exchange_rate_record_tasks": {
+        "task": "user.tasks.execute_rsc_exchange_rate_record_tasks",
         "schedule": crontab(hour="*", minute=0),  # every hour
         "options": {
             "priority": 2,
