@@ -467,22 +467,6 @@ class SignalTests(TestCase):
             self.start_rep + self.new_user_create_rep
         )
 
-    # TODO: I think this should be increases?
-    # def test_reply_endorsed_decreases_rep_by_2(self):
-    #     recipient = create_random_default_user('Crab')
-    #     reply = create_reply(created_by=recipient)
-    #     endorse_discussion(reply, self.author)
-
-    #     self.assertEqual(recipient.reputation, 16)
-
-    # TODO: I think this should be increases?
-    # def test_thread_endorsed_decreases_rep_by_2(self):
-    #     recipient = create_random_default_user('Goyle')
-    #     thread = create_thread(created_by=recipient)
-    #     endorse_discussion(thread, self.author)
-
-    #     self.assertEqual(recipient.reputation, 16)
-
     def test_multiple_reputation_distributions(self):
         thread = create_thread(created_by=self.recipient)
         current_rep = self.start_rep + self.new_user_create_rep
