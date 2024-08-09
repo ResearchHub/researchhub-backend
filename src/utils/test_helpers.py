@@ -10,7 +10,6 @@ from django.test import Client
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient, APITestCase, ForceAuthClientHandler
 
-from bullet_point.models import BulletPoint
 from discussion.models import Thread
 from discussion.models import Vote as GrmVote
 from hub.models import Hub
@@ -154,9 +153,6 @@ class TestHelper:
         return Thread.objects.create(
             created_by=user, paper=paper, text={"text": text}, plain_text=text
         )
-
-    def create_bulletpoint(self, user, paper, text="bulletpoint"):
-        return BulletPoint.objects.create(created_by=user, paper=paper, plain_text=text)
 
 
 class IntegrationTestHelper(TestData):

@@ -5,7 +5,6 @@ from django.db.models import CharField, Count, F, Func, IntegerField, Sum, Value
 from django.db.models.functions import Cast
 
 from analytics.models import INTERACTIONS, PaperEvent
-from bullet_point.serializers import BulletPointSerializer
 from discussion.serializers import (
     CommentSerializer,
     DynamicCommentSerializer,
@@ -69,9 +68,6 @@ class PurchaseSerializer(serializers.ModelSerializer):
         elif model_name == "summary":
             summary = model_class.objects.get(id=object_id)
             serializer = SummarySerializer(summary, context=self.context)
-        elif model_name == "bullet_point":
-            bulletpoint = model_class.objects.get(id=object_id)
-            serializer = BulletPointSerializer(bulletpoint, context=self.context)
 
         if serializer is not None:
             return serializer.data
@@ -131,9 +127,6 @@ class DynamicPurchaseSerializer(DynamicModelFieldSerializer):
                 item = model_class.objects.get(id=object_id)
                 serializer = DynamicRhCommentSerializer
             elif model_name == "summary":
-                item = model_class.objects.get(id=object_id)
-                serializer = None
-            elif model_name == "bullet_point":
                 item = model_class.objects.get(id=object_id)
                 serializer = None
             elif model_name == "fundraise":

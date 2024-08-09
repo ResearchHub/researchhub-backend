@@ -9,8 +9,6 @@ from django.dispatch import receiver
 from django.utils import timezone
 
 import reputation.distributions as distributions
-from bullet_point.models import BulletPoint
-from bullet_point.models import Vote as BulletPointVote
 from discussion.lib import check_is_discussion_item
 from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as GrmVote
@@ -163,97 +161,10 @@ def check_summary_distribution_interval(distribution):
     return distribution.created_date < time_ago
 
 
-@receiver(post_save, sender=BulletPoint, dispatch_uid="create_bullet_point")
-def distribute_for_create_bullet_point(sender, instance, created, **kwargs):
-    timestamp = time()
-    recipient = instance.created_by
-    hubs = None
-    if created and is_eligible_for_create_bullet_point(recipient):
-        if isinstance(instance, BulletPoint) and check_key_takeaway_interval(
-            instance, recipient
-        ):
-            distribution = distributions.CreateBulletPoint
-            hubs = instance.paper.hubs
-        else:
-            return
-
-        distributor = Distributor(
-            distribution,
-            recipient,
-            instance,
-            timestamp,
-            instance.created_by,
-            hubs.all(),
-        )
-        record = distributor.distribute()
-
-
-@receiver(post_save, sender=BulletPointVote, dispatch_uid="bullet_point_vote")
-def distribute_for_bullet_point_vote(
-    sender, instance, created, update_fields, **kwargs
-):
-    timestamp = time()
-    voter = instance.created_by
-    recipient = instance.bulletpoint.created_by
-
-    if created and is_eligible_for_bulletpoint_vote(recipient, voter):
-        hubs = instance.bulletpoint.paper.hubs
-        distribution = get_bulletpoint_vote_item_distribution(instance)
-
-        distributor = Distributor(
-            distribution,
-            recipient,
-            instance,
-            timestamp,
-            instance.created_by,
-            hubs.all(),
-        )
-
-        record = distributor.distribute()
-
-
-def is_eligible_for_create_bullet_point(user):
-    return is_eligible_user(user) and is_eligible_for_new_user_bonus(user)
-
-
-def is_eligible_for_bulletpoint_vote(recipient, voter):
-    """
-    Returns True if the recipient is eligible to receive an award.
-
-    Checks to ensure recipient is not also the voter.
-    """
-    if voter is None:
-        return True
-    return (recipient != voter) and is_eligible_user(recipient)
-
-
-def get_bulletpoint_vote_item_distribution(instance):
-    vote_type = instance.vote_type
-
-    if vote_type == BulletPointVote.UPVOTE:
-        return distributions.BulletPointUpvoted
-    elif vote_type == BulletPointVote.DOWNVOTE:
-        return distributions.BulletPointDownvoted
-    else:
-        raise TypeError("No vote type for bulletpoint instance")
-
-
-def check_key_takeaway_interval(bullet_point, recipient):
-    if bullet_point.bullet_type == BulletPoint.BULLETPOINT_KEYTAKEAWAY:
-        time_ago = timezone.now() - timedelta(hours=1)
-        key_takeaway_count = recipient.bullet_points.filter(
-            created_date__gte=time_ago, bullet_type=BulletPoint.BULLETPOINT_KEYTAKEAWAY
-        ).count()
-        if key_takeaway_count < 5:
-            return True
-    return False
-
-
 def check_reply_to_other_creator(reply):
     return reply.parent.created_by is not reply.created_by
 
 
-@receiver(post_save, sender=BulletPoint, dispatch_uid="censor_bullet_point")
 @receiver(post_save, sender=Comment, dispatch_uid="censor_comment")
 @receiver(post_save, sender=Reply, dispatch_uid="censor_reply")
 @receiver(post_save, sender=Thread, dispatch_uid="censor_thread")
@@ -265,12 +176,7 @@ def distribute_for_censor(sender, instance, created, update_fields, **kwargs):
 
     if check_censored(created, update_fields) is True:
         try:
-            if isinstance(instance, BulletPoint):
-                distribution = distributions.BulletPointCensored
-                recipient = instance.bullet_point.created_by
-                hubs = instance.bullet_point.paper.hubs
-
-            elif check_is_discussion_item(instance):
+            if check_is_discussion_item(instance):
                 distribution = get_discussion_censored_distribution(instance)
                 recipient = instance.created_by
                 hubs = get_discussion_hubs(instance)
@@ -324,9 +230,7 @@ def get_discussion_censored_distribution(instance):
 
 def get_discussion_hubs(instance):
     hubs = None
-    if isinstance(instance, BulletPoint):
-        hubs = instance.paper.hubs
-    elif isinstance(instance, Comment):
+    if isinstance(instance, Comment):
         hubs = instance.parent.paper.hubs
     elif isinstance(instance, Reply):
         try:
