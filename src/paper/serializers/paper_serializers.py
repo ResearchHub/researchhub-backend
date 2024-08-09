@@ -6,6 +6,7 @@ import rest_framework.serializers as serializers
 from django.contrib.admin.options import get_content_type_for_model
 from django.core.files.base import ContentFile
 from django.db import IntegrityError, transaction
+from django.db.models import Prefetch
 from django.http import QueryDict
 
 import utils.sentry as sentry
@@ -879,22 +880,10 @@ class DynamicPaperSerializer(
     file = serializers.SerializerMethodField()
     pdf_url = serializers.SerializerMethodField()
     pdf_copyright_allows_display = serializers.SerializerMethodField()
-    authorships = serializers.SerializerMethodField()
 
     class Meta:
         model = Paper
         fields = "__all__"
-
-    def get_authorships(self, paper):
-        context = self.context
-        _context_fields = context.get("pap_dps_get_authorships", {})
-
-        authorships = Authorship.objects.filter(paper=paper)
-
-        serializer = DynamicAuthorshipSerializer(
-            authorships, many=True, context=context, **_context_fields
-        )
-        return serializer.data
 
     def get_abstract_src_markdown(self, paper):
         try:
@@ -923,12 +912,31 @@ class DynamicPaperSerializer(
         return vote
 
     def get_authors(self, paper):
+        from paper.serializers.paper_serializers import DynamicAuthorshipSerializer
+
         context = self.context
         _context_fields = context.get("pap_dps_get_authors", {})
 
+        all_authors = paper.authors.prefetch_related(
+            Prefetch(
+                "authorships",
+                queryset=Authorship.objects.filter(paper=paper),
+                to_attr="paper_authorship",
+            )
+        ).all()
+
+        # The purpose of this loop is to decorate each author with their authorship before passing
+        # to the AuthorSerializer. That is because we have full context needed to fetch the authorship in this scope.
+        # Once passed to the AuthorSerializer, the paper will be lost.
+        for author in all_authors:
+            author.authorship = (
+                author.paper_authorship[0] if author.paper_authorship else None
+            )
+
         serializer = DynamicAuthorSerializer(
-            paper.authors.all(), many=True, context=context, **_context_fields
+            all_authors, many=True, context=context, **_context_fields
         )
+
         return serializer.data
 
     def get_boost_amount(self, paper):

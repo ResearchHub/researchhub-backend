@@ -247,6 +247,15 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                     "last_name",
                 ]
             },
+            "author::get_authorship": {
+                "_include_fields": [
+                    "id",
+                    "raw_author_name",
+                    "author_position",
+                    "is_corresponding",
+                    "author_id",
+                ]
+            },
         }
         return context
 
@@ -260,6 +269,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 "abstract",
                 "abstract_src_markdown",
                 "authors",
+                # "author_count",
                 "boost_amount",
                 "created_date",
                 "discussion_count",
@@ -288,6 +298,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 "url",
             ],
         )
+
         serializer_data = serializer.data
         vote = self.dynamic_serializer_class(context=context).get_user_vote(instance)
         serializer_data["user_vote"] = vote

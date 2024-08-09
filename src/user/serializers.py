@@ -272,6 +272,26 @@ class UserApiTokenSerializer(ModelSerializer):
 
 class DynamicAuthorSerializer(DynamicModelFieldSerializer):
     count = IntegerField(read_only=True)
+    authorship = SerializerMethodField()
+
+    def get_authorship(self, author):
+        from paper.serializers.paper_serializers import DynamicAuthorshipSerializer
+
+        # authorship is a "decorated" field set forth by the calling function of this serializer.
+        # It is not the result of an executed DB query because it requires a tuple of (paper_id, author_id) in order to be
+        # queried. Due to current serializer constraints, we are unable to pass this tuple to the serializer.
+        authorship = author.authorship
+
+        if authorship is None:
+            return None
+
+        context = self.context
+        _context_fields = context.get("author::get_authorship", {})
+
+        serializer = DynamicAuthorshipSerializer(
+            authorship, many=False, context=context, **_context_fields
+        )
+        return serializer.data
 
     class Meta:
         model = Author
