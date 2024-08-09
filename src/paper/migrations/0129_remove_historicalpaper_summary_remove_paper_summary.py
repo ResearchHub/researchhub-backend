@@ -10,12 +10,12 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(
-            model_name="historicalpaper",
-            name="summary",
-        ),
-        migrations.RemoveField(
-            model_name="paper",
-            name="summary",
-        ),
+        # migrations.RemoveField(
+        #     model_name="historicalpaper",
+        #     name="summary",
+        # ),
+        # migrations.RemoveField(
+        #     model_name="paper",
+        #     name="summary",
+        # ),
     ]

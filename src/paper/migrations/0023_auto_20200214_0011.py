@@ -11,9 +11,9 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AlterField(
-            model_name='paper',
-            name='summary',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='papers', to='summary.Summary'),
-        ),
+        # migrations.AlterField(
+        #     model_name='paper',
+        #     name='summary',
+        #     field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='papers', to='summary.Summary'),
+        # ),
     ]
