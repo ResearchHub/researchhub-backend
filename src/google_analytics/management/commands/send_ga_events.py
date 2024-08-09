@@ -1,14 +1,13 @@
 """
 Send events to google analytics
 """
+
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from bullet_point.models import BulletPoint
 from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as GrmVote
 from google_analytics.signals import (
-    send_bullet_point_event,
     send_discussion_event,
     send_paper_event,
     send_user_event,
@@ -58,10 +57,6 @@ class Command(BaseCommand):
             response = send_paper_event(Paper, paper, created, [])
             print(response)
 
-        bullet_points = BulletPoint.objects.filter(**filters)
-        for bp in bullet_points:
-            response = send_bullet_point_event(BulletPoint, bp, created, [])
-            print(response)
         discussion_votes = GrmVote.objects.filter(**filters)
         for dv in discussion_votes:
             response = send_vote_event(GrmVote, dv, created, [])

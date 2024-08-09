@@ -10,8 +10,6 @@ from rest_framework.serializers import (
     SerializerMethodField,
 )
 
-from bullet_point.models import BulletPoint
-from bullet_point.models import Vote as BulletVote
 from discussion.lib import check_is_discussion_item
 from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as GrmVote
@@ -670,8 +668,6 @@ class UserActions:
                 or isinstance(item, Paper)
             ):
                 pass
-            elif isinstance(item, BulletPoint):
-                data["content_type"] = "bullet_point"
             elif isinstance(item, GrmVote):
                 item = item.item
                 if isinstance(item, Comment):
@@ -697,8 +693,6 @@ class UserActions:
                 item = item.item
             elif isinstance(item, Verdict):
                 item = item.flag.item
-            elif isinstance(item, BulletVote):
-                item = item.bulletpoint
             elif isinstance(item, SummaryVote):
                 item = item.summary
             else:
@@ -794,8 +788,6 @@ class UserActions:
                     print(e)
                     pass
                 data["tip"] = item.plain_text
-            elif isinstance(item, BulletPoint):
-                data["tip"] = item.plain_text
 
             if not isinstance(item, Summary) and not isinstance(item, Purchase):
                 data["user_flag"] = None
@@ -810,9 +802,6 @@ class UserActions:
                             data["user_flag"] = UserActions.flag_serializer(
                                 user_flag
                             ).data  # noqa: E501
-
-            if isinstance(item, BulletPoint) or check_is_discussion_item(item):
-                data["is_removed"] = item.is_removed
 
             if isinstance(item, Comment):
                 data["comment_id"] = item.id
@@ -862,9 +851,6 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
         context = self.context
         _context_fields = context.get("usr_das_get_item", {})
         item = action.item
-        ignored_items = (BulletPoint, BulletVote, Summary, SummaryVote)
-        if isinstance(item, ignored_items):
-            return None
 
         if isinstance(item, Withdrawal):
             # @patrick
