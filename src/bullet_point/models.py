@@ -2,7 +2,6 @@ from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models import Count, F, JSONField, Q
 
-from bullet_point.exceptions import BulletPointModelError
 from purchase.models import Purchase
 from researchhub.lib import CREATED_LOCATIONS
 
