@@ -207,7 +207,6 @@ INSTALLED_APPS = [
     "mjml",
     # Custom apps
     "analytics",
-    "bullet_point",
     "citation",
     "discussion",
     "institution",
