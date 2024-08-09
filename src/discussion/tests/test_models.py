@@ -2,7 +2,7 @@ from django.test import TestCase
 
 from discussion.tests.helpers import create_comment, create_reply, create_thread
 from paper.tests.helpers import create_paper
-from researchhub_document.helpers import create_hypothesis, create_post
+from researchhub_document.helpers import create_post
 from user.tests.helpers import create_random_default_user
 
 
@@ -170,7 +170,6 @@ class DiscussionModelsTests(TestCase):
         thread2_contributor = create_random_default_user("thread2_contributor")
         comment_contributor = create_random_default_user("comment_contributor")
         reply_contributor = create_random_default_user("reply_contributor")
-        hypothesis = create_hypothesis(created_by=creator)
 
         thread1 = create_thread(hypothesis=hypothesis, created_by=thread_contributor)
         thread2 = create_thread(hypothesis=hypothesis, created_by=thread2_contributor)
@@ -262,7 +261,6 @@ class DiscussionModelsTests(TestCase):
     def test_creating_thread_notifies_hypothesis_creator(self):
         creator = create_random_default_user("Creator")
         thread_creator = create_random_default_user("ThreadCreator")
-        hypothesis = create_hypothesis(created_by=creator)
 
         thread = create_thread(hypothesis=hypothesis, created_by=thread_creator)
         self.assertTrue(creator in thread.users_to_notify)
@@ -271,7 +269,6 @@ class DiscussionModelsTests(TestCase):
         creator = create_random_default_user("Creator")
         thread_creator = create_random_default_user("ThreadCreator")
         comment_creator = create_random_default_user("Commenter")
-        hypothesis = create_hypothesis(created_by=creator)
 
         thread = create_thread(hypothesis=hypothesis, created_by=creator)
         comment = create_comment(thread=thread, created_by=comment_creator)
@@ -282,7 +279,6 @@ class DiscussionModelsTests(TestCase):
         thread_creator = create_random_default_user("ThreadCreator")
         comment_creator = create_random_default_user("Commenter")
         reply_creator = create_random_default_user("ReplyCreator")
-        hypothesis = create_hypothesis(created_by=creator)
 
         thread = create_thread(hypothesis=hypothesis, created_by=creator)
         comment = create_comment(thread=thread, created_by=comment_creator)
