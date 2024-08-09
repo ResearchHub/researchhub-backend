@@ -24,10 +24,6 @@ def set_bounty_unified_document(apps, schema_editor):
         if post:
             uni_doc = post.unified_document
 
-        hypothesis = obj.hypothesis
-        if hypothesis:
-            uni_doc = hypothesis.unified_document
-
         peer_review = obj.peer_review
         if peer_review:
             uni_doc = peer_review.unified_document
