@@ -4,6 +4,7 @@ Mostly handles sending google analytics events on past save signals.
 Notice events related to pdf uploads are *not* included here and are better
 handled at the view level.
 """
+
 import datetime
 
 from django.db.models.signals import post_save
