@@ -1,6 +1,5 @@
 from rest_framework import serializers
 
-from bullet_point.serializers import BulletPointSerializer, BulletPointVoteSerializer
 from discussion.serializers import (
     CommentSerializer,
     DynamicCommentSerializer,
@@ -75,8 +74,6 @@ class ContributionSerializer(serializers.ModelSerializer):
             serializer = ReplySerializer(obj, context=context)
         elif model_name == "summary":
             serializer = SummarySerializer(obj, context=context)
-        elif model_name == "bullet_point":
-            serializer = BulletPointSerializer(obj, context=context)
         elif model_name == "purchase":
             context["exclude_source"] = True
             context["exclude_stats"] = True
@@ -86,8 +83,6 @@ class ContributionSerializer(serializers.ModelSerializer):
                 serializer = DisVoteSerializer(obj, context=context)
             elif app_label == "summary":
                 serializer = SummaryVoteSerializer(obj, context=context)
-            elif app_label == "bullet_point":
-                serializer = BulletPointVoteSerializer(obj, context=context)
         elif model_name == "researchhub post":
             serializer = ResearchhubPostSerializer(obj, context=context)
         elif model_name == "hypothesis":

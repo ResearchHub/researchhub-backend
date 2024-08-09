@@ -89,10 +89,6 @@ class DuplicatePaperIntegrationTest(
         self.create_thread(user1, original_paper, text="thread_1")
         self.create_thread(user2, new_paper, text="thread_2")
 
-        # Adding bullet point to papers
-        self.create_bulletpoint(user1, original_paper, text="original_point")
-        self.create_bulletpoint(user2, new_paper, text="new_point")
-
         try:
             new_paper.doi = doi
             new_paper.save()
@@ -115,16 +111,6 @@ class DuplicatePaperIntegrationTest(
         self.assertEqual(original_paper_threads, original_results)
         self.assertEqual(new_paper_threads, new_results)
         self.assertEqual(original_paper_threads_text, original_thread_results)
-
-        original_bulletpoint_results = set(["original_point", "new_point"])
-        original_paper_bulletpoints = original_paper.bullet_points.count()
-        original_points_text = set(
-            original_paper.bullet_points.values_list("plain_text", flat=True)
-        )
-        new_paper_bulletpoints = new_paper.bullet_points.count()
-        self.assertEqual(original_paper_bulletpoints, original_results)
-        self.assertEqual(new_paper_bulletpoints, new_results)
-        self.assertEqual(original_points_text, original_bulletpoint_results)
 
         new_paper_id = None
         self.assertEqual(new_paper.id, new_paper_id)
