@@ -35,7 +35,7 @@ class AuthorClaimTests(APITestCase):
     def test_user_can_claim_openalex_profile_if_not_already_claimed(
         self, mock_get_works, mock_get_authors
     ):
-        with open("./user/tests/openalex_authors.json", "r") as authors_file:
+        with open("./user/tests/test_files/openalex_authors.json", "r") as authors_file:
             authors_data = json.load(authors_file)["results"]
 
             with open("./paper/tests/openalex_author_works.json", "r") as works_file:
@@ -76,7 +76,7 @@ class AuthorClaimTests(APITestCase):
     def test_claiming_user_should_have_publications_in_their_profile(
         self, mock_get_works, mock_get_authors
     ):
-        with open("./user/tests/openalex_authors.json", "r") as authors_file:
+        with open("./user/tests/test_files/openalex_authors.json", "r") as authors_file:
             authors_data = json.load(authors_file)["results"]
 
             with open("./paper/tests/openalex_author_works.json", "r") as works_file:
@@ -119,7 +119,7 @@ class AuthorClaimTests(APITestCase):
     def test_claiming_user_should_have_openalex_stats_set_in_profile(
         self, mock_get_works, mock_get_authors
     ):
-        with open("./user/tests/openalex_authors.json", "r") as authors_file:
+        with open("./user/tests/test_files/openalex_authors.json", "r") as authors_file:
             authors_data = json.load(authors_file)["results"]
 
             with open("./paper/tests/openalex_author_works.json", "r") as works_file:
@@ -170,7 +170,7 @@ class AuthorClaimTests(APITestCase):
     ):
         from user.related_models.author_model import Author
 
-        with open("./user/tests/openalex_authors.json", "r") as authors_file:
+        with open("./user/tests/test_files/openalex_authors.json", "r") as authors_file:
             authors_data = json.load(authors_file)["results"]
 
             with open("./paper/tests/openalex_author_works.json", "r") as works_file:
