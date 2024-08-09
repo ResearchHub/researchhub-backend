@@ -21,8 +21,6 @@ from reputation.exceptions import ReputationSignalError
 from reputation.models import Contribution, Distribution
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost
-from summary.models import Summary
-from summary.models import Vote as SummaryVote
 from user.utils import reset_latest_acitvity_cache
 from utils import sentry
 
@@ -59,56 +57,6 @@ def distribute_for_censor_paper(sender, instance, using, **kwargs):
                 instance.hubs.all(),
             )
             record = distributor.distribute()
-
-
-@receiver(post_save, sender=Summary, dispatch_uid="create_summary")
-def distribute_for_create_summary(sender, instance, created, update_fields, **kwargs):
-    timestamp = time()
-    recipient = instance.proposed_by
-
-    if is_eligible_for_create_summary(created, recipient):
-        distribution = distributions.CreateSummary
-    elif is_eligible_for_create_first_summary(created, update_fields, instance):
-        distribution = distributions.CreateFirstSummary
-    else:
-        return
-
-    last_distribution = recipient.reputation_records.filter(
-        Q(distribution_type=distributions.CreateSummary)
-        | Q(distribution_type=distributions.CreateFirstSummary)
-    ).last()
-    if check_summary_distribution_interval(last_distribution):
-        distributor = Distributor(
-            distribution,
-            recipient,
-            instance,
-            timestamp,
-            instance.proposed_by,
-            instance.paper.hubs.all(),
-        )
-        record = distributor.distribute()
-
-
-@receiver(post_save, sender=SummaryVote, dispatch_uid="summary_vote")
-def distribute_for_summary_vote(sender, instance, created, update_fields, **kwargs):
-    timestamp = time()
-    voter = instance.created_by
-    recipient = instance.summary.proposed_by
-
-    if created and is_eligible_for_summary_vote(recipient, voter):
-        hubs = instance.summary.paper.hubs
-        distribution = get_summary_vote_item_distribution(instance)
-
-        distributor = Distributor(
-            distribution,
-            recipient,
-            instance,
-            timestamp,
-            instance.created_by,
-            hubs.all(),
-        )
-
-        record = distributor.distribute()
 
 
 def is_eligible_for_create_summary(created, user):

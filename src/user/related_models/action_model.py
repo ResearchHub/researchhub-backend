@@ -17,7 +17,6 @@ from researchhub.settings import (
     TESTING,
 )
 from researchhub_comment.models import RhCommentModel
-from summary.models import Summary
 from user.related_models.user_model import User
 from utils.models import DefaultModel
 from utils.time import time_since
@@ -217,9 +216,7 @@ class Action(DefaultModel):
             if isinstance(item, ResearchhubUnifiedDocument):
                 item = item.get_document()
 
-        if isinstance(item, Summary):
-            link += "/paper/{}/".format(item.paper.id)
-        elif isinstance(item, Paper):
+        if isinstance(item, Paper):
             link += "/paper/{}/".format(item.id)
         elif isinstance(item, RhCommentModel):
             uni_doc = self.item.unified_document

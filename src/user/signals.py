@@ -21,8 +21,6 @@ from researchhub_access_group.constants import ADMIN
 from researchhub_access_group.models import Permission
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
-from summary.models import Summary
-from summary.models import Vote as SummaryVote
 from user.constants.organization_constants import PERSONAL
 from user.models import Action, Author, Organization, User
 from user.tasks import (
@@ -88,7 +86,6 @@ def doi_updated(update_fields):
     return False
 
 
-@receiver(post_save, sender=Summary, dispatch_uid="create_summary_action")
 @receiver(post_save, sender=RhCommentModel, dispatch_uid="creation_rh_comment")
 @receiver(post_save, sender=Paper, dispatch_uid="paper_upload_action")
 @receiver(post_save, sender=GrmVote, dispatch_uid="discussion_vote_action")
@@ -98,9 +95,7 @@ def doi_updated(update_fields):
 @receiver(post_save, sender=Bounty, dispatch_uid="create_bounty_action")
 def create_action(sender, instance, created, **kwargs):
     if created:
-        if sender == Summary:
-            user = instance.proposed_by
-        elif sender == Paper or sender == PaperSubmission:
+        if sender == Paper or sender == PaperSubmission:
             user = instance.uploaded_by
         else:
             if sender == RhCommentModel:
@@ -117,7 +112,7 @@ def create_action(sender, instance, created, **kwargs):
                     )
             user = instance.created_by
 
-        vote_types = [GrmVote, SummaryVote]
+        vote_types = [GrmVote]
         display = (
             False
             if (

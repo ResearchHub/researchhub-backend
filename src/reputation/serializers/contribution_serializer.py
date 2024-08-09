@@ -16,7 +16,6 @@ from reputation.serializers import (
     DynamicBountySolutionSerializer,
 )
 from researchhub.serializers import DynamicModelFieldSerializer
-from summary.serializers import SummarySerializer, SummaryVoteSerializer
 from user.models import Author
 from user.serializers import (
     DynamicAuthorSerializer,
@@ -72,8 +71,6 @@ class ContributionSerializer(serializers.ModelSerializer):
             serializer = CommentSerializer(obj, context=context)
         elif model_name == "reply":
             serializer = ReplySerializer(obj, context=context)
-        elif model_name == "summary":
-            serializer = SummarySerializer(obj, context=context)
         elif model_name == "purchase":
             context["exclude_source"] = True
             context["exclude_stats"] = True
@@ -81,8 +78,6 @@ class ContributionSerializer(serializers.ModelSerializer):
         elif model_name == "vote":
             if app_label == "discussion":
                 serializer = DisVoteSerializer(obj, context=context)
-            elif app_label == "summary":
-                serializer = SummaryVoteSerializer(obj, context=context)
         elif model_name == "researchhub post":
             serializer = ResearchhubPostSerializer(obj, context=context)
         elif model_name == "hypothesis":
