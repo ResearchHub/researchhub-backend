@@ -230,7 +230,6 @@ INSTALLED_APPS = [
     "researchhub_document",
     "researchhub_access_group",
     "search",
-    "summary",
     "tag",
     "user",
     "new_feature_release",
