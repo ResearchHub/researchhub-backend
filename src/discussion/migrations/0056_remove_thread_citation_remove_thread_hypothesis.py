@@ -10,12 +10,12 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(
-            model_name="thread",
-            name="citation",
-        ),
-        migrations.RemoveField(
-            model_name="thread",
-            name="hypothesis",
-        ),
+        # migrations.RemoveField(
+        #     model_name="thread",
+        #     name="citation",
+        # ),
+        # migrations.RemoveField(
+        #     model_name="thread",
+        #     name="hypothesis",
+        # ),
     ]

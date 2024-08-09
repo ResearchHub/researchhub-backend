@@ -7,14 +7,14 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('hypothesis', '0001_initial'),
+        # ('hypothesis', '0001_initial'),
         ('discussion', '0037_thread_post'),
     ]
 
     operations = [
-        migrations.AddField(
-            model_name='thread',
-            name='hypothesis',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='hypothesis', to='hypothesis.Hypothesis'),
-        ),
+        # migrations.AddField(
+        #     model_name='thread',
+        #     name='hypothesis',
+        #     field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='hypothesis', to='hypothesis.Hypothesis'),
+        # ),
     ]
