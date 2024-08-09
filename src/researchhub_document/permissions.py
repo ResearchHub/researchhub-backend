@@ -1,8 +1,6 @@
-from hypothesis.related_models.hypothesis import Hypothesis
 from paper.models import Paper
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.document_type import (
-    HYPOTHESIS,
     PAPER,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
 )
@@ -68,21 +66,11 @@ class HasDocumentEditingPermission(AuthorizationBasedPermission):
         ):
             if request.data.get("post_id") is not None:
                 post = ResearchhubPost.objects.get(id=request.data.get("post_id"))
-                if post.created_by_id == request.user.id or request.user.moderator or post.note.organization.org_has_member_user(request.user):
-                    return True
-                else:
-                    return False
-            elif request.data.get("hypothesis_id") is not None:
-                hypothesis = Hypothesis.objects.get(
-                    id=request.data.get("hypothesis_id")
-                )
-                if (
-                    hypothesis.created_by_id == request.user.id
+                return (
+                    post.created_by_id == request.user.id
                     or request.user.moderator
-                ):
-                    return True
-                else:
-                    return False
+                    or post.note.organization.org_has_member_user(request.user)
+                )
 
         return True
 
@@ -93,8 +81,6 @@ def get_uni_doc_related_model(unified_document):
     doc_type = unified_document.document_type
     if doc_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
         return ResearchhubPost
-    elif doc_type == HYPOTHESIS:
-        return Hypothesis
     elif doc_type == PAPER:
         return Paper
     else:

@@ -13,7 +13,6 @@ from rest_framework.permissions import (
 from rest_framework.response import Response
 
 from discussion.serializers import DynamicThreadSerializer
-from hypothesis.related_models.hypothesis import Hypothesis
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
 from paper.serializers import DynamicPaperSerializer
@@ -525,7 +524,6 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     "discussion_type",
                     "document_meta",
                     "external_metadata",
-                    "hypothesis",
                     "id",
                     "is_public",
                     "is_removed",
@@ -884,7 +882,6 @@ class AuthorViewSet(viewsets.ModelViewSet):
         rh_comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
         post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
         paper_content_type = ContentType.objects.get_for_model(Paper)
-        hypothesis_content_type = ContentType.objects.get_for_model(Hypothesis)
         review_content_type = ContentType.objects.get_for_model(Review)
         bounty_content_type = ContentType.objects.get_for_model(Bounty)
         bounty_solution_content_type = ContentType.objects.get_for_model(BountySolution)
@@ -910,7 +907,6 @@ class AuthorViewSet(viewsets.ModelViewSet):
                         unified_document__is_removed=False,
                         user__author_profile=author_id,
                         content_type_id__in=[
-                            hypothesis_content_type,
                             paper_content_type,
                             post_content_type,
                             review_content_type,
@@ -926,13 +922,6 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     unified_document__is_removed=False,
                     user__author_profile=author_id,
                     content_type_id=post_content_type,
-                    contribution_type__in=[Contribution.SUBMITTER],
-                )
-            elif asset_type == "hypothesis":
-                query |= Q(
-                    unified_document__is_removed=False,
-                    user__author_profile=author_id,
-                    content_type_id=hypothesis_content_type,
                     contribution_type__in=[Contribution.SUBMITTER],
                 )
             elif asset_type == "comment":

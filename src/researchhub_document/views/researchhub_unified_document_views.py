@@ -20,7 +20,6 @@ from rest_framework.viewsets import ModelViewSet
 
 from discussion.models import Vote as GrmVote
 from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
-from hypothesis.models import Hypothesis
 from paper.models import Paper
 from paper.utils import get_cache_key
 from researchhub.settings import AWS_REGION_NAME
@@ -949,18 +948,14 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     def check_user_vote(self, request):
         paper_ids = request.query_params.get("paper_ids", "")
         post_ids = request.query_params.get("post_ids", "")
-        hypothesis_ids = request.query_params.get("hypothesis_ids", "")
 
         if paper_ids:
             paper_ids = paper_ids.split(",")
         if post_ids:
             post_ids = post_ids.split(",")
-        if hypothesis_ids:
-            hypothesis_ids = hypothesis_ids.split(",")
 
         user = request.user
         response = {
-            "hypothesis": {},
             "paper": {},
             "posts": {},
         }
@@ -980,14 +975,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 )
                 for vote in post_votes.iterator():
                     response["posts"][vote.object_id] = GrmVoteSerializer(
-                        instance=vote
-                    ).data
-            if hypothesis_ids:
-                hypo_votes = get_user_votes(
-                    user, hypothesis_ids, ContentType.objects.get_for_model(Hypothesis)
-                )
-                for vote in hypo_votes.iterator():
-                    response["hypothesis"][vote.object_id] = GrmVoteSerializer(
                         instance=vote
                     ).data
         return Response(response, status=status.HTTP_200_OK)

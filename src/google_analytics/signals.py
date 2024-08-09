@@ -4,6 +4,7 @@ Mostly handles sending google analytics events on past save signals.
 Notice events related to pdf uploads are *not* included here and are better
 handled at the view level.
 """
+
 import datetime
 
 from django.db.models.signals import post_save
@@ -13,8 +14,6 @@ from bullet_point.models import BulletPoint
 from discussion.models import BaseComment, Comment, Reply, Thread
 from discussion.models import Vote as GrmVote
 from google_analytics.apps import GoogleAnalytics, Hit
-from hypothesis.models import Citation
-from hypothesis.related_models.hypothesis import Hypothesis
 from paper.models import Figure, Paper
 from researchhub.celery import QUEUE_EXTERNAL_REPORTING, app
 from researchhub.settings import PRODUCTION
@@ -164,7 +163,7 @@ def send_vote_event(sender, instance, created, update_fields, **kwargs):
     if hasattr(instance, "item"):
         item_type = type(instance.item)
         label = item_type.__name__
-        if item_type in [Citation, Hypothesis, ResearchhubPost]:
+        if item_type in [ResearchhubPost]:
             # Items here don't need google analytics at the moment
             return
         if item_type is Paper:
