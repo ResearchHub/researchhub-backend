@@ -1,10 +1,8 @@
 import datetime
-import json
 
 import pytz
 import regex as re
 import requests
-from boto3.session import Session
 from bs4 import BeautifulSoup
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.postgres.indexes import GinIndex, HashIndex
@@ -48,8 +46,6 @@ from researchhub_document.related_models.constants.editor_type import (
 )
 from utils.aws import lambda_compress_and_linearize_pdf
 from utils.http import check_url_contains_pdf, scraper_get_url
-
-from .authorship_model import Authorship
 
 DOI_IDENTIFIER = "10."
 ARXIV_IDENTIFIER = "arXiv:"

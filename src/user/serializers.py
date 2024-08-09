@@ -18,9 +18,8 @@ from hub.serializers import DynamicHubSerializer, HubSerializer, SimpleHubSerial
 from hypothesis.models import Hypothesis
 from institution.serializers import DynamicInstitutionSerializer
 from paper.models import Paper, PaperSubmission
-from paper.related_models.authorship_model import Authorship
 from purchase.models import Purchase
-from reputation.models import Bounty, Contribution, Distribution, Score, Withdrawal
+from reputation.models import Bounty, Contribution, Score, Withdrawal
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import EDITOR
 from researchhub_access_group.serializers import DynamicPermissionSerializer
