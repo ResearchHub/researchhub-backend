@@ -15,7 +15,6 @@ from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as GrmVote
 from hub.models import Hub
 from hub.serializers import DynamicHubSerializer, HubSerializer, SimpleHubSerializer
-from hypothesis.models import Hypothesis
 from institution.serializers import DynamicInstitutionSerializer
 from paper.models import Paper, PaperSubmission
 from purchase.models import Purchase
@@ -860,10 +859,6 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
             from researchhub_document.serializers import DynamicPostSerializer
 
             serializer = DynamicPostSerializer
-        elif isinstance(item, Hypothesis):
-            from hypothesis.serializers import DynamicHypothesisSerializer
-
-            serializer = DynamicHypothesisSerializer
         elif isinstance(item, Purchase):
             from purchase.serializers import DynamicPurchaseSerializer
 

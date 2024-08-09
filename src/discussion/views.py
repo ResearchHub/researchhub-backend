@@ -36,7 +36,6 @@ from discussion.permissions import (
     UpvoteDiscussionThread,
 )
 from discussion.permissions import Vote as VotePermission
-from hypothesis.models import Citation, Hypothesis
 from paper.models import Paper
 from peer_review.models import PeerReview
 from reputation.models import Contribution
@@ -77,8 +76,6 @@ from .utils import (
 )
 
 RELATED_DISCUSSION_MODELS = {
-    "citation": Citation,
-    "hypothesis": Hypothesis,
     "paper": Paper,
     "peer_review": PeerReview,
     "researchhub_post": ResearchhubPost,
@@ -211,21 +208,6 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 post=post_id,
             )
             order.insert(0, "is_accepted_answer")
-        elif document_type == "hypothesis":
-            hypothesis_id = get_document_id_from_path(self.request)
-            threads = Thread.objects.filter(
-                Q(hypothesis=hypothesis_id)
-                | Q(
-                    citation_id__in=Citation.objects.filter(
-                        hypothesis=hypothesis_id
-                    ).values_list("id", flat=True)
-                )
-            )
-        elif document_type == "citation":
-            citation_id = get_document_id_from_path(self.request)
-            threads = Thread.objects.filter(
-                citation=citation_id, source__in=[source, Thread.CITATION_COMMENT]
-            )
         threads = (
             threads.filter(is_removed=is_removed)
             .filter(created_by__isnull=False)

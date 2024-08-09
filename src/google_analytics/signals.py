@@ -13,8 +13,6 @@ from django.dispatch import receiver
 from discussion.models import BaseComment, Comment, Reply, Thread
 from discussion.models import Vote as GrmVote
 from google_analytics.apps import GoogleAnalytics, Hit
-from hypothesis.models import Citation
-from hypothesis.related_models.hypothesis import Hypothesis
 from paper.models import Figure, Paper
 from researchhub.celery import QUEUE_EXTERNAL_REPORTING, app
 from researchhub.settings import PRODUCTION
@@ -129,7 +127,7 @@ def send_vote_event(sender, instance, created, update_fields, **kwargs):
     if hasattr(instance, "item"):
         item_type = type(instance.item)
         label = item_type.__name__
-        if item_type in [Citation, Hypothesis, ResearchhubPost]:
+        if item_type in [ResearchhubPost]:
             # Items here don't need google analytics at the moment
             return
         if item_type is Paper:

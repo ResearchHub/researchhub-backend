@@ -6,8 +6,6 @@ from discussion.utils import (
     get_reply_id_from_path,
     get_thread_id_from_path,
 )
-from hypothesis.models import Citation
-from hypothesis.related_models.hypothesis import Hypothesis
 from paper.models import Paper
 from researchhub.lib import get_document_id_from_path
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -160,7 +158,7 @@ class Vote(AuthorizationBasedPermission):
     message = "Can not vote on own content"
 
     def is_authorized(self, request, view, obj):
-        if request.user == obj.created_by and type(obj) not in [Citation, Hypothesis]:
+        if request.user == obj.created_by:
             raise PermissionDenied(detail=self.message)
         return True
 
