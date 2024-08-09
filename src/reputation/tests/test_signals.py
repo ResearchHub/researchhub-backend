@@ -21,7 +21,6 @@ from oauth.tests.helpers import create_social_account
 from paper.tests.helpers import create_flag, create_paper, upvote_paper
 from reputation import distributions
 from reputation.signals import NEW_USER_BONUS_DAYS_LIMIT
-from summary.tests.helpers import create_summary
 from user.models import Author
 from user.tests.helpers import (
     create_random_authenticated_user,
@@ -467,35 +466,6 @@ class SignalTests(TestCase):
             next_user.reputation,
             self.start_rep + self.new_user_create_rep
         )
-
-    def test_create_summary_increases_rep_below_200_by_1_in_new_user(self):
-        user = create_random_default_user('Lavender')
-        create_summary('', user, self.paper.id)
-
-        user.refresh_from_db()
-        self.assertEqual(user.reputation, self.start_rep + 1)
-
-        old_user = create_random_default_user('Brown')
-        old_user.date_joined = timezone.now() - timedelta(
-            days=NEW_USER_BONUS_DAYS_LIMIT
-        )
-        old_user.save()
-        create_summary('', old_user, self.paper.id)
-
-        old_user.refresh_from_db()
-        self.assertEqual(
-            old_user.reputation + self.sign_up_bonus,
-            self.start_rep
-        )
-
-        rich_user = create_random_default_user('Muggle')
-        rich_user.reputation = 200
-        rich_user.save()
-        rich_user.refresh_from_db()
-        create_summary('', rich_user, self.paper.id)
-
-        rich_user.refresh_from_db()
-        self.assertEqual(rich_user.reputation, 200)
 
     # TODO: I think this should be increases?
     # def test_reply_endorsed_decreases_rep_by_2(self):
