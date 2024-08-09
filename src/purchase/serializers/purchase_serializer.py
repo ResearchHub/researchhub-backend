@@ -21,7 +21,6 @@ from researchhub_document.serializers import ResearchhubPostSerializer
 from researchhub_document.serializers.researchhub_post_serializer import (
     DynamicPostSerializer,
 )
-from summary.serializers import SummarySerializer
 from user.serializers import DynamicUserSerializer
 from utils import sentry
 
@@ -66,9 +65,6 @@ class PurchaseSerializer(serializers.ModelSerializer):
         elif model_name == "reply":
             reply = model_class.objects.get(id=object_id)
             serializer = ReplySerializer(reply, context=self.context)
-        elif model_name == "summary":
-            summary = model_class.objects.get(id=object_id)
-            serializer = SummarySerializer(summary, context=self.context)
         elif model_name == "bullet_point":
             bulletpoint = model_class.objects.get(id=object_id)
             serializer = BulletPointSerializer(bulletpoint, context=self.context)
@@ -130,9 +126,6 @@ class DynamicPurchaseSerializer(DynamicModelFieldSerializer):
 
                 item = model_class.objects.get(id=object_id)
                 serializer = DynamicRhCommentSerializer
-            elif model_name == "summary":
-                item = model_class.objects.get(id=object_id)
-                serializer = None
             elif model_name == "bullet_point":
                 item = model_class.objects.get(id=object_id)
                 serializer = None

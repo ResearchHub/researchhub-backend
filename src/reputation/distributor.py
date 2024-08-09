@@ -178,8 +178,6 @@ class RewardDistributor:
         from bullet_point.models import Vote as BulletPointVote
         from discussion.models import Comment, Reply, Thread
         from paper.models import Paper, Vote
-        from summary.models import Summary
-        from summary.models import Vote as SummaryVote
         from user.models import Author, User
 
         item_type = type(item)
@@ -200,12 +198,6 @@ class RewardDistributor:
             recipient = item.created_by
             giver = item.created_by
         elif item_type is BulletPointVote:
-            recipient = item.created_by
-            giver = item.created_by
-        elif item_type is Summary:
-            recipient = item.proposed_by
-            giver = item.created_by
-        elif item_type is SummaryVote:
             recipient = item.created_by
             giver = item.created_by
         elif item_type is Vote:
