@@ -1,6 +1,7 @@
-from django.core.management.base import BaseCommand
-from researchhub_document.models import ResearchhubUnifiedDocument
 from dateutil import parser
+from django.core.management.base import BaseCommand
+
+from researchhub_document.models import ResearchhubUnifiedDocument
 
 
 class Command(BaseCommand):
@@ -41,7 +42,7 @@ class Command(BaseCommand):
         count = docs.count()
         for i, doc in enumerate(docs):
             try:
-                if doc.document_type.upper() in ['DISCUSSION', 'HYPOTHESIS', 'PAPER']:
+                if doc.document_type.upper() in ['DISCUSSION', 'PAPER']:
                     hot_score_tpl = doc.calculate_hot_score_v2(should_save=save)
 
                     print(f'Doc: {doc.id}, {doc.document_type}, score: {hot_score_tpl[0]} - {i + 1}/{count}')

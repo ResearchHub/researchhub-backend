@@ -111,10 +111,6 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
         if hasattr(self, "paper"):
             return self.paper.authors.all()
 
-        if hasattr(self, "hypothesis"):
-            author = Author.objects.filter(user=self.hypothesis.created_by)
-            return author
-
         posts = self.posts
         if posts.exists():
             post = posts.last()
