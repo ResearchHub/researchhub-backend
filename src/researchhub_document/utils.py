@@ -5,11 +5,10 @@ from django.db.models.query import QuerySet
 from researchhub_document.related_models.constants.document_type import (
     ALL,
     BOUNTY,
-    HYPOTHESIS,
     PAPER,
     POSTS,
-    QUESTION,
     PREREGISTRATION,
+    QUESTION,
 )
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
@@ -27,7 +26,6 @@ CACHE_DOCUMENT_TYPES = [
     "all",
     "paper",
     "posts",
-    "hypothesis",
 ]
 
 
@@ -78,7 +76,6 @@ def reset_unified_document_cache(
         POSTS.lower(),
         PREREGISTRATION.lower(),
         PAPER.lower(),
-        HYPOTHESIS.lower(),
         QUESTION.lower(),
         BOUNTY.lower(),
     ],
