@@ -4,7 +4,6 @@ import requests
 from django.core.management.base import BaseCommand
 
 from discussion.models import Comment, Reply, Thread, Vote
-from hypothesis.models import Hypothesis
 from paper.models import Paper
 from purchase.models import Purchase
 from reputation.models import Bounty
@@ -76,8 +75,6 @@ class Command(BaseCommand):
 
                 if uni_doc.document_type == "PAPER":
                     event_type = "paper_thread_comments_create"
-                elif uni_doc.document_type == "HYPOTHESIS":
-                    event_type = "hypothesis_thread_comments_create"
                 else:
                     event_type = "post_thread_comments_create"
                 hit = {
@@ -108,8 +105,6 @@ class Command(BaseCommand):
 
                 if uni_doc.document_type == "PAPER":
                     event_type = "paper_thread_comment_replies_create"
-                elif uni_doc.document_type == "HYPOTHESIS":
-                    event_type = "hypothesis_thread_comment_replies_create"
                 else:
                     event_type = "post_thread_comment_replies_create"
                 hit = {
@@ -140,8 +135,6 @@ class Command(BaseCommand):
 
                 if uni_doc.document_type == "PAPER":
                     event_type = "paper_threads_create"
-                elif uni_doc.document_type == "HYPOTHESIS":
-                    event_type = "hypothesis_threads_create"
                 else:
                     event_type = "post_threads_create"
                 hit = {
@@ -196,29 +189,6 @@ class Command(BaseCommand):
                     "time": int(paper.created_date.timestamp()),
                     "user_properties": user_properties,
                     "insert_id": f"{event_type}_{paper.submission.id}",
-                }
-                events.append(hit)
-        self.forward_amp_event(events)
-
-    def handle_hypotheses(self, hypotheses):
-        print("Hypotheses")
-        count = hypotheses.count()
-        events = []
-        for i, hypothesis in enumerate(hypotheses.iterator()):
-            if (i % 1000 == 0 and i != 0) or (count - 1) == i:
-                self.forward_amp_event(events)
-                events = []
-            else:
-                print(f"{i}/{count}")
-                user = hypothesis.created_by
-                user_id, user_properties = self.get_user_props(user)
-                event_type = "hypothesis_create"
-                hit = {
-                    "user_id": user_id,
-                    "event_type": event_type,
-                    "time": int(hypothesis.created_date.timestamp()),
-                    "user_properties": user_properties,
-                    "insert_id": f"{event_type}_{hypothesis.id}",
                 }
                 events.append(hit)
         self.forward_amp_event(events)
@@ -433,7 +403,6 @@ class Command(BaseCommand):
         new_flow_papers = Paper.objects.filter(
             uploaded_by__isnull=False, submission__isnull=False
         )
-        hypotheses = Hypothesis.objects.filter(created_by__isnull=False)
         posts = ResearchhubPost.objects.filter(created_by__isnull=False)
         purchases = Purchase.objects.filter(user__isnull=False)
         bounties = Bounty.objects.filter(created_by__isnull=False)
@@ -451,7 +420,6 @@ class Command(BaseCommand):
         self.handle_replies(replies)
         self.handle_papers(papers)
         self.handle_new_flow_papers(new_flow_papers)
-        self.handle_hypotheses(hypotheses)
         self.handle_posts(posts)
         self.handle_votes(votes)
         self.handle_user_signup(user)

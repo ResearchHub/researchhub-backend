@@ -19,7 +19,7 @@ def recalc_hot_score_task(instance_content_type_id, instance_id):
     uni_doc = None
 
     try:
-        if model_name in ["hypothesis", "researchhubpost", "paper"]:
+        if model_name in ["researchhubpost", "paper"]:
             uni_doc = model_class.objects.get(id=instance_id).unified_document
         elif model_name in ["thread", "comment", "reply"]:
             thread = None
@@ -34,8 +34,6 @@ def recalc_hot_score_task(instance_content_type_id, instance_id):
 
             if thread.paper:
                 uni_doc = thread.paper.unified_document
-            elif thread.hypothesis:
-                uni_doc = thread.hypothesis.unified_document
             elif thread.post:
                 uni_doc = thread.post.unified_document
         elif model_name == "paper":

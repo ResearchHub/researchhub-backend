@@ -68,7 +68,6 @@ class Vote(DefaultModel):
     @property
     def unified_document(self):
         from discussion.models import Comment, Reply, Thread
-        from hypothesis.models import Citation, Hypothesis
         from paper.models import Paper
         from researchhub_comment.models import RhCommentModel
         from researchhub_document.models import ResearchhubPost
@@ -79,16 +78,13 @@ class Vote(DefaultModel):
         if item_type in [
             Paper,
             ResearchhubPost,
-            Hypothesis,
             RhCommentModel,
             Thread,
             Comment,
             Reply,
         ]:
             return item.unified_document
-        elif item_type is Citation:
-            # citation has 1:1 unifiedDoc edge named "source"
-            return item.source
+
         raise Exception("Vote source is missing unified document")
 
 

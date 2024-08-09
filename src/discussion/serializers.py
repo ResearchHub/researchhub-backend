@@ -16,7 +16,6 @@ from discussion.reaction_serializers import (
 )
 from discussion.utils import ORDERING_SCORE_ANNOTATION
 from hub.serializers import DynamicHubSerializer
-from hypothesis.models import Hypothesis
 from paper.models import Paper
 from reputation.models import Escrow
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -538,7 +537,6 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
     comment_count = serializers.SerializerMethodField()
     comments = serializers.SerializerMethodField()
     document_meta = serializers.SerializerMethodField()
-    hypothesis_slug = serializers.SerializerMethodField()
     is_created_by_editor = serializers.BooleanField(required=False, read_only=True)
     paper_slug = serializers.SerializerMethodField()
     peer_review = serializers.SerializerMethodField()
@@ -565,8 +563,6 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
             "document_meta",
             "entity_key",
             "external_metadata",
-            "hypothesis_slug",
-            "hypothesis",
             "id",
             "is_accepted_answer",
             "is_created_by_editor",
@@ -641,10 +637,6 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
     def get_post_slug(self, obj):
         if obj.post:
             return obj.post.slug
-
-    def get_hypothesis_slug(self, obj):
-        if obj.hypothesis:
-            return obj.hypothesis.slug
 
     def get_review(self, obj):
         if obj.review:
@@ -861,10 +853,6 @@ class DynamicFlagSerializer(DynamicModelFieldSerializer):
             from researchhub_document.serializers import DynamicPostSerializer
 
             serializer = DynamicPostSerializer
-        elif isinstance(item, Hypothesis):
-            from hypothesis.serializers import DynamicHypothesisSerializer
-
-            serializer = DynamicHypothesisSerializer
         elif isinstance(item, Thread):
             from discussion.serializers import DynamicThreadSerializer
 

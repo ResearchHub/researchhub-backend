@@ -13,7 +13,6 @@ from bullet_point.models import BulletPoint
 from bullet_point.models import Vote as BulletPointVote
 from citation.models import CitationProject
 from discussion.models import Vote as GrmVote
-from hypothesis.models import Hypothesis
 from mailing_list.tasks import build_notification_context
 from paper.models import Paper, PaperSubmission
 from purchase.models import Wallet
@@ -98,7 +97,6 @@ def doi_updated(update_fields):
 @receiver(post_save, sender=BulletPointVote, dispatch_uid="summary_vote_action")
 @receiver(post_save, sender=SummaryVote, dispatch_uid="bulletpoint_vote_action")
 @receiver(post_save, sender=ResearchhubPost, dispatch_uid="researchhubpost_action")
-@receiver(post_save, sender=Hypothesis, dispatch_uid="create_hypothesis_action")
 @receiver(post_save, sender=PaperSubmission, dispatch_uid="create_submission_action")
 @receiver(post_save, sender=Bounty, dispatch_uid="create_bounty_action")
 def create_action(sender, instance, created, **kwargs):
@@ -190,10 +188,7 @@ def create_delete_action(sender, instance, using, **kwargs):
 
 def get_related_hubs(instance):
     try:
-        if isinstance(
-            instance,
-            (Paper, ResearchhubPost, Hypothesis, RhCommentModel, Bounty),
-        ):
+        if isinstance(instance, (Paper, ResearchhubPost, RhCommentModel, Bounty)):
             return instance.unified_document.hubs.all()
         elif isinstance(instance, PaperSubmission):
             paper = instance.paper

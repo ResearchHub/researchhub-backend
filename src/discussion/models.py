@@ -142,9 +142,7 @@ class BaseComment(AbstractGenericReactionModel):
 
             return new_dis_count
 
-        post = self.post
-        hypothesis = self.hypothesis
-        instance = post or hypothesis
+        instance = self.post
         if instance:
             new_dis_count = instance.get_discussion_count()
             instance.discussion_count = new_dis_count
@@ -178,11 +176,6 @@ class BaseComment(AbstractGenericReactionModel):
             thread_ids = list(map(lambda t: t["id"], threads))
         elif self.post is not None:
             threads = Thread.objects.filter(post_id=self.post.id).values(
-                "created_by", "id"
-            )
-            thread_ids = list(map(lambda t: t["id"], threads))
-        elif self.hypothesis is not None:
-            threads = Thread.objects.filter(hypothesis_id=self.hypothesis.id).values(
                 "created_by", "id"
             )
             thread_ids = list(map(lambda t: t["id"], threads))
@@ -248,20 +241,6 @@ class Thread(BaseComment):
         blank=True,
         null=True,
     )
-    hypothesis = models.ForeignKey(
-        "hypothesis.Hypothesis",
-        on_delete=models.SET_NULL,
-        related_name="threads",
-        null=True,
-        blank=True,
-    )
-    citation = models.ForeignKey(
-        "hypothesis.Citation",
-        on_delete=models.SET_NULL,
-        related_name="threads",
-        null=True,
-        blank=True,
-    )
     peer_review = models.ForeignKey(
         "peer_review.PeerReview",
         on_delete=models.SET_NULL,
@@ -315,17 +294,9 @@ class Thread(BaseComment):
         if post:
             return post.unified_document
 
-        hypothesis = self.hypothesis
-        if hypothesis:
-            return hypothesis.unified_document
-
         peer_review = self.peer_review
         if peer_review:
             return peer_review.unified_document
-
-        citation = self.citation
-        if citation:
-            return citation.source
 
         return None
 
@@ -373,8 +344,6 @@ class Thread(BaseComment):
 
         elif self.post is not None:
             users.append(self.post.created_by)
-        elif self.hypothesis is not None:
-            users.append(self.hypothesis.created_by)
 
         contributors = self.get_all_doc_contributors()
         users = list(set(users + list(contributors)))
@@ -413,13 +382,6 @@ class Reply(BaseComment):
             return post
 
     @cached_property
-    def hypothesis(self):
-        comment = self.get_comment_of_reply()
-        if comment:
-            hypothesis = comment.hypothesis
-            return hypothesis
-
-    @cached_property
     def thread(self):
         comment = self.get_comment_of_reply()
         thread = comment.parent
@@ -429,7 +391,6 @@ class Reply(BaseComment):
     def unified_document(self):
         thread = self.thread
         paper = thread.paper
-        hypothesis = thread.hypothesis
 
         if paper:
             return paper.unified_document
@@ -437,10 +398,6 @@ class Reply(BaseComment):
         post = thread.post
         if post:
             return post.unified_document
-
-        hypothesis = thread.hypothesis
-        if hypothesis:
-            return hypothesis.unified_document
 
         return None
 
@@ -476,8 +433,6 @@ class Reply(BaseComment):
             users.append(self.paper.uploaded_by)
         elif self.post is not None:
             users.append(self.post.created_by)
-        elif self.hypothesis is not None:
-            users.append(self.hypothesis.created_by)
 
         # This will ensure everyone who contributed a comment, reply or thread
         # gets notified. Will need to likely turn off once we have
@@ -532,13 +487,6 @@ class Comment(BaseComment):
             return post
 
     @cached_property
-    def hypothesis(self):
-        thread = self.parent
-        if thread:
-            hypothesis = thread.hypothesis
-            return hypothesis
-
-    @cached_property
     def unified_document(self):
         thread = self.thread
         paper = thread.paper
@@ -548,10 +496,6 @@ class Comment(BaseComment):
         post = thread.post
         if post:
             return post.unified_document
-
-        hypothesis = thread.hypothesis
-        if hypothesis:
-            return hypothesis.unified_document
 
         return None
 
@@ -579,8 +523,6 @@ class Comment(BaseComment):
             users.append(self.paper.uploaded_by)
         elif self.post is not None:
             users.append(self.post.created_by)
-        elif self.hypothesis is not None:
-            users.append(self.hypothesis.created_by)
 
         # This will ensure everyone who contributed a comment, reply or thread
         # gets notified. Will need to likely turn off once we have

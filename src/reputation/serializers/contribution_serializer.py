@@ -50,7 +50,6 @@ class ContributionSerializer(serializers.ModelSerializer):
         return {"app_label": app_label, "model_name": model_name}
 
     def get_source(self, contribution):
-        from hypothesis.serializers import HypothesisSerializer
         from paper.serializers import ContributionPaperSerializer
         from purchase.serializers import PurchaseSerializer
         from researchhub_document.serializers.researchhub_post_serializer import (
@@ -90,8 +89,6 @@ class ContributionSerializer(serializers.ModelSerializer):
                 serializer = BulletPointVoteSerializer(obj, context=context)
         elif model_name == "researchhub post":
             serializer = ResearchhubPostSerializer(obj, context=context)
-        elif model_name == "hypothesis":
-            serializer = HypothesisSerializer(obj, context=context)
 
         if serializer is not None:
             return serializer.data
@@ -109,7 +106,6 @@ class DynamicContributionSerializer(DynamicModelFieldSerializer):
         fields = "__all__"
 
     def get_source(self, contribution):
-        from hypothesis.serializers import DynamicHypothesisSerializer
         from paper.serializers import DynamicPaperSerializer
         from purchase.serializers import DynamicPurchaseSerializer
         from researchhub_comment.serializers import DynamicRhCommentSerializer
@@ -156,10 +152,6 @@ class DynamicContributionSerializer(DynamicModelFieldSerializer):
                 )
         elif model_name == "researchhub post":
             serializer = DynamicPostSerializer(obj, context=context, **_context_fields)
-        elif model_name == "hypothesis":
-            serializer = DynamicHypothesisSerializer(
-                obj, context=context, **_context_fields
-            )
         elif model_name == "peer review decision":
             from peer_review.serializers import DynamicPeerReviewDecisionSerializer
 
