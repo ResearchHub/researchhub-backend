@@ -791,31 +791,31 @@ class AuthorViewSet(viewsets.ModelViewSet):
     )
     def overview(self, request, pk=None):
         author = self.get_object()
+
+        # Get documents from cache if available
         cache_key = f"author-{author.id}-overview"
-        cache_hit = cache.get(cache_key)
+        documents = cache.get(cache_key)
 
-        if cache_hit:
-            return Response(cache_hit, 200)
+        if not documents:
+            # We want to only return a few documents for the overview section
+            NUM_DOCUMENTS_TO_FETCH = 4
 
-        # We want to only return a few documents for the overview section
-        NUM_DOCUMENTS_TO_FETCH = 4
+            # Fetch the authored papers and order by citations
+            authored_doc_ids = list(
+                Authorship.objects.filter(author=author)
+                .order_by("-paper__citations")
+                .values_list("paper__unified_document_id", flat=True)
+            )[:NUM_DOCUMENTS_TO_FETCH]
 
-        # Fetch the authored papers and order by citations
-        authored_doc_ids = list(
-            Authorship.objects.filter(author=author)
-            .order_by("-paper__citations")
-            .values_list("paper__unified_document_id", flat=True)
-        )[:NUM_DOCUMENTS_TO_FETCH]
+            docs = ResearchhubUnifiedDocument.objects.filter(id__in=authored_doc_ids)
 
-        documents = ResearchhubUnifiedDocument.objects.filter(id__in=authored_doc_ids)
+            # Maintain the ordering authored papers
+            documents = sorted(docs, key=lambda x: authored_doc_ids.index(x.id))
 
-        # Maintain the ordering authored papers
-        documents_ordered = sorted(
-            documents, key=lambda x: authored_doc_ids.index(x.id)
-        )
+            cache.set(cache_key, documents, timeout=3600)
 
         context = ResearchhubUnifiedDocumentViewSet._get_serializer_context(self)
-        page = self.paginate_queryset(documents_ordered)
+        page = self.paginate_queryset(documents)
 
         serializer = DynamicUnifiedDocumentSerializer(
             page,
@@ -836,8 +836,6 @@ class AuthorViewSet(viewsets.ModelViewSet):
         )
 
         serializer_data = serializer.data
-
-        cache.set(cache_key, serializer_data, timeout=3600)
 
         return self.get_paginated_response(serializer_data)
 

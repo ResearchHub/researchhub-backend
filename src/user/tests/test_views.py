@@ -482,9 +482,16 @@ class UserViewsTests(TestCase):
     def test_author_overview_returns_from_cache(self):
         # Arrange
         author = Author.objects.create(first_name="firstName1", last_name="lastName1")
-        cached_data = ["cached"]
+
+        paper = Paper.objects.create(
+            title="title1",
+        )
+        cached_data = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER", paper=paper
+        )
+
         cache_key = f"author-{author.id}-overview"
-        cache.set(cache_key, cached_data)
+        cache.set(cache_key, [cached_data])
 
         # Act
         url = f"/api/author/{author.id}/overview/"
@@ -494,7 +501,10 @@ class UserViewsTests(TestCase):
 
         # Assert
         self.assertTrue(response.status_code, 200)
-        self.assertEqual(response.json(), cached_data)
+        self.assertEqual(response.json()["count"], 1)
+        self.assertEqual(
+            response.json()["results"][0]["documents"]["id"], cached_data.paper.id
+        )
 
     def get_actions_response(self, user):
         url = f"/api/user/{user.id}/actions/"
