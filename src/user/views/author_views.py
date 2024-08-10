@@ -1,3 +1,4 @@
+from celery import chain
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db.models import Q, Sum
@@ -44,6 +45,7 @@ from user.serializers import (
     AuthorSerializer,
     DynamicAuthorProfileSerializer,
 )
+from user.tasks import invalidate_author_profile_caches
 from user.utils import AuthorClaimException, claim_openalex_author_profile
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
@@ -688,22 +690,27 @@ class AuthorViewSet(viewsets.ModelViewSet):
     def publications(self, request, pk=None):
         author = self.get_object()
 
-        # Fetch the authored papers and order by citations
-        authored_doc_ids = list(
-            Authorship.objects.filter(author=author)
-            .order_by("-paper__citations")
-            .values_list("paper__unified_document_id", flat=True)
-        )
+        # Get documents from cache if available
+        cache_key = f"author-{author.id}-publications"
+        documents = cache.get(cache_key)
 
-        documents = ResearchhubUnifiedDocument.objects.filter(id__in=authored_doc_ids)
+        if not documents:
+            # Fetch the authored papers and order by citations
+            authored_doc_ids = list(
+                Authorship.objects.filter(author=author)
+                .order_by("-paper__citations")
+                .values_list("paper__unified_document_id", flat=True)
+            )
 
-        # Maintain the ordering authored papers
-        documents_ordered = sorted(
-            documents, key=lambda x: authored_doc_ids.index(x.id)
-        )
+            docs = ResearchhubUnifiedDocument.objects.filter(id__in=authored_doc_ids)
+
+            # Maintain the ordering authored papers
+            documents = sorted(docs, key=lambda x: authored_doc_ids.index(x.id))
+
+            cache.set(cache_key, documents, timeout=3600)
 
         context = ResearchhubUnifiedDocumentViewSet._get_serializer_context(self)
-        page = self.paginate_queryset(documents_ordered)
+        page = self.paginate_queryset(documents)
 
         serializer = DynamicUnifiedDocumentSerializer(
             page,
@@ -753,14 +760,12 @@ class AuthorViewSet(viewsets.ModelViewSet):
             # if True:
             if TESTING:
                 pull_openalex_author_works_batch(openalex_ids, request.user.id)
+                invalidate_author_profile_caches(author.id)
             else:
-                pull_openalex_author_works_batch.apply_async(
-                    (
-                        openalex_ids,
-                        request.user.id,
-                    ),
-                    priority=1,
-                )
+                chain(
+                    pull_openalex_author_works_batch.s(openalex_ids, request.user.id),
+                    invalidate_author_profile_caches.s(author.id),
+                ).apply_async(priority=1)
 
         return Response(status=status.HTTP_200_OK)
 
@@ -777,6 +782,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
         )
 
         count, _ = authorships.delete()
+        invalidate_author_profile_caches(request.user.author_profile.id)
         return Response({"count": count}, status=status.HTTP_200_OK)
 
     @action(
@@ -786,25 +792,30 @@ class AuthorViewSet(viewsets.ModelViewSet):
     def overview(self, request, pk=None):
         author = self.get_object()
 
-        # We want to only return a few documents for the overview section
-        NUM_DOCUMENTS_TO_FETCH = 4
+        # Get documents from cache if available
+        cache_key = f"author-{author.id}-overview"
+        documents = cache.get(cache_key)
 
-        # Fetch the authored papers and order by citations
-        authored_doc_ids = list(
-            Authorship.objects.filter(author=author)
-            .order_by("-paper__citations")
-            .values_list("paper__unified_document_id", flat=True)
-        )[:NUM_DOCUMENTS_TO_FETCH]
+        if not documents:
+            # We want to only return a few documents for the overview section
+            NUM_DOCUMENTS_TO_FETCH = 4
 
-        documents = ResearchhubUnifiedDocument.objects.filter(id__in=authored_doc_ids)
+            # Fetch the authored papers and order by citations
+            authored_doc_ids = list(
+                Authorship.objects.filter(author=author)
+                .order_by("-paper__citations")
+                .values_list("paper__unified_document_id", flat=True)
+            )[:NUM_DOCUMENTS_TO_FETCH]
 
-        # Maintain the ordering authored papers
-        documents_ordered = sorted(
-            documents, key=lambda x: authored_doc_ids.index(x.id)
-        )
+            docs = ResearchhubUnifiedDocument.objects.filter(id__in=authored_doc_ids)
+
+            # Maintain the ordering authored papers
+            documents = sorted(docs, key=lambda x: authored_doc_ids.index(x.id))
+
+            cache.set(cache_key, documents, timeout=3600)
 
         context = ResearchhubUnifiedDocumentViewSet._get_serializer_context(self)
-        page = self.paginate_queryset(documents_ordered)
+        page = self.paginate_queryset(documents)
 
         serializer = DynamicUnifiedDocumentSerializer(
             page,

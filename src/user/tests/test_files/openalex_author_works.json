@@ -1,0 +1,4667 @@
+{
+    "meta": {
+        "count": 106,
+        "db_response_time_ms": 22,
+        "page": 1,
+        "per_page": 25,
+        "groups_count": null
+    },
+    "results": [
+        {
+            "id": "https://openalex.org/W2561674923",
+            "doi": "https://doi.org/10.1016/j.apgeog.2016.12.003",
+            "title": "Identifying the determinants of housing prices in China using spatial regression and the geographical detector technique",
+            "display_name": "Identifying the determinants of housing prices in China using spatial regression and the geographical detector technique",
+            "publication_year": 2017,
+            "publication_date": "2017-02-01",
+            "ids": {
+                "openalex": "https://openalex.org/W2561674923",
+                "doi": "https://doi.org/10.1016/j.apgeog.2016.12.003",
+                "mag": "2561674923"
+            },
+            "language": "en",
+            "primary_location": {
+                "is_oa": false,
+                "landing_page_url": "https://doi.org/10.1016/j.apgeog.2016.12.003",
+                "pdf_url": null,
+                "source": {
+                    "id": "https://openalex.org/S115443327",
+                    "display_name": "Applied geography",
+                    "issn_l": "0143-6228",
+                    "issn": [
+                        "0143-6228",
+                        "1873-7730"
+                    ],
+                    "is_oa": false,
+                    "is_in_doaj": false,
+                    "host_organization": "https://openalex.org/P4310320990",
+                    "host_organization_name": "Elsevier BV",
+                    "host_organization_lineage": [
+                        "https://openalex.org/P4310320990"
+                    ],
+                    "host_organization_lineage_names": [
+                        "Elsevier BV"
+                    ],
+                    "type": "journal"
+                },
+                "license": null,
+                "license_id": null,
+                "version": null,
+                "is_accepted": false,
+                "is_published": false
+            },
+            "type": "article",
+            "type_crossref": "journal-article",
+            "indexed_in": [
+                "crossref"
+            ],
+            "open_access": {
+                "is_oa": false,
+                "oa_status": "closed",
+                "oa_url": null,
+                "any_repository_has_fulltext": false
+            },
+            "authorships": [
+                {
+                    "author_position": "first",
+                    "author": {
+                        "id": "https://openalex.org/A5068835581",
+                        "display_name": "Yang Wang",
+                        "orcid": "https://orcid.org/0000-0002-3651-7517"
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I4210147158",
+                            "display_name": "Guangzhou Institute of Geography",
+                            "ror": "https://ror.org/03tbxt129",
+                            "country_code": "CN",
+                            "type": "facility",
+                            "lineage": [
+                                "https://openalex.org/I4210147158"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "CN"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Yang Wang",
+                    "raw_affiliation_strings": [
+                        "Guangdong Academy of Innovation Development, Guangzhou 510070, China",
+                        "Guangdong Open Laboratory of Geospatial Information Technology and Application, Guangzhou Institute of Geography, Guangzhou 510070, China"
+                    ],
+                    "affiliations": [
+                        {
+                            "raw_affiliation_string": "Guangdong Open Laboratory of Geospatial Information Technology and Application, Guangzhou Institute of Geography, Guangzhou 510070, China",
+                            "institution_ids": [
+                                "https://openalex.org/I4210147158"
+                            ]
+                        },
+                        {
+                            "raw_affiliation_string": "Guangdong Academy of Innovation Development, Guangzhou 510070, China",
+                            "institution_ids": []
+                        }
+                    ]
+                },
+                {
+                    "author_position": "middle",
+                    "author": {
+                        "id": "https://openalex.org/A5039858263",
+                        "display_name": "Shaojian Wang",
+                        "orcid": "https://orcid.org/0000-0001-9082-8562"
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I157773358",
+                            "display_name": "Sun Yat-sen University",
+                            "ror": "https://ror.org/0064kty71",
+                            "country_code": "CN",
+                            "type": "education",
+                            "lineage": [
+                                "https://openalex.org/I157773358"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "CN"
+                    ],
+                    "is_corresponding": true,
+                    "raw_author_name": "Shaojian Wang",
+                    "raw_affiliation_strings": [
+                        "Guangdong Provincial Key Laboratory of Urbanization and Geo-simulation, School of Geography and Planning, Sun Yat-sen University, Guangzhou 510275, China"
+                    ],
+                    "affiliations": [
+                        {
+                            "raw_affiliation_string": "Guangdong Provincial Key Laboratory of Urbanization and Geo-simulation, School of Geography and Planning, Sun Yat-sen University, Guangzhou 510275, China",
+                            "institution_ids": [
+                                "https://openalex.org/I157773358"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "author_position": "middle",
+                    "author": {
+                        "id": "https://openalex.org/A5047625838",
+                        "display_name": "Guangdong Li",
+                        "orcid": "https://orcid.org/0009-0008-5049-2433"
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I4210160793",
+                            "display_name": "Institute of Geographic Sciences and Natural Resources Research",
+                            "ror": "https://ror.org/04t1cdb72",
+                            "country_code": "CN",
+                            "type": "facility",
+                            "lineage": [
+                                "https://openalex.org/I19820366",
+                                "https://openalex.org/I4210160793"
+                            ]
+                        },
+                        {
+                            "id": "https://openalex.org/I19820366",
+                            "display_name": "Chinese Academy of Sciences",
+                            "ror": "https://ror.org/034t30j35",
+                            "country_code": "CN",
+                            "type": "government",
+                            "lineage": [
+                                "https://openalex.org/I19820366"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "CN"
+                    ],
+                    "is_corresponding": true,
+                    "raw_author_name": "Guangdong Li",
+                    "raw_affiliation_strings": [
+                        "Institute of Geographic Sciences and Natural Resources Research, Chinese Academy of Sciences, Beijing 100101, China"
+                    ],
+                    "affiliations": [
+                        {
+                            "raw_affiliation_string": "Institute of Geographic Sciences and Natural Resources Research, Chinese Academy of Sciences, Beijing 100101, China",
+                            "institution_ids": [
+                                "https://openalex.org/I4210160793",
+                                "https://openalex.org/I19820366"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "author_position": "middle",
+                    "author": {
+                        "id": "https://openalex.org/A5051283786",
+                        "display_name": "Hongou Zhang",
+                        "orcid": null
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I4210147158",
+                            "display_name": "Guangzhou Institute of Geography",
+                            "ror": "https://ror.org/03tbxt129",
+                            "country_code": "CN",
+                            "type": "facility",
+                            "lineage": [
+                                "https://openalex.org/I4210147158"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "CN"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Hongou Zhang",
+                    "raw_affiliation_strings": [
+                        "Guangdong Academy of Innovation Development, Guangzhou 510070, China",
+                        "Guangdong Open Laboratory of Geospatial Information Technology and Application, Guangzhou Institute of Geography, Guangzhou 510070, China"
+                    ],
+                    "affiliations": [
+                        {
+                            "raw_affiliation_string": "Guangdong Open Laboratory of Geospatial Information Technology and Application, Guangzhou Institute of Geography, Guangzhou 510070, China",
+                            "institution_ids": [
+                                "https://openalex.org/I4210147158"
+                            ]
+                        },
+                        {
+                            "raw_affiliation_string": "Guangdong Academy of Innovation Development, Guangzhou 510070, China",
+                            "institution_ids": []
+                        }
+                    ]
+                },
+                {
+                    "author_position": "middle",
+                    "author": {
+                        "id": "https://openalex.org/A5008009084",
+                        "display_name": "Lixia Jin",
+                        "orcid": "https://orcid.org/0000-0001-8018-9779"
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I4210147158",
+                            "display_name": "Guangzhou Institute of Geography",
+                            "ror": "https://ror.org/03tbxt129",
+                            "country_code": "CN",
+                            "type": "facility",
+                            "lineage": [
+                                "https://openalex.org/I4210147158"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "CN"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Lixia Jin",
+                    "raw_affiliation_strings": [
+                        "Guangdong Academy of Innovation Development, Guangzhou 510070, China",
+                        "Guangdong Open Laboratory of Geospatial Information Technology and Application, Guangzhou Institute of Geography, Guangzhou 510070, China"
+                    ],
+                    "affiliations": [
+                        {
+                            "raw_affiliation_string": "Guangdong Open Laboratory of Geospatial Information Technology and Application, Guangzhou Institute of Geography, Guangzhou 510070, China",
+                            "institution_ids": [
+                                "https://openalex.org/I4210147158"
+                            ]
+                        },
+                        {
+                            "raw_affiliation_string": "Guangdong Academy of Innovation Development, Guangzhou 510070, China",
+                            "institution_ids": []
+                        }
+                    ]
+                },
+                {
+                    "author_position": "middle",
+                    "author": {
+                        "id": "https://openalex.org/A5016701100",
+                        "display_name": "Yongxian Su",
+                        "orcid": "https://orcid.org/0000-0003-2114-628X"
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I4210147158",
+                            "display_name": "Guangzhou Institute of Geography",
+                            "ror": "https://ror.org/03tbxt129",
+                            "country_code": "CN",
+                            "type": "facility",
+                            "lineage": [
+                                "https://openalex.org/I4210147158"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "CN"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Yongxian Su",
+                    "raw_affiliation_strings": [
+                        "Guangdong Academy of Innovation Development, Guangzhou 510070, China",
+                        "Guangdong Open Laboratory of Geospatial Information Technology and Application, Guangzhou Institute of Geography, Guangzhou 510070, China"
+                    ],
+                    "affiliations": [
+                        {
+                            "raw_affiliation_string": "Guangdong Open Laboratory of Geospatial Information Technology and Application, Guangzhou Institute of Geography, Guangzhou 510070, China",
+                            "institution_ids": [
+                                "https://openalex.org/I4210147158"
+                            ]
+                        },
+                        {
+                            "raw_affiliation_string": "Guangdong Academy of Innovation Development, Guangzhou 510070, China",
+                            "institution_ids": []
+                        }
+                    ]
+                },
+                {
+                    "author_position": "last",
+                    "author": {
+                        "id": "https://openalex.org/A5005707221",
+                        "display_name": "Kegong Wu",
+                        "orcid": null
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I4210147158",
+                            "display_name": "Guangzhou Institute of Geography",
+                            "ror": "https://ror.org/03tbxt129",
+                            "country_code": "CN",
+                            "type": "facility",
+                            "lineage": [
+                                "https://openalex.org/I4210147158"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "CN"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Kangmin Wu",
+                    "raw_affiliation_strings": [
+                        "Guangdong Academy of Innovation Development, Guangzhou 510070, China",
+                        "Guangdong Open Laboratory of Geospatial Information Technology and Application, Guangzhou Institute of Geography, Guangzhou 510070, China"
+                    ],
+                    "affiliations": [
+                        {
+                            "raw_affiliation_string": "Guangdong Open Laboratory of Geospatial Information Technology and Application, Guangzhou Institute of Geography, Guangzhou 510070, China",
+                            "institution_ids": [
+                                "https://openalex.org/I4210147158"
+                            ]
+                        },
+                        {
+                            "raw_affiliation_string": "Guangdong Academy of Innovation Development, Guangzhou 510070, China",
+                            "institution_ids": []
+                        }
+                    ]
+                }
+            ],
+            "countries_distinct_count": 1,
+            "institutions_distinct_count": 4,
+            "corresponding_author_ids": [
+                "https://openalex.org/A5039858263",
+                "https://openalex.org/A5047625838"
+            ],
+            "corresponding_institution_ids": [
+                "https://openalex.org/I157773358",
+                "https://openalex.org/I4210160793",
+                "https://openalex.org/I19820366"
+            ],
+            "apc_list": {
+                "value": 2900,
+                "currency": "USD",
+                "value_usd": 2900,
+                "provenance": "doaj"
+            },
+            "apc_paid": null,
+            "fwci": 20.788,
+            "has_fulltext": true,
+            "fulltext_origin": "ngrams",
+            "cited_by_count": 110,
+            "cited_by_percentile_year": {
+                "min": 98,
+                "max": 99
+            },
+            "biblio": {
+                "volume": "79",
+                "issue": null,
+                "first_page": "26",
+                "last_page": "36"
+            },
+            "is_retracted": false,
+            "is_paratext": false,
+            "primary_topic": {
+                "id": "https://openalex.org/T10632",
+                "display_name": "Consequences of Mortgage Credit Expansion and Housing Market Dynamics",
+                "score": 0.9999,
+                "subfield": {
+                    "id": "https://openalex.org/subfields/2002",
+                    "display_name": "Economics and Econometrics"
+                },
+                "field": {
+                    "id": "https://openalex.org/fields/20",
+                    "display_name": "Economics, Econometrics and Finance"
+                },
+                "domain": {
+                    "id": "https://openalex.org/domains/2",
+                    "display_name": "Social Sciences"
+                }
+            },
+            "topics": [
+                {
+                    "id": "https://openalex.org/T10632",
+                    "display_name": "Consequences of Mortgage Credit Expansion and Housing Market Dynamics",
+                    "score": 0.9999,
+                    "subfield": {
+                        "id": "https://openalex.org/subfields/2002",
+                        "display_name": "Economics and Econometrics"
+                    },
+                    "field": {
+                        "id": "https://openalex.org/fields/20",
+                        "display_name": "Economics, Econometrics and Finance"
+                    },
+                    "domain": {
+                        "id": "https://openalex.org/domains/2",
+                        "display_name": "Social Sciences"
+                    }
+                },
+                {
+                    "id": "https://openalex.org/T11911",
+                    "display_name": "Spatial Econometrics and Spatial Data Analysis",
+                    "score": 0.9933,
+                    "subfield": {
+                        "id": "https://openalex.org/subfields/2002",
+                        "display_name": "Economics and Econometrics"
+                    },
+                    "field": {
+                        "id": "https://openalex.org/fields/20",
+                        "display_name": "Economics, Econometrics and Finance"
+                    },
+                    "domain": {
+                        "id": "https://openalex.org/domains/2",
+                        "display_name": "Social Sciences"
+                    }
+                },
+                {
+                    "id": "https://openalex.org/T11014",
+                    "display_name": "Spatial Economics and Agglomeration Theory",
+                    "score": 0.9693,
+                    "subfield": {
+                        "id": "https://openalex.org/subfields/2002",
+                        "display_name": "Economics and Econometrics"
+                    },
+                    "field": {
+                        "id": "https://openalex.org/fields/20",
+                        "display_name": "Economics, Econometrics and Finance"
+                    },
+                    "domain": {
+                        "id": "https://openalex.org/domains/2",
+                        "display_name": "Social Sciences"
+                    }
+                }
+            ],
+            "keywords": [
+                {
+                    "id": "https://openalex.org/keywords/spatial-autocorrelation",
+                    "display_name": "Spatial Autocorrelation",
+                    "score": 0.542998
+                },
+                {
+                    "id": "https://openalex.org/keywords/spatial-econometrics",
+                    "display_name": "Spatial Econometrics",
+                    "score": 0.535351
+                },
+                {
+                    "id": "https://openalex.org/keywords/geographically-weighted-regression",
+                    "display_name": "Geographically Weighted Regression",
+                    "score": 0.500161
+                }
+            ],
+            "concepts": [
+                {
+                    "id": "https://openalex.org/C2910321205",
+                    "wikidata": "https://www.wikidata.org/wiki/Q1938983",
+                    "display_name": "Geographically Weighted Regression",
+                    "level": 2,
+                    "score": 0.7583016
+                },
+                {
+                    "id": "https://openalex.org/C205649164",
+                    "wikidata": "https://www.wikidata.org/wiki/Q1071",
+                    "display_name": "Geography",
+                    "level": 0,
+                    "score": 0.7064466
+                },
+                {
+                    "id": "https://openalex.org/C191935318",
+                    "wikidata": "https://www.wikidata.org/wiki/Q148",
+                    "display_name": "China",
+                    "level": 2,
+                    "score": 0.6486748
+                },
+                {
+                    "id": "https://openalex.org/C83546350",
+                    "wikidata": "https://www.wikidata.org/wiki/Q1139051",
+                    "display_name": "Regression",
+                    "level": 2,
+                    "score": 0.5382722
+                },
+                {
+                    "id": "https://openalex.org/C152877465",
+                    "wikidata": "https://www.wikidata.org/wiki/Q208042",
+                    "display_name": "Regression analysis",
+                    "level": 2,
+                    "score": 0.49192357
+                },
+                {
+                    "id": "https://openalex.org/C58640448",
+                    "wikidata": "https://www.wikidata.org/wiki/Q42515",
+                    "display_name": "Cartography",
+                    "level": 1,
+                    "score": 0.47542122
+                },
+                {
+                    "id": "https://openalex.org/C26271046",
+                    "wikidata": "https://www.wikidata.org/wiki/Q187097",
+                    "display_name": "Economic geography",
+                    "level": 1,
+                    "score": 0.4269405
+                },
+                {
+                    "id": "https://openalex.org/C94915269",
+                    "wikidata": "https://www.wikidata.org/wiki/Q1834857",
+                    "display_name": "Detector",
+                    "level": 2,
+                    "score": 0.41093796
+                },
+                {
+                    "id": "https://openalex.org/C149782125",
+                    "wikidata": "https://www.wikidata.org/wiki/Q160039",
+                    "display_name": "Econometrics",
+                    "level": 1,
+                    "score": 0.3729427
+                },
+                {
+                    "id": "https://openalex.org/C148383697",
+                    "wikidata": "https://www.wikidata.org/wiki/Q1781695",
+                    "display_name": "Regional science",
+                    "level": 1,
+                    "score": 0.33597952
+                },
+                {
+                    "id": "https://openalex.org/C105795698",
+                    "wikidata": "https://www.wikidata.org/wiki/Q12483",
+                    "display_name": "Statistics",
+                    "level": 1,
+                    "score": 0.33421224
+                },
+                {
+                    "id": "https://openalex.org/C33923547",
+                    "wikidata": "https://www.wikidata.org/wiki/Q395",
+                    "display_name": "Mathematics",
+                    "level": 0,
+                    "score": 0.20317018
+                },
+                {
+                    "id": "https://openalex.org/C41008148",
+                    "wikidata": "https://www.wikidata.org/wiki/Q21198",
+                    "display_name": "Computer science",
+                    "level": 0,
+                    "score": 0.15607825
+                },
+                {
+                    "id": "https://openalex.org/C166957645",
+                    "wikidata": "https://www.wikidata.org/wiki/Q23498",
+                    "display_name": "Archaeology",
+                    "level": 1,
+                    "score": 0.109995246
+                },
+                {
+                    "id": "https://openalex.org/C76155785",
+                    "wikidata": "https://www.wikidata.org/wiki/Q418",
+                    "display_name": "Telecommunications",
+                    "level": 1,
+                    "score": 0.060204476
+                }
+            ],
+            "mesh": [],
+            "locations_count": 1,
+            "locations": [
+                {
+                    "is_oa": false,
+                    "landing_page_url": "https://doi.org/10.1016/j.apgeog.2016.12.003",
+                    "pdf_url": null,
+                    "source": {
+                        "id": "https://openalex.org/S115443327",
+                        "display_name": "Applied geography",
+                        "issn_l": "0143-6228",
+                        "issn": [
+                            "0143-6228",
+                            "1873-7730"
+                        ],
+                        "is_oa": false,
+                        "is_in_doaj": false,
+                        "host_organization": "https://openalex.org/P4310320990",
+                        "host_organization_name": "Elsevier BV",
+                        "host_organization_lineage": [
+                            "https://openalex.org/P4310320990"
+                        ],
+                        "host_organization_lineage_names": [
+                            "Elsevier BV"
+                        ],
+                        "type": "journal"
+                    },
+                    "license": null,
+                    "license_id": null,
+                    "version": null,
+                    "is_accepted": false,
+                    "is_published": false
+                }
+            ],
+            "best_oa_location": null,
+            "sustainable_development_goals": [
+                {
+                    "display_name": "Sustainable cities and communities",
+                    "id": "https://metadata.un.org/sdg/11",
+                    "score": 0.44
+                }
+            ],
+            "grants": [
+                {
+                    "funder": "https://openalex.org/F4320321001",
+                    "funder_display_name": "National Natural Science Foundation of China",
+                    "award_id": "41601151"
+                },
+                {
+                    "funder": "https://openalex.org/F4320321001",
+                    "funder_display_name": "National Natural Science Foundation of China",
+                    "award_id": "41501175"
+                },
+                {
+                    "funder": "https://openalex.org/F4320321001",
+                    "funder_display_name": "National Natural Science Foundation of China",
+                    "award_id": "41401164"
+                },
+                {
+                    "funder": "https://openalex.org/F4320321921",
+                    "funder_display_name": "Natural Science Foundation of Guangdong Province",
+                    "award_id": "2016A030310149"
+                }
+            ],
+            "datasets": [],
+            "versions": [],
+            "referenced_works_count": 61,
+            "referenced_works": [
+                "https://openalex.org/W1528019765",
+                "https://openalex.org/W1537639810",
+                "https://openalex.org/W1595797171",
+                "https://openalex.org/W1600105731",
+                "https://openalex.org/W1749520655",
+                "https://openalex.org/W1775630558",
+                "https://openalex.org/W1870692829",
+                "https://openalex.org/W1934816454",
+                "https://openalex.org/W1967792320",
+                "https://openalex.org/W1970196456",
+                "https://openalex.org/W1973749534",
+                "https://openalex.org/W1974550463",
+                "https://openalex.org/W1982417766",
+                "https://openalex.org/W1984634000",
+                "https://openalex.org/W2000254116",
+                "https://openalex.org/W2001392827",
+                "https://openalex.org/W2018094088",
+                "https://openalex.org/W2021580041",
+                "https://openalex.org/W2037001661",
+                "https://openalex.org/W2040857124",
+                "https://openalex.org/W2053059924",
+                "https://openalex.org/W2060632038",
+                "https://openalex.org/W2060714309",
+                "https://openalex.org/W2061025014",
+                "https://openalex.org/W2063857894",
+                "https://openalex.org/W2067071420",
+                "https://openalex.org/W2067271579",
+                "https://openalex.org/W2069552175",
+                "https://openalex.org/W2076530486",
+                "https://openalex.org/W2080586298",
+                "https://openalex.org/W2084225112",
+                "https://openalex.org/W2086035223",
+                "https://openalex.org/W2089543568",
+                "https://openalex.org/W2101677938",
+                "https://openalex.org/W2107936943",
+                "https://openalex.org/W2111913540",
+                "https://openalex.org/W2122520191",
+                "https://openalex.org/W2123843832",
+                "https://openalex.org/W2125668666",
+                "https://openalex.org/W2129628328",
+                "https://openalex.org/W2134300727",
+                "https://openalex.org/W2163283323",
+                "https://openalex.org/W2201551507",
+                "https://openalex.org/W2234585479",
+                "https://openalex.org/W2268264741",
+                "https://openalex.org/W2278278648",
+                "https://openalex.org/W2296887909",
+                "https://openalex.org/W2315824461",
+                "https://openalex.org/W2369250832",
+                "https://openalex.org/W2418757695",
+                "https://openalex.org/W2513132288",
+                "https://openalex.org/W2724541344",
+                "https://openalex.org/W3121131026",
+                "https://openalex.org/W3122369839",
+                "https://openalex.org/W3122613737",
+                "https://openalex.org/W3122882898",
+                "https://openalex.org/W3123024365",
+                "https://openalex.org/W3124111029",
+                "https://openalex.org/W3124952439",
+                "https://openalex.org/W4256366884",
+                "https://openalex.org/W82454282"
+            ],
+            "related_works": [
+                "https://openalex.org/W59857474",
+                "https://openalex.org/W4365510477",
+                "https://openalex.org/W4289356671",
+                "https://openalex.org/W3186837933",
+                "https://openalex.org/W2783333685",
+                "https://openalex.org/W2531400271",
+                "https://openalex.org/W2389155397",
+                "https://openalex.org/W2312753042",
+                "https://openalex.org/W2165884543",
+                "https://openalex.org/W1881074467"
+            ],
+            "ngrams_url": "https://api.openalex.org/works/W2561674923/ngrams",
+            "abstract_inverted_index": {
+                "This": [
+                    0
+                ],
+                "study": [
+                    1,
+                    66,
+                    97,
+                    116
+                ],
+                "analyzed": [
+                    2
+                ],
+                "the": [
+                    3,
+                    8,
+                    32,
+                    50,
+                    65,
+                    69,
+                    79,
+                    83,
+                    88,
+                    96,
+                    99,
+                    109,
+                    115,
+                    118,
+                    123,
+                    131,
+                    135,
+                    146,
+                    161,
+                    167,
+                    172,
+                    201,
+                    209
+                ],
+                "direction": [
+                    4
+                ],
+                "and": [
+                    5,
+                    13,
+                    31,
+                    44,
+                    53,
+                    56,
+                    138,
+                    145,
+                    220
+                ],
+                "strength": [
+                    6,
+                    168
+                ],
+                "of": [
+                    7,
+                    40,
+                    64,
+                    72,
+                    82,
+                    90,
+                    101,
+                    125,
+                    133,
+                    169,
+                    171,
+                    182,
+                    200,
+                    203
+                ],
+                "association": [
+                    9
+                ],
+                "between": [
+                    10
+                ],
+                "housing": [
+                    11,
+                    27,
+                    29,
+                    33,
+                    42,
+                    70,
+                    136,
+                    143,
+                    178,
+                    189,
+                    204,
+                    223
+                ],
+                "prices": [
+                    12,
+                    43,
+                    71,
+                    190,
+                    205
+                ],
+                "their": [
+                    14
+                ],
+                "potential": [
+                    15
+                ],
+                "determinants": [
+                    16,
+                    202
+                ],
+                "in": [
+                    17,
+                    85,
+                    108,
+                    160,
+                    175,
+                    206
+                ],
+                "China,": [
+                    18
+                ],
+                "from": [
+                    19
+                ],
+                "a": [
+                    20,
+                    185,
+                    197
+                ],
+                "tripartite": [
+                    21
+                ],
+                "perspective": [
+                    22
+                ],
+                "that": [
+                    23,
+                    68,
+                    196
+                ],
+                "takes": [
+                    24
+                ],
+                "into": [
+                    25
+                ],
+                "account": [
+                    26
+                ],
+                "demand,": [
+                    28
+                ],
+                "supply,": [
+                    30
+                ],
+                "market.": [
+                    34
+                ],
+                "A": [
+                    35
+                ],
+                "data": [
+                    36
+                ],
+                "set": [
+                    37
+                ],
+                "made": [
+                    38
+                ],
+                "up": [
+                    39
+                ],
+                "county-level": [
+                    41
+                ],
+                "selected": [
+                    45
+                ],
+                "factors": [
+                    46,
+                    174
+                ],
+                "was": [
+                    47
+                ],
+                "constructed": [
+                    48
+                ],
+                "for": [
+                    49
+                ],
+                "year": [
+                    51
+                ],
+                "2014,": [
+                    52
+                ],
+                "spatial": [
+                    54,
+                    103,
+                    106,
+                    112
+                ],
+                "regression": [
+                    55,
+                    113
+                ],
+                "geographical": [
+                    57,
+                    154
+                ],
+                "detector": [
+                    58,
+                    155
+                ],
+                "technique": [
+                    59,
+                    156
+                ],
+                "were": [
+                    60
+                ],
+                "estimated.": [
+                    61
+                ],
+                "The": [
+                    62,
+                    153,
+                    180
+                ],
+                "results": [
+                    63,
+                    91
+                ],
+                "indicate": [
+                    67
+                ],
+                "Chinese": [
+                    73,
+                    214
+                ],
+                "counties": [
+                    74
+                ],
+                "are": [
+                    75
+                ],
+                "heavily": [
+                    76
+                ],
+                "influenced": [
+                    77
+                ],
+                "by": [
+                    78,
+                    122,
+                    150
+                ],
+                "administrative": [
+                    80
+                ],
+                "level": [
+                    81,
+                    141,
+                    211
+                ],
+                "county": [
+                    84,
+                    210
+                ],
+                "question.": [
+                    86
+                ],
+                "On": [
+                    87
+                ],
+                "basis": [
+                    89
+                ],
+                "obtained": [
+                    92
+                ],
+                "using": [
+                    93
+                ],
+                "Moran's": [
+                    94
+                ],
+                "I,": [
+                    95
+                ],
+                "revealed": [
+                    98,
+                    157
+                ],
+                "presence": [
+                    100
+                ],
+                "significant": [
+                    102
+                ],
+                "autocorrelation": [
+                    104
+                ],
+                "(or": [
+                    105
+                ],
+                "agglomeration)": [
+                    107
+                ],
+                "data.": [
+                    110
+                ],
+                "Using": [
+                    111
+                ],
+                "techniques,": [
+                    114
+                ],
+                "identifies": [
+                    117
+                ],
+                "positive": [
+                    119
+                ],
+                "effect": [
+                    120
+                ],
+                "exerted": [
+                    121,
+                    149
+                ],
+                "proportion": [
+                    124
+                ],
+                "renters,": [
+                    126
+                ],
+                "floating": [
+                    127
+                ],
+                "population,": [
+                    128
+                ],
+                "wage": [
+                    129
+                ],
+                "level,": [
+                    130
+                ],
+                "cost": [
+                    132,
+                    181
+                ],
+                "land,": [
+                    134
+                ],
+                "market": [
+                    137
+                ],
+                "city": [
+                    139
+                ],
+                "service": [
+                    140
+                ],
+                "on": [
+                    142,
+                    188
+                ],
+                "prices,": [
+                    144
+                ],
+                "negative": [
+                    147
+                ],
+                "influence": [
+                    148,
+                    187
+                ],
+                "living": [
+                    151
+                ],
+                "space.": [
+                    152
+                ],
+                "marked": [
+                    158
+                ],
+                "differences": [
+                    159
+                ],
+                "relative": [
+                    162
+                ],
+                "influence,": [
+                    163
+                ],
+                "as": [
+                    164,
+                    166
+                ],
+                "well": [
+                    165
+                ],
+                "association,": [
+                    170
+                ],
+                "seven": [
+                    173
+                ],
+                "relation": [
+                    176
+                ],
+                "to": [
+                    177,
+                    216
+                ],
+                "prices.": [
+                    179
+                ],
+                "land": [
+                    183
+                ],
+                "had": [
+                    184
+                ],
+                "greater": [
+                    186
+                ],
+                "than": [
+                    191
+                ],
+                "other": [
+                    192
+                ],
+                "factors.": [
+                    193
+                ],
+                "We": [
+                    194
+                ],
+                "argue": [
+                    195
+                ],
+                "better": [
+                    198
+                ],
+                "understanding": [
+                    199
+                ],
+                "China": [
+                    207
+                ],
+                "at": [
+                    208
+                ],
+                "will": [
+                    212
+                ],
+                "help": [
+                    213
+                ],
+                "policymakers": [
+                    215
+                ],
+                "formulate": [
+                    217
+                ],
+                "more": [
+                    218
+                ],
+                "detailed": [
+                    219
+                ],
+                "geographically": [
+                    221
+                ],
+                "specific": [
+                    222
+                ],
+                "policies.": [
+                    224
+                ]
+            },
+            "cited_by_api_url": "https://api.openalex.org/works?filter=cites:W2561674923",
+            "counts_by_year": [
+                {
+                    "year": 2024,
+                    "cited_by_count": 10
+                },
+                {
+                    "year": 2023,
+                    "cited_by_count": 17
+                },
+                {
+                    "year": 2022,
+                    "cited_by_count": 22
+                },
+                {
+                    "year": 2021,
+                    "cited_by_count": 24
+                },
+                {
+                    "year": 2020,
+                    "cited_by_count": 12
+                },
+                {
+                    "year": 2019,
+                    "cited_by_count": 14
+                },
+                {
+                    "year": 2018,
+                    "cited_by_count": 9
+                },
+                {
+                    "year": 2017,
+                    "cited_by_count": 2
+                }
+            ],
+            "updated_date": "2024-06-22T08:16:21.287611",
+            "created_date": "2017-01-06"
+        },
+        {
+            "id": "https://openalex.org/W2490425535",
+            "doi": "https://doi.org/10.1016/j.enpol.2016.07.009",
+            "title": "Coal power overcapacity and investment bubble in China during 2015\u20132020",
+            "display_name": "Coal power overcapacity and investment bubble in China during 2015\u20132020",
+            "publication_year": 2016,
+            "publication_date": "2016-10-01",
+            "ids": {
+                "openalex": "https://openalex.org/W2490425535",
+                "doi": "https://doi.org/10.1016/j.enpol.2016.07.009",
+                "mag": "2490425535"
+            },
+            "language": "en",
+            "primary_location": {
+                "is_oa": false,
+                "landing_page_url": "https://doi.org/10.1016/j.enpol.2016.07.009",
+                "pdf_url": null,
+                "source": {
+                    "id": "https://openalex.org/S175056054",
+                    "display_name": "Energy policy",
+                    "issn_l": "0301-4215",
+                    "issn": [
+                        "0301-4215",
+                        "1873-6777"
+                    ],
+                    "is_oa": false,
+                    "is_in_doaj": false,
+                    "is_core": true,
+                    "host_organization": "https://openalex.org/P4310320990",
+                    "host_organization_name": "Elsevier BV",
+                    "host_organization_lineage": [
+                        "https://openalex.org/P4310320990"
+                    ],
+                    "host_organization_lineage_names": [
+                        "Elsevier BV"
+                    ],
+                    "type": "journal"
+                },
+                "license": null,
+                "license_id": null,
+                "version": null,
+                "is_accepted": false,
+                "is_published": false
+            },
+            "type": "article",
+            "type_crossref": "journal-article",
+            "indexed_in": [
+                "crossref"
+            ],
+            "open_access": {
+                "is_oa": false,
+                "oa_status": "closed",
+                "oa_url": null,
+                "any_repository_has_fulltext": false
+            },
+            "authorships": [
+                {
+                    "author_position": "first",
+                    "author": {
+                        "id": "https://openalex.org/A5068084392",
+                        "display_name": "Jiahai Yuan",
+                        "orcid": "https://orcid.org/0000-0002-1150-7750"
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I153473198",
+                            "display_name": "North China Electric Power University",
+                            "ror": "https://ror.org/04qr5t414",
+                            "country_code": "CN",
+                            "type": "education",
+                            "lineage": [
+                                "https://openalex.org/I153473198"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "CN"
+                    ],
+                    "is_corresponding": true,
+                    "raw_author_name": "Jiahai Yuan",
+                    "raw_affiliation_strings": [
+                        "School of Economics and Management, North China Electric Power University, China"
+                    ],
+                    "affiliations": [
+                        {
+                            "raw_affiliation_string": "School of Economics and Management, North China Electric Power University, China",
+                            "institution_ids": [
+                                "https://openalex.org/I153473198"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "author_position": "middle",
+                    "author": {
+                        "id": "https://openalex.org/A5071458554",
+                        "display_name": "Peng Li",
+                        "orcid": "https://orcid.org/0000-0001-9185-9504"
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I153473198",
+                            "display_name": "North China Electric Power University",
+                            "ror": "https://ror.org/04qr5t414",
+                            "country_code": "CN",
+                            "type": "education",
+                            "lineage": [
+                                "https://openalex.org/I153473198"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "CN"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Peng Li",
+                    "raw_affiliation_strings": [
+                        "School of Economics and Management, North China Electric Power University, China"
+                    ],
+                    "affiliations": [
+                        {
+                            "raw_affiliation_string": "School of Economics and Management, North China Electric Power University, China",
+                            "institution_ids": [
+                                "https://openalex.org/I153473198"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "author_position": "middle",
+                    "author": {
+                        "id": "https://openalex.org/A5068835581",
+                        "display_name": "Yang Wang",
+                        "orcid": "https://orcid.org/0000-0002-3651-7517"
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I153473198",
+                            "display_name": "North China Electric Power University",
+                            "ror": "https://ror.org/04qr5t414",
+                            "country_code": "CN",
+                            "type": "education",
+                            "lineage": [
+                                "https://openalex.org/I153473198"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "CN"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Yang Wang",
+                    "raw_affiliation_strings": [
+                        "School of Economics and Management, North China Electric Power University, China"
+                    ],
+                    "affiliations": [
+                        {
+                            "raw_affiliation_string": "School of Economics and Management, North China Electric Power University, China",
+                            "institution_ids": [
+                                "https://openalex.org/I153473198"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "author_position": "middle",
+                    "author": {
+                        "id": "https://openalex.org/A5000510528",
+                        "display_name": "Qian Liu",
+                        "orcid": "https://orcid.org/0000-0002-0153-2717"
+                    },
+                    "institutions": [],
+                    "countries": [
+                        "CN"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Qian Liu",
+                    "raw_affiliation_strings": [
+                        "Greenpeace East Asia,\u00a0China"
+                    ],
+                    "affiliations": [
+                        {
+                            "raw_affiliation_string": "Greenpeace East Asia,\u00a0China",
+                            "institution_ids": []
+                        }
+                    ]
+                },
+                {
+                    "author_position": "middle",
+                    "author": {
+                        "id": "https://openalex.org/A5091153454",
+                        "display_name": "Xinyi Shen",
+                        "orcid": "https://orcid.org/0000-0001-6013-0964"
+                    },
+                    "institutions": [],
+                    "countries": [
+                        "CN"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Xinyi Shen",
+                    "raw_affiliation_strings": [
+                        "Greenpeace East Asia,\u00a0China"
+                    ],
+                    "affiliations": [
+                        {
+                            "raw_affiliation_string": "Greenpeace East Asia,\u00a0China",
+                            "institution_ids": []
+                        }
+                    ]
+                },
+                {
+                    "author_position": "middle",
+                    "author": {
+                        "id": "https://openalex.org/A5003850660",
+                        "display_name": "Kai Zhang",
+                        "orcid": "https://orcid.org/0000-0002-5783-946X"
+                    },
+                    "institutions": [],
+                    "countries": [
+                        "CN"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Kai Zhang",
+                    "raw_affiliation_strings": [
+                        "Greenpeace East Asia,\u00a0China"
+                    ],
+                    "affiliations": [
+                        {
+                            "raw_affiliation_string": "Greenpeace East Asia,\u00a0China",
+                            "institution_ids": []
+                        }
+                    ]
+                },
+                {
+                    "author_position": "last",
+                    "author": {
+                        "id": "https://openalex.org/A5073375242",
+                        "display_name": "Liansai Dong",
+                        "orcid": null
+                    },
+                    "institutions": [],
+                    "countries": [
+                        "CN"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Liansai Dong",
+                    "raw_affiliation_strings": [
+                        "Greenpeace East Asia,\u00a0China"
+                    ],
+                    "affiliations": [
+                        {
+                            "raw_affiliation_string": "Greenpeace East Asia,\u00a0China",
+                            "institution_ids": []
+                        }
+                    ]
+                }
+            ],
+            "countries_distinct_count": 1,
+            "institutions_distinct_count": 1,
+            "corresponding_author_ids": [
+                "https://openalex.org/A5068084392"
+            ],
+            "corresponding_institution_ids": [
+                "https://openalex.org/I153473198"
+            ],
+            "apc_list": {
+                "value": 3340,
+                "currency": "USD",
+                "value_usd": 3340,
+                "provenance": "doaj"
+            },
+            "apc_paid": null,
+            "fwci": 6.805,
+            "has_fulltext": true,
+            "fulltext_origin": "ngrams",
+            "cited_by_count": 105,
+            "cited_by_percentile_year": {
+                "min": 98,
+                "max": 99
+            },
+            "biblio": {
+                "volume": "97",
+                "issue": null,
+                "first_page": "136",
+                "last_page": "144"
+            },
+            "is_retracted": false,
+            "is_paratext": false,
+            "primary_topic": {
+                "id": "https://openalex.org/T11185",
+                "display_name": "Integration of Renewable Energy Systems in Power Grids",
+                "score": 0.9968,
+                "subfield": {
+                    "id": "https://openalex.org/subfields/2208",
+                    "display_name": "Electrical and Electronic Engineering"
+                },
+                "field": {
+                    "id": "https://openalex.org/fields/22",
+                    "display_name": "Engineering"
+                },
+                "domain": {
+                    "id": "https://openalex.org/domains/3",
+                    "display_name": "Physical Sciences"
+                }
+            },
+            "topics": [
+                {
+                    "id": "https://openalex.org/T11185",
+                    "display_name": "Integration of Renewable Energy Systems in Power Grids",
+                    "score": 0.9968,
+                    "subfield": {
+                        "id": "https://openalex.org/subfields/2208",
+                        "display_name": "Electrical and Electronic Engineering"
+                    },
+                    "field": {
+                        "id": "https://openalex.org/fields/22",
+                        "display_name": "Engineering"
+                    },
+                    "domain": {
+                        "id": "https://openalex.org/domains/3",
+                        "display_name": "Physical Sciences"
+                    }
+                },
+                {
+                    "id": "https://openalex.org/T13689",
+                    "display_name": "Development and Management of Urban Underground Space",
+                    "score": 0.9926,
+                    "subfield": {
+                        "id": "https://openalex.org/subfields/2215",
+                        "display_name": "Building and Construction"
+                    },
+                    "field": {
+                        "id": "https://openalex.org/fields/22",
+                        "display_name": "Engineering"
+                    },
+                    "domain": {
+                        "id": "https://openalex.org/domains/3",
+                        "display_name": "Physical Sciences"
+                    }
+                },
+                {
+                    "id": "https://openalex.org/T10435",
+                    "display_name": "Life Cycle Assessment and Environmental Impact Analysis",
+                    "score": 0.9877,
+                    "subfield": {
+                        "id": "https://openalex.org/subfields/2305",
+                        "display_name": "Environmental Engineering"
+                    },
+                    "field": {
+                        "id": "https://openalex.org/fields/23",
+                        "display_name": "Environmental Science"
+                    },
+                    "domain": {
+                        "id": "https://openalex.org/domains/3",
+                        "display_name": "Physical Sciences"
+                    }
+                }
+            ],
+            "keywords": [
+                {
+                    "id": "https://openalex.org/keywords/wind-power-integration",
+                    "display_name": "Wind Power Integration",
+                    "score": 0.492
+                }
+            ],
+            "concepts": [
+                {
+                    "id": "https://openalex.org/C518851703",
+                    "wikidata": "https://www.wikidata.org/wiki/Q24489",
+                    "display_name": "Coal",
+                    "level": 2,
+                    "score": 0.7006586
+                },
+                {
+                    "id": "https://openalex.org/C27548731",
+                    "wikidata": "https://www.wikidata.org/wiki/Q88272",
+                    "display_name": "Investment (military)",
+                    "level": 3,
+                    "score": 0.68320173
+                },
+                {
+                    "id": "https://openalex.org/C206658404",
+                    "wikidata": "https://www.wikidata.org/wiki/Q12725",
+                    "display_name": "Electricity",
+                    "level": 2,
+                    "score": 0.6199275
+                },
+                {
+                    "id": "https://openalex.org/C71554815",
+                    "wikidata": "https://www.wikidata.org/wiki/Q200974",
+                    "display_name": "Nameplate capacity",
+                    "level": 4,
+                    "score": 0.53105
+                },
+                {
+                    "id": "https://openalex.org/C175605778",
+                    "wikidata": "https://www.wikidata.org/wiki/Q3299701",
+                    "display_name": "Natural resource economics",
+                    "level": 1,
+                    "score": 0.51130176
+                },
+                {
+                    "id": "https://openalex.org/C162324750",
+                    "wikidata": "https://www.wikidata.org/wiki/Q8134",
+                    "display_name": "Economics",
+                    "level": 0,
+                    "score": 0.48573476
+                },
+                {
+                    "id": "https://openalex.org/C120441037",
+                    "wikidata": "https://www.wikidata.org/wiki/Q1059714",
+                    "display_name": "Primary energy",
+                    "level": 3,
+                    "score": 0.45985633
+                },
+                {
+                    "id": "https://openalex.org/C423512",
+                    "wikidata": "https://www.wikidata.org/wiki/Q383973",
+                    "display_name": "Electricity generation",
+                    "level": 3,
+                    "score": 0.44697934
+                },
+                {
+                    "id": "https://openalex.org/C191935318",
+                    "wikidata": "https://www.wikidata.org/wiki/Q148",
+                    "display_name": "China",
+                    "level": 2,
+                    "score": 0.43992782
+                },
+                {
+                    "id": "https://openalex.org/C2777890234",
+                    "wikidata": "https://www.wikidata.org/wiki/Q795757",
+                    "display_name": "Energy transition",
+                    "level": 4,
+                    "score": 0.42687446
+                },
+                {
+                    "id": "https://openalex.org/C30772137",
+                    "wikidata": "https://www.wikidata.org/wiki/Q5164762",
+                    "display_name": "Consumption (sociology)",
+                    "level": 2,
+                    "score": 0.41936696
+                },
+                {
+                    "id": "https://openalex.org/C163258240",
+                    "wikidata": "https://www.wikidata.org/wiki/Q25342",
+                    "display_name": "Power (physics)",
+                    "level": 2,
+                    "score": 0.4147713
+                },
+                {
+                    "id": "https://openalex.org/C134560507",
+                    "wikidata": "https://www.wikidata.org/wiki/Q753291",
+                    "display_name": "Environmental economics",
+                    "level": 1,
+                    "score": 0.39325577
+                },
+                {
+                    "id": "https://openalex.org/C127413603",
+                    "wikidata": "https://www.wikidata.org/wiki/Q11023",
+                    "display_name": "Engineering",
+                    "level": 0,
+                    "score": 0.37024832
+                },
+                {
+                    "id": "https://openalex.org/C548081761",
+                    "wikidata": "https://www.wikidata.org/wiki/Q180388",
+                    "display_name": "Waste management",
+                    "level": 1,
+                    "score": 0.27564812
+                },
+                {
+                    "id": "https://openalex.org/C119599485",
+                    "wikidata": "https://www.wikidata.org/wiki/Q43035",
+                    "display_name": "Electrical engineering",
+                    "level": 1,
+                    "score": 0.08513361
+                },
+                {
+                    "id": "https://openalex.org/C121332964",
+                    "wikidata": "https://www.wikidata.org/wiki/Q413",
+                    "display_name": "Physics",
+                    "level": 0,
+                    "score": 0.0
+                },
+                {
+                    "id": "https://openalex.org/C62520636",
+                    "wikidata": "https://www.wikidata.org/wiki/Q944",
+                    "display_name": "Quantum mechanics",
+                    "level": 1,
+                    "score": 0.0
+                },
+                {
+                    "id": "https://openalex.org/C94625758",
+                    "wikidata": "https://www.wikidata.org/wiki/Q7163",
+                    "display_name": "Politics",
+                    "level": 2,
+                    "score": 0.0
+                },
+                {
+                    "id": "https://openalex.org/C17744445",
+                    "wikidata": "https://www.wikidata.org/wiki/Q36442",
+                    "display_name": "Political science",
+                    "level": 0,
+                    "score": 0.0
+                },
+                {
+                    "id": "https://openalex.org/C199539241",
+                    "wikidata": "https://www.wikidata.org/wiki/Q7748",
+                    "display_name": "Law",
+                    "level": 1,
+                    "score": 0.0
+                },
+                {
+                    "id": "https://openalex.org/C71924100",
+                    "wikidata": "https://www.wikidata.org/wiki/Q11190",
+                    "display_name": "Medicine",
+                    "level": 0,
+                    "score": 0.0
+                },
+                {
+                    "id": "https://openalex.org/C36289849",
+                    "wikidata": "https://www.wikidata.org/wiki/Q34749",
+                    "display_name": "Social science",
+                    "level": 1,
+                    "score": 0.0
+                },
+                {
+                    "id": "https://openalex.org/C204787440",
+                    "wikidata": "https://www.wikidata.org/wiki/Q188504",
+                    "display_name": "Alternative medicine",
+                    "level": 2,
+                    "score": 0.0
+                },
+                {
+                    "id": "https://openalex.org/C26993612",
+                    "wikidata": "https://www.wikidata.org/wiki/Q910154",
+                    "display_name": "Panacea (medicine)",
+                    "level": 3,
+                    "score": 0.0
+                },
+                {
+                    "id": "https://openalex.org/C142724271",
+                    "wikidata": "https://www.wikidata.org/wiki/Q7208",
+                    "display_name": "Pathology",
+                    "level": 1,
+                    "score": 0.0
+                },
+                {
+                    "id": "https://openalex.org/C144024400",
+                    "wikidata": "https://www.wikidata.org/wiki/Q21201",
+                    "display_name": "Sociology",
+                    "level": 0,
+                    "score": 0.0
+                }
+            ],
+            "mesh": [],
+            "locations_count": 1,
+            "locations": [
+                {
+                    "is_oa": false,
+                    "landing_page_url": "https://doi.org/10.1016/j.enpol.2016.07.009",
+                    "pdf_url": null,
+                    "source": {
+                        "id": "https://openalex.org/S175056054",
+                        "display_name": "Energy policy",
+                        "issn_l": "0301-4215",
+                        "issn": [
+                            "0301-4215",
+                            "1873-6777"
+                        ],
+                        "is_oa": false,
+                        "is_in_doaj": false,
+                        "is_core": true,
+                        "host_organization": "https://openalex.org/P4310320990",
+                        "host_organization_name": "Elsevier BV",
+                        "host_organization_lineage": [
+                            "https://openalex.org/P4310320990"
+                        ],
+                        "host_organization_lineage_names": [
+                            "Elsevier BV"
+                        ],
+                        "type": "journal"
+                    },
+                    "license": null,
+                    "license_id": null,
+                    "version": null,
+                    "is_accepted": false,
+                    "is_published": false
+                }
+            ],
+            "best_oa_location": null,
+            "sustainable_development_goals": [],
+            "grants": [
+                {
+                    "funder": "https://openalex.org/F4320335442",
+                    "funder_display_name": "Beijing Higher Education Young Elite Teacher Project",
+                    "award_id": "YETP0707"
+                }
+            ],
+            "datasets": [],
+            "versions": [],
+            "referenced_works_count": 6,
+            "referenced_works": [
+                "https://openalex.org/W1964207816",
+                "https://openalex.org/W2010415473",
+                "https://openalex.org/W2026093461",
+                "https://openalex.org/W2061624990",
+                "https://openalex.org/W2106176530",
+                "https://openalex.org/W4231678810"
+            ],
+            "related_works": [
+                "https://openalex.org/W4200176119",
+                "https://openalex.org/W3194348528",
+                "https://openalex.org/W3093216143",
+                "https://openalex.org/W3012984810",
+                "https://openalex.org/W2923652323",
+                "https://openalex.org/W2900183140",
+                "https://openalex.org/W2897931424",
+                "https://openalex.org/W2514111033",
+                "https://openalex.org/W1990062858",
+                "https://openalex.org/W1908892063"
+            ],
+            "ngrams_url": "https://api.openalex.org/works/W2490425535/ngrams",
+            "abstract_inverted_index": {
+                "Electricity": [
+                    0
+                ],
+                "consumption": [
+                    1
+                ],
+                "growth": [
+                    2
+                ],
+                "in": [
+                    3,
+                    38,
+                    55,
+                    75,
+                    131
+                ],
+                "China": [
+                    4,
+                    56
+                ],
+                "has": [
+                    5
+                ],
+                "experienced": [
+                    6
+                ],
+                "radical": [
+                    7
+                ],
+                "adjustment": [
+                    8
+                ],
+                "from": [
+                    9
+                ],
+                "high": [
+                    10
+                ],
+                "speed": [
+                    11,
+                    14
+                ],
+                "to": [
+                    12,
+                    33,
+                    169
+                ],
+                "medium": [
+                    13
+                ],
+                "with": [
+                    15
+                ],
+                "the": [
+                    16,
+                    23,
+                    46,
+                    58,
+                    71,
+                    76,
+                    88,
+                    105,
+                    116
+                ],
+                "advent": [
+                    17
+                ],
+                "of": [
+                    18,
+                    52,
+                    93,
+                    108,
+                    154,
+                    160
+                ],
+                "new": [
+                    19
+                ],
+                "economy": [
+                    20
+                ],
+                "normal.": [
+                    21
+                ],
+                "However,": [
+                    22
+                ],
+                "investment": [
+                    24,
+                    51,
+                    149
+                ],
+                "enthusiasm": [
+                    25
+                ],
+                "on": [
+                    26,
+                    104
+                ],
+                "coal": [
+                    27,
+                    53,
+                    94,
+                    117
+                ],
+                "power": [
+                    28,
+                    54,
+                    65,
+                    72,
+                    95,
+                    118
+                ],
+                "remains": [
+                    29
+                ],
+                "unabated": [
+                    30
+                ],
+                "and": [
+                    31,
+                    49,
+                    68,
+                    100,
+                    156
+                ],
+                "leads": [
+                    32
+                ],
+                "continuous": [
+                    34
+                ],
+                "operation": [
+                    35,
+                    130
+                ],
+                "efficiency": [
+                    36
+                ],
+                "deterioration": [
+                    37
+                ],
+                "recent": [
+                    39
+                ],
+                "years.": [
+                    40
+                ],
+                "In": [
+                    41
+                ],
+                "this": [
+                    42,
+                    171
+                ],
+                "paper,": [
+                    43
+                ],
+                "we": [
+                    44,
+                    85
+                ],
+                "quantify": [
+                    45
+                ],
+                "rational": [
+                    47
+                ],
+                "capacity": [
+                    48,
+                    90,
+                    133
+                ],
+                "potential": [
+                    50
+                ],
+                "during": [
+                    57
+                ],
+                "13th": [
+                    59
+                ],
+                "FYP": [
+                    60
+                ],
+                "period": [
+                    61
+                ],
+                "(2016\u20132020).": [
+                    62
+                ],
+                "By": [
+                    63
+                ],
+                "employing": [
+                    64
+                ],
+                "planning": [
+                    66
+                ],
+                "model": [
+                    67
+                ],
+                "fully": [
+                    69
+                ],
+                "considering": [
+                    70
+                ],
+                "sector's": [
+                    73
+                ],
+                "contribution": [
+                    74
+                ],
+                "15%": [
+                    77
+                ],
+                "non-fossil": [
+                    78
+                ],
+                "primary": [
+                    79
+                ],
+                "energy": [
+                    80,
+                    162
+                ],
+                "supply": [
+                    81
+                ],
+                "target": [
+                    82
+                ],
+                "by": [
+                    83
+                ],
+                "2020,": [
+                    84,
+                    132
+                ],
+                "estimate": [
+                    86
+                ],
+                "that": [
+                    87,
+                    113
+                ],
+                "reasonable": [
+                    89
+                ],
+                "addition": [
+                    91
+                ],
+                "space": [
+                    92
+                ],
+                "ranges": [
+                    96
+                ],
+                "between": [
+                    97
+                ],
+                "50": [
+                    98
+                ],
+                "GW": [
+                    99
+                ],
+                "100": [
+                    101
+                ],
+                "GW,": [
+                    102
+                ],
+                "depending": [
+                    103
+                ],
+                "expected": [
+                    106
+                ],
+                "range": [
+                    107
+                ],
+                "demand": [
+                    109
+                ],
+                "growth.": [
+                    110
+                ],
+                "We": [
+                    111
+                ],
+                "find": [
+                    112
+                ],
+                "if": [
+                    114
+                ],
+                "all": [
+                    115
+                ],
+                "projects": [
+                    119
+                ],
+                "submitted": [
+                    120
+                ],
+                "for": [
+                    121
+                ],
+                "Environmental": [
+                    122
+                ],
+                "Impact": [
+                    123
+                ],
+                "Assessment": [
+                    124
+                ],
+                "(EIA)": [
+                    125
+                ],
+                "approval": [
+                    126
+                ],
+                "were": [
+                    127
+                ],
+                "put": [
+                    128
+                ],
+                "into": [
+                    129
+                ],
+                "excess": [
+                    134
+                ],
+                "would": [
+                    135
+                ],
+                "reach": [
+                    136
+                ],
+                "200": [
+                    137
+                ],
+                "GW.": [
+                    138
+                ],
+                "Such": [
+                    139
+                ],
+                "huge": [
+                    140
+                ],
+                "overcapacity": [
+                    141
+                ],
+                "will": [
+                    142
+                ],
+                "bring": [
+                    143
+                ],
+                "forth": [
+                    144
+                ],
+                "disastrous": [
+                    145
+                ],
+                "consequences,": [
+                    146
+                ],
+                "including": [
+                    147
+                ],
+                "enormous": [
+                    148
+                ],
+                "waste,": [
+                    150
+                ],
+                "poor": [
+                    151
+                ],
+                "economic": [
+                    152
+                ],
+                "performance": [
+                    153
+                ],
+                "generators": [
+                    155
+                ],
+                "more": [
+                    157
+                ],
+                "importantly,": [
+                    158
+                ],
+                "delay": [
+                    159
+                ],
+                "low-carbon": [
+                    161
+                ],
+                "transition.": [
+                    163
+                ],
+                "Finally,": [
+                    164
+                ],
+                "policy": [
+                    165
+                ],
+                "recommendations": [
+                    166
+                ],
+                "are": [
+                    167
+                ],
+                "proposed": [
+                    168
+                ],
+                "address": [
+                    170
+                ],
+                "issue.": [
+                    172
+                ]
+            },
+            "cited_by_api_url": "https://api.openalex.org/works?filter=cites:W2490425535",
+            "counts_by_year": [
+                {
+                    "year": 2024,
+                    "cited_by_count": 4
+                },
+                {
+                    "year": 2023,
+                    "cited_by_count": 5
+                },
+                {
+                    "year": 2022,
+                    "cited_by_count": 11
+                },
+                {
+                    "year": 2021,
+                    "cited_by_count": 13
+                },
+                {
+                    "year": 2020,
+                    "cited_by_count": 21
+                },
+                {
+                    "year": 2019,
+                    "cited_by_count": 27
+                },
+                {
+                    "year": 2018,
+                    "cited_by_count": 17
+                },
+                {
+                    "year": 2017,
+                    "cited_by_count": 8
+                }
+            ],
+            "updated_date": "2024-06-25T03:48:53.737664",
+            "created_date": "2016-08-23"
+        },
+        {
+            "id": "https://openalex.org/W1976312685",
+            "doi": "https://doi.org/10.1007/s11442-015-1186-7",
+            "title": "Spatial differences and driving forces of land urbanization in China",
+            "display_name": "Spatial differences and driving forces of land urbanization in China",
+            "publication_year": 2015,
+            "publication_date": "2015-03-29",
+            "ids": {
+                "openalex": "https://openalex.org/W1976312685",
+                "doi": "https://doi.org/10.1007/s11442-015-1186-7",
+                "mag": "1976312685"
+            },
+            "language": "en",
+            "primary_location": {
+                "is_oa": false,
+                "landing_page_url": "https://doi.org/10.1007/s11442-015-1186-7",
+                "pdf_url": null,
+                "source": {
+                    "id": "https://openalex.org/S49345018",
+                    "display_name": "Journal of Geographical Sciences/Journal of geographical sciences",
+                    "issn_l": "1009-637X",
+                    "issn": [
+                        "1009-637X",
+                        "1861-9568"
+                    ],
+                    "is_oa": false,
+                    "is_in_doaj": false,
+                    "is_core": true,
+                    "host_organization": "https://openalex.org/P4310319965",
+                    "host_organization_name": "Springer Nature",
+                    "host_organization_lineage": [
+                        "https://openalex.org/P4310319965"
+                    ],
+                    "host_organization_lineage_names": [
+                        "Springer Nature"
+                    ],
+                    "type": "journal"
+                },
+                "license": null,
+                "license_id": null,
+                "version": null,
+                "is_accepted": false,
+                "is_published": false
+            },
+            "type": "article",
+            "type_crossref": "journal-article",
+            "indexed_in": [
+                "crossref"
+            ],
+            "open_access": {
+                "is_oa": true,
+                "oa_status": "bronze",
+                "oa_url": "http://ir.igsnrr.ac.cn/bitstream/311030/38731/1/Lin-2015-Spatial%20differences.pdf",
+                "any_repository_has_fulltext": true
+            },
+            "authorships": [
+                {
+                    "author_position": "first",
+                    "author": {
+                        "id": "https://openalex.org/A5030532093",
+                        "display_name": "Xueqin Lin",
+                        "orcid": "https://orcid.org/0000-0003-4894-7204"
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I96852419",
+                            "display_name": "Capital Normal University",
+                            "ror": "https://ror.org/005edt527",
+                            "country_code": "CN",
+                            "type": "education",
+                            "lineage": [
+                                "https://openalex.org/I96852419"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "CN"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Xueqin Lin",
+                    "raw_affiliation_strings": [
+                        "College of Resources Environment and Tourism, Capital Normal University, Beijing, 100048, China"
+                    ],
+                    "affiliations": [
+                        {
+                            "raw_affiliation_string": "College of Resources Environment and Tourism, Capital Normal University, Beijing, 100048, China",
+                            "institution_ids": [
+                                "https://openalex.org/I96852419"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "author_position": "middle",
+                    "author": {
+                        "id": "https://openalex.org/A5068835581",
+                        "display_name": "Yang Wang",
+                        "orcid": "https://orcid.org/0000-0002-3651-7517"
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I4210147158",
+                            "display_name": "Guangzhou Institute of Geography",
+                            "ror": "https://ror.org/03tbxt129",
+                            "country_code": "CN",
+                            "type": "facility",
+                            "lineage": [
+                                "https://openalex.org/I4210147158"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "CN"
+                    ],
+                    "is_corresponding": true,
+                    "raw_author_name": "Yang Wang",
+                    "raw_affiliation_strings": [
+                        "Guangzhou Institute of Geography, Guangzhou, 510070, China"
+                    ],
+                    "affiliations": [
+                        {
+                            "raw_affiliation_string": "Guangzhou Institute of Geography, Guangzhou, 510070, China",
+                            "institution_ids": [
+                                "https://openalex.org/I4210147158"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "author_position": "middle",
+                    "author": {
+                        "id": "https://openalex.org/A5039858263",
+                        "display_name": "Shaojian Wang",
+                        "orcid": "https://orcid.org/0000-0001-9082-8562"
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I4210160793",
+                            "display_name": "Institute of Geographic Sciences and Natural Resources Research",
+                            "ror": "https://ror.org/04t1cdb72",
+                            "country_code": "CN",
+                            "type": "facility",
+                            "lineage": [
+                                "https://openalex.org/I19820366",
+                                "https://openalex.org/I4210160793"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "CN"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Shaojian Wang",
+                    "raw_affiliation_strings": [
+                        "Institute of Geographic Sciences and Natural Resources Research, CAS, Beijing, 100101, China"
+                    ],
+                    "affiliations": [
+                        {
+                            "raw_affiliation_string": "Institute of Geographic Sciences and Natural Resources Research, CAS, Beijing, 100101, China",
+                            "institution_ids": [
+                                "https://openalex.org/I4210160793"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "author_position": "last",
+                    "author": {
+                        "id": "https://openalex.org/A5025834611",
+                        "display_name": "Dai Wang",
+                        "orcid": "https://orcid.org/0000-0001-5666-8622"
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I4210160793",
+                            "display_name": "Institute of Geographic Sciences and Natural Resources Research",
+                            "ror": "https://ror.org/04t1cdb72",
+                            "country_code": "CN",
+                            "type": "facility",
+                            "lineage": [
+                                "https://openalex.org/I19820366",
+                                "https://openalex.org/I4210160793"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "CN"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Dai Wang",
+                    "raw_affiliation_strings": [
+                        "Institute of Geographic Sciences and Natural Resources Research, CAS, Beijing, 100101, China"
+                    ],
+                    "affiliations": [
+                        {
+                            "raw_affiliation_string": "Institute of Geographic Sciences and Natural Resources Research, CAS, Beijing, 100101, China",
+                            "institution_ids": [
+                                "https://openalex.org/I4210160793"
+                            ]
+                        }
+                    ]
+                }
+            ],
+            "countries_distinct_count": 1,
+            "institutions_distinct_count": 3,
+            "corresponding_author_ids": [
+                "https://openalex.org/A5068835581"
+            ],
+            "corresponding_institution_ids": [
+                "https://openalex.org/I4210147158"
+            ],
+            "apc_list": {
+                "value": 2390,
+                "currency": "EUR",
+                "value_usd": 2990,
+                "provenance": "doaj"
+            },
+            "apc_paid": null,
+            "fwci": 4.801,
+            "has_fulltext": true,
+            "fulltext_origin": "ngrams",
+            "cited_by_count": 87,
+            "cited_by_percentile_year": {
+                "min": 98,
+                "max": 99
+            },
+            "biblio": {
+                "volume": "25",
+                "issue": "5",
+                "first_page": "545",
+                "last_page": "558"
+            },
+            "is_retracted": false,
+            "is_paratext": false,
+            "primary_topic": {
+                "id": "https://openalex.org/T10226",
+                "display_name": "Global Analysis of Ecosystem Services and Land Use",
+                "score": 0.9994,
+                "subfield": {
+                    "id": "https://openalex.org/subfields/2306",
+                    "display_name": "Global and Planetary Change"
+                },
+                "field": {
+                    "id": "https://openalex.org/fields/23",
+                    "display_name": "Environmental Science"
+                },
+                "domain": {
+                    "id": "https://openalex.org/domains/3",
+                    "display_name": "Physical Sciences"
+                }
+            },
+            "topics": [
+                {
+                    "id": "https://openalex.org/T10226",
+                    "display_name": "Global Analysis of Ecosystem Services and Land Use",
+                    "score": 0.9994,
+                    "subfield": {
+                        "id": "https://openalex.org/subfields/2306",
+                        "display_name": "Global and Planetary Change"
+                    },
+                    "field": {
+                        "id": "https://openalex.org/fields/23",
+                        "display_name": "Environmental Science"
+                    },
+                    "domain": {
+                        "id": "https://openalex.org/domains/3",
+                        "display_name": "Physical Sciences"
+                    }
+                },
+                {
+                    "id": "https://openalex.org/T13890",
+                    "display_name": "Applications of Remote Sensing in Geoscience and Agriculture",
+                    "score": 0.9844,
+                    "subfield": {
+                        "id": "https://openalex.org/subfields/1902",
+                        "display_name": "Atmospheric Science"
+                    },
+                    "field": {
+                        "id": "https://openalex.org/fields/19",
+                        "display_name": "Earth and Planetary Sciences"
+                    },
+                    "domain": {
+                        "id": "https://openalex.org/domains/3",
+                        "display_name": "Physical Sciences"
+                    }
+                },
+                {
+                    "id": "https://openalex.org/T13203",
+                    "display_name": "Land Use Change and Environmental Impact in China",
+                    "score": 0.978,
+                    "subfield": {
+                        "id": "https://openalex.org/subfields/2306",
+                        "display_name": "Global and Planetary Change"
+                    },
+                    "field": {
+                        "id": "https://openalex.org/fields/23",
+                        "display_name": "Environmental Science"
+                    },
+                    "domain": {
+                        "id": "https://openalex.org/domains/3",
+                        "display_name": "Physical Sciences"
+                    }
+                }
+            ],
+            "keywords": [
+                {
+                    "id": "https://openalex.org/keywords/urbanization",
+                    "display_name": "Urbanization",
+                    "score": 0.539489
+                }
+            ],
+            "concepts": [
+                {
+                    "id": "https://openalex.org/C39853841",
+                    "wikidata": "https://www.wikidata.org/wiki/Q161078",
+                    "display_name": "Urbanization",
+                    "level": 2,
+                    "score": 0.9685656
+                },
+                {
+                    "id": "https://openalex.org/C191935318",
+                    "wikidata": "https://www.wikidata.org/wiki/Q148",
+                    "display_name": "China",
+                    "level": 2,
+                    "score": 0.6866032
+                },
+                {
+                    "id": "https://openalex.org/C205649164",
+                    "wikidata": "https://www.wikidata.org/wiki/Q1071",
+                    "display_name": "Geography",
+                    "level": 0,
+                    "score": 0.64357847
+                },
+                {
+                    "id": "https://openalex.org/C4792198",
+                    "wikidata": "https://www.wikidata.org/wiki/Q1165944",
+                    "display_name": "Land use",
+                    "level": 2,
+                    "score": 0.54020786
+                },
+                {
+                    "id": "https://openalex.org/C26271046",
+                    "wikidata": "https://www.wikidata.org/wiki/Q187097",
+                    "display_name": "Economic geography",
+                    "level": 1,
+                    "score": 0.4782221
+                },
+                {
+                    "id": "https://openalex.org/C2908647359",
+                    "wikidata": "https://www.wikidata.org/wiki/Q2625603",
+                    "display_name": "Population",
+                    "level": 2,
+                    "score": 0.46614945
+                },
+                {
+                    "id": "https://openalex.org/C110121322",
+                    "wikidata": "https://www.wikidata.org/wiki/Q865811",
+                    "display_name": "Distribution (mathematics)",
+                    "level": 2,
+                    "score": 0.45485806
+                },
+                {
+                    "id": "https://openalex.org/C100970517",
+                    "wikidata": "https://www.wikidata.org/wiki/Q52107",
+                    "display_name": "Physical geography",
+                    "level": 1,
+                    "score": 0.3393124
+                },
+                {
+                    "id": "https://openalex.org/C50522688",
+                    "wikidata": "https://www.wikidata.org/wiki/Q189833",
+                    "display_name": "Economic growth",
+                    "level": 1,
+                    "score": 0.19229394
+                },
+                {
+                    "id": "https://openalex.org/C18903297",
+                    "wikidata": "https://www.wikidata.org/wiki/Q7150",
+                    "display_name": "Ecology",
+                    "level": 1,
+                    "score": 0.19189537
+                },
+                {
+                    "id": "https://openalex.org/C162324750",
+                    "wikidata": "https://www.wikidata.org/wiki/Q8134",
+                    "display_name": "Economics",
+                    "level": 0,
+                    "score": 0.097813904
+                },
+                {
+                    "id": "https://openalex.org/C149923435",
+                    "wikidata": "https://www.wikidata.org/wiki/Q37732",
+                    "display_name": "Demography",
+                    "level": 1,
+                    "score": 0.05469075
+                },
+                {
+                    "id": "https://openalex.org/C134306372",
+                    "wikidata": "https://www.wikidata.org/wiki/Q7754",
+                    "display_name": "Mathematical analysis",
+                    "level": 1,
+                    "score": 0.0
+                },
+                {
+                    "id": "https://openalex.org/C33923547",
+                    "wikidata": "https://www.wikidata.org/wiki/Q395",
+                    "display_name": "Mathematics",
+                    "level": 0,
+                    "score": 0.0
+                },
+                {
+                    "id": "https://openalex.org/C166957645",
+                    "wikidata": "https://www.wikidata.org/wiki/Q23498",
+                    "display_name": "Archaeology",
+                    "level": 1,
+                    "score": 0.0
+                },
+                {
+                    "id": "https://openalex.org/C144024400",
+                    "wikidata": "https://www.wikidata.org/wiki/Q21201",
+                    "display_name": "Sociology",
+                    "level": 0,
+                    "score": 0.0
+                },
+                {
+                    "id": "https://openalex.org/C86803240",
+                    "wikidata": "https://www.wikidata.org/wiki/Q420",
+                    "display_name": "Biology",
+                    "level": 0,
+                    "score": 0.0
+                }
+            ],
+            "mesh": [],
+            "locations_count": 3,
+            "locations": [
+                {
+                    "is_oa": false,
+                    "landing_page_url": "https://doi.org/10.1007/s11442-015-1186-7",
+                    "pdf_url": null,
+                    "source": {
+                        "id": "https://openalex.org/S49345018",
+                        "display_name": "Journal of Geographical Sciences/Journal of geographical sciences",
+                        "issn_l": "1009-637X",
+                        "issn": [
+                            "1009-637X",
+                            "1861-9568"
+                        ],
+                        "is_oa": false,
+                        "is_in_doaj": false,
+                        "is_core": true,
+                        "host_organization": "https://openalex.org/P4310319965",
+                        "host_organization_name": "Springer Nature",
+                        "host_organization_lineage": [
+                            "https://openalex.org/P4310319965"
+                        ],
+                        "host_organization_lineage_names": [
+                            "Springer Nature"
+                        ],
+                        "type": "journal"
+                    },
+                    "license": null,
+                    "license_id": null,
+                    "version": null,
+                    "is_accepted": false,
+                    "is_published": false
+                },
+                {
+                    "is_oa": true,
+                    "landing_page_url": "http://ir.igsnrr.ac.cn/handle/311030/38731",
+                    "pdf_url": "http://ir.igsnrr.ac.cn/bitstream/311030/38731/1/Lin-2015-Spatial%20differences.pdf",
+                    "source": null,
+                    "license": "cc-by-nc-sa",
+                    "license_id": "https://openalex.org/licenses/cc-by-nc-sa",
+                    "version": "publishedVersion",
+                    "is_accepted": true,
+                    "is_published": true
+                },
+                {
+                    "is_oa": true,
+                    "landing_page_url": "http://www.geogsci.com/EN/10.1007/s11442-015-1186-7",
+                    "pdf_url": "http://www.geogsci.com/CN/article/downloadArticleFile.do?attachType=PDF&id=36514",
+                    "source": null,
+                    "license": null,
+                    "license_id": null,
+                    "version": "publishedVersion",
+                    "is_accepted": true,
+                    "is_published": true
+                }
+            ],
+            "best_oa_location": {
+                "is_oa": true,
+                "landing_page_url": "http://ir.igsnrr.ac.cn/handle/311030/38731",
+                "pdf_url": "http://ir.igsnrr.ac.cn/bitstream/311030/38731/1/Lin-2015-Spatial%20differences.pdf",
+                "source": null,
+                "license": "cc-by-nc-sa",
+                "license_id": "https://openalex.org/licenses/cc-by-nc-sa",
+                "version": "publishedVersion",
+                "is_accepted": true,
+                "is_published": true
+            },
+            "sustainable_development_goals": [
+                {
+                    "display_name": "Sustainable cities and communities",
+                    "id": "https://metadata.un.org/sdg/11",
+                    "score": 0.8
+                }
+            ],
+            "grants": [],
+            "datasets": [],
+            "versions": [],
+            "referenced_works_count": 14,
+            "referenced_works": [
+                "https://openalex.org/W1969589719",
+                "https://openalex.org/W1975662015",
+                "https://openalex.org/W2032445183",
+                "https://openalex.org/W2040511722",
+                "https://openalex.org/W2043187873",
+                "https://openalex.org/W2054521884",
+                "https://openalex.org/W2066573497",
+                "https://openalex.org/W2079713931",
+                "https://openalex.org/W2081357582",
+                "https://openalex.org/W2085483025",
+                "https://openalex.org/W2091827044",
+                "https://openalex.org/W2143219276",
+                "https://openalex.org/W4236610278",
+                "https://openalex.org/W4251946279"
+            ],
+            "related_works": [
+                "https://openalex.org/W891751532",
+                "https://openalex.org/W3148037394",
+                "https://openalex.org/W2392907783",
+                "https://openalex.org/W2392291083",
+                "https://openalex.org/W2375489112",
+                "https://openalex.org/W2370838374",
+                "https://openalex.org/W2354222596",
+                "https://openalex.org/W2353135038",
+                "https://openalex.org/W2069814525",
+                "https://openalex.org/W1985072978"
+            ],
+            "ngrams_url": "https://api.openalex.org/works/W1976312685/ngrams",
+            "abstract_inverted_index": {
+                "Land": [
+                    0,
+                    123
+                ],
+                "urbanization": [
+                    1,
+                    16,
+                    58,
+                    74,
+                    92,
+                    124,
+                    147,
+                    177,
+                    189,
+                    200,
+                    215,
+                    241,
+                    329
+                ],
+                "plays": [
+                    2
+                ],
+                "an": [
+                    3
+                ],
+                "important": [
+                    4,
+                    302
+                ],
+                "supporting": [
+                    5
+                ],
+                "and": [
+                    6,
+                    12,
+                    19,
+                    33,
+                    48,
+                    54,
+                    69,
+                    96,
+                    100,
+                    158,
+                    223,
+                    246,
+                    273,
+                    279,
+                    299,
+                    321
+                ],
+                "restriction": [
+                    7
+                ],
+                "role": [
+                    8
+                ],
+                "in": [
+                    9,
+                    17,
+                    75,
+                    78,
+                    125,
+                    155,
+                    162,
+                    178,
+                    242,
+                    295,
+                    330
+                ],
+                "the": [
+                    10,
+                    29,
+                    39,
+                    45,
+                    52,
+                    63,
+                    97,
+                    112,
+                    134,
+                    137,
+                    163,
+                    168,
+                    172,
+                    179,
+                    185,
+                    206,
+                    228,
+                    232,
+                    257,
+                    260,
+                    262,
+                    265,
+                    277,
+                    282,
+                    288,
+                    305,
+                    311,
+                    324
+                ],
+                "rapid": [
+                    11,
+                    90,
+                    145
+                ],
+                "sustainable": [
+                    13
+                ],
+                "development": [
+                    14
+                ],
+                "of": [
+                    15,
+                    56,
+                    67,
+                    72,
+                    87,
+                    104,
+                    114,
+                    152,
+                    175,
+                    187,
+                    198,
+                    208,
+                    213,
+                    219,
+                    253,
+                    259,
+                    268,
+                    276,
+                    284,
+                    291,
+                    307,
+                    327,
+                    334
+                ],
+                "China,": [
+                    18,
+                    331
+                ],
+                "it": [
+                    20
+                ],
+                "shows": [
+                    21,
+                    127
+                ],
+                "distinctive": [
+                    22
+                ],
+                "spatial": [
+                    23,
+                    64,
+                    85,
+                    102,
+                    130
+                ],
+                "heterogeneity.": [
+                    24
+                ],
+                "Applying": [
+                    25
+                ],
+                "urban": [
+                    26,
+                    34,
+                    297,
+                    316
+                ],
+                "area": [
+                    27,
+                    37
+                ],
+                "as": [
+                    28,
+                    38,
+                    120
+                ],
+                "basic": [
+                    30
+                ],
+                "research": [
+                    31
+                ],
+                "unit": [
+                    32
+                ],
+                "construction": [
+                    35
+                ],
+                "land": [
+                    36,
+                    57,
+                    73,
+                    91,
+                    106,
+                    140,
+                    146,
+                    176,
+                    188,
+                    199,
+                    214,
+                    235,
+                    240,
+                    286,
+                    292,
+                    309,
+                    328
+                ],
+                "core": [
+                    40
+                ],
+                "indicator,": [
+                    41
+                ],
+                "this": [
+                    42
+                ],
+                "paper": [
+                    43
+                ],
+                "establishes": [
+                    44
+                ],
+                "conceptual": [
+                    46
+                ],
+                "framework": [
+                    47
+                ],
+                "calculation": [
+                    49
+                ],
+                "method": [
+                    50
+                ],
+                "for": [
+                    51
+                ],
+                "quantity": [
+                    53,
+                    174,
+                    186
+                ],
+                "rate": [
+                    55,
+                    99,
+                    197,
+                    212,
+                    252
+                ],
+                "process.": [
+                    59
+                ],
+                "The": [
+                    60,
+                    84,
+                    116,
+                    132,
+                    142,
+                    195,
+                    211,
+                    255
+                ],
+                "study": [
+                    61
+                ],
+                "evaluates": [
+                    62
+                ],
+                "differentiation": [
+                    65,
+                    220
+                ],
+                "pattern": [
+                    66,
+                    151,
+                    218
+                ],
+                "absolute": [
+                    68
+                ],
+                "relative": [
+                    70
+                ],
+                "process": [
+                    71,
+                    93
+                ],
+                "658": [
+                    76
+                ],
+                "cities": [
+                    77,
+                    88,
+                    143,
+                    181,
+                    275,
+                    300,
+                    333
+                ],
+                "China": [
+                    79,
+                    126,
+                    243
+                ],
+                "from": [
+                    80
+                ],
+                "2000": [
+                    81
+                ],
+                "to": [
+                    82
+                ],
+                "2010.": [
+                    83
+                ],
+                "distribution": [
+                    86,
+                    154,
+                    161
+                ],
+                "with": [
+                    89,
+                    111,
+                    144,
+                    239,
+                    248
+                ],
+                "is": [
+                    94,
+                    190,
+                    287,
+                    310
+                ],
+                "discussed,": [
+                    95
+                ],
+                "contribution": [
+                    98,
+                    251
+                ],
+                "its": [
+                    101,
+                    139
+                ],
+                "heterogeneity": [
+                    103
+                ],
+                "major": [
+                    105
+                ],
+                "use": [
+                    107,
+                    236
+                ],
+                "types": [
+                    108,
+                    237
+                ],
+                "are": [
+                    109,
+                    119,
+                    244,
+                    323
+                ],
+                "examined": [
+                    110
+                ],
+                "aid": [
+                    113
+                ],
+                "GIS.": [
+                    115
+                ],
+                "main": [
+                    117,
+                    312
+                ],
+                "conclusions": [
+                    118
+                ],
+                "follows:": [
+                    121
+                ],
+                "(1)": [
+                    122
+                ],
+                "a": [
+                    128,
+                    149,
+                    159,
+                    217,
+                    249
+                ],
+                "clear": [
+                    129
+                ],
+                "difference.": [
+                    131
+                ],
+                "greater": [
+                    133,
+                    256
+                ],
+                "city": [
+                    135
+                ],
+                "scale,": [
+                    136
+                ],
+                "faster": [
+                    138,
+                    204
+                ],
+                "urbanization.": [
+                    141,
+                    210
+                ],
+                "show": [
+                    148
+                ],
+                "significant": [
+                    150,
+                    264
+                ],
+                "central": [
+                    153,
+                    280
+                ],
+                "coastal": [
+                    156,
+                    222,
+                    296
+                ],
+                "regions": [
+                    157
+                ],
+                "scattered": [
+                    160
+                ],
+                "inland": [
+                    164
+                ],
+                "regions.": [
+                    165
+                ],
+                "(2)": [
+                    166
+                ],
+                "Over": [
+                    167
+                ],
+                "last": [
+                    169
+                ],
+                "10": [
+                    170,
+                    230
+                ],
+                "years,": [
+                    171,
+                    231
+                ],
+                "average": [
+                    173,
+                    196
+                ],
+                "656": [
+                    180
+                ],
+                "was": [
+                    182,
+                    201
+                ],
+                "3.82": [
+                    183
+                ],
+                "km2,": [
+                    184
+                ],
+                "differentiated": [
+                    191
+                ],
+                "by": [
+                    192
+                ],
+                "administrative": [
+                    193
+                ],
+                "grade.": [
+                    194
+                ],
+                "6.89%,": [
+                    202
+                ],
+                "obviously": [
+                    203
+                ],
+                "than": [
+                    205
+                ],
+                "speed": [
+                    207
+                ],
+                "population": [
+                    209,
+                    317
+                ],
+                "reveals": [
+                    216
+                ],
+                "between": [
+                    221
+                ],
+                "other": [
+                    224
+                ],
+                "cities.": [
+                    225
+                ],
+                "(3)": [
+                    226
+                ],
+                "In": [
+                    227,
+                    271
+                ],
+                "past": [
+                    229
+                ],
+                "two": [
+                    233
+                ],
+                "primary": [
+                    234,
+                    289
+                ],
+                "associated": [
+                    238
+                ],
+                "residential": [
+                    245,
+                    285
+                ],
+                "industrial,": [
+                    247
+                ],
+                "combined": [
+                    250
+                ],
+                "52.49%.": [
+                    254
+                ],
+                "scale": [
+                    258
+                ],
+                "city,": [
+                    261
+                ],
+                "more": [
+                    263
+                ],
+                "driving": [
+                    266
+                ],
+                "effect": [
+                    267
+                ],
+                "industrial": [
+                    269,
+                    308,
+                    319
+                ],
+                "land.": [
+                    270
+                ],
+                "small-": [
+                    272
+                ],
+                "medium-scale": [
+                    274
+                ],
+                "western": [
+                    278
+                ],
+                "regions,": [
+                    281
+                ],
+                "growth": [
+                    283,
+                    306,
+                    320
+                ],
+                "driver": [
+                    290
+                ],
+                "urbanization,": [
+                    293
+                ],
+                "while": [
+                    294
+                ],
+                "agglomerations": [
+                    298
+                ],
+                "on": [
+                    301
+                ],
+                "communication": [
+                    303
+                ],
+                "axes,": [
+                    304
+                ],
+                "driver.": [
+                    313
+                ],
+                "(4)": [
+                    314
+                ],
+                "Overall,": [
+                    315
+                ],
+                "agglomeration,": [
+                    318
+                ],
+                "investment": [
+                    322
+                ],
+                "three": [
+                    325
+                ],
+                "drivers": [
+                    326
+                ],
+                "but": [
+                    332
+                ],
+                "different": [
+                    335,
+                    338
+                ],
+                "scales": [
+                    336
+                ],
+                "have": [
+                    337
+                ],
+                "drivers.": [
+                    339
+                ]
+            },
+            "cited_by_api_url": "https://api.openalex.org/works?filter=cites:W1976312685",
+            "counts_by_year": [
+                {
+                    "year": 2024,
+                    "cited_by_count": 6
+                },
+                {
+                    "year": 2023,
+                    "cited_by_count": 18
+                },
+                {
+                    "year": 2022,
+                    "cited_by_count": 10
+                },
+                {
+                    "year": 2021,
+                    "cited_by_count": 12
+                },
+                {
+                    "year": 2020,
+                    "cited_by_count": 12
+                },
+                {
+                    "year": 2019,
+                    "cited_by_count": 5
+                },
+                {
+                    "year": 2018,
+                    "cited_by_count": 11
+                },
+                {
+                    "year": 2017,
+                    "cited_by_count": 5
+                },
+                {
+                    "year": 2016,
+                    "cited_by_count": 7
+                },
+                {
+                    "year": 2015,
+                    "cited_by_count": 1
+                }
+            ],
+            "updated_date": "2024-06-26T14:18:29.003105",
+            "created_date": "2016-06-24"
+        },
+        {
+            "id": "https://openalex.org/W1985355269",
+            "doi": "https://doi.org/10.1080/15325008.2013.862325",
+            "title": "A Review of Active Management for Distribution Networks: Current Status and Future Development Trends",
+            "display_name": "A Review of Active Management for Distribution Networks: Current Status and Future Development Trends",
+            "publication_year": 2014,
+            "publication_date": "2014-02-05",
+            "ids": {
+                "openalex": "https://openalex.org/W1985355269",
+                "doi": "https://doi.org/10.1080/15325008.2013.862325",
+                "mag": "1985355269"
+            },
+            "language": "en",
+            "primary_location": {
+                "is_oa": true,
+                "landing_page_url": "https://doi.org/10.1080/15325008.2013.862325",
+                "pdf_url": "https://www.tandfonline.com/doi/pdf/10.1080/15325008.2013.862325?needAccess=true",
+                "source": {
+                    "id": "https://openalex.org/S37096616",
+                    "display_name": "Electric power components and systems",
+                    "issn_l": "1532-5008",
+                    "issn": [
+                        "1532-5008",
+                        "1532-5016"
+                    ],
+                    "is_oa": false,
+                    "is_in_doaj": false,
+                    "host_organization": "https://openalex.org/P4310320547",
+                    "host_organization_name": "Taylor & Francis",
+                    "host_organization_lineage": [
+                        "https://openalex.org/P4310320547"
+                    ],
+                    "host_organization_lineage_names": [
+                        "Taylor & Francis"
+                    ],
+                    "type": "journal"
+                },
+                "license": null,
+                "license_id": null,
+                "version": "publishedVersion",
+                "is_accepted": true,
+                "is_published": true
+            },
+            "type": "review",
+            "type_crossref": "journal-article",
+            "indexed_in": [
+                "crossref"
+            ],
+            "open_access": {
+                "is_oa": true,
+                "oa_status": "bronze",
+                "oa_url": "https://www.tandfonline.com/doi/pdf/10.1080/15325008.2013.862325?needAccess=true",
+                "any_repository_has_fulltext": true
+            },
+            "authorships": [
+                {
+                    "author_position": "first",
+                    "author": {
+                        "id": "https://openalex.org/A5084170111",
+                        "display_name": "Junhui Zhao",
+                        "orcid": "https://orcid.org/0000-0002-7090-4297"
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I185443292",
+                            "display_name": "Wayne State University",
+                            "ror": "https://ror.org/01070mq45",
+                            "country_code": "US",
+                            "type": "education",
+                            "lineage": [
+                                "https://openalex.org/I185443292"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "US"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Junhui Zhao",
+                    "raw_affiliation_strings": [
+                        "Electrical and Computer Engineering Department, Wayne State University, Detroit, Michigan, USA"
+                    ],
+                    "affiliations": [
+                        {
+                            "raw_affiliation_string": "Electrical and Computer Engineering Department, Wayne State University, Detroit, Michigan, USA",
+                            "institution_ids": [
+                                "https://openalex.org/I185443292"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "author_position": "middle",
+                    "author": {
+                        "id": "https://openalex.org/A5029318873",
+                        "display_name": "Caisheng Wang",
+                        "orcid": null
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I185443292",
+                            "display_name": "Wayne State University",
+                            "ror": "https://ror.org/01070mq45",
+                            "country_code": "US",
+                            "type": "education",
+                            "lineage": [
+                                "https://openalex.org/I185443292"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "US"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Caisheng Wang",
+                    "raw_affiliation_strings": [
+                        "Electrical and Computer Engineering Department, Wayne State University, Detroit, Michigan, USA"
+                    ],
+                    "affiliations": [
+                        {
+                            "raw_affiliation_string": "Electrical and Computer Engineering Department, Wayne State University, Detroit, Michigan, USA",
+                            "institution_ids": [
+                                "https://openalex.org/I185443292"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "author_position": "middle",
+                    "author": {
+                        "id": "https://openalex.org/A5012729267",
+                        "display_name": "Bo Zhao",
+                        "orcid": "https://orcid.org/0000-0003-3462-6952"
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I4210106357",
+                            "display_name": "Zhejiang Energy Research Institute",
+                            "ror": "https://ror.org/01fqrb109",
+                            "country_code": "CN",
+                            "type": "facility",
+                            "lineage": [
+                                "https://openalex.org/I4210106357"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "CN"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Bo Zhao",
+                    "raw_affiliation_strings": [
+                        "Zhejiang Electric Power Test and Research Institute , Hangzhou , Zhejiang , China"
+                    ],
+                    "affiliations": [
+                        {
+                            "raw_affiliation_string": "Zhejiang Electric Power Test and Research Institute , Hangzhou , Zhejiang , China",
+                            "institution_ids": [
+                                "https://openalex.org/I4210106357"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "author_position": "middle",
+                    "author": {
+                        "id": "https://openalex.org/A5009172382",
+                        "display_name": "Feng Lin",
+                        "orcid": "https://orcid.org/0000-0002-6831-4458"
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I185443292",
+                            "display_name": "Wayne State University",
+                            "ror": "https://ror.org/01070mq45",
+                            "country_code": "US",
+                            "type": "education",
+                            "lineage": [
+                                "https://openalex.org/I185443292"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "US"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Feng Lin",
+                    "raw_affiliation_strings": [
+                        "Electrical and Computer Engineering Department, Wayne State University, Detroit, Michigan, USA"
+                    ],
+                    "affiliations": [
+                        {
+                            "raw_affiliation_string": "Electrical and Computer Engineering Department, Wayne State University, Detroit, Michigan, USA",
+                            "institution_ids": [
+                                "https://openalex.org/I185443292"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "author_position": "middle",
+                    "author": {
+                        "id": "https://openalex.org/A5048201329",
+                        "display_name": "Quan Zhou",
+                        "orcid": "https://orcid.org/0000-0002-2330-239X"
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I158842170",
+                            "display_name": "Chongqing University",
+                            "ror": "https://ror.org/023rhb549",
+                            "country_code": "CN",
+                            "type": "education",
+                            "lineage": [
+                                "https://openalex.org/I158842170"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "CN"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Quan Zhou",
+                    "raw_affiliation_strings": [
+                        "State Key Laboratory of Power Transmission Equipment & System Security and New Technology, Chongqing University , Chongqing, China"
+                    ],
+                    "affiliations": [
+                        {
+                            "raw_affiliation_string": "State Key Laboratory of Power Transmission Equipment & System Security and New Technology, Chongqing University , Chongqing, China",
+                            "institution_ids": [
+                                "https://openalex.org/I158842170"
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "author_position": "last",
+                    "author": {
+                        "id": "https://openalex.org/A5068835581",
+                        "display_name": "Yang Wang",
+                        "orcid": "https://orcid.org/0000-0002-3651-7517"
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I158842170",
+                            "display_name": "Chongqing University",
+                            "ror": "https://ror.org/023rhb549",
+                            "country_code": "CN",
+                            "type": "education",
+                            "lineage": [
+                                "https://openalex.org/I158842170"
+                            ]
+                        },
+                        {
+                            "id": "https://openalex.org/I185443292",
+                            "display_name": "Wayne State University",
+                            "ror": "https://ror.org/01070mq45",
+                            "country_code": "US",
+                            "type": "education",
+                            "lineage": [
+                                "https://openalex.org/I185443292"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "CN",
+                        "US"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Yang Wang",
+                    "raw_affiliation_strings": [
+                        "Electrical and Computer Engineering Department , Wayne State University , Detroit , Michigan , USA ; State Key Laboratory of Power Transmission Equipment and System Security and New Technology , Chongqing University , Chongqing , China"
+                    ],
+                    "affiliations": [
+                        {
+                            "raw_affiliation_string": "Electrical and Computer Engineering Department , Wayne State University , Detroit , Michigan , USA ; State Key Laboratory of Power Transmission Equipment and System Security and New Technology , Chongqing University , Chongqing , China",
+                            "institution_ids": [
+                                "https://openalex.org/I158842170",
+                                "https://openalex.org/I185443292"
+                            ]
+                        }
+                    ]
+                }
+            ],
+            "countries_distinct_count": 2,
+            "institutions_distinct_count": 3,
+            "corresponding_author_ids": [],
+            "corresponding_institution_ids": [],
+            "apc_list": null,
+            "apc_paid": null,
+            "fwci": 0.965,
+            "has_fulltext": true,
+            "fulltext_origin": "ngrams",
+            "cited_by_count": 86,
+            "cited_by_percentile_year": {
+                "min": 98,
+                "max": 99
+            },
+            "biblio": {
+                "volume": "42",
+                "issue": "3-4",
+                "first_page": "280",
+                "last_page": "293"
+            },
+            "is_retracted": false,
+            "is_paratext": false,
+            "primary_topic": {
+                "id": "https://openalex.org/T13183",
+                "display_name": "Islanding Detection Methods for Distributed Generations",
+                "score": 0.9999,
+                "subfield": {
+                    "id": "https://openalex.org/subfields/2208",
+                    "display_name": "Electrical and Electronic Engineering"
+                },
+                "field": {
+                    "id": "https://openalex.org/fields/22",
+                    "display_name": "Engineering"
+                },
+                "domain": {
+                    "id": "https://openalex.org/domains/3",
+                    "display_name": "Physical Sciences"
+                }
+            },
+            "topics": [
+                {
+                    "id": "https://openalex.org/T13183",
+                    "display_name": "Islanding Detection Methods for Distributed Generations",
+                    "score": 0.9999,
+                    "subfield": {
+                        "id": "https://openalex.org/subfields/2208",
+                        "display_name": "Electrical and Electronic Engineering"
+                    },
+                    "field": {
+                        "id": "https://openalex.org/fields/22",
+                        "display_name": "Engineering"
+                    },
+                    "domain": {
+                        "id": "https://openalex.org/domains/3",
+                        "display_name": "Physical Sciences"
+                    }
+                },
+                {
+                    "id": "https://openalex.org/T10223",
+                    "display_name": "Control and Synchronization in Microgrid Systems",
+                    "score": 0.9998,
+                    "subfield": {
+                        "id": "https://openalex.org/subfields/2207",
+                        "display_name": "Control and Systems Engineering"
+                    },
+                    "field": {
+                        "id": "https://openalex.org/fields/22",
+                        "display_name": "Engineering"
+                    },
+                    "domain": {
+                        "id": "https://openalex.org/domains/3",
+                        "display_name": "Physical Sciences"
+                    }
+                },
+                {
+                    "id": "https://openalex.org/T10454",
+                    "display_name": "Integration of Distributed Generation in Power Systems",
+                    "score": 0.9996,
+                    "subfield": {
+                        "id": "https://openalex.org/subfields/2208",
+                        "display_name": "Electrical and Electronic Engineering"
+                    },
+                    "field": {
+                        "id": "https://openalex.org/fields/22",
+                        "display_name": "Engineering"
+                    },
+                    "domain": {
+                        "id": "https://openalex.org/domains/3",
+                        "display_name": "Physical Sciences"
+                    }
+                }
+            ],
+            "keywords": [
+                {
+                    "id": "https://openalex.org/keywords/distributed-generation",
+                    "display_name": "Distributed Generation",
+                    "score": 0.528525
+                }
+            ],
+            "concepts": [
+                {
+                    "id": "https://openalex.org/C102665078",
+                    "wikidata": "https://www.wikidata.org/wiki/Q4677571",
+                    "display_name": "Active networking",
+                    "level": 2,
+                    "score": 0.50304526
+                },
+                {
+                    "id": "https://openalex.org/C2986056383",
+                    "wikidata": "https://www.wikidata.org/wiki/Q556030",
+                    "display_name": "Power flow",
+                    "level": 4,
+                    "score": 0.4939652
+                },
+                {
+                    "id": "https://openalex.org/C110121322",
+                    "wikidata": "https://www.wikidata.org/wiki/Q865811",
+                    "display_name": "Distribution (mathematics)",
+                    "level": 2,
+                    "score": 0.49083763
+                },
+                {
+                    "id": "https://openalex.org/C188573790",
+                    "wikidata": "https://www.wikidata.org/wiki/Q12705",
+                    "display_name": "Renewable energy",
+                    "level": 2,
+                    "score": 0.48246887
+                },
+                {
+                    "id": "https://openalex.org/C544738498",
+                    "wikidata": "https://www.wikidata.org/wiki/Q861135",
+                    "display_name": "Distributed generation",
+                    "level": 3,
+                    "score": 0.4807353
+                },
+                {
+                    "id": "https://openalex.org/C2775924081",
+                    "wikidata": "https://www.wikidata.org/wiki/Q55608371",
+                    "display_name": "Control (management)",
+                    "level": 2,
+                    "score": 0.4168298
+                },
+                {
+                    "id": "https://openalex.org/C41008148",
+                    "wikidata": "https://www.wikidata.org/wiki/Q21198",
+                    "display_name": "Computer science",
+                    "level": 0,
+                    "score": 0.41377994
+                },
+                {
+                    "id": "https://openalex.org/C127413603",
+                    "wikidata": "https://www.wikidata.org/wiki/Q11023",
+                    "display_name": "Engineering",
+                    "level": 0,
+                    "score": 0.38392502
+                },
+                {
+                    "id": "https://openalex.org/C112930515",
+                    "wikidata": "https://www.wikidata.org/wiki/Q4389547",
+                    "display_name": "Risk analysis (engineering)",
+                    "level": 1,
+                    "score": 0.34788668
+                },
+                {
+                    "id": "https://openalex.org/C201995342",
+                    "wikidata": "https://www.wikidata.org/wiki/Q682496",
+                    "display_name": "Systems engineering",
+                    "level": 1,
+                    "score": 0.34530425
+                },
+                {
+                    "id": "https://openalex.org/C76155785",
+                    "wikidata": "https://www.wikidata.org/wiki/Q418",
+                    "display_name": "Telecommunications",
+                    "level": 1,
+                    "score": 0.32416123
+                },
+                {
+                    "id": "https://openalex.org/C163258240",
+                    "wikidata": "https://www.wikidata.org/wiki/Q25342",
+                    "display_name": "Power (physics)",
+                    "level": 2,
+                    "score": 0.2615788
+                },
+                {
+                    "id": "https://openalex.org/C89227174",
+                    "wikidata": "https://www.wikidata.org/wiki/Q2388981",
+                    "display_name": "Electric power system",
+                    "level": 3,
+                    "score": 0.24390915
+                },
+                {
+                    "id": "https://openalex.org/C144133560",
+                    "wikidata": "https://www.wikidata.org/wiki/Q4830453",
+                    "display_name": "Business",
+                    "level": 0,
+                    "score": 0.17911527
+                },
+                {
+                    "id": "https://openalex.org/C119599485",
+                    "wikidata": "https://www.wikidata.org/wiki/Q43035",
+                    "display_name": "Electrical engineering",
+                    "level": 1,
+                    "score": 0.17523643
+                },
+                {
+                    "id": "https://openalex.org/C134306372",
+                    "wikidata": "https://www.wikidata.org/wiki/Q7754",
+                    "display_name": "Mathematical analysis",
+                    "level": 1,
+                    "score": 0.0
+                },
+                {
+                    "id": "https://openalex.org/C121332964",
+                    "wikidata": "https://www.wikidata.org/wiki/Q413",
+                    "display_name": "Physics",
+                    "level": 0,
+                    "score": 0.0
+                },
+                {
+                    "id": "https://openalex.org/C33923547",
+                    "wikidata": "https://www.wikidata.org/wiki/Q395",
+                    "display_name": "Mathematics",
+                    "level": 0,
+                    "score": 0.0
+                },
+                {
+                    "id": "https://openalex.org/C62520636",
+                    "wikidata": "https://www.wikidata.org/wiki/Q944",
+                    "display_name": "Quantum mechanics",
+                    "level": 1,
+                    "score": 0.0
+                },
+                {
+                    "id": "https://openalex.org/C154945302",
+                    "wikidata": "https://www.wikidata.org/wiki/Q11660",
+                    "display_name": "Artificial intelligence",
+                    "level": 1,
+                    "score": 0.0
+                }
+            ],
+            "mesh": [],
+            "locations_count": 2,
+            "locations": [
+                {
+                    "is_oa": true,
+                    "landing_page_url": "https://doi.org/10.1080/15325008.2013.862325",
+                    "pdf_url": "https://www.tandfonline.com/doi/pdf/10.1080/15325008.2013.862325?needAccess=true",
+                    "source": {
+                        "id": "https://openalex.org/S37096616",
+                        "display_name": "Electric power components and systems",
+                        "issn_l": "1532-5008",
+                        "issn": [
+                            "1532-5008",
+                            "1532-5016"
+                        ],
+                        "is_oa": false,
+                        "is_in_doaj": false,
+                        "host_organization": "https://openalex.org/P4310320547",
+                        "host_organization_name": "Taylor & Francis",
+                        "host_organization_lineage": [
+                            "https://openalex.org/P4310320547"
+                        ],
+                        "host_organization_lineage_names": [
+                            "Taylor & Francis"
+                        ],
+                        "type": "journal"
+                    },
+                    "license": null,
+                    "license_id": null,
+                    "version": "publishedVersion",
+                    "is_accepted": true,
+                    "is_published": true
+                },
+                {
+                    "is_oa": true,
+                    "landing_page_url": "https://digitalcommons.newhaven.edu/cgi/viewcontent.cgi?article=1041&context=electricalcomputerengineering-facpubs",
+                    "pdf_url": "https://digitalcommons.newhaven.edu/cgi/viewcontent.cgi?article=1041&context=electricalcomputerengineering-facpubs",
+                    "source": {
+                        "id": "https://openalex.org/S4377196522",
+                        "display_name": "Digital Commons - New Heaven (University of New Haven)",
+                        "issn_l": null,
+                        "issn": null,
+                        "is_oa": false,
+                        "is_in_doaj": false,
+                        "host_organization": "https://openalex.org/I40253897",
+                        "host_organization_name": "University of New Haven",
+                        "host_organization_lineage": [
+                            "https://openalex.org/I40253897"
+                        ],
+                        "host_organization_lineage_names": [
+                            "University of New Haven"
+                        ],
+                        "type": "repository"
+                    },
+                    "license": null,
+                    "license_id": null,
+                    "version": "submittedVersion",
+                    "is_accepted": false,
+                    "is_published": false
+                }
+            ],
+            "best_oa_location": {
+                "is_oa": true,
+                "landing_page_url": "https://doi.org/10.1080/15325008.2013.862325",
+                "pdf_url": "https://www.tandfonline.com/doi/pdf/10.1080/15325008.2013.862325?needAccess=true",
+                "source": {
+                    "id": "https://openalex.org/S37096616",
+                    "display_name": "Electric power components and systems",
+                    "issn_l": "1532-5008",
+                    "issn": [
+                        "1532-5008",
+                        "1532-5016"
+                    ],
+                    "is_oa": false,
+                    "is_in_doaj": false,
+                    "host_organization": "https://openalex.org/P4310320547",
+                    "host_organization_name": "Taylor & Francis",
+                    "host_organization_lineage": [
+                        "https://openalex.org/P4310320547"
+                    ],
+                    "host_organization_lineage_names": [
+                        "Taylor & Francis"
+                    ],
+                    "type": "journal"
+                },
+                "license": null,
+                "license_id": null,
+                "version": "publishedVersion",
+                "is_accepted": true,
+                "is_published": true
+            },
+            "sustainable_development_goals": [
+                {
+                    "display_name": "Affordable and clean energy",
+                    "id": "https://metadata.un.org/sdg/7",
+                    "score": 0.58
+                }
+            ],
+            "grants": [],
+            "datasets": [],
+            "versions": [],
+            "referenced_works_count": 105,
+            "referenced_works": [
+                "https://openalex.org/W106711868",
+                "https://openalex.org/W1504052325",
+                "https://openalex.org/W1964031948",
+                "https://openalex.org/W1965357750",
+                "https://openalex.org/W1969526018",
+                "https://openalex.org/W1978223725",
+                "https://openalex.org/W1979175673",
+                "https://openalex.org/W1980594093",
+                "https://openalex.org/W1988115593",
+                "https://openalex.org/W1991873408",
+                "https://openalex.org/W1992660276",
+                "https://openalex.org/W1994631327",
+                "https://openalex.org/W1996480943",
+                "https://openalex.org/W2010898838",
+                "https://openalex.org/W2015935831",
+                "https://openalex.org/W2016181691",
+                "https://openalex.org/W2017727120",
+                "https://openalex.org/W2020448860",
+                "https://openalex.org/W2031072760",
+                "https://openalex.org/W2031464736",
+                "https://openalex.org/W2037171736",
+                "https://openalex.org/W2038872716",
+                "https://openalex.org/W2039255778",
+                "https://openalex.org/W2043282011",
+                "https://openalex.org/W2045894813",
+                "https://openalex.org/W2047157271",
+                "https://openalex.org/W2057191048",
+                "https://openalex.org/W2060128331",
+                "https://openalex.org/W2060472803",
+                "https://openalex.org/W2063092822",
+                "https://openalex.org/W2066148277",
+                "https://openalex.org/W2074228115",
+                "https://openalex.org/W2077503670",
+                "https://openalex.org/W2077567753",
+                "https://openalex.org/W2078729544",
+                "https://openalex.org/W2078988743",
+                "https://openalex.org/W2080119632",
+                "https://openalex.org/W2080560122",
+                "https://openalex.org/W2083392677",
+                "https://openalex.org/W2086834641",
+                "https://openalex.org/W2087279961",
+                "https://openalex.org/W2093194860",
+                "https://openalex.org/W2095316627",
+                "https://openalex.org/W2095756885",
+                "https://openalex.org/W2099964700",
+                "https://openalex.org/W2101746473",
+                "https://openalex.org/W2101836934",
+                "https://openalex.org/W2102777929",
+                "https://openalex.org/W2102960116",
+                "https://openalex.org/W2103492872",
+                "https://openalex.org/W2105110304",
+                "https://openalex.org/W2105246401",
+                "https://openalex.org/W2105386180",
+                "https://openalex.org/W2106221638",
+                "https://openalex.org/W2107486937",
+                "https://openalex.org/W2107991856",
+                "https://openalex.org/W2108247197",
+                "https://openalex.org/W2108713391",
+                "https://openalex.org/W2110196981",
+                "https://openalex.org/W2110699984",
+                "https://openalex.org/W2111212237",
+                "https://openalex.org/W2112453186",
+                "https://openalex.org/W2114195676",
+                "https://openalex.org/W2117694563",
+                "https://openalex.org/W2119460076",
+                "https://openalex.org/W2120497914",
+                "https://openalex.org/W2120602407",
+                "https://openalex.org/W2121052353",
+                "https://openalex.org/W2121125013",
+                "https://openalex.org/W2121786701",
+                "https://openalex.org/W2122611676",
+                "https://openalex.org/W2123045155",
+                "https://openalex.org/W2125135194",
+                "https://openalex.org/W2128669274",
+                "https://openalex.org/W2132755931",
+                "https://openalex.org/W2133518073",
+                "https://openalex.org/W2134629828",
+                "https://openalex.org/W2135786867",
+                "https://openalex.org/W2135797872",
+                "https://openalex.org/W2142871505",
+                "https://openalex.org/W2143022361",
+                "https://openalex.org/W2146711412",
+                "https://openalex.org/W2147124495",
+                "https://openalex.org/W2151903076",
+                "https://openalex.org/W2153339991",
+                "https://openalex.org/W2155097356",
+                "https://openalex.org/W2155891432",
+                "https://openalex.org/W2158663644",
+                "https://openalex.org/W2161362625",
+                "https://openalex.org/W2161591076",
+                "https://openalex.org/W2162802928",
+                "https://openalex.org/W2164802766",
+                "https://openalex.org/W2165738459",
+                "https://openalex.org/W2165969153",
+                "https://openalex.org/W2167315935",
+                "https://openalex.org/W2167374930",
+                "https://openalex.org/W2170726229",
+                "https://openalex.org/W2173265528",
+                "https://openalex.org/W2295431974",
+                "https://openalex.org/W2296006014",
+                "https://openalex.org/W2765056174",
+                "https://openalex.org/W2899741069",
+                "https://openalex.org/W4230649865",
+                "https://openalex.org/W4237083907",
+                "https://openalex.org/W4241200640"
+            ],
+            "related_works": [
+                "https://openalex.org/W4285489651",
+                "https://openalex.org/W4221107878",
+                "https://openalex.org/W3097919110",
+                "https://openalex.org/W3017124762",
+                "https://openalex.org/W2943443863",
+                "https://openalex.org/W2606753762",
+                "https://openalex.org/W2347116682",
+                "https://openalex.org/W2021194995",
+                "https://openalex.org/W2009070196",
+                "https://openalex.org/W1518483596"
+            ],
+            "ngrams_url": "https://api.openalex.org/works/W1985355269/ngrams",
+            "abstract_inverted_index": {
+                "Abstract": [
+                    0
+                ],
+                "Driven": [
+                    1
+                ],
+                "by": [
+                    2,
+                    6,
+                    15,
+                    78
+                ],
+                "smart": [
+                    3
+                ],
+                "distribution": [
+                    4,
+                    25,
+                    48,
+                    63,
+                    93,
+                    122
+                ],
+                "technologies,": [
+                    5
+                ],
+                "the": [
+                    7,
+                    16,
+                    43,
+                    60,
+                    82
+                ],
+                "widespread": [
+                    8
+                ],
+                "use": [
+                    9
+                ],
+                "of": [
+                    10,
+                    18,
+                    35,
+                    46,
+                    56,
+                    62,
+                    81,
+                    85,
+                    106,
+                    121
+                ],
+                "distributed": [
+                    11,
+                    36,
+                    40
+                ],
+                "generation": [
+                    12,
+                    41
+                ],
+                "sources,": [
+                    13
+                ],
+                "and": [
+                    14,
+                    89,
+                    109,
+                    113
+                ],
+                "injection": [
+                    17
+                ],
+                "new": [
+                    19
+                ],
+                "loads,": [
+                    20
+                ],
+                "such": [
+                    21
+                ],
+                "as": [
+                    22
+                ],
+                "electric": [
+                    23,
+                    57
+                ],
+                "vehicles,": [
+                    24
+                ],
+                "networks": [
+                    26,
+                    64
+                ],
+                "are": [
+                    27
+                ],
+                "evolving": [
+                    28
+                ],
+                "from": [
+                    29,
+                    50
+                ],
+                "passive": [
+                    30
+                ],
+                "to": [
+                    31,
+                    52,
+                    75,
+                    91,
+                    117
+                ],
+                "active.": [
+                    32
+                ],
+                "The": [
+                    33,
+                    54
+                ],
+                "integration": [
+                    34
+                ],
+                "generation,": [
+                    37
+                ],
+                "including": [
+                    38
+                ],
+                "renewable": [
+                    39
+                ],
+                "changes": [
+                    42
+                ],
+                "power": [
+                    44
+                ],
+                "flow": [
+                    45
+                ],
+                "a": [
+                    47,
+                    103
+                ],
+                "network": [
+                    49,
+                    72,
+                    94
+                ],
+                "unidirectional": [
+                    51
+                ],
+                "bi-directional.": [
+                    53
+                ],
+                "adoption": [
+                    55
+                ],
+                "vehicles": [
+                    58
+                ],
+                "makes": [
+                    59
+                ],
+                "management": [
+                    61,
+                    73,
+                    120
+                ],
+                "even": [
+                    65
+                ],
+                "more": [
+                    66
+                ],
+                "challenging.": [
+                    67
+                ],
+                "As": [
+                    68
+                ],
+                "such,": [
+                    69
+                ],
+                "an": [
+                    70,
+                    97
+                ],
+                "active": [
+                    71,
+                    119
+                ],
+                "has": [
+                    74
+                ],
+                "be": [
+                    76
+                ],
+                "fulfilled": [
+                    77
+                ],
+                "taking": [
+                    79
+                ],
+                "advantage": [
+                    80
+                ],
+                "emerging": [
+                    83,
+                    111
+                ],
+                "techniques": [
+                    84
+                ],
+                "control,": [
+                    86
+                ],
+                "monitoring,": [
+                    87
+                ],
+                "protection,": [
+                    88
+                ],
+                "communication": [
+                    90
+                ],
+                "assist": [
+                    92
+                ],
+                "operators": [
+                    95
+                ],
+                "in": [
+                    96
+                ],
+                "optimal": [
+                    98
+                ],
+                "manner.": [
+                    99
+                ],
+                "This": [
+                    100
+                ],
+                "article": [
+                    101
+                ],
+                "presents": [
+                    102
+                ],
+                "short": [
+                    104
+                ],
+                "review": [
+                    105
+                ],
+                "recent": [
+                    107
+                ],
+                "advancements": [
+                    108
+                ],
+                "identifies": [
+                    110
+                ],
+                "technologies": [
+                    112
+                ],
+                "future": [
+                    114
+                ],
+                "development": [
+                    115
+                ],
+                "trends": [
+                    116
+                ],
+                "support": [
+                    118
+                ],
+                "networks.": [
+                    123
+                ]
+            },
+            "cited_by_api_url": "https://api.openalex.org/works?filter=cites:W1985355269",
+            "counts_by_year": [
+                {
+                    "year": 2024,
+                    "cited_by_count": 1
+                },
+                {
+                    "year": 2023,
+                    "cited_by_count": 6
+                },
+                {
+                    "year": 2022,
+                    "cited_by_count": 7
+                },
+                {
+                    "year": 2021,
+                    "cited_by_count": 14
+                },
+                {
+                    "year": 2020,
+                    "cited_by_count": 3
+                },
+                {
+                    "year": 2019,
+                    "cited_by_count": 15
+                },
+                {
+                    "year": 2018,
+                    "cited_by_count": 12
+                },
+                {
+                    "year": 2017,
+                    "cited_by_count": 7
+                },
+                {
+                    "year": 2016,
+                    "cited_by_count": 10
+                },
+                {
+                    "year": 2015,
+                    "cited_by_count": 11
+                }
+            ],
+            "updated_date": "2024-06-23T16:52:59.746126",
+            "created_date": "2016-06-24"
+        }
+    ],
+    "group_by": []
+}

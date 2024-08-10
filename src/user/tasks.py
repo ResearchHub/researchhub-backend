@@ -18,12 +18,7 @@ from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as GrmVote
 from paper.models import Paper
 from paper.utils import get_cache_key
-from researchhub.celery import (
-    QUEUE_CACHES,
-    QUEUE_ELASTIC_SEARCH,
-    QUEUE_PAPER_MISC,
-    app,
-)
+from researchhub.celery import QUEUE_CACHES, QUEUE_ELASTIC_SEARCH, QUEUE_PAPER_MISC, app
 from researchhub.settings import APP_ENV, PRODUCTION, STAGING
 from researchhub_document.utils import reset_unified_document_cache
 from user.editor_payout_tasks import editor_daily_payout_task
@@ -280,3 +275,11 @@ def execute_rsc_exchange_rate_record_tasks():
     log_info(f"{APP_ENV}-running rsc_exchange_rate_record_tasks")
     result = rsc_exchange_rate_record_tasks()
     log_info(f"{APP_ENV}-running rsc_exchange_rate_record_tasks result: {str(result)}")
+
+
+@app.task
+def invalidate_author_profile_caches(author_id):
+    cache.delete(f"author-{author_id}-achievements")
+    cache.delete(f"author-{author_id}-overview")
+    cache.delete(f"author-{author_id}-publications")
+    cache.delete(f"author-{author_id}-summary-stats")
