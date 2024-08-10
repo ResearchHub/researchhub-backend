@@ -93,9 +93,9 @@ class Distributor:
             reputation_amount=self.reputation(),
             distribution_type=self.distribution.name,
             proof=self.proof,
-            proof_item_content_type=get_content_type_for_model(self.proof_item)
-            if self.proof_item
-            else None,
+            proof_item_content_type=(
+                get_content_type_for_model(self.proof_item) if self.proof_item else None
+            ),
             proof_item_object_id=self.proof_item.id if self.proof_item else None,
         )
 
@@ -174,8 +174,6 @@ class RewardDistributor:
         return item
 
     def generate_distribution(self, item, amount=1, distribute=True):
-        from bullet_point.models import BulletPoint
-        from bullet_point.models import Vote as BulletPointVote
         from discussion.models import Comment, Reply, Thread
         from paper.models import Paper, Vote
         from summary.models import Summary
@@ -196,12 +194,6 @@ class RewardDistributor:
         if item_type is Paper:
             recipient = item.uploaded_by
             giver = item.uploaded_by
-        elif item_type is BulletPoint:
-            recipient = item.created_by
-            giver = item.created_by
-        elif item_type is BulletPointVote:
-            recipient = item.created_by
-            giver = item.created_by
         elif item_type is Summary:
             recipient = item.proposed_by
             giver = item.created_by

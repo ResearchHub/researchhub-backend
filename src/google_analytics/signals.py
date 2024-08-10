@@ -4,12 +4,12 @@ Mostly handles sending google analytics events on past save signals.
 Notice events related to pdf uploads are *not* included here and are better
 handled at the view level.
 """
+
 import datetime
 
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from bullet_point.models import BulletPoint
 from discussion.models import BaseComment, Comment, Reply, Thread
 from discussion.models import Vote as GrmVote
 from google_analytics.apps import GoogleAnalytics, Hit
@@ -27,23 +27,6 @@ All this is currently disabled via apps.py
 """
 
 ga = GoogleAnalytics()
-
-
-@receiver(post_save, sender=BulletPoint, dispatch_uid="send_bullet_point_event")
-def send_bullet_point_event(sender, instance, created, update_fields, **kwargs):
-    if (not created) or (instance.created_by is None):
-        return
-
-    category = "Key Takeaway"
-    if instance.bullet_type == BulletPoint.BULLETPOINT_LIMITATION:
-        category = "Limitation"
-
-    label = category
-
-    if instance.created_location == BulletPoint.CREATED_LOCATION_PROGRESS:
-        label += " from Progress"
-
-    return get_event_hit_response(instance, created, category, label)
 
 
 @receiver(post_save, sender=Comment, dispatch_uid="send_comment_event")

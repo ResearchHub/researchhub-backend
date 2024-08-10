@@ -1,11 +1,9 @@
 """
 Set all distribution statuses to so they are eligible for withdrawal.
 """
+
 from django.core.management.base import BaseCommand
 
-from bullet_point.models import BulletPoint
-from bullet_point.models import Endorsement as BulletPointEndorsement
-from bullet_point.models import Flag as BulletPointFlag
 from discussion.models import Comment
 from discussion.models import Endorsement as DiscussionEndorsement
 from discussion.models import Flag as DiscussionFlag
@@ -24,9 +22,7 @@ class Command(BaseCommand):
             print("{} / {}".format(i, count))
             instance = distribution.proof_item
             hubs = None
-            if isinstance(instance, BulletPoint) and instance.paper:
-                hubs = instance.paper.hubs
-            elif isinstance(instance, Comment):
+            if isinstance(instance, Comment):
                 hubs = instance.parent.paper.hubs
             elif isinstance(instance, Reply):
                 try:
@@ -41,16 +37,8 @@ class Command(BaseCommand):
             if isinstance(instance, Paper):
                 hubs = instance.hubs
 
-            if isinstance(instance, BulletPointFlag):
-                hubs = instance.bullet_point.paper.hubs
-
-            elif isinstance(instance, BulletPointEndorsement):
-                hubs = instance.bullet_point.paper.hubs
-
             if isinstance(instance, DiscussionFlag):
-                if isinstance(instance.item, BulletPoint):
-                    hubs = instance.item.paper.hubs
-                elif isinstance(instance.item, Comment):
+                if isinstance(instance.item, Comment):
                     hubs = instance.item.parent.paper.hubs
                 elif isinstance(instance.item, Reply):
                     try:
@@ -63,9 +51,7 @@ class Command(BaseCommand):
             elif isinstance(instance, DiscussionEndorsement):
                 recipient = instance.item.created_by
 
-                if isinstance(instance.item, BulletPoint):
-                    hubs = instance.item.paper.hubs
-                elif isinstance(instance.item, Comment):
+                if isinstance(instance.item, Comment):
                     hubs = instance.item.parent.paper.hubs
                 elif isinstance(instance.item, Reply):
                     try:

@@ -9,8 +9,6 @@ from django.dispatch import receiver
 from django.utils.crypto import get_random_string
 from django.utils.text import slugify
 
-from bullet_point.models import BulletPoint
-from bullet_point.models import Vote as BulletPointVote
 from citation.models import CitationProject
 from discussion.models import Vote as GrmVote
 from hypothesis.models import Hypothesis
@@ -90,13 +88,10 @@ def doi_updated(update_fields):
     return False
 
 
-@receiver(post_save, sender=BulletPoint, dispatch_uid="create_bullet_point_action")
 @receiver(post_save, sender=Summary, dispatch_uid="create_summary_action")
 @receiver(post_save, sender=RhCommentModel, dispatch_uid="creation_rh_comment")
 @receiver(post_save, sender=Paper, dispatch_uid="paper_upload_action")
 @receiver(post_save, sender=GrmVote, dispatch_uid="discussion_vote_action")
-@receiver(post_save, sender=BulletPointVote, dispatch_uid="summary_vote_action")
-@receiver(post_save, sender=SummaryVote, dispatch_uid="bulletpoint_vote_action")
 @receiver(post_save, sender=ResearchhubPost, dispatch_uid="researchhubpost_action")
 @receiver(post_save, sender=Hypothesis, dispatch_uid="create_hypothesis_action")
 @receiver(post_save, sender=PaperSubmission, dispatch_uid="create_submission_action")
@@ -122,7 +117,7 @@ def create_action(sender, instance, created, **kwargs):
                     )
             user = instance.created_by
 
-        vote_types = [GrmVote, BulletPointVote, SummaryVote]
+        vote_types = [GrmVote, SummaryVote]
         display = (
             False
             if (
