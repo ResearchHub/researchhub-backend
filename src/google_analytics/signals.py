@@ -19,7 +19,6 @@ from paper.models import Figure, Paper
 from researchhub.celery import QUEUE_EXTERNAL_REPORTING, app
 from researchhub.settings import PRODUCTION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
-from summary.models import Summary
 from user.models import User
 
 """
@@ -96,23 +95,6 @@ def send_paper_event(sender, instance, created, update_fields, **kwargs):
         paper_id=paper_id,
         date=date,
     )
-
-
-@receiver(post_save, sender=Summary, dispatch_uid="send_summary_event")
-def send_summary_event(sender, instance, created, update_fields, **kwargs):
-    if (not created) or (instance.proposed_by is None):
-        return
-
-    category = "Summary"
-
-    label = category
-
-    if instance.created_location == Summary.CREATED_LOCATION_PROGRESS:
-        label += " from Progress"
-
-    user_id = instance.proposed_by.id
-
-    return get_event_hit_response(instance, created, category, label, user_id=user_id)
 
 
 @receiver(post_save, sender=User, dispatch_uid="send_user_event")

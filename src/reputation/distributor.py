@@ -176,8 +176,6 @@ class RewardDistributor:
     def generate_distribution(self, item, amount=1, distribute=True):
         from discussion.models import Comment, Reply, Thread
         from paper.models import Paper, Vote
-        from summary.models import Summary
-        from summary.models import Vote as SummaryVote
         from user.models import Author, User
 
         item_type = type(item)
@@ -194,12 +192,6 @@ class RewardDistributor:
         if item_type is Paper:
             recipient = item.uploaded_by
             giver = item.uploaded_by
-        elif item_type is Summary:
-            recipient = item.proposed_by
-            giver = item.created_by
-        elif item_type is SummaryVote:
-            recipient = item.created_by
-            giver = item.created_by
         elif item_type is Vote:
             recipient = item.created_by
             giver = item.created_by

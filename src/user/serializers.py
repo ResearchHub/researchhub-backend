@@ -18,16 +18,13 @@ from hub.serializers import DynamicHubSerializer, HubSerializer, SimpleHubSerial
 from hypothesis.models import Hypothesis
 from institution.serializers import DynamicInstitutionSerializer
 from paper.models import Paper, PaperSubmission
-from paper.related_models.authorship_model import Authorship
 from purchase.models import Purchase
-from reputation.models import Bounty, Contribution, Distribution, Score, Withdrawal
+from reputation.models import Bounty, Contribution, Score, Withdrawal
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import EDITOR
 from researchhub_access_group.serializers import DynamicPermissionSerializer
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost
-from summary.models import Summary
-from summary.models import Vote as SummaryVote
 from user.models import (
     Action,
     Author,
@@ -664,7 +661,6 @@ class UserActions:
                 isinstance(item, Comment)
                 or isinstance(item, Thread)
                 or isinstance(item, Reply)
-                or isinstance(item, Summary)
                 or isinstance(item, Paper)
             ):
                 pass
@@ -693,8 +689,6 @@ class UserActions:
                 item = item.item
             elif isinstance(item, Verdict):
                 item = item.flag.item
-            elif isinstance(item, SummaryVote):
-                item = item.summary
             else:
                 raise TypeError(f"Instance of type {type(item)} is not supported")
 
@@ -789,7 +783,7 @@ class UserActions:
                     pass
                 data["tip"] = item.plain_text
 
-            if not isinstance(item, Summary) and not isinstance(item, Purchase):
+            if not isinstance(item, Purchase):
                 data["user_flag"] = None
                 if self.user:
                     user_flag = item.flags.filter(created_by=self.user).first()
@@ -821,9 +815,7 @@ class UserActions:
                 self.serialized.append(data)
 
     def _get_serialized_creator(self, item):
-        if isinstance(item, Summary):
-            creator = item.proposed_by
-        elif isinstance(item, Paper):
+        if isinstance(item, Paper):
             creator = item.uploaded_by
         elif isinstance(item, User):
             creator = item
