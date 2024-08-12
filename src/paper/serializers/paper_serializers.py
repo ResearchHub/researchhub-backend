@@ -84,7 +84,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
     unified_document_id = serializers.SerializerMethodField()
     uploaded_by = UserSerializer(read_only=True)
     user_flag = serializers.SerializerMethodField()
-    # user_vote = serializers.SerializerMethodField()
 
     class Meta:
         abstract = True
@@ -407,11 +406,6 @@ class PaperSerializer(BasePaperSerializer):
             user = None
         validated_data["uploaded_by"] = user
 
-        # if "url" in validated_data or "pdf_url" in validated_data:
-        #     error = Exception("URL uploading is deprecated")
-        #     sentry.log_error(error)
-        #     raise error
-
         # Prepare validated_data by removing m2m
         authors = validated_data.pop("authors")
         hubs = validated_data.pop("hubs")
@@ -424,10 +418,6 @@ class PaperSerializer(BasePaperSerializer):
                 for read_only_field in self.Meta.read_only_fields:
                     if read_only_field in validated_data:
                         validated_data.pop(read_only_field, None)
-
-                # valid_doi = self._check_valid_doi(validated_data)
-                # if not valid_doi:
-                #     raise IntegrityError('DETAIL: Invalid DOI')
 
                 self._add_url(file, validated_data)
                 [
@@ -445,15 +435,6 @@ class PaperSerializer(BasePaperSerializer):
                     paper = super(PaperSerializer, self).create(validated_data)
                     paper.full_clean(exclude=["paper_type"])
 
-                # TODO: calvinhlee look into auto-pull and abstract abstractions
-                # paper.abstract
-                # if (abstract_src_encoded_file and abstract_src_type):
-                #     paper.abstract_src.save(
-                #         f'RH-PAPER-ABSTRACT-SRC-USER-{request.user.id}.txt',
-                #         abstract_src_encoded_file
-                #     )
-
-                unified_doc = paper.unified_document
                 unified_doc_id = paper.unified_document.id
                 paper_id = paper.id
                 # NOTE: calvinhlee - This is an antipattern. Look into changing
@@ -643,8 +624,6 @@ class PaperSerializer(BasePaperSerializer):
     def _check_title_in_pdf(self, paper, title, file):
         title_in_pdf = check_pdf_title(title, file)
         if not title_in_pdf:
-            # e = Exception('Title not in pdf')
-            # sentry.log_info(e)
             return
         else:
             paper.extract_meta_data(title=title, use_celery=True)
@@ -871,7 +850,7 @@ class DynamicPaperSerializer(
     def get_abstract_src_markdown(self, paper):
         try:
             return paper.abstract_src.read().decode("utf-8")
-        except Exception as _e:
+        except Exception:
             # abstract src file may not be present which is ok
             return None
 
