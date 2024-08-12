@@ -102,7 +102,7 @@ class Score(DefaultModel):
 
     def update_score_vote(cls, author, hub, vote):
         content_type = ContentType.objects.get_for_model(Vote)
-        score = Score.get_or_create_score(author, hub)
+        score = cls.get_or_create_score(author, hub)
         previous_score_change = (
             ScoreChange.objects.filter(
                 score=score,
@@ -124,6 +124,42 @@ class Score(DefaultModel):
             "votes",
             content_type,
             vote.id,
+        )
+
+    @classmethod
+    def update_score_citations(
+        cls,
+        author,
+        hub,
+        citation_change,
+        variable_key,
+        content_type,
+        paper_id,
+    ):
+        try:
+            score = cls.objects.select_for_update().get(
+                hub=hub,
+                author=author,
+            )
+            previous_score_change = ScoreChange.objects.get(
+                score=score,
+                changed_object_id=paper_id,
+                changed_content_type=content_type,
+                score_version=score.version,
+            )
+        except (Score.DoesNotExist, ScoreChange.DoesNotExist):
+            previous_score_change = None
+
+        if previous_score_change:
+            return
+
+        Score.update_score(
+            author,
+            hub,
+            citation_change,
+            variable_key,
+            content_type,
+            paper_id,
         )
 
 

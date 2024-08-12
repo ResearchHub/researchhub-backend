@@ -5,6 +5,7 @@ import regex as re
 import requests
 from bs4 import BeautifulSoup
 from django.contrib.contenttypes.fields import GenericRelation
+from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.indexes import GinIndex, HashIndex
 from django.contrib.postgres.search import SearchVectorField
 from django.core.validators import FileExtensionValidator
@@ -36,6 +37,7 @@ from paper.utils import (
     populate_pdf_url_from_journal_url,
 )
 from purchase.models import Purchase
+from reputation.models import Score, ScoreChange
 from reputation.related_models.paper_reward import HubCitationValue
 from researchhub.lib import CREATED_LOCATIONS
 from researchhub.settings import TESTING
@@ -948,6 +950,61 @@ class Paper(AbstractPaper):
         key = file.name
         file_name = key.split("/")[-1]
         return lambda_compress_and_linearize_pdf(key, file_name)
+
+    def update_scores_citations(self, author):
+        historical_papers = self.history.all().order_by("history_date")
+        recent_historical_paper_score = (
+            ScoreChange.objects.filter(
+                changed_content_type=ContentType.objects.get_for_model(
+                    Paper.history.model
+                ),
+                changed_object_id__in=historical_papers.values_list(
+                    "history_id", flat=True
+                ),
+            )
+            .order_by("created_date")
+            .last()
+        )
+        if recent_historical_paper_score:
+            historical_papers = [
+                paper
+                for paper in historical_papers
+                if paper.history_id > recent_historical_paper_score.changed_object_id
+            ]
+
+        if len(historical_papers) == 0:
+            historical_papers = [self]
+
+        hub = self.unified_document.get_primary_hub()
+        if hub is None:
+            print(f"Paper {self.id} has no primary hub")
+            return
+
+        for i, historical_paper in enumerate(historical_papers):
+            previous_historical_paper = None
+            if i != 0:
+                previous_historical_paper = historical_papers[i - 1]
+
+            citation_change = historical_paper.citation_change(
+                previous_historical_paper
+            )
+            if citation_change == 0:
+                continue
+
+            paper_id = historical_paper.id
+            content_type = ContentType.objects.get_for_model(Paper)
+            if isinstance(historical_paper, Paper.history.model):
+                paper_id = historical_paper.history_id
+                content_type = ContentType.objects.get_for_model(Paper.history.model)
+
+            Score.update_score_citations(
+                author,
+                hub,
+                citation_change,
+                "citations",
+                content_type,
+                paper_id,
+            )
 
     @property
     def paper_rewards(self):

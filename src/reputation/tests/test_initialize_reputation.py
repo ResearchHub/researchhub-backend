@@ -72,7 +72,7 @@ class InitializeReputationCommandTestCase(TestCase):
             json.dumps((0, 2)): 50,
             json.dumps((2, 12)): 100,
             json.dumps((12, 200)): 250,
-            json.dumps((200, 2800)): 100,
+            json.dumps((200, 280000)): 1,
         }
 
         # Create an old unused algorithm_variables row
@@ -155,10 +155,10 @@ class InitializeReputationCommandTestCase(TestCase):
         call_command("initialize_reputation")
 
         # Check if the score is created
-        self.assertEqual(Score.objects.count(), 2)
+        self.assertEqual(Score.objects.count(), 4)
 
         # Check if the score change is created
-        self.assertEqual(ScoreChange.objects.count(), 6)
+        self.assertEqual(ScoreChange.objects.count(), 8)
 
         # Check if the score is created with the correct score
         score1 = Score.objects.get(
@@ -195,7 +195,7 @@ class InitializeReputationCommandTestCase(TestCase):
         call_command("initialize_reputation")
 
         # Check if the score is created
-        self.assertEqual(Score.objects.count(), 2)
+        self.assertEqual(Score.objects.count(), 4)
 
         # Check if the score change is created
         self.assertEqual(ScoreChange.objects.count(), 6)
@@ -246,7 +246,7 @@ class InitializeReputationCommandTestCase(TestCase):
         self.assertEqual(Score.objects.count(), 4)
 
         # Check if the score change is created
-        self.assertEqual(ScoreChange.objects.count(), 11)
+        self.assertEqual(ScoreChange.objects.count(), 15)
 
         # Check if the score is created with the correct score
         score1 = Score.objects.get(
