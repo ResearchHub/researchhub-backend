@@ -338,14 +338,6 @@ class HubViewSet(viewsets.ModelViewSet):
                     "slug",
                 ]
             },
-            "hyp_dhs_get_unified_document": {
-                "_include_fields": [
-                    "id",
-                    "renderable_text",
-                    "title",
-                    "slug",
-                ]
-            },
             "doc_duds_get_documents": {
                 "_include_fields": [
                     "id",

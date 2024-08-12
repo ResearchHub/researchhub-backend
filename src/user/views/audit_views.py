@@ -14,9 +14,9 @@ from discussion.reaction_views import censor
 from discussion.serializers import DynamicFlagSerializer
 from mailing_list.lib import base_email_context
 from notification.models import Notification
+from researchhub.settings import EMAIL_DOMAIN
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.views.rh_comment_view import censor_comment
-from researchhub.settings import EMAIL_DOMAIN
 from user.filters import AuditDashboardFilterBackend
 from user.models import Action, User
 from user.permissions import IsModerator, UserIsEditor
@@ -43,7 +43,6 @@ class AuditViewSet(viewsets.GenericViewSet):
             ContentType.objects.get(model="rhcommentmodel"),
             ContentType.objects.get(model="researchhubpost"),
             ContentType.objects.get(model="paper"),
-            ContentType.objects.get(model="hypothesis"),
         )
 
     def get_queryset(self):
@@ -183,19 +182,6 @@ class AuditViewSet(viewsets.GenericViewSet):
                     "slug",
                     "renderable_text",
                 ]
-            },
-            "hyp_dhs_get_unified_document": {
-                "_include_fields": [
-                    "id",
-                    "document_type",
-                    "documents",
-                    "title",
-                    "slug",
-                    "renderable_text",
-                ]
-            },
-            "hyp_dhs_get_created_by": {
-                "_include_fields": ["author_profile", "first_name", "last_name"]
             },
             "rhc_dcs_get_created_by": {
                 "_include_fields": ["author_profile", "first_name", "last_name"]

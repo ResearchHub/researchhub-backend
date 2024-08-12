@@ -631,18 +631,6 @@ class AuthorViewSet(viewsets.ModelViewSet):
                     "slug",
                 ]
             },
-            "hyp_dhs_get_hubs": {
-                "_include_fields": [
-                    "name",
-                    "slug",
-                ]
-            },
-            "hyp_dhs_get_created_by": {
-                "_include_fields": [
-                    "author_profile",
-                    "id",
-                ]
-            },
             "rhc_dcs_get_created_by": {
                 "_include_fields": [
                     "first_name",
