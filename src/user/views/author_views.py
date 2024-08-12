@@ -760,7 +760,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
             # if True:
             if TESTING:
                 pull_openalex_author_works_batch(openalex_ids, request.user.id)
-                invalidate_author_profile_caches(author.id)
+                invalidate_author_profile_caches(None, author.id)
             else:
                 chain(
                     pull_openalex_author_works_batch.s(openalex_ids, request.user.id),
@@ -782,7 +782,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
         )
 
         count, _ = authorships.delete()
-        invalidate_author_profile_caches(request.user.author_profile.id)
+        invalidate_author_profile_caches(None, request.user.author_profile.id)
         return Response({"count": count}, status=status.HTTP_200_OK)
 
     @action(
