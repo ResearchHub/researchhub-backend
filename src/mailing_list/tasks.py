@@ -9,7 +9,6 @@ from rest_framework.request import Request
 
 from discussion.models import Comment, Reply, Thread
 from hub.models import Hub
-from hypothesis.models import Hypothesis
 from mailing_list.lib import base_email_context
 from mailing_list.models import EmailRecipient, EmailTaskLog, NotificationFrequencies
 from paper.models import Paper
@@ -50,7 +49,6 @@ def send_bounty_digest(frequency):
 
         paper_ids = list(open_bounties.values_list("paper__id", flat=True))
         post_ids = list(open_bounties.values_list("posts__id", flat=True))
-        hypothesis_ids = list(open_bounties.values_list("hypothesis__id", flat=True))
         actions = Action.objects.filter(
             Q(
                 content_type=ContentType.objects.get_for_model(Paper),
@@ -59,10 +57,6 @@ def send_bounty_digest(frequency):
             | Q(
                 content_type=ContentType.objects.get_for_model(ResearchhubPost),
                 object_id__in=post_ids,
-            )
-            | Q(
-                content_type=ContentType.objects.get_for_model(Hypothesis),
-                object_id__in=hypothesis_ids,
             )
         )
 
@@ -118,9 +112,6 @@ def send_editor_hub_digest(frequency):
             post_ids = documents.exclude(posts__isnull=True).values_list(
                 "posts", flat=True
             )
-            hypothesis_ids = documents.exclude(hypothesis__isnull=True).values_list(
-                "hypothesis", flat=True
-            )
 
             actions = Action.objects.filter(
                 Q(
@@ -130,10 +121,6 @@ def send_editor_hub_digest(frequency):
                 | Q(
                     content_type=ContentType.objects.get_for_model(ResearchhubPost),
                     object_id__in=post_ids,
-                )
-                | Q(
-                    content_type=ContentType.objects.get_for_model(Hypothesis),
-                    object_id__in=hypothesis_ids,
                 )
             ).distinct("id")
 

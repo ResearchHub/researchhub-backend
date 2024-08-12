@@ -12,7 +12,6 @@ import reputation.distributions as distributions
 from discussion.lib import check_is_discussion_item
 from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as GrmVote
-from hypothesis.models import Citation, Hypothesis
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
 from purchase.models import Purchase
@@ -247,10 +246,6 @@ def distribute_for_discussion_vote(sender, instance, created, update_fields, **k
             hubs = item.hubs
         elif isinstance(item, ResearchhubPost):
             hubs = item.unified_document.hubs
-        elif isinstance(item, Hypothesis):
-            hubs = item.unified_document.hubs
-        elif isinstance(item, Citation):
-            hubs = item.source.hubs
 
         # TODO: This needs to be altered so that if the vote changes the
         # original distribution is deleted if not yet withdrawn
@@ -328,10 +323,6 @@ def get_discussion_vote_item_distribution(instance):
             vote_type = distributions.ResearchhubPostUpvoted.name
         elif isinstance(item, Paper):
             vote_type = distributions.PaperUpvoted.name
-        elif isinstance(item, Hypothesis):
-            vote_type = distributions.HypothesisUpvoted.name
-        elif isinstance(item, Citation):
-            vote_type = distributions.CitationUpvoted.name
         else:
             raise error
 
@@ -344,10 +335,6 @@ def get_discussion_vote_item_distribution(instance):
             return distributions.ResearchhubPostDownvoted
         elif isinstance(item, Paper):
             return distributions.PaperDownvoted
-        elif isinstance(item, Hypothesis):
-            return distributions.HypothesisDownvoted
-        elif isinstance(item, Citation):
-            return distributions.CitationDownvoted
         else:
             raise error
     elif vote_type == GrmVote.NEUTRAL:

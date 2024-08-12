@@ -3,7 +3,7 @@ from rest_framework.test import APITestCase
 
 from discussion.constants.flag_reasons import SPAM
 from paper.tests.helpers import create_paper
-from researchhub_document.helpers import create_hypothesis, create_post
+from researchhub_document.helpers import create_post
 from user.tests.helpers import (
     create_hub_editor,
     create_random_authenticated_user,
@@ -26,15 +26,6 @@ class AuditViewTests(APITestCase):
             unique_value="test_editor", hub_name="test_editor", moderator=False
         )
 
-    def test_can_flag_hypothesis(self):
-        target_hypothesis = create_hypothesis(created_by=self.random_content_creator)
-
-        self.client.force_authenticate(self.reg_user)
-        http_response = self.client.post(
-            f"/api/hypothesis/{target_hypothesis.id}/flag/", {"reason_choice": SPAM}
-        )
-        self.assertContains(http_response, "id", status_code=201)
-
     def test_can_flag_paper(self):
         target_paper = create_paper(uploaded_by=self.random_content_creator)
 
@@ -54,7 +45,6 @@ class AuditViewTests(APITestCase):
         self.assertContains(http_response, "id", status_code=201)
 
     def test_editor_can_bulk_flag_and_remove(self):
-        target_hypothesis = create_hypothesis(created_by=self.random_content_creator)
         target_paper = create_paper(uploaded_by=self.random_content_creator)
 
         self.client.force_authenticate(self.test_editor)
@@ -62,12 +52,6 @@ class AuditViewTests(APITestCase):
             FLAG_AND_REMOVE_URL,
             {
                 "flag": [
-                    {
-                        "content_type": get_content_type_for_model(
-                            target_hypothesis
-                        ).id,
-                        "object_id": target_hypothesis.id,
-                    },
                     {
                         "content_type": get_content_type_for_model(target_paper).id,
                         "object_id": target_paper.id,
@@ -84,7 +68,6 @@ class AuditViewTests(APITestCase):
         self.assertContains(http_response, "verdict")
 
     def test_reg_user_cannot_bulk_flag_and_remove(self):
-        target_hypothesis = create_hypothesis(created_by=self.random_content_creator)
         target_paper = create_paper(uploaded_by=self.random_content_creator)
 
         self.client.force_authenticate(self.reg_user)
@@ -92,12 +75,6 @@ class AuditViewTests(APITestCase):
             FLAG_AND_REMOVE_URL,
             {
                 "flag": [
-                    {
-                        "content_type": get_content_type_for_model(
-                            target_hypothesis
-                        ).id,
-                        "object_id": target_hypothesis.id,
-                    },
                     {
                         "content_type": get_content_type_for_model(target_paper).id,
                         "object_id": target_paper.id,

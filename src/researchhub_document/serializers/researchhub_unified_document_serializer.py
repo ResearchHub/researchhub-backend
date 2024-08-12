@@ -7,7 +7,6 @@ from paper.serializers import DynamicPaperSerializer, PaperSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
-    HYPOTHESIS,
     PAPER,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
 )
@@ -40,7 +39,6 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
             "documents",
             "hot_score",
             "hubs",
-            "hypothesis",
             "id",
             "is_removed",
             "is_public",
@@ -66,16 +64,12 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
         return UserSerializer(instance.created_by, read_only=True).data
 
     def get_documents(self, instance):
-        from hypothesis.serializers.hypothesis_serializer import HypothesisSerializer
-
         context = self.context
         doc_type = instance.document_type
         if doc_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
             return ResearchhubPostSerializer(
                 instance.posts, many=True, context=context
             ).data
-        elif doc_type in [HYPOTHESIS]:
-            return HypothesisSerializer(instance.hypothesis, context=context).data
         else:
             return PaperSerializer(instance.paper, context=context).data
 
@@ -135,12 +129,6 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
             if doc_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
                 return DynamicPostSerializer(
                     unified_doc.posts, many=True, context=context, **_context_fields
-                ).data
-            elif doc_type == HYPOTHESIS:
-                from hypothesis.serializers import DynamicHypothesisSerializer
-
-                return DynamicHypothesisSerializer(
-                    unified_doc.hypothesis, context=context, **_context_fields
                 ).data
             elif doc_type == PAPER:
                 return DynamicPaperSerializer(

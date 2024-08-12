@@ -18,7 +18,6 @@ import analytics.views
 import discussion.views
 import google_analytics.views
 import hub.views
-import hypothesis.views as hypothesis_views
 import invite.views as invite_views
 import mailing_list.views
 import new_feature_release.views
@@ -158,12 +157,6 @@ router.register(
     researchhub_document_views.ResearchhubUnifiedDocumentViewSet,
     basename="researchhub_unified_document",
 )
-
-router.register(
-    r"hypothesis", hypothesis_views.HypothesisViewSet, basename="hypothesis"
-)
-
-router.register(r"citation", hypothesis_views.CitationViewSet, basename="citations")
 
 router.register(r"note", note_views.NoteViewSet, basename="notes")
 

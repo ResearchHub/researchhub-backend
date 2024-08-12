@@ -85,9 +85,6 @@ class Action(DefaultModel):
             verb = "edited"
         elif act.content_type_name == "thread":
             verb = "created a new discussion on"
-        elif act.content_type_name == "hypothesis":
-            verb = "created a new hypothesis on"
-            doc_type_icon = f"{ASSETS_BASE_URL}/icons/meta-study-512.png"
         elif act.content_type_name == "researchhub post":
             verb = "created a new post on"
             doc_type_icon = f"{ASSETS_BASE_URL}/icons/post-512.png"
@@ -140,8 +137,6 @@ class Action(DefaultModel):
             doc_type = self.item.unified_document.document_type
             if doc_type == "DISCUSSION":
                 doc_type = "post"
-            elif doc_type == "HYPOTHESIS":
-                doc_type = "hypothesis"
             elif doc_type == "PAPER":
                 doc_type = "paper"
         except Exception:
@@ -181,8 +176,6 @@ class Action(DefaultModel):
                 doc_type = item.unified_document.document_type
                 if doc_type == "DISCUSSION":
                     summary = item.renderable_text
-                elif doc_type == "HYPOTHESIS":
-                    summary = item.renderable_text
                 elif doc_type == "PAPER":
                     summary = item.abstract
                 elif doc_type == "QUESTION":
@@ -197,7 +190,6 @@ class Action(DefaultModel):
 
     @property
     def frontend_view_link(self):
-        from hypothesis.models import Hypothesis
         from researchhub_document.models import (
             ResearchhubPost,
             ResearchhubUnifiedDocument,
@@ -224,8 +216,6 @@ class Action(DefaultModel):
                 or doc_type == "BOUNTY"
             ):
                 link += "/post/{}/{}#comments".format(doc.id, doc.slug)
-            elif doc_type == "HYPOTHESIS":
-                link += "/hypothesis/{}/{}#comments".format(doc.id, doc.slug)
             else:
                 link += "/paper/{}/{}#comments".format(doc.id, doc.slug)
         elif (
@@ -241,17 +231,11 @@ class Action(DefaultModel):
                 or doc_type == "BOUNTY"
             ):
                 link += "/post/{}/{}#comments".format(item.post.id, item.post.slug)
-            elif doc_type == "HYPOTHESIS":
-                link += "/hypothesis/{}/{}#comments".format(
-                    item.hypothesis.id, item.hypothesis.slug
-                )
             else:
                 link += "/paper/{}/{}#comments".format(item.paper.id, item.paper.slug)
 
         elif isinstance(item, ResearchhubPost):
             link += "/post/{}/{}".format(item.id, item.title)
-        elif isinstance(item, Hypothesis):
-            link += "/hypothesis/{}/{}".format(item.id, item.title)
         elif isinstance(item, Withdrawal):
             link = ""
         elif isinstance(item, PaperSubmission):

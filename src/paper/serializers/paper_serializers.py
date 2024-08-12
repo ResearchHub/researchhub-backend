@@ -18,7 +18,6 @@ from discussion.serializers import DynamicVoteSerializer as DynamicGrmVoteSerial
 from discussion.serializers import ThreadSerializer
 from hub.models import Hub
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
-from hypothesis.models import Citation, Hypothesis
 from paper.exceptions import PaperSerializerError
 from paper.lib import journal_hosts
 from paper.models import (
@@ -96,7 +95,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
             "users_who_bookmarked",
             "unified_document_id",
             "slug",
-            "hypothesis_id",
         ]
         model = Paper
 
@@ -417,8 +415,6 @@ class PaperSerializer(BasePaperSerializer):
         # Prepare validated_data by removing m2m
         authors = validated_data.pop("authors")
         hubs = validated_data.pop("hubs")
-        hypothesis_id = validated_data.pop("hypothesis_id", None)
-        citation_type = validated_data.pop("citation_type", None)
         file = validated_data.get("file")
         try:
             with transaction.atomic():
@@ -459,9 +455,6 @@ class PaperSerializer(BasePaperSerializer):
 
                 unified_doc = paper.unified_document
                 unified_doc_id = paper.unified_document.id
-                if hypothesis_id:
-                    self._add_citation(user, hypothesis_id, unified_doc, citation_type)
-
                 paper_id = paper.id
                 # NOTE: calvinhlee - This is an antipattern. Look into changing
                 GrmVote.objects.create(
@@ -607,16 +600,6 @@ class PaperSerializer(BasePaperSerializer):
                 add_orcid_authors(paper.id)
         except Exception as e:
             sentry.log_info(e)
-
-    def _add_citation(self, user, hypothesis_id, unified_document, citation_type):
-        try:
-            hypothesis = Hypothesis.objects.get(id=hypothesis_id)
-            citation = Citation.objects.create(
-                created_by=user, source=unified_document, citation_type=citation_type
-            )
-            citation.hypothesis.set([hypothesis])
-        except Exception as e:
-            sentry.log_error(e)
 
     def _add_file(self, paper, file):
         paper_id = paper.id

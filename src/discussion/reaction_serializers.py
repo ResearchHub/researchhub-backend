@@ -94,15 +94,6 @@ class GenericReactionSerializerMixin:
             data = {"id": post.id, "title": post.title, "slug": post.slug}
             return data
 
-        hypothesis = obj.hypothesis
-        if hypothesis:
-            data = {
-                "id": hypothesis.id,
-                "title": hypothesis.title,
-                "slug": hypothesis.slug,
-            }
-            return data
-
         return None
 
     def get_user_endorsement(self, obj):

@@ -46,7 +46,6 @@ class DynamicNoteContentSerializer(DynamicModelFieldSerializer):
 
 class NoteSerializer(ModelSerializer):
     access = SerializerMethodField()
-    hypothesis = SerializerMethodField()
     latest_version = NoteContentSerializer()
     organization = OrganizationSerializer()
     post = SerializerMethodField()
@@ -81,40 +80,6 @@ class NoteSerializer(ModelSerializer):
             return PRIVATE
         else:
             return SHARED
-
-    def get_hypothesis(self, note):
-        from hypothesis.serializers import DynamicHypothesisSerializer
-
-        if not hasattr(note, "hypothesis"):
-            return None
-
-        context = {
-            "hyp_dhs_get_authors": {
-                "_include_fields": [
-                    "id",
-                    "first_name",
-                    "last_name",
-                    "user",
-                ]
-            },
-            "hyp_dhs_get_hubs": {
-                "_include_fields": [
-                    "id",
-                    "name",
-                ]
-            },
-        }
-        serializer = DynamicHypothesisSerializer(
-            note.hypothesis,
-            context=context,
-            _include_fields=[
-                "authors",
-                "hubs",
-                "id",
-                "slug",
-            ],
-        )
-        return serializer.data
 
     def get_post(self, note):
         from researchhub_document.serializers import DynamicPostSerializer
@@ -161,7 +126,6 @@ class NoteSerializer(ModelSerializer):
 class DynamicNoteSerializer(DynamicModelFieldSerializer):
     access = SerializerMethodField()
     created_by = SerializerMethodField()
-    hypothesis = SerializerMethodField()
     latest_version = SerializerMethodField()
     notes = SerializerMethodField()
     organization = SerializerMethodField()
@@ -202,16 +166,6 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
         _context_fields = context.get("nte_dns_get_created_by", {})
         serializer = DynamicUserSerializer(
             note.created_by, context=context, **_context_fields
-        )
-        return serializer.data
-
-    def get_hypothesis(self, note):
-        from hypothesis.serializers import DynamicHypothesisSerializer
-
-        context = self.context
-        _context_fields = context.get("nte_dns_get_hypothesis", {})
-        serializer = DynamicHypothesisSerializer(
-            note.hypothesis, context=context, **_context_fields
         )
         return serializer.data
 

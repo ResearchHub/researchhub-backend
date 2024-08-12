@@ -122,19 +122,17 @@ def create_comment(thread=None, created_by=None, text=TestData.comment_text):
 def create_thread(
     paper=None,
     post=None,
-    hypothesis=None,
     created_by=None,
     title=TestData.thread_title,
     text=TestData.thread_text,
 ):
-    if paper is None and post is None and hypothesis is None:
+    if paper is None and post is None:
         paper = create_paper()
     if created_by is None:
         created_by = create_random_default_user("thread")
     thread = Thread.objects.create(
         paper=paper,
         post=post,
-        hypothesis=hypothesis,
         created_by=created_by,
         title=title,
         text=text,
@@ -145,7 +143,6 @@ def create_thread(
 def create_rh_comment(
     paper=None,
     post=None,
-    hypothesis=None,
     created_by=None,
     title=TestData.thread_title,
     text=TestData.thread_text,
@@ -153,11 +150,11 @@ def create_rh_comment(
 ):
     if created_by is None:
         created_by = create_random_default_user("default_rh_comment")
-    if paper is None and post is None and hypothesis is None:
+    if paper is None and post is None:
         paper = create_paper(uploaded_by=created_by)
 
     thread = RhCommentThreadModel.objects.create(
-        content_object=paper or post or hypothesis,
+        content_object=paper or post,
         created_by=created_by,
         updated_by=created_by,
     )
