@@ -6,7 +6,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("discussion", "0055_comment_score_reply_score_thread_score"),
+        ("discussion", "0056_remove_thread_citation_remove_thread_hypothesis"),
     ]
 
     operations = [
