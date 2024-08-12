@@ -10,6 +10,10 @@
                 "runserver",
                 "[::]:8000"
             ],
+            // Uncomment this to view debugger in /api requests
+            // "env": {
+            //     "USE_DEBUG_TOOLBAR": "True",
+            // },
             "django": true,
             "autoStartBrowser": false
         },
