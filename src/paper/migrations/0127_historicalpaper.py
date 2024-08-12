@@ -11,7 +11,7 @@ import simple_history.models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("summary", "0014_alter_summary_summary"),
+        # ("summary", "0014_alter_summary_summary"),
         ("researchhub_document", "0058_researchhubunifieddocument_topics"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
         ("paper", "0126_authorship_delete_workauthorship"),
@@ -313,17 +313,17 @@ class Migration(migrations.Migration):
                         to=settings.AUTH_USER_MODEL,
                     ),
                 ),
-                (
-                    "summary",
-                    models.ForeignKey(
-                        blank=True,
-                        db_constraint=False,
-                        null=True,
-                        on_delete=django.db.models.deletion.DO_NOTHING,
-                        related_name="+",
-                        to="summary.summary",
-                    ),
-                ),
+                # (
+                #     "summary",
+                #     models.ForeignKey(
+                #         blank=True,
+                #         db_constraint=False,
+                #         null=True,
+                #         on_delete=django.db.models.deletion.DO_NOTHING,
+                #         related_name="+",
+                #         to="summary.summary",
+                #     ),
+                # ),
                 (
                     "unified_document",
                     models.ForeignKey(
