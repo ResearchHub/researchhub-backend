@@ -7,19 +7,16 @@ import shutil
 from datetime import datetime, timedelta
 from io import BytesIO
 from subprocess import PIPE, run
-from unicodedata import normalize
 
 import fitz
 import requests
 from bs4 import BeautifulSoup
 from celery.utils.log import get_task_logger
 from django.apps import apps
-from django.contrib.postgres.search import SearchQuery
 from django.core.cache import cache
 from django.core.files import File
 from django.core.files.base import ContentFile
-from django.db import IntegrityError, transaction
-from django.db.models import Q
+from django.db import IntegrityError
 from habanero import Crossref
 from PIL import Image
 from psycopg2.errors import UniqueViolation
@@ -30,7 +27,6 @@ from paper.utils import (
     check_crossref_title,
     check_pdf_title,
     fitz_extract_figures,
-    format_raw_authors,
     get_cache_key,
     get_crossref_results,
     get_csl_item,
@@ -50,13 +46,9 @@ from researchhub.celery import (
     app,
 )
 from researchhub.settings import APP_ENV, PRODUCTION
-from researchhub_document.related_models.constants.filters import NEW
-from researchhub_document.utils import reset_unified_document_cache
-from tag.models import Concept
 from utils import sentry
 from utils.http import check_url_contains_pdf
 from utils.openalex import OpenAlex
-from utils.parsers import rebuild_sentence_from_inverted_index
 
 logger = get_task_logger(__name__)
 
