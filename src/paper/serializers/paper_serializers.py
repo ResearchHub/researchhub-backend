@@ -29,7 +29,7 @@ from paper.models import (
     PaperSubmission,
 )
 from paper.related_models.authorship_model import Authorship
-from paper.tasks import add_orcid_authors, celery_extract_pdf_sections, download_pdf
+from paper.tasks import celery_extract_pdf_sections, download_pdf
 from paper.utils import (
     check_file_is_url,
     check_pdf_title,
@@ -470,8 +470,6 @@ class PaperSerializer(BasePaperSerializer):
 
                 # TODO: Do we still need add authors from the request content?
                 paper.authors.add(*authors)
-
-                self._add_orcid_authors(paper)
                 paper.hubs.add(*hubs)
                 paper.unified_document.hubs.add(*hubs)
 
@@ -591,15 +589,6 @@ class PaperSerializer(BasePaperSerializer):
             error = PaperSerializerError(e, "Failed to update paper")
             sentry.log_error(e, base_error=error.trigger)
             raise error
-
-    def _add_orcid_authors(self, paper):
-        try:
-            if not TESTING:
-                add_orcid_authors.apply_async((paper.id,), priority=5, countdown=10)
-            else:
-                add_orcid_authors(paper.id)
-        except Exception as e:
-            sentry.log_info(e)
 
     def _add_file(self, paper, file):
         paper_id = paper.id

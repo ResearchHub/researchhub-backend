@@ -25,7 +25,7 @@ from paper.exceptions import (
     DuplicatePaperError,
     ManubotProcessingError,
 )
-from paper.tasks import add_orcid_authors, download_pdf
+from paper.tasks import download_pdf
 from paper.utils import (
     DOI_REGEX,
     clean_abstract,
@@ -601,7 +601,6 @@ def celery_create_paper(self, celery_data):
             )
         paper.unified_document.update_filter(FILTER_OPEN_ACCESS)
         download_pdf.apply_async((paper_id,), priority=3, countdown=5)
-        add_orcid_authors.apply_async((paper_id,), priority=5, countdown=5)
 
         if uploaded_by:
             create_contribution.apply_async(
