@@ -231,7 +231,6 @@ INSTALLED_APPS = [
     "tag",
     "user",
     "new_feature_release",
-    "peer_review",
     "review",
     "feed",
     "simple_history",
