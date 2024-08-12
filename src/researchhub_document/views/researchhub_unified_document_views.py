@@ -489,7 +489,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "raw_authors",
                     "twitter_score",
                     "citations",
-                    "authorships",
+                    # "authorships",
                     "work_type",
                 ]
             },
@@ -528,16 +528,16 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "bounty_total_amount",
                 ]
             },
-            "pap_dps_get_authorships": {
-                "_include_fields": [
-                    "id",
-                    "author",
-                    "author_position",
-                    "author_id",
-                    "raw_author_name",
-                    "is_corresponding",
-                ]
-            },
+            # "pap_dps_get_authorships": {
+            #     "_include_fields": [
+            #         "id",
+            #         "author",
+            #         "author_position",
+            #         "author_id",
+            #         "raw_author_name",
+            #         "is_corresponding",
+            #     ]
+            # },
             "authorship::get_author": {"_include_fields": ["id", "profile_image"]},
             "doc_dps_get_hubs": {
                 "_include_fields": [
@@ -557,6 +557,24 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "slug",
                     "is_removed",
                     "hub_image",
+                ]
+            },
+            "pap_dps_get_authors": {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "profile_image",
+                    "authorship",
+                ]
+            },
+            "author::get_authorship": {
+                "_include_fields": [
+                    "id",
+                    "raw_author_name",
+                    "author_position",
+                    "is_corresponding",
+                    "author_id",
                 ]
             },
             "pap_dps_get_unified_document": {
@@ -584,9 +602,9 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "author_profile",
                 ]
             },
-            "pap_dps_get_authors": {
-                "_include_fields": ["id", "first_name", "last_name"]
-            },
+            # "pap_dps_get_authors": {
+            #     "_include_fields": ["id", "first_name", "last_name"]
+            # },
             "usr_dus_get_author_profile": {
                 "_include_fields": [
                     "id",
