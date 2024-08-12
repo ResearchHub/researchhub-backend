@@ -6,7 +6,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("discussion", "0057_remove_thread_peer_review"),
+        ("discussion", "0056_remove_thread_peer_review"),
         ("peer_review", "0019_alter_peerreviewinvite_inviter_and_more"),
     ]
 
