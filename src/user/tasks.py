@@ -1,7 +1,3 @@
-import logging
-
-from allauth.socialaccount.models import SocialAccount
-from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.apps import apps
 from django.core.cache import cache
 from django.http.request import HttpRequest
@@ -18,7 +14,7 @@ from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as GrmVote
 from paper.models import Paper
 from paper.utils import get_cache_key
-from researchhub.celery import QUEUE_CACHES, QUEUE_ELASTIC_SEARCH, QUEUE_PAPER_MISC, app
+from researchhub.celery import QUEUE_CACHES, QUEUE_ELASTIC_SEARCH, app
 from researchhub.settings import APP_ENV, PRODUCTION, STAGING
 from researchhub_document.utils import reset_unified_document_cache
 from user.editor_payout_tasks import editor_daily_payout_task
@@ -64,80 +60,6 @@ def reinstate_user_task(user_id):
     reset_unified_document_cache()
 
 
-@app.task(queue=QUEUE_PAPER_MISC)
-def link_author_to_papers(author_id, orcid_account_id):
-    Author = apps.get_model("user.Author")
-    try:
-        author = Author.objects.get(pk=author_id)
-        orcid_account = SocialAccount.objects.get(pk=orcid_account_id)
-        works = get_orcid_works(orcid_account.extra_data)
-        for work in works:
-            paper = get_orcid_paper(work)
-            if paper is not None:
-                paper.authors.add(author)
-                paper.save()
-                print(
-                    f"Added author {author.id}"
-                    f" to paper {paper.id}"
-                    f" on doi {paper.doi}"
-                )
-    except (Author.DoesNotExist, SocialAccount.DoesNotExist) as e:
-        logging.warning(f"{e} for author {author_id} orcid account {orcid_account_id}")
-
-
-@app.task(queue=QUEUE_PAPER_MISC)
-def link_paper_to_authors(paper_id):
-    try:
-        paper = Paper.objects.get(pk=paper_id)
-        orcid_accounts = SocialAccount.objects.filter(provider=OrcidProvider.id)
-        for orcid_account in orcid_accounts:
-            works = get_orcid_works(orcid_account.extra_data)
-            if check_doi_in_works(paper.doi, works):
-                paper.authors.add(orcid_account.user.author_profile)
-                paper.save()
-                print(
-                    f"Added author {orcid_account.user.author_profile.id}"
-                    f" to paper {paper.id}"
-                    f" on doi {paper.doi}"
-                )
-    except (Paper.DoesNotExist, SocialAccount.DoesNotExist) as e:
-        logging.warning(f"{e} for paper {paper_id}")
-
-
-def get_orcid_works(data):
-    try:
-        return data["activities-summary"]["works"]["group"]
-    except Exception as e:
-        print(e)
-    return []
-
-
-def get_orcid_paper(work):
-    doi = get_work_doi(work)
-    if doi is not None:
-        try:
-            return Paper.objects.get(doi=doi)
-        except Paper.DoesNotExist:
-            return None
-    return None
-
-
-def check_doi_in_works(doi, works):
-    for work in works:
-        work_doi = get_work_doi(work)
-        if doi == work_doi:
-            return True
-    return False
-
-
-def get_work_doi(work):
-    eids = work["external-ids"]["external-id"]
-    for eid in eids:
-        if eid["external-id-type"] == "doi":
-            return eid["external-id-value"]
-    return None
-
-
 def get_latest_actions(cursor):
     Action = apps.get_model("user.Action")
     actions = Action.objects.all().order_by("-id")[cursor:]
@@ -165,7 +87,6 @@ def get_my_updates(user, actions):
     my_papers = user.author_profile.authored_papers.all()
     my_threads = Thread.objects.filter(created_by=user)
     my_comments = Comment.objects.filter(created_by=user)
-    # my_replies = Reply.objects.filter(created_by=user)
 
     # TODO: Change this to a "subscribed to comment" model
 

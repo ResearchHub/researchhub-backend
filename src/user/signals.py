@@ -1,6 +1,4 @@
 import requests
-from allauth.socialaccount.models import SocialAccount
-from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.db import models
@@ -15,14 +13,12 @@ from mailing_list.tasks import build_notification_context
 from paper.models import Paper, PaperSubmission
 from purchase.models import Wallet
 from reputation.models import Bounty
-from researchhub.settings import TESTING
 from researchhub_access_group.constants import ADMIN
 from researchhub_access_group.models import Permission
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.constants.organization_constants import PERSONAL
 from user.models import Action, Author, Organization, User
-from user.tasks import link_author_to_papers
 from utils.message import send_email_message
 from utils.sentry import log_error
 from utils.siftscience import decisions_api, events_api
@@ -38,41 +34,6 @@ def add_organization_slug(sender, instance, update_fields, **kwargs):
         if sender.objects.filter(slug__icontains=slug).exists():
             slug += f"-{suffix}"
         instance.slug = slug
-
-
-# @receiver(post_save, sender=User, dispatch_uid="handle_spam_user")
-# def handle_spam_user(sender, instance, created, update_fields, **kwargs):
-#     # TODO: move this to overriding the save method of the model instead of post_save here
-#     if instance.probable_spammer and not NO_ELASTIC:
-#         handle_spam_user_task.apply_async((instance.id,), priority=3)
-
-
-@receiver(post_save, sender=Author, dispatch_uid="link_author_to_papers")
-def queue_link_author_to_papers(sender, instance, created, **kwargs):
-    """Runs a queued task to link the new ORCID author to existing papers."""
-    if created:
-        try:
-            orcid_account = SocialAccount.objects.get(
-                user=instance.user, provider=OrcidProvider.id
-            )
-            if not TESTING:
-                link_author_to_papers.apply_async((instance.id, orcid_account.id))
-            else:
-                link_author_to_papers(instance.id, orcid_account.id)
-        except SocialAccount.DoesNotExist:
-            pass
-
-
-# TODO: See if this signal is still required. Was causing a backlog of tasks on Celery
-# @receiver(post_save, sender=Paper, dispatch_uid="link_paper_to_authors")
-# def queue_link_paper_to_authors(sender, instance, created, update_fields, **kwargs):
-#     """Runs a queued task linking ORCID authors to papers with updated dois."""
-#     if created or doi_updated(update_fields):
-#         if instance.doi is not None:
-#             try:
-#                 link_paper_to_authors.apply_async((instance.id,))
-#             except SocialAccount.DoesNotExist:
-#                 pass
 
 
 def doi_updated(update_fields):
