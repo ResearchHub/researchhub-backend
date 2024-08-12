@@ -11,7 +11,6 @@ from researchhub_document.related_models.constants.document_type import (
     BOUNTY,
     DISCUSSION,
     DOCUMENT_TYPES,
-    HYPOTHESIS,
     NOTE,
     PAPER,
     POSTS,
@@ -123,8 +122,6 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
             doc_url = "paper"
         elif self.document_type == DISCUSSION:
             doc_url = "post"
-        elif self.document_type == HYPOTHESIS:
-            doc_url = "hypothesis"
         else:
             # TODO: fill this with proper url for other doc types
             return None
@@ -138,8 +135,6 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
             return "paper"
         elif self.document_type == DISCUSSION:
             return "post"
-        elif self.document_type == HYPOTHESIS:
-            return "hypothesis"
         elif self.document_type == PREREGISTRATION:
             return "preregistration"
         elif self.document_type == QUESTION:
@@ -173,8 +168,6 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
             return self.paper
         elif self.document_type == DISCUSSION:
             return self.posts.first()
-        elif self.document_type == HYPOTHESIS:
-            return self.hypothesis
         elif self.document_type == NOTE:
             return self.note
         elif self.document_type == QUESTION:
@@ -189,9 +182,7 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
     @cached_property
     def fe_document_type(self):
         document_type = self.document_type
-        if document_type == HYPOTHESIS:
-            return "META-STUDY"
-        elif document_type == DISCUSSION:
+        if document_type == DISCUSSION:
             return "POST"
         return document_type
 
