@@ -27,7 +27,6 @@ from rest_framework.utils.urls import replace_query_param
 from discussion.models import Comment, Reply, Thread
 from paper.models import Paper
 from paper.serializers import DynamicPaperSerializer
-from paper.tasks import pull_openalex_author_works
 from paper.utils import PAPER_SCORE_Q_ANNOTATION, get_cache_key
 from reputation.models import Bounty, Contribution, Distribution
 from reputation.serializers import (
@@ -43,13 +42,8 @@ from researchhub.settings import (
 )
 from researchhub_comment.models import RhCommentModel
 from user.filters import UserFilter
-from user.models import Author, Follow, Major, University, User, UserApiToken
-from user.permissions import (
-    Censor,
-    DeleteUserPermission,
-    HasVerificationPermission,
-    RequestorIsOwnUser,
-)
+from user.models import Author, Follow, Major, University, User
+from user.permissions import Censor, DeleteUserPermission, RequestorIsOwnUser
 from user.serializers import (
     AuthorSerializer,
     DynamicUserSerializer,
@@ -62,7 +56,7 @@ from user.serializers import (
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from user.utils import calculate_show_referral, reset_latest_acitvity_cache
 from utils.http import POST, RequestMethods
-from utils.sentry import log_error, log_info
+from utils.sentry import log_info
 
 
 class UserViewSet(viewsets.ModelViewSet):
@@ -758,41 +752,6 @@ class UserViewSet(viewsets.ModelViewSet):
         reinstate_user_task(user.id)
         serialized = UserSerializer(user)
         return Response(serialized.data, status=200)
-
-    @action(
-        detail=False,
-        methods=[RequestMethods.POST],
-        permission_classes=[HasVerificationPermission],
-    )
-    def verify_user(self, request):
-        data = request.data
-        openalex_ids = data.get("openalex_ids", [])
-        user = request.user
-        author_profile = user.author_profile
-
-        if openalex_ids is None:
-            return Response(status=400)
-
-        try:
-            user.is_verified = True
-            author_profile.openalex_ids = openalex_ids
-            author_profile.is_verified = True
-            author_profile.save(update_fields=["openalex_ids", "is_verified"])
-            user.save(update_fields=["is_verified"])
-
-            for openalex_id in openalex_ids:
-                pull_openalex_author_works.apply_async(
-                    (user.id, openalex_id), countdown=3, priority=6
-                )
-        except Exception as e:
-            log_error(e)
-            raise e
-        finally:
-            user.api_keys.filter(
-                name=UserApiToken.TEMPORARY_VERIFICATION_TOKEN
-            ).delete()
-
-        return Response(status=200)
 
     @action(
         detail=False,
