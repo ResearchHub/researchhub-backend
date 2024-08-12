@@ -1,12 +1,9 @@
 from urllib.parse import urlparse
 
 import pdf2doi
-import requests
 from django.contrib.postgres.search import SearchQuery
-from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
 from django.db import transaction
-from django.db.models import Q
 from django.http.request import HttpRequest
 from rest_framework.request import Request
 
@@ -21,12 +18,7 @@ from citation.schema import (
 )
 from citation.serializers import CitationEntrySerializer
 from paper.models import Paper
-from paper.paper_upload_tasks import (
-    celery_combine_paper_data,
-    celery_create_paper,
-    celery_openalex,
-    celery_process_paper,
-)
+from paper.paper_upload_tasks import celery_process_paper
 from paper.serializers import PaperSubmissionSerializer
 from paper.utils import download_pdf, pdf_copyright_allows_display
 from user.models import User

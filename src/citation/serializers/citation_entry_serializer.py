@@ -3,7 +3,6 @@ from datetime import datetime
 import rest_framework.serializers as serializers
 from django.db import transaction
 from django.utils.text import slugify
-from jsonschema import validate
 from rest_framework.serializers import (
     JSONField,
     ReadOnlyField,
@@ -13,7 +12,7 @@ from rest_framework.serializers import (
 
 from citation.constants import ZOTERO_TO_CSL_MAPPING
 from citation.related_models.citation_entry_model import CitationEntry
-from citation.schema import CSL_SCHEMA, generate_schema_for_citation
+from citation.schema import generate_schema_for_citation
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 from user.serializers import DynamicOrganizationSerializer, DynamicUserSerializer

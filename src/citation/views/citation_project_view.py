@@ -13,7 +13,6 @@ from analytics.amplitude import track_event
 from citation.models import CitationProject
 from citation.permissions import UserIsAdminOfProject
 from citation.serializers import CitationProjectSerializer
-from researchhub_access_group.constants import EDITOR, VIEWER
 from user.related_models.organization_model import Organization
 
 
