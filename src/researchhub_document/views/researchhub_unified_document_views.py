@@ -599,21 +599,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "author_profile",
                 ]
             },
-            "hyp_dhs_get_created_by": {
-                "_include_fields": [
-                    "author_profile",
-                ]
-            },
-            "hyp_dhs_get_hubs": {
-                "_include_fields": [
-                    "id",
-                    "name",
-                    "is_locked",
-                    "slug",
-                    "is_removed",
-                    "hub_image",
-                ]
-            },
             "rep_dbs_get_created_by": {"_include_fields": ["author_profile", "id"]},
             "rep_dbs_get_item": {
                 "_include_fields": [
@@ -1002,10 +987,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "doc_dps_get_discussions_prefetch": ("rh_comments",),
             "doc_dps_get_purchases": {"_include_fields": purchase_context_fields},
             "doc_dps_get_purchases_select": purchase_select_related_fields,
-            "hyp_dhs_get_discussions": {"_include_fields": discussion_context_fields},
-            "hyp_dhs_get_discussions_prefetch": ("rh_comments",),
-            "hyp_dhs_get_purchases": {"_include_fields": purchase_context_fields},
-            "hyp_dhs_get_purchases_select": purchase_select_related_fields,
             "pap_dps_get_bounties": {"_include_fields": bounties_context_fields},
             "pap_dps_get_bounties_select": bounties_select_related_fields,
             "pap_dps_get_discussions": {"_include_fields": discussion_context_fields},
