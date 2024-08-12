@@ -8,7 +8,6 @@ from researchhub_document.related_models.constants.document_type import (
     BOUNTY,
     DISCUSSION,
     ELN,
-    HYPOTHESIS,
     NOTE,
     PAPER,
     POSTS,
@@ -30,7 +29,6 @@ DOC_CHOICES = (
     ("all", "All"),
     ("paper", "Papers"),
     ("posts", "Posts"),
-    ("hypothesis", "Hypothesis"),
     ("question", "Questions"),
     ("bounty", "Bounty"),
     ("preregistration", "Preregistration"),
@@ -121,9 +119,6 @@ class UnifiedDocumentFilter(filters.FilterSet):
             "paper",
             "paper__uploaded_by",
             "paper__uploaded_by__author_profile",
-            "hypothesis",
-            "hypothesis__created_by",
-            "hypothesis__created_by__author_profile",
         )
         prefetches = (
             "hubs",
@@ -186,20 +181,6 @@ class UnifiedDocumentFilter(filters.FilterSet):
         elif value == PREREGISTRATION:
             qs = qs.filter(document_type=PREREGISTRATION)
             selects = ["document_filter"]
-        elif value == HYPOTHESIS:
-            qs = qs.filter(document_type=HYPOTHESIS)
-            selects = (
-                "document_filter",
-                "hypothesis",
-                "hypothesis__created_by",
-                "hypothesis__created_by__author_profile",
-            )
-            prefetches = (
-                "reviews",
-                "related_bounties",
-                "hypothesis__votes",
-                "hypothesis__citations",
-            )
         elif value == BOUNTY:
             prefetches = (
                 "hubs",
