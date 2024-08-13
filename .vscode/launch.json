@@ -10,6 +10,9 @@
                 "runserver",
                 "[::]:8000"
             ],
+            "env": {
+                "USE_DEBUG_TOOLBAR": "True"
+            },
             "django": true,
             "autoStartBrowser": false
         },

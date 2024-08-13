@@ -60,7 +60,7 @@ elif CLOUD:
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 
 # Django Debug Toolbar
-USE_DEBUG_TOOLBAR = os.environ.get("USE_DEBUG_TOOLBAR", False)
+USE_DEBUG_TOOLBAR = os.environ.get("USE_DEBUG_TOOLBAR", "False") == "True"
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/2.2/howto/deployment/checklist/
@@ -249,8 +249,12 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
-
 if USE_DEBUG_TOOLBAR:
+    print("Using Debug Toolbar")
+    DEBUG_TOOLBAR_CONFIG = {
+        "SHOW_TOOLBAR_CALLBACK": lambda request: True,
+    }
+
     INSTALLED_APPS += ["debug_toolbar"]
     MIDDLEWARE += ["debug_toolbar.middleware.DebugToolbarMiddleware"]
     INTERNAL_IPS = [
