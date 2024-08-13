@@ -10,10 +10,6 @@ AWS_SES_REGION_ENDPOINT = os.environ.get("AWS_SES_REGION_ENDPOINT", "")
 
 GHOSTSCRIPT_LAMBDA_ARN = os.environ.get("GHOSTSCRIPT_LAMBDA_ARN", "")
 
-ORCID_CLIENT_ID = os.environ.get("ORCID_CLIENT_ID")
-ORCID_CLIENT_SECRET = os.environ.get("ORCID_CLIENT_SECRET")
-ORCID_ACCESS_TOKEN = os.environ.get("ORCID_ACCESS_TOKEN")
-
 PERSONA_WEBHOOK_SECRET = os.environ.get("PERSONA_WEBHOOK_SECRET", "")
 
 MAILCHIMP_KEY = os.environ.get("MAILCHIMP_KEY", "")
@@ -55,7 +51,6 @@ WEB3_PROVIDER_URL = os.environ.get("WEB3_PROVIDER_URL", "")
 
 TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", "")
 OPENALEX_KEY = os.environ.get("OPENALEX_KEY", "")
-ORCID_REDIRECT_URL = os.environ.get("ORCID_REDIRECT_URL", "")
 SEGMENT_WRITE_KEY = os.environ.get("SEGMENT_WRITE_KEY", "")
 
 ETHERSCAN_API_KEY = os.environ.get("ETHERSCAN_API_KEY", "")

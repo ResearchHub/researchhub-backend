@@ -187,7 +187,6 @@ INSTALLED_APPS = [
     "allauth.account",
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
-    "allauth.socialaccount.providers.orcid",
     "rest_framework.authtoken",
     "dj_rest_auth",
     "dj_rest_auth.registration",
@@ -372,26 +371,10 @@ ACCOUNT_USERNAME_REQUIRED = False
 ACCOUNT_AUTHENTICATED_LOGIN_REDIRECTS = False
 if STAGING or PRODUCTION:
     ACCOUNT_DEFAULT_HTTP_PROTOCOL = "https"
-LOGIN_REDIRECT_URL = os.environ.get("ORCID_REDIRECT_URL", keys.ORCID_REDIRECT_URL)
 SOCIALACCOUNT_ADAPTER = "oauth.adapters.SocialAccountAdapter"
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_EMAIL_REQUIRED = False
 SOCIALACCOUNT_QUERY_EMAIL = True
-
-SOCIALACCOUNT_PROVIDERS = {
-    "orcid": {
-        # Defaults to 'orcid.org' for the production API
-        "BASE_DOMAIN": "orcid.org",
-        "MEMBER_API": False,  # Defaults to False for the Public API
-        "CLIENT_ID": os.environ.get("ORCID_CLIENT_ID", keys.ORCID_CLIENT_ID),
-        "CLIENT_SECRET": os.environ.get(
-            "ORCID_CLIENT_SECRET", keys.ORCID_CLIENT_SECRET
-        ),
-        # not expiring for approximately 20 years
-        "ACCESS_TOKEN": os.environ.get("ORCID_ACCESS_TOKEN", keys.ORCID_ACCESS_TOKEN),
-        "REFRESH_TOKEN": "",
-    },
-}
 
 
 GOOGLE_REDIRECT_URL = "http://localhost:8000/auth/google/login/callback/"

@@ -1,5 +1,3 @@
-from time import time
-
 from allauth.account import app_settings
 from allauth.socialaccount.models import SocialAccount
 from allauth.utils import email_address_exists, get_user_model
@@ -12,13 +10,9 @@ from rest_framework import serializers
 from analytics.models import WebsiteVisits
 from oauth.exceptions import LoginError
 from oauth.helpers import complete_social_login
-from oauth.serializers import *
-from reputation import distributions
-from reputation.distributor import Distributor
-from reputation.models import Distribution
 from user.models import User
 from utils import sentry
-from utils.siftscience import check_user_risk, events_api, update_user_risk_score
+from utils.siftscience import events_api, update_user_risk_score
 
 
 class SocialLoginSerializer(serializers.Serializer):

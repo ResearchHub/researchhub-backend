@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils import timezone
 
+
 class Throttle(models.Model):
     throttle_key = models.CharField(max_length=255, default=None, null=True, blank=True, db_index=True)
     locked = models.BooleanField(default=False)
