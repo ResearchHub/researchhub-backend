@@ -14,6 +14,7 @@ class Command(BaseCommand):
         with transaction.atomic():
             start_id = 0
             end_id = start_id + batch_size
+            citations_to_create = []
 
             while start_id < max_paper_id:
                 papers = Paper.objects.filter(id__gte=start_id, id__lt=end_id)
@@ -31,7 +32,9 @@ class Command(BaseCommand):
                         source=source,
                     )
 
-                    citation.save()
+                    citations_to_create.append(citation)
+
+                Citation.objects.bulk_create(citations_to_create)
 
                 start_id += end_id
                 end_id = start_id + batch_size
