@@ -37,7 +37,6 @@ from discussion.permissions import (
 )
 from discussion.permissions import Vote as VotePermission
 from paper.models import Paper
-from peer_review.models import PeerReview
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from researchhub.lib import get_document_id_from_path
@@ -77,7 +76,6 @@ from .utils import (
 
 RELATED_DISCUSSION_MODELS = {
     "paper": Paper,
-    "peer_review": PeerReview,
     "researchhub_post": ResearchhubPost,
 }
 

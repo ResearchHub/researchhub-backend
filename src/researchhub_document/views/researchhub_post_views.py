@@ -17,9 +17,7 @@ from analytics.amplitude import track_event
 from analytics.tasks import track_revenue_event
 from discussion.reaction_views import ReactionViewActionMixin
 from hub.models import Hub
-from note.models import NoteContent
 from note.related_models.note_model import Note
-from peer_review.serializers import PeerReviewRequestSerializer
 from purchase.models import Balance, Purchase
 from researchhub.settings import (
     BASE_FRONTEND_URL,
@@ -120,7 +118,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         editor_type = data.get("editor_type")
         title = data.get("title", "")
         assign_doi = data.get("assign_doi", False)
-        peer_review_is_requested = data.get("request_peer_review", False)
         renderable_text = data.get("renderable_text", "")
 
         # If a note is provided, check if all given authors are in the same organization
@@ -196,11 +193,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     if crossref_response.status_code != 200:
                         return Response("Crossref API Failure", status=400)
                     charge_doi_fee(created_by, rh_post)
-
-                if peer_review_is_requested and note_id:
-                    request_peer_review(
-                        request=request, requested_by=created_by, post=rh_post
-                    )
 
                 reset_unified_document_cache(
                     document_type=[
@@ -327,21 +319,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             return uni_doc
         except (KeyError, TypeError) as exception:
             print("create_unified_doc: ", exception)
-
-
-def request_peer_review(request, requested_by, post):
-    doc_version = NoteContent.objects.filter(note_id=post.note_id).latest("id")
-    serializer = PeerReviewRequestSerializer(
-        data={
-            "requested_by_user": requested_by.id,
-            "unified_document": post.unified_document_id,
-            "doc_version": doc_version.id,
-        },
-        context={"request": request},
-    )
-    serializer.is_valid(raise_exception=True)
-    serializer.save()
-    return serializer.data
 
 
 def generate_doi():

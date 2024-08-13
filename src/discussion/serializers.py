@@ -77,7 +77,6 @@ class DynamicThreadSerializer(
         required=False,
     )
     paper = serializers.SerializerMethodField()
-    peer_review = serializers.SerializerMethodField()
     post = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
     review = serializers.SerializerMethodField()
@@ -213,23 +212,6 @@ class DynamicThreadSerializer(
                 obj.review, context=context, **_context_fields
             )
 
-            return serializer.data
-
-        return None
-
-    def get_peer_review(self, obj):
-        from peer_review.serializers import DynamicPeerReviewSerializer
-
-        context = self.context
-        _context_fields = context.get("dis_dts_get_peer_review", {})
-
-        review = obj.peer_review
-        if review:
-            serializer = DynamicPeerReviewSerializer(
-                review,
-                context=context,
-                **_context_fields,
-            )
             return serializer.data
 
         return None
@@ -528,7 +510,6 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
 
 
 class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
-    # bounties = serializers.SerializerMethodField()
     awarded_bounty_amount = serializers.SerializerMethodField()
     bounties = serializers.SerializerMethodField()
     created_by = MinimalUserSerializer(
@@ -539,7 +520,6 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
     document_meta = serializers.SerializerMethodField()
     is_created_by_editor = serializers.BooleanField(required=False, read_only=True)
     paper_slug = serializers.SerializerMethodField()
-    peer_review = serializers.SerializerMethodField()
     post_slug = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
     review = serializers.SerializerMethodField()
@@ -570,7 +550,6 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
             "is_removed",
             "paper_slug",
             "paper",
-            "peer_review",
             "plain_text",
             "post_slug",
             "post",
@@ -641,18 +620,6 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
     def get_review(self, obj):
         if obj.review:
             return ReviewSerializer(obj.review).data
-
-        return None
-
-    def get_peer_review(self, obj):
-        from peer_review.serializers import PeerReviewSerializer
-
-        review = obj.peer_review
-        if review:
-            serializer = PeerReviewSerializer(
-                review,
-            )
-            return serializer.data
 
         return None
 

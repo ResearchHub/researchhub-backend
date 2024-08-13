@@ -241,13 +241,6 @@ class Thread(BaseComment):
         blank=True,
         null=True,
     )
-    peer_review = models.ForeignKey(
-        "peer_review.PeerReview",
-        on_delete=models.SET_NULL,
-        related_name="threads",
-        blank=True,
-        null=True,
-    )
     review = models.ForeignKey(
         "review.Review",
         on_delete=models.SET_NULL,
