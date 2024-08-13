@@ -1,4 +1,5 @@
 from django.core.management.base import BaseCommand
+from django.core.paginator import Paginator
 from django.db import transaction
 
 from paper.models import Citation, Paper
@@ -9,17 +10,20 @@ class Command(BaseCommand):
     help = "Backfills the citation table with citation counts for each paper"
 
     def handle(self, *args, **options):
-        max_paper_id = Paper.objects.all().order_by("-id").first().id
-        batch_size = 10000
+        batch_size = 1000
         with transaction.atomic():
-            start_id = 0
-            end_id = start_id + batch_size
+            queryset = Paper.objects.all()
+            paginator = Paginator(queryset, batch_size)
+
             citations_to_create = []
 
-            while start_id < max_paper_id:
-                papers = Paper.objects.filter(id__gte=start_id, id__lt=end_id)
+            for page_number in paginator.page_range:
+                page = paginator.page(page_number)
 
-                for paper in papers.iterator():
+                for paper in page.object_list:
+                    if Citation.objects.filter(paper=paper).exists():
+                        continue
+
                     citation_count = paper.citations
                     source = Source.Legacy.value
                     if paper.openalex_id:
@@ -36,8 +40,7 @@ class Command(BaseCommand):
 
                 Citation.objects.bulk_create(citations_to_create)
 
-                start_id += end_id
-                end_id = start_id + batch_size
+                citations_to_create = []
 
             self.stdout.write(
                 self.style.SUCCESS("Successfully backfilled citation table")
