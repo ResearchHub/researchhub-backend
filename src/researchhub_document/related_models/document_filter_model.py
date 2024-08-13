@@ -21,7 +21,6 @@ from researchhub_document.related_models.constants.document_type import (
     FILTER_INCLUDED_IN_HUBS,
     FILTER_OPEN_ACCESS,
     FILTER_PEER_REVIEWED,
-    HYPOTHESIS,
     NOTE,
     PAPER,
     SORT_BOUNTY_EXPIRATION_DATE,
@@ -104,8 +103,6 @@ class DocumentFilter(DefaultModel):
                 updates.append(self.update_open_access)
             if update_type == FILTER_PEER_REVIEWED or update_type == FILTER_ALL:
                 updates.append(self.update_peer_reviewed)
-        elif document_type == HYPOTHESIS:
-            pass
         elif document_type == NOTE:
             return
         else:
