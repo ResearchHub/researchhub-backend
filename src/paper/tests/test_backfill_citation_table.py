@@ -33,6 +33,9 @@ class BackfillCitationTableTest(TestCase):
 
     def test_backfill_citation_table(self):
         call_command("backfill_citation_table")
+        call_command("backfill_citation_table")
+
+        self.assertEqual(Citation.objects.count(), Paper.objects.count())
 
         for paper in Paper.objects.all():
             citation = Citation.objects.get(paper=paper)
