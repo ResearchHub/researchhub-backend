@@ -60,7 +60,7 @@ elif CLOUD:
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
 
 # Django Debug Toolbar
-USE_DEBUG_TOOLBAR = os.environ.get("USE_DEBUG_TOOLBAR", False)
+USE_DEBUG_TOOLBAR = os.environ.get("USE_DEBUG_TOOLBAR", "False") == "True"
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/2.2/howto/deployment/checklist/
