@@ -7,19 +7,16 @@ import shutil
 from datetime import datetime, timedelta
 from io import BytesIO
 from subprocess import PIPE, run
-from unicodedata import normalize
 
 import fitz
 import requests
 from bs4 import BeautifulSoup
 from celery.utils.log import get_task_logger
 from django.apps import apps
-from django.contrib.postgres.search import SearchQuery
 from django.core.cache import cache
 from django.core.files import File
 from django.core.files.base import ContentFile
-from django.db import IntegrityError, transaction
-from django.db.models import Q
+from django.db import IntegrityError
 from habanero import Crossref
 from PIL import Image
 from psycopg2.errors import UniqueViolation
@@ -30,7 +27,6 @@ from paper.utils import (
     check_crossref_title,
     check_pdf_title,
     fitz_extract_figures,
-    format_raw_authors,
     get_cache_key,
     get_crossref_results,
     get_csl_item,
@@ -50,13 +46,9 @@ from researchhub.celery import (
     app,
 )
 from researchhub.settings import APP_ENV, PRODUCTION
-from researchhub_document.related_models.constants.filters import NEW
-from researchhub_document.utils import reset_unified_document_cache
-from tag.models import Concept
 from utils import sentry
 from utils.http import check_url_contains_pdf
 from utils.openalex import OpenAlex
-from utils.parsers import rebuild_sentence_from_inverted_index
 
 logger = get_task_logger(__name__)
 
@@ -524,146 +516,6 @@ def log_daily_uploads():
     headers = {"Content-Type": "application/json", "Accept": "*/*"}
     request = requests.post(url, data=hit, headers=headers)
     return request.status_code, paper_count
-
-
-@app.task(queue=QUEUE_PULL_PAPERS)
-def pull_openalex_author_works(user_id, openalex_id):
-    from paper.models import Paper
-    from reputation.models import Contribution
-    from reputation.tasks import create_contribution
-    from researchhub_case.utils.author_claim_case_utils import reward_author_claim_case
-    from user.models import User
-
-    oa = OpenAlex()
-    author_works = oa.get_data_from_id(openalex_id)
-
-    for work in author_works:
-        with transaction.atomic():
-            try:
-                doi = work.get("doi")
-                if doi is None:
-                    print(f"No Doi for result: {work}")
-                    continue
-                pure_doi = doi.split("doi.org/")[-1]
-
-                primary_location = work.get("best_oa_location", None) or work.get(
-                    "primary_location", {}
-                )
-                source = primary_location.get("source", {}) or {}
-                oa = work.get("open_access", {})
-                oa_pdf_url = oa.get("oa_url", None)
-                url = primary_location.get("landing_page_url", None)
-                raw_title = work.get("title", "") or ""
-                title = normalize("NFKD", raw_title)
-                raw_authors = work.get("authorships", [])
-                concepts = work.get("concepts", [])
-                abstract = rebuild_sentence_from_inverted_index(
-                    work.get("abstract_inverted_index", {})
-                )
-
-                raw_authors = format_raw_authors(raw_authors)
-                user = User.objects.get(id=user_id)
-                author_profile = user.author_profile
-                raw_author_to_be_removed = None
-                for raw_author in raw_authors:
-                    if (
-                        raw_author.get("first_name", "").lower()
-                        == user.first_name.lower()
-                        and raw_author.get("last_name", "").lower()
-                        == user.last_name.lower()
-                    ):
-                        raw_author_to_be_removed = raw_author
-
-                if raw_author_to_be_removed:
-                    raw_authors.remove(raw_author_to_be_removed)
-
-                doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(pure_doi))
-                url_paper_check = Paper.objects.filter(
-                    Q(url_svf=SearchQuery(url)) | Q(pdf_url_svf=SearchQuery(oa_pdf_url))
-                )
-                if doi_paper_check.exists() or url_paper_check.exists():
-                    # This skips over the current iteration
-                    paper = doi_paper_check.first() or url_paper_check.first()
-                    paper.authors.add(author_profile)
-                    paper.raw_authors = raw_authors
-                    paper.save(update_fields=("raw_authors",))
-                    reward_author_claim_case(author_profile, paper)
-                    print(f"Skipping paper with doi {pure_doi}")
-                    continue
-
-                data = {
-                    "doi": pure_doi,
-                    "url": url,
-                    "raw_authors": raw_authors,
-                    "title": title,
-                    "paper_title": title,
-                    "paper_publish_date": work.get("publication_date", None),
-                    "is_open_access": oa.get("is_oa", None),
-                    "oa_status": oa.get("oa_status", None),
-                    "pdf_license": source.get("license", None),
-                    "external_source": source.get("display_name", ""),
-                    "abstract": abstract,
-                    "open_alex_raw_json": work,
-                    "score": 1,
-                    "uploaded_by_id": user_id,
-                }
-                if oa_pdf_url and check_url_contains_pdf(oa_pdf_url):
-                    data["pdf_url"] = oa_pdf_url
-
-                paper = Paper(**data)
-                paper.full_clean()
-                paper.save()
-                paper.authors.add(author_profile)
-
-                create_contribution.apply_async(
-                    (
-                        Contribution.SUBMITTER,
-                        {"app_label": "paper", "model": "paper"},
-                        user_id,
-                        paper.unified_document.id,
-                        paper.id,
-                    ),
-                    priority=3,
-                    countdown=5,
-                )
-
-                potential_hubs = []
-                try:
-                    for concept in concepts:
-                        concept_openalex_id = concept.get("id")
-                        display_name = concept.get("display_name")
-                        concept_obj, created = Concept.objects.get_or_create(
-                            openalex_id=concept_openalex_id, display_name=display_name
-                        )
-                        if created:
-                            # This creates the hub if a new concept is created
-                            concept_obj.save()
-
-                        paper.unified_document.concepts.add(
-                            concept,
-                            through_defaults={
-                                "relevancy_score": concept["score"],
-                                "level": concept["level"],
-                            },
-                        )
-
-                        hub = concept_obj.hub
-                        potential_hubs.append(hub.id)
-                except Exception as e:
-                    sentry.log_error(e)
-
-                paper.hubs.add(*potential_hubs)
-                paper.unified_document.hubs.add(*potential_hubs)
-
-                download_pdf.apply_async((paper.id,), priority=4, countdown=4)
-            except Exception as e:
-                sentry.log_error(e)
-
-    reset_unified_document_cache(
-        document_type=["paper"],
-        filters=[NEW],
-    )
-    return True
 
 
 @app.task

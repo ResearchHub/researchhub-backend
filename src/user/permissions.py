@@ -1,6 +1,6 @@
-from user.models import UserVerification
 from rest_framework.permissions import BasePermission
 
+from user.models import UserVerification
 from utils.http import DELETE, GET, POST, RequestMethods
 from utils.permissions import AuthorizationBasedPermission
 
@@ -111,33 +111,6 @@ class DeleteAuthorPermission(BasePermission):
         if request.method == DELETE and user_is_moderator:
             return True
         return False
-
-
-class HasVerificationPermission(BasePermission):
-    message = "User verification denied"
-
-    def has_permission(self, request, view):
-        from user.models import UserApiToken
-
-        user = request.user
-
-        if user.is_anonymous:
-            return False
-
-        # if user.is_verified:
-        #     return False
-
-        verification_tokens = user.api_keys.filter(
-            name=UserApiToken.TEMPORARY_VERIFICATION_TOKEN
-        )
-        if not verification_tokens.exists():
-            return False
-
-        if verification_tokens.count() > 100:
-            self.message = "Too many user verification attempts. Please contact us for verification"
-            return False
-
-        return True
 
 
 class IsVerifiedUser(BasePermission):
