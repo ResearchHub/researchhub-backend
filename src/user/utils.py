@@ -7,7 +7,6 @@ from user.aggregates import TenPercentile, TwoPercentile
 from user.models import Organization, User
 from user.tasks import preload_latest_activity
 from utils.openalex import OpenAlex
-from utils.sentry import log_error
 
 
 class AuthorClaimException(Exception):
@@ -75,60 +74,6 @@ def claim_openalex_author_profile(claiming_rh_author_id, openalex_author_id):
     merge_openalex_author_with_researchhub_author(openalex_author, claiming_rh_author)
 
     return claiming_rh_author
-
-
-def move_paper_to_author(target_paper, target_author, source_author=None):
-    target_paper.authors.add(target_author)
-    if source_author is not None:
-        target_paper.authors.remove(source_author)
-
-    target_paper.save()
-    # Commenting out paper cache
-    # target_paper.reset_cache()
-
-
-def merge_author_profiles(source, target):
-    # Remap papers
-    for paper in target.authored_papers.all():
-        print(paper.title)
-        paper.authors.remove(target)
-        paper.authors.add(source)
-        paper.save()
-        paper.reset_cache()
-
-    attributes = [
-        "description",
-        "author_score",
-        "university",
-        "orcid_id",
-        "orcid_account",
-        "education",
-        "headline",
-        "facebook",
-        "linkedin",
-        "twitter",
-        "google_scholar",
-        "academic_verification",
-    ]
-    for attr in attributes:
-        try:
-            target_val = getattr(target, attr)
-            source_val = getattr(source, attr)
-            if not source_val:
-                setattr(source, attr, target_val)
-        except Exception as e:
-            print(e)
-            log_error(e)
-
-    target.merged_with = source
-    # logical ordering
-    target.user = None
-    target.orcid_account = None
-    target.orcid_id = None
-    target.claimed = True
-    target.save()
-    source.save()
-    return source
 
 
 def calculate_show_referral(user):

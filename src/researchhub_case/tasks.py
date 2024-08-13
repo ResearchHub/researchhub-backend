@@ -17,7 +17,6 @@ from researchhub_case.utils.author_claim_case_utils import (
 from researchhub_document.related_models.constants.document_type import (
     FILTER_AUTHOR_CLAIMED,
 )
-from user.utils import move_paper_to_author
 from utils import sentry
 from utils.parsers import get_pure_doi
 

@@ -1,12 +1,8 @@
-from unittest import skip
-
-from allauth.socialaccount.providers.orcid.provider import OrcidProvider
 from django.test import TestCase
 
-from oauth.tests.helpers import create_social_account
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
-from user.tests.helpers import create_random_default_user, create_user
+from user.tests.helpers import create_user
 
 
 class AuthorModelsTests(TestCase):
