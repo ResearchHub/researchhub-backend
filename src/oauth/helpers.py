@@ -1,24 +1,23 @@
-import logging
-import researchhub.settings as app_settings
-
-from django.forms import ValidationError
-from django.shortcuts import render
-from django.conf import settings
-from django.http import HttpResponseRedirect, JsonResponse
 from allauth.account import app_settings as account_settings
 from allauth.account.utils import complete_signup, user_username
 from allauth.socialaccount.helpers import (
-    get_adapter,
-    get_account_adapter,
-    signals,
-    SocialLogin,
     AuthProcess,
-    reverse,
-    messages,
     ImmediateHttpResponse,
-    _login_social_account
+    SocialLogin,
+    _login_social_account,
+    get_account_adapter,
+    get_adapter,
+    messages,
+    reverse,
+    signals,
 )
+from django.conf import settings
+from django.forms import ValidationError
+from django.http import HttpResponseRedirect, JsonResponse
+from django.shortcuts import render
 from rest_framework.authtoken.models import Token
+
+import researchhub.settings as app_settings
 
 oauth_method = settings.OAUTH_METHOD
 
@@ -137,8 +136,6 @@ def _process_signup(request, sociallogin):
 
 
 def _complete_social_login(request, sociallogin):
-    from allauth.socialaccount.providers.orcid.provider import OrcidProvider
-
     if request.user.is_authenticated:
         get_account_adapter(request).logout(request)
     if sociallogin.is_existing:
@@ -150,57 +147,14 @@ def _complete_social_login(request, sociallogin):
             sociallogin=sociallogin)
     else:
         # New social user
-        if sociallogin.account.provider == OrcidProvider.id:
-            # TODO: Need orcid membership to get email
-            # Then use the email for their username
-            # email = _get_orcid_email(sociallogin)
-            # sociallogin.user.email = email
-            pass
         ret = _process_signup(request, sociallogin)
-    if sociallogin.account.provider == OrcidProvider.id:
-        logging.info('Attempting to send orcid response')
-        return _send_orcid_response(request, ret)
+
     return _send_response(request, ret)
 
 
 '''
 Custom helper methods not copied from allauth
 '''
-
-
-def _get_orcid_email(sociallogin):
-    from utils.http import http_request, GET
-    from oauth.exceptions import LoginError
-
-    url = f'https://pub.orcid.org/v3.0/{sociallogin.account.uid}/email'
-    headers = {
-        'authorization': f'Bearer {sociallogin.token.token}',
-        'accept': f'application/json'
-    }
-
-    response = http_request(GET, url, headers=headers)
-
-    email = _parse_email_from_orcid_response(response)
-    if email is None:
-        raise LoginError(None, 'Failed to retrieve orcid email')
-    return email
-
-
-def _parse_email_from_orcid_response(response):
-    emails = response.content.get('email')
-    return emails[0]
-
-
-def _send_orcid_response(original_request, default_response):
-    if oauth_method == OAuthMethods.TOKEN:
-        from researchhub.settings import LOGIN_REDIRECT_URL
-        user = original_request.user
-        token = get_or_create_user_token(user)
-        redirect_url = LOGIN_REDIRECT_URL + f'?token={token}'
-        if user.email and (user.email != ''):
-            redirect_url += '&hasEmail=true'
-        return HttpResponseRedirect(redirect_url)
-    return default_response
 
 
 def _send_response(original_request, default_response):

@@ -1,5 +1,3 @@
-from datetime import datetime, timedelta
-
 import requests
 from allauth.account.signals import user_logged_in, user_signed_up
 from allauth.socialaccount.helpers import render_authentication_error
@@ -14,22 +12,19 @@ from allauth.socialaccount.providers.oauth2.views import (
     PermissionDenied,
     RequestException,
 )
-from allauth.socialaccount.providers.orcid.provider import OrcidProvider
-from allauth.socialaccount.providers.orcid.views import OrcidOAuth2Adapter
 from allauth.utils import get_request_param
 from dj_rest_auth.registration.views import SocialLoginView
 from dj_rest_auth.views import LoginView
 from django.dispatch import receiver
 from mailchimp_marketing import Client
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from analytics.amplitude import Amplitude
 from oauth.adapters import GoogleOAuth2AdapterIdToken
 from oauth.helpers import complete_social_login
 from oauth.serializers import SocialLoginSerializer
-from oauth.utils import get_orcid_names
 from researchhub.settings import (
     GOOGLE_REDIRECT_URL,
     GOOGLE_YOLO_REDIRECT_URL,
@@ -37,13 +32,10 @@ from researchhub.settings import (
     MAILCHIMP_SERVER,
     RECAPTCHA_SECRET_KEY,
     RECAPTCHA_VERIFY_URL,
-    SOCIALACCOUNT_PROVIDERS,
     keys,
 )
-from user.models import Author, UserApiToken
-from user.utils import merge_author_profiles
 from utils import sentry
-from utils.http import RequestMethods, http_request
+from utils.http import RequestMethods
 from utils.siftscience import events_api
 from utils.throttles import captcha_unlock
 
@@ -115,13 +107,13 @@ class CallbackView(OAuth2CallbackView):
                 request, app, token, response=access_token
             )
             login.token = token
-            if self.adapter.provider_id != OrcidProvider.id:
-                if self.adapter.supports_state:
-                    login.state = SocialLogin.verify_and_unstash_state(
-                        request, get_request_param(request, "state")
-                    )
-                else:
-                    login.state = SocialLogin.unstash_state(request)
+
+            if self.adapter.supports_state:
+                login.state = SocialLogin.verify_and_unstash_state(
+                    request, get_request_param(request, "state")
+                )
+            else:
+                login.state = SocialLogin.unstash_state(request)
 
             return complete_social_login(request, login)
         except (
@@ -138,7 +130,6 @@ class CallbackView(OAuth2CallbackView):
 google_callback = CallbackView.adapter_view(GoogleOAuth2Adapter)
 google_yolo_login = OAuth2LoginView.adapter_view(GoogleOAuth2AdapterIdToken)
 google_yolo_callback = CallbackView.adapter_view(GoogleOAuth2AdapterIdToken)
-orcid_callback = CallbackView.adapter_view(OrcidOAuth2Adapter)
 
 
 class EmailLoginView(LoginView):
@@ -146,77 +137,6 @@ class EmailLoginView(LoginView):
         res = super().post(request, *args, **kwargs)
         events_api.track_login(self.user, "$success", request)
         return res
-
-
-@api_view([RequestMethods.POST])
-@permission_classes([IsAuthenticated])
-def orcid_connect(request):
-    success = False
-    status = 400
-
-    try:
-        orcid = request.data.get("orcid")
-        access_token = request.data.get("access_token")
-        url = f"https://pub.orcid.org/v3.0/{orcid}/record"
-        headers = {
-            "Accept": "application/json",
-            "Authorization": f"Bearer {access_token}",
-        }
-        # Raise for status because we need to make sure we can authenticate
-        # correctly with orcid. Without this check, anyone could make a post
-        # request to connect any other orcid account to their own.
-        response = http_request(RequestMethods.GET, url=url, headers=headers)
-        response.raise_for_status()
-        user = request.user
-
-        orcid_connected = SocialAccount.objects.filter(
-            uid=orcid, provider=OrcidProvider.id
-        ).exists()
-        if not orcid_connected:
-            save_orcid_author(user, orcid, response.json())
-
-        events_api.track_account(user, request, update=True)
-
-        expiration_date = datetime.today() + timedelta(minutes=5)
-        UserApiToken.objects.create_key(
-            user=user,
-            name=UserApiToken.TEMPORARY_VERIFICATION_TOKEN,
-            expiry_date=expiration_date,
-        )
-
-        success = True
-        status = 201
-        data = {"success": success, "orcid_profile": f"https://orcid.org/{orcid}"}
-    except Exception as e:
-        data = str(e)
-        sentry.log_error(e)
-        print(e)
-
-    return Response(data, status=status)
-
-
-def save_orcid_author(user, orcid_id, orcid_data):
-    orcid_account = SocialAccount.objects.create(
-        user=user, uid=orcid_id, provider=OrcidProvider.id, extra_data=orcid_data
-    )
-    update_author_profile(user, orcid_id, orcid_data, orcid_account)
-
-
-def update_author_profile(user, orcid_id, orcid_data, orcid_account):
-    first_name, last_name = get_orcid_names(orcid_data)
-
-    try:
-        author = Author.objects.get(orcid_id=orcid_id)
-    except Author.DoesNotExist:
-        user.author_profile.orcid_id = orcid_id
-    else:
-        user.author_profile = merge_author_profiles(author, user.author_profile)
-
-    user.author_profile.orcid_account = orcid_account
-    user.author_profile.first_name = first_name
-    user.author_profile.last_name = last_name
-    user.author_profile.save()
-    user.save()
 
 
 @receiver(user_signed_up)
