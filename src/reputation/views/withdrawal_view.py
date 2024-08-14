@@ -186,7 +186,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         gas_limit = 120000.0
         gas_fee_in_eth = gwei_to_eth(float(gas_price) * gas_limit)
         rsc = RscExchangeRate.eth_to_rsc(gas_fee_in_eth)
-        return int(rsc)
+        return int(round(rsc))
 
     # 5 minute cache
     @method_decorator(cache_page(60 * 5))
