@@ -183,8 +183,8 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         json = res.json()
         print(json)
         gas_price = json.get("result", {}).get("SafeGasPrice", 40)
-        gas_limit = 120000
-        gas_fee_in_eth = gwei_to_eth(int(gas_price) * gas_limit)
+        gas_limit = 120000.0
+        gas_fee_in_eth = gwei_to_eth(float(gas_price) * gas_limit)
         rsc = RscExchangeRate.eth_to_rsc(gas_fee_in_eth)
         return int(rsc)
 
