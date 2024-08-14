@@ -214,6 +214,11 @@ class ReputationViewsTests(APITestCase):
             self.assertEqual(response.status_code, 201)
 
     def test_unverified_user_cannot_rewithdraw_rsc_within_14_days(self):
+        # Mock calls to etherscan
+        etherscan_matcher = re.compile("https://api.etherscan.io/.*")
+        # Mock with float to validate it doesn't throw.
+        self.mocker.get(etherscan_matcher, json={"result": {"SafeGasPrice": "30.1"}})
+
         user = create_random_authenticated_user_with_reputation("rep_user", 1000)
         withdrawal = Withdrawal.objects.create(
             user=user,
