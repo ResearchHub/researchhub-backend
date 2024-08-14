@@ -487,10 +487,19 @@ EMAIL_DOMAIN = (
 DEFAULT_FROM_EMAIL = f"noreply@{EMAIL_DOMAIN}"
 
 # Storage
-if TESTING:
-    DEFAULT_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
-else:
-    DEFAULT_FILE_STORAGE = "storages.backends.s3boto3.S3Boto3Storage"
+STORAGES = {
+    "default": {
+        "BACKEND": (
+            "storages.backends.s3boto3.S3Boto3Storage"
+            if not TESTING
+            else "django.core.files.storage.FileSystemStorage"
+        ),
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
 AWS_QUERYSTRING_EXPIRE = 604800
 
 AWS_STORAGE_BUCKET_NAME = os.environ.get(
