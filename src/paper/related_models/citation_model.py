@@ -27,7 +27,7 @@ class Citation(DefaultModel):
     )
 
     @classmethod
-    def most_recent_citation_count(cls, paper):
+    def citation_count(cls, paper):
         return (
             cls.objects.filter(paper=paper)
             .order_by("-created_date")

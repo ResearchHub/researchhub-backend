@@ -127,7 +127,7 @@ def process_openalex_works(works):
                 source=Source.OpenAlex.value,
             ).save()
 
-            # Succeessfully saved paper, add to map
+            # Successfully saved paper, add to map
             paper_to_openalex_data[paper.id] = {
                 "openalex_concepts": openalex_concepts,
                 "openalex_topics": openalex_topics,
@@ -158,7 +158,7 @@ def process_openalex_works(works):
         # otherwise django doesn't update them, e.g. paper_publish_date
         existing_paper.refresh_from_db(fields=[*PAPER_FIELDS_ALLOWED_TO_UPDATE])
 
-        previous_citation_count = Citation.most_recent_citation_count(existing_paper)
+        previous_citation_count = Citation.citation_count(existing_paper)
 
         if previous_citation_count != openalex_paper.get("citations"):
             Citation(
