@@ -25,3 +25,12 @@ class Citation(DefaultModel):
     source = models.CharField(
         max_length=255, choices=[(source.value, source.name) for source in Source]
     )
+
+    @classmethod
+    def most_recent_citation_count(cls, paper):
+        return (
+            cls.objects.filter(paper=paper)
+            .order_by("-created_date")
+            .values_list("total_citation_count", flat=True)
+            .first()
+        ) or 0
