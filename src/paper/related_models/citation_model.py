@@ -15,6 +15,7 @@ class Citation(DefaultModel):
         "paper.paper",
         on_delete=models.CASCADE,
         related_name="paper_citations",
+        db_index=True,
     )
 
     total_citation_count = models.IntegerField()

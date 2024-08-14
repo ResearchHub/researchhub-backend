@@ -158,12 +158,17 @@ def process_openalex_works(works):
         # otherwise django doesn't update them, e.g. paper_publish_date
         existing_paper.refresh_from_db(fields=[*PAPER_FIELDS_ALLOWED_TO_UPDATE])
 
-        if existing_paper.citations != openalex_paper.get("citations"):
+        citation = (
+            Citation.objects.filter(paper=existing_paper)
+            .order_by("-created_date")
+            .first()
+        )
+        if citation.total_citation_count != openalex_paper.get("citations"):
             Citation(
                 paper=existing_paper,
                 total_citation_count=openalex_paper.get("citations"),
                 citation_change=openalex_paper.get("citations")
-                - existing_paper.citations,
+                - citation.total_citation_count,
                 source=Source.OpenAlex.value,
             ).save()
 

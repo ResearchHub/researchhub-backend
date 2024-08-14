@@ -5,6 +5,7 @@ from rest_framework.test import APITestCase
 
 from paper.models import Paper
 from paper.openalex_util import process_openalex_works
+from paper.related_models.citation_model import Citation
 from user.related_models.author_model import Author
 from utils.openalex import OpenAlex
 
@@ -28,6 +29,14 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
             created_papers = Paper.objects.filter(doi__in=dois)
             self.assertEqual(len(created_papers), 2)
+
+            for paper in created_papers:
+                created_citation = Citation.objects.filter(paper=paper)
+                self.assertEqual(len(created_citation), 1)
+                self.assertEqual(
+                    created_citation[0].total_citation_count, paper.citations
+                )
+                self.assertEqual(created_citation[0].citation_change, paper.citations)
 
     @patch.object(OpenAlex, "get_authors")
     def test_creating_papers_should_create_related_concepts(self, mock_get_authors):
@@ -108,6 +117,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
             # Update paper
             work["title"] = "New title"
+            work["cited_by_count"] = work["cited_by_count"] + 10
             process_openalex_works([work])
 
             dois = [work.get("doi") for work in self.works]
@@ -116,6 +126,15 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
             self.assertEqual(updated_paper.title, "New title")
             self.assertEqual(updated_paper.paper_title, "New title")
+
+            created_citation = Citation.objects.filter(paper=updated_paper).order_by(
+                "created_date"
+            )
+            self.assertEqual(len(created_citation), 2)
+            self.assertEqual(
+                created_citation[1].total_citation_count, updated_paper.citations
+            )
+            self.assertEqual(created_citation[1].citation_change, 10)
 
     @patch.object(OpenAlex, "get_authors")
     def test_create_authors_when_processing_work(self, mock_get_authors):
