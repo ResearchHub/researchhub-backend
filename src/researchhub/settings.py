@@ -362,6 +362,12 @@ REST_AUTH_SERIALIZERS = {
 # Django AllAuth setup
 # https://django-allauth.readthedocs.io/en/latest/configuration.html
 
+# See: https://docs.allauth.org/en/latest/account/rate_limits.html
+ACCOUNT_RATE_LIMITS = {
+    "login": "5/m/ip",
+    "login_failed": "5/5m/ip,5/5m/key",
+}
+
 ACCOUNT_AUTHENTICATION_METHOD = "email"
 ACCOUNT_EMAIL_VERIFICATION = "mandatory"
 ACCOUNT_EMAIL_REQUIRED = True
