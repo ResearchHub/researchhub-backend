@@ -242,7 +242,7 @@ class DiscussionThreadPermissionsIntegrationTests(DiscussionIntegrationTestCase)
         self.assertContains(response, text, status_code=403)
 
     def add_paper_author(self, author):
-        self.paper.authors.add(author)
+        self.paper.authorship_authors.add(author)
         self.paper.save()
 
     def add_paper_moderator(self, moderator):

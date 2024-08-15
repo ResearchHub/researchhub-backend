@@ -36,7 +36,7 @@ class DiscussionViewsTests(TestCase):
         self.trouble_maker = create_random_authenticated_user("trouble_maker")
         self.author = create_random_authenticated_user("author")
 
-        self.paper.authors.add(Author.objects.get(user=self.author))
+        self.paper.authorship_authors.add(Author.objects.get(user=self.author))
         self.paper.save()
 
     def test_get_thread_id_from_path(self):
@@ -171,7 +171,7 @@ class DiscussionViewsTests(TestCase):
     @skip
     def test_ONLY_endorsement_creator_can_delete_endorsement(self):
         user = create_random_authenticated_user("endorser1")
-        self.paper.authors.add(Author.objects.get(user=user))
+        self.paper.authorship_authors.add(Author.objects.get(user=user))
 
         create_endorsement(created_by=self.author, item=self.thread)
         thread_response = self.get_thread_endorsement_delete_response(user)

@@ -326,8 +326,7 @@ class Thread(BaseComment):
     def users_to_notify(self):
         users = []
         if self.paper is not None:
-            # users = list(self.parent.moderators.all())
-            paper_authors = self.parent.authors.all()
+            paper_authors = self.parent.authorship_authors.all()
             for author in paper_authors:
                 if author.user:
                     users.append(author.user)
