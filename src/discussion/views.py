@@ -4,7 +4,6 @@ import hashlib
 from django.contrib.admin.options import get_content_type_for_model
 from django.core.files.base import ContentFile
 from django.core.files.storage import default_storage
-from django.db.models import Q
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
@@ -56,7 +55,6 @@ from researchhub_document.related_models.constants.filters import (
     MOST_RSC,
 )
 from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
-from utils import sentry
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 
