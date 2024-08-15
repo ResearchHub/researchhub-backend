@@ -58,7 +58,7 @@ class PaperRewardTestCase(TestCase):
     def test_claim_paper_rewards(self):
         paper_reward = PaperReward.claim_paper_rewards(
             self.paper1,
-            self.paper1.authors.first(),
+            self.paper1.authorship_authors.first(),
             is_open_data=False,
             is_preregistered=False,
         )
@@ -72,7 +72,7 @@ class PaperRewardTestCase(TestCase):
     def test_claim_paper_rewards_open_data(self):
         paper_reward = PaperReward.claim_paper_rewards(
             self.paper1,
-            self.paper1.authors.first(),
+            self.paper1.authorship_authors.first(),
             is_open_data=True,
             is_preregistered=False,
         )
@@ -86,7 +86,7 @@ class PaperRewardTestCase(TestCase):
     def test_claim_paper_rewards_preregistered(self):
         paper_reward = PaperReward.claim_paper_rewards(
             self.paper1,
-            self.paper1.authors.first(),
+            self.paper1.authorship_authors.first(),
             False,
             True,
         )
@@ -100,7 +100,7 @@ class PaperRewardTestCase(TestCase):
     def test_claim_paper_rewards_open_data_preregistered(self):
         paper_reward = PaperReward.claim_paper_rewards(
             self.paper1,
-            self.paper1.authors.first(),
+            self.paper1.authorship_authors.first(),
             True,
             True,
         )
@@ -114,14 +114,14 @@ class PaperRewardTestCase(TestCase):
     def test_distribute_paper_rewards(self):
         paper_reward = PaperReward.claim_paper_rewards(
             self.paper1,
-            self.paper1.authors.first(),
+            self.paper1.authorship_authors.first(),
             False,
             False,
         )
 
         paper_reward = PaperReward.distribute_paper_rewards(
             self.paper1,
-            self.paper1.authors.first(),
+            self.paper1.authorship_authors.first(),
         )
 
         self.assertIsNotNone(paper_reward.distribution)

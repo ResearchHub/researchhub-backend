@@ -38,7 +38,7 @@ class SignalTests(TestCase):
         self.paper = create_paper(title="Signal Test Paper")
         self.author = create_random_authenticated_user("Dumbledore")
 
-        self.paper.authors.add(Author.objects.get(user=self.author))
+        self.paper.authorship_authors.add(Author.objects.get(user=self.author))
         self.paper.save()
 
         self.sign_up_bonus = 25
@@ -58,7 +58,7 @@ class SignalTests(TestCase):
     def test_create_paper_uploaded_by_author_increases_rep_1(self):
         user = create_random_default_user("Ronald the Author")
         paper = create_paper(uploaded_by=user)
-        paper.authors.add(user.author_profile)
+        paper.authorship_authors.add(user.author_profile)
 
         user.refresh_from_db()
         self.assertEqual(user.reputation, self.start_rep + 1)
@@ -163,7 +163,7 @@ class SignalTests(TestCase):
         recipient = create_random_default_user("Winky the Author")
 
         paper = create_paper()
-        paper.authors.add(recipient.author_profile)
+        paper.authorship_authors.add(recipient.author_profile)
 
         thread = create_thread(paper=paper)
         comment = create_comment(thread=thread, created_by=recipient)
@@ -218,7 +218,7 @@ class SignalTests(TestCase):
         recipient = create_random_default_user("George the Author")
 
         paper = create_paper()
-        paper.authors.add(recipient.author_profile)
+        paper.authorship_authors.add(recipient.author_profile)
 
         thread = create_thread(paper=paper)
         comment = create_comment(thread=thread)
