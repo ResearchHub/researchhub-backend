@@ -9,17 +9,9 @@ from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
 from purchase.related_models.purchase_model import Purchase
-from reputation.models import (
-    Bounty,
-    Contribution,
-    Distribution,
-    Score,
-    ScoreChange,
-    Withdrawal,
-)
+from reputation.models import Score, ScoreChange
 from researchhub_case.constants.case_constants import APPROVED
 from researchhub_comment.models import RhCommentThreadModel
-from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from user.related_models.profile_image_storage import ProfileImageStorage
 from user.related_models.school_model import University
 from user.related_models.user_model import User
@@ -400,9 +392,8 @@ class Author(models.Model):
             self._calculate_score_hub_comments()
 
     def _calculate_score_hub_paper_votes(self):
-        authorships = Authorship.objects.filter(author=self)
         authored_papers = Paper.objects.filter(
-            id__in=authorships.values_list("paper_id", flat=True),
+            authorships__author=self,
             work_type__in=["preprint", "article"],
         )
 
@@ -442,9 +433,8 @@ class Author(models.Model):
                     self.update_scores_vote(vote, hub)
 
     def _calculate_score_hub_citations(self):
-        authorships = Authorship.objects.filter(author=self)
         authored_papers = Paper.objects.filter(
-            id__in=authorships.values_list("paper_id", flat=True),
+            authorships__author=self,
             work_type__in=["preprint", "article"],
         )
 
