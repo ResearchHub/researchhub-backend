@@ -1,4 +1,4 @@
-from django.db.models.signals import post_save
+from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 from django.utils.crypto import get_random_string
 from django.utils.text import slugify
@@ -58,6 +58,29 @@ def update_rep_score(created, instance, update_fields, **kwargs):
         instance.update_scores_citations(
             authorship.author,
         )
+
+
+@receiver(post_save, sender=Authorship, dispatch_uid="update_rep_score_authorship")
+def update_rep_score_authorship(created, instance, update_fields, **kwargs):
+    if created:
+        paper = instance.paper
+        if paper is None:
+            return
+
+        author = instance.author
+        paper.update_scores_citations(author)
+
+
+@receiver(
+    post_delete, sender=Authorship, dispatch_uid="update_rep_score_authorship_delete"
+)
+def update_rep_score_authorship_delete(instance, **kwargs):
+    paper = instance.paper
+    if paper is None:
+        return
+
+    author = instance.author
+    paper.update_scores_citations(author)
 
 
 def check_file_updated(update_fields, file):
