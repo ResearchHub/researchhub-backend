@@ -394,6 +394,7 @@ class Author(models.Model):
 
     def calculate_hub_scores(self):
         with transaction.atomic():
+            Score.reset_scores(self)
             self._calculate_score_hub_citations()
             self._calculate_score_hub_paper_votes()
             self._calculate_score_hub_comments()

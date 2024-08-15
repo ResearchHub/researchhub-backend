@@ -85,6 +85,21 @@ class Score(DefaultModel):
 
         return score
 
+    @classmethod
+    def reset_scores(cls, author):
+        scores = Score.get_scores(author)
+        for score in scores:
+            algorithm_variables = AlgorithmVariables.objects.filter(
+                hub=score.hub
+            ).latest("created_date")
+            score.score = 0
+            score.save()
+            ScoreChange.objects.filter(
+                score=score,
+                algorithm_version=ALGORITHM_VERSION,
+                algorithm_variables=algorithm_variables,
+            ).delete()
+
 
 class ScoreChange(DefaultModel):
     algorithm_version = models.IntegerField(default=1)
