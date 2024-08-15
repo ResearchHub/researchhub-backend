@@ -6,7 +6,7 @@ from reputation.models import Escrow
 
 
 def distribute_support_to_authors(paper, purchase, amount):
-    registered_authors = paper.authors.all()
+    registered_authors = paper.authorship_authors.all()
     total_author_count = paper.true_author_count()
 
     rewarded_rsc = 0
