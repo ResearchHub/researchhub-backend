@@ -9,12 +9,12 @@ from user.tests.helpers import create_random_authenticated_user
 class Command(BaseCommand):
 
     def handle(self, *args, **options):
-        alice = create_random_authenticated_user('alice')
+        alice = create_random_authenticated_user("alice")
         paper = create_paper()
-        paper.authors.add(alice.author_profile)
+        paper.authorship_authors.add(alice.author_profile)
         alice.emailrecipient.paper_subscription.none = True
         alice.emailrecipient.paper_subscription.save()
-        bob = create_random_authenticated_user('bob')
+        bob = create_random_authenticated_user("bob")
         create_thread(paper=paper, created_by=bob)
 
         User.objects.get(pk=alice.id).delete()
