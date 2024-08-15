@@ -392,10 +392,7 @@ class Author(models.Model):
 
         return paper_scores + paper_count
 
-    def calculate_hub_scores(self, recalculate=False):
-        if recalculate:
-            Score.incrememnt_version(self)
-
+    def calculate_hub_scores(self):
         with transaction.atomic():
             self._calculate_score_hub_citations()
             self._calculate_score_hub_paper_votes()
@@ -487,11 +484,10 @@ class Author(models.Model):
                 hub=hub,
                 author=self,
             )
-            previous_score_change = ScoreChange.objects.get(
-                score=score,
-                changed_object_id=paper_id,
-                changed_content_type=content_type,
-                score_version=score.version,
+            previous_score_change = ScoreChange.get_latest_score_change_object(
+                score,
+                paper_id,
+                content_type,
             )
         except (Score.DoesNotExist, ScoreChange.DoesNotExist):
             previous_score_change = None
@@ -512,15 +508,10 @@ class Author(models.Model):
         content_type = ContentType.objects.get_for_model(Vote)
 
         score = Score.get_or_create_score(self, hub)
-        previous_score_change = (
-            ScoreChange.objects.filter(
-                score=score,
-                changed_object_id=vote.id,
-                changed_content_type=content_type,
-                score_version=score.version,
-            )
-            .order_by("created_date")
-            .last()
+        previous_score_change = ScoreChange.get_latest_score_change_object(
+            score,
+            vote.id,
+            content_type,
         )
         vote_value = ScoreChange.vote_change(vote, previous_score_change)
         if vote_value == 0:
