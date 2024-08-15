@@ -217,6 +217,11 @@ class InitializeReputationCommandTestCase(TestCase):
         self.assertEqual(score_changes1[2].score_change, 1)
         self.assertEqual(score_changes1[3].score_change, 1)
         self.assertEqual(score_changes1[4].score_change, 1)
+        # Get some of score changes and check if it equals score score
+        self.assertEqual(
+            sum([score_change.score_change for score_change in score_changes1]),
+            score1.score,
+        )
 
         # Check if the score is created with the correct score
         score2 = Score.objects.get(

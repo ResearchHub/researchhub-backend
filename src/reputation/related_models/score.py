@@ -303,7 +303,7 @@ class AlgorithmVariables(DefaultModel):
     # {"citations":
     #   {"bins":{(0, 2): 50, (2, 12): 100, (12, 200): 250, (200, 2800): 100}},
     #  "votes": {"value": 1},
-    #  "bins": [1000, 10_000, 100_000, 1_000_000]
+    #  "bins": [[0, 1000], [1_000, 10_000], [10_000, 100_000], [100_000, 1_000_000]]
     # }
     variables = JSONField()
     hub = models.ForeignKey("hub.Hub", on_delete=models.CASCADE, db_index=True)

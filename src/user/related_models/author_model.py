@@ -419,7 +419,17 @@ class Author(models.Model):
         for thread in threads:
             comments = thread.rh_comments.all()
             for comment in comments:
-                paper = Paper.objects.get(id=comment.thread.object_id)
+                paper = (
+                    Paper.objects.filter(
+                        id=comment.thread.object_id,
+                        work_type__in=["preprint", "article"],
+                    )
+                    .order_by("created_date")
+                    .last()
+                )
+                if paper is None:
+                    continue
+
                 votes = comment.votes.filter(vote_type__in=[1, 2])
                 if votes.count() == 0:
                     continue
