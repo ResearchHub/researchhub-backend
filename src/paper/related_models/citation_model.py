@@ -15,6 +15,7 @@ class Citation(DefaultModel):
         "paper.paper",
         on_delete=models.CASCADE,
         related_name="paper_citations",
+        db_index=True,
     )
 
     total_citation_count = models.IntegerField()
@@ -24,3 +25,12 @@ class Citation(DefaultModel):
     source = models.CharField(
         max_length=255, choices=[(source.value, source.name) for source in Source]
     )
+
+    @classmethod
+    def citation_count(cls, paper):
+        return (
+            cls.objects.filter(paper=paper)
+            .order_by("-created_date")
+            .values_list("total_citation_count", flat=True)
+            .first()
+        ) or 0

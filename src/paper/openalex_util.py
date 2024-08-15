@@ -9,6 +9,7 @@ from simple_history.utils import bulk_update_with_history
 
 import utils.sentry as sentry
 from institution.models import Institution
+from paper.related_models.citation_model import Citation, Source
 from user.related_models.author_contribution_summary_model import (
     AuthorContributionSummary,
 )
@@ -99,12 +100,12 @@ def process_openalex_works(works):
     for work in create_papers:
         _work = copy.deepcopy(work)
         (
-            data,
+            openalex_paper,
             openalex_concepts,
             openalex_topics,
         ) = open_alex.build_paper_from_openalex_work(_work)
 
-        paper = Paper(**data)
+        paper = Paper(**openalex_paper)
 
         # Validate paper
         try:
@@ -119,8 +120,14 @@ def process_openalex_works(works):
 
         try:
             paper.save()
+            Citation(
+                paper=paper,
+                total_citation_count=paper.citations,
+                citation_change=paper.citations,
+                source=Source.OpenAlex.value,
+            ).save()
 
-            # Succeessfully saved paper, add to map
+            # Successfully saved paper, add to map
             paper_to_openalex_data[paper.id] = {
                 "openalex_concepts": openalex_concepts,
                 "openalex_topics": openalex_topics,
@@ -141,7 +148,7 @@ def process_openalex_works(works):
     for existing_paper, work in update_papers:
         _work = copy.deepcopy(work)
         (
-            data,
+            openalex_paper,
             openalex_concepts,
             openalex_topics,
         ) = open_alex.build_paper_from_openalex_work(_work)
@@ -151,8 +158,19 @@ def process_openalex_works(works):
         # otherwise django doesn't update them, e.g. paper_publish_date
         existing_paper.refresh_from_db(fields=[*PAPER_FIELDS_ALLOWED_TO_UPDATE])
 
+        previous_citation_count = Citation.citation_count(existing_paper)
+
+        if previous_citation_count != openalex_paper.get("citations"):
+            Citation(
+                paper=existing_paper,
+                total_citation_count=openalex_paper.get("citations"),
+                citation_change=openalex_paper.get("citations")
+                - previous_citation_count,
+                source=Source.OpenAlex.value,
+            ).save()
+
         for field in PAPER_FIELDS_ALLOWED_TO_UPDATE:
-            setattr(existing_paper, field, data.get(field))
+            setattr(existing_paper, field, openalex_paper.get(field))
 
         paper_to_openalex_data[existing_paper.id] = {
             "openalex_concepts": openalex_concepts,
