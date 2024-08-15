@@ -202,7 +202,7 @@ class PaperPermissionsIntegrationTests(TestCase, BaseIntegrationMixin):
 
     def create_paper_with_authors(self, author_ids):
         paper = create_paper(title="Authored Paper")
-        paper.authors.add(*author_ids)
+        paper.authorship_authors.add(*author_ids)
         paper.save()
         return paper
 
