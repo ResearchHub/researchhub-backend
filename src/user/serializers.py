@@ -1,6 +1,8 @@
 import logging
 
-import dj_rest_auth.registration.serializers as rest_auth_serializers
+from allauth.account import app_settings as allauth_settings
+from allauth.utils import get_username_max_length
+from dj_rest_auth.registration.serializers import RegisterSerializer, get_adapter
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.serializers import (
     CharField,
@@ -532,10 +534,10 @@ class UserEditableSerializer(ModelSerializer):
             return HubSerializer(subscribed_query, context=context, many=True).data
 
 
-class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
+class RegisterSerializer(RegisterSerializer):
     username = CharField(
-        max_length=rest_auth_serializers.get_username_max_length(),
-        min_length=rest_auth_serializers.allauth_settings.USERNAME_MIN_LENGTH,
+        max_length=get_username_max_length(),
+        min_length=allauth_settings.USERNAME_MIN_LENGTH,
         required=False,
         allow_blank=True,
     )
@@ -545,7 +547,7 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
 
     def validate_username(self, username):
         if username:
-            username = rest_auth_serializers.get_adapter().clean_username(username)
+            username = get_adapter().clean_username(username)
         return username
 
     def validate_first_name(self, first_name):
@@ -617,8 +619,8 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
 
 class UserActions:
     def __init__(self, data=None, user=None, **kwargs):
-        assert (data is not None) or (user is not None), f"Arguments data"
-        f" and user_id can not both be None"
+        assert (data is not None) or (user is not None), "Arguments data"
+        " and user_id can not both be None"
 
         self.user = None
         if user and user.is_authenticated:
