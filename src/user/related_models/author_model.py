@@ -9,17 +9,9 @@ from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
 from purchase.related_models.purchase_model import Purchase
-from reputation.models import (
-    Bounty,
-    Contribution,
-    Distribution,
-    Score,
-    ScoreChange,
-    Withdrawal,
-)
+from reputation.models import Score, ScoreChange
 from researchhub_case.constants.case_constants import APPROVED
 from researchhub_comment.models import RhCommentThreadModel
-from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from user.related_models.profile_image_storage import ProfileImageStorage
 from user.related_models.school_model import University
 from user.related_models.user_model import User
@@ -392,19 +384,16 @@ class Author(models.Model):
 
         return paper_scores + paper_count
 
-    def calculate_hub_scores(self, recalculate=False):
-        if recalculate:
-            Score.incrememnt_version(self)
-
+    def calculate_hub_scores(self):
         with transaction.atomic():
+            Score.reset_scores(self)
             self._calculate_score_hub_citations()
             self._calculate_score_hub_paper_votes()
             self._calculate_score_hub_comments()
 
     def _calculate_score_hub_paper_votes(self):
-        authorships = Authorship.objects.filter(author=self)
         authored_papers = Paper.objects.filter(
-            id__in=authorships.values_list("paper_id", flat=True),
+            authorships__author=self,
             work_type__in=["preprint", "article"],
         )
 
@@ -430,7 +419,17 @@ class Author(models.Model):
         for thread in threads:
             comments = thread.rh_comments.all()
             for comment in comments:
-                paper = Paper.objects.get(id=comment.thread.object_id)
+                paper = (
+                    Paper.objects.filter(
+                        id=comment.thread.object_id,
+                        work_type__in=["preprint", "article"],
+                    )
+                    .order_by("created_date")
+                    .last()
+                )
+                if paper is None:
+                    continue
+
                 votes = comment.votes.filter(vote_type__in=[1, 2])
                 if votes.count() == 0:
                     continue
@@ -444,9 +443,8 @@ class Author(models.Model):
                     self.update_scores_vote(vote, hub)
 
     def _calculate_score_hub_citations(self):
-        authorships = Authorship.objects.filter(author=self)
         authored_papers = Paper.objects.filter(
-            id__in=authorships.values_list("paper_id", flat=True),
+            authorships__author=self,
             work_type__in=["preprint", "article"],
         )
 
@@ -487,11 +485,10 @@ class Author(models.Model):
                 hub=hub,
                 author=self,
             )
-            previous_score_change = ScoreChange.objects.get(
-                score=score,
-                changed_object_id=paper_id,
-                changed_content_type=content_type,
-                score_version=score.version,
+            previous_score_change = ScoreChange.get_latest_score_change_object(
+                score,
+                paper_id,
+                content_type,
             )
         except (Score.DoesNotExist, ScoreChange.DoesNotExist):
             previous_score_change = None
@@ -512,15 +509,10 @@ class Author(models.Model):
         content_type = ContentType.objects.get_for_model(Vote)
 
         score = Score.get_or_create_score(self, hub)
-        previous_score_change = (
-            ScoreChange.objects.filter(
-                score=score,
-                changed_object_id=vote.id,
-                changed_content_type=content_type,
-                score_version=score.version,
-            )
-            .order_by("created_date")
-            .last()
+        previous_score_change = ScoreChange.get_latest_score_change_object(
+            score,
+            vote.id,
+            content_type,
         )
         vote_value = ScoreChange.vote_change(vote, previous_score_change)
         if vote_value == 0:

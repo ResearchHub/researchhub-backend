@@ -61,7 +61,7 @@ class InitializeReputationCommandTestCase(TestCase):
             ],
         )
 
-        old_vitation_bins = {
+        old_citation_bins = {
             json.dumps((0, 2)): 5,
             json.dumps((2, 12)): 10,
             json.dumps((12, 200)): 25,
@@ -79,7 +79,7 @@ class InitializeReputationCommandTestCase(TestCase):
         AlgorithmVariables.objects.create(
             variables={
                 "citations": {
-                    "bins": old_vitation_bins,
+                    "bins": old_citation_bins,
                 },
                 "votes": {"value": 1},
                 "bins": bins,
@@ -103,7 +103,7 @@ class InitializeReputationCommandTestCase(TestCase):
         AlgorithmVariables.objects.create(
             variables={
                 "citations": {
-                    "bins": old_vitation_bins,
+                    "bins": old_citation_bins,
                 },
                 "votes": {"value": 1},
                 "bins": bins,
@@ -189,29 +189,16 @@ class InitializeReputationCommandTestCase(TestCase):
         self.assertEqual(score_changes2.count(), 1)
         self.assertEqual(score_changes2[0].score_change, 308100)
 
-    def test_initialize_reputation_two_calls(self):
-        # This simulates a call that should not recalculate reputation, since optional
-        # recalculate argument was not included.
-        call_command("initialize_reputation")
-        call_command("initialize_reputation")
-
-        # Check if the score is created
-        self.assertEqual(Score.objects.count(), 2)
-
-        # Check if the score change is created but not recalculated
-        self.assertEqual(ScoreChange.objects.count(), 6)
-
     def test_initialize_reputation_command_two_calls_recalculate(self):
         # This simulates a recalculation of the reputation.
         call_command("initialize_reputation")
-        call_command("initialize_reputation", "--recalculate", True)
-        call_command("initialize_reputation")  # This should not recalculate
+        call_command("initialize_reputation")
 
         # Check if the score is created
         self.assertEqual(Score.objects.count(), 2)
 
         # Check if the score change is created
-        self.assertEqual(ScoreChange.objects.count(), 12)
+        self.assertEqual(ScoreChange.objects.count(), 6)
 
         # Check if the score is created with the correct score
         score1 = Score.objects.get(
@@ -219,11 +206,10 @@ class InitializeReputationCommandTestCase(TestCase):
         )
 
         self.assertEqual(score1.score, 308104)
-        self.assertEqual(score1.version, 2)
 
         # Check if the score change is created with the correct score change
-        score_changes1 = ScoreChange.objects.filter(
-            score=score1, score_version=score1.version
+        score_changes1 = ScoreChange.objects.filter(score=score1).order_by(
+            "-score_change"
         )
         self.assertEqual(score_changes1.count(), 5)
         self.assertEqual(score_changes1[0].score_change, 308100)
@@ -231,18 +217,20 @@ class InitializeReputationCommandTestCase(TestCase):
         self.assertEqual(score_changes1[2].score_change, 1)
         self.assertEqual(score_changes1[3].score_change, 1)
         self.assertEqual(score_changes1[4].score_change, 1)
+        # Get some of score changes and check if it equals score score
+        self.assertEqual(
+            sum([score_change.score_change for score_change in score_changes1]),
+            score1.score,
+        )
 
         # Check if the score is created with the correct score
         score2 = Score.objects.get(
             hub=self.paper2_hub, author=self.user_author.author_profile
         )
         self.assertEqual(score2.score, 308100)
-        self.assertEqual(score2.version, 2)
 
         # Check if the score change is created with the correct score change
-        score_changes2 = ScoreChange.objects.filter(
-            score=score2, score_version=score2.version
-        )
+        score_changes2 = ScoreChange.objects.filter(score=score2)
 
         self.assertEqual(score_changes2.count(), 1)
         self.assertEqual(score_changes2[0].score_change, 308100)

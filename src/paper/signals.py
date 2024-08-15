@@ -50,6 +50,9 @@ def add_unified_doc(created, instance, **kwargs):
 
 @receiver(post_save, sender=Paper, dispatch_uid="update_rep_score")
 def update_rep_score(created, instance, update_fields, **kwargs):
+    if instance.work_type not in ["preprint", "article"]:
+        return
+
     authorships = Authorship.objects.filter(paper=instance)
     authors = [authorship.author for authorship in authorships]
 

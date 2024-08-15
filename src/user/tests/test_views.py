@@ -352,21 +352,18 @@ class UserViewsTests(TestCase):
             Score.objects.create(
                 author=first_author,
                 hub=hub1,
-                version=1,
                 score=1900,
             )
 
             Score.objects.create(
                 author=first_author,
                 hub=hub2,
-                version=1,
                 score=1800,
             )
 
             Score.objects.create(
                 author=first_author,
                 hub=hub3,
-                version=1,
                 score=0,
             )
 

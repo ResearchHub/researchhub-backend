@@ -14,7 +14,6 @@ class Score(DefaultModel):
     author = models.ForeignKey("user.Author", on_delete=models.CASCADE, db_index=True)
     hub = models.ForeignKey("hub.Hub", on_delete=models.CASCADE, db_index=True)
     score = models.IntegerField(default=0)
-    version = models.IntegerField(default=1)
 
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
@@ -53,7 +52,6 @@ class Score(DefaultModel):
             score = cls(
                 author=author,
                 hub=hub,
-                version=1,
                 score=0,
             )
             score.save()
@@ -61,20 +59,6 @@ class Score(DefaultModel):
         cls.objects.select_for_update().get(id=score.id)
 
         return score
-
-    @classmethod
-    def incrememnt_version(cls, author):
-        recent_score = cls.objects.filter(author=author).order_by("-version").first()
-        if recent_score:
-            score_version = recent_score.version + 1
-        else:
-            score_version = 1
-
-        scores = cls.objects.filter(author=author)
-        for score in scores:
-            score.version = score_version
-            score.score = 0
-            score.save()
 
     @classmethod
     def update_score(
@@ -86,26 +70,35 @@ class Score(DefaultModel):
         content_type,
         object_id,
     ):
-        algorithm_variables = AlgorithmVariables.objects.filter(hub=hub).latest(
-            "created_date"
-        )
-
         score = cls.get_or_create_score(author, hub)
 
         score_change = ScoreChange.create_score_change(
             score,
-            algorithm_variables,
             raw_value_change,
             variable_key,
             content_type,
             object_id,
-            score.version,
         )
 
         score.score = score_change.score_after_change
         score.save()
 
         return score
+
+    @classmethod
+    def reset_scores(cls, author):
+        scores = Score.get_scores(author)
+        for score in scores:
+            algorithm_variables = AlgorithmVariables.objects.filter(
+                hub=score.hub
+            ).latest("created_date")
+            score.score = 0
+            score.save()
+            ScoreChange.objects.filter(
+                score=score,
+                algorithm_version=ALGORITHM_VERSION,
+                algorithm_variables=algorithm_variables,
+            ).delete()
 
 
 class ScoreChange(DefaultModel):
@@ -133,17 +126,17 @@ class ScoreChange(DefaultModel):
     score = models.ForeignKey(
         "reputation.Score", on_delete=models.CASCADE, db_index=True
     )
-    score_version = models.IntegerField(
-        default=1
-    )  # version of the score to allow for recalculation.
     created_date = models.DateTimeField(auto_now_add=True, db_index=True)
 
     @classmethod
-    def get_lastest_score_change(cls, score, score_version, algorithm_variables):
+    def get_latest_score_change(cls, score, algorithm_variables=None):
+        if algorithm_variables is None:
+            algorithm_variables = AlgorithmVariables.objects.filter(
+                hub=score.hub
+            ).latest("created_date")
         try:
             previous_score_change = cls.objects.filter(
                 score=score,
-                score_version=score_version,
                 algorithm_version=ALGORITHM_VERSION,
                 algorithm_variables=algorithm_variables,
             ).latest("created_date")
@@ -151,6 +144,23 @@ class ScoreChange(DefaultModel):
             previous_score_change = None
 
         return previous_score_change
+
+    @classmethod
+    def get_latest_score_change_object(cls, score, object_id, content_type):
+        algorithm_variables = AlgorithmVariables.objects.filter(hub=score.hub).latest(
+            "created_date"
+        )
+
+        return (
+            ScoreChange.objects.filter(
+                score=score,
+                changed_object_id=object_id,
+                changed_content_type=content_type,
+                algorithm_variables=algorithm_variables,
+            )
+            .order_by("created_date")
+            .last()
+        )
 
     def get_object_field(variable_key):
         if variable_key == "citations":
@@ -175,15 +185,16 @@ class ScoreChange(DefaultModel):
     def create_score_change(
         cls,
         score,
-        algorithm_variables,
         raw_value_change,
         variable_key,
         content_type,
         object_id,
-        score_version,
     ):
-        previous_score_change = ScoreChange.get_lastest_score_change(
-            score, score_version, algorithm_variables
+        algorithm_variables = AlgorithmVariables.objects.filter(hub=score.hub).latest(
+            "created_date"
+        )
+        previous_score_change = ScoreChange.get_latest_score_change(
+            score, algorithm_variables
         )
 
         previous_score = 0
@@ -221,7 +232,6 @@ class ScoreChange(DefaultModel):
             changed_object_field=field,
             variable_counts=current_variable_counts,
             score=score,
-            score_version=score_version,
         )
         score_change.save()
 
@@ -235,9 +245,7 @@ class ScoreChange(DefaultModel):
         variable_key,
         raw_value_change,
     ):
-        previous_score_change = cls.get_lastest_score_change(
-            score, score.version, algorithm_variables
-        )
+        previous_score_change = cls.get_latest_score_change(score, algorithm_variables)
 
         previous_total_count = 0
 
@@ -295,7 +303,7 @@ class AlgorithmVariables(DefaultModel):
     # {"citations":
     #   {"bins":{(0, 2): 50, (2, 12): 100, (12, 200): 250, (200, 2800): 100}},
     #  "votes": {"value": 1},
-    #  "bins": [1000, 10_000, 100_000, 1_000_000]
+    #  "bins": [[0, 1000], [1_000, 10_000], [10_000, 100_000], [100_000, 1_000_000]]
     # }
     variables = JSONField()
     hub = models.ForeignKey("hub.Hub", on_delete=models.CASCADE, db_index=True)
