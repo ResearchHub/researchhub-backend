@@ -83,9 +83,11 @@ urllib3 = "1.26.18"
 cryptography = "42.0.5"
 requests-mock = "^1.12.1"
 django-simple-history = "3.7.0"
-coverage = ">=7.5.4"
 
 [tool.poetry.dev-dependencies]
+
+[tool.poetry.group.dev.dependencies]
+coverage = ">=7.6.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
