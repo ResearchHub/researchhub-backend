@@ -12,6 +12,7 @@ from discussion.tests.helpers import create_rh_comment, create_vote
 from paper.models import Paper
 from paper.openalex_util import process_openalex_works
 from paper.related_models.authorship_model import Authorship
+from paper.related_models.citation_model import Citation
 from reputation.models import AlgorithmVariables, Score, ScoreChange
 from user.models import User
 from utils.openalex import OpenAlex
@@ -48,6 +49,14 @@ class InitializeReputationCommandTestCase(TestCase):
             created_papers = Paper.objects.filter(doi__in=dois).order_by("citations")
             self.paper1 = created_papers[0]
             self.paper2 = created_papers[1]
+            for paper in created_papers:
+                source = "OpenAlex" if paper.openalex_id else "Legacy"
+                Citation.objects.create(
+                    paper=self.paper1,
+                    total_citation_count=paper.citations,
+                    citation_change=paper.citations,
+                    source=source,
+                )
 
             self.paper1_hub = self.paper1.unified_document.get_primary_hub()
             self.paper2_hub = self.paper2.unified_document.get_primary_hub()

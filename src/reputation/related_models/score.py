@@ -5,6 +5,7 @@ from django.db import models
 from django.db.models import JSONField
 
 from discussion.reaction_models import Vote
+from paper.related_models.citation_model import Citation
 from utils.models import DefaultModel
 
 ALGORITHM_VERSION = 1
@@ -61,31 +62,6 @@ class Score(DefaultModel):
         return score
 
     @classmethod
-    def update_score(
-        cls,
-        author,
-        hub,
-        raw_value_change,
-        variable_key,
-        content_type,
-        object_id,
-    ):
-        score = cls.get_or_create_score(author, hub)
-
-        score_change = ScoreChange.create_score_change(
-            score,
-            raw_value_change,
-            variable_key,
-            content_type,
-            object_id,
-        )
-
-        score.score = score_change.score_after_change
-        score.save()
-
-        return score
-
-    @classmethod
     def reset_scores(cls, author):
         scores = Score.get_scores(author)
         for score in scores:
@@ -117,14 +93,20 @@ class Score(DefaultModel):
         if vote_value == 0:
             return
 
-        Score.update_score(
-            author,
-            hub,
+        score = cls.get_or_create_score(author, hub)
+
+        score_change = cls.create_score_change_votes(
+            score,
             vote_value,
             "votes",
             content_type,
             vote.id,
         )
+
+        score.score = score_change.score_after_change
+        score.save()
+
+        return score
 
     @classmethod
     def update_score_citations(
@@ -132,34 +114,46 @@ class Score(DefaultModel):
         author,
         hub,
         citation_change,
-        variable_key,
-        content_type,
-        paper_id,
+        citation_id,
+        paper_work_type,
     ):
+        content_type = ContentType.objects.get_for_model(Citation)
+
         try:
+            algorithm_variables = AlgorithmVariables.objects.filter(hub=hub).latest(
+                "created_date"
+            )
             score = cls.objects.select_for_update().get(
                 hub=hub,
                 author=author,
             )
-            previous_score_change = ScoreChange.objects.get(
-                score=score,
-                changed_object_id=paper_id,
-                changed_content_type=content_type,
+            previous_score_change_object = cls.get_latest_score_change_object(
+                score,
+                citation_id,
+                content_type,
+                algorithm_variables,
             )
         except (Score.DoesNotExist, ScoreChange.DoesNotExist):
-            previous_score_change = None
+            previous_score_change_object = None
 
-        if previous_score_change:
+        if previous_score_change_object:
             return
 
-        Score.update_score(
-            author,
-            hub,
+        score = cls.get_or_create_score(author, hub)
+
+        score_change = cls.create_score_change_citations(
+            score,
             citation_change,
-            variable_key,
+            "citations",
             content_type,
-            paper_id,
+            citation_id,
+            paper_work_type,
         )
+
+        score.score = score_change.score_after_change
+        score.save()
+
+        return score
 
 
 class ScoreChange(DefaultModel):
@@ -207,10 +201,13 @@ class ScoreChange(DefaultModel):
         return previous_score_change
 
     @classmethod
-    def get_latest_score_change_object(cls, score, object_id, content_type):
-        algorithm_variables = AlgorithmVariables.objects.filter(hub=score.hub).latest(
-            "created_date"
-        )
+    def get_latest_score_change_object(
+        cls, score, object_id, content_type, algorithm_variables=None
+    ):
+        if algorithm_variables is None:
+            algorithm_variables = AlgorithmVariables.objects.filter(
+                hub=score.hub
+            ).latest("created_date")
 
         return (
             ScoreChange.objects.filter(
@@ -231,19 +228,61 @@ class ScoreChange(DefaultModel):
         else:
             return None
 
-    def get_content_type(variable_key):
-        from discussion.models import Vote  # Lazy import
-        from paper.models import Paper  # Lazy import
+    @classmethod
+    def create_score_change_citations(
+        cls,
+        score,
+        raw_value_change,
+        variable_key,
+        content_type,
+        object_id,
+        paper_work_type,
+    ):
+        algorithm_variables = AlgorithmVariables.objects.filter(hub=score.hub).latest(
+            "created_date"
+        )
+        previous_score_change = cls.get_latest_score_change(score, algorithm_variables)
 
-        if variable_key == "citations":
-            return ContentType.objects.get_for_model(Paper)
-        elif variable_key == "votes":
-            return ContentType.objects.get_for_model(Vote)
-        else:
-            return None
+        previous_score = 0
+        previous_variable_counts = {
+            "citations": 0,
+            "votes": 0,
+        }
+        if previous_score_change:
+            previous_score = previous_score_change.score_after_change
+            previous_variable_counts = previous_score_change.variable_counts
+
+        current_variable_counts = previous_variable_counts
+        current_variable_counts[variable_key] = (
+            current_variable_counts[variable_key] + raw_value_change
+        )
+
+        score_value_change = cls.calculate_score_change_citations(
+            score, algorithm_variables, variable_key, raw_value_change, paper_work_type
+        )
+
+        current_rep = previous_score + score_value_change
+
+        field = cls.get_object_field(variable_key)
+
+        score_change = cls(
+            algorithm_version=ALGORITHM_VERSION,
+            algorithm_variables=algorithm_variables,
+            score_after_change=current_rep,
+            score_change=score_value_change,
+            raw_value_change=raw_value_change,
+            changed_content_type=content_type,
+            changed_object_id=object_id,
+            changed_object_field=field,
+            variable_counts=current_variable_counts,
+            score=score,
+        )
+        score_change.save()
+
+        return score_change
 
     @classmethod
-    def create_score_change(
+    def create_score_change_votes(
         cls,
         score,
         raw_value_change,
@@ -270,12 +309,13 @@ class ScoreChange(DefaultModel):
             current_variable_counts[variable_key] + raw_value_change
         )
 
-        score_value_change = cls.calculate_score_change(
+        score_value_change = cls.calculate_score_change_votes(
             score,
             algorithm_variables,
             variable_key,
             raw_value_change,
         )
+
         current_rep = previous_score + score_value_change
 
         field = cls.get_object_field(variable_key)
@@ -297,7 +337,39 @@ class ScoreChange(DefaultModel):
         return score_change
 
     @classmethod
-    def calculate_score_change(
+    def calculate_score_change_citations(
+        cls,
+        score,
+        algorithm_variables,
+        variable_key,
+        raw_value_change,
+        paper_work_type,
+    ):
+        previous_score_change = cls.get_latest_score_change(score, algorithm_variables)
+
+        previous_total_count = 0
+
+        if previous_score_change:
+            previous_total_count = previous_score_change.variable_counts[variable_key]
+
+        prev_rep = 0
+        current_rep = 0
+
+        prev_rep = cls.calculate_citation_score_v2(
+            previous_total_count,
+            algorithm_variables.variables["citations"]["bins"],
+            paper_work_type,
+        )
+        current_rep = cls.calculate_citation_score_v2(
+            previous_total_count + raw_value_change,
+            algorithm_variables.variables["citations"]["bins"],
+            paper_work_type,
+        )
+
+        return current_rep - prev_rep
+
+    @classmethod
+    def calculate_score_change_votes(
         cls,
         score,
         algorithm_variables,
@@ -314,18 +386,8 @@ class ScoreChange(DefaultModel):
         prev_rep = 0
         current_rep = 0
 
-        if variable_key == "citations":
-            prev_rep = cls.calculate_citation_score_v1(
-                previous_total_count,
-                algorithm_variables.variables["citations"]["bins"],
-            )
-            current_rep = cls.calculate_citation_score_v1(
-                previous_total_count + raw_value_change,
-                algorithm_variables.variables["citations"]["bins"],
-            )
-        elif variable_key == "votes":
-            prev_rep = previous_total_count
-            current_rep = previous_total_count + raw_value_change
+        prev_rep = previous_total_count
+        current_rep = previous_total_count + raw_value_change
 
         return current_rep - prev_rep
 
@@ -338,6 +400,22 @@ class ScoreChange(DefaultModel):
                 min(citation_count, key_tuple[1]) - key_tuple[0], 0
             )  # Take min of the citation count and the upper bound of the bin range then subtract the lower bound of the bin range and avoid going negative.
             rep += citation_count_curr_bin * val
+
+        return rep
+
+    def calculate_citation_score_v2(citation_count, bins, paper_work_type):
+        rep = 0
+        for key, val in bins.items():
+            key_tuple = json.loads(key)
+
+            citation_count_curr_bin = max(
+                min(citation_count, key_tuple[1]) - key_tuple[0], 0
+            )  # Take min of the citation count and the upper bound of the bin range then subtract the lower bound of the bin range and avoid going negative.
+            rep_change = citation_count_curr_bin * val
+            if paper_work_type == "review":
+                rep_change /= 5
+
+            rep += rep_change
 
         return rep
 

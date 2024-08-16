@@ -21,6 +21,7 @@ import utils.sentry as sentry
 from discussion.reaction_models import AbstractGenericReactionModel, Vote
 from hub.serializers import DynamicHubSerializer
 from paper.lib import journal_hosts
+from paper.related_models.citation_model import Citation
 from paper.tasks import (
     celery_extract_figures,
     celery_extract_meta_data,
@@ -57,22 +58,8 @@ HELP_TEXT_IS_REMOVED = "Hides the paper because it is not allowed."
 HELP_TEXT_IS_PDF_REMOVED = "Hides the PDF because it infringes Copyright."
 
 
-class AbstractPaper(AbstractGenericReactionModel):
-    class Meta:
-        abstract = True
-
-    citations = models.IntegerField(default=0)
-
-    def citation_change(self, previous_paper):
-        previous_paper_citations = 0
-        if previous_paper is not None:
-            previous_paper_citations = previous_paper.citations
-
-        return self.citations - previous_paper_citations
-
-
-class Paper(AbstractPaper):
-    history = HistoricalRecords(bases=[AbstractPaper])
+class Paper(AbstractGenericReactionModel):
+    history = HistoricalRecords(bases=[AbstractGenericReactionModel])
     FIELDS_TO_EXCLUDE = {"url_svf", "pdf_url_svf", "doi_svf"}
 
     REGULAR = "REGULAR"
@@ -952,58 +939,37 @@ class Paper(AbstractPaper):
         return lambda_compress_and_linearize_pdf(key, file_name)
 
     def update_scores_citations(self, author):
-        historical_papers = self.history.all().order_by("history_date")
-        recent_historical_paper_score = (
+        citation_entries = Citation.objects.filter(paper=self).order_by("created_date")
+        content_type = ContentType.objects.get_for_model(Citation)
+        recent_citations_score = (
             ScoreChange.objects.filter(
-                changed_content_type=ContentType.objects.get_for_model(
-                    Paper.history.model
-                ),
-                changed_object_id__in=historical_papers.values_list(
-                    "history_id", flat=True
-                ),
+                content_type,
+                changed_object_id__in=citation_entries.values_list("id", flat=True),
             )
             .order_by("created_date")
             .last()
         )
-        if recent_historical_paper_score:
-            historical_papers = [
-                paper
-                for paper in historical_papers
-                if paper.history_id > recent_historical_paper_score.changed_object_id
+        if recent_citations_score:
+            citation_entries = [
+                citation
+                for citation in citation_entries
+                if citation.created_date > recent_citations_score.created_date
             ]
-
-        if len(historical_papers) == 0:
-            historical_papers = [self]
 
         hub = self.unified_document.get_primary_hub()
         if hub is None:
             print(f"Paper {self.id} has no primary hub")
             return
 
-        for i, historical_paper in enumerate(historical_papers):
-            previous_historical_paper = None
-            if i != 0:
-                previous_historical_paper = historical_papers[i - 1]
-
-            citation_change = historical_paper.citation_change(
-                previous_historical_paper
-            )
-            if citation_change == 0:
-                continue
-
-            paper_id = historical_paper.id
-            content_type = ContentType.objects.get_for_model(Paper)
-            if isinstance(historical_paper, Paper.history.model):
-                paper_id = historical_paper.history_id
-                content_type = ContentType.objects.get_for_model(Paper.history.model)
+        for citation in citation_entries:
+            citation_change = citation.citation_change
 
             Score.update_score_citations(
                 author,
                 hub,
                 citation_change,
-                "citations",
-                content_type,
-                paper_id,
+                citation.id,
+                self.work_type,
             )
 
     def remove_scores_citations(self, author):
