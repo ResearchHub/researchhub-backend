@@ -779,7 +779,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         ).values("id", "score")
         docs_to_score_map = {d["id"]: d["score"] for d in docs_in_cache}
         for doc in cache_hit["results"]:
-            doc.score = docs_to_score_map[doc["id"]]
+            doc["score"] = docs_to_score_map.get(doc["id"])
 
             if "documents" in doc:
                 documents = doc["documents"]
