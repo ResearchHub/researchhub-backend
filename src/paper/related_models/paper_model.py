@@ -59,7 +59,7 @@ HELP_TEXT_IS_PDF_REMOVED = "Hides the PDF because it infringes Copyright."
 
 
 class Paper(AbstractGenericReactionModel):
-    history = HistoricalRecords(bases=[AbstractGenericReactionModel])
+    history = HistoricalRecords()
     FIELDS_TO_EXCLUDE = {"url_svf", "pdf_url_svf", "doi_svf"}
 
     REGULAR = "REGULAR"
@@ -101,6 +101,7 @@ class Paper(AbstractGenericReactionModel):
 
     views = models.IntegerField(default=0)
     downloads = models.IntegerField(default=0)
+    citations = models.IntegerField(default=0)
     open_alex_raw_json = models.JSONField(null=True, blank=True)
     automated_bounty_created = models.BooleanField(default=False)
 
@@ -943,7 +944,7 @@ class Paper(AbstractGenericReactionModel):
         content_type = ContentType.objects.get_for_model(Citation)
         recent_citations_score = (
             ScoreChange.objects.filter(
-                content_type,
+                changed_content_type=content_type,
                 changed_object_id__in=citation_entries.values_list("id", flat=True),
             )
             .order_by("created_date")

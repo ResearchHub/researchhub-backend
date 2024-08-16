@@ -49,14 +49,6 @@ class InitializeReputationCommandTestCase(TestCase):
             created_papers = Paper.objects.filter(doi__in=dois).order_by("citations")
             self.paper1 = created_papers[0]
             self.paper2 = created_papers[1]
-            for paper in created_papers:
-                source = "OpenAlex" if paper.openalex_id else "Legacy"
-                Citation.objects.create(
-                    paper=self.paper1,
-                    total_citation_count=paper.citations,
-                    citation_change=paper.citations,
-                    source=source,
-                )
 
             self.paper1_hub = self.paper1.unified_document.get_primary_hub()
             self.paper2_hub = self.paper2.unified_document.get_primary_hub()
@@ -81,7 +73,7 @@ class InitializeReputationCommandTestCase(TestCase):
             json.dumps((0, 2)): 50,
             json.dumps((2, 12)): 100,
             json.dumps((12, 200)): 250,
-            json.dumps((200, 280000)): 1,
+            json.dumps((200, 2800)): 100,
         }
 
         # Create an old unused algorithm_variables row
@@ -166,6 +158,26 @@ class InitializeReputationCommandTestCase(TestCase):
         # Check if the score is created
         self.assertEqual(Score.objects.count(), 2)
 
+        for authorship in Authorship.objects.all():
+            print("--------------------")
+            print("Authorship author: ", authorship.author.id)
+            print("Authorship paper: ", authorship.paper.id)
+
+        for citation in Citation.objects.all():
+            print("--------------------")
+            print("Citation paper: ", citation.paper.id)
+            print("Citation total_citation_count: ", citation.total_citation_count)
+            print("Citation citation_change: ", citation.citation_change)
+            print("Citation source: ", citation.source)
+
+        for score in Score.objects.all():
+            for score_change in ScoreChange.objects.filter(score=score):
+                print("--------------------")
+                print("Score: ", score.score)
+                print("Score hub: ", score.hub)
+                print("Score author: ", score.author.id)
+                print("Score change: ", score_change.score_change)
+                print("Score change object_id: ", score_change.changed_object_id)
         # Check if the score change is created
         self.assertEqual(ScoreChange.objects.count(), 6)
 
@@ -246,8 +258,17 @@ class InitializeReputationCommandTestCase(TestCase):
 
     def test_initialize_reputation_command_signals(self):
         call_command("initialize_reputation")
+        print("123")
         self.paper1.citations = self.paper1.citations + 100
         self.paper1.save()
+        source = Citation.objects.get(paper=self.paper1).source
+        Citation.objects.create(
+            paper=self.paper1,
+            total_citation_count=self.paper1.citations,
+            citation_change=100,
+            source=source,
+        )
+        print("456")
         create_vote(self.user_basic, self.paper1, Vote.DOWNVOTE)
         create_vote(self.user_no_author, self.comment1, Vote.DOWNVOTE)
 
@@ -255,7 +276,7 @@ class InitializeReputationCommandTestCase(TestCase):
         self.assertEqual(Score.objects.count(), 2)
 
         # Check if the score change is created
-        self.assertEqual(ScoreChange.objects.count(), 11)
+        self.assertEqual(ScoreChange.objects.count(), 9)
 
         # Check if the score is created with the correct score
         score1 = Score.objects.get(

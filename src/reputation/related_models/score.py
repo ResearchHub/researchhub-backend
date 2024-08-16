@@ -95,10 +95,9 @@ class Score(DefaultModel):
 
         score = cls.get_or_create_score(author, hub)
 
-        score_change = cls.create_score_change_votes(
+        score_change = ScoreChange.create_score_change_votes(
             score,
             vote_value,
-            "votes",
             content_type,
             vote.id,
         )
@@ -127,7 +126,7 @@ class Score(DefaultModel):
                 hub=hub,
                 author=author,
             )
-            previous_score_change_object = cls.get_latest_score_change_object(
+            previous_score_change_object = ScoreChange.get_latest_score_change_object(
                 score,
                 citation_id,
                 content_type,
@@ -141,10 +140,9 @@ class Score(DefaultModel):
 
         score = cls.get_or_create_score(author, hub)
 
-        score_change = cls.create_score_change_citations(
+        score_change = ScoreChange.create_score_change_citations(
             score,
             citation_change,
-            "citations",
             content_type,
             citation_id,
             paper_work_type,
@@ -220,20 +218,11 @@ class ScoreChange(DefaultModel):
             .last()
         )
 
-    def get_object_field(variable_key):
-        if variable_key == "citations":
-            return "citations"
-        elif variable_key == "votes":
-            return "vote_type"
-        else:
-            return None
-
     @classmethod
     def create_score_change_citations(
         cls,
         score,
         raw_value_change,
-        variable_key,
         content_type,
         object_id,
         paper_work_type,
@@ -253,17 +242,15 @@ class ScoreChange(DefaultModel):
             previous_variable_counts = previous_score_change.variable_counts
 
         current_variable_counts = previous_variable_counts
-        current_variable_counts[variable_key] = (
-            current_variable_counts[variable_key] + raw_value_change
+        current_variable_counts["citations"] = (
+            current_variable_counts["citations"] + raw_value_change
         )
 
         score_value_change = cls.calculate_score_change_citations(
-            score, algorithm_variables, variable_key, raw_value_change, paper_work_type
+            score, algorithm_variables, raw_value_change, paper_work_type
         )
 
         current_rep = previous_score + score_value_change
-
-        field = cls.get_object_field(variable_key)
 
         score_change = cls(
             algorithm_version=ALGORITHM_VERSION,
@@ -273,7 +260,7 @@ class ScoreChange(DefaultModel):
             raw_value_change=raw_value_change,
             changed_content_type=content_type,
             changed_object_id=object_id,
-            changed_object_field=field,
+            changed_object_field="citations",
             variable_counts=current_variable_counts,
             score=score,
         )
@@ -286,7 +273,6 @@ class ScoreChange(DefaultModel):
         cls,
         score,
         raw_value_change,
-        variable_key,
         content_type,
         object_id,
     ):
@@ -305,20 +291,17 @@ class ScoreChange(DefaultModel):
             previous_variable_counts = previous_score_change.variable_counts
 
         current_variable_counts = previous_variable_counts
-        current_variable_counts[variable_key] = (
-            current_variable_counts[variable_key] + raw_value_change
+        current_variable_counts["votes"] = (
+            current_variable_counts["votes"] + raw_value_change
         )
 
         score_value_change = cls.calculate_score_change_votes(
             score,
             algorithm_variables,
-            variable_key,
             raw_value_change,
         )
 
         current_rep = previous_score + score_value_change
-
-        field = cls.get_object_field(variable_key)
 
         score_change = cls(
             algorithm_version=ALGORITHM_VERSION,
@@ -328,7 +311,7 @@ class ScoreChange(DefaultModel):
             raw_value_change=raw_value_change,
             changed_content_type=content_type,
             changed_object_id=object_id,
-            changed_object_field=field,
+            changed_object_field="vote_type",
             variable_counts=current_variable_counts,
             score=score,
         )
@@ -341,7 +324,6 @@ class ScoreChange(DefaultModel):
         cls,
         score,
         algorithm_variables,
-        variable_key,
         raw_value_change,
         paper_work_type,
     ):
@@ -350,7 +332,7 @@ class ScoreChange(DefaultModel):
         previous_total_count = 0
 
         if previous_score_change:
-            previous_total_count = previous_score_change.variable_counts[variable_key]
+            previous_total_count = previous_score_change.variable_counts["citations"]
 
         prev_rep = 0
         current_rep = 0
@@ -373,7 +355,6 @@ class ScoreChange(DefaultModel):
         cls,
         score,
         algorithm_variables,
-        variable_key,
         raw_value_change,
     ):
         previous_score_change = cls.get_latest_score_change(score, algorithm_variables)
@@ -381,7 +362,7 @@ class ScoreChange(DefaultModel):
         previous_total_count = 0
 
         if previous_score_change:
-            previous_total_count = previous_score_change.variable_counts[variable_key]
+            previous_total_count = previous_score_change.variable_counts["votes"]
 
         prev_rep = 0
         current_rep = 0
@@ -413,22 +394,6 @@ class ScoreChange(DefaultModel):
             )  # Take min of the citation count and the upper bound of the bin range then subtract the lower bound of the bin range and avoid going negative.
             rep_change = citation_count_curr_bin * val
             if paper_work_type == "review":
-                rep_change /= 5
-
-            rep += rep_change
-
-        return rep
-
-    def calculate_citation_score_v2(citation_count, bins, is_review_paper):
-        rep = 0
-        for key, val in bins.items():
-            key_tuple = json.loads(key)
-
-            citation_count_curr_bin = max(
-                min(citation_count, key_tuple[1]) - key_tuple[0], 0
-            )  # Take min of the citation count and the upper bound of the bin range then subtract the lower bound of the bin range and avoid going negative.
-            rep_change = citation_count_curr_bin * val
-            if is_review_paper:
                 rep_change /= 5
 
             rep += rep_change

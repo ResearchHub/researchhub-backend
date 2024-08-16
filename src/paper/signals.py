@@ -4,6 +4,7 @@ from django.utils.crypto import get_random_string
 from django.utils.text import slugify
 
 from paper.related_models.authorship_model import Authorship
+from paper.related_models.citation_model import Citation
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     PAPER as PAPER_DOC_TYPE,
@@ -48,14 +49,16 @@ def add_unified_doc(created, instance, **kwargs):
                 log_error("EXCPETION (add_unified_doc): ", e)
 
 
-@receiver(post_save, sender=Paper, dispatch_uid="update_rep_score")
+@receiver(post_save, sender=Citation, dispatch_uid="update_rep_score")
 def update_rep_score(created, instance, update_fields, **kwargs):
-    if instance.work_type not in ["preprint", "article"]:
+    if instance.paper.work_type not in ["preprint", "article"]:
         return
-    authorships = Authorship.objects.filter(paper=instance).select_related("author")
+    authorships = Authorship.objects.filter(paper=instance.paper).select_related(
+        "author"
+    )
 
     for authorship in authorships:
-        instance.update_scores_citations(
+        instance.paper.update_scores_citations(
             authorship.author,
         )
 
