@@ -2422,9 +2422,9 @@ tornado==6.4.1 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:b24b8982ed444378d7f21d563f4180a2de31ced9d8d84443907a0a64da2072e7 \
     --hash=sha256:d9a566c40b89757c9aa8e6f032bcdb8ca8795d7c1a9762910c722b1635c9de4d \
     --hash=sha256:e2e20b9113cd7293f164dc46fffb13535266e713cdb87bd2d15ddb336e96cfc4
-tqdm==4.66.1 ; python_version >= "3.8" and python_version < "4.0" \
-    --hash=sha256:d302b3c5b53d47bce91fea46679d9c3c6508cf6332229aa1e7d8653723793386 \
-    --hash=sha256:d88e651f9db8d8551a62556d3cff9e3034274ca5d66e93197cf2490e2dcb69c7
+tqdm==4.66.5 ; python_version >= "3.8" and python_version < "4.0" \
+    --hash=sha256:90279a3770753eafc9194a0364852159802111925aa30eb3f9d85b0e805ac7cd \
+    --hash=sha256:e1020aef2e5096702d8a025ac7d16b1577279c9d63f8375b63083e9a5f0fcbad
 traitlets==5.14.1 ; python_version >= "3.8" and python_version < "4.0" \
     --hash=sha256:2e5a030e6eff91737c643231bfcf04a65b0132078dad75e4936700b213652e74 \
     --hash=sha256:8585105b371a04b8316a43d5ce29c098575c2e477850b62b848b964f1444527e
