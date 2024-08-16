@@ -100,6 +100,7 @@ class Score(DefaultModel):
                 algorithm_variables=algorithm_variables,
             ).delete()
 
+    @classmethod
     def update_score_vote(cls, author, hub, vote):
         content_type = ContentType.objects.get_for_model(Vote)
         score = cls.get_or_create_score(author, hub)
@@ -108,7 +109,6 @@ class Score(DefaultModel):
                 score=score,
                 changed_object_id=vote.id,
                 changed_content_type=content_type,
-                score_version=score.version,
             )
             .order_by("created_date")
             .last()
@@ -145,7 +145,6 @@ class Score(DefaultModel):
                 score=score,
                 changed_object_id=paper_id,
                 changed_content_type=content_type,
-                score_version=score.version,
             )
         except (Score.DoesNotExist, ScoreChange.DoesNotExist):
             previous_score_change = None

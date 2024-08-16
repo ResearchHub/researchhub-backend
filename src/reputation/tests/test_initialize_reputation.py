@@ -155,10 +155,10 @@ class InitializeReputationCommandTestCase(TestCase):
         call_command("initialize_reputation")
 
         # Check if the score is created
-        self.assertEqual(Score.objects.count(), 4)
+        self.assertEqual(Score.objects.count(), 2)
 
         # Check if the score change is created
-        self.assertEqual(ScoreChange.objects.count(), 8)
+        self.assertEqual(ScoreChange.objects.count(), 6)
 
         # Check if the score is created with the correct score
         score1 = Score.objects.get(
@@ -195,7 +195,7 @@ class InitializeReputationCommandTestCase(TestCase):
         call_command("initialize_reputation")
 
         # Check if the score is created
-        self.assertEqual(Score.objects.count(), 4)
+        self.assertEqual(Score.objects.count(), 2)
 
         # Check if the score change is created
         self.assertEqual(ScoreChange.objects.count(), 6)
@@ -243,10 +243,10 @@ class InitializeReputationCommandTestCase(TestCase):
         create_vote(self.user_no_author, self.comment1, Vote.DOWNVOTE)
 
         # Check if the score is created
-        self.assertEqual(Score.objects.count(), 4)
+        self.assertEqual(Score.objects.count(), 2)
 
         # Check if the score change is created
-        self.assertEqual(ScoreChange.objects.count(), 15)
+        self.assertEqual(ScoreChange.objects.count(), 11)
 
         # Check if the score is created with the correct score
         score1 = Score.objects.get(
