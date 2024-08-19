@@ -51,39 +51,47 @@ def add_unified_doc(created, instance, **kwargs):
 
 @receiver(post_save, sender=Citation, dispatch_uid="update_rep_score")
 def update_rep_score(created, instance, update_fields, **kwargs):
-    if instance.paper.work_type not in ["preprint", "article"]:
-        return
-    authorships = Authorship.objects.filter(paper=instance.paper).select_related(
-        "author"
-    )
-
-    for authorship in authorships:
-        instance.paper.update_scores_citations(
-            authorship.author,
+    try:
+        if instance.paper.work_type not in ["preprint", "article"]:
+            return
+        authorships = Authorship.objects.filter(paper=instance.paper).select_related(
+            "author"
         )
+
+        for authorship in authorships:
+            instance.paper.update_scores_citations(
+                authorship.author,
+            )
+    except Exception as e:
+        log_error("Exception updating rep score citation change: ", e)
 
 
 @receiver(post_save, sender=Authorship, dispatch_uid="update_rep_score_authorship")
 def update_rep_score_authorship(created, instance, update_fields, **kwargs):
-    if created:
-        paper = instance.paper
-        if paper is None:
-            return
+    try:
+        if created:
+            paper = instance.paper
+            if paper is None:
+                return
 
-        author = instance.author
-        paper.update_scores_citations(author)
+            author = instance.author
+            paper.update_scores_citations(author)
+    except Exception as e:
+        log_error("Exception updating rep score new authorship: ", e)
 
 
 @receiver(
     post_delete, sender=Authorship, dispatch_uid="update_rep_score_authorship_delete"
 )
 def update_rep_score_authorship_delete(instance, **kwargs):
-    paper = instance.paper
-    if paper is None:
-        return
+    try:
+        paper = instance.paper
+        if paper is None:
+            return
 
-    author = instance.author
-    paper.update_scores_citations(author)
+        instance.author.calculate_hub_scores()
+    except Exception as e:
+        log_error("Exception updating rep score authorship delete: ", e)
 
 
 def check_file_updated(update_fields, file):

@@ -41,7 +41,6 @@ class InitializeReputationCommandTestCase(TestCase):
         with open(authors_file_path, "r") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
-
             process_openalex_works(self.works)
 
             dois = [work.get("doi") for work in self.works]
@@ -158,26 +157,6 @@ class InitializeReputationCommandTestCase(TestCase):
         # Check if the score is created
         self.assertEqual(Score.objects.count(), 2)
 
-        for authorship in Authorship.objects.all():
-            print("--------------------")
-            print("Authorship author: ", authorship.author.id)
-            print("Authorship paper: ", authorship.paper.id)
-
-        for citation in Citation.objects.all():
-            print("--------------------")
-            print("Citation paper: ", citation.paper.id)
-            print("Citation total_citation_count: ", citation.total_citation_count)
-            print("Citation citation_change: ", citation.citation_change)
-            print("Citation source: ", citation.source)
-
-        for score in Score.objects.all():
-            for score_change in ScoreChange.objects.filter(score=score):
-                print("--------------------")
-                print("Score: ", score.score)
-                print("Score hub: ", score.hub)
-                print("Score author: ", score.author.id)
-                print("Score change: ", score_change.score_change)
-                print("Score change object_id: ", score_change.changed_object_id)
         # Check if the score change is created
         self.assertEqual(ScoreChange.objects.count(), 6)
 
@@ -258,7 +237,6 @@ class InitializeReputationCommandTestCase(TestCase):
 
     def test_initialize_reputation_command_signals(self):
         call_command("initialize_reputation")
-        print("123")
         self.paper1.citations = self.paper1.citations + 100
         self.paper1.save()
         source = Citation.objects.get(paper=self.paper1).source
@@ -268,12 +246,11 @@ class InitializeReputationCommandTestCase(TestCase):
             citation_change=100,
             source=source,
         )
-        print("456")
         create_vote(self.user_basic, self.paper1, Vote.DOWNVOTE)
         create_vote(self.user_no_author, self.comment1, Vote.DOWNVOTE)
 
         # Check if the score is created
-        self.assertEqual(Score.objects.count(), 2)
+        self.assertEqual(Score.objects.count(), 3)
 
         # Check if the score change is created
         self.assertEqual(ScoreChange.objects.count(), 9)
@@ -289,17 +266,14 @@ class InitializeReputationCommandTestCase(TestCase):
         score_changes1 = ScoreChange.objects.filter(score=score1).order_by(
             "-score_change"
         )
-        self.assertEqual(score_changes1.count(), 8)
+        self.assertEqual(score_changes1.count(), 7)
         self.assertEqual(score_changes1[0].score_change, 308100)
         self.assertEqual(score_changes1[1].score_change, 1)
         self.assertEqual(score_changes1[2].score_change, 1)
         self.assertEqual(score_changes1[3].score_change, 1)
         self.assertEqual(score_changes1[4].score_change, 1)
-        self.assertEqual(
-            score_changes1[5].score_change, 0
-        )  # Citation count out of range.
+        self.assertEqual(score_changes1[5].score_change, -1)
         self.assertEqual(score_changes1[6].score_change, -1)
-        self.assertEqual(score_changes1[7].score_change, -1)
 
         # Check if the score is created with the correct score
         score2 = Score.objects.get(

@@ -973,14 +973,6 @@ class Paper(AbstractGenericReactionModel):
                 self.work_type,
             )
 
-    def remove_scores_citations(self, author):
-        hub = self.unified_document.get_primary_hub()
-        if hub is None:
-            print(f"Paper {self.id} has no primary hub")
-            return
-
-        Score.remove_score_citations(author, hub, "citations", self.id)
-
     @property
     def paper_rewards(self):
         return HubCitationValue.calculate_base_claim_rsc_reward(self)
