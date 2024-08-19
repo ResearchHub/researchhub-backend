@@ -42,7 +42,13 @@ class Command(BaseCommand):
                         print(
                             f" -> creating with pos: {pos}, corresponding: {corresponding})"
                         )
-                        # FIXME: Insert into Authorship relation
+                        Authorship.objects.create(
+                            paper=paper,
+                            author=author,
+                            author_position=pos,
+                            is_corresponding=corresponding,
+                            source="AUTHOR_MIGRATION",
+                        )
                         created += 1
 
         print(
