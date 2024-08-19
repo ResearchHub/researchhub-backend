@@ -394,7 +394,7 @@ class Author(models.Model):
     def _calculate_score_hub_paper_votes(self):
         authored_papers = Paper.objects.filter(
             authorships__author=self,
-            work_type__in=["preprint", "article"],
+            work_type__in=["preprint", "article", "review"],
         )
 
         for paper in authored_papers:
@@ -422,7 +422,7 @@ class Author(models.Model):
                 paper = (
                     Paper.objects.filter(
                         id=comment.thread.object_id,
-                        work_type__in=["preprint", "article"],
+                        work_type__in=["preprint", "article", "review"],
                     )
                     .order_by("created_date")
                     .last()

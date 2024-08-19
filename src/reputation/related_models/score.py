@@ -1,4 +1,5 @@
 import json
+import math
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
@@ -394,7 +395,7 @@ class ScoreChange(DefaultModel):
             )  # Take min of the citation count and the upper bound of the bin range then subtract the lower bound of the bin range and avoid going negative.
             rep_change = citation_count_curr_bin * val
             if paper_work_type == "review":
-                rep_change /= 5
+                rep_change = math.ceil(rep_change / 5)
 
             rep += rep_change
 
