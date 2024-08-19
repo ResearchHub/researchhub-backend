@@ -29,6 +29,7 @@ class AuthorClaimCaseSerializer(ModelSerializer):
     authorship = SerializerMethodField()
     paper_reward = SerializerMethodField()
     user_verification = SerializerMethodField()
+    user_email = SerializerMethodField()
 
     def create(self, validated_data):
         request_data = self.context.get("request").data
@@ -106,13 +107,18 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             return serializer.data
         return None
 
+    def get_user_email(self, case):
+        if case.requestor is None:
+            return None
+
+        return case.requestor.email
+
     def get_user_verification(self, case):
         if case.requestor is None:
             return None
 
         user_verification = UserVerification.objects.filter(user=case.requestor).last()
         return {
-            "status": user_verification.status,
             "verified_name": f"{user_verification.first_name} {user_verification.last_name}",
             "status": user_verification.status,
         }
@@ -166,6 +172,7 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             "authorship",
             "paper_reward",
             "user_verification",
+            "user_email",
         ]
         read_only_fields = [
             "status",
