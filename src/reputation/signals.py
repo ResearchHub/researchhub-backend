@@ -189,35 +189,6 @@ def get_discussion_hubs(instance):
     return hubs
 
 
-# update a user's hub rep score if a paper or comment they made on a paper is upvoted.
-@receiver(post_save, sender=GrmVote, dispatch_uid="discussion_vote_rep_score")
-def update_rep_score_vote(sender, instance, created, update_fields, **kwargs):
-    voter = instance.created_by
-    author_recipients = []
-    if isinstance(instance.item, Paper):
-        authorships = Authorship.objects.filter(paper=instance.item)
-        author_recipients = [authorship.author for authorship in authorships]
-
-        hub = instance.item.unified_document.get_primary_hub()
-        if hub is None:
-            print(f"Paper {instance.item.id} has no primary hub")
-            return
-
-    elif isinstance(
-        instance.item, RhCommentModel
-    ) and instance.item.thread.content_type == ContentType.objects.get(model="paper"):
-        author_recipients = [instance.item.thread.created_by.author_profile]
-        paper = Paper.objects.get(id=instance.item.thread.object_id)
-        hub = paper.unified_document.get_primary_hub()
-        if hub is None:
-            print(f"Paper {paper.id} has no primary hub")
-            return
-    if created:
-        for author_recipient in author_recipients:
-            if is_eligible_for_discussion_vote(author_recipient.user, voter):
-                Score.update_score_vote(author_recipient, hub, instance)
-
-
 @receiver(post_save, sender=GrmVote, dispatch_uid="discussion_vote")
 def distribute_for_discussion_vote(sender, instance, created, update_fields, **kwargs):
     """Distributes reputation to the creator of the item voted on."""

@@ -942,13 +942,14 @@ class Paper(AbstractGenericReactionModel):
     def update_scores_citations(self, author):
         citation_entries = Citation.objects.filter(paper=self).order_by("created_date")
         content_type = ContentType.objects.get_for_model(Citation)
-        recent_citations_score = (
-            ScoreChange.objects.filter(
-                changed_content_type=content_type,
-                changed_object_id__in=citation_entries.values_list("id", flat=True),
-            )
-            .order_by("created_date")
-            .last()
+        score = Score.get_or_create_score(
+            author=author, hub=self.unified_document.get_primary_hub()
+        )
+
+        recent_citations_score = ScoreChange.get_latest_score_change_objects(
+            score,
+            citation_entries.values_list("id", flat=True),
+            content_type,
         )
         if recent_citations_score:
             citation_entries = [

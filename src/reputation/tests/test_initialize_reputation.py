@@ -43,14 +43,14 @@ class InitializeReputationCommandTestCase(TestCase):
             hub=self.paper1_hub, author=self.user_author.author_profile
         )
 
-        self.assertEqual(score1.score, 308104)
+        self.assertEqual(score1.score, 194250)
 
         # Check if the score change is created with the correct score change
         score_changes1 = ScoreChange.objects.filter(score=score1).order_by(
             "-score_change"
         )
         self.assertEqual(score_changes1.count(), 5)
-        self.assertEqual(score_changes1[0].score_change, 308100)
+        self.assertEqual(score_changes1[0].score_change, 194246)
         self.assertEqual(score_changes1[1].score_change, 1)
         self.assertEqual(score_changes1[2].score_change, 1)
         self.assertEqual(score_changes1[3].score_change, 1)
@@ -60,12 +60,12 @@ class InitializeReputationCommandTestCase(TestCase):
         score2 = Score.objects.get(
             hub=self.paper2_hub, author=self.user_author.author_profile
         )
-        self.assertEqual(score2.score, 308100)
+        self.assertEqual(score2.score, 208275)
 
         # Check if the score change is created with the correct score change
         score_changes2 = ScoreChange.objects.filter(score=score2)
         self.assertEqual(score_changes2.count(), 1)
-        self.assertEqual(score_changes2[0].score_change, 308100)
+        self.assertEqual(score_changes2[0].score_change, 208275)
 
     def test_initialize_reputation_command_review_paper(self):
         self.setup_papers_algo_hubs(True)
@@ -83,14 +83,14 @@ class InitializeReputationCommandTestCase(TestCase):
             hub=self.paper1_hub, author=self.user_author.author_profile
         )
 
-        self.assertEqual(score1.score, 308104)
+        self.assertEqual(score1.score, 194250)
 
         # Check if the score change is created with the correct score change
         score_changes1 = ScoreChange.objects.filter(score=score1).order_by(
             "-score_change"
         )
         self.assertEqual(score_changes1.count(), 5)
-        self.assertEqual(score_changes1[0].score_change, 308100)
+        self.assertEqual(score_changes1[0].score_change, 194246)
         self.assertEqual(score_changes1[1].score_change, 1)
         self.assertEqual(score_changes1[2].score_change, 1)
         self.assertEqual(score_changes1[3].score_change, 1)
@@ -100,12 +100,12 @@ class InitializeReputationCommandTestCase(TestCase):
         score2 = Score.objects.get(
             hub=self.paper2_hub, author=self.user_author.author_profile
         )
-        self.assertEqual(score2.score, 61620)
+        self.assertEqual(score2.score, 41655)
 
         # Check if the score change is created with the correct score change
         score_changes2 = ScoreChange.objects.filter(score=score2)
         self.assertEqual(score_changes2.count(), 1)
-        self.assertEqual(score_changes2[0].score_change, 61620)
+        self.assertEqual(score_changes2[0].score_change, 41655)
 
     def test_initialize_reputation_command_two_calls_recalculate(self):
         self.setup_papers_algo_hubs(False)
@@ -125,14 +125,14 @@ class InitializeReputationCommandTestCase(TestCase):
             hub=self.paper1_hub, author=self.user_author.author_profile
         )
 
-        self.assertEqual(score1.score, 308104)
+        self.assertEqual(score1.score, 194250)
 
         # Check if the score change is created with the correct score change
         score_changes1 = ScoreChange.objects.filter(score=score1).order_by(
             "-score_change"
         )
         self.assertEqual(score_changes1.count(), 5)
-        self.assertEqual(score_changes1[0].score_change, 308100)
+        self.assertEqual(score_changes1[0].score_change, 194246)
         self.assertEqual(score_changes1[1].score_change, 1)
         self.assertEqual(score_changes1[2].score_change, 1)
         self.assertEqual(score_changes1[3].score_change, 1)
@@ -147,15 +147,15 @@ class InitializeReputationCommandTestCase(TestCase):
         score2 = Score.objects.get(
             hub=self.paper2_hub, author=self.user_author.author_profile
         )
-        self.assertEqual(score2.score, 308100)
+        self.assertEqual(score2.score, 208275)
 
         # Check if the score change is created with the correct score change
         score_changes2 = ScoreChange.objects.filter(score=score2)
 
         self.assertEqual(score_changes2.count(), 1)
-        self.assertEqual(score_changes2[0].score_change, 308100)
+        self.assertEqual(score_changes2[0].score_change, 208275)
 
-    def test_initialize_reputation_command_signals(self):
+    def test_initialize_reputation_command_two_calls_changes_in_between(self):
         self.setup_papers_algo_hubs(False)
 
         call_command("initialize_reputation")
@@ -170,9 +170,10 @@ class InitializeReputationCommandTestCase(TestCase):
         )
         create_vote(self.user_basic, self.paper1, Vote.DOWNVOTE)
         create_vote(self.user_no_author, self.comment1, Vote.DOWNVOTE)
+        call_command("initialize_reputation")
 
         # Check if the score is created
-        self.assertEqual(Score.objects.count(), 3)
+        self.assertEqual(Score.objects.count(), 2)
 
         # Check if the score change is created
         self.assertEqual(ScoreChange.objects.count(), 9)
@@ -182,31 +183,118 @@ class InitializeReputationCommandTestCase(TestCase):
             hub=self.paper1_hub, author=self.user_author.author_profile
         )
 
-        self.assertEqual(score1.score, 308102)
+        self.assertEqual(score1.score, 194348)
 
         # Check if the score change is created with the correct score change
         score_changes1 = ScoreChange.objects.filter(score=score1).order_by(
             "-score_change"
         )
-        self.assertEqual(score_changes1.count(), 7)
-        self.assertEqual(score_changes1[0].score_change, 308100)
-        self.assertEqual(score_changes1[1].score_change, 1)
+        self.assertEqual(score_changes1.count(), 8)
+        self.assertEqual(score_changes1[0].score_change, 194246)
+        self.assertEqual(score_changes1[1].score_change, 100)
         self.assertEqual(score_changes1[2].score_change, 1)
         self.assertEqual(score_changes1[3].score_change, 1)
         self.assertEqual(score_changes1[4].score_change, 1)
-        self.assertEqual(score_changes1[5].score_change, -1)
+        self.assertEqual(score_changes1[5].score_change, 1)
         self.assertEqual(score_changes1[6].score_change, -1)
+        self.assertEqual(score_changes1[7].score_change, -1)
 
         # Check if the score is created with the correct score
         score2 = Score.objects.get(
             hub=self.paper2_hub, author=self.user_author.author_profile
         )
-        self.assertEqual(score2.score, 308100)
+        self.assertEqual(score2.score, 208275)
 
         # Check if the score change is created with the correct score change
         score_changes2 = ScoreChange.objects.filter(score=score2)
         self.assertEqual(score_changes2.count(), 1)
-        self.assertEqual(score_changes2[0].score_change, 308100)
+        self.assertEqual(score_changes2[0].score_change, 208275)
+
+    # Test that that increasing the algorithm version will not clear reputation change
+    def test_initialize_reputation_command_algorithm_version(self):
+        # Mock ALGORITHM_VERSION to 1
+        with patch("reputation.related_models.score.ALGORITHM_VERSION", 1):
+            self.setup_papers_algo_hubs(False)
+
+            call_command("initialize_reputation")
+
+            # Check if the score is created
+            self.assertEqual(Score.objects.count(), 2)
+
+            # Check if the score change is created
+            self.assertEqual(ScoreChange.objects.count(), 6)
+
+            # Check if the score is created with the correct score
+            score1 = Score.objects.get(
+                hub=self.paper1_hub, author=self.user_author.author_profile
+            )
+
+            self.assertEqual(score1.score, 194250)
+
+            # Check if the score change is created with the correct score change
+            score_changes1 = ScoreChange.objects.filter(
+                score=score1, algorithm_version=1
+            ).order_by("-score_change")
+            self.assertEqual(score_changes1.count(), 5)
+            self.assertEqual(score_changes1[0].score_change, 194246)
+            self.assertEqual(score_changes1[1].score_change, 1)
+            self.assertEqual(score_changes1[2].score_change, 1)
+            self.assertEqual(score_changes1[3].score_change, 1)
+            self.assertEqual(score_changes1[4].score_change, 1)
+
+            # Check if the score is created with the correct score
+            score2 = Score.objects.get(
+                hub=self.paper2_hub, author=self.user_author.author_profile
+            )
+            self.assertEqual(score2.score, 208275)
+
+            # Check if the score change is created with the correct score change
+            score_changes2 = ScoreChange.objects.filter(
+                score=score2, algorithm_version=1
+            )
+            self.assertEqual(score_changes2.count(), 1)
+            self.assertEqual(score_changes2[0].score_change, 208275)
+
+        # Mock ALGORITHM_VERSION to 2
+        with patch("reputation.related_models.score.ALGORITHM_VERSION", 2):
+            call_command("initialize_reputation")
+
+            # Check if the score is created
+            self.assertEqual(Score.objects.count(), 2)
+
+            # Check if the score change is created
+            self.assertEqual(ScoreChange.objects.count(), 12)
+
+            # Check if the score is created with the correct score
+            score1 = Score.objects.get(
+                hub=self.paper1_hub, author=self.user_author.author_profile
+            )
+
+            self.assertEqual(score1.score, 194250)
+
+            # Check if the score change is created with the correct score change
+            score_changes1 = ScoreChange.objects.filter(
+                score=score1, algorithm_version=2
+            ).order_by("-score_change")
+            self.assertEqual(score_changes1.count(), 5)
+            self.assertEqual(score_changes1[0].score_change, 194246)
+            self.assertEqual(score_changes1[1].score_change, 1)
+            self.assertEqual(score_changes1[2].score_change, 1)
+            self.assertEqual(score_changes1[3].score_change, 1)
+            self.assertEqual(score_changes1[4].score_change, 1)
+
+            # Check if the score is created with the correct score
+            score2 = Score.objects.get(
+                hub=self.paper2_hub, author=self.user_author.author_profile
+            )
+            self.assertEqual(score2.score, 208275)
+
+            # Check if the score change is created with the correct score change
+            score_changes2 = ScoreChange.objects.filter(
+                score=score2, algorithm_version=2
+            )
+            self.assertEqual(score_changes2.count(), 1)
+            self.assertEqual(score_changes2[0].score_change, 208275)
 
     @patch("user.models.User.author_profile", new_callable=PropertyMock)
     def test_initialize_reputation_command_missing_author_profile(
@@ -266,7 +354,7 @@ class InitializeReputationCommandTestCase(TestCase):
             json.dumps((0, 2)): 50,
             json.dumps((2, 12)): 100,
             json.dumps((12, 200)): 250,
-            json.dumps((200, 2800)): 100,
+            json.dumps((200, 280000)): 1,
         }
 
         # Create an old unused algorithm_variables row

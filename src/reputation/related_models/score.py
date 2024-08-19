@@ -9,7 +9,7 @@ from discussion.reaction_models import Vote
 from paper.related_models.citation_model import Citation
 from utils.models import DefaultModel
 
-ALGORITHM_VERSION = 1
+ALGORITHM_VERSION = 2
 
 
 class Score(DefaultModel):
@@ -86,6 +86,7 @@ class Score(DefaultModel):
                 score=score,
                 changed_object_id=vote.id,
                 changed_content_type=content_type,
+                algorithm_version=ALGORITHM_VERSION,
             )
             .order_by("created_date")
             .last()
@@ -214,6 +215,28 @@ class ScoreChange(DefaultModel):
                 changed_object_id=object_id,
                 changed_content_type=content_type,
                 algorithm_variables=algorithm_variables,
+                algorithm_version=ALGORITHM_VERSION,
+            )
+            .order_by("created_date")
+            .last()
+        )
+
+    @classmethod
+    def get_latest_score_change_objects(
+        cls, score, object_ids, content_type, algorithm_variables=None
+    ):
+        if algorithm_variables is None:
+            algorithm_variables = AlgorithmVariables.objects.filter(
+                hub=score.hub
+            ).latest("created_date")
+
+        return (
+            ScoreChange.objects.filter(
+                score=score,
+                changed_object_id__in=object_ids,
+                changed_content_type=content_type,
+                algorithm_variables=algorithm_variables,
+                algorithm_version=ALGORITHM_VERSION,
             )
             .order_by("created_date")
             .last()
@@ -338,16 +361,26 @@ class ScoreChange(DefaultModel):
         prev_rep = 0
         current_rep = 0
 
-        prev_rep = cls.calculate_citation_score_v2(
-            previous_total_count,
-            algorithm_variables.variables["citations"]["bins"],
-            paper_work_type,
-        )
-        current_rep = cls.calculate_citation_score_v2(
-            previous_total_count + raw_value_change,
-            algorithm_variables.variables["citations"]["bins"],
-            paper_work_type,
-        )
+        if ALGORITHM_VERSION == 1:
+            prev_rep = cls.calculate_citation_score_v1(
+                previous_total_count,
+                algorithm_variables.variables["citations"]["bins"],
+            )
+            current_rep = cls.calculate_citation_score_v1(
+                previous_total_count + raw_value_change,
+                algorithm_variables.variables["citations"]["bins"],
+            )
+        elif ALGORITHM_VERSION == 2:
+            prev_rep = cls.calculate_citation_score_v2(
+                previous_total_count,
+                algorithm_variables.variables["citations"]["bins"],
+                paper_work_type,
+            )
+            current_rep = cls.calculate_citation_score_v2(
+                previous_total_count + raw_value_change,
+                algorithm_variables.variables["citations"]["bins"],
+                paper_work_type,
+            )
 
         return current_rep - prev_rep
 
