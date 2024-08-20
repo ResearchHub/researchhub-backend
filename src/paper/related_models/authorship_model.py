@@ -1,9 +1,13 @@
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 
 from utils.models import DefaultModel
 
 
 class Authorship(DefaultModel):
+    class Source(models.TextChoices):
+        AUTHOR_MIGRATION = "AUTHOR_MIGRATION", _("Author Migration")
+
     FIRST_AUTHOR_POSITION = "first"
     MIDDLE_AUTHOR_POSITION = "middle"
     LAST_AUTHOR_POSITION = "last"
@@ -48,6 +52,11 @@ class Authorship(DefaultModel):
         max_length=255,
         null=True,
         blank=True,
+    )
+
+    source = models.TextField(
+        choices=Source.choices,
+        null=True,
     )
 
     class Meta:
