@@ -940,11 +940,14 @@ class Paper(AbstractGenericReactionModel):
         return lambda_compress_and_linearize_pdf(key, file_name)
 
     def update_scores_citations(self, author):
+        hub = self.unified_document.get_primary_hub()
+        if hub is None:
+            print(f"Paper {self.id} has no primary hub")
+            return
+
         citation_entries = Citation.objects.filter(paper=self).order_by("created_date")
         content_type = ContentType.objects.get_for_model(Citation)
-        score = Score.get_or_create_score(
-            author=author, hub=self.unified_document.get_primary_hub()
-        )
+        score = Score.get_or_create_score(author=author, hub=hub)
 
         recent_citations_score = ScoreChange.get_latest_score_change_objects(
             score,
@@ -958,13 +961,10 @@ class Paper(AbstractGenericReactionModel):
                 if citation.created_date > recent_citations_score.created_date
             ]
 
-        hub = self.unified_document.get_primary_hub()
-        if hub is None:
-            print(f"Paper {self.id} has no primary hub")
-            return
-
         for citation in citation_entries:
             citation_change = citation.citation_change
+            if citation_change == 0:
+                continue
 
             Score.update_score_citations(
                 author,
