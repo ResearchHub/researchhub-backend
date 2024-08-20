@@ -395,7 +395,7 @@ class Author(models.Model):
         authored_papers = Paper.objects.filter(
             authorships__author=self,
             work_type__in=["preprint", "article", "review"],
-        )
+        ).only("id", "votes", "unified_document")
 
         for paper in authored_papers:
             votes = paper.votes.filter(vote_type__in=[1, 2])
@@ -414,19 +414,19 @@ class Author(models.Model):
         threads = RhCommentThreadModel.objects.filter(
             content_type=ContentType.objects.get(model="paper"),
             created_by=self.user,
-        )
+        ).only("rh_comments")
+
+        paper_ids = [thread.object_id for thread in threads]
+        papers = Paper.objects.filter(
+            id__in=paper_ids, work_type__in=["preprint", "article", "review"]
+        ).order_by("created_date")
+
+        paper_dict = {paper.id: paper for paper in papers}
 
         for thread in threads:
             comments = thread.rh_comments.all()
             for comment in comments:
-                paper = (
-                    Paper.objects.filter(
-                        id=comment.thread.object_id,
-                        work_type__in=["preprint", "article", "review"],
-                    )
-                    .order_by("created_date")
-                    .last()
-                )
+                paper = paper_dict.get(thread.object_id)
                 if paper is None:
                     continue
 
