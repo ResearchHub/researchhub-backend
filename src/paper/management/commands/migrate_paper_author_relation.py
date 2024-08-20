@@ -1,5 +1,6 @@
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.db.models import OuterRef, Subquery
 
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
@@ -15,13 +16,19 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         created = 0
-        exited = 0
         paper_count = 0
 
         for paper in (
             Paper.objects.filter(authors__isnull=False)
             .only("authors")
             .distinct()
+            .exclude(
+                id__in=Subquery(
+                    Authorship.objects.filter(paper_id=OuterRef("id")).values(
+                        "paper_id"
+                    )
+                )
+            )
             .iterator(chunk_size=1000)
         ):
             paper_count += 1
@@ -29,31 +36,22 @@ class Command(BaseCommand):
             for author in paper.authors.iterator():
                 with transaction.atomic():
                     print(f"   paper {paper.id}:author {author.id}", end="")
-                    if Authorship.objects.filter(
-                        paper_id=paper.id, author=author
-                    ).exists():
-                        print(" -> already exists")
-                        exited += 1
-                        continue
-                    else:
-                        pos, corresponding = self.get_position_corresponding(
-                            paper.raw_authors, author
-                        )
-                        print(
-                            f" -> creating with pos: {pos}, corresponding: {corresponding})"
-                        )
-                        Authorship.objects.create(
-                            paper=paper,
-                            author=author,
-                            author_position=pos,
-                            is_corresponding=corresponding,
-                            source="AUTHOR_MIGRATION",
-                        )
-                        created += 1
+                    pos, corresponding = self.get_position_corresponding(
+                        paper.raw_authors, author
+                    )
+                    print(
+                        f" -> creating with pos: {pos}, corresponding: {corresponding})"
+                    )
+                    Authorship.objects.create(
+                        paper=paper,
+                        author=author,
+                        author_position=pos,
+                        is_corresponding=corresponding,
+                        source="AUTHOR_MIGRATION",
+                    )
+                    created += 1
 
-        print(
-            f"Total papers: {paper_count}; authorships => existed: {exited}, created: {created}"
-        )
+        print(f"Total papers: {paper_count}; authorships created: {created}")
 
     def get_position_corresponding(self, raw_authors, author):
         pos = "middle"
