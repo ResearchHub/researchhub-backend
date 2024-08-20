@@ -532,6 +532,13 @@ def check_pdf_title(input_title, file):
         print(e)
 
 
+def _ngrams(words: list, n: int) -> list:
+    """
+    Returns a list of ngrams of size n from the given list of words.
+    """
+    return zip(*[words[i:] for i in range(n)])
+
+
 def check_crossref_title(original_title, crossref_title):
     # Lowercasing titles for simple normalization
     normalized_original_title = original_title.lower()
