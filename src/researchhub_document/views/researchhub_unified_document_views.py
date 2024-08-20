@@ -1,15 +1,9 @@
-import json
-import random
-import time
-from itertools import chain
 from time import perf_counter
 
 import boto3
 from dateutil import parser
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
-from django.core.serializers.json import DjangoJSONEncoder
-from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
@@ -779,7 +773,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         ).values("id", "score")
         docs_to_score_map = {d["id"]: d["score"] for d in docs_in_cache}
         for doc in cache_hit["results"]:
-            doc.score = docs_to_score_map[doc["id"]]
+            doc["score"] = docs_to_score_map.get(doc["id"])
 
             if "documents" in doc:
                 documents = doc["documents"]
