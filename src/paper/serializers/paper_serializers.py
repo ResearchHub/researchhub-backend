@@ -6,6 +6,7 @@ import rest_framework.serializers as serializers
 from django.contrib.admin.options import get_content_type_for_model
 from django.core.files.base import ContentFile
 from django.db import IntegrityError, transaction
+from django.db.models import Case, IntegerField, Value, When
 from django.http import QueryDict
 
 import utils.sentry as sentry
@@ -840,7 +841,19 @@ class DynamicPaperSerializer(
         context = self.context
         _context_fields = context.get("pap_dps_get_authorships", {})
 
-        authorships = paper.authorships.select_related("author").all()
+        authorships = (
+            paper.authorships.annotate(
+                author_position_order=Case(
+                    When(author_position="first", then=Value(1)),
+                    When(author_position="middle", then=Value(2)),
+                    When(author_position="last", then=Value(3)),
+                    output_field=IntegerField(),
+                )
+            )
+            .select_related("author")
+            .all()
+            .order_by("author_position_order")
+        )
 
         serializer = DynamicAuthorshipSerializer(
             authorships, many=True, context=context, **_context_fields
