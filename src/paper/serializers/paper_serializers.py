@@ -840,7 +840,7 @@ class DynamicPaperSerializer(
         context = self.context
         _context_fields = context.get("pap_dps_get_authorships", {})
 
-        authorships = Authorship.objects.filter(paper=paper)
+        authorships = paper.authorships.select_related("author").all()
 
         serializer = DynamicAuthorshipSerializer(
             authorships, many=True, context=context, **_context_fields
