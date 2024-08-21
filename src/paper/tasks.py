@@ -1,6 +1,5 @@
 import codecs
 import json
-import logging
 import os
 import re
 import shutil
@@ -37,7 +36,6 @@ from paper.utils import (
     merge_paper_votes,
     reset_paper_cache,
 )
-from purchase.models import Wallet
 from researchhub.celery import (
     QUEUE_CACHES,
     QUEUE_CERMINE,
@@ -644,12 +642,11 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
             total_papers_processed += len(works)
 
         # done processing all works
-        if paper_fetch_log_id is not None:
-            PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
-                status=PaperFetchLog.SUCCESS,
-                completed_date=datetime.now(),
-                total_papers_processed=total_papers_processed,
-            )
+        PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
+            status=PaperFetchLog.SUCCESS,
+            completed_date=datetime.now(),
+            total_papers_processed=total_papers_processed,
+        )
     except Exception as e:
         sentry.log_error(e, message="Failed to pull new works from OpenAlex, retrying")
         pull_new_openalex_works.apply_async(
