@@ -479,7 +479,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "title",
                     "uploaded_by",
                     "uploaded_date",
-                    "twitter_score",
                     "citations",
                     "authorships",
                     "work_type",
