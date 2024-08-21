@@ -6,6 +6,7 @@ import rest_framework.serializers as serializers
 from django.contrib.admin.options import get_content_type_for_model
 from django.core.files.base import ContentFile
 from django.db import IntegrityError, transaction
+from django.db.models import Case, IntegerField, Value, When
 from django.http import QueryDict
 
 import utils.sentry as sentry
@@ -790,25 +791,26 @@ class AuthorshipSerializer(serializers.ModelSerializer):
 
 
 class DynamicAuthorshipSerializer(DynamicModelFieldSerializer):
-    author_id = serializers.SerializerMethodField()
-    author = serializers.SerializerMethodField()
-
     class Meta:
         fields = "__all__"
         model = Authorship
 
-    def get_author_id(self, authorship):
-        return authorship.author.id
-
-    def get_author(self, authorship):
+    def to_representation(self, authorship):
         context = self.context
-        _context_fields = context.get("authorship::get_author", {})
-        serializer = DynamicAuthorSerializer(
+        context_fields = {"_include_fields": ["id", "first_name", "last_name"]}
+        author_data = DynamicAuthorSerializer(
             authorship.author,
             context=context,
-            **_context_fields,
-        )
-        return serializer.data
+            **context_fields,
+        ).data
+
+        authorship_data = {
+            "position": authorship.author_position,
+            "is_corresponding": authorship.is_corresponding,
+        }
+
+        # Nest authorship details within author data
+        return {**author_data, "authorship": authorship_data}
 
 
 class DynamicPaperSerializer(
@@ -830,17 +832,29 @@ class DynamicPaperSerializer(
     file = serializers.SerializerMethodField()
     pdf_url = serializers.SerializerMethodField()
     pdf_copyright_allows_display = serializers.SerializerMethodField()
-    authorships = serializers.SerializerMethodField()
 
     class Meta:
         model = Paper
         fields = "__all__"
 
-    def get_authorships(self, paper):
+    def get_authors(self, paper):
+
         context = self.context
         _context_fields = context.get("pap_dps_get_authorships", {})
 
-        authorships = Authorship.objects.filter(paper=paper)
+        authorships = (
+            paper.authorships.annotate(
+                author_position_order=Case(
+                    When(author_position="first", then=Value(1)),
+                    When(author_position="middle", then=Value(2)),
+                    When(author_position="last", then=Value(3)),
+                    output_field=IntegerField(),
+                )
+            )
+            .select_related("author")
+            .all()
+            .order_by("author_position_order")
+        )
 
         serializer = DynamicAuthorshipSerializer(
             authorships, many=True, context=context, **_context_fields
@@ -872,18 +886,6 @@ class DynamicPaperSerializer(
                 pass
 
         return vote
-
-    def get_authors(self, paper):
-        context = self.context
-        _context_fields = context.get("pap_dps_get_authors", {})
-
-        serializer = DynamicAuthorSerializer(
-            paper.authorship_authors.all(),
-            many=True,
-            context=context,
-            **_context_fields,
-        )
-        return serializer.data
 
     def get_boost_amount(self, paper):
         if paper.purchases.exists():
