@@ -410,62 +410,60 @@ def create_automated_bounty(item):
             json_content = {
                 "ops": [
                     {
-                        "insert": "The ResearchHub Foundation is assigning a peer review bounty of "
+                        "insert": "ResearchHub Foundation is assigning a peer review bounty of "
                     },
                     {
                         "attributes": {"bold": True},
                         "insert": "$150 in ResearchCoin (RSC)",
                     },
                     {
-                        "insert": " to incentivize the peer review of this preprint. Anyone can perform a peer review and receive rewards from upvotes/tips, but only those who provide a high-quality, thorough peer review are eligible for the bounty. Here is a "
+                        "insert": " to incentivize the peer review of this preprint. Anyone can perform a peer review and receive rewards from upvotes/tips, but only those who provide a high-quality, thorough peer review are eligible for the bounty. We strongly encourage you to read the "
                     },
                     {
                         "attributes": {
-                            "link": "https://docs.google.com/document/d/1RFbXVquF7FzaGNYDpo3VDGRz-MqWxLhHiTNzwJaqG8k/edit"
+                            "link": "https://blog.researchhub.foundation/peer-reviewing-on-researchhub/"
                         },
-                        "insert": "guide",
+                        "insert": "Peer Reviewing on ResearchHub",
                     },
                     {
-                        "insert": " for “How to Peer Review” with examples of good peer reviews. We encourage you to read it before providing your review.\n\n"
+                        "insert": " guide with examples of acceptable peer reviews and additional information.\n\n"
                     },
                     {"attributes": {"bold": True}, "insert": "Requirements:"},
-                    {"insert": "\n30-day turnaround time from the date of this bounty"},
+                    {
+                        "insert": "\nYour review must be submitted during the 14-day submission window starting on the day this bounty was opened."
+                    },
+                    {"attributes": {"list": "ordered"}, "insert": "\n"},
+                    {"insert": "At the start, briefly mention your credentials."},
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
                     {
-                        "insert": "At the start, briefly mention your credentials, and whether the following review will be an expert peer review or a community peer review (from a non-expert)"
+                        "insert": "Include a mention of the version of the preprint you are reviewing (e.g. 1st, 2nd etc.). Make sure you review the most updated version available."
                     },
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
                     {
-                        "insert": 'Use the rating system in the "Peer Reviews" tab for all 5 criteria (overall, impact, methods, results, discussion) but the content within each is flexible (in-line comments can be used here instead of a block of text in each section)'
+                        "insert": 'Use the rating system in the "Peer Reviews" tab for all 5 criteria (overall, impact, methods, results, discussion) but the content within each is flexible (in-line comments can be used here instead of a block of text in each section).'
+                    },
+                    {"attributes": {"list": "ordered"}, "insert": "\n"},
+                    {"insert": "You must provide detailed pros or cons, for "},
+                    {"attributes": {"bold": True}, "insert": "each"},
+                    {
+                        "insert": " figure within the preprint, including any supplementary material."
                     },
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
                     {
-                        "insert": "Include a section at the end of your review for areas you have strengths and weaknesses in"
-                    },
-                    {"attributes": {"list": "ordered"}, "insert": "\n"},
-                    {"insert": "Use of AI generation will not be tolerated"},
-                    {"attributes": {"list": "ordered"}, "insert": "\n"},
-                    {
-                        "insert": "Comment within this thread in the bounty section to be awarded the peer review bounty upon completion"
+                        "insert": "Include a section at the end of your review highlighting your areas of strengths and weaknesses as a reviewer."
                     },
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
                     {
-                        "insert": "Decision on the bounty award will solely depend on the quality and timely submission of peer review as deemed by our Editorial Team"
+                        "insert": "Plagiarism and the use of artificial intelligence (AI) generation for any purpose will not be tolerated."
                     },
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
-                    {
-                        "insert": "If you have any questions you may join our discord (https://discord.gg/researchhub) or email our Editor Lead, Maulik Dhandha (maulik.editor@researchhub.foundation)"
-                    },
-                    {"insert": "\n\n"},
-                    {
-                        "insert": "We will award $150 in ResearchCoin (RSC) each for up to "
-                    },
+                    {"insert": "\nEditors will review and award "},
                     {
                         "attributes": {"bold": True},
-                        "insert": "3 high quality and rigorous peer reviews ",
+                        "insert": "up to 3 rigorous peer reviews",
                     },
                     {
-                        "insert": "on this preprint.",
+                        "insert": " within 1 week following the submission window closure. Awardees will be notified. All decisions are final.\n\n"
                     },
                 ]
             }
