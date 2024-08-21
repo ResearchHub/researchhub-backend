@@ -30,6 +30,7 @@ QUEUE_CERMINE = "cermine"
 QUEUE_PULL_PAPERS = "pull_papers"
 QUEUE_LOGS = "logs"
 QUEUE_PURCHASES = "purchases"
+QUEUE_REPUTATION = "reputation"
 QUEUE_CONTRIBUTIONS = "contributions"
 QUEUE_AUTHOR_CLAIM = "author_claim"
 QUEUE_PAPER_METADATA = "paper_metadata"
@@ -124,6 +125,14 @@ app.conf.beat_schedule = {
         "options": {
             "priority": 4,
             "queue": QUEUE_BOUNTIES,
+        },
+    },
+    "reputation_recalculate-rep-all-users": {
+        "task": "reputation.tasks.recalculate_rep_all_users",
+        "schedule": crontab(hour=0, minute=0),
+        "options": {
+            "priority": 5,
+            "queue": QUEUE_REPUTATION,
         },
     },
     "reputation_send-bounty-hub-notifications": {

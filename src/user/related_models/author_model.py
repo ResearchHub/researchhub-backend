@@ -394,8 +394,8 @@ class Author(models.Model):
     def _calculate_score_hub_paper_votes(self):
         authored_papers = Paper.objects.filter(
             authorships__author=self,
-            work_type__in=["preprint", "article"],
-        )
+            work_type__in=["preprint", "article", "review"],
+        ).only("id", "votes", "unified_document")
 
         for paper in authored_papers:
             votes = paper.votes.filter(vote_type__in=[1, 2])
@@ -408,25 +408,25 @@ class Author(models.Model):
                 continue
 
             for vote in votes:
-                self.update_scores_vote(vote, hub)
+                Score.update_score_vote(self, hub, vote)
 
     def _calculate_score_hub_comments(self):
         threads = RhCommentThreadModel.objects.filter(
             content_type=ContentType.objects.get(model="paper"),
             created_by=self.user,
-        )
+        ).only("rh_comments")
+
+        paper_ids = [thread.object_id for thread in threads]
+        papers = Paper.objects.filter(
+            id__in=paper_ids, work_type__in=["preprint", "article", "review"]
+        ).order_by("created_date")
+
+        paper_dict = {paper.id: paper for paper in papers}
 
         for thread in threads:
             comments = thread.rh_comments.all()
             for comment in comments:
-                paper = (
-                    Paper.objects.filter(
-                        id=comment.thread.object_id,
-                        work_type__in=["preprint", "article"],
-                    )
-                    .order_by("created_date")
-                    .last()
-                )
+                paper = paper_dict.get(thread.object_id)
                 if paper is None:
                     continue
 
@@ -440,92 +440,15 @@ class Author(models.Model):
                     continue
 
                 for vote in votes:
-                    self.update_scores_vote(vote, hub)
+                    Score.update_score_vote(self, hub, vote)
 
     def _calculate_score_hub_citations(self):
-        authored_papers = Paper.objects.filter(
-            authorships__author=self,
-            work_type__in=["preprint", "article"],
+        authorships = Authorship.objects.filter(author=self).select_related(
+            "paper", "author"
         )
 
-        for paper in authored_papers:
-            historical_papers = paper.history.all().order_by("history_date")
-            if len(historical_papers) == 0:
-                historical_papers = [paper]
-
-            hub = paper.unified_document.get_primary_hub()
-            if hub is None:
-                print(f"Paper {paper.id} has no primary hub")
-                continue
-
-            for i, historical_paper in enumerate(historical_papers):
-                previous_historical_paper = None
-                if i != 0:
-                    previous_historical_paper = historical_papers[i - 1]
-
-                self.update_scores_citation(
-                    historical_paper,
-                    previous_historical_paper,
-                    hub,
-                )
-
-    def update_scores_citation(self, historical_paper, previous_historical_paper, hub):
-        citation_change = historical_paper.citation_change(previous_historical_paper)
-        if citation_change == 0:
-            return
-
-        paper_id = historical_paper.id
-        content_type = ContentType.objects.get_for_model(Paper)
-        if isinstance(historical_paper, Paper.history.model):
-            paper_id = historical_paper.history_id
-            content_type = ContentType.objects.get_for_model(Paper.history.model)
-
-        try:
-            score = Score.objects.select_for_update().get(
-                hub=hub,
-                author=self,
-            )
-            previous_score_change = ScoreChange.get_latest_score_change_object(
-                score,
-                paper_id,
-                content_type,
-            )
-        except (Score.DoesNotExist, ScoreChange.DoesNotExist):
-            previous_score_change = None
-
-        if previous_score_change:
-            return
-
-        Score.update_score(
-            self,
-            hub,
-            citation_change,
-            "citations",
-            content_type,
-            paper_id,
-        )
-
-    def update_scores_vote(self, vote, hub):
-        content_type = ContentType.objects.get_for_model(Vote)
-
-        score = Score.get_or_create_score(self, hub)
-        previous_score_change = ScoreChange.get_latest_score_change_object(
-            score,
-            vote.id,
-            content_type,
-        )
-        vote_value = ScoreChange.vote_change(vote, previous_score_change)
-        if vote_value == 0:
-            return
-
-        Score.update_score(
-            self,
-            hub,
-            vote_value,
-            "votes",
-            content_type,
-            vote.id,
-        )
+        for authorship in authorships:
+            authorship.paper.update_scores_citations(authorship.author)
 
     def get_rep_score(self):
         score = Score.get_max_score(self)

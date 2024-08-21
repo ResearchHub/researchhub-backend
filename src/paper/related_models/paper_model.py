@@ -5,6 +5,7 @@ import regex as re
 import requests
 from bs4 import BeautifulSoup
 from django.contrib.contenttypes.fields import GenericRelation
+from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.indexes import GinIndex, HashIndex
 from django.contrib.postgres.search import SearchVectorField
 from django.core.validators import FileExtensionValidator
@@ -20,6 +21,7 @@ import utils.sentry as sentry
 from discussion.reaction_models import AbstractGenericReactionModel, Vote
 from hub.serializers import DynamicHubSerializer
 from paper.lib import journal_hosts
+from paper.related_models.citation_model import Citation
 from paper.tasks import (
     celery_extract_figures,
     celery_extract_meta_data,
@@ -36,6 +38,7 @@ from paper.utils import (
     populate_pdf_url_from_journal_url,
 )
 from purchase.models import Purchase
+from reputation.models import Score, ScoreChange
 from reputation.related_models.paper_reward import HubCitationValue
 from researchhub.lib import CREATED_LOCATIONS
 from researchhub.settings import TESTING
@@ -55,22 +58,8 @@ HELP_TEXT_IS_REMOVED = "Hides the paper because it is not allowed."
 HELP_TEXT_IS_PDF_REMOVED = "Hides the PDF because it infringes Copyright."
 
 
-class AbstractPaper(AbstractGenericReactionModel):
-    class Meta:
-        abstract = True
-
-    citations = models.IntegerField(default=0)
-
-    def citation_change(self, previous_paper):
-        previous_paper_citations = 0
-        if previous_paper is not None:
-            previous_paper_citations = previous_paper.citations
-
-        return self.citations - previous_paper_citations
-
-
-class Paper(AbstractPaper):
-    history = HistoricalRecords(bases=[AbstractPaper])
+class Paper(AbstractGenericReactionModel):
+    history = HistoricalRecords()
     FIELDS_TO_EXCLUDE = {"url_svf", "pdf_url_svf", "doi_svf"}
 
     REGULAR = "REGULAR"
@@ -112,6 +101,7 @@ class Paper(AbstractPaper):
 
     views = models.IntegerField(default=0)
     downloads = models.IntegerField(default=0)
+    citations = models.IntegerField(default=0)
     open_alex_raw_json = models.JSONField(null=True, blank=True)
     automated_bounty_created = models.BooleanField(default=False)
 
@@ -956,6 +946,41 @@ class Paper(AbstractPaper):
         key = file.name
         file_name = key.split("/")[-1]
         return lambda_compress_and_linearize_pdf(key, file_name)
+
+    def update_scores_citations(self, author):
+        hub = self.unified_document.get_primary_hub()
+        if hub is None:
+            print(f"Paper {self.id} has no primary hub")
+            return
+
+        citation_entries = Citation.objects.filter(paper=self).order_by("created_date")
+        content_type = ContentType.objects.get_for_model(Citation)
+        score = Score.get_or_create_score(author=author, hub=hub)
+
+        recent_citations_score = ScoreChange.get_latest_score_change_objects(
+            score,
+            citation_entries.values_list("id", flat=True),
+            content_type,
+        )
+        if recent_citations_score:
+            citation_entries = [
+                citation
+                for citation in citation_entries
+                if citation.created_date > recent_citations_score.created_date
+            ]
+
+        for citation in citation_entries:
+            citation_change = citation.citation_change
+            if citation_change == 0:
+                continue
+
+            Score.update_score_citations(
+                author,
+                hub,
+                citation_change,
+                citation.id,
+                self.work_type,
+            )
 
     @property
     def paper_rewards(self):

@@ -17,7 +17,7 @@ from paper.related_models.authorship_model import Authorship
 from purchase.models import Purchase
 from reputation.distributor import Distributor
 from reputation.exceptions import ReputationSignalError
-from reputation.models import Contribution, Distribution
+from reputation.models import Contribution, Distribution, Score
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost
 from user.utils import reset_latest_acitvity_cache
@@ -187,35 +187,6 @@ def get_discussion_hubs(instance):
     elif isinstance(instance, Thread):
         hubs = instance.paper.hubs
     return hubs
-
-
-# update a user's hub rep score if a paper or comment they made on a paper is upvoted.
-@receiver(post_save, sender=GrmVote, dispatch_uid="discussion_vote_rep_score")
-def update_rep_score_vote(sender, instance, created, update_fields, **kwargs):
-    voter = instance.created_by
-    author_recipients = []
-    if isinstance(instance.item, Paper):
-        authorships = Authorship.objects.filter(paper=instance.item)
-        author_recipients = [authorship.author for authorship in authorships]
-
-        hub = instance.item.unified_document.get_primary_hub()
-        if hub is None:
-            print(f"Paper {instance.item.id} has no primary hub")
-            return
-
-    elif isinstance(
-        instance.item, RhCommentModel
-    ) and instance.item.thread.content_type == ContentType.objects.get(model="paper"):
-        author_recipients = [instance.item.thread.created_by.author_profile]
-        paper = Paper.objects.get(id=instance.item.thread.object_id)
-        hub = paper.unified_document.get_primary_hub()
-        if hub is None:
-            print(f"Paper {paper.id} has no primary hub")
-            return
-    if created:
-        for author_recipient in author_recipients:
-            if is_eligible_for_discussion_vote(author_recipient.user, voter):
-                author_recipient.update_scores_vote(instance, hub)
 
 
 @receiver(post_save, sender=GrmVote, dispatch_uid="discussion_vote")

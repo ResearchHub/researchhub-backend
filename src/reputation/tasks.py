@@ -288,6 +288,16 @@ def check_open_bounties():
 
 
 @app.task
+def recalculate_rep_all_users():
+    for user in User.objects.iterator():
+        try:
+            user.calculate_hub_scores()
+        except Exception as e:
+            print(f"Error calculating rep for user {user.id}: {e}")
+            continue
+
+
+@app.task
 def send_bounty_hub_notifications():
     action_user = User.objects.get_community_account()
     open_bounties = Bounty.objects.filter(

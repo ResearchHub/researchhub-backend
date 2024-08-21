@@ -1,9 +1,10 @@
-from django.db.models.signals import post_save
+from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 from django.utils.crypto import get_random_string
 from django.utils.text import slugify
 
 from paper.related_models.authorship_model import Authorship
+from paper.related_models.citation_model import Citation
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     PAPER as PAPER_DOC_TYPE,
@@ -46,34 +47,6 @@ def add_unified_doc(created, instance, **kwargs):
                 instance.save()
             except Exception as e:
                 log_error("EXCPETION (add_unified_doc): ", e)
-
-
-@receiver(post_save, sender=Paper, dispatch_uid="update_rep_score")
-def update_rep_score(created, instance, update_fields, **kwargs):
-    if instance.work_type not in ["preprint", "article"]:
-        return
-
-    authorships = Authorship.objects.filter(paper=instance)
-    authors = [authorship.author for authorship in authorships]
-
-    historical_paper = instance.history.all().order_by("history_date").latest()
-    previous_historical_paper = historical_paper.prev_record
-    unified_doc = instance.unified_document
-    if unified_doc is None:
-        print(f"Paper {instance.id} has no unified document")
-        return
-
-    hub = unified_doc.get_primary_hub()
-    if hub is None:
-        print(f"Paper {instance.id} has no primary hub")
-        return
-
-    for author in authors:
-        author.update_scores_citation(
-            historical_paper,
-            previous_historical_paper,
-            hub,
-        )
 
 
 def check_file_updated(update_fields, file):
