@@ -119,11 +119,19 @@ class Paper(AbstractPaper):
     moderators = models.ManyToManyField(
         "user.User", related_name="moderated_papers", blank=True
     )
+    # Deprecated: Use `authorship_authors` instead.
     authors = models.ManyToManyField(
         "user.Author",
         related_name="authored_papers",
         blank=True,
         help_text="Author that participated in the research paper",
+    )
+    authorship_authors = models.ManyToManyField(
+        "user.Author",
+        through="Authorship",
+        related_name="papers",
+        blank=True,
+        help_text="Authors that participated in the research paper",
     )
     hubs = models.ManyToManyField("hub.Hub", related_name="papers", blank=True)
     file = models.FileField(
@@ -445,13 +453,13 @@ class Paper(AbstractPaper):
     @property
     def owners(self):
         mods = list(self.moderators.all())
-        authors = list(self.authors.all())
+        authors = list(self.authorship_authors.all())
         return mods + authors
 
     @property
     def users_to_notify(self):
         users = list(self.moderators.all())
-        paper_authors = self.authors.all()
+        paper_authors = self.authorship_authors.all()
         for author in paper_authors:
             if (
                 author.user
@@ -486,7 +494,7 @@ class Paper(AbstractPaper):
 
     @property
     def authors_indexing(self):
-        return [parse_author_name(author) for author in self.authors.all()]
+        return [parse_author_name(author) for author in self.authorship_authors.all()]
 
     @property
     def discussion_count_indexing(self):
@@ -548,7 +556,7 @@ class Paper(AbstractPaper):
         return self.get_analytics_type() + "_" + str(self.id)
 
     def true_author_count(self):
-        registered_author_count = self.authors.count()
+        registered_author_count = self.authorship_authors.count()
         raw_author_count = self.raw_author_count()
         return raw_author_count + registered_author_count
 
@@ -558,7 +566,7 @@ class Paper(AbstractPaper):
         if isinstance(self.raw_authors, list):
             raw_author_count = len(self.raw_authors)
             for author in self.raw_authors:
-                if self.authors.filter(
+                if self.authorship_authors.filter(
                     first_name=author.get("first_name"),
                     last_name=author.get("last_name"),
                 ).exists():

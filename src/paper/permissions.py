@@ -43,16 +43,6 @@ class DownvotePaper(RuleBasedPermission):
         return request.user.reputation >= 25 and not request.user.is_suspended
 
 
-class IsModeratorOrVerifiedAuthor(AuthorizationBasedPermission):
-    message = "User is not authorized."
-
-    def is_authorized(self, request, view, obj):
-        if request.user.moderator:
-            return True
-        else:
-            return obj.authors.filter(user=request.user).exists()
-
-
 class IsAuthor(AuthorizationBasedPermission):
     message = "User is not authorized."
 
