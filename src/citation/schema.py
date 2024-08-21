@@ -84,7 +84,7 @@ def generate_json_for_rh_post(post):
         else:
             value = ""
             if field == "author":
-                authors = post.authorship_authors.all()
+                authors = post.authors.all()
                 author_array = []
                 if authors.count():
                     for author in authors.iterator():
