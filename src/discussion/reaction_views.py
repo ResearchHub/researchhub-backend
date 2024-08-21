@@ -456,14 +456,14 @@ def create_automated_bounty(item):
                     {
                         "insert": "Plagiarism and the use of artificial intelligence (AI) generation for any purpose will not be tolerated."
                     },
-                    {"insert": "\n\n"},
-                    {"insert": "Our Editorial Team will review and award "},
+                    {"attributes": {"list": "ordered"}, "insert": "\n"},
+                    {"insert": "\nEditors will review and award "},
                     {
                         "attributes": {"bold": True},
-                        "insert": "up to 3 high-quality and rigorous peer reviews within 1 week",
+                        "insert": "up to 3 rigorous peer reviews",
                     },
                     {
-                        "insert": " following the closure of the submission window. Only awardees will be notified. All decisions are final and non-negotiable.\n\n"
+                        "insert": " within 1 week following the submission window closure. Awardees will be notified. All decisions are final.\n\n"
                     },
                 ]
             }
