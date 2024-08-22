@@ -52,7 +52,6 @@ MJML_SECRET_KEY = os.environ.get("MJML_SECRET_KEY", "")
 
 TRANSPOSE_KEY = os.environ.get("TRANSPOSE_KEY", "")
 
-SERP_API_KEY = os.environ.get("SERP_API_KEY", "")
 OPENALEX_KEY = os.environ.get("OPENALEX_KEY", "")
 SEGMENT_WRITE_KEY = os.environ.get("SEGMENT_WRITE_KEY", "")
 
