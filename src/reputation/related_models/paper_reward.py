@@ -126,22 +126,14 @@ class PaperReward(models.Model):
 
         return paper_reward
 
-    @classmethod
-    def distribute_paper_rewards(cls, paper, author):
+    def distribute_paper_rewards(self):
         from reputation.distributor import Distributor
 
-        try:
-            paper_reward = cls.objects.get(
-                paper=paper, author=author, distribution=None
-            )
-        except cls.DoesNotExist:
-            raise Exception("There is no unpaid reward for this paper")
-
-        distribution = create_paper_reward_distribution(paper_reward.rsc_value)
-        distributor = Distributor(distribution, author.user, paper_reward, time())
+        distribution = create_paper_reward_distribution(self.rsc_value)
+        distributor = Distributor(distribution, self.author.user, self, time())
         distribution = distributor.distribute()
 
-        paper_reward.distribution = distribution
-        paper_reward.save()
+        self.distribution = distribution
+        self.save()
 
-        return paper_reward
+        return self

@@ -25,14 +25,6 @@ class AuthorClaimCase(AbstractResearchhubCase):
         max_length=32,
         null=False,
     )
-    # TODO: Deprecate in next iteration. No longer used.
-    authorship = models.ForeignKey(
-        Authorship,
-        blank=False,
-        null=True,
-        on_delete=models.SET_NULL,
-        related_name="related_claim_cases",
-    )
     target_paper_doi = models.CharField(max_length=255, null=True)
     target_paper_title = models.CharField(max_length=1024, null=True)
     token_generated_time = models.IntegerField(

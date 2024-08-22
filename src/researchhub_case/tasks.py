@@ -53,9 +53,8 @@ def after_approval_flow(case_id):
     requestor = instance.requestor
     try:
         with transaction.atomic():
-            paper = instance.target_paper
-            author = requestor.author_profile
-            PaperReward.distribute_paper_rewards(paper, author)
+            paper_reward = instance.paper_reward
+            paper_reward.distribute_paper_rewards()
             notification = Notification.objects.create(
                 item=instance,
                 notification_type=Notification.PAPER_CLAIM_PAYOUT,
@@ -64,7 +63,6 @@ def after_approval_flow(case_id):
             )
             notification.send_notification()
     except Exception as exception:
-        print("exception", exception)
         sentry.log_error(exception)
 
 

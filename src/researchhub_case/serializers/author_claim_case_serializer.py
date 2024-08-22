@@ -5,10 +5,6 @@ from rest_framework.serializers import ModelSerializer, SerializerMethodField
 from citation.utils import get_paper_by_doi_url
 from paper.models import Paper
 from paper.paper_upload_tasks import celery_process_paper
-from paper.serializers.paper_serializers import (
-    AuthorshipSerializer,
-    PaperSubmissionSerializer,
-)
 from reputation.related_models.paper_reward import PaperReward
 from reputation.serializers.paper_reward_serializer import PaperRewardSerializer
 from researchhub_case.models import AuthorClaimCase
@@ -26,7 +22,6 @@ class AuthorClaimCaseSerializer(ModelSerializer):
     moderator = SerializerMethodField(method_name="get_moderator")
     requestor = SerializerMethodField()
     paper = SerializerMethodField(method_name="get_paper")
-    authorship = SerializerMethodField()
     paper_reward = SerializerMethodField()
     user_verification = SerializerMethodField()
     user_email = SerializerMethodField()
@@ -36,7 +31,6 @@ class AuthorClaimCaseSerializer(ModelSerializer):
         moderator_id = request_data.get("moderator")
         requestor_id = request_data.get("requestor")
         target_paper_id = request_data.get("target_paper_id")
-        authorship_id = request_data.get("authorship_id")
         open_data_url = request_data.get("open_data_url")
         preregistration_url = request_data.get("preregistration_url")
         moderator = User.objects.filter(id=moderator_id).first()
@@ -48,7 +42,6 @@ class AuthorClaimCaseSerializer(ModelSerializer):
         self.__check_uniqueness_on_create(
             requestor_id,
             target_paper_id,
-            authorship_id,
         )
 
         with transaction.atomic():
@@ -61,7 +54,6 @@ class AuthorClaimCaseSerializer(ModelSerializer):
 
             case = AuthorClaimCase.objects.create(
                 **validated_data,
-                authorship_id=authorship_id,
                 target_paper_id=target_paper_id,
                 moderator=moderator,
                 requestor=requestor,
@@ -94,13 +86,6 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             return serializer.data
         return None
 
-    def get_authorship(self, case):
-        if case.authorship_id is None:
-            return None
-
-        serializer = AuthorshipSerializer(case.authorship)
-        return serializer.data
-
     def get_requestor(self, case):
         serializer = UserSerializer(case.requestor)
         if serializer is not None:
@@ -123,9 +108,7 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             "status": user_verification.status,
         }
 
-    def __check_uniqueness_on_create(
-        self, requestor_id, target_paper_id, authorship_id
-    ):
+    def __check_uniqueness_on_create(self, requestor_id, target_paper_id):
         query_open_claim_already_exists_for_this_user = Q(
             requestor__id=requestor_id,
             target_paper_id=target_paper_id,
@@ -169,7 +152,6 @@ class AuthorClaimCaseSerializer(ModelSerializer):
             "preregistration_url",
             "open_data_url",
             "version",
-            "authorship",
             "paper_reward",
             "user_verification",
             "user_email",
