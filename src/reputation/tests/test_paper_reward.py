@@ -119,11 +119,7 @@ class PaperRewardTestCase(TestCase):
             False,
         )
 
-        paper_reward = PaperReward.distribute_paper_rewards(
-            self.paper1,
-            self.paper1.authorship_authors.first(),
-        )
-
+        paper_reward = paper_reward.distribute_paper_rewards()
         self.assertIsNotNone(paper_reward.distribution)
 
     def test_rsc_reward_algo_aerospace_top_bin(self):
