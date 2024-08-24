@@ -330,11 +330,7 @@ contract_abi = [
     },
 ]
 
-try:
-    PRIVATE_KEY = get_private_key() if WEB3_KEYSTORE_BUCKET else None
-except Exception as e:
-    PRIVATE_KEY = None
-    log_error(e)
+PRIVATE_KEY = get_private_key()  # I know this works during testing
 
 
 class PendingWithdrawal:
