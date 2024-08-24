@@ -614,7 +614,9 @@ ELASTICSEARCH_DSL_SIGNAL_PROCESSOR = "search.celery.CelerySignalProcessor"
 # https://web3py.readthedocs.io/en/stable/
 
 # Mainnet
-WEB3_RSC_ADDRESS = os.environ.get("WEB3_RSC_ADDRESS", keys.WEB3_RSC_ADDRESS)
+WEB3_RSC_ADDRESS = os.environ.get(
+    "WEB3_RSC_ADDRESS"
+)  # This loads the address of RSC on Base (i.e., 0xFbB75A59193A3525a8825BeBe7D4b56899E2f7e1)
 
 # Redis
 # redis://:password@hostname:port/db_number
