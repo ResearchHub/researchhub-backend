@@ -233,6 +233,38 @@ class Author(models.Model):
         return achievements
 
     @property
+    def achievements_details(self):
+        upvote_count = getattr(self.user, "upvote_count", 0)
+        peer_review_count = getattr(self.user, "peer_review_count", 0)
+        amount_funded = getattr(self.user, "amount_funded", 0)
+        return {
+            "CITED_AUTHOR": {
+                "value": self.citation_count,
+                "milestones": [10, 100, 1000],
+            },
+            "OPEN_ACCESS": {
+                "value": self.open_access_pct,
+                "milestones": [0.5, 0.75, 0.875],
+            },
+            "OPEN_SCIENCE_SUPPORTER": {
+                "value": amount_funded,
+                "milestones": [1, 1000, 10000],
+            },
+            "HIGHLY_UPVOTED": {
+                "value": upvote_count,
+                "milestones": [
+                    10,
+                    100,
+                    1000,
+                ],
+            },
+            "EXPERT_PEER_REVIEWER": {
+                "value": peer_review_count,
+                "milestones": [1, 25, 250],
+            },
+        }
+
+    @property
     def is_claimed(self):
         return (
             self.user is not None
