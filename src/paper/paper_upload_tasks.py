@@ -25,7 +25,8 @@ from paper.exceptions import (
     DuplicatePaperError,
     ManubotProcessingError,
 )
-from paper.tasks import download_pdf
+from paper.openalex_util import process_openalex_works
+from paper.tasks import download_pdf, pull_openalex_author_works_batch
 from paper.utils import (
     DOI_REGEX,
     clean_abstract,
@@ -79,9 +80,9 @@ def celery_process_paper(self, submission_id):
         apis.extend(
             [
                 celery_unpaywall.s(),
-                celery_openalex.s(),
                 celery_crossref.s(),
                 celery_semantic_scholar.s(),
+                celery_openalex.s(),
             ]
         )
 
@@ -601,6 +602,14 @@ def celery_create_paper(self, celery_data):
             )
         paper.unified_document.update_filter(FILTER_OPEN_ACCESS)
         download_pdf.apply_async((paper_id,), priority=3, countdown=5)
+
+        # We need to ensure this paper is processed properly so that all metadata is retrieved
+        # from OpenAlex. The OpenAlex metadata above is superficial and does not include the rest
+        # of the processing necessary to have this paper (e.g. authorship).
+        if paper.openalex_id:
+            pull_openalex_author_works_batch.apply_async(
+                ([paper.openalex_id],), priority=1
+            )
 
         if uploaded_by:
             create_contribution.apply_async(
