@@ -16,6 +16,7 @@ from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.lib import check_hotwallet, check_pending_withdrawal, contract_abi
 from reputation.models import Bounty, Contribution, Deposit
+from reputation.related_models.score import Score
 from researchhub.celery import QUEUE_CONTRIBUTIONS, app
 from researchhub.settings import PRODUCTION, WEB3_WALLET_ADDRESS, w3
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -27,6 +28,7 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from researchhub_document.utils import reset_unified_document_cache
 from user.models import User
+from user.related_models.author_model import Author
 from utils.message import send_email_message
 from utils.sentry import log_error, log_info
 
@@ -295,6 +297,41 @@ def recalculate_rep_all_users():
         except Exception as e:
             print(f"Error calculating rep for user {user.id}: {e}")
             continue
+
+
+def find_bounties_for_user(user_id):
+    user = User.objects.get(id=10)
+    open_bounties = (
+        Bounty.objects.filter(status=Bounty.OPEN)
+        .select_related("unified_document")
+        .prefetch_related("unified_document__hubs")
+    )
+    user_expertise_hubs = Score.objects.filter(author_id=user.author_profile.id)
+
+    matching_bounties = open_bounties.filter(
+        unified_document__hubs__in=user_expertise_hubs
+    )
+
+    return matching_bounties
+
+
+def send_bounty_notifications_to_qualified_users(bounty_id):
+    open_bounties = (
+        Bounty.objects.filter(status=Bounty.OPEN)
+        .select_related("unified_document")
+        .prefetch_related("unified_document__hubs")
+    )
+    bounty_hub_ids = list(
+        {
+            hub.id
+            for bounty in open_bounties
+            for hub in bounty.unified_document.hubs.all()
+        }
+    )
+
+    matching_authors = Score.objects.filter(hub_id__in=bounty_hub_ids).order_by(
+        "-score"
+    )
 
 
 @app.task
