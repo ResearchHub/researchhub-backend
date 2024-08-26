@@ -1,5 +1,6 @@
 import math
 from datetime import datetime, timedelta
+from typing import List, TypedDict
 
 import pytz
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
@@ -9,6 +10,7 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from reputation.related_models.escrow import Escrow
+from reputation.related_models.score import Score
 from utils.models import DefaultModel
 
 
@@ -16,6 +18,11 @@ def get_default_expiration_date():
     now = datetime.now(pytz.UTC)
     date = now + timedelta(days=14)
     return date
+
+
+class AnnotatedBounty(TypedDict):
+    user_hub_score: int
+    matching_hub_id: int
 
 
 class Bounty(DefaultModel):
@@ -184,6 +191,51 @@ class Bounty(DefaultModel):
         # Status func will update the status and call save on the bounty
         status_func()
         return True
+
+    @classmethod
+    def find_bounties_for_user(cls, user) -> List[AnnotatedBounty]:
+        from django.db.models import F, IntegerField, OuterRef, Subquery
+
+        # Get user's expertise hubs and their scores
+        user_expertise_scores = (
+            Score.objects.filter(author_id=user.author_profile.id)
+            .order_by("-score")
+            .only("hub_id", "score")
+        )
+
+        # Subquery to get the highest score for each bounty
+        max_score_subquery = user_expertise_scores.filter(
+            hub_id=OuterRef("unified_document__hubs__id")
+        ).values("score")[:1]
+
+        # Filter bounties by hubs that match the user's expertise
+        matching_bounties = (
+            Bounty.objects.filter(status=Bounty.OPEN)
+            .select_related("unified_document")
+            .prefetch_related("unified_document__hubs")
+            .filter(
+                unified_document__hubs__id__in=user_expertise_scores.values_list(
+                    "hub_id", flat=True
+                )
+            )
+            .annotate(
+                user_hub_score=Subquery(
+                    max_score_subquery, output_field=IntegerField()
+                ),
+                matching_hub_id=F("unified_document__hubs__id"),
+            )
+            .order_by("-user_hub_score")
+        )
+
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_bounties = []
+        for bounty in matching_bounties:
+            if bounty.id not in seen:
+                seen.add(bounty.id)
+                unique_bounties.append(bounty)
+
+        return unique_bounties
 
 
 class BountySolution(DefaultModel):

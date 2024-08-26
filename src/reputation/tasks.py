@@ -1,21 +1,24 @@
 import json
 import time
 from datetime import datetime, timedelta
+from typing import List, Optional
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import DurationField, F, Q
+from django.db.models import DurationField, F, Q, QuerySet
 from django.db.models.functions import Cast
 from web3 import Web3
 
 from ethereum.lib import RSC_CONTRACT_ADDRESS
+from hub.models import Hub
 from mailing_list.lib import base_email_context
 from notification.models import Notification
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.lib import check_hotwallet, check_pending_withdrawal, contract_abi
 from reputation.models import Bounty, Contribution, Deposit
+from reputation.related_models.bounty import AnnotatedBounty
 from reputation.related_models.score import Score
 from researchhub.celery import QUEUE_CONTRIBUTIONS, app
 from researchhub.settings import PRODUCTION, WEB3_WALLET_ADDRESS, w3
@@ -28,7 +31,6 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from researchhub_document.utils import reset_unified_document_cache
 from user.models import User
-from user.related_models.author_model import Author
 from utils.message import send_email_message
 from utils.sentry import log_error, log_info
 
@@ -299,39 +301,96 @@ def recalculate_rep_all_users():
             continue
 
 
-def find_bounties_for_user(user_id):
-    user = User.objects.get(id=10)
-    open_bounties = (
-        Bounty.objects.filter(status=Bounty.OPEN)
-        .select_related("unified_document")
-        .prefetch_related("unified_document__hubs")
-    )
-    user_expertise_hubs = Score.objects.filter(author_id=user.author_profile.id)
+@app.task
+def find_bounties_for_user_and_notify(user_id) -> Optional[Notification]:
+    user = User.objects.get(id=user_id)
+    bounties: List[AnnotatedBounty] = Bounty.find_bounties_for_user(user)
 
-    matching_bounties = open_bounties.filter(
-        unified_document__hubs__in=user_expertise_hubs
-    )
+    for bounty in bounties:
 
-    return matching_bounties
+        notification = Notification.objects.filter(
+            object_id=bounty.id,
+            content_type=ContentType.objects.get_for_model(Bounty),
+            recipient=user,
+        )
+
+        if not notification.exists():
+
+            hub = Hub.objects.get(id=bounty.matching_hub_id)
+
+            notification = Notification.objects.create(
+                item=bounty,
+                recipient=user,
+                action_user=user,
+                unified_document=bounty.unified_document,
+                notification_type=Notification.BOUNTY_FOR_YOU,
+                extra={
+                    "bounty_id": bounty.id,
+                    "amount": bounty.amount,
+                    "bounty_type": bounty.bounty_type,
+                    "bounty_expiration_date": bounty.expiration_date,
+                    "user_hub_score": bounty.user_hub_score,
+                    "hub_details": json.dumps({"name": hub.name, "slug": hub.slug}),
+                },
+            )
+            notification.send_notification()
+            return notification
 
 
-def send_bounty_notifications_to_qualified_users(bounty_id):
-    open_bounties = (
-        Bounty.objects.filter(status=Bounty.OPEN)
-        .select_related("unified_document")
-        .prefetch_related("unified_document__hubs")
-    )
-    bounty_hub_ids = list(
-        {
-            hub.id
-            for bounty in open_bounties
-            for hub in bounty.unified_document.hubs.all()
-        }
-    )
+# def find_bounties_for_user(user_id):
+#     from django.db.models import Case, IntegerField, Value, When
 
-    matching_authors = Score.objects.filter(hub_id__in=bounty_hub_ids).order_by(
-        "-score"
-    )
+#     user = User.objects.get(id=user_id)
+
+#     # Get user's expertise hubs and their scores
+#     user_expertise_scores = Score.objects.filter(
+#         author_id=user.author_profile.id
+#     ).order_by("-score")
+#     hub_ids = user_expertise_scores.values_list("hub_id", flat=True)
+
+#     # Filter bounties by hubs that match the user's expertise
+#     matching_bounties = (
+#         Bounty.objects.filter(status=Bounty.OPEN)
+#         .select_related("unified_document")
+#         .prefetch_related("unified_document__hubs")
+#         .filter(unified_document__hubs__id__in=hub_ids)
+#     )
+
+#     # Annotate with user's score and order by it
+#     when_statements = [
+#         When(
+#             unified_document__hubs__id=hub_id,
+#             then=Value(score, output_field=IntegerField()),
+#         )
+#         for hub_id, score in user_expertise_scores.values_list("hub_id", "score")
+#     ]
+
+#     matching_bounties = matching_bounties.annotate(
+#         user_hub_score=Case(
+#             *when_statements, default=Value(0, output_field=IntegerField())
+#         )
+#     ).order_by("-user_hub_score")
+
+#     return matching_bounties
+
+
+# def send_bounty_notifications_to_qualified_users(bounty_id):
+#     open_bounties = (
+#         Bounty.objects.filter(status=Bounty.OPEN)
+#         .select_related("unified_document")
+#         .prefetch_related("unified_document__hubs")
+#     )
+#     bounty_hub_ids = list(
+#         {
+#             hub.id
+#             for bounty in open_bounties
+#             for hub in bounty.unified_document.hubs.all()
+#         }
+#     )
+
+#     matching_authors = Score.objects.filter(hub_id__in=bounty_hub_ids).order_by(
+#         "-score"
+#     )
 
 
 @app.task

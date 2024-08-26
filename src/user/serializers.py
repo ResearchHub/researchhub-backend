@@ -135,7 +135,7 @@ class AuthorSerializer(ModelSerializer):
         }
 
     def get_reputation_list(self, author):
-        return author.reputation_list()
+        return author.reputation_list
 
     def get_orcid_id(self, author):
         return author.orcid_id
