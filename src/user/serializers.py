@@ -1076,7 +1076,6 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
     activity_by_year = SerializerMethodField()
     summary_stats = SerializerMethodField()
     achievements = SerializerMethodField()
-    achievements_details = SerializerMethodField()
     headline = SerializerMethodField()
     user = SerializerMethodField()
 
@@ -1086,9 +1085,6 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
 
     def get_achievements(self, author):
         return author.achievements
-
-    def get_achievements_details(self, author):
-        return author.achievements_details
 
     def get_headline(self, author):
         from collections import Counter

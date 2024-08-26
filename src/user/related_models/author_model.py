@@ -199,44 +199,6 @@ class Author(models.Model):
         upvote_count = getattr(self.user, "upvote_count", 0)
         peer_review_count = getattr(self.user, "peer_review_count", 0)
         amount_funded = getattr(self.user, "amount_funded", 0)
-
-        achievements = []
-        if self.citation_count >= 1:
-            achievements.append("CITED_AUTHOR")
-        if self.open_access_pct >= 0.5:
-            achievements.append("OPEN_ACCESS")
-        if amount_funded > 1:
-            achievements.append("OPEN_SCIENCE_SUPPORTER")
-
-        if upvote_count >= 1000:
-            achievements.append("HIGHLY_UPVOTED_5")
-        elif upvote_count >= 500:
-            achievements.append("HIGHLY_UPVOTED_4")
-        elif upvote_count >= 100:
-            achievements.append("HIGHLY_UPVOTED_3")
-        elif upvote_count >= 25:
-            achievements.append("HIGHLY_UPVOTED_2")
-        elif upvote_count >= 10:
-            achievements.append("HIGHLY_UPVOTED_1")
-
-        if peer_review_count >= 250:
-            achievements.append("EXPERT_PEER_REVIEWER_5")
-        elif peer_review_count >= 100:
-            achievements.append("EXPERT_PEER_REVIEWER_4")
-        elif peer_review_count >= 25:
-            achievements.append("EXPERT_PEER_REVIEWER_3")
-        elif peer_review_count >= 5:
-            achievements.append("EXPERT_PEER_REVIEWER_2")
-        elif peer_review_count >= 1:
-            achievements.append("EXPERT_PEER_REVIEWER_1")
-
-        return achievements
-
-    @property
-    def achievements_details(self):
-        upvote_count = getattr(self.user, "upvote_count", 0)
-        peer_review_count = getattr(self.user, "peer_review_count", 0)
-        amount_funded = getattr(self.user, "amount_funded", 0)
         return {
             "CITED_AUTHOR": {
                 "value": self.citation_count,

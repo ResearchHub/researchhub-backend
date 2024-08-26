@@ -123,7 +123,6 @@ class AuthorViewSet(viewsets.ModelViewSet):
             author,
             _include_fields=[
                 "achievements",
-                "achievements_details",
             ],
         )
 
