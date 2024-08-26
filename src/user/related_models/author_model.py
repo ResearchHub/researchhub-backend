@@ -260,7 +260,7 @@ class Author(models.Model):
             },
             "EXPERT_PEER_REVIEWER": {
                 "value": peer_review_count,
-                "milestones": [1, 25, 250],
+                "milestones": [1, 25, 50],
             },
         }
 
