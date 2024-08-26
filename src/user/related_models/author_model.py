@@ -248,7 +248,7 @@ class Author(models.Model):
             },
             "OPEN_SCIENCE_SUPPORTER": {
                 "value": amount_funded,
-                "milestones": [1, 1000, 10000],
+                "milestones": [10, 1000, 10000],
             },
             "HIGHLY_UPVOTED": {
                 "value": upvote_count,
