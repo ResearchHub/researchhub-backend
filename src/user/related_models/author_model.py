@@ -199,38 +199,32 @@ class Author(models.Model):
         upvote_count = getattr(self.user, "upvote_count", 0)
         peer_review_count = getattr(self.user, "peer_review_count", 0)
         amount_funded = getattr(self.user, "amount_funded", 0)
-
-        achievements = []
-        if self.citation_count >= 1:
-            achievements.append("CITED_AUTHOR")
-        if self.open_access_pct >= 0.5:
-            achievements.append("OPEN_ACCESS")
-        if amount_funded > 1:
-            achievements.append("OPEN_SCIENCE_SUPPORTER")
-
-        if upvote_count >= 1000:
-            achievements.append("HIGHLY_UPVOTED_5")
-        elif upvote_count >= 500:
-            achievements.append("HIGHLY_UPVOTED_4")
-        elif upvote_count >= 100:
-            achievements.append("HIGHLY_UPVOTED_3")
-        elif upvote_count >= 25:
-            achievements.append("HIGHLY_UPVOTED_2")
-        elif upvote_count >= 10:
-            achievements.append("HIGHLY_UPVOTED_1")
-
-        if peer_review_count >= 250:
-            achievements.append("EXPERT_PEER_REVIEWER_5")
-        elif peer_review_count >= 100:
-            achievements.append("EXPERT_PEER_REVIEWER_4")
-        elif peer_review_count >= 25:
-            achievements.append("EXPERT_PEER_REVIEWER_3")
-        elif peer_review_count >= 5:
-            achievements.append("EXPERT_PEER_REVIEWER_2")
-        elif peer_review_count >= 1:
-            achievements.append("EXPERT_PEER_REVIEWER_1")
-
-        return achievements
+        return {
+            "CITED_AUTHOR": {
+                "value": self.citation_count,
+                "milestones": [10, 100, 1000],
+            },
+            "OPEN_ACCESS": {
+                "value": self.open_access_pct,
+                "milestones": [0.5, 0.75, 0.875],
+            },
+            "OPEN_SCIENCE_SUPPORTER": {
+                "value": amount_funded,
+                "milestones": [10, 1000, 10000],
+            },
+            "HIGHLY_UPVOTED": {
+                "value": upvote_count,
+                "milestones": [
+                    10,
+                    100,
+                    1000,
+                ],
+            },
+            "EXPERT_PEER_REVIEWER": {
+                "value": peer_review_count,
+                "milestones": [1, 25, 50],
+            },
+        }
 
     @property
     def is_claimed(self):
