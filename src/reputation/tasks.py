@@ -303,21 +303,29 @@ def recalculate_rep_all_users():
 
 
 @app.task
-def find_qualified_users_and_notify(bounty_id: int) -> List[Notification]:
+def find_qualified_users_and_notify(
+    bounty_id: int, target_hubs: List[int]
+) -> List[Notification]:
     """
     Find qualified users for bounty and sends them a notification.
     """
     from django.db.models import F, IntegerField, OuterRef, Subquery, Value
     from django.db.models.functions import Coalesce
 
+    # Minimum reputation score required to notify a user
+    MIN_REP_SCORE_REQUIRED_TO_NOTIFY = 100
+
     bounty = Bounty.objects.select_related("unified_document").get(id=bounty_id)
 
     # Get the hub IDs associated with this bounty
-    bounty_hub_ids = bounty.unified_document.hubs.values_list("id", flat=True)
+    bounty_hub_ids = set(bounty.unified_document.hubs.values_list("id", flat=True))
+
+    # Combine bounty_hub_ids with explicitly specified target_hubs
+    combined_hub_ids = list(bounty_hub_ids.union(set(target_hubs)))
 
     # Subquery to get the highest score and corresponding hub_id for each author in the bounty's hubs
     max_score_subquery = (
-        Score.objects.filter(author_id=OuterRef("id"), hub_id__in=bounty_hub_ids)
+        Score.objects.filter(author_id=OuterRef("id"), hub_id__in=combined_hub_ids)
         .order_by("-score")
         .values("hub_id", "score")[:1]
     )
@@ -325,7 +333,7 @@ def find_qualified_users_and_notify(bounty_id: int) -> List[Notification]:
     # Get qualified authors and annotate with hub and max score id.
     # For example, if users have multiple matching hubs and score, we annotate with the highest score and hub_id
     qualified_authors = (
-        Author.objects.filter(score__hub_id__in=bounty_hub_ids)
+        Author.objects.filter(score__hub_id__in=combined_hub_ids)
         .exclude(user_id__isnull=True)  # Exclude authors without a user_id
         .distinct()
         .annotate(
@@ -339,6 +347,9 @@ def find_qualified_users_and_notify(bounty_id: int) -> List[Notification]:
                 max_score_subquery.values("hub_id"), output_field=IntegerField()
             ),
         )
+        .filter(
+            max_hub_score__gte=MIN_REP_SCORE_REQUIRED_TO_NOTIFY
+        )  # Ensure we only get authors with score > MIN_REP_SCORE_REQUIRED_TO_NOTIFY
         .order_by("-max_hub_score")
     )
 

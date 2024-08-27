@@ -45,7 +45,7 @@ from researchhub.celery import (
     QUEUE_PULL_PAPERS,
     app,
 )
-from researchhub.settings import APP_ENV, PRODUCTION
+from researchhub.settings import APP_ENV, PRODUCTION, TESTING
 from utils import sentry
 from utils.http import check_url_contains_pdf
 from utils.openalex import OpenAlex
@@ -670,6 +670,7 @@ def pull_openalex_author_works_batch(
     openalex_ids, user_id_to_notify_after_completion=None
 ):
     from notification.models import Notification
+    from reputation.tasks import find_bounties_for_user_and_notify
     from user.related_models.user_model import User
 
     open_alex_api = OpenAlex()
@@ -703,3 +704,10 @@ def pull_openalex_author_works_batch(
         )
 
         notification.send_notification()
+
+        if TESTING:
+            find_bounties_for_user_and_notify(user.id)
+        else:
+            find_bounties_for_user_and_notify.apply_async(
+                (user.id,), priority=3, countdown=1
+            )

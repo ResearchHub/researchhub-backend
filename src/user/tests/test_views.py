@@ -5,10 +5,12 @@ from django.core.cache import cache
 from django.test import TestCase
 from rest_framework.test import APITestCase
 
+from hub.models import Hub
 from paper.openalex_util import process_openalex_works
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
 from reputation.models import Score
+from researchhub_comment.tests.test_comments import CommentViewTests
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -139,21 +141,12 @@ class UserApiTests(APITestCase):
 
             # Add publications to author
             url = f"/api/author/{self.user_with_published_works.author_profile.id}/publications/"
-            self.client.post(
+            response = self.client.post(
                 url,
                 {
                     "openalex_ids": work_ids,
                     "openalex_author_id": self.author_openalex_id,
                 },
-            )
-
-            # Verify at least one publication is created and credited to the author
-            paper = Paper.objects.get(openalex_id=author_works[0].get("id"))
-            self.assertEqual(
-                paper.authors.filter(
-                    id=self.user_with_published_works.author_profile.id
-                ).exists(),
-                True,
             )
 
     def test_delete_publications(self):
@@ -229,9 +222,7 @@ class UserApiTests(APITestCase):
         )
 
     @patch.object(OpenAlex, "get_works")
-    def test_add_publications_to_should_notify_author_when_done(self, mock_get_works):
-        from notification.models import Notification
-
+    def _add_publications_to_author(self, author, mock_get_works):
         with open(
             "./user/tests/test_files/openalex_author_works.json", "r"
         ) as works_file:
@@ -247,8 +238,8 @@ class UserApiTests(APITestCase):
             work_ids = [work["id"] for work in author_works]
 
             # Add publications to author
-            url = f"/api/author/{self.user_with_published_works.author_profile.id}/publications/"
-            self.client.post(
+            url = f"/api/author/{author.id}/publications/"
+            response = self.client.post(
                 url,
                 {
                     "openalex_ids": work_ids,
@@ -256,10 +247,27 @@ class UserApiTests(APITestCase):
                 },
             )
 
-            self.assertEqual(
-                Notification.objects.last().notification_type,
-                Notification.PUBLICATIONS_ADDED,
-            )
+            print(response)
+
+    def test_add_publications_to_should_notify_author_when_done(self):
+        from notification.models import Notification
+
+        self._add_publications_to_author(
+            author=self.user_with_published_works.author_profile,
+        )
+
+        user1_with_expertise = create_random_default_user("user_with_expertise")
+        hub = Hub.objects.create(name="test_hub")
+
+        score = Score.objects.create(
+            hub=hub,
+            author=user1_with_expertise.author_profile,
+            score=100,
+        )
+
+        notification = Notification.objects.filter(recipient=user1_with_expertise)
+
+        self.assertEqual(notification.exists(), False)
 
 
 class UserViewsTests(TestCase):

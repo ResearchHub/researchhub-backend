@@ -19,12 +19,9 @@ from analytics.amplitude import track_event
 from discussion.permissions import EditorCensorDiscussion
 from discussion.reaction_views import ReactionViewActionMixin
 from reputation.models import Bounty, Contribution
-from reputation.tasks import create_contribution
-from reputation.views.bounty_view import (
-    _create_bounty,
-    _create_bounty_checks,
-)
+from reputation.tasks import create_contribution, find_qualified_users_and_notify
 from reputation.utils import deduct_bounty_fees
+from reputation.views.bounty_view import _create_bounty, _create_bounty_checks
 from researchhub.pagination import FasterDjangoPaginator
 from researchhub.permissions import IsObjectOwner, IsObjectOwnerOrModerator
 from researchhub.settings import TESTING
@@ -373,6 +370,10 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         expiration_date = data.pop("expiration_date", None)
         item_content_type = RhCommentModel.__name__.lower()
 
+        # If set, users with expertise matching these hubs will be notified of the bounty
+        target_hubs = data.pop("target_hubs", [])
+        print("target_hubs", target_hubs)
+
         response = _create_bounty_checks(user, amount, item_content_type)
         if not isinstance(response, tuple):
             return response
@@ -439,6 +440,9 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             ).data
             res = Response(serializer_data, status=201)
             res.data["bounty_amount"] = amount  # This is here for Amplitude tracking
+
+            find_qualified_users_and_notify(bounty.id, target_hubs)
+
             return res
 
     def create(self, request, *args, **kwargs):

@@ -2,9 +2,12 @@ import time
 
 from rest_framework.test import APITestCase
 
+from hub.models import Hub
+from notification.models import Notification
 from paper.tests.helpers import create_paper
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
+from reputation.models import AlgorithmVariables, Score, ScoreChange
 from user.tests.helpers import create_moderator, create_random_default_user, create_user
 
 
@@ -25,6 +28,11 @@ class CommentViewTests(APITestCase):
             f"/api/{obj_name}/{obj_id}/comments/create_rh_comment/", {**data}
         )
         return res
+
+    def _give_rsc(self, user, amount):
+        distribution = Dist("REWARD", amount, give_rep=False)
+        distributor = Distributor(distribution, user, user, time.time(), user)
+        distributor.distribute()
 
     def _create_comment_bounty(self, obj_name, obj_id, created_by, data):
         self.client.force_authenticate(created_by)
@@ -200,3 +208,55 @@ class CommentViewTests(APITestCase):
 
         self.assertEqual(notification_res.status_code, 200)
         self.assertEqual(notification_res.data["count"], 1)
+
+    def test_notify_qualified_users_about_bounty(self):
+
+        user1_with_expertise = create_random_default_user("user_with_expertise")
+        hub = Hub.objects.create(name="test_hub")
+
+        score = Score.objects.create(
+            hub=hub,
+            author=user1_with_expertise.author_profile,
+            score=100,
+        )
+
+        self._give_rsc(self.user_1, 1000000)
+
+        response = self._create_paper_comment_with_bounty(
+            self.paper.id,
+            self.user_1,
+            text="this is a test comment",
+            amount=100,
+            target_hubs=[hub.id],
+        )
+
+        notification = Notification.objects.filter(
+            recipient=user1_with_expertise
+        ).last()
+
+        self.assertEqual(notification.notification_type, Notification.BOUNTY_FOR_YOU)
+
+    def test_do_not_notify_unqualified_users_about_bounty(self):
+
+        user1_with_expertise = create_random_default_user("user_with_expertise")
+        hub = Hub.objects.create(name="test_hub")
+
+        score = Score.objects.create(
+            hub=hub,
+            author=user1_with_expertise.author_profile,
+            score=90,
+        )
+
+        self._give_rsc(self.user_1, 1000000)
+
+        response = self._create_paper_comment_with_bounty(
+            self.paper.id,
+            self.user_1,
+            text="this is a test comment",
+            amount=100,
+            target_hubs=[hub.id],
+        )
+
+        notification = Notification.objects.filter(recipient=user1_with_expertise)
+
+        self.assertEqual(notification.exists(), False)
