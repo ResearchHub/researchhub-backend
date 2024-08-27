@@ -2,7 +2,7 @@ import copy
 import logging
 
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from simple_history.utils import bulk_update_with_history
 
@@ -341,60 +341,84 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
                 )
 
 
-"""
-Merges the OpenAlex author data with the ResearchHub author data. This is necessary because the OpenAlex author data
-"""
-
-
 def merge_openalex_author_with_researchhub_author(openalex_author, researchhub_author):
-    # Set basic metadata fields
-    researchhub_author.i10_index = openalex_author.get("summary_stats", {}).get(
-        "i10_index"
-    )
-    researchhub_author.h_index = openalex_author.get("summary_stats", {}).get("h_index")
-    researchhub_author.two_year_mean_citedness = openalex_author.get(
-        "summary_stats", {}
-    ).get("2yr_mean_citedness")
-    researchhub_author.orcid_id = openalex_author.get("orcid")
-    researchhub_author.save()
+    """
+    Merges the OpenAlex author data with the ResearchHub author data. This is necessary because the OpenAlex author data
+    """
+    with transaction.atomic():
+        # Update basic metadata fields
+        researchhub_author.i10_index = openalex_author.get("summary_stats", {}).get(
+            "i10_index"
+        )
+        researchhub_author.h_index = openalex_author.get("summary_stats", {}).get(
+            "h_index"
+        )
+        researchhub_author.two_year_mean_citedness = openalex_author.get(
+            "summary_stats", {}
+        ).get("2yr_mean_citedness")
+        researchhub_author.orcid_id = openalex_author.get("orcid")
 
-    # Associate this openalex id with the author
-    if openalex_author["id"] not in researchhub_author.openalex_ids:
-        researchhub_author.openalex_ids.append(openalex_author["id"])
+        # Associate this openalex id with the author
+        if openalex_author["id"] not in researchhub_author.openalex_ids:
+            researchhub_author.openalex_ids.append(openalex_author["id"])
+
         researchhub_author.save()
 
-    activity_by_year = openalex_author.get("counts_by_year", [])
-    for activity in activity_by_year:
-        try:
-            AuthorContributionSummary.objects.update_or_create(
-                source=AuthorContributionSummary.SOURCE_OPENALEX,
-                author=researchhub_author,
-                year=activity.get("year"),
-                defaults={
-                    "works_count": activity.get("works_count", None),
-                    "citation_count": activity.get("cited_by_count", None),
-                },
+        # Prepare data for bulk operations
+        contribution_summaries = []
+        author_institutions = []
+
+        # Process activity by year
+        activity_by_year = openalex_author.get("counts_by_year", [])
+        for activity in activity_by_year:
+            contribution_summaries.append(
+                AuthorContributionSummary(
+                    source=AuthorContributionSummary.SOURCE_OPENALEX,
+                    author=researchhub_author,
+                    year=activity.get("year"),
+                    works_count=activity.get("works_count"),
+                    citation_count=activity.get("cited_by_count"),
+                )
             )
-        except Exception as e:
-            sentry.log_error(
-                e,
-                message=f"Failed to upsert author contribution summary for author: {str(researchhub_author.id)}",
+
+        # Process affiliations
+        affiliations = openalex_author.get("affiliations", [])
+        institution_ids = [
+            aff.get("institution", {}).get("id")
+            for aff in affiliations
+            if aff.get("institution")
+        ]
+        existing_institutions = {
+            inst.openalex_id: inst
+            for inst in Institution.objects.filter(openalex_id__in=institution_ids)
+        }
+
+        for affiliation in affiliations:
+            oa_institution = affiliation.get("institution")
+            if not oa_institution:
+                continue
+
+            institution = existing_institutions.get(oa_institution["id"])
+            if not institution:
+                continue
+
+            author_institutions.append(
+                AuthorInstitution(
+                    author=researchhub_author,
+                    institution=institution,
+                    years=affiliation.get("years", []),
+                )
             )
 
-    # Load all the institutions author is associated with
-    affiliations = openalex_author.get("affiliations", [])
-    for affiliation in affiliations:
-        oa_institution = affiliation.get("institution")
-        years = affiliation.get("years", [])
-
-        institution = None
-        try:
-            institution = Institution.objects.get(openalex_id=oa_institution["id"])
-        except Institution.DoesNotExist:
-            continue
-
-        AuthorInstitution.objects.get_or_create(
-            author=researchhub_author,
-            institution=institution,
-            years=years,
+        # Perform bulk operations
+        AuthorContributionSummary.objects.bulk_create(
+            contribution_summaries,
+            update_conflicts=True,
+            unique_fields=["source", "author", "year"],
+            update_fields=["works_count", "citation_count"],
         )
+        AuthorInstitution.objects.bulk_create(
+            author_institutions, ignore_conflicts=True
+        )
+
+    return researchhub_author
