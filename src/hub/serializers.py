@@ -50,7 +50,7 @@ class SimpleHubSerializer(ModelSerializer):
 
 
 class HubSerializer(ModelSerializer):
-    # editor_permission_groups = SerializerMethodField()
+    editor_permission_groups = SerializerMethodField()
 
     class Meta:
         fields = [
