@@ -648,9 +648,8 @@ def create_paper_related_tags(paper_id, openalex_concepts=[], openalex_topics=[]
 
     from paper.models import Paper
 
-    paper = None
     try:
-        paper = Paper.objects.get(id=paper_id)
+        paper = Paper.objects.select_related("unified_document").get(id=paper_id)
     except Paper.DoesNotExist:
         sentry.log_info(f"Paper {paper_id} does not exist. Could not assign tags to it")
         return

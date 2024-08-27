@@ -2,9 +2,8 @@ import copy
 import logging
 
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError
 from django.db.models import Q
-from django.utils.timezone import now
 from simple_history.utils import bulk_update_with_history
 
 import utils.sentry as sentry
@@ -227,6 +226,20 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
     print(f"Processing authorships for paper: {related_paper.title}")
     authors_need_additional_data_fetch = []
     authors_in_this_work = []
+    all_openalex_ids = [
+        oa_authorship.get("author", {}).get("id")
+        for oa_authorship in openalex_authorships
+    ]
+    authors = Author.objects.filter(openalex_ids__overlap=all_openalex_ids)
+
+    authors_dict = {}
+    for author in authors:
+        for openalex_id in author.openalex_ids:
+            if openalex_id not in authors_dict:
+                authors_dict[openalex_id] = []
+
+            authors_dict[openalex_id].append(author)
+
     for oa_authorship in openalex_authorships:
         author_position = oa_authorship.get("author_position")
         author_openalex_id = oa_authorship.get("author", {}).get("id")
@@ -234,8 +247,8 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
         just_id = author_openalex_id.split("/")[-1]
         authors_need_additional_data_fetch.append(just_id)
 
-        authors = Author.objects.filter(openalex_ids__contains=[author_openalex_id])
-        if not authors.exists():
+        authors = authors_dict.get(author_openalex_id, [])
+        if len(authors) == 0:
             author_name_parts = (
                 oa_authorship.get("author", {}).get("display_name").split(" ")
             )
@@ -246,6 +259,7 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
                 created_source=Author.SOURCE_OPENALEX,
             )
             Wallet.objects.create(author=author)
+            authors.append(author)
 
         for author in authors:
             # Associate paper with author
@@ -291,11 +305,20 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
             openalex_ids=authors_need_additional_data_fetch
         )
 
+    all_openalex_ids = [author.get("id") for author in oa_authors]
+    authors = Author.objects.filter(openalex_ids__overlap=all_openalex_ids)
+
+    authors_dict = {}
+    for author in authors:
+        for openalex_id in author.openalex_ids:
+            if openalex_id not in authors_dict:
+                authors_dict[openalex_id] = []
+
+            authors_dict[openalex_id].append(author)
+
     for oa_author in oa_authors:
         try:
-            authors = Author.objects.filter(
-                openalex_ids__contains=[oa_author.get("id")]
-            )
+            authors = authors_dict.get(oa_author.get("id"), [])
             for author in authors:
                 merge_openalex_author_with_researchhub_author(oa_author, author)
 
