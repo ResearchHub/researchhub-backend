@@ -161,6 +161,35 @@ class Author(models.Model):
         return paper_citations_res.get("citation_count") or 0
 
     @property
+    def reputation_list(self):
+        scores = (
+            Score.objects.filter(author=self, score__gt=0)
+            .select_related("hub")
+            .order_by("-score")
+        )
+
+        reputation_list = [
+            {
+                "hub": {
+                    "id": score.hub.id,
+                    "name": score.hub.name,
+                    "slug": score.hub.slug,
+                },
+                "score": score.score,
+                "percentile": score.percentile,
+                "bins": [
+                    [0, 1000],
+                    [1000, 10000],
+                    [10000, 100000],
+                    [100000, 1000000],
+                ],  # FIXME: Replace with bins from algo vars table
+            }
+            for score in scores
+        ]
+
+        return reputation_list
+
+    @property
     def paper_count(self):
         from django.db.models import Count
 

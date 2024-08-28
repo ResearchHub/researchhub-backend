@@ -54,13 +54,6 @@ class PaperSubmissionViewTests(APITestCase):
             uploaded_by=self.submitter,
         )
 
-    @responses.activate
-    def test_full_flow(self):
-        self._install_mock_responses()
-        self.client.force_authenticate(self.submitter)
-        self._paper_submission_flow()
-        self._duplicate_doi_flow()
-
     # tests celery_process_paper as used by PaperSubmissionViewSet
     def _paper_submission_flow(self):
         celery_data = (

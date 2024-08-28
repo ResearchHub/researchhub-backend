@@ -1,21 +1,25 @@
 import json
 import time
 from datetime import datetime, timedelta
+from typing import List, Optional
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import DurationField, F, Q
+from django.db.models import DurationField, F, Q, QuerySet
 from django.db.models.functions import Cast
 from web3 import Web3
 
 from ethereum.lib import RSC_CONTRACT_ADDRESS
+from hub.models import Hub
 from mailing_list.lib import base_email_context
 from notification.models import Notification
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.lib import check_hotwallet, check_pending_withdrawal, contract_abi
 from reputation.models import Bounty, Contribution, Deposit
+from reputation.related_models.bounty import AnnotatedBounty
+from reputation.related_models.score import Score
 from researchhub.celery import QUEUE_CONTRIBUTIONS, app
 from researchhub.settings import PRODUCTION, WEB3_WALLET_ADDRESS, w3
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -27,6 +31,7 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from researchhub_document.utils import reset_unified_document_cache
 from user.models import User
+from user.related_models.author_model import Author
 from utils.message import send_email_message
 from utils.sentry import log_error, log_info
 
@@ -295,6 +300,132 @@ def recalculate_rep_all_users():
         except Exception as e:
             print(f"Error calculating rep for user {user.id}: {e}")
             continue
+
+
+@app.task
+def find_qualified_users_and_notify(
+    bounty_id: int, target_hubs: List[int], exclude_users: List[int]
+) -> List[Notification]:
+    """
+    Find qualified users for bounty and sends them a notification.
+    """
+    from django.db.models import F, IntegerField, OuterRef, Subquery, Value
+    from django.db.models.functions import Coalesce
+
+    # Minimum reputation score required to notify a user
+    MIN_REP_SCORE_REQUIRED_TO_NOTIFY = 100
+
+    bounty = Bounty.objects.select_related("unified_document").get(id=bounty_id)
+
+    # Get the hub IDs associated with this bounty
+    bounty_hub_ids = list(
+        set(bounty.unified_document.hubs.values_list("id", flat=True))
+    )
+
+    # Combine bounty_hub_ids with explicitly specified target_hubs
+    combined_hub_ids = bounty_hub_ids + target_hubs
+
+    # Subquery to get the highest score and corresponding hub_id for each author in the bounty's hubs
+    max_score_subquery = (
+        Score.objects.filter(author_id=OuterRef("id"), hub_id__in=combined_hub_ids)
+        .order_by("-score")
+        .values("hub_id", "score")[:1]
+    )
+
+    # Get qualified authors and annotate with hub and max score id.
+    # For example, if users have multiple matching hubs and score, we annotate with the highest score and hub_id
+    qualified_authors = (
+        Author.objects.filter(score__hub_id__in=combined_hub_ids)
+        .exclude(user_id__isnull=True)  # Exclude authors without a user_id
+        .exclude(
+            user_id__in=exclude_users
+        )  # Exclude specified users such as the one who created the bounty,
+        .distinct()
+        .annotate(
+            max_hub_score=Coalesce(
+                Subquery(
+                    max_score_subquery.values("score"), output_field=IntegerField()
+                ),
+                Value(0),
+            ),
+            matching_hub_id=Subquery(
+                max_score_subquery.values("hub_id"), output_field=IntegerField()
+            ),
+        )
+        .filter(
+            max_hub_score__gte=MIN_REP_SCORE_REQUIRED_TO_NOTIFY
+        )  # Ensure we only get authors with score > MIN_REP_SCORE_REQUIRED_TO_NOTIFY
+        .order_by("-max_hub_score")
+    )
+
+    notifications_sent = []
+    for author in qualified_authors:
+
+        notification = Notification.objects.filter(
+            object_id=bounty.id,
+            content_type=ContentType.objects.get_for_model(Bounty),
+            recipient=author.user,
+        )
+
+        if not notification.exists():
+
+            hub = Hub.objects.get(id=author.matching_hub_id)
+
+            notification = Notification.objects.create(
+                item=bounty,
+                recipient=author.user,
+                action_user=author.user,
+                unified_document=bounty.unified_document,
+                notification_type=Notification.BOUNTY_FOR_YOU,
+                extra={
+                    "bounty_id": bounty.id,
+                    "amount": bounty.amount,
+                    "bounty_type": bounty.bounty_type,
+                    "bounty_expiration_date": bounty.expiration_date,
+                    "user_hub_score": author.max_hub_score,
+                    "hub_details": json.dumps({"name": hub.name, "slug": hub.slug}),
+                },
+            )
+            notification.send_notification()
+            notifications_sent.append(notification)
+
+    return notifications_sent
+
+
+@app.task
+def find_bounties_for_user_and_notify(user_id) -> Optional[Notification]:
+    user = User.objects.get(id=user_id)
+    bounties: List[AnnotatedBounty] = Bounty.find_bounties_for_user(user)
+
+    for bounty in bounties:
+
+        notification = Notification.objects.filter(
+            object_id=bounty.id,
+            content_type=ContentType.objects.get_for_model(Bounty),
+            recipient=user,
+        )
+
+        if not notification.exists():
+
+            hub = Hub.objects.get(id=bounty.matching_hub_id)
+
+            notification = Notification.objects.create(
+                item=bounty,
+                recipient=user,
+                action_user=user,
+                unified_document=bounty.unified_document,
+                notification_type=Notification.BOUNTY_FOR_YOU,
+                extra={
+                    "bounty_id": bounty.id,
+                    "amount": bounty.amount,
+                    "bounty_type": bounty.bounty_type,
+                    "bounty_expiration_date": bounty.expiration_date,
+                    "user_hub_score": bounty.user_hub_score,
+                    "hub_details": json.dumps({"name": hub.name, "slug": hub.slug}),
+                },
+            )
+            notification.send_notification()
+            return notification
 
 
 @app.task
