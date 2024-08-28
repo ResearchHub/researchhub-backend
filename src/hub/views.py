@@ -120,6 +120,24 @@ class HubViewSet(viewsets.ModelViewSet):
         return Response(self.get_serializer(instance=hub).data, status=200)
 
     @action(
+        detail=False,
+        methods=[GET],
+        permission_classes=[AllowAny],
+    )
+    def rep_hubs(self, request):
+        cache_key = f"rep-hubs"
+        cache_hit = cache.get(cache_key)
+
+        if cache_hit:
+            return Response(cache_hit, 200)
+
+        rep_hubs = Hub.objects.filter(is_used_for_rep=True)
+        serializer = self.get_serializer(rep_hubs, many=True)
+        cache.set(cache_key, serializer.data, timeout=3600)
+
+        return Response(serializer.data)
+
+    @action(
         detail=True,
         methods=[GET],
         permission_classes=[IsAuthenticated],

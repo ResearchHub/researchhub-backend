@@ -1007,6 +1007,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "name",
                     "slug",
                     "created_date",
+                    "is_used_for_rep",
                 ]
             },
             "doc_duds_get_fundraise": {
