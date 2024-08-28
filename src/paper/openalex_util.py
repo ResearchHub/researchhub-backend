@@ -333,12 +333,17 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
             continue
 
     # Create co-author relationships
+    coauthor_objects = []
     for i, author in enumerate(authors_in_this_work):
         for coauthor in authors_in_this_work:
             if author != coauthor:
-                CoAuthor.objects.get_or_create(
-                    author=author, coauthor=coauthor, paper_id=related_paper_id
+                coauthor_objects.append(
+                    CoAuthor(
+                        author=author, coauthor=coauthor, paper_id=related_paper_id
+                    )
                 )
+
+    CoAuthor.objects.bulk_create(coauthor_objects, ignore_conflicts=True)
 
 
 def merge_openalex_author_with_researchhub_author(openalex_author, researchhub_author):
