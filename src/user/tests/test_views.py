@@ -256,18 +256,10 @@ class UserApiTests(APITestCase):
             author=self.user_with_published_works.author_profile,
         )
 
-        user1_with_expertise = create_random_default_user("user_with_expertise")
-        hub = Hub.objects.create(name="test_hub")
-
-        score = Score.objects.create(
-            hub=hub,
-            author=user1_with_expertise.author_profile,
-            score=100,
+        self.assertEqual(
+            Notification.objects.last().notification_type,
+            Notification.PUBLICATIONS_ADDED,
         )
-
-        notification = Notification.objects.filter(recipient=user1_with_expertise)
-
-        self.assertEqual(notification.exists(), False)
 
 
 class UserViewsTests(TestCase):

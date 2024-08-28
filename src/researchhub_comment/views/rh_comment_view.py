@@ -371,8 +371,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         item_content_type = RhCommentModel.__name__.lower()
 
         # If set, users with expertise matching these hubs will be notified of the bounty
-        target_hubs = data.pop("target_hubs", [])
-        print("target_hubs", target_hubs)
+        target_hubs = data.pop("target_hub_ids", [])
 
         response = _create_bounty_checks(user, amount, item_content_type)
         if not isinstance(response, tuple):
@@ -441,7 +440,14 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             res = Response(serializer_data, status=201)
             res.data["bounty_amount"] = amount  # This is here for Amplitude tracking
 
-            find_qualified_users_and_notify(bounty.id, target_hubs)
+            if TESTING:
+                find_qualified_users_and_notify(
+                    bounty.id, target_hubs, exclude_users=[user.id]
+                )
+            else:
+                find_qualified_users_and_notify.apply_async(
+                    (bounty.id, target_hubs, [user.id]), priority=3, countdown=1
+                )
 
             return res
 

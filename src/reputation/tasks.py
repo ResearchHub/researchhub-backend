@@ -304,7 +304,7 @@ def recalculate_rep_all_users():
 
 @app.task
 def find_qualified_users_and_notify(
-    bounty_id: int, target_hubs: List[int]
+    bounty_id: int, target_hubs: List[int], exclude_users: List[int]
 ) -> List[Notification]:
     """
     Find qualified users for bounty and sends them a notification.
@@ -318,10 +318,12 @@ def find_qualified_users_and_notify(
     bounty = Bounty.objects.select_related("unified_document").get(id=bounty_id)
 
     # Get the hub IDs associated with this bounty
-    bounty_hub_ids = set(bounty.unified_document.hubs.values_list("id", flat=True))
+    bounty_hub_ids = list(
+        set(bounty.unified_document.hubs.values_list("id", flat=True))
+    )
 
     # Combine bounty_hub_ids with explicitly specified target_hubs
-    combined_hub_ids = list(bounty_hub_ids.union(set(target_hubs)))
+    combined_hub_ids = bounty_hub_ids + target_hubs
 
     # Subquery to get the highest score and corresponding hub_id for each author in the bounty's hubs
     max_score_subquery = (
@@ -335,6 +337,9 @@ def find_qualified_users_and_notify(
     qualified_authors = (
         Author.objects.filter(score__hub_id__in=combined_hub_ids)
         .exclude(user_id__isnull=True)  # Exclude authors without a user_id
+        .exclude(
+            user_id__in=exclude_users
+        )  # Exclude specified users such as the one who created the bounty,
         .distinct()
         .annotate(
             max_hub_score=Coalesce(
