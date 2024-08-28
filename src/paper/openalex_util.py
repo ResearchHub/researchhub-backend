@@ -131,6 +131,7 @@ def process_openalex_works(works):
                 "openalex_concepts": openalex_concepts,
                 "openalex_topics": openalex_topics,
                 "openalex_work": work,
+                "paper": paper,
             }
         except IntegrityError as e:
             sentry.log_error(
@@ -175,6 +176,7 @@ def process_openalex_works(works):
             "openalex_concepts": openalex_concepts,
             "openalex_topics": openalex_topics,
             "openalex_work": work,
+            "paper": existing_paper,
         }
 
     # perform batch update
@@ -191,7 +193,9 @@ def process_openalex_works(works):
         work = paper_data["openalex_work"]
 
         create_paper_related_tags(
-            paper_id, paper_data["openalex_concepts"], paper_data["openalex_topics"]
+            paper_data["paper"],
+            paper_data["openalex_concepts"],
+            paper_data["openalex_topics"],
         )
 
         openalex_authorships = work.get("authorships")

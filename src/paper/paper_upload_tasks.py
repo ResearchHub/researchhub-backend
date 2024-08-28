@@ -632,7 +632,7 @@ def celery_create_paper(self, celery_data):
         openalex_data = paper_data.get("open_alex_raw_json", {})
         topics = openalex_data.get("topics", [])
         concepts = openalex_data.get("concepts", [])
-        create_paper_related_tags(paper.id, concepts, topics)
+        create_paper_related_tags(paper, concepts, topics)
 
     except Exception as e:
         sentry.log_error(e, message=f"Failed to create paper tags for paper {paper.id}")
@@ -643,112 +643,75 @@ def celery_create_paper(self, celery_data):
 
 
 @app.task(queue=QUEUE_PAPER_METADATA)
-def create_paper_related_tags(paper_id, openalex_concepts=[], openalex_topics=[]):
+def create_paper_related_tags(paper, openalex_concepts=[], openalex_topics=[]):
     from django.db import transaction
 
-    from paper.models import Paper
+    with transaction.atomic():
+        # Process topics
+        sorted_topics = sorted(openalex_topics, key=lambda x: x["score"], reverse=True)
+        topic_ids = []
+        topic_relevancy = {}
 
-    try:
-        paper = Paper.objects.select_related("unified_document").get(id=paper_id)
-    except Paper.DoesNotExist:
-        sentry.log_info(f"Paper {paper_id} does not exist. Could not assign tags to it")
-        return
+        for index, openalex_topic in enumerate(sorted_topics):
+            try:
+                topic = Topic.upsert_from_openalex(openalex_topic)
+                topic_ids.append(topic.id)
+                topic_relevancy[topic.id] = {
+                    "relevancy_score": openalex_topic["score"],
+                    "is_primary": index == 0,
+                }
 
-    # Topics should already be sorted by score in descending order but, just in case, we sort them again
-    sorted_topics_by_score = sorted(
-        openalex_topics, key=lambda x: x["score"], reverse=True
-    )
-
-    for index, openalex_topic in enumerate(sorted_topics_by_score):
-        topic = None
-        try:
-            topic = Topic.upsert_from_openalex(openalex_topic)
-            # We want to associate the paper with subfield hub
-            subfield_hub = Hub.get_from_subfield(topic.subfield)
-            paper.hubs.add(subfield_hub)
-            paper.unified_document.hubs.add(subfield_hub)
-
-        except Exception as e:
-            sentry.log_error(
-                e,
-                message=f"Failed to create topic {topic.id} to paper {paper_id}",
-            )
-
-        try:
-            with transaction.atomic():
-                # Since topics are sorted by score, the first topic is the primary one
-                is_primary = True if index == 0 else False
-
-                (
-                    unified_document_topic,
-                    created,
-                ) = UnifiedDocumentTopics.objects.get_or_create(
-                    unified_document=paper.unified_document,
-                    topic_id=topic.id,
-                    defaults={
-                        "relevancy_score": openalex_topic["score"],
-                        "is_primary": is_primary,
-                    },
+                # Add subfield hub
+                subfield_hub = Hub.get_from_subfield(topic.subfield)
+                paper.unified_document.hubs.add(subfield_hub)
+            except Exception as e:
+                sentry.log_error(
+                    e, message=f"Failed to process topic for paper {paper.id}"
                 )
 
-                if not created:
-                    # If the entry already exists, update the is_primary and relevancy_score fields
-                    unified_document_topic.is_primary = is_primary
-                    unified_document_topic.relevancy_score = openalex_topic["score"]
-                    unified_document_topic.save()
+        # Bulk create/update UnifiedDocumentTopics
+        UnifiedDocumentTopics.objects.bulk_create(
+            [
+                UnifiedDocumentTopics(
+                    unified_document=paper.unified_document,
+                    topic_id=topic_id,
+                    relevancy_score=topic_relevancy[topic_id]["relevancy_score"],
+                    is_primary=topic_relevancy[topic_id]["is_primary"],
+                )
+                for topic_id in topic_ids
+            ],
+            ignore_conflicts=True,
+        )
 
-        except Exception as e:
-            sentry.log_error(
-                e,
-                message=f"Failed to associate topic {topic.id} to paper {paper_id}",
-            )
-
-    for openalex_concept in openalex_concepts:
-        concept = None
-        try:
-            concept = Concept.upsert_from_openalex(openalex_concept)
-        except Exception as e:
-            sentry.log_error(
-                e,
-                message=f"Failed to create concept {openalex_concept['id']} / {openalex_concept['display_name']}",
-            )
-            continue
-
-        try:
-            with transaction.atomic():
+        # Process concepts
+        for openalex_concept in openalex_concepts:
+            try:
+                concept = Concept.upsert_from_openalex(openalex_concept)
                 paper.unified_document.concepts.add(
-                    concept.id,
+                    concept,
                     through_defaults={
                         "relevancy_score": openalex_concept["score"],
                         "level": openalex_concept["level"],
                     },
                 )
-                hub = Hub.objects.get(concept__id=concept.id)
-                paper.unified_document.hubs.add(hub)
-                paper.hubs.add(hub)
+            except Exception as e:
+                sentry.log_error(
+                    e, message=f"Failed to process concept for paper {paper.id}"
+                )
 
-        except Exception as e:
-            sentry.log_error(
-                e,
-                message=f"Failed to associate concept {concept.id} to paper {paper_id}",
-            )
+        # Bulk add concept hubs
+        concept_ids = paper.unified_document.concepts.values_list("id", flat=True)
+        concept_hubs = Hub.objects.filter(concept__id__in=concept_ids)
+        paper.unified_document.hubs.add(*concept_hubs)
 
-    # Add paper to bioRxiv hub if the associated source is bioRxiv
-    if paper.external_source and "bioRxiv" in paper.external_source:
-        with transaction.atomic():
+        # Add to bioRxiv hub if applicable
+        if paper.external_source and "bioRxiv" in paper.external_source:
             biorxiv_hub_id = 436
-
             if Hub.objects.filter(id=biorxiv_hub_id).exists():
-                try:
-                    paper.hubs.add(biorxiv_hub_id)
-                    paper.unified_document.hubs.add(biorxiv_hub_id)
-                except Exception as e:
-                    sentry.log_error(
-                        e, message=f"Failed to add paper to biorXiv hub: {paper.id}"
-                    )
-            else:
-                # bioRxiv hub does not exist. This must be a staging / dev environment
-                pass
+                paper.unified_document.hubs.add(biorxiv_hub_id)
+
+    # Sync hubs to paper (if needed)
+    paper.hubs.set(paper.unified_document.hubs.all())
 
 
 @app.task(queue=QUEUE_PAPER_METADATA)
