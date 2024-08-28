@@ -58,6 +58,7 @@ class CommentViewTests(APITestCase):
     def _create_paper_comment_with_bounty(
         self, paper_id, created_by, text="this is a test comment", amount=100, **kwargs
     ):
+
         res = self._create_comment_bounty(
             "paper",
             paper_id,
@@ -227,7 +228,7 @@ class CommentViewTests(APITestCase):
             self.user_1,
             text="this is a test comment",
             amount=100,
-            target_hubs=[hub.id],
+            target_hub_ids=[hub.id],
         )
 
         notification = Notification.objects.filter(
@@ -249,12 +250,12 @@ class CommentViewTests(APITestCase):
 
         self._give_rsc(self.user_1, 1000000)
 
-        response = self._create_paper_comment_with_bounty(
+        self._create_paper_comment_with_bounty(
             self.paper.id,
             self.user_1,
             text="this is a test comment",
-            amount=100,
-            target_hubs=[hub.id],
+            amount=120,
+            target_hub_ids=[hub.id],
         )
 
         notification = Notification.objects.filter(recipient=user1_with_expertise)

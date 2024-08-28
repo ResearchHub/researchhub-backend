@@ -253,7 +253,7 @@ class UserApiTests(APITestCase):
         from notification.models import Notification
 
         self._add_publications_to_author(
-            author=self.user_with_published_works.author_profile,
+            self.user_with_published_works.author_profile,
         )
 
         self.assertEqual(
