@@ -188,6 +188,9 @@ def process_openalex_works(works):
         except Exception as e:
             sentry.log_error(e, message="Failed to bulk update papers")
 
+    # Fetch all authors at once
+    oa_authors = fetch_authors_for_works(works)
+
     # Upsert concepts and associate to papers
     for paper_id, paper_data in paper_to_openalex_data.items():
         work = paper_data["openalex_work"]
@@ -198,10 +201,13 @@ def process_openalex_works(works):
             paper_data["openalex_topics"],
         )
 
+    # Process authorships with fetched author data
+    for paper_id, paper_data in paper_to_openalex_data.items():
+        work = paper_data["openalex_work"]
         openalex_authorships = work.get("authorships")
         if openalex_authorships and paper_id:
             try:
-                process_openalex_authorships(openalex_authorships, paper_id)
+                process_openalex_authorships(openalex_authorships, paper_id, oa_authors)
             except Exception as e:
                 sentry.log_error(
                     e, message=f"Failed to process authorships for paper_id: {paper_id}"
@@ -213,7 +219,32 @@ def process_openalex_works(works):
             )
 
 
-def process_openalex_authorships(openalex_authorships, related_paper_id):
+def fetch_authors_for_works(openalex_works):
+    open_alex = OpenAlex()
+    all_authors_to_fetch = set()
+    oa_authors = []
+
+    for work in openalex_works:
+        oa_authorships = work.get("authorships", [])
+        for oa_authorship in oa_authorships:
+            author_openalex_id = oa_authorship.get("author", {}).get("id")
+            just_id = author_openalex_id.split("/")[-1]
+            all_authors_to_fetch.add(just_id)
+
+    next_cursor = "*"
+    while next_cursor is not None:
+        oa_authors_batch, next_cursor = open_alex.get_authors(
+            openalex_ids=list(all_authors_to_fetch)
+        )
+        oa_authors.extend(oa_authors_batch)
+
+        if oa_authors_batch is None and len(oa_authors_batch) == 0:
+            break
+
+    return oa_authors
+
+
+def process_openalex_authorships(openalex_authorships, related_paper_id, oa_authors):
     """
     Iterates through authorships associated with an OpenAlex work and create related objects such as
     AuthorInstitution, Authorship, and Author objects. Related models will be updated if they already exist.
@@ -225,10 +256,8 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
     from purchase.models import Wallet
     from user.related_models.author_model import Author
 
-    open_alex = OpenAlex()
     related_paper = Paper.objects.get(id=related_paper_id)
     print(f"Processing authorships for paper: {related_paper.title}")
-    authors_need_additional_data_fetch = []
     authors_in_this_work = []
     all_openalex_ids = [
         oa_authorship.get("author", {}).get("id")
@@ -247,9 +276,6 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
     for oa_authorship in openalex_authorships:
         author_position = oa_authorship.get("author_position")
         author_openalex_id = oa_authorship.get("author", {}).get("id")
-
-        just_id = author_openalex_id.split("/")[-1]
-        authors_need_additional_data_fetch.append(just_id)
 
         authors = authors_dict.get(author_openalex_id, [])
         if len(authors) == 0:
@@ -303,12 +329,6 @@ def process_openalex_authorships(openalex_authorships, related_paper_id):
                     authorship.institutions.add(institution)
 
     # Update authors with additional metadata from OpenAlex
-    oa_authors = []
-    if len(authors_need_additional_data_fetch) > 0:
-        oa_authors, _ = open_alex.get_authors(
-            openalex_ids=authors_need_additional_data_fetch
-        )
-
     all_openalex_ids = [author.get("id") for author in oa_authors]
     authors = Author.objects.filter(openalex_ids__overlap=all_openalex_ids)
 
