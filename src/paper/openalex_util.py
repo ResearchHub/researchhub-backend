@@ -222,6 +222,9 @@ def process_openalex_works(works):
 def fetch_authors_for_works(openalex_works):
     open_alex = OpenAlex()
     all_authors_to_fetch = set()
+    # When filtering by id, the max batch size is 100
+    batch_size = 100
+
     oa_authors = []
 
     for work in openalex_works:
@@ -231,15 +234,10 @@ def fetch_authors_for_works(openalex_works):
             just_id = author_openalex_id.split("/")[-1]
             all_authors_to_fetch.add(just_id)
 
-    next_cursor = "*"
-    while next_cursor is not None:
-        oa_authors_batch, next_cursor = open_alex.get_authors(
-            openalex_ids=list(all_authors_to_fetch)
-        )
+    for i in range(0, len(all_authors_to_fetch), batch_size):
+        batch = list(all_authors_to_fetch)[i : i + batch_size]
+        oa_authors_batch = open_alex.get_authors(openalex_ids=batch)
         oa_authors.extend(oa_authors_batch)
-
-        if oa_authors_batch is None and len(oa_authors_batch) == 0:
-            break
 
     return oa_authors
 
