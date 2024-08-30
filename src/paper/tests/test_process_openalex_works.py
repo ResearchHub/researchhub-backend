@@ -48,11 +48,12 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
             dois = [work.get("doi") for work in self.works]
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
-            created_papers = Paper.objects.filter(doi__in=dois)
+            created_papers = Paper.objects.filter(doi__in=dois).order_by("doi")
 
-            # Sample the first paper to ensure it has concepts
-            paper_concepts = created_papers.first().unified_document.concepts.all()
-            self.assertGreater(len(paper_concepts), 0)
+            paper_concepts = created_papers[0].unified_document.concepts.all()
+            self.assertEqual(len(paper_concepts), 15)
+            paper_concepts = created_papers[1].unified_document.concepts.all()
+            self.assertEqual(len(paper_concepts), 20)
 
     @patch.object(OpenAlex, "get_authors")
     def test_creating_papers_should_create_related_topics(self, mock_get_authors):
@@ -64,11 +65,12 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
             dois = [work.get("doi") for work in self.works]
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
-            created_papers = Paper.objects.filter(doi__in=dois)
+            created_papers = Paper.objects.filter(doi__in=dois).order_by("doi")
 
-            # Sample the first paper to ensure it has topics
-            paper_topics = created_papers.first().unified_document.topics.all()
-            self.assertGreater(len(paper_topics), 0)
+            paper_topics = created_papers[0].unified_document.topics.all()
+            self.assertEqual(len(paper_topics), 3)
+            paper_topics = created_papers[1].unified_document.topics.all()
+            self.assertEqual(len(paper_topics), 4)
 
     @patch.object(OpenAlex, "get_authors")
     def test_creating_papers_should_create_related_hubs(self, mock_get_authors):
@@ -80,11 +82,12 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
             dois = [work.get("doi") for work in self.works]
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
-            created_papers = Paper.objects.filter(doi__in=dois)
+            created_papers = Paper.objects.filter(doi__in=dois).order_by("doi")
 
-            # Sample the first paper to ensure it has topics
-            paper_hubs = created_papers.first().unified_document.hubs.all()
-            self.assertGreater(len(paper_hubs), 0)
+            paper_hubs = created_papers[0].unified_document.hubs.all()
+            self.assertEqual(len(paper_hubs), 15)
+            paper_hubs = created_papers[1].unified_document.hubs.all()
+            self.assertEqual(len(paper_hubs), 22)
 
     @patch.object(OpenAlex, "get_authors")
     def test_creating_papers_should_tag_with_reputation_hubs(self, mock_get_authors):
@@ -96,13 +99,16 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
             dois = [work.get("doi") for work in self.works]
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
-            created_papers = Paper.objects.filter(doi__in=dois)
+            created_papers = Paper.objects.filter(doi__in=dois).order_by("doi")
 
-            # Sample the first paper to ensure it has topics
-            paper_hubs = created_papers.first().unified_document.hubs.filter(
+            paper_hubs = created_papers[0].unified_document.hubs.filter(
                 is_used_for_rep=True
             )
-            self.assertGreater(len(paper_hubs), 0)
+            self.assertEqual(len(paper_hubs), 1)
+            paper_hubs = created_papers[1].unified_document.hubs.filter(
+                is_used_for_rep=True
+            )
+            self.assertEqual(len(paper_hubs), 2)
 
     @patch.object(OpenAlex, "get_authors")
     def test_updating_existing_papers_from_openalex_works(self, mock_get_authors):
@@ -146,11 +152,12 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
             dois = [work.get("doi") for work in self.works]
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
-            created_papers = Paper.objects.filter(doi__in=dois)
+            created_papers = Paper.objects.filter(doi__in=dois).order_by("doi")
 
-            # Sample the first paper to ensure it has authors
             paper_authors = created_papers.first().authors.all()
-            self.assertGreater(len(paper_authors), 0)
+            self.assertEqual(len(paper_authors), 2)
+            paper_authors = created_papers.last().authors.all()
+            self.assertEqual(len(paper_authors), 3)
 
     @patch.object(OpenAlex, "get_authors")
     def test_create_authorships_when_processing_work(self, mock_get_authors):
@@ -162,9 +169,11 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
             dois = [work.get("doi") for work in self.works]
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
-            paper = Paper.objects.filter(doi__in=dois).first()
+            paper = Paper.objects.filter(doi__in=dois).order_by("doi")
 
-            authorships = paper.authorships.all()
+            authorships = paper[0].authorships.all()
+            self.assertEqual(len(authorships), 2)
+            authorships = paper[1].authorships.all()
             self.assertEqual(len(authorships), 3)
 
     @patch.object(OpenAlex, "get_authors")
@@ -182,9 +191,11 @@ class ProcessOpenAlexWorksTests(APITestCase):
             # Assert
             dois = [work.get("doi") for work in self.works]
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
-            paper = Paper.objects.filter(doi__in=dois).first()
+            paper = Paper.objects.filter(doi__in=dois).order_by("doi")
 
-            authorships = paper.authorships.all()
+            authorships = paper[0].authorships.all()
+            self.assertEqual(len(authorships), 2)
+            authorships = paper[1].authorships.all()
             self.assertEqual(len(authorships), 3)
 
     @patch.object(OpenAlex, "get_authors")
@@ -222,7 +233,9 @@ class ProcessOpenAlexWorksTests(APITestCase):
                 self.assertEqual(authorship.raw_author_name, "name1")
 
     @patch.object(OpenAlex, "get_authors")
-    def create_authorship_institutions_when_processing_work(self, mock_get_authors):
+    def test_create_authorship_institutions_when_processing_work(
+        self, mock_get_authors
+    ):
         with open("./paper/tests/openalex_authors.json", "r") as file:
             mock_data = json.load(file)
             mock_get_authors.return_value = (mock_data["results"], None)
@@ -231,11 +244,21 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
             dois = [work.get("doi") for work in self.works]
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
-            paper = Paper.objects.filter(doi__in=dois).first()
+            paper = Paper.objects.filter(doi__in=dois).order_by("doi")
 
-            authorship = paper.authorships.first()
-            institutions = authorship.institutions.all()
-            self.assertGreater(len(institutions), 0)
+            authorships = paper[0].authorships.all()
+            institutions = authorships[0].institutions.all()
+            self.assertEqual(len(institutions), 0)
+            institutions = authorships[1].institutions.all()
+            self.assertEqual(len(institutions), 1)
+
+            authorships = paper[1].authorships.all()
+            institutions = authorships[0].institutions.all()
+            self.assertEqual(len(institutions), 1)
+            institutions = authorships[1].institutions.all()
+            self.assertEqual(len(institutions), 1)
+            institutions = authorships[2].institutions.all()
+            self.assertEqual(len(institutions), 1)
 
     @patch.object(OpenAlex, "get_authors")
     def test_add_orcid_to_author_when_processing_work(self, mock_get_authors):
