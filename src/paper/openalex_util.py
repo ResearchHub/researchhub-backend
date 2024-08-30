@@ -1,5 +1,6 @@
 import copy
 import logging
+from typing import Any, Dict, List
 
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
@@ -189,7 +190,7 @@ def process_openalex_works(works):
             sentry.log_error(e, message="Failed to bulk update papers")
 
     # Fetch all authors at once
-    oa_authors = fetch_authors_for_works(works)
+    paper_authors = fetch_authors_for_works(works)
 
     # Upsert concepts and associate to papers
     for paper_id, paper_data in paper_to_openalex_data.items():
@@ -207,7 +208,10 @@ def process_openalex_works(works):
         openalex_authorships = work.get("authorships")
         if openalex_authorships and paper_id:
             try:
-                process_openalex_authorships(openalex_authorships, paper_id, oa_authors)
+                relevant_oa_authors = paper_authors.get(work["id"], [])
+                process_openalex_authorships(
+                    openalex_authorships, paper_id, relevant_oa_authors
+                )
             except Exception as e:
                 sentry.log_error(
                     e, message=f"Failed to process authorships for paper_id: {paper_id}"
@@ -219,13 +223,11 @@ def process_openalex_works(works):
             )
 
 
-def fetch_authors_for_works(openalex_works):
+def fetch_authors_for_works(openalex_works) -> Dict[str, List[Dict[str, Any]]]:
     open_alex = OpenAlex()
+    paper_authors = {}
     all_authors_to_fetch = set()
-    # When filtering by id, the max batch size is 100
     batch_size = 100
-
-    oa_authors = []
 
     for work in openalex_works:
         oa_authorships = work.get("authorships", [])
@@ -234,12 +236,32 @@ def fetch_authors_for_works(openalex_works):
             just_id = author_openalex_id.split("/")[-1]
             all_authors_to_fetch.add(just_id)
 
+    fetched_authors = {}
     for i in range(0, len(all_authors_to_fetch), batch_size):
         batch = list(all_authors_to_fetch)[i : i + batch_size]
-        oa_authors_batch = open_alex.get_authors(openalex_ids=batch)
-        oa_authors.extend(oa_authors_batch)
+        oa_authors_batch, _ = open_alex.get_authors(openalex_ids=batch)
+        for author in oa_authors_batch:
+            fetched_authors[author["id"]] = author
 
-    return oa_authors
+    for work in openalex_works:
+        oa_authorships = work.get("authorships", [])
+        oa_authors = []
+        for oa_authorship in oa_authorships:
+            oa_author_id = oa_authorship.get("author", {}).get("id")
+            if oa_author_id in fetched_authors:
+                oa_authors.append(fetched_authors[oa_author_id])
+            else:
+                logging.warning(
+                    f"Author with OpenAlex ID not found: {oa_author_id}",
+                )
+                sentry.log_error(
+                    None,
+                    message=f"Author with OpenAlex ID not found: {oa_author_id}",
+                )
+
+        paper_authors[work.get("id")] = oa_authors
+
+    return paper_authors
 
 
 def process_openalex_authorships(openalex_authorships, related_paper_id, oa_authors):
