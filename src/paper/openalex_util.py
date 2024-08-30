@@ -48,10 +48,48 @@ PAPER_FIELDS_ALLOWED_TO_UPDATE = [
 
 
 def process_openalex_works(works):
-    from paper.models import Paper
     from paper.paper_upload_tasks import create_paper_related_tags
 
     open_alex = OpenAlex()
+
+    paper_to_openalex_data = create_and_update_papers(open_alex, works)
+
+    # Fetch all authors at once
+    paper_authors = fetch_authors_for_works(works)
+
+    # Upsert concepts and associate to papers
+    for paper_id, paper_data in paper_to_openalex_data.items():
+        work = paper_data["openalex_work"]
+
+        create_paper_related_tags(
+            paper_data["paper"],
+            paper_data["openalex_concepts"],
+            paper_data["openalex_topics"],
+        )
+
+    # Process authorships with fetched author data
+    for paper_id, paper_data in paper_to_openalex_data.items():
+        work = paper_data["openalex_work"]
+        openalex_authorships = work.get("authorships")
+        if openalex_authorships and paper_id:
+            try:
+                relevant_oa_authors = paper_authors.get(work["id"], [])
+                process_openalex_authorships(
+                    openalex_authorships, paper_id, relevant_oa_authors
+                )
+            except Exception as e:
+                sentry.log_error(
+                    e, message=f"Failed to process authorships for paper_id: {paper_id}"
+                )
+        else:
+            sentry.log_error(
+                None,
+                message=f"Authorships data is missing or paper_id is None for work: {work.get('id')}",
+            )
+
+
+def create_and_update_papers(open_alex, works):
+    from paper.models import Paper
 
     dois = [work.get("doi") for work in works]
     dois = [doi for doi in dois if doi is not None]
@@ -68,8 +106,8 @@ def process_openalex_works(works):
     existing_paper_map = {paper.doi: paper for paper in existing_papers_query}
 
     # Split works into two buckets: create and update
-    create_papers = []
-    update_papers = []
+    papers_to_create = []
+    papers_to_update = []
 
     for work in works:
         # When fetched in batch, OpneAlex will truncate authors beyond 100.
@@ -90,14 +128,23 @@ def process_openalex_works(works):
             existing_paper = existing_paper_map.get(doi)
 
         if existing_paper is not None:
-            update_papers.append((existing_paper, work))
+            papers_to_update.append((existing_paper, work))
         else:
-            create_papers.append(work)
+            papers_to_create.append(work)
+
+    paper_to_openalex_data = create_papers(open_alex, papers_to_create)
+    # Add updated papers to the dictionary
+    paper_to_openalex_data.update(update_papers(open_alex, papers_to_update))
+
+    return paper_to_openalex_data
+
+
+def create_papers(open_alex, works):
+    from paper.models import Paper
 
     paper_to_openalex_data = {}
 
-    # Create new papers
-    for work in create_papers:
+    for work in works:
         _work = copy.deepcopy(work)
         (
             openalex_paper,
@@ -145,8 +192,15 @@ def process_openalex_works(works):
             )
             continue
 
-    # Prepare papers for batch update
-    for existing_paper, work in update_papers:
+    return paper_to_openalex_data
+
+
+def update_papers(open_alex, works):
+    from paper.models import Paper
+
+    paper_to_openalex_data = {}
+
+    for existing_paper, work in works:
         _work = copy.deepcopy(work)
         (
             openalex_paper,
@@ -181,46 +235,15 @@ def process_openalex_works(works):
         }
 
     # perform batch update
-    if update_papers and len(update_papers) > 0:
+    if works and len(works) > 0:
         fields_to_update = [*PAPER_FIELDS_ALLOWED_TO_UPDATE]
-        papers_to_update = [paper for paper, _ in update_papers]
+        papers_to_update = [paper for paper, _ in works]
         try:
             bulk_update_with_history(papers_to_update, Paper, fields_to_update)
         except Exception as e:
             sentry.log_error(e, message="Failed to bulk update papers")
 
-    # Fetch all authors at once
-    paper_authors = fetch_authors_for_works(works)
-
-    # Upsert concepts and associate to papers
-    for paper_id, paper_data in paper_to_openalex_data.items():
-        work = paper_data["openalex_work"]
-
-        create_paper_related_tags(
-            paper_data["paper"],
-            paper_data["openalex_concepts"],
-            paper_data["openalex_topics"],
-        )
-
-    # Process authorships with fetched author data
-    for paper_id, paper_data in paper_to_openalex_data.items():
-        work = paper_data["openalex_work"]
-        openalex_authorships = work.get("authorships")
-        if openalex_authorships and paper_id:
-            try:
-                relevant_oa_authors = paper_authors.get(work["id"], [])
-                process_openalex_authorships(
-                    openalex_authorships, paper_id, relevant_oa_authors
-                )
-            except Exception as e:
-                sentry.log_error(
-                    e, message=f"Failed to process authorships for paper_id: {paper_id}"
-                )
-        else:
-            sentry.log_error(
-                None,
-                message=f"Authorships data is missing or paper_id is None for work: {work.get('id')}",
-            )
+    return paper_to_openalex_data
 
 
 def fetch_authors_for_works(openalex_works) -> Dict[str, List[Dict[str, Any]]]:
