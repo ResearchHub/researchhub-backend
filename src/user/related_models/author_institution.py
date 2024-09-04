@@ -18,3 +18,6 @@ class AuthorInstitution(DefaultModel):
     )
 
     years = ArrayField(models.IntegerField(), blank=True, default=list)
+
+    class Meta:
+        unique_together = ("author", "institution", "years")

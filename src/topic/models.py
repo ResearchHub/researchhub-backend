@@ -270,3 +270,6 @@ class UnifiedDocumentTopics(DefaultModel):
     is_primary = models.BooleanField(
         default=False,
     )
+
+    class Meta:
+        unique_together = ("unified_document", "topic")
