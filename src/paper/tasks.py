@@ -638,6 +638,10 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
                 next_cursor=next_cursor,
             )
 
+            # if we've reached the end of the results, exit the loop
+            if next_cursor is None or works is None or len(works) == 0:
+                break
+
             # if we're starting from a specific index, skip until we reach that index
             works_to_process = None
             if total_papers_processed >= start_index:
@@ -657,16 +661,13 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
                     next_cursor=next_cursor,
                 )
 
-            # if we've reached the end of the results, exit the loop
-            if next_cursor is None or works is None or len(works) == 0:
-                break
-
         # done processing all works
         if paper_fetch_log_id is not None:
             PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
                 status=PaperFetchLog.SUCCESS,
                 completed_date=datetime.now(),
                 total_papers_processed=total_papers_processed,
+                next_cursor=None,
             )
     except Exception as e:
         sentry.log_error(e, message="Failed to pull new works from OpenAlex, retrying")
