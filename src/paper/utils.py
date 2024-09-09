@@ -5,7 +5,6 @@ from datetime import datetime
 import cloudscraper
 import fitz
 import jellyfish
-import nltk
 import regex as re
 import requests
 from bs4 import BeautifulSoup
@@ -521,7 +520,7 @@ def check_pdf_title(input_title, file):
                 page_text = page.getText().lower()
                 if normalized_input_title in page_text:
                     return True
-                ngrams = nltk.ngrams(page_text.split(), n_length)
+                ngrams = _ngrams(page_text.split(), n_length)
                 for ngram in ngrams:
                     ngram_string = " ".join(ngram)
                     similar = check_similarity(ngram_string, normalized_input_title)
@@ -530,6 +529,13 @@ def check_pdf_title(input_title, file):
         return False
     except Exception as e:
         print(e)
+
+
+def _ngrams(words: list, n: int) -> list:
+    """
+    Returns a list of ngrams of size n from the given list of words.
+    """
+    return zip(*[words[i:] for i in range(n)])
 
 
 def check_crossref_title(original_title, crossref_title):
