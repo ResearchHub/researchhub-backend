@@ -1067,6 +1067,7 @@ class PaperFetchLog(models.Model):
     status = models.CharField(choices=STATUS_CHOICES, max_length=255)
 
     total_papers_processed = models.IntegerField(default=0)
+    next_cursor = models.CharField(max_length=255, null=True, blank=True)
 
 
 class Figure(models.Model):

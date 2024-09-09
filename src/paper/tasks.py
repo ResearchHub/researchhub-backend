@@ -536,6 +536,12 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
     from paper.models import PaperFetchLog
 
     date_to_fetch_from = datetime.now() - timedelta(days=1)
+    # openalex uses a cursor to paginate through results,
+    # cursor is meant to point to the next page of results.
+    # if next_cursor = "*", it means it's the first page,
+    # if next_cursor = None, it means it's the last page,
+    # otherwise it's a base64 encoded string
+    next_cursor = "*"
     # if paper_fetch_log_id is provided, it means we're retrying
     # otherwise we're starting a new pull
     if paper_fetch_log_id is None:
@@ -548,14 +554,22 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
                 PaperFetchLog.objects.filter(
                     source=PaperFetchLog.OPENALEX,
                     fetch_type=PaperFetchLog.FETCH_NEW,
-                    status=PaperFetchLog.SUCCESS,
+                    status__in=[PaperFetchLog.SUCCESS, PaperFetchLog.FAILED],
                 )
                 .order_by("-started_date")
                 .first()
             )
-
-            if last_successful_run_log:
+            if (
+                last_successful_run_log
+                and last_successful_run_log.status == PaperFetchLog.SUCCESS
+            ):
                 date_to_fetch_from = last_successful_run_log.started_date
+            elif (
+                last_successful_run_log
+                and last_successful_run_log.status == PaperFetchLog.FAILED
+            ):
+                date_to_fetch_from = last_successful_run_log.fetch_since_date
+                next_cursor = last_successful_run_log.next_cursor
         except Exception as e:
             sentry.log_error(e, message="Failed to get last successful log")
 
@@ -582,6 +596,7 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
             status=PaperFetchLog.PENDING,
             started_date=start_date,
             fetch_since_date=date_to_fetch_from,
+            next_cursor=next_cursor,
         )
         paper_fetch_log_id = lg.id
         sentry.log_info(f"Starting New OpenAlex pull: {paper_fetch_log_id}")
@@ -613,12 +628,6 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
         return False
 
     total_papers_processed = 0
-    # openalex uses a cursor to paginate through results,
-    # cursor is meant to point to the next page of results.
-    # if next_cursor = "*", it means it's the first page,
-    # if next_cursor = None, it means it's the last page,
-    # otherwise it's a base64 encoded string
-    next_cursor = "*"
     try:
         open_alex = OpenAlex()
 
@@ -628,9 +637,6 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
                 since_date=date_to_fetch_from,
                 next_cursor=next_cursor,
             )
-            # if we've reached the end of the results, exit the loop
-            if next_cursor is None or works is None or len(works) == 0:
-                break
 
             # if we're starting from a specific index, skip until we reach that index
             works_to_process = None
@@ -638,10 +644,22 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
                 works_to_process = works
             elif total_papers_processed + len(works) >= start_index:
                 works_to_process = works[start_index - total_papers_processed :]
+
             if works_to_process is not None:
                 process_openalex_works(works_to_process)
 
             total_papers_processed += len(works)
+
+            # Update the log with the current state of the run
+            if paper_fetch_log_id is not None:
+                PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
+                    total_papers_processed=total_papers_processed,
+                    next_cursor=next_cursor,
+                )
+
+            # if we've reached the end of the results, exit the loop
+            if next_cursor is None or works is None or len(works) == 0:
+                break
 
         # done processing all works
         if paper_fetch_log_id is not None:
