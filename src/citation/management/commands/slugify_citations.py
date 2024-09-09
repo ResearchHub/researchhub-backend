@@ -1,6 +1,7 @@
 """
 Adds slug to papers
 """
+
 from django.core.management.base import BaseCommand
 from django.db.models import Q
 from django.utils.crypto import get_random_string
