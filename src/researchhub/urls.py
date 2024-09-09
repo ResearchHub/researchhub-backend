@@ -34,7 +34,6 @@ import researchhub_document.views as researchhub_document_views
 import search.urls
 import user.views
 from citation.views import CitationEntryViewSet, CitationProjectViewSet
-from feed.views import FeedViewSet
 from researchhub.settings import INSTALLED_APPS, USE_DEBUG_TOOLBAR
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from review.views.review_view import ReviewViewSet
@@ -133,7 +132,6 @@ router.register(r"withdrawal", reputation.views.WithdrawalViewSet)
 router.register(r"deposit", reputation.views.DepositViewSet)
 
 router.register(r"bounty", reputation.views.BountyViewSet)
-router.register(r"feed", FeedViewSet)
 
 router.register(
     r"author_claim_case",
