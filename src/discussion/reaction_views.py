@@ -417,7 +417,7 @@ def create_automated_bounty(item):
                         "insert": "$150 in ResearchCoin (RSC)",
                     },
                     {
-                        "insert": " to incentivize the peer review of this preprint. Anyone can perform a peer review and receive rewards from upvotes/tips, but only those who provide a high-quality, thorough peer review are eligible for the bounty. We strongly encourage you to read the "
+                        "insert": " to incentivize the peer review of this preprint. Anyone can perform a peer review and receive rewards from upvotes/tips, but only those who provide a high-quality, thorough peer review are eligible for the grant. We strongly encourage you to read the "
                     },
                     {
                         "attributes": {
