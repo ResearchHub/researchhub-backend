@@ -430,27 +430,25 @@ def create_automated_bounty(item):
                     },
                     {"attributes": {"bold": True}, "insert": "Requirements:"},
                     {
-                        "insert": "\nYour review must be submitted during the 14-day submission window starting on the day this bounty was opened."
-                    },
-                    {"attributes": {"list": "ordered"}, "insert": "\n"},
-                    {"insert": "At the start, briefly mention your credentials."},
-                    {"attributes": {"list": "ordered"}, "insert": "\n"},
-                    {
-                        "insert": "Include a mention of the version of the preprint you are reviewing (e.g. 1st, 2nd etc.). Make sure you review the most updated version available."
+                        "insert": "\nYour review must be submitted during the 14-day submission window starting on the day this grant was initiated."
                     },
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
                     {
-                        "insert": 'Use the rating system in the "Peer Reviews" tab for all 5 criteria (overall, impact, methods, results, discussion) but the content within each is flexible (in-line comments can be used here instead of a block of text in each section).'
+                        "insert": "Mention your credentials and include your areas of relevant expertise and limitations in assessing this preprint."
                     },
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
-                    {"insert": "You must provide detailed pros or cons, for "},
+                    {
+                        "insert": "Include the version of the preprint you are reviewing (e.g. 1st, 2nd, etc.). Make sure you review the most updated version available."
+                    },
+                    {"attributes": {"list": "ordered"}, "insert": "\n"},
+                    {
+                        "insert": 'Use the rating system in the "Peer Reviews" tab for all 5 criteria (overall assessment, introduction, methods, results, discussion) but the content within each is flexible (in-line comments can be used here instead of a block of text in each section).'
+                    },
+                    {"attributes": {"list": "ordered"}, "insert": "\n"},
+                    {"insert": "For "},
                     {"attributes": {"bold": True}, "insert": "each"},
                     {
-                        "insert": " figure within the preprint, including any supplementary material."
-                    },
-                    {"attributes": {"list": "ordered"}, "insert": "\n"},
-                    {
-                        "insert": "Include a section at the end of your review highlighting your areas of strengths and weaknesses as a reviewer."
+                        "insert": " figure, including supplementary material, you must provide a detailed assessment (pros or cons)"
                     },
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
                     {
@@ -460,10 +458,10 @@ def create_automated_bounty(item):
                     {"insert": "\nEditors will review and award "},
                     {
                         "attributes": {"bold": True},
-                        "insert": "up to 3 rigorous peer reviews",
+                        "insert": "up to 3 high-quality peer reviews",
                     },
                     {
-                        "insert": " within 1 week following the submission window closure. Awardees will be notified. All decisions are final.\n\n"
+                        "insert": " within 1 week following the closure of the submission window. Awardees will be notified. All decisions are final.\n\n"
                     },
                 ]
             }
