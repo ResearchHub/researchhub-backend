@@ -569,7 +569,7 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
                 and last_successful_run_log.status == PaperFetchLog.FAILED
             ):
                 date_to_fetch_from = last_successful_run_log.fetch_since_date
-                next_cursor = last_successful_run_log.next_cursor
+                next_cursor = last_successful_run_log.next_cursor or "*"
         except Exception as e:
             sentry.log_error(e, message="Failed to get last successful log")
 
