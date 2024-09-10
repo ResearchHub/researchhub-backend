@@ -79,7 +79,6 @@ bibtexparser = {version = "^2.0.0b3", allow-prereleases = true}
 pyyaml = "6.0.1"
 segment-analytics-python = "^2.2.3"
 urllib3 = "1.26.18"
-cryptography = "42.0.5"
 requests-mock = "^1.12.1"
 django-simple-history = "3.7.0"
 
