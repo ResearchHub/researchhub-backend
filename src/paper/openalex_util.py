@@ -402,6 +402,7 @@ def process_openalex_authorships(openalex_authorships, related_paper_id, oa_auth
     # Create co-author relationships
     coauthor_objects = []
     for i, author in enumerate(authors_in_this_work):
+        coauthor_count = 0
         for coauthor in authors_in_this_work:
             if author != coauthor:
                 coauthor_objects.append(
@@ -409,6 +410,10 @@ def process_openalex_authorships(openalex_authorships, related_paper_id, oa_auth
                         author=author, coauthor=coauthor, paper_id=related_paper_id
                     )
                 )
+                coauthor_count += 1
+
+            if coauthor_count >= 10:
+                break
 
     CoAuthor.objects.bulk_create(coauthor_objects, ignore_conflicts=True)
 
