@@ -427,6 +427,39 @@ class BountyViewSet(viewsets.ModelViewSet):
                 # Exception is raised to rollback database transaction
                 raise Exception("Bounty cancel error")
 
+    def list(self, request, *args, **kwargs):
+        personalized = (
+            request.query_params.get("personalized", "false").lower() == "true"
+            and request.user.is_authenticated
+        )
+
+        if personalized:
+            bounties = Bounty.find_bounties_for_user(
+                request.user, include_unrelated=True
+            )
+        else:
+            bounties = Bounty.objects.all()
+
+        page = self.paginate_queryset(bounties)
+        context = self._get_retrieve_context()
+        serializer = DynamicBountySerializer(
+            page,
+            many=True,
+            context=context,
+            _include_fields=(
+                "created_by",
+                "content_type",
+                "id",
+                "item",
+                "expiration_date",
+                "status",
+                "total_amount",
+                "unified_document",
+            ),
+        )
+
+        return self.get_paginated_response(serializer.data)
+
     @action(
         detail=False,
         methods=["get"],
