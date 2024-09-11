@@ -48,30 +48,17 @@ PAPER_FIELDS_ALLOWED_TO_UPDATE = [
 
 
 def process_openalex_works(works):
-    from paper.paper_upload_tasks import create_paper_related_tags
-
     open_alex = OpenAlex()
 
-    try:
-        create_missing_authors(works)
-    except Exception as e:
-        print("Failed to create missing authors", e)
-        sentry.log_error(e, message="Failed to create missing authors")
+    create_missing_authors(works)
 
     paper_to_openalex_data = create_and_update_papers(open_alex, works)
 
     # Fetch all authors at once
-    paper_authors = fetch_authors_for_works(works)
+    paper_authors_by_work_id = fetch_authors_for_works(works)
 
     # Upsert concepts and associate to papers
-    for paper_id, paper_data in paper_to_openalex_data.items():
-        work = paper_data["openalex_work"]
-
-        create_paper_related_tags(
-            paper_data["paper"],
-            paper_data["openalex_concepts"],
-            paper_data["openalex_topics"],
-        )
+    create_all_paper_tags(paper_to_openalex_data)
 
     # Process authorships with fetched author data
     for paper_id, paper_data in paper_to_openalex_data.items():
@@ -79,7 +66,7 @@ def process_openalex_works(works):
         openalex_authorships = work.get("authorships")
         if openalex_authorships and paper_id:
             try:
-                relevant_oa_authors = paper_authors.get(work["id"], [])
+                relevant_oa_authors = paper_authors_by_work_id.get(work["id"], [])
                 process_openalex_authorships(
                     openalex_authorships, paper_id, relevant_oa_authors
                 )
@@ -92,6 +79,17 @@ def process_openalex_works(works):
                 None,
                 message=f"Authorships data is missing or paper_id is None for work: {work.get('id')}",
             )
+
+
+def create_all_paper_tags(papers_to_openalex_data):
+    from paper.paper_upload_tasks import create_paper_related_tags
+
+    for paper_id, paper_data in papers_to_openalex_data.items():
+        create_paper_related_tags(
+            paper_data["paper"],
+            paper_data["openalex_concepts"],
+            paper_data["openalex_topics"],
+        )
 
 
 def create_and_update_papers(open_alex, works):
@@ -311,7 +309,10 @@ def create_missing_authors(openalex_works):
     existing_authors = Author.objects.filter(
         openalex_ids__overlap=all_openalex_author_ids
     )
-    existing_author_ids = set(existing_authors.values_list("openalex_ids", flat=True))
+    existing_author_ids = set()
+    for author in existing_authors:
+        existing_author_ids.update(author.openalex_ids)
+
     openalex_authors_without_authors = [
         authorship.get("author", {})
         for authorship in openalex_authorships
@@ -353,7 +354,6 @@ def process_openalex_authorships(openalex_authorships, related_paper_id, oa_auth
     from institution.models import Institution
     from paper.models import Paper
     from paper.related_models.authorship_model import Authorship
-    from purchase.models import Wallet
     from user.related_models.author_model import Author
 
     related_paper = Paper.objects.get(id=related_paper_id)
