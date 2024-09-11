@@ -308,6 +308,9 @@ def process_openalex_authorships(openalex_authorships, related_paper_id, oa_auth
     ]
     authors = Author.objects.filter(openalex_ids__overlap=all_openalex_ids)
 
+    authorships_to_create_or_update = []
+    authorship_institution_relations = {}
+
     authors_dict = {}
     for author in authors:
         for openalex_id in author.openalex_ids:
@@ -341,27 +344,14 @@ def process_openalex_authorships(openalex_authorships, related_paper_id, oa_auth
             is_corresponding = oa_authorship.get("is_corresponding")
             raw_author_name = oa_authorship.get("author", {}).get("display_name")
 
-            # Find or create authorship
-            authorship, _ = Authorship.objects.get_or_create(
+            authorship = Authorship(
                 author=author,
                 paper=related_paper,
-                defaults={
-                    "author_position": author_position,
-                    "is_corresponding": is_corresponding,
-                    "raw_author_name": raw_author_name,
-                },
+                author_position=author_position,
+                is_corresponding=is_corresponding,
+                raw_author_name=raw_author_name,
             )
-
-            # Update authorship if secondary fields have changed
-            if (
-                authorship.author_position != author_position
-                or authorship.is_corresponding != is_corresponding
-                or authorship.raw_author_name != raw_author_name
-            ):
-                authorship.author_position = author_position
-                authorship.is_corresponding = is_corresponding
-                authorship.raw_author_name = raw_author_name
-                authorship.save()
+            authorships_to_create_or_update.append(authorship)
 
             authors_in_this_work.append(author)
 
@@ -369,7 +359,30 @@ def process_openalex_authorships(openalex_authorships, related_paper_id, oa_auth
             for oa_inst in oa_authorship.get("institutions", []):
                 institution = Institution.upsert_from_openalex(oa_inst)
                 if institution:
-                    authorship.institutions.add(institution)
+                    key = f"{authorship.author_id}:{authorship.paper_id}"
+                    if key not in authorship_institution_relations:
+                        authorship_institution_relations[key] = []
+                    authorship_institution_relations[key].append(institution)
+
+    Authorship.objects.bulk_create(
+        authorships_to_create_or_update,
+        update_conflicts=True,
+        unique_fields=["author", "paper"],
+        update_fields=["author_position", "is_corresponding", "raw_author_name"],
+    )
+
+    # Fetch the relevant authorships with specific author/paper combinations
+    author_paper_pairs = [(a.author, a.paper) for a in authorships_to_create_or_update]
+    authorships = Authorship.objects.filter(
+        Q(author__in=[author for author, _ in author_paper_pairs])
+        & Q(paper__in=[paper for _, paper in author_paper_pairs])
+    )
+
+    for authorship in authorships:
+        for institution in authorship_institution_relations.get(
+            f"{authorship.author_id}:{authorship.paper_id}", []
+        ):
+            authorship.institutions.add(institution)
 
     # Update authors with additional metadata from OpenAlex
     all_openalex_ids = [author.get("id") for author in oa_authors]
