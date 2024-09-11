@@ -154,6 +154,30 @@ class ProcessOpenAlexWorksTests(APITestCase):
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
             created_papers = Paper.objects.filter(doi__in=dois).order_by("doi")
 
+            authors = Author.objects.all()
+            self.assertEqual(len(authors), 5)
+
+            paper_authors = created_papers.first().authors.all()
+            self.assertEqual(len(paper_authors), 2)
+            paper_authors = created_papers.last().authors.all()
+            self.assertEqual(len(paper_authors), 3)
+
+    @patch.object(OpenAlex, "get_authors")
+    def test_create_authors_when_processing_work_twice(self, mock_get_authors):
+        with open("./paper/tests/openalex_authors.json", "r") as file:
+            mock_data = json.load(file)
+            mock_get_authors.return_value = (mock_data["results"], None)
+
+            process_openalex_works(self.works)
+            process_openalex_works(self.works)
+
+            dois = [work.get("doi") for work in self.works]
+            dois = [doi.replace("https://doi.org/", "") for doi in dois]
+            created_papers = Paper.objects.filter(doi__in=dois).order_by("doi")
+
+            authors = Author.objects.all()
+            self.assertEqual(len(authors), 5)
+
             paper_authors = created_papers.first().authors.all()
             self.assertEqual(len(paper_authors), 2)
             paper_authors = created_papers.last().authors.all()

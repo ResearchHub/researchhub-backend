@@ -52,6 +52,12 @@ def process_openalex_works(works):
 
     open_alex = OpenAlex()
 
+    try:
+        create_missing_authors(works)
+    except Exception as e:
+        print("Failed to create missing authors", e)
+        sentry.log_error(e, message="Failed to create missing authors")
+
     paper_to_openalex_data = create_and_update_papers(open_alex, works)
 
     # Fetch all authors at once
@@ -287,6 +293,57 @@ def fetch_authors_for_works(openalex_works) -> Dict[str, List[Dict[str, Any]]]:
     return paper_authors
 
 
+def create_missing_authors(openalex_works):
+    from purchase.models import Wallet
+    from user.related_models.author_model import Author
+
+    # Get all authorships from the works
+    openalex_authorships = [work.get("authorships", []) for work in openalex_works]
+    openalex_authorships = [
+        item for sublist in openalex_authorships for item in sublist
+    ]
+
+    all_openalex_author_ids = [
+        oa_authorship.get("author", {}).get("id")
+        for oa_authorship in openalex_authorships
+    ]
+
+    existing_authors = Author.objects.filter(
+        openalex_ids__overlap=all_openalex_author_ids
+    )
+    existing_author_ids = set(existing_authors.values_list("openalex_ids", flat=True))
+    openalex_authors_without_authors = [
+        authorship.get("author", {})
+        for authorship in openalex_authorships
+        if authorship.get("author", {}).get("id") not in existing_author_ids
+    ]
+
+    authors_to_create = []
+    for oa_author in openalex_authors_without_authors:
+        author_name_parts = oa_author.get("display_name", "").split()
+
+        authors_to_create.append(
+            Author(
+                first_name=author_name_parts[0],
+                last_name=author_name_parts[-1],
+                openalex_ids=[oa_author.get("id")],
+                created_source=Author.SOURCE_OPENALEX,
+            )
+        )
+
+    # Bulk create authors
+    created_authors = Author.objects.bulk_create(authors_to_create)
+
+    # Create wallets for new authors
+    wallets_to_create = [Wallet(author=author) for author in created_authors]
+    Wallet.objects.bulk_create(wallets_to_create)
+
+    # Update existing_authors with newly created authors
+    existing_authors = Author.objects.filter(
+        openalex_ids__overlap=all_openalex_author_ids
+    )
+
+
 def process_openalex_authorships(openalex_authorships, related_paper_id, oa_authors):
     """
     Iterates through authorships associated with an OpenAlex work and create related objects such as
@@ -324,18 +381,6 @@ def process_openalex_authorships(openalex_authorships, related_paper_id, oa_auth
         author_openalex_id = oa_authorship.get("author", {}).get("id")
 
         authors = authors_dict.get(author_openalex_id, [])
-        if len(authors) == 0:
-            author_name_parts = (
-                oa_authorship.get("author", {}).get("display_name").split(" ")
-            )
-            author = Author.objects.create(
-                first_name=author_name_parts[0],
-                last_name=author_name_parts[-1],
-                openalex_ids=[author_openalex_id],
-                created_source=Author.SOURCE_OPENALEX,
-            )
-            Wallet.objects.create(author=author)
-            authors.append(author)
 
         for author in authors:
             # Associate paper with author
