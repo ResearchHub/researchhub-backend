@@ -165,6 +165,14 @@ class BountyViewSet(viewsets.ModelViewSet):
     ALLOWED_CREATE_CONTENT_TYPES = ("rhcommentmodel", "thread", "researchhubpost")
     ALLOWED_APPROVE_CONTENT_TYPES = ("rhcommentmodel", "thread", "comment", "reply")
 
+    def get_permissions(self):
+        if self.action == "list":
+            permission_classes = [AllowAny]
+        else:
+            permission_classes = self.permission_classes
+
+        return [permission() for permission in permission_classes]
+
     def _get_create_context(self):
         context = {
             "rep_dbs_get_created_by": {"_include_fields": ("author_profile", "id")},
