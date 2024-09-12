@@ -883,6 +883,34 @@
                     ]
                 },
                 {
+                    "author_position": "middle",
+                    "author": {
+                        "id": "https://openalex.org/A5082307304",
+                        "display_name": "Kieron Burke",
+                        "orcid": "https://orcid.org/0000-0002-6159-0054"
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I114832834",
+                            "display_name": "Tulane University",
+                            "ror": "https://ror.org/04vmvtb21",
+                            "country_code": "US",
+                            "type": "education",
+                            "lineage": [
+                                "https://openalex.org/I114832834"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "US"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Kieron Burke",
+                    "raw_affiliation_strings": [
+                        "Department of Physics and Quantum Theory Group, Tulane University, New Orleans, Louisiana 70118"
+                    ]
+                },
+                {
                     "author_position": "last",
                     "author": {
                         "id": "https://openalex.org/A5001854674",

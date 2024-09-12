@@ -179,7 +179,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
             self.assertEqual(len(authors), 5)
 
             paper_authors = created_papers.first().authors.all()
-            self.assertEqual(len(paper_authors), 2)
+            self.assertEqual(len(paper_authors), 3)
             paper_authors = created_papers.last().authors.all()
             self.assertEqual(len(paper_authors), 3)
 
@@ -196,7 +196,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
             paper = Paper.objects.filter(doi__in=dois).order_by("doi")
 
             authorships = paper[0].authorships.all()
-            self.assertEqual(len(authorships), 2)
+            self.assertEqual(len(authorships), 3)
             authorships = paper[1].authorships.all()
             self.assertEqual(len(authorships), 3)
 
@@ -218,7 +218,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
             paper = Paper.objects.filter(doi__in=dois).order_by("doi")
 
             authorships = paper[0].authorships.all()
-            self.assertEqual(len(authorships), 2)
+            self.assertEqual(len(authorships), 3)
             authorships = paper[1].authorships.all()
             self.assertEqual(len(authorships), 3)
 
@@ -247,9 +247,10 @@ class ProcessOpenAlexWorksTests(APITestCase):
             # Assert
             dois = [work.get("doi") for work in self.works]
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
-            paper = Paper.objects.filter(doi__in=dois).first()
+            paper = Paper.objects.filter(doi__in=dois).order_by("doi").first()
 
             authorships = paper.authorships.all()
+
             self.assertEqual(len(authorships), 3)
             for authorship in authorships:
                 self.assertTrue(authorship.is_corresponding)
