@@ -352,24 +352,24 @@ def process_openalex_authorships(paper_to_openalex_data, oa_authors_by_work_id):
             oa_authorship.get("author", {}).get("id")
             for oa_authorship in openalex_authorships
         ]
-        authors = Author.objects.filter(openalex_ids__overlap=all_openalex_ids)
+        all_authors = Author.objects.filter(openalex_ids__overlap=all_openalex_ids)
 
         authorships_to_create_or_update = []
         authorship_institution_relations = {}
 
-        authors_dict = {}
-        for author in authors:
+        rh_authors_by_oa_id = {}
+        for author in all_authors:
             for openalex_id in author.openalex_ids:
-                if openalex_id not in authors_dict:
-                    authors_dict[openalex_id] = []
+                if openalex_id not in rh_authors_by_oa_id:
+                    rh_authors_by_oa_id[openalex_id] = []
 
-                authors_dict[openalex_id].append(author)
+                rh_authors_by_oa_id[openalex_id].append(author)
 
         for oa_authorship in openalex_authorships:
             author_position = oa_authorship.get("author_position")
             author_openalex_id = oa_authorship.get("author", {}).get("id")
 
-            authors = authors_dict.get(author_openalex_id, [])
+            authors = rh_authors_by_oa_id.get(author_openalex_id, [])
 
             for author in authors:
                 # Associate paper with author
@@ -424,18 +424,18 @@ def process_openalex_authorships(paper_to_openalex_data, oa_authors_by_work_id):
         all_openalex_ids = [author.get("id") for author in oa_authors]
         authors = Author.objects.filter(openalex_ids__overlap=all_openalex_ids)
 
-        authors_dict = {}
+        rh_authors_by_oa_id = {}
         for author in authors:
             for openalex_id in author.openalex_ids:
-                if openalex_id not in authors_dict:
-                    authors_dict[openalex_id] = []
+                if openalex_id not in rh_authors_by_oa_id:
+                    rh_authors_by_oa_id[openalex_id] = []
 
-                authors_dict[openalex_id].append(author)
+                rh_authors_by_oa_id[openalex_id].append(author)
 
         for oa_author in oa_authors:
             try:
-                authors = authors_dict.get(oa_author.get("id"), [])
-                for author in authors:
+                rh_authors = rh_authors_by_oa_id.get(oa_author.get("id"), [])
+                for author in rh_authors:
                     merge_openalex_author_with_researchhub_author(oa_author, author)
 
             except Exception as e:
