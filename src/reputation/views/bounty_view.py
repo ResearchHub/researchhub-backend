@@ -206,6 +206,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                 "id",
                 "slug",
                 "title",
+                "authors",
             )
         }
         context["dis_dts_get_created_by"] = {"_include_fields": ("author_profile",)}
