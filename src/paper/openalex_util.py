@@ -50,17 +50,22 @@ PAPER_FIELDS_ALLOWED_TO_UPDATE = [
 def process_openalex_works(works):
     open_alex = OpenAlex()
 
-    authors_by_oa_id = create_authors(works)
+    authors = create_authors(works)
+    authors_by_oa_id = build_authors_by_oa_id_dict(authors)
 
     paper_to_openalex_data = create_and_update_papers(open_alex, works)
 
-    # Fetch all authors at once from openalex to improve performance
-    oa_authors_by_work_id = fetch_authors_for_works(works)
+    # Fetch all authors at once from openalex
+    fetched_oa_authors = fetch_authors_for_works(works)
+    oa_authors_by_work_id = build_oa_authors_by_work_id_dict(works, fetched_oa_authors)
 
-    # Upsert concepts and associate to papers
+    merge_openalex_authors_with_researchhub_authors(
+        fetched_oa_authors, authors_by_oa_id
+    )
+
     create_all_paper_tags(paper_to_openalex_data)
 
-    create_openalex_authorships(
+    create_openalex_authorships_and_institutions(
         paper_to_openalex_data, oa_authors_by_work_id, authors_by_oa_id
     )
 
@@ -236,9 +241,8 @@ def update_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
     return paper_to_openalex_data
 
 
-def fetch_authors_for_works(openalex_works) -> Dict[str, List[Dict[str, Any]]]:
+def fetch_authors_for_works(openalex_works) -> List[Dict[str, Any]]:
     open_alex = OpenAlex()
-    paper_authors = {}
     all_authors_to_fetch = set()
     batch_size = 100
 
@@ -249,20 +253,27 @@ def fetch_authors_for_works(openalex_works) -> Dict[str, List[Dict[str, Any]]]:
             just_id = author_openalex_id.split("/")[-1]
             all_authors_to_fetch.add(just_id)
 
-    fetched_authors = {}
+    fetched_oa_authors = []
     for i in range(0, len(all_authors_to_fetch), batch_size):
         batch = list(all_authors_to_fetch)[i : i + batch_size]
         oa_authors_batch, _ = open_alex.get_authors(openalex_ids=batch)
-        for author in oa_authors_batch:
-            fetched_authors[author["id"]] = author
+        fetched_oa_authors.extend(oa_authors_batch)
+    return fetched_oa_authors
 
+
+def build_oa_authors_by_work_id_dict(
+    openalex_works, fetched_oa_authors
+) -> Dict[str, List[Dict[str, Any]]]:
+    fetched_oa_authors_by_id = {author["id"]: author for author in fetched_oa_authors}
+
+    oa_authors_by_work_id = {}
     for work in openalex_works:
         oa_authorships = work.get("authorships", [])
         oa_authors = []
         for oa_authorship in oa_authorships:
             oa_author_id = oa_authorship.get("author", {}).get("id")
-            if oa_author_id in fetched_authors:
-                oa_authors.append(fetched_authors[oa_author_id])
+            if oa_author_id in fetched_oa_authors_by_id:
+                oa_authors.append(fetched_oa_authors_by_id[oa_author_id])
             else:
                 logging.warning(
                     f"Author with OpenAlex ID not found: {oa_author_id}",
@@ -272,12 +283,12 @@ def fetch_authors_for_works(openalex_works) -> Dict[str, List[Dict[str, Any]]]:
                     message=f"Author with OpenAlex ID not found: {oa_author_id}",
                 )
 
-        paper_authors[work.get("id")] = oa_authors
+        oa_authors_by_work_id[work.get("id")] = oa_authors
 
-    return paper_authors
+    return oa_authors_by_work_id
 
 
-def create_authors(openalex_works) -> Dict[str, List["Author"]]:
+def create_authors(openalex_works) -> List["Author"]:
     from purchase.models import Wallet
     from user.related_models.author_model import Author
 
@@ -325,8 +336,10 @@ def create_authors(openalex_works) -> Dict[str, List["Author"]]:
     wallets_to_create = [Wallet(author=author) for author in created_authors]
     Wallet.objects.bulk_create(wallets_to_create)
 
-    authors = Author.objects.filter(openalex_ids__overlap=all_openalex_author_ids)
+    return Author.objects.filter(openalex_ids__overlap=all_openalex_author_ids)
 
+
+def build_authors_by_oa_id_dict(authors) -> Dict[str, List["Author"]]:
     authors_by_oa_id = {}
     for author in authors:
         for openalex_id in author.openalex_ids:
@@ -338,17 +351,14 @@ def create_authors(openalex_works) -> Dict[str, List["Author"]]:
     return authors_by_oa_id
 
 
-def create_openalex_authorships(
+def create_openalex_authorships_and_institutions(
     paper_to_openalex_data, oa_authors_by_work_id, authors_by_oa_id
 ):
-    """
-    Iterates through authorships associated with an OpenAlex work and create related objects such as
-    AuthorInstitution, Authorship, and Author objects. Related models will be updated if they already exist.
-    https://docs.openalex.org/api-entities/works/work-object/authorship-object
-    """
     from institution.models import Institution
     from paper.related_models.authorship_model import Authorship
-    from user.related_models.author_model import Author
+
+    authorships_to_create_or_update = []
+    authorship_institution_relations = {}
 
     for paper_id, paper_data in paper_to_openalex_data.items():
         work = paper_data["openalex_work"]
@@ -367,9 +377,6 @@ def create_openalex_authorships(
         authors = []
         for oa_author in oa_authors:
             authors.extend(authors_by_oa_id.get(oa_author.get("id"), []))
-
-        authorships_to_create_or_update = []
-        authorship_institution_relations = {}
 
         for oa_authorship in openalex_authorships:
             author_position = oa_authorship.get("author_position")
@@ -402,43 +409,25 @@ def create_openalex_authorships(
                             authorship_institution_relations[key] = []
                         authorship_institution_relations[key].append(institution)
 
-        Authorship.objects.bulk_create(
-            authorships_to_create_or_update,
-            update_conflicts=True,
-            unique_fields=["author", "paper"],
-            update_fields=["author_position", "is_corresponding", "raw_author_name"],
-        )
+    Authorship.objects.bulk_create(
+        authorships_to_create_or_update,
+        update_conflicts=True,
+        unique_fields=["author", "paper"],
+        update_fields=["author_position", "is_corresponding", "raw_author_name"],
+    )
 
-        # Fetch the relevant authorships with specific author/paper combinations
-        author_paper_pairs = [
-            (a.author, a.paper) for a in authorships_to_create_or_update
-        ]
-        authorships = Authorship.objects.filter(
-            Q(author__in=[author for author, _ in author_paper_pairs])
-            & Q(paper__in=[paper for _, paper in author_paper_pairs])
-        )
+    # Fetch the relevant authorships with specific author/paper combinations
+    author_paper_pairs = [(a.author, a.paper) for a in authorships_to_create_or_update]
+    authorships = Authorship.objects.filter(
+        Q(author__in=[author for author, _ in author_paper_pairs])
+        & Q(paper__in=[paper for _, paper in author_paper_pairs])
+    )
 
-        for authorship in authorships:
-            for institution in authorship_institution_relations.get(
-                f"{authorship.author_id}:{authorship.paper_id}", []
-            ):
-                authorship.institutions.add(institution)
-
-        for oa_author in oa_authors:
-            try:
-                rh_authors = authors_by_oa_id.get(oa_author.get("id"), [])
-                for rh_author in rh_authors:
-                    merge_openalex_author_with_researchhub_author(oa_author, rh_author)
-
-            except Exception as e:
-                logging.warning(
-                    f"Author with OpenAlex ID failed to be merged: {oa_author.get('id')}",
-                )
-                sentry.log_error(
-                    e,
-                    message=f"Author with OpenAlex ID failed to be merged {oa_author.get('id')}",
-                )
-                continue
+    for authorship in authorships:
+        for institution in authorship_institution_relations.get(
+            f"{authorship.author_id}:{authorship.paper_id}", []
+        ):
+            authorship.institutions.add(institution)
 
 
 def create_coauthors(paper_to_openalex_data, oa_authors_by_work_id, authors_by_oa_id):
@@ -467,6 +456,24 @@ def create_coauthors(paper_to_openalex_data, oa_authors_by_work_id, authors_by_o
                     break
 
         CoAuthor.objects.bulk_create(coauthor_objects, ignore_conflicts=True)
+
+
+def merge_openalex_authors_with_researchhub_authors(oa_authors, authors_by_oa_id):
+    for oa_author in oa_authors:
+        try:
+            rh_authors = authors_by_oa_id.get(oa_author.get("id"), [])
+            for rh_author in rh_authors:
+                merge_openalex_author_with_researchhub_author(oa_author, rh_author)
+
+        except Exception as e:
+            logging.warning(
+                f"Author with OpenAlex ID failed to be merged: {oa_author.get('id')}",
+            )
+            sentry.log_error(
+                e,
+                message=f"Author with OpenAlex ID failed to be merged {oa_author.get('id')}",
+            )
+            continue
 
 
 def merge_openalex_author_with_researchhub_author(openalex_author, researchhub_author):
