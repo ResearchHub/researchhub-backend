@@ -27,7 +27,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
             dois = [work.get("doi") for work in self.works]
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
 
-            created_papers = Paper.objects.filter(doi__in=dois)
+            created_papers = Paper.objects.filter(doi__in=dois).order_by("doi")
             self.assertEqual(len(created_papers), 2)
 
             for paper in created_papers:
@@ -158,7 +158,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
             self.assertEqual(len(authors), 5)
 
             paper_authors = created_papers.first().authors.all()
-            self.assertEqual(len(paper_authors), 2)
+            self.assertEqual(len(paper_authors), 3)
             paper_authors = created_papers.last().authors.all()
             self.assertEqual(len(paper_authors), 3)
 

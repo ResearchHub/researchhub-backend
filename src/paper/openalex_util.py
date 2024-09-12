@@ -306,31 +306,29 @@ def create_authors(openalex_works) -> List["Author"]:
     existing_authors = Author.objects.filter(
         openalex_ids__overlap=all_openalex_author_ids
     )
-    existing_author_ids = set()
+    existing_oa_author_ids = set()
     for author in existing_authors:
-        existing_author_ids.update(author.openalex_ids)
+        existing_oa_author_ids.update(author.openalex_ids)
 
     openalex_authors_without_authors = [
         authorship.get("author", {})
         for authorship in openalex_authorships
-        if authorship.get("author", {}).get("id") not in existing_author_ids
+        if authorship.get("author", {}).get("id") not in existing_oa_author_ids
     ]
 
-    authors_to_create = []
+    authors_to_create = {}
     for oa_author in openalex_authors_without_authors:
         author_name_parts = oa_author.get("display_name", "").split()
 
-        authors_to_create.append(
-            Author(
-                first_name=author_name_parts[0],
-                last_name=author_name_parts[-1],
-                openalex_ids=[oa_author.get("id")],
-                created_source=Author.SOURCE_OPENALEX,
-            )
+        authors_to_create[oa_author.get("id")] = Author(
+            first_name=author_name_parts[0],
+            last_name=author_name_parts[-1],
+            openalex_ids=[oa_author.get("id")],
+            created_source=Author.SOURCE_OPENALEX,
         )
 
     # Bulk create authors
-    created_authors = Author.objects.bulk_create(authors_to_create)
+    created_authors = Author.objects.bulk_create(authors_to_create.values())
 
     # Create wallets for new authors
     wallets_to_create = [Wallet(author=author) for author in created_authors]
@@ -357,7 +355,7 @@ def create_openalex_authorships_and_institutions(
     from institution.models import Institution
     from paper.related_models.authorship_model import Authorship
 
-    authorships_to_create_or_update = []
+    authorships_to_create_or_update = {}
     authorship_institution_relations = {}
 
     for paper_id, paper_data in paper_to_openalex_data.items():
@@ -398,26 +396,29 @@ def create_openalex_authorships_and_institutions(
                     is_corresponding=is_corresponding,
                     raw_author_name=raw_author_name,
                 )
-                authorships_to_create_or_update.append(authorship)
+                key = f"{authorship.author_id}:{authorship.paper_id}"
+
+                authorships_to_create_or_update[key] = authorship
 
                 # Set institutions associated with authorships if they do not already exist
                 for oa_inst in oa_authorship.get("institutions", []):
                     institution = Institution.upsert_from_openalex(oa_inst)
                     if institution:
-                        key = f"{authorship.author_id}:{authorship.paper_id}"
                         if key not in authorship_institution_relations:
                             authorship_institution_relations[key] = []
                         authorship_institution_relations[key].append(institution)
 
     Authorship.objects.bulk_create(
-        authorships_to_create_or_update,
+        authorships_to_create_or_update.values(),
         update_conflicts=True,
         unique_fields=["author", "paper"],
         update_fields=["author_position", "is_corresponding", "raw_author_name"],
     )
 
     # Fetch the relevant authorships with specific author/paper combinations
-    author_paper_pairs = [(a.author, a.paper) for a in authorships_to_create_or_update]
+    author_paper_pairs = [
+        (a.author, a.paper) for a in authorships_to_create_or_update.values()
+    ]
     authorships = Authorship.objects.filter(
         Q(author__in=[author for author, _ in author_paper_pairs])
         & Q(paper__in=[paper for _, paper in author_paper_pairs])
