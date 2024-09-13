@@ -670,40 +670,37 @@ CHANNEL_LAYERS = {
 
 # APM
 
-# elastic_token = os.environ.get("ELASTIC_APM_SECRET_TOKEN", "")
-# if elastic_token:
-#     if not CELERY_WORKER:
-#         INSTALLED_APPS += [
-#             # Monitoring
-#             "elasticapm.contrib.django",
-#         ]
-#     if not CELERY_WORKER and not TESTING:
-#         MIDDLEWARE = [
-#             "elasticapm.contrib.django.middleware.TracingMiddleware",
-#         ] + MIDDLEWARE
-
-#     ELASTIC_APM = {
-#         # Set required service name. Allowed characters:
-#         # # a-z, A-Z, 0-9, -, _, and space
-#         "SERVICE_NAME": f"researchhub-{APP_ENV}",
-#         # Use if APM Server requires a token
-#         "SECRET_TOKEN": os.environ.get("ELASTIC_APM_SECRET_TOKEN", ""),
-#         # Set custom APM Server URL (default: http://localhost:8200)
-#         "SERVER_URL": os.environ.get("APM_URL", keys.APM_URL),  # noqa
-#         "ENVIRONMENT": APP_ENV,
-#         "DJANGO_AUTOINSERT_MIDDLEWARE": False,
-#         "DISABLE_SEND": CELERY_WORKER or TESTING,
-#         "TRANSACTION_SAMPLE_RATE": 0.1,
-#         "PROCESSORS": (
-#             "elasticapm.processors.sanitize_stacktrace_locals",
-#             "elasticapm.processors.sanitize_http_request_cookies",
-#             "elasticapm.processors.sanitize_http_headers",
-#             "elasticapm.processors.sanitize_http_wsgi_env",
-#             "elasticapm.processors.sanitize_http_request_body",
-#             # Breaking in elasticapm 6.x
-#             # 'elasticapm.processors.sanitize_http_request_querystring',
-#         ),
-#     }
+elastic_token = os.environ.get("ELASTIC_APM_SECRET_TOKEN", "")
+if elastic_token:
+    if not CELERY_WORKER:
+        INSTALLED_APPS += [
+            # Monitoring
+            "elasticapm.contrib.django",
+        ]
+    if not CELERY_WORKER and not TESTING:
+        MIDDLEWARE = [
+            "elasticapm.contrib.django.middleware.TracingMiddleware",
+        ] + MIDDLEWARE
+    ELASTIC_APM = {
+        # Set required service name. Allowed characters:
+        # # a-z, A-Z, 0-9, -, _, and space
+        "SERVICE_NAME": f"researchhub-{APP_ENV}",
+        # Use if APM Server requires a token
+        "SECRET_TOKEN": os.environ.get("ELASTIC_APM_SECRET_TOKEN", ""),
+        # Set custom APM Server URL (default: http://localhost:8200)
+        "SERVER_URL": os.environ.get("APM_URL", keys.APM_URL),  # noqa
+        "ENVIRONMENT": APP_ENV,
+        "DJANGO_AUTOINSERT_MIDDLEWARE": False,
+        "DISABLE_SEND": CELERY_WORKER or TESTING,
+        "TRANSACTION_SAMPLE_RATE": 0.1,
+        "PROCESSORS": (
+            "elasticapm.processors.sanitize_stacktrace_locals",
+            "elasticapm.processors.sanitize_http_request_cookies",
+            "elasticapm.processors.sanitize_http_headers",
+            "elasticapm.processors.sanitize_http_wsgi_env",
+            "elasticapm.processors.sanitize_http_request_body",
+        ),
+    }
 
 # MailChimp
 MAILCHIMP_SERVER = "us4"
