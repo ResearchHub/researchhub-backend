@@ -809,6 +809,807 @@
             "created_date": "2016-06-24"
         },
         {
+            "id": "https://openalex.org/W1981368803",
+            "doi": "https://doi.org/10.1103/physrevlett.77.3865",
+            "title": "Generalized Gradient Approximation Made Simple",
+            "display_name": "Generalized Gradient Approximation Made Simple",
+            "publication_year": 1996,
+            "publication_date": "1996-10-28",
+            "ids": {
+                "openalex": "https://openalex.org/W1981368803",
+                "doi": "https://doi.org/10.1103/physrevlett.77.3865",
+                "mag": "1981368803",
+                "pmid": "https://pubmed.ncbi.nlm.nih.gov/10062328"
+            },
+            "language": "en",
+            "primary_location": {
+                "is_oa": false,
+                "landing_page_url": "https://doi.org/10.1103/physrevlett.77.3865",
+                "pdf_url": null,
+                "source": {
+                    "id": "https://openalex.org/S24807848",
+                    "display_name": "Physical review letters",
+                    "issn_l": "0031-9007",
+                    "issn": [
+                        "0031-9007",
+                        "1079-7114",
+                        "1092-0145"
+                    ],
+                    "is_oa": false,
+                    "is_in_doaj": false,
+                    "host_organization": "https://openalex.org/P4310320261",
+                    "host_organization_name": "American Physical Society",
+                    "host_organization_lineage": [
+                        "https://openalex.org/P4310320261"
+                    ],
+                    "host_organization_lineage_names": [
+                        "American Physical Society"
+                    ],
+                    "type": "journal"
+                },
+                "license": null,
+                "license_id": null,
+                "version": null,
+                "is_accepted": false,
+                "is_published": false
+            },
+            "type": "article",
+            "type_crossref": "journal-article",
+            "indexed_in": [
+                "crossref",
+                "pubmed"
+            ],
+            "open_access": {
+                "is_oa": false,
+                "oa_status": "closed",
+                "oa_url": null,
+                "any_repository_has_fulltext": false
+            },
+            "authorships": [
+                {
+                    "author_position": "first",
+                    "author": {
+                        "id": "https://openalex.org/A5014987686",
+                        "display_name": "John P. Perdew",
+                        "orcid": "https://orcid.org/0000-0003-4237-824X"
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I114832834",
+                            "display_name": "Tulane University",
+                            "ror": "https://ror.org/04vmvtb21",
+                            "country_code": "US",
+                            "type": "education",
+                            "lineage": [
+                                "https://openalex.org/I114832834"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "US"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "John P. Perdew",
+                    "raw_affiliation_strings": [
+                        "Department of Physics and Quantum Theory Group, Tulane University, New Orleans, Louisiana 70118"
+                    ]
+                },
+                {
+                    "author_position": "middle",
+                    "author": {
+                        "id": "https://openalex.org/A5082307304",
+                        "display_name": "Kieron Burke",
+                        "orcid": "https://orcid.org/0000-0002-6159-0054"
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I114832834",
+                            "display_name": "Tulane University",
+                            "ror": "https://ror.org/04vmvtb21",
+                            "country_code": "US",
+                            "type": "education",
+                            "lineage": [
+                                "https://openalex.org/I114832834"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "US"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Kieron Burke",
+                    "raw_affiliation_strings": [
+                        "Department of Physics and Quantum Theory Group, Tulane University, New Orleans, Louisiana 70118"
+                    ]
+                },
+                {
+                    "author_position": "last",
+                    "author": {
+                        "id": "https://openalex.org/A5053648717",
+                        "display_name": "Matthias Ernzerhof",
+                        "orcid": "https://orcid.org/0000-0001-5679-8902"
+                    },
+                    "institutions": [
+                        {
+                            "id": "https://openalex.org/I114832834",
+                            "display_name": "Tulane University",
+                            "ror": "https://ror.org/04vmvtb21",
+                            "country_code": "US",
+                            "type": "education",
+                            "lineage": [
+                                "https://openalex.org/I114832834"
+                            ]
+                        }
+                    ],
+                    "countries": [
+                        "US"
+                    ],
+                    "is_corresponding": false,
+                    "raw_author_name": "Matthias Ernzerhof",
+                    "raw_affiliation_strings": [
+                        "Department of Physics and Quantum Theory Group, Tulane University, New Orleans, Louisiana 70118"
+                    ]
+                }
+            ],
+            "countries_distinct_count": 1,
+            "institutions_distinct_count": 1,
+            "corresponding_author_ids": [],
+            "corresponding_institution_ids": [],
+            "apc_list": {
+                "value": 3750,
+                "currency": "USD",
+                "value_usd": 3750,
+                "provenance": "doaj"
+            },
+            "apc_paid": {
+                "value": 3750,
+                "currency": "USD",
+                "value_usd": 3750,
+                "provenance": "doaj"
+            },
+            "has_fulltext": true,
+            "fulltext_origin": "ngrams",
+            "cited_by_count": 160375,
+            "cited_by_percentile_year": {
+                "min": 99,
+                "max": 100
+            },
+            "biblio": {
+                "volume": "77",
+                "issue": "18",
+                "first_page": "3865",
+                "last_page": "3868"
+            },
+            "is_retracted": false,
+            "is_paratext": false,
+            "primary_topic": {
+                "id": "https://openalex.org/T10002",
+                "display_name": "Advancements in Density Functional Theory",
+                "score": 0.9998,
+                "subfield": {
+                    "id": "https://openalex.org/subfields/3107",
+                    "display_name": "Atomic and Molecular Physics, and Optics"
+                },
+                "field": {
+                    "id": "https://openalex.org/fields/31",
+                    "display_name": "Physics and Astronomy"
+                },
+                "domain": {
+                    "id": "https://openalex.org/domains/3",
+                    "display_name": "Physical Sciences"
+                }
+            },
+            "topics": [
+                {
+                    "id": "https://openalex.org/T10002",
+                    "display_name": "Advancements in Density Functional Theory",
+                    "score": 0.9998,
+                    "subfield": {
+                        "id": "https://openalex.org/subfields/3107",
+                        "display_name": "Atomic and Molecular Physics, and Optics"
+                    },
+                    "field": {
+                        "id": "https://openalex.org/fields/31",
+                        "display_name": "Physics and Astronomy"
+                    },
+                    "domain": {
+                        "id": "https://openalex.org/domains/3",
+                        "display_name": "Physical Sciences"
+                    }
+                },
+                {
+                    "id": "https://openalex.org/T11177",
+                    "display_name": "Quantum Coherence in Photosynthesis and Aqueous Systems",
+                    "score": 0.9997,
+                    "subfield": {
+                        "id": "https://openalex.org/subfields/3107",
+                        "display_name": "Atomic and Molecular Physics, and Optics"
+                    },
+                    "field": {
+                        "id": "https://openalex.org/fields/31",
+                        "display_name": "Physics and Astronomy"
+                    },
+                    "domain": {
+                        "id": "https://openalex.org/domains/3",
+                        "display_name": "Physical Sciences"
+                    }
+                },
+                {
+                    "id": "https://openalex.org/T11965",
+                    "display_name": "Quantum Effects in Helium Nanodroplets and Solids",
+                    "score": 0.9994,
+                    "subfield": {
+                        "id": "https://openalex.org/subfields/3107",
+                        "display_name": "Atomic and Molecular Physics, and Optics"
+                    },
+                    "field": {
+                        "id": "https://openalex.org/fields/31",
+                        "display_name": "Physics and Astronomy"
+                    },
+                    "domain": {
+                        "id": "https://openalex.org/domains/3",
+                        "display_name": "Physical Sciences"
+                    }
+                },
+                {
+                    "id": "https://openalex.org/T11399",
+                    "display_name": "Protein Metabolism in Exercise and Nutrition",
+                    "score": 0.951,
+                    "subfield": {
+                        "id": "https://openalex.org/subfields/1307",
+                        "display_name": "Cell Biology"
+                    },
+                    "field": {
+                        "id": "https://openalex.org/fields/13",
+                        "display_name": "Biochemistry, Genetics and Molecular Biology"
+                    },
+                    "domain": {
+                        "id": "https://openalex.org/domains/1",
+                        "display_name": "Life Sciences"
+                    }
+                }
+            ],
+            "keywords": [
+                {
+                    "id": "https://openalex.org/keywords/electronic-structure-calculations",
+                    "display_name": "Electronic Structure Calculations",
+                    "score": 0.512978
+                }
+            ],
+            "concepts": [
+                {
+                    "id": "https://openalex.org/C2780586882",
+                    "wikidata": "https://www.wikidata.org/wiki/Q7520643",
+                    "display_name": "Simple (philosophy)",
+                    "level": 2,
+                    "score": 0.82514447
+                },
+                {
+                    "id": "https://openalex.org/C99844830",
+                    "wikidata": "https://www.wikidata.org/wiki/Q102441924",
+                    "display_name": "Scaling",
+                    "level": 2,
+                    "score": 0.6654375
+                },
+                {
+                    "id": "https://openalex.org/C121864883",
+                    "wikidata": "https://www.wikidata.org/wiki/Q677916",
+                    "display_name": "Statistical physics",
+                    "level": 1,
+                    "score": 0.6102829
+                },
+                {
+                    "id": "https://openalex.org/C170122806",
+                    "wikidata": "https://www.wikidata.org/wiki/Q1914828",
+                    "display_name": "Linear scale",
+                    "level": 2,
+                    "score": 0.55408573
+                },
+                {
+                    "id": "https://openalex.org/C121332964",
+                    "wikidata": "https://www.wikidata.org/wiki/Q413",
+                    "display_name": "Physics",
+                    "level": 0,
+                    "score": 0.49338427
+                },
+                {
+                    "id": "https://openalex.org/C3018272316",
+                    "wikidata": "https://www.wikidata.org/wiki/Q905186",
+                    "display_name": "Spin density",
+                    "level": 2,
+                    "score": 0.48516518
+                },
+                {
+                    "id": "https://openalex.org/C42704618",
+                    "wikidata": "https://www.wikidata.org/wiki/Q910917",
+                    "display_name": "Spin (aerodynamics)",
+                    "level": 2,
+                    "score": 0.43200958
+                },
+                {
+                    "id": "https://openalex.org/C9249130",
+                    "wikidata": "https://www.wikidata.org/wiki/Q898241",
+                    "display_name": "Local-density approximation",
+                    "level": 3,
+                    "score": 0.43061215
+                },
+                {
+                    "id": "https://openalex.org/C9059619",
+                    "wikidata": "https://www.wikidata.org/wiki/Q3272140",
+                    "display_name": "Kohn\u2013Sham equations",
+                    "level": 3,
+                    "score": 0.42569804
+                },
+                {
+                    "id": "https://openalex.org/C62520636",
+                    "wikidata": "https://www.wikidata.org/wiki/Q944",
+                    "display_name": "Quantum mechanics",
+                    "level": 1,
+                    "score": 0.35535908
+                },
+                {
+                    "id": "https://openalex.org/C86025842",
+                    "wikidata": "https://www.wikidata.org/wiki/Q5358432",
+                    "display_name": "Electronic structure",
+                    "level": 2,
+                    "score": 0.31023443
+                },
+                {
+                    "id": "https://openalex.org/C152365726",
+                    "wikidata": "https://www.wikidata.org/wiki/Q1048589",
+                    "display_name": "Density functional theory",
+                    "level": 2,
+                    "score": 0.29765612
+                },
+                {
+                    "id": "https://openalex.org/C26873012",
+                    "wikidata": "https://www.wikidata.org/wiki/Q214781",
+                    "display_name": "Condensed matter physics",
+                    "level": 1,
+                    "score": 0.2565789
+                },
+                {
+                    "id": "https://openalex.org/C33923547",
+                    "wikidata": "https://www.wikidata.org/wiki/Q395",
+                    "display_name": "Mathematics",
+                    "level": 0,
+                    "score": 0.20775574
+                },
+                {
+                    "id": "https://openalex.org/C97355855",
+                    "wikidata": "https://www.wikidata.org/wiki/Q11473",
+                    "display_name": "Thermodynamics",
+                    "level": 1,
+                    "score": 0.1649805
+                },
+                {
+                    "id": "https://openalex.org/C2524010",
+                    "wikidata": "https://www.wikidata.org/wiki/Q8087",
+                    "display_name": "Geometry",
+                    "level": 1,
+                    "score": 0.11068845
+                },
+                {
+                    "id": "https://openalex.org/C13280743",
+                    "wikidata": "https://www.wikidata.org/wiki/Q131089",
+                    "display_name": "Geodesy",
+                    "level": 1,
+                    "score": 0.0
+                },
+                {
+                    "id": "https://openalex.org/C205649164",
+                    "wikidata": "https://www.wikidata.org/wiki/Q1071",
+                    "display_name": "Geography",
+                    "level": 0,
+                    "score": 0.0
+                },
+                {
+                    "id": "https://openalex.org/C138885662",
+                    "wikidata": "https://www.wikidata.org/wiki/Q5891",
+                    "display_name": "Philosophy",
+                    "level": 0,
+                    "score": 0.0
+                },
+                {
+                    "id": "https://openalex.org/C111472728",
+                    "wikidata": "https://www.wikidata.org/wiki/Q9471",
+                    "display_name": "Epistemology",
+                    "level": 1,
+                    "score": 0.0
+                }
+            ],
+            "mesh": [],
+            "locations_count": 2,
+            "locations": [
+                {
+                    "is_oa": false,
+                    "landing_page_url": "https://doi.org/10.1103/physrevlett.77.3865",
+                    "pdf_url": null,
+                    "source": {
+                        "id": "https://openalex.org/S24807848",
+                        "display_name": "Physical review letters",
+                        "issn_l": "0031-9007",
+                        "issn": [
+                            "0031-9007",
+                            "1079-7114",
+                            "1092-0145"
+                        ],
+                        "is_oa": false,
+                        "is_in_doaj": false,
+                        "host_organization": "https://openalex.org/P4310320261",
+                        "host_organization_name": "American Physical Society",
+                        "host_organization_lineage": [
+                            "https://openalex.org/P4310320261"
+                        ],
+                        "host_organization_lineage_names": [
+                            "American Physical Society"
+                        ],
+                        "type": "journal"
+                    },
+                    "license": null,
+                    "license_id": null,
+                    "version": null,
+                    "is_accepted": false,
+                    "is_published": false
+                },
+                {
+                    "is_oa": false,
+                    "landing_page_url": "https://pubmed.ncbi.nlm.nih.gov/10062328",
+                    "pdf_url": null,
+                    "source": {
+                        "id": "https://openalex.org/S4306525036",
+                        "display_name": "PubMed",
+                        "issn_l": null,
+                        "issn": null,
+                        "is_oa": false,
+                        "is_in_doaj": false,
+                        "host_organization": "https://openalex.org/I1299303238",
+                        "host_organization_name": "National Institutes of Health",
+                        "host_organization_lineage": [
+                            "https://openalex.org/I1299303238"
+                        ],
+                        "host_organization_lineage_names": [
+                            "National Institutes of Health"
+                        ],
+                        "type": "repository"
+                    },
+                    "license": null,
+                    "license_id": null,
+                    "version": null,
+                    "is_accepted": false,
+                    "is_published": false
+                }
+            ],
+            "best_oa_location": null,
+            "sustainable_development_goals": [
+                {
+                    "display_name": "Affordable and clean energy",
+                    "score": 0.91,
+                    "id": "https://metadata.un.org/sdg/7"
+                }
+            ],
+            "grants": [],
+            "datasets": [],
+            "versions": [],
+            "referenced_works_count": 30,
+            "referenced_works": [
+                "https://openalex.org/W1970549136",
+                "https://openalex.org/W1979040280",
+                "https://openalex.org/W1983648185",
+                "https://openalex.org/W1984849570",
+                "https://openalex.org/W1987736292",
+                "https://openalex.org/W1997176674",
+                "https://openalex.org/W1997563366",
+                "https://openalex.org/W1998015449",
+                "https://openalex.org/W1998954599",
+                "https://openalex.org/W1998959670",
+                "https://openalex.org/W2000822641",
+                "https://openalex.org/W2004333877",
+                "https://openalex.org/W2010338931",
+                "https://openalex.org/W2012664688",
+                "https://openalex.org/W2017070764",
+                "https://openalex.org/W2023664897",
+                "https://openalex.org/W2039715700",
+                "https://openalex.org/W2040891489",
+                "https://openalex.org/W2041205942",
+                "https://openalex.org/W2046379387",
+                "https://openalex.org/W2049079467",
+                "https://openalex.org/W2049852309",
+                "https://openalex.org/W2061724428",
+                "https://openalex.org/W2070470894",
+                "https://openalex.org/W2071602054",
+                "https://openalex.org/W2076751112",
+                "https://openalex.org/W2086957099",
+                "https://openalex.org/W2088370223",
+                "https://openalex.org/W2230728100",
+                "https://openalex.org/W3206606417"
+            ],
+            "related_works": [
+                "https://openalex.org/W4319299196",
+                "https://openalex.org/W3183731174",
+                "https://openalex.org/W3110971345",
+                "https://openalex.org/W3104851593",
+                "https://openalex.org/W2060532266",
+                "https://openalex.org/W2051648115",
+                "https://openalex.org/W2047899451",
+                "https://openalex.org/W2046701024",
+                "https://openalex.org/W2032719166",
+                "https://openalex.org/W1966874709"
+            ],
+            "ngrams_url": "https://api.openalex.org/works/W1981368803/ngrams",
+            "abstract_inverted_index": {
+                "Generalized": [
+                    0
+                ],
+                "gradient": [
+                    1
+                ],
+                "approximations": [
+                    2
+                ],
+                "(GGA's)": [
+                    3
+                ],
+                "for": [
+                    4
+                ],
+                "the": [
+                    5,
+                    10,
+                    46,
+                    50,
+                    65,
+                    69
+                ],
+                "exchange-correlation": [
+                    6
+                ],
+                "energy": [
+                    7
+                ],
+                "improve": [
+                    8
+                ],
+                "upon": [
+                    9
+                ],
+                "local": [
+                    11
+                ],
+                "spin": [
+                    12
+                ],
+                "density": [
+                    13
+                ],
+                "(LSD)": [
+                    14
+                ],
+                "description": [
+                    15,
+                    63
+                ],
+                "of": [
+                    16,
+                    26,
+                    45,
+                    64,
+                    68
+                ],
+                "atoms,": [
+                    17
+                ],
+                "molecules,": [
+                    18
+                ],
+                "and": [
+                    19,
+                    78
+                ],
+                "solids.": [
+                    20
+                ],
+                "We": [
+                    21
+                ],
+                "present": [
+                    22
+                ],
+                "a": [
+                    23,
+                    27,
+                    79
+                ],
+                "simple": [
+                    24,
+                    28
+                ],
+                "derivation": [
+                    25
+                ],
+                "GGA,": [
+                    29
+                ],
+                "in": [
+                    30,
+                    37
+                ],
+                "which": [
+                    31
+                ],
+                "all": [
+                    32
+                ],
+                "parameters": [
+                    33
+                ],
+                "(other": [
+                    34
+                ],
+                "than": [
+                    35
+                ],
+                "those": [
+                    36
+                ],
+                "LSD)": [
+                    38
+                ],
+                "are": [
+                    39,
+                    55
+                ],
+                "fundamental": [
+                    40
+                ],
+                "constants.": [
+                    41
+                ],
+                "Only": [
+                    42
+                ],
+                "general": [
+                    43
+                ],
+                "features": [
+                    44
+                ],
+                "detailed": [
+                    47
+                ],
+                "construction": [
+                    48
+                ],
+                "underlying": [
+                    49
+                ],
+                "Perdew-Wang": [
+                    51
+                ],
+                "1991": [
+                    52
+                ],
+                "(PW91)": [
+                    53
+                ],
+                "GGA": [
+                    54
+                ],
+                "invoked.": [
+                    56
+                ],
+                "Improvements": [
+                    57
+                ],
+                "over": [
+                    58
+                ],
+                "PW91": [
+                    59
+                ],
+                "include": [
+                    60
+                ],
+                "an": [
+                    61
+                ],
+                "accurate": [
+                    62
+                ],
+                "linear": [
+                    66
+                ],
+                "response": [
+                    67
+                ],
+                "uniform": [
+                    70,
+                    76
+                ],
+                "electron": [
+                    71
+                ],
+                "gas,": [
+                    72
+                ],
+                "correct": [
+                    73
+                ],
+                "behavior": [
+                    74
+                ],
+                "under": [
+                    75
+                ],
+                "scaling,": [
+                    77
+                ],
+                "smoother": [
+                    80
+                ],
+                "potential.": [
+                    81
+                ]
+            },
+            "cited_by_api_url": "https://api.openalex.org/works?filter=cites:W1981368803",
+            "counts_by_year": [
+                {
+                    "year": 2024,
+                    "cited_by_count": 7184
+                },
+                {
+                    "year": 2023,
+                    "cited_by_count": 17542
+                },
+                {
+                    "year": 2022,
+                    "cited_by_count": 16694
+                },
+                {
+                    "year": 2021,
+                    "cited_by_count": 15502
+                },
+                {
+                    "year": 2020,
+                    "cited_by_count": 13823
+                },
+                {
+                    "year": 2019,
+                    "cited_by_count": 12184
+                },
+                {
+                    "year": 2018,
+                    "cited_by_count": 10853
+                },
+                {
+                    "year": 2017,
+                    "cited_by_count": 9921
+                },
+                {
+                    "year": 2016,
+                    "cited_by_count": 8821
+                },
+                {
+                    "year": 2015,
+                    "cited_by_count": 7847
+                },
+                {
+                    "year": 2014,
+                    "cited_by_count": 6836
+                },
+                {
+                    "year": 2013,
+                    "cited_by_count": 5974
+                },
+                {
+                    "year": 2012,
+                    "cited_by_count": 5168
+                }
+            ],
+            "updated_date": "2024-05-15T09:45:55.437331",
+            "created_date": "2016-06-24"
+        },
+        {
             "id": "https://openalex.org/W2107277218",
             "doi": "https://doi.org/10.1006/meth.2001.1262",
             "title": "Analysis of Relative Gene Expression Data Using Real-Time Quantitative PCR and the 2\u2212\u0394\u0394CT Method",

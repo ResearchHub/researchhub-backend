@@ -101,8 +101,8 @@ def create_and_update_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
     existing_paper_map = {paper.doi: paper for paper in existing_papers_query}
 
     # Split works into two buckets: create and update
-    papers_to_create = []
-    papers_to_update = []
+    papers_to_create = {}
+    papers_to_update = {}
 
     for work in works:
         # When fetched in batch, OpneAlex will truncate authors beyond 100.
@@ -123,13 +123,13 @@ def create_and_update_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
             existing_paper = existing_paper_map.get(doi)
 
         if existing_paper is not None:
-            papers_to_update.append((existing_paper, work))
+            papers_to_update[doi] = (existing_paper, work)
         else:
-            papers_to_create.append(work)
+            papers_to_create[doi] = work
 
-    paper_to_openalex_data = create_papers(open_alex, papers_to_create)
+    paper_to_openalex_data = create_papers(open_alex, papers_to_create.values())
     # Add updated papers to the dictionary
-    paper_to_openalex_data.update(update_papers(open_alex, papers_to_update))
+    paper_to_openalex_data.update(update_papers(open_alex, papers_to_update.values()))
 
     return paper_to_openalex_data
 
