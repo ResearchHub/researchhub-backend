@@ -316,8 +316,6 @@ class InitializeReputationCommandTestCase(TestCase):
             self.works = sorted(
                 response.get("results"), key=lambda x: x.get("citations") or 0
             )
-            if create_review_paper:
-                self.works[0]["type"] = "review"
 
         authors_file_path = os.path.join(
             settings.BASE_DIR, "paper", "tests", "openalex_authors.json"
@@ -329,7 +327,11 @@ class InitializeReputationCommandTestCase(TestCase):
 
             created_papers = Paper.objects.all().order_by("citations")
             self.paper1 = created_papers[0]
+
             self.paper2 = created_papers[1]
+            if create_review_paper:
+                self.paper2.work_type = "review"
+                self.paper2.save()
 
             self.paper1_hub = self.paper1.unified_document.get_primary_hub()
             self.paper2_hub = self.paper2.unified_document.get_primary_hub()

@@ -27,7 +27,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
             dois = [work.get("doi") for work in self.works]
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
 
-            created_papers = Paper.objects.filter(doi__in=dois)
+            created_papers = Paper.objects.filter(doi__in=dois).order_by("doi")
             self.assertEqual(len(created_papers), 2)
 
             for paper in created_papers:
@@ -154,8 +154,32 @@ class ProcessOpenAlexWorksTests(APITestCase):
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
             created_papers = Paper.objects.filter(doi__in=dois).order_by("doi")
 
+            authors = Author.objects.all()
+            self.assertEqual(len(authors), 5)
+
             paper_authors = created_papers.first().authors.all()
-            self.assertEqual(len(paper_authors), 2)
+            self.assertEqual(len(paper_authors), 3)
+            paper_authors = created_papers.last().authors.all()
+            self.assertEqual(len(paper_authors), 3)
+
+    @patch.object(OpenAlex, "get_authors")
+    def test_create_authors_when_processing_work_twice(self, mock_get_authors):
+        with open("./paper/tests/openalex_authors.json", "r") as file:
+            mock_data = json.load(file)
+            mock_get_authors.return_value = (mock_data["results"], None)
+
+            process_openalex_works(self.works)
+            process_openalex_works(self.works)
+
+            dois = [work.get("doi") for work in self.works]
+            dois = [doi.replace("https://doi.org/", "") for doi in dois]
+            created_papers = Paper.objects.filter(doi__in=dois).order_by("doi")
+
+            authors = Author.objects.all()
+            self.assertEqual(len(authors), 5)
+
+            paper_authors = created_papers.first().authors.all()
+            self.assertEqual(len(paper_authors), 3)
             paper_authors = created_papers.last().authors.all()
             self.assertEqual(len(paper_authors), 3)
 
@@ -172,7 +196,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
             paper = Paper.objects.filter(doi__in=dois).order_by("doi")
 
             authorships = paper[0].authorships.all()
-            self.assertEqual(len(authorships), 2)
+            self.assertEqual(len(authorships), 3)
             authorships = paper[1].authorships.all()
             self.assertEqual(len(authorships), 3)
 
@@ -194,7 +218,7 @@ class ProcessOpenAlexWorksTests(APITestCase):
             paper = Paper.objects.filter(doi__in=dois).order_by("doi")
 
             authorships = paper[0].authorships.all()
-            self.assertEqual(len(authorships), 2)
+            self.assertEqual(len(authorships), 3)
             authorships = paper[1].authorships.all()
             self.assertEqual(len(authorships), 3)
 
@@ -223,9 +247,10 @@ class ProcessOpenAlexWorksTests(APITestCase):
             # Assert
             dois = [work.get("doi") for work in self.works]
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
-            paper = Paper.objects.filter(doi__in=dois).first()
+            paper = Paper.objects.filter(doi__in=dois).order_by("doi").first()
 
             authorships = paper.authorships.all()
+
             self.assertEqual(len(authorships), 3)
             for authorship in authorships:
                 self.assertTrue(authorship.is_corresponding)
@@ -246,18 +271,18 @@ class ProcessOpenAlexWorksTests(APITestCase):
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
             paper = Paper.objects.filter(doi__in=dois).order_by("doi")
 
-            authorships = paper[0].authorships.all()
-            institutions = authorships[0].institutions.all()
+            authorships = paper[0].authorships.all().order_by("paper_id", "author_id")
+            institutions = authorships[0].institutions.all().order_by("openalex_id")
+            self.assertEqual(len(institutions), 1)
+            institutions = authorships[1].institutions.all().order_by("openalex_id")
             self.assertEqual(len(institutions), 0)
-            institutions = authorships[1].institutions.all()
-            self.assertEqual(len(institutions), 1)
 
-            authorships = paper[1].authorships.all()
-            institutions = authorships[0].institutions.all()
+            authorships = paper[1].authorships.all().order_by("paper_id", "author_id")
+            institutions = authorships[0].institutions.all().order_by("openalex_id")
             self.assertEqual(len(institutions), 1)
-            institutions = authorships[1].institutions.all()
+            institutions = authorships[1].institutions.all().order_by("openalex_id")
             self.assertEqual(len(institutions), 1)
-            institutions = authorships[2].institutions.all()
+            institutions = authorships[2].institutions.all().order_by("openalex_id")
             self.assertEqual(len(institutions), 1)
 
     @patch.object(OpenAlex, "get_authors")

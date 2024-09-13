@@ -48,47 +48,42 @@ PAPER_FIELDS_ALLOWED_TO_UPDATE = [
 
 
 def process_openalex_works(works):
-    from paper.paper_upload_tasks import create_paper_related_tags
-
     open_alex = OpenAlex()
+
+    authors = create_authors(works)
+    authors_by_oa_id = build_authors_by_oa_id_dict(authors)
 
     paper_to_openalex_data = create_and_update_papers(open_alex, works)
 
-    # Fetch all authors at once
-    paper_authors = fetch_authors_for_works(works)
+    # Fetch all authors at once from openalex
+    fetched_oa_authors = fetch_authors_for_works(works)
+    oa_authors_by_work_id = build_oa_authors_by_work_id_dict(works, fetched_oa_authors)
 
-    # Upsert concepts and associate to papers
-    for paper_id, paper_data in paper_to_openalex_data.items():
-        work = paper_data["openalex_work"]
+    merge_openalex_authors_with_researchhub_authors(
+        fetched_oa_authors, authors_by_oa_id
+    )
 
+    create_all_paper_tags(paper_to_openalex_data)
+
+    create_openalex_authorships_and_institutions(
+        paper_to_openalex_data, oa_authors_by_work_id, authors_by_oa_id
+    )
+
+    create_coauthors(paper_to_openalex_data, oa_authors_by_work_id, authors_by_oa_id)
+
+
+def create_all_paper_tags(papers_to_openalex_data):
+    from paper.paper_upload_tasks import create_paper_related_tags
+
+    for paper_id, paper_data in papers_to_openalex_data.items():
         create_paper_related_tags(
             paper_data["paper"],
             paper_data["openalex_concepts"],
             paper_data["openalex_topics"],
         )
 
-    # Process authorships with fetched author data
-    for paper_id, paper_data in paper_to_openalex_data.items():
-        work = paper_data["openalex_work"]
-        openalex_authorships = work.get("authorships")
-        if openalex_authorships and paper_id:
-            try:
-                relevant_oa_authors = paper_authors.get(work["id"], [])
-                process_openalex_authorships(
-                    openalex_authorships, paper_id, relevant_oa_authors
-                )
-            except Exception as e:
-                sentry.log_error(
-                    e, message=f"Failed to process authorships for paper_id: {paper_id}"
-                )
-        else:
-            sentry.log_error(
-                None,
-                message=f"Authorships data is missing or paper_id is None for work: {work.get('id')}",
-            )
 
-
-def create_and_update_papers(open_alex, works):
+def create_and_update_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
     from paper.models import Paper
 
     dois = [work.get("doi") for work in works]
@@ -106,8 +101,8 @@ def create_and_update_papers(open_alex, works):
     existing_paper_map = {paper.doi: paper for paper in existing_papers_query}
 
     # Split works into two buckets: create and update
-    papers_to_create = []
-    papers_to_update = []
+    papers_to_create = {}
+    papers_to_update = {}
 
     for work in works:
         # When fetched in batch, OpneAlex will truncate authors beyond 100.
@@ -128,18 +123,18 @@ def create_and_update_papers(open_alex, works):
             existing_paper = existing_paper_map.get(doi)
 
         if existing_paper is not None:
-            papers_to_update.append((existing_paper, work))
+            papers_to_update[doi] = (existing_paper, work)
         else:
-            papers_to_create.append(work)
+            papers_to_create[doi] = work
 
-    paper_to_openalex_data = create_papers(open_alex, papers_to_create)
+    paper_to_openalex_data = create_papers(open_alex, papers_to_create.values())
     # Add updated papers to the dictionary
-    paper_to_openalex_data.update(update_papers(open_alex, papers_to_update))
+    paper_to_openalex_data.update(update_papers(open_alex, papers_to_update.values()))
 
     return paper_to_openalex_data
 
 
-def create_papers(open_alex, works):
+def create_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
     from paper.models import Paper
 
     paper_to_openalex_data = {}
@@ -195,7 +190,7 @@ def create_papers(open_alex, works):
     return paper_to_openalex_data
 
 
-def update_papers(open_alex, works):
+def update_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
     from paper.models import Paper
 
     paper_to_openalex_data = {}
@@ -246,9 +241,8 @@ def update_papers(open_alex, works):
     return paper_to_openalex_data
 
 
-def fetch_authors_for_works(openalex_works) -> Dict[str, List[Dict[str, Any]]]:
+def fetch_authors_for_works(openalex_works) -> List[Dict[str, Any]]:
     open_alex = OpenAlex()
-    paper_authors = {}
     all_authors_to_fetch = set()
     batch_size = 100
 
@@ -259,20 +253,27 @@ def fetch_authors_for_works(openalex_works) -> Dict[str, List[Dict[str, Any]]]:
             just_id = author_openalex_id.split("/")[-1]
             all_authors_to_fetch.add(just_id)
 
-    fetched_authors = {}
+    fetched_oa_authors = []
     for i in range(0, len(all_authors_to_fetch), batch_size):
         batch = list(all_authors_to_fetch)[i : i + batch_size]
         oa_authors_batch, _ = open_alex.get_authors(openalex_ids=batch)
-        for author in oa_authors_batch:
-            fetched_authors[author["id"]] = author
+        fetched_oa_authors.extend(oa_authors_batch)
+    return fetched_oa_authors
 
+
+def build_oa_authors_by_work_id_dict(
+    openalex_works, fetched_oa_authors
+) -> Dict[str, List[Dict[str, Any]]]:
+    fetched_oa_authors_by_id = {author["id"]: author for author in fetched_oa_authors}
+
+    oa_authors_by_work_id = {}
     for work in openalex_works:
         oa_authorships = work.get("authorships", [])
         oa_authors = []
         for oa_authorship in oa_authorships:
             oa_author_id = oa_authorship.get("author", {}).get("id")
-            if oa_author_id in fetched_authors:
-                oa_authors.append(fetched_authors[oa_author_id])
+            if oa_author_id in fetched_oa_authors_by_id:
+                oa_authors.append(fetched_oa_authors_by_id[oa_author_id])
             else:
                 logging.warning(
                     f"Author with OpenAlex ID not found: {oa_author_id}",
@@ -282,112 +283,188 @@ def fetch_authors_for_works(openalex_works) -> Dict[str, List[Dict[str, Any]]]:
                     message=f"Author with OpenAlex ID not found: {oa_author_id}",
                 )
 
-        paper_authors[work.get("id")] = oa_authors
+        oa_authors_by_work_id[work.get("id")] = oa_authors
 
-    return paper_authors
+    return oa_authors_by_work_id
 
 
-def process_openalex_authorships(openalex_authorships, related_paper_id, oa_authors):
-    """
-    Iterates through authorships associated with an OpenAlex work and create related objects such as
-    AuthorInstitution, Authorship, and Author objects. Related models will be updated if they already exist.
-    https://docs.openalex.org/api-entities/works/work-object/authorship-object
-    """
-    from institution.models import Institution
-    from paper.models import Paper
-    from paper.related_models.authorship_model import Authorship
+def create_authors(openalex_works) -> List["Author"]:
     from purchase.models import Wallet
     from user.related_models.author_model import Author
 
-    related_paper = Paper.objects.get(id=related_paper_id)
-    print(f"Processing authorships for paper: {related_paper.title}")
-    authors_in_this_work = []
-    all_openalex_ids = [
+    # Get all authorships from the works
+    openalex_authorships = [work.get("authorships", []) for work in openalex_works]
+    openalex_authorships = [
+        item for sublist in openalex_authorships for item in sublist
+    ]
+
+    all_openalex_author_ids = [
         oa_authorship.get("author", {}).get("id")
         for oa_authorship in openalex_authorships
     ]
-    authors = Author.objects.filter(openalex_ids__overlap=all_openalex_ids)
 
-    authors_dict = {}
+    existing_authors = Author.objects.filter(
+        openalex_ids__overlap=all_openalex_author_ids
+    )
+    existing_oa_author_ids = set()
+    for author in existing_authors:
+        existing_oa_author_ids.update(author.openalex_ids)
+
+    openalex_authors_without_authors = [
+        authorship.get("author", {})
+        for authorship in openalex_authorships
+        if authorship.get("author", {}).get("id") not in existing_oa_author_ids
+    ]
+
+    authors_to_create = {}
+    for oa_author in openalex_authors_without_authors:
+        author_name_parts = oa_author.get("display_name", "").split()
+
+        authors_to_create[oa_author.get("id")] = Author(
+            first_name=author_name_parts[0],
+            last_name=author_name_parts[-1],
+            openalex_ids=[oa_author.get("id")],
+            created_source=Author.SOURCE_OPENALEX,
+        )
+
+    # Bulk create authors
+    created_authors = Author.objects.bulk_create(authors_to_create.values())
+
+    # Create wallets for new authors
+    wallets_to_create = [Wallet(author=author) for author in created_authors]
+    Wallet.objects.bulk_create(wallets_to_create)
+
+    return Author.objects.filter(openalex_ids__overlap=all_openalex_author_ids)
+
+
+def build_authors_by_oa_id_dict(authors) -> Dict[str, List["Author"]]:
+    authors_by_oa_id = {}
     for author in authors:
         for openalex_id in author.openalex_ids:
-            if openalex_id not in authors_dict:
-                authors_dict[openalex_id] = []
+            if openalex_id not in authors_by_oa_id:
+                authors_by_oa_id[openalex_id] = []
 
-            authors_dict[openalex_id].append(author)
+            authors_by_oa_id[openalex_id].append(author)
 
-    for oa_authorship in openalex_authorships:
-        author_position = oa_authorship.get("author_position")
-        author_openalex_id = oa_authorship.get("author", {}).get("id")
+    return authors_by_oa_id
 
-        authors = authors_dict.get(author_openalex_id, [])
-        if len(authors) == 0:
-            author_name_parts = (
-                oa_authorship.get("author", {}).get("display_name").split(" ")
+
+def create_openalex_authorships_and_institutions(
+    paper_to_openalex_data, oa_authors_by_work_id, authors_by_oa_id
+):
+    from institution.models import Institution
+    from paper.related_models.authorship_model import Authorship
+
+    authorships_to_create_or_update = {}
+    authorship_institution_relations = {}
+
+    for paper_id, paper_data in paper_to_openalex_data.items():
+        work = paper_data["openalex_work"]
+        related_paper = paper_data["paper"]
+        openalex_authorships = work.get("authorships")
+        oa_authors = oa_authors_by_work_id.get(work["id"], [])
+
+        if not openalex_authorships or not paper_id:
+            sentry.log_error(
+                None,
+                message=f"Authorships data is missing or paper_id is None for work: {work.get('id')}",
             )
-            author = Author.objects.create(
-                first_name=author_name_parts[0],
-                last_name=author_name_parts[-1],
-                openalex_ids=[author_openalex_id],
-                created_source=Author.SOURCE_OPENALEX,
-            )
-            Wallet.objects.create(author=author)
-            authors.append(author)
+            continue
 
+        print(f"Processing authorships for paper: {related_paper.title}")
+        authors = []
+        for oa_author in oa_authors:
+            authors.extend(authors_by_oa_id.get(oa_author.get("id"), []))
+
+        for oa_authorship in openalex_authorships:
+            author_position = oa_authorship.get("author_position")
+            author_openalex_id = oa_authorship.get("author", {}).get("id")
+
+            authors_for_oa_author = authors_by_oa_id.get(author_openalex_id, [])
+
+            for author in authors_for_oa_author:
+                # Associate paper with author
+                related_paper.authors.add(author)
+
+                is_corresponding = oa_authorship.get("is_corresponding")
+                raw_author_name = oa_authorship.get("author", {}).get("display_name")
+
+                authorship = Authorship(
+                    author=author,
+                    paper=related_paper,
+                    author_position=author_position,
+                    is_corresponding=is_corresponding,
+                    raw_author_name=raw_author_name,
+                )
+                key = f"{authorship.author_id}:{authorship.paper_id}"
+
+                authorships_to_create_or_update[key] = authorship
+
+                # Set institutions associated with authorships if they do not already exist
+                for oa_inst in oa_authorship.get("institutions", []):
+                    institution = Institution.upsert_from_openalex(oa_inst)
+                    if institution:
+                        if key not in authorship_institution_relations:
+                            authorship_institution_relations[key] = []
+                        authorship_institution_relations[key].append(institution)
+
+    Authorship.objects.bulk_create(
+        authorships_to_create_or_update.values(),
+        update_conflicts=True,
+        unique_fields=["author", "paper"],
+        update_fields=["author_position", "is_corresponding", "raw_author_name"],
+    )
+
+    # Fetch the relevant authorships with specific author/paper combinations
+    author_paper_pairs = [
+        (a.author, a.paper) for a in authorships_to_create_or_update.values()
+    ]
+    authorships = Authorship.objects.filter(
+        Q(author__in=[author for author, _ in author_paper_pairs])
+        & Q(paper__in=[paper for _, paper in author_paper_pairs])
+    )
+
+    for authorship in authorships:
+        for institution in authorship_institution_relations.get(
+            f"{authorship.author_id}:{authorship.paper_id}", []
+        ):
+            authorship.institutions.add(institution)
+
+
+def create_coauthors(paper_to_openalex_data, oa_authors_by_work_id, authors_by_oa_id):
+    for _, paper_data in paper_to_openalex_data.items():
+        work = paper_data["openalex_work"]
+        related_paper = paper_data["paper"]
+        oa_authors = oa_authors_by_work_id.get(work["id"], [])
+        authors = []
+        for oa_author in oa_authors:
+            authors.extend(authors_by_oa_id.get(oa_author.get("id"), []))
+
+        # Create co-author relationships
+        coauthor_objects = []
         for author in authors:
-            # Associate paper with author
-            related_paper.authors.add(author)
+            coauthor_count = 0
+            for coauthor in authors:
+                if author != coauthor:
+                    coauthor_objects.append(
+                        CoAuthor(
+                            author=author, coauthor=coauthor, paper_id=related_paper.id
+                        )
+                    )
+                    coauthor_count += 1
 
-            is_corresponding = oa_authorship.get("is_corresponding")
-            raw_author_name = oa_authorship.get("author", {}).get("display_name")
+                if coauthor_count >= 10:
+                    break
 
-            # Find or create authorship
-            authorship, _ = Authorship.objects.get_or_create(
-                author=author,
-                paper=related_paper,
-                defaults={
-                    "author_position": author_position,
-                    "is_corresponding": is_corresponding,
-                    "raw_author_name": raw_author_name,
-                },
-            )
+        CoAuthor.objects.bulk_create(coauthor_objects, ignore_conflicts=True)
 
-            # Update authorship if secondary fields have changed
-            if (
-                authorship.author_position != author_position
-                or authorship.is_corresponding != is_corresponding
-                or authorship.raw_author_name != raw_author_name
-            ):
-                authorship.author_position = author_position
-                authorship.is_corresponding = is_corresponding
-                authorship.raw_author_name = raw_author_name
-                authorship.save()
 
-            authors_in_this_work.append(author)
-
-            # Set institutions associated with authorships if they do not already exist
-            for oa_inst in oa_authorship.get("institutions", []):
-                institution = Institution.upsert_from_openalex(oa_inst)
-                if institution:
-                    authorship.institutions.add(institution)
-
-    # Update authors with additional metadata from OpenAlex
-    all_openalex_ids = [author.get("id") for author in oa_authors]
-    authors = Author.objects.filter(openalex_ids__overlap=all_openalex_ids)
-
-    authors_dict = {}
-    for author in authors:
-        for openalex_id in author.openalex_ids:
-            if openalex_id not in authors_dict:
-                authors_dict[openalex_id] = []
-
-            authors_dict[openalex_id].append(author)
-
+def merge_openalex_authors_with_researchhub_authors(oa_authors, authors_by_oa_id):
     for oa_author in oa_authors:
         try:
-            authors = authors_dict.get(oa_author.get("id"), [])
-            for author in authors:
-                merge_openalex_author_with_researchhub_author(oa_author, author)
+            rh_authors = authors_by_oa_id.get(oa_author.get("id"), [])
+            for rh_author in rh_authors:
+                merge_openalex_author_with_researchhub_author(oa_author, rh_author)
 
         except Exception as e:
             logging.warning(
@@ -398,24 +475,6 @@ def process_openalex_authorships(openalex_authorships, related_paper_id, oa_auth
                 message=f"Author with OpenAlex ID failed to be merged {oa_author.get('id')}",
             )
             continue
-
-    # Create co-author relationships
-    coauthor_objects = []
-    for i, author in enumerate(authors_in_this_work):
-        coauthor_count = 0
-        for coauthor in authors_in_this_work:
-            if author != coauthor:
-                coauthor_objects.append(
-                    CoAuthor(
-                        author=author, coauthor=coauthor, paper_id=related_paper_id
-                    )
-                )
-                coauthor_count += 1
-
-            if coauthor_count >= 10:
-                break
-
-    CoAuthor.objects.bulk_create(coauthor_objects, ignore_conflicts=True)
 
 
 def merge_openalex_author_with_researchhub_author(openalex_author, researchhub_author):
