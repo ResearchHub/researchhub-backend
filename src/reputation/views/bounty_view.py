@@ -447,7 +447,9 @@ class BountyViewSet(viewsets.ModelViewSet):
                 request.user, include_unrelated=True
             )
         else:
-            bounties = Bounty.objects.all()
+            bounties = self.filter_queryset(self.get_queryset()).order_by(
+                "-created_date"
+            )
 
         page = self.paginate_queryset(bounties)
         context = self._get_retrieve_context()
