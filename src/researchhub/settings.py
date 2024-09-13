@@ -699,8 +699,6 @@ if elastic_token:
             "elasticapm.processors.sanitize_http_headers",
             "elasticapm.processors.sanitize_http_wsgi_env",
             "elasticapm.processors.sanitize_http_request_body",
-            # Breaking in elasticapm 6.x
-            # 'elasticapm.processors.sanitize_http_request_querystring',
         ),
     }
 
