@@ -193,8 +193,10 @@ class Bounty(DefaultModel):
         return True
 
     @classmethod
-    def find_bounties_for_user(cls, user) -> List[AnnotatedBounty]:
-        from django.db.models import F, IntegerField, OuterRef, Subquery
+    def find_bounties_for_user(
+        cls, user, include_unrelated=False
+    ) -> List[AnnotatedBounty]:
+        from django.db.models import F, IntegerField, OuterRef, Subquery, Value
 
         # Get user's expertise hubs and their scores
         user_expertise_scores = (
@@ -209,7 +211,7 @@ class Bounty(DefaultModel):
         ).values("score")[:1]
 
         # Filter bounties by hubs that match the user's expertise
-        matching_bounties = (
+        bounties = (
             Bounty.objects.filter(status=Bounty.OPEN)
             .select_related("unified_document")
             .prefetch_related("unified_document__hubs")
@@ -223,14 +225,33 @@ class Bounty(DefaultModel):
                     max_score_subquery, output_field=IntegerField()
                 ),
                 matching_hub_id=F("unified_document__hubs__id"),
+                result_group=Value(1, output_field=IntegerField()),
             )
-            .order_by("-user_hub_score")
         )
+
+        if include_unrelated:
+            bounties = bounties.union(
+                Bounty.objects.filter(status=Bounty.OPEN)
+                .select_related("unified_document")
+                .prefetch_related("unified_document__hubs")
+                .annotate(
+                    user_hub_score=Value(None, output_field=IntegerField()),
+                    matching_hub_id=Value(None, output_field=IntegerField()),
+                    result_group=Value(2, output_field=IntegerField()),
+                )
+                .exclude(
+                    unified_document__hubs__id__in=user_expertise_scores.values_list(
+                        "hub_id", flat=True
+                    )
+                )
+            )
+
+        bounties = bounties.order_by("result_group", "-user_hub_score", "-created_date")
 
         # Remove duplicates while preserving order
         seen = set()
         unique_bounties = []
-        for bounty in matching_bounties:
+        for bounty in bounties:
             if bounty.id not in seen:
                 seen.add(bounty.id)
                 unique_bounties.append(bounty)

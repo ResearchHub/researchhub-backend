@@ -165,6 +165,14 @@ class BountyViewSet(viewsets.ModelViewSet):
     ALLOWED_CREATE_CONTENT_TYPES = ("rhcommentmodel", "thread", "researchhubpost")
     ALLOWED_APPROVE_CONTENT_TYPES = ("rhcommentmodel", "thread", "comment", "reply")
 
+    def get_permissions(self):
+        if self.action == "list":
+            permission_classes = [AllowAny]
+        else:
+            permission_classes = self.permission_classes
+
+        return [permission() for permission in permission_classes]
+
     def _get_create_context(self):
         context = {
             "rep_dbs_get_created_by": {"_include_fields": ("author_profile", "id")},
@@ -198,6 +206,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                 "id",
                 "slug",
                 "title",
+                "authors",
             )
         }
         context["dis_dts_get_created_by"] = {"_include_fields": ("author_profile",)}
@@ -426,6 +435,39 @@ class BountyViewSet(viewsets.ModelViewSet):
             else:
                 # Exception is raised to rollback database transaction
                 raise Exception("Bounty cancel error")
+
+    def list(self, request, *args, **kwargs):
+        personalized = (
+            request.query_params.get("personalized", "false").lower() == "true"
+            and request.user.is_authenticated
+        )
+
+        if personalized:
+            bounties = Bounty.find_bounties_for_user(
+                request.user, include_unrelated=True
+            )
+        else:
+            bounties = Bounty.objects.all()
+
+        page = self.paginate_queryset(bounties)
+        context = self._get_retrieve_context()
+        serializer = DynamicBountySerializer(
+            page,
+            many=True,
+            context=context,
+            _include_fields=(
+                "created_by",
+                "content_type",
+                "id",
+                "item",
+                "expiration_date",
+                "status",
+                "total_amount",
+                "unified_document",
+            ),
+        )
+
+        return self.get_paginated_response(serializer.data)
 
     @action(
         detail=False,

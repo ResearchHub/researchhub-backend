@@ -615,3 +615,71 @@ class BountyViewTests(APITestCase):
             f"/api/bounty/{bounty_1.data['id']}/cancel_bounty/",
         )
         self.assertEqual(cancel_bounty_res_2.status_code, 403)
+
+    def test_get_bounties(self):
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 1000,
+                "item_content_type": self.thread._meta.model_name,
+                "item_object_id": self.thread.id,
+            },
+        )
+
+        self.assertEqual(res.status_code, 201)
+
+        self.client.force_authenticate(self.user_2)
+        res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 2000,
+                "item_content_type": self.thread._meta.model_name,
+                "item_object_id": self.thread.id,
+            },
+        )
+
+        self.assertEqual(res.status_code, 201)
+
+        # Act
+        res = self.client.get("/api/bounty/")
+
+        # Assert
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.data["results"]), 2)
+
+    def test_get_bounties_personalized(self):
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 1000,
+                "item_content_type": self.thread._meta.model_name,
+                "item_object_id": self.thread.id,
+            },
+        )
+
+        self.assertEqual(res.status_code, 201)
+
+        self.client.force_authenticate(self.user_2)
+        res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 2000,
+                "item_content_type": self.thread._meta.model_name,
+                "item_object_id": self.thread.id,
+            },
+        )
+
+        self.assertEqual(res.status_code, 201)
+
+        # Act
+        res = self.client.get("/api/bounty/?personalized=true")
+
+        # Assert
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(len(res.data["results"]), 2)
