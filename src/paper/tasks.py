@@ -542,6 +542,9 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
     # if next_cursor = None, it means it's the last page,
     # otherwise it's a base64 encoded string
     next_cursor = "*"
+
+    total_papers_processed = 0
+
     # if paper_fetch_log_id is provided, it means we're retrying
     # otherwise we're starting a new pull
     if paper_fetch_log_id is None:
@@ -606,6 +609,7 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
         try:
             last_successful_run_log = PaperFetchLog.objects.get(id=paper_fetch_log_id)
             date_to_fetch_from = last_successful_run_log.fetch_since_date
+            total_papers_processed = last_successful_run_log.total_papers_processed or 0
         except Exception as e:
             sentry.log_error(
                 e, message=f"Failed to get last log for id {paper_fetch_log_id}"
@@ -627,7 +631,6 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
             )
         return False
 
-    total_papers_processed = 0
     try:
         open_alex = OpenAlex()
 
