@@ -679,11 +679,11 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     def get_unified_documents(self, request):
         is_anonymous = request.user.is_anonymous
         query_params = request.query_params
-        subscribed_hubs = query_params.get("subscribed_hubs", "false")
+        subscribed_hubs = query_params.get("subscribed_hubs", "false").lower() == "true"
         filtering = query_params.get("ordering", HOT)
         time_scope = query_params.get("time", "today")
 
-        if subscribed_hubs == "true" and not is_anonymous:
+        if subscribed_hubs and not is_anonymous:
             return self._get_subscribed_unified_documents(request)
 
         document_request_type = query_params.get("type", "all")
