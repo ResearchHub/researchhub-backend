@@ -3,7 +3,6 @@ import decimal
 import time
 from datetime import datetime
 
-import pandas as pd
 import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.http import HttpResponse
