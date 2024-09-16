@@ -1,6 +1,5 @@
 import codecs
 import json
-import logging
 import os
 import re
 import shutil
@@ -11,12 +10,14 @@ from subprocess import PIPE, run
 import fitz
 import requests
 from bs4 import BeautifulSoup
+from celery.exceptions import MaxRetriesExceededError
 from celery.utils.log import get_task_logger
 from django.apps import apps
 from django.core.cache import cache
 from django.core.files import File
 from django.core.files.base import ContentFile
 from django.db import IntegrityError
+from django.utils import timezone
 from habanero import Crossref
 from PIL import Image
 from psycopg2.errors import UniqueViolation
@@ -37,7 +38,6 @@ from paper.utils import (
     merge_paper_votes,
     reset_paper_cache,
 )
-from purchase.models import Wallet
 from researchhub.celery import (
     QUEUE_CACHES,
     QUEUE_CERMINE,
@@ -518,11 +518,12 @@ def log_daily_uploads():
     return request.status_code, paper_count
 
 
-@app.task
-def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
+@app.task(bind=True, max_retries=3)
+def pull_new_openalex_works(self, start_index=0, retry=0, paper_fetch_log_id=None):
+    from paper.models import PaperFetchLog
+
     """
     Pull new works (papers) from OpenAlex.
-
     This looks complicated because we're trying to handle retries and logging.
     But simply:
     1. Get new works from OpenAlex in batches
@@ -530,12 +531,10 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
     3. If we hit an error, retry the job from where we left off
     4. Log the results
     """
-    if not PRODUCTION:
+    if not (PRODUCTION or TESTING):
         return
 
-    from paper.models import PaperFetchLog
-
-    date_to_fetch_from = datetime.now() - timedelta(days=1)
+    date_to_fetch_from = timezone.now() - timedelta(days=1)
     # openalex uses a cursor to paginate through results,
     # cursor is meant to point to the next page of results.
     # if next_cursor = "*", it means it's the first page,
@@ -548,7 +547,7 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
     # if paper_fetch_log_id is provided, it means we're retrying
     # otherwise we're starting a new pull
     if paper_fetch_log_id is None:
-        start_date = datetime.now()
+        start_date = timezone.now()
 
         # figure out when we should start fetching from.
         # if we have an existing successful run, we start from the last successful run
@@ -589,6 +588,7 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
             ).exists()
 
             if pending_log:
+                sentry.log_info(message="Pending log exists for updated works")
                 return
         except Exception as e:
             sentry.log_error(e, message="Failed to get pending log")
@@ -617,19 +617,11 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
             # consider this a failed run
             PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
                 status=PaperFetchLog.FAILED,
-                completed_date=datetime.now(),
+                completed_date=timezone.now(),
             )
             return False
 
         sentry.log_info(f"Retrying OpenAlex pull: {paper_fetch_log_id}")
-
-    if retry > 2:  # too many retries
-        if paper_fetch_log_id is not None:
-            PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
-                status=PaperFetchLog.FAILED,
-                completed_date=datetime.now(),
-            )
-        return False
 
     try:
         open_alex = OpenAlex()
@@ -640,20 +632,11 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
                 since_date=date_to_fetch_from,
                 next_cursor=next_cursor,
             )
-
             # if we've reached the end of the results, exit the loop
             if next_cursor is None or works is None or len(works) == 0:
                 break
 
-            # if we're starting from a specific index, skip until we reach that index
-            works_to_process = None
-            if total_papers_processed >= start_index:
-                works_to_process = works
-            elif total_papers_processed + len(works) >= start_index:
-                works_to_process = works[start_index - total_papers_processed :]
-
-            if works_to_process is not None:
-                process_openalex_works(works_to_process)
+            process_openalex_works(works)
 
             total_papers_processed += len(works)
 
@@ -668,23 +651,34 @@ def pull_new_openalex_works(start_index=0, retry=0, paper_fetch_log_id=None):
         if paper_fetch_log_id is not None:
             PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
                 status=PaperFetchLog.SUCCESS,
-                completed_date=datetime.now(),
+                completed_date=timezone.now(),
                 total_papers_processed=total_papers_processed,
                 next_cursor=None,
             )
     except Exception as e:
         sentry.log_error(e, message="Failed to pull new works from OpenAlex, retrying")
-        pull_new_openalex_works.apply_async(
-            (total_papers_processed, retry + 1, paper_fetch_log_id),
-            priority=4,
-            countdown=10 + (retry * 2),
-        )
         # update total_papers_processed in the log
         if paper_fetch_log_id is not None:
             PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
                 total_papers_processed=total_papers_processed,
             )
-        return False
+        try:
+            self.retry(
+                args=[total_papers_processed, retry + 1, paper_fetch_log_id],
+                exc=e,
+                countdown=10 + (retry * 2),
+            )
+        except MaxRetriesExceededError:
+            # We've exhausted all retries, update the log to FAILED
+            if paper_fetch_log_id is not None:
+                PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
+                    status=PaperFetchLog.FAILED,
+                    completed_date=timezone.now(),
+                )
+            # Re-raise the original exception
+            raise e
+
+    return True
 
 
 @app.task(queue=QUEUE_PULL_PAPERS)
