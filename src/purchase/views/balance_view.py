@@ -86,7 +86,9 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
         response["Content-Disposition"] = 'attachment; filename="transactions.csv"'
 
         writer = csv.writer(response)
-        writer.writerow(["date", "rsc_amount", "rsc_to_usd", "usd_value"])
+        writer.writerow(
+            ["date", "rsc_amount", "rsc_to_usd", "usd_value", "description"]
+        )
 
         for balance in self.get_queryset().iterator():
             exchange_rate = RscExchangeRate.objects.filter(
@@ -111,6 +113,7 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
                     balance.amount,
                     rate,
                     f"{(decimal.Decimal(balance.amount) * decimal.Decimal(rate)):.2f}",
+                    balance.content_type.name,
                 ]
             )
 
