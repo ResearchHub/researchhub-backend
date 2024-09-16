@@ -708,7 +708,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 date_ranges=[time_scope],
             )
 
-        documents = self.get_filtered_queryset()
+        documents = self.get_filtered_queryset().prefetch_related("fundraises")
         context = self._get_serializer_context()
         context["hub_id"] = hub_id
         page = self.paginate_queryset(documents)
