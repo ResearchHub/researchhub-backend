@@ -519,7 +519,7 @@ def log_daily_uploads():
 
 
 @app.task(bind=True, max_retries=3)
-def pull_new_openalex_works(self, start_index=0, retry=0, paper_fetch_log_id=None):
+def pull_new_openalex_works(self, retry=0, paper_fetch_log_id=None):
     from paper.models import PaperFetchLog
 
     """
@@ -664,7 +664,7 @@ def pull_new_openalex_works(self, start_index=0, retry=0, paper_fetch_log_id=Non
             )
         try:
             self.retry(
-                args=[total_papers_processed, retry + 1, paper_fetch_log_id],
+                args=[retry + 1, paper_fetch_log_id],
                 exc=e,
                 countdown=10 + (retry * 2),
             )

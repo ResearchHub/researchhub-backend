@@ -109,23 +109,15 @@ class TestPullNewOpenAlexWorks(TestCase):
 
         # Call the task and expect it to raise Retry exceptions
         with self.assertRaises(Retry):
-            pull_new_openalex_works(
-                start_index=0, retry=0, paper_fetch_log_id=paper_fetch_log.id
-            )
+            pull_new_openalex_works(retry=0, paper_fetch_log_id=paper_fetch_log.id)
         with self.assertRaises(Retry):
-            pull_new_openalex_works(
-                start_index=0, retry=1, paper_fetch_log_id=paper_fetch_log.id
-            )
+            pull_new_openalex_works(retry=1, paper_fetch_log_id=paper_fetch_log.id)
         with self.assertRaises(Retry):
-            pull_new_openalex_works(
-                start_index=0, retry=2, paper_fetch_log_id=paper_fetch_log.id
-            )
+            pull_new_openalex_works(retry=2, paper_fetch_log_id=paper_fetch_log.id)
 
         # On the 4th attempt, it should raise the original exception (Test exception)
         with self.assertRaises(Exception) as cm:
-            pull_new_openalex_works(
-                start_index=0, retry=3, paper_fetch_log_id=paper_fetch_log.id
-            )
+            pull_new_openalex_works(retry=3, paper_fetch_log_id=paper_fetch_log.id)
         self.assertEqual(str(cm.exception), "Test exception")
 
         # Check that get_works was called 4 times
@@ -163,7 +155,7 @@ class TestPullNewOpenAlexWorks(TestCase):
             task.apply()
 
         paper_fetch_log = PaperFetchLog.objects.latest("id")
-        result = task.apply(args=[0, 1, paper_fetch_log.id])
+        result = task.apply(args=[1, paper_fetch_log.id])
 
         self.assertEqual(mock_openalex_instance.get_works.call_count, 4)
         self.assertEqual(mock_process_works.call_count, 2)
