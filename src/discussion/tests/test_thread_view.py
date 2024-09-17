@@ -46,7 +46,7 @@ class ReviewTests(APITestCase):
         )
 
         rev = Review.objects.get(id=review_response.data["id"])
-        thread_response = self.client.post(
+        self.client.post(
             f"/api/paper/{self.paper.id}/discussion/?source=researchhub&is_removed=False",
             {
                 "plain_text": "review text",
@@ -60,7 +60,6 @@ class ReviewTests(APITestCase):
             f"/api/paper/{self.paper.id}/discussion/?page=1&ordering=-score&source=researchhub&is_removed=False&"
         )
 
-        print(response.data)
         self.assertEqual(
             response.data["results"][0]["review"]["id"],
             review_response.data["id"],

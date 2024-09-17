@@ -24,8 +24,6 @@ class ProcessOpenAlexWorksTests(APITestCase):
         old_institution["display_name"] = "old institution"
         Institution.upsert_from_openalex(old_institution)
 
-        print("testing123")
-
         # Modify the original object so that date is in the future
         # This will trigger an update.
         now = datetime.now()
