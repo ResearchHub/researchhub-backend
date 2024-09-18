@@ -247,8 +247,6 @@ class UserApiTests(APITestCase):
                 },
             )
 
-            print(response)
-
     def test_add_publications_to_should_notify_author_when_done(self):
         from notification.models import Notification
 

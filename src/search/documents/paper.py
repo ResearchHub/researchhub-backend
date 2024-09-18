@@ -177,6 +177,5 @@ class PaperDocument(BaseDocument):
             data["suggestion_phrases"] = self.prepare_suggestion_phrases(instance)
             return data
         except Exception as error:
-            print("Paper Indexing error: ", error, "Instance: ", instance.id)
             sentry.log_error(error)
             return False

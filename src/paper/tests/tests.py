@@ -153,14 +153,12 @@ class JournalPdfTests(TestCase):
         for i, url in enumerate(self.journal_test_urls):
             pdf_url, exists = convert_journal_url_to_pdf_url(url)
             if exists:
-                print(pdf_url)
                 self.assertEqual(pdf_url, self.pdf_test_urls[i])
 
     def test_pdf_to_journal(self):
         for i, url in enumerate(self.pdf_test_urls):
             journal_url, exists = convert_pdf_url_to_journal_url(url)
             if exists:
-                print(journal_url)
                 self.assertEqual(journal_url, self.journal_test_urls[i])
 
 
