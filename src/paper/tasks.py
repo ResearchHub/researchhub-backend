@@ -573,7 +573,7 @@ def pull_new_openalex_works(self, retry=0, paper_fetch_log_id=None):
                 date_to_fetch_from = last_successful_run_log.fetch_since_date
                 next_cursor = last_successful_run_log.next_cursor or "*"
         except Exception as e:
-            sentry.log_error(e, message="Failed to get last successful log")
+            sentry.log_error(e, message="Failed to get last successful or failed log")
 
         # check if there's a pending log within the last 24 hours
         # if there is, skip this run.
@@ -676,6 +676,142 @@ def pull_new_openalex_works(self, retry=0, paper_fetch_log_id=None):
                     completed_date=timezone.now(),
                 )
             # Re-raise the original exception
+            raise e
+
+    return True
+
+
+@app.task(bind=True, max_retries=3)
+def pull_updated_openalex_works(self, retry=0, paper_fetch_log_id=None):
+    from paper.models import PaperFetchLog
+
+    if not (PRODUCTION or TESTING):
+        return
+
+    date_to_fetch_from = timezone.now() - timedelta(days=1)
+    next_cursor = "*"
+    total_papers_processed = 0
+
+    if paper_fetch_log_id is None:
+        start_date = timezone.now()
+
+        try:
+            last_successful_run_log = (
+                PaperFetchLog.objects.filter(
+                    source=PaperFetchLog.OPENALEX,
+                    fetch_type=PaperFetchLog.FETCH_UPDATE,
+                    status__in=[PaperFetchLog.SUCCESS, PaperFetchLog.FAILED],
+                )
+                .order_by("-started_date")
+                .first()
+            )
+            if (
+                last_successful_run_log
+                and last_successful_run_log.status == PaperFetchLog.SUCCESS
+            ):
+                date_to_fetch_from = last_successful_run_log.started_date
+            elif (
+                last_successful_run_log
+                and last_successful_run_log.status == PaperFetchLog.FAILED
+            ):
+                date_to_fetch_from = last_successful_run_log.fetch_since_date
+                next_cursor = last_successful_run_log.next_cursor or "*"
+        except Exception as e:
+            sentry.log_error(
+                e,
+                message="Failed to get last successful or failed log for updated works",
+            )
+
+        try:
+            pending_log = PaperFetchLog.objects.filter(
+                source=PaperFetchLog.OPENALEX,
+                fetch_type=PaperFetchLog.FETCH_UPDATE,
+                status=PaperFetchLog.PENDING,
+                started_date__gte=date_to_fetch_from,
+            ).exists()
+
+            if pending_log:
+                sentry.log_info(message="Pending log exists for updated works")
+                return
+        except Exception as e:
+            sentry.log_error(e, message="Failed to get pending log for updated works")
+
+        lg = PaperFetchLog.objects.create(
+            source=PaperFetchLog.OPENALEX,
+            fetch_type=PaperFetchLog.FETCH_UPDATE,
+            status=PaperFetchLog.PENDING,
+            started_date=start_date,
+            fetch_since_date=date_to_fetch_from,
+            next_cursor=next_cursor,
+        )
+        paper_fetch_log_id = lg.id
+        sentry.log_info(f"Starting Updated OpenAlex pull: {paper_fetch_log_id}")
+    else:
+        try:
+            last_successful_run_log = PaperFetchLog.objects.get(id=paper_fetch_log_id)
+            date_to_fetch_from = last_successful_run_log.fetch_since_date
+            total_papers_processed = last_successful_run_log.total_papers_processed or 0
+        except Exception as e:
+            sentry.log_error(
+                e, message=f"Failed to get last log for id {paper_fetch_log_id}"
+            )
+            PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
+                status=PaperFetchLog.FAILED,
+                completed_date=timezone.now(),
+            )
+            return False
+
+        sentry.log_info(f"Retrying Updated OpenAlex pull: {paper_fetch_log_id}")
+
+    try:
+        open_alex = OpenAlex()
+
+        while True:
+            works, next_cursor = open_alex.get_works(
+                types=["article"],
+                from_updated_date=date_to_fetch_from,
+                next_cursor=next_cursor,
+            )
+            if next_cursor is None or works is None or len(works) == 0:
+                break
+
+            process_openalex_works(works)
+
+            total_papers_processed += len(works)
+
+            if paper_fetch_log_id is not None:
+                PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
+                    total_papers_processed=total_papers_processed,
+                    next_cursor=next_cursor,
+                )
+
+        if paper_fetch_log_id is not None:
+            PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
+                status=PaperFetchLog.SUCCESS,
+                completed_date=timezone.now(),
+                total_papers_processed=total_papers_processed,
+                next_cursor=None,
+            )
+    except Exception as e:
+        sentry.log_error(
+            e, message="Failed to pull updated works from OpenAlex, retrying"
+        )
+        if paper_fetch_log_id is not None:
+            PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
+                total_papers_processed=total_papers_processed,
+            )
+        try:
+            self.retry(
+                args=[retry + 1, paper_fetch_log_id],
+                exc=e,
+                countdown=10 + (retry * 2),
+            )
+        except MaxRetriesExceededError:
+            if paper_fetch_log_id is not None:
+                PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
+                    status=PaperFetchLog.FAILED,
+                    completed_date=timezone.now(),
+                )
             raise e
 
     return True
