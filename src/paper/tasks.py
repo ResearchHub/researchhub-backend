@@ -522,11 +522,28 @@ def log_daily_uploads():
 def pull_new_openalex_works(self, retry=0, paper_fetch_log_id=None):
     from paper.models import PaperFetchLog
 
+    return _pull_openalex_works(
+        self, PaperFetchLog.FETCH_NEW, retry, paper_fetch_log_id
+    )
+
+
+@app.task(bind=True, max_retries=3)
+def pull_updated_openalex_works(self, retry=0, paper_fetch_log_id=None):
+    from paper.models import PaperFetchLog
+
+    return _pull_openalex_works(
+        self, PaperFetchLog.FETCH_UPDATE, retry, paper_fetch_log_id
+    )
+
+
+def _pull_openalex_works(self, fetch_type, retry=0, paper_fetch_log_id=None):
+    from paper.models import PaperFetchLog
+
     """
-    Pull new works (papers) from OpenAlex.
+    Pull works (papers) from OpenAlex.
     This looks complicated because we're trying to handle retries and logging.
     But simply:
-    1. Get new works from OpenAlex in batches
+    1. Get new or updated works from OpenAlex in batches
     2. Kick-off a task to create/update papers for each work
     3. If we hit an error, retry the job from where we left off
     4. Log the results
@@ -555,7 +572,7 @@ def pull_new_openalex_works(self, retry=0, paper_fetch_log_id=None):
             last_successful_run_log = (
                 PaperFetchLog.objects.filter(
                     source=PaperFetchLog.OPENALEX,
-                    fetch_type=PaperFetchLog.FETCH_NEW,
+                    fetch_type=fetch_type,
                     status__in=[PaperFetchLog.SUCCESS, PaperFetchLog.FAILED],
                 )
                 .order_by("-started_date")
@@ -582,7 +599,7 @@ def pull_new_openalex_works(self, retry=0, paper_fetch_log_id=None):
         try:
             pending_log = PaperFetchLog.objects.filter(
                 source=PaperFetchLog.OPENALEX,
-                fetch_type=PaperFetchLog.FETCH_NEW,
+                fetch_type=fetch_type,
                 status=PaperFetchLog.PENDING,
                 started_date__gte=date_to_fetch_from,
             ).exists()
@@ -595,7 +612,7 @@ def pull_new_openalex_works(self, retry=0, paper_fetch_log_id=None):
 
         lg = PaperFetchLog.objects.create(
             source=PaperFetchLog.OPENALEX,
-            fetch_type=PaperFetchLog.FETCH_NEW,
+            fetch_type=fetch_type,
             status=PaperFetchLog.PENDING,
             started_date=start_date,
             fetch_since_date=date_to_fetch_from,
@@ -627,11 +644,19 @@ def pull_new_openalex_works(self, retry=0, paper_fetch_log_id=None):
         open_alex = OpenAlex()
 
         while True:
-            works, next_cursor = open_alex.get_works(
-                types=["article"],
-                since_date=date_to_fetch_from,
-                next_cursor=next_cursor,
-            )
+            if fetch_type == PaperFetchLog.FETCH_NEW:
+                works, next_cursor = open_alex.get_works(
+                    types=["article"],
+                    since_date=date_to_fetch_from,
+                    next_cursor=next_cursor,
+                )
+            elif fetch_type == PaperFetchLog.FETCH_UPDATE:
+                works, next_cursor = open_alex.get_works(
+                    types=["article"],
+                    from_updated_date=date_to_fetch_from,
+                    next_cursor=next_cursor,
+                )
+
             # if we've reached the end of the results, exit the loop
             if next_cursor is None or works is None or len(works) == 0:
                 break
@@ -676,142 +701,6 @@ def pull_new_openalex_works(self, retry=0, paper_fetch_log_id=None):
                     completed_date=timezone.now(),
                 )
             # Re-raise the original exception
-            raise e
-
-    return True
-
-
-@app.task(bind=True, max_retries=3)
-def pull_updated_openalex_works(self, retry=0, paper_fetch_log_id=None):
-    from paper.models import PaperFetchLog
-
-    if not (PRODUCTION or TESTING):
-        return
-
-    date_to_fetch_from = timezone.now() - timedelta(days=1)
-    next_cursor = "*"
-    total_papers_processed = 0
-
-    if paper_fetch_log_id is None:
-        start_date = timezone.now()
-
-        try:
-            last_successful_run_log = (
-                PaperFetchLog.objects.filter(
-                    source=PaperFetchLog.OPENALEX,
-                    fetch_type=PaperFetchLog.FETCH_UPDATE,
-                    status__in=[PaperFetchLog.SUCCESS, PaperFetchLog.FAILED],
-                )
-                .order_by("-started_date")
-                .first()
-            )
-            if (
-                last_successful_run_log
-                and last_successful_run_log.status == PaperFetchLog.SUCCESS
-            ):
-                date_to_fetch_from = last_successful_run_log.started_date
-            elif (
-                last_successful_run_log
-                and last_successful_run_log.status == PaperFetchLog.FAILED
-            ):
-                date_to_fetch_from = last_successful_run_log.fetch_since_date
-                next_cursor = last_successful_run_log.next_cursor or "*"
-        except Exception as e:
-            sentry.log_error(
-                e,
-                message="Failed to get last successful or failed log for updated works",
-            )
-
-        try:
-            pending_log = PaperFetchLog.objects.filter(
-                source=PaperFetchLog.OPENALEX,
-                fetch_type=PaperFetchLog.FETCH_UPDATE,
-                status=PaperFetchLog.PENDING,
-                started_date__gte=date_to_fetch_from,
-            ).exists()
-
-            if pending_log:
-                sentry.log_info(message="Pending log exists for updated works")
-                return
-        except Exception as e:
-            sentry.log_error(e, message="Failed to get pending log for updated works")
-
-        lg = PaperFetchLog.objects.create(
-            source=PaperFetchLog.OPENALEX,
-            fetch_type=PaperFetchLog.FETCH_UPDATE,
-            status=PaperFetchLog.PENDING,
-            started_date=start_date,
-            fetch_since_date=date_to_fetch_from,
-            next_cursor=next_cursor,
-        )
-        paper_fetch_log_id = lg.id
-        sentry.log_info(f"Starting Updated OpenAlex pull: {paper_fetch_log_id}")
-    else:
-        try:
-            last_successful_run_log = PaperFetchLog.objects.get(id=paper_fetch_log_id)
-            date_to_fetch_from = last_successful_run_log.fetch_since_date
-            total_papers_processed = last_successful_run_log.total_papers_processed or 0
-        except Exception as e:
-            sentry.log_error(
-                e, message=f"Failed to get last log for id {paper_fetch_log_id}"
-            )
-            PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
-                status=PaperFetchLog.FAILED,
-                completed_date=timezone.now(),
-            )
-            return False
-
-        sentry.log_info(f"Retrying Updated OpenAlex pull: {paper_fetch_log_id}")
-
-    try:
-        open_alex = OpenAlex()
-
-        while True:
-            works, next_cursor = open_alex.get_works(
-                types=["article"],
-                from_updated_date=date_to_fetch_from,
-                next_cursor=next_cursor,
-            )
-            if next_cursor is None or works is None or len(works) == 0:
-                break
-
-            process_openalex_works(works)
-
-            total_papers_processed += len(works)
-
-            if paper_fetch_log_id is not None:
-                PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
-                    total_papers_processed=total_papers_processed,
-                    next_cursor=next_cursor,
-                )
-
-        if paper_fetch_log_id is not None:
-            PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
-                status=PaperFetchLog.SUCCESS,
-                completed_date=timezone.now(),
-                total_papers_processed=total_papers_processed,
-                next_cursor=None,
-            )
-    except Exception as e:
-        sentry.log_error(
-            e, message="Failed to pull updated works from OpenAlex, retrying"
-        )
-        if paper_fetch_log_id is not None:
-            PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
-                total_papers_processed=total_papers_processed,
-            )
-        try:
-            self.retry(
-                args=[retry + 1, paper_fetch_log_id],
-                exc=e,
-                countdown=10 + (retry * 2),
-            )
-        except MaxRetriesExceededError:
-            if paper_fetch_log_id is not None:
-                PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
-                    status=PaperFetchLog.FAILED,
-                    completed_date=timezone.now(),
-                )
             raise e
 
     return True
