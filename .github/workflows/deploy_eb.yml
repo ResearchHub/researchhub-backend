@@ -20,6 +20,7 @@ on:
 
 jobs:
   deploy:
+    name: ${{ inputs.deploy_env }}
     runs-on: ubuntu-latest
 
     steps:
