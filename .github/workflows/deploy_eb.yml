@@ -1,0 +1,69 @@
+name: Deploy Elastic Beanstalk
+
+on:
+  workflow_call:
+    inputs:
+      deploy_env:
+        required: true
+        type: string
+      deploy_role_arn:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+    secrets:
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout application repository
+        uses: actions/checkout@v4
+
+      - name: Download deployment package
+        uses: actions/download-artifact@v4
+        with:
+          name: "backend-${{ inputs.version }}"
+
+      - name: Unpack deployment package
+        run: |
+          ls -lha
+          unzip deploy.zip -d target
+          ls -lhr ./.github/workflows
+
+      - name: Configure AWS credentials with assume role
+        id: aws_credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-to-assume: ${{ inputs.deploy_role_arn }}
+          role-session-name: github-actions-beanstalk-session
+          role-duration-seconds: 1200
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          output-credentials: true
+
+      - name: Testing
+        run: |
+          echo "Role: ${{ inputs.deploy_role_arn }}"
+          echo "Env: ${{ inputs.deploy_env }}"
+          echo "Version: ${{ inputs.version }}"
+      #- name: Deploy ${{ inputs.deploy_env }} Backend - API
+      #  uses: einaregilsson/beanstalk-deploy@v22
+      #  with:
+      #    aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
+      #    aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
+      #    application_name: backend
+      #    environment_name: ${{ inputs.deploy_env }}-backend-api
+      #    version_label: ${{ inputs.version }}
+      #    use_existing_version_if_available: true
+      #    region: us-west-2
+      #    deployment_package: target/deploy.zip
+      #    wait_for_environment_recovery: 120
