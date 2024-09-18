@@ -9,7 +9,6 @@ from rest_framework.test import APITestCase
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
 from paper.tests.helpers import create_paper
-from paper.tests.test_utils import non_eager_celery
 from paper.views.paper_views import PaperViewSet
 from user.tests.helpers import create_random_authenticated_user, create_user
 from utils.openalex import OpenAlex
@@ -193,18 +192,17 @@ class PaperViewsTests(TestCase):
         self.assertContains(response, "false", status_code=200)
 
     def test_api_token_can_upload_paper(self):
-        with non_eager_celery():
-            api_token_url = "/api/user_external_token/"
-            api_token_response = get_authenticated_post_response(
-                self.user, api_token_url, {}
-            )
-            token = api_token_response.json().get("token", "")
-            api_token_client = Client(HTTP_RH_API_KEY=token)
-            res = api_token_client.post(
-                self.base_url,
-                {"title": "Paper Uploaded via API Token", "paper_type": "REGULAR"},
-            )
-            self.assertEqual(res.status_code, 201)
+        api_token_url = "/api/user_external_token/"
+        api_token_response = get_authenticated_post_response(
+            self.user, api_token_url, {}
+        )
+        token = api_token_response.json().get("token", "")
+        api_token_client = Client(HTTP_RH_API_KEY=token)
+        res = api_token_client.post(
+            self.base_url,
+            {"title": "Paper Uploaded via API Token", "paper_type": "REGULAR"},
+        )
+        self.assertEqual(res.status_code, 201)
 
     @patch.object(Paper, "paper_rewards", new_callable=PropertyMock)
     def test_eligible_reward_summary(self, mock_get_paper_reward):

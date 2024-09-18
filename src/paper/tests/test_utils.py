@@ -1,7 +1,4 @@
-from contextlib import contextmanager
 from unittest import TestCase
-
-from django.test import override_settings
 
 from paper.utils import _ngrams
 
@@ -27,11 +24,3 @@ class UtilsTest(TestCase):
         # Assert
         self.assertEqual(len(actual), 7)
         self.assertEqual(actual, expected)
-
-
-@contextmanager
-def non_eager_celery():
-    with override_settings(
-        CELERY_TASK_ALWAYS_EAGER=False, CELERY_TASK_EAGER_PROPAGATES=False
-    ):
-        yield

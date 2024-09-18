@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 from celery.exceptions import MaxRetriesExceededError, Retry
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.utils import timezone
 
 from paper.models import PaperFetchLog
@@ -9,7 +9,7 @@ from paper.tasks import pull_new_openalex_works
 
 
 class TestPullNewOpenAlexWorks(TestCase):
-
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     @patch("paper.tasks.OpenAlex")
     @patch("paper.tasks.process_openalex_works")
     def test_pull_new_openalex_works_success(self, mock_process_works, mock_openalex):
@@ -37,6 +37,7 @@ class TestPullNewOpenAlexWorks(TestCase):
         self.assertEqual(log.status, PaperFetchLog.SUCCESS)
         self.assertEqual(log.total_papers_processed, 4)
 
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     @patch("paper.tasks.OpenAlex")
     @patch("paper.tasks.process_openalex_works")
     def test_pull_new_openalex_works_no_results(
@@ -62,6 +63,7 @@ class TestPullNewOpenAlexWorks(TestCase):
         self.assertEqual(log.status, PaperFetchLog.SUCCESS)
         self.assertEqual(log.total_papers_processed, 0)
 
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     @patch("paper.tasks.OpenAlex")
     @patch("paper.tasks.process_openalex_works")
     def test_pull_new_openalex_works_existing_pending_log(
@@ -87,6 +89,7 @@ class TestPullNewOpenAlexWorks(TestCase):
         # Check that no new PaperFetchLog was created
         self.assertEqual(PaperFetchLog.objects.count(), 1)
 
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     @patch("paper.tasks.OpenAlex")
     @patch("paper.tasks.process_openalex_works")
     @patch("paper.tasks.pull_new_openalex_works.retry")
@@ -134,6 +137,7 @@ class TestPullNewOpenAlexWorks(TestCase):
         self.assertEqual(paper_fetch_log.total_papers_processed, 0)
         self.assertIsNotNone(paper_fetch_log.completed_date)
 
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     @patch("paper.tasks.OpenAlex")
     @patch("paper.tasks.process_openalex_works")
     def test_pull_new_openalex_works_successful_retry(

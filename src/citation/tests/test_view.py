@@ -3,7 +3,6 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from citation.constants import JOURNAL_ARTICLE
 from citation.models import CitationEntry
 from paper.tests.helpers import create_paper
-from paper.tests.test_utils import non_eager_celery
 from researchhub_access_group.models import Permission
 from user.tests.helpers import create_random_default_user
 from utils.test_helpers import APITestCaseWithOrg
@@ -59,46 +58,45 @@ class CitationEntryViewTests(APITestCaseWithOrg):
         self.assertEqual(response.data[0]["id"], citation_id)
 
     def test_create_citation(self):
-        with non_eager_celery():
-            self.client.force_authenticate(self.authenticated_user)
-            response = self.client.post(
-                "/api/citation_entry/",
-                {
-                    "fields": {
-                        "id": "user_1_JOURNAL_ARTICLE",
-                        "DOI": "10.1101/1997.01.01.12345",
-                        "URL": "",
-                        "ISSN": "",
-                        "note": "",
-                        "page": "",
-                        "type": "article-journal",
-                        "issue": "",
-                        "title": "Test title",
-                        "author": [
-                            {"given": "John", "family": "Doe"},
-                            {"given": "Alice", "family": "Alice"},
-                            {"given": "Bob", "family": "Bob"},
-                        ],
-                        "issued": {"date-parts": [["2000", "01", "01"]]},
-                        "source": "",
-                        "volume": "",
-                        "archive": "",
-                        "abstract": "This is a fake abstract",
-                        "language": "",
-                        "call-number": "",
-                        "title-short": "",
-                        "container-title": "Fake title",
-                        "archive_location": "",
-                        "collection-title": "",
-                        "journalAbbreviation": "",
-                    },
-                    "citation_type": JOURNAL_ARTICLE,
-                    "doi": "10.1101/1997.01.01.12345",
-                    "organization": self.authenticated_user.organization.id,
+        self.client.force_authenticate(self.authenticated_user)
+        response = self.client.post(
+            "/api/citation_entry/",
+            {
+                "fields": {
+                    "id": "user_1_JOURNAL_ARTICLE",
+                    "DOI": "10.1101/1997.01.01.12345",
+                    "URL": "",
+                    "ISSN": "",
+                    "note": "",
+                    "page": "",
+                    "type": "article-journal",
+                    "issue": "",
+                    "title": "Test title",
+                    "author": [
+                        {"given": "John", "family": "Doe"},
+                        {"given": "Alice", "family": "Alice"},
+                        {"given": "Bob", "family": "Bob"},
+                    ],
+                    "issued": {"date-parts": [["2000", "01", "01"]]},
+                    "source": "",
+                    "volume": "",
+                    "archive": "",
+                    "abstract": "This is a fake abstract",
+                    "language": "",
+                    "call-number": "",
+                    "title-short": "",
+                    "container-title": "Fake title",
+                    "archive_location": "",
+                    "collection-title": "",
+                    "journalAbbreviation": "",
                 },
-            )
-            self.assertEqual(response.status_code, 201)
-            return response
+                "citation_type": JOURNAL_ARTICLE,
+                "doi": "10.1101/1997.01.01.12345",
+                "organization": self.authenticated_user.organization.id,
+            },
+        )
+        self.assertEqual(response.status_code, 201)
+        return response
 
     def test_url_search(self):
         self.client.force_authenticate(self.authenticated_user)
@@ -113,8 +111,7 @@ class CitationEntryViewTests(APITestCaseWithOrg):
         )
 
     def test_create_private_comment(self):
-        with non_eager_celery():
-            citation = self.test_create_citation()
+        citation = self.test_create_citation()
         data = citation.data
         citation_id = data.get("id")
 
@@ -131,8 +128,7 @@ class CitationEntryViewTests(APITestCaseWithOrg):
         return response, citation
 
     def test_create_workspace_comment(self):
-        with non_eager_celery():
-            citation = self.test_create_citation()
+        citation = self.test_create_citation()
         data = citation.data
         citation_id = data.get("id")
 
