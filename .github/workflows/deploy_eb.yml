@@ -56,20 +56,15 @@ jobs:
           aws-region: us-west-2
           output-credentials: true
 
-      - name: Testing
-        run: |
-          echo "Role: ${{ inputs.deploy_role_arn }}"
-          echo "Env: ${{ inputs.deploy_env }}"
-          echo "Version: ${{ inputs.version }}"
-      #- name: Deploy ${{ inputs.deploy_env }} Backend - API
-      #  uses: einaregilsson/beanstalk-deploy@v22
-      #  with:
-      #    aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
-      #    aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
-      #    application_name: backend
-      #    environment_name: ${{ inputs.deploy_env }}-backend-api
-      #    version_label: ${{ inputs.version }}
-      #    use_existing_version_if_available: true
-      #    region: us-west-2
-      #    deployment_package: target/deploy.zip
-      #    wait_for_environment_recovery: 120
+      - name: Deploy Backend - API
+        uses: einaregilsson/beanstalk-deploy@v22
+        with:
+          aws_access_key: ${{ secrets.aws_access_key_id }}
+          aws_secret_key: ${{ secrets.aws_secret_access_key }}
+          application_name: backend
+          environment_name: ${{ inputs.deploy_env }}-backend-api
+          version_label: ${{ inputs.version }}
+          use_existing_version_if_available: true
+          region: us-west-2
+          deployment_package: target/deploy.zip
+          wait_for_environment_recovery: 120
