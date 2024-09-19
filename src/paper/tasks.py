@@ -522,11 +522,28 @@ def log_daily_uploads():
 def pull_new_openalex_works(self, retry=0, paper_fetch_log_id=None):
     from paper.models import PaperFetchLog
 
+    return _pull_openalex_works(
+        self, PaperFetchLog.FETCH_NEW, retry, paper_fetch_log_id
+    )
+
+
+@app.task(bind=True, max_retries=3)
+def pull_updated_openalex_works(self, retry=0, paper_fetch_log_id=None):
+    from paper.models import PaperFetchLog
+
+    return _pull_openalex_works(
+        self, PaperFetchLog.FETCH_UPDATE, retry, paper_fetch_log_id
+    )
+
+
+def _pull_openalex_works(self, fetch_type, retry=0, paper_fetch_log_id=None):
+    from paper.models import PaperFetchLog
+
     """
-    Pull new works (papers) from OpenAlex.
+    Pull works (papers) from OpenAlex.
     This looks complicated because we're trying to handle retries and logging.
     But simply:
-    1. Get new works from OpenAlex in batches
+    1. Get new or updated works from OpenAlex in batches
     2. Kick-off a task to create/update papers for each work
     3. If we hit an error, retry the job from where we left off
     4. Log the results
@@ -555,7 +572,7 @@ def pull_new_openalex_works(self, retry=0, paper_fetch_log_id=None):
             last_successful_run_log = (
                 PaperFetchLog.objects.filter(
                     source=PaperFetchLog.OPENALEX,
-                    fetch_type=PaperFetchLog.FETCH_NEW,
+                    fetch_type=fetch_type,
                     status__in=[PaperFetchLog.SUCCESS, PaperFetchLog.FAILED],
                 )
                 .order_by("-started_date")
@@ -573,7 +590,7 @@ def pull_new_openalex_works(self, retry=0, paper_fetch_log_id=None):
                 date_to_fetch_from = last_successful_run_log.fetch_since_date
                 next_cursor = last_successful_run_log.next_cursor or "*"
         except Exception as e:
-            sentry.log_error(e, message="Failed to get last successful log")
+            sentry.log_error(e, message="Failed to get last successful or failed log")
 
         # check if there's a pending log within the last 24 hours
         # if there is, skip this run.
@@ -582,7 +599,7 @@ def pull_new_openalex_works(self, retry=0, paper_fetch_log_id=None):
         try:
             pending_log = PaperFetchLog.objects.filter(
                 source=PaperFetchLog.OPENALEX,
-                fetch_type=PaperFetchLog.FETCH_NEW,
+                fetch_type=fetch_type,
                 status=PaperFetchLog.PENDING,
                 started_date__gte=date_to_fetch_from,
             ).exists()
@@ -595,7 +612,7 @@ def pull_new_openalex_works(self, retry=0, paper_fetch_log_id=None):
 
         lg = PaperFetchLog.objects.create(
             source=PaperFetchLog.OPENALEX,
-            fetch_type=PaperFetchLog.FETCH_NEW,
+            fetch_type=fetch_type,
             status=PaperFetchLog.PENDING,
             started_date=start_date,
             fetch_since_date=date_to_fetch_from,
@@ -627,11 +644,19 @@ def pull_new_openalex_works(self, retry=0, paper_fetch_log_id=None):
         open_alex = OpenAlex()
 
         while True:
-            works, next_cursor = open_alex.get_works(
-                types=["article"],
-                since_date=date_to_fetch_from,
-                next_cursor=next_cursor,
-            )
+            if fetch_type == PaperFetchLog.FETCH_NEW:
+                works, next_cursor = open_alex.get_works(
+                    types=["article"],
+                    since_date=date_to_fetch_from,
+                    next_cursor=next_cursor,
+                )
+            elif fetch_type == PaperFetchLog.FETCH_UPDATE:
+                works, next_cursor = open_alex.get_works(
+                    types=["article"],
+                    from_updated_date=date_to_fetch_from,
+                    next_cursor=next_cursor,
+                )
+
             # if we've reached the end of the results, exit the loop
             if next_cursor is None or works is None or len(works) == 0:
                 break
