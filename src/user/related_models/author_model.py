@@ -33,7 +33,7 @@ class Author(models.Model):
         null=True,
         blank=True,
     )
-    first_name = models.CharField(max_length=30)  # Same max_length as User
+    first_name = models.CharField(max_length=150)  # Same max_length as User
     last_name = models.CharField(max_length=150)  # Same max_length as User
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
