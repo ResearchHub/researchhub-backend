@@ -27,6 +27,11 @@ jobs:
       - name: Checkout application repository
         uses: actions/checkout@v4
 
+      - name: Workflow details
+        run: |
+          echo "Environment: ${{ inputs.deploy_env }}"
+          echo "Version: ${{ inputs.version }}"
+
       - name: Download deployment package
         uses: actions/download-artifact@v4
         with:
