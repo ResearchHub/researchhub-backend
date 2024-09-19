@@ -1058,9 +1058,23 @@ class PaperFetchLog(models.Model):
     PENDING = "PENDING"
     STATUS_CHOICES = [(SUCCESS, SUCCESS), (FAILED, FAILED), (PENDING, PENDING)]
 
+    SERVER_BIORXIV = "biorxiv"
+    SERVER_MEDRXIV = "medrxiv"
+    SERVER_ARXIV = "arxiv"
+    SERVER_CHEMRXIV = "chemrxiv"
+    SERVER_PREPRINTS = "preprints.org"
+    SERVER_CHOICES = [
+        (SERVER_BIORXIV, SERVER_BIORXIV),
+        (SERVER_MEDRXIV, SERVER_MEDRXIV),
+        (SERVER_ARXIV, SERVER_ARXIV),
+        (SERVER_CHEMRXIV, SERVER_CHEMRXIV),
+        (SERVER_PREPRINTS, SERVER_PREPRINTS),
+    ]
+
     started_date = models.DateTimeField(auto_now_add=True)
     completed_date = models.DateTimeField(null=True, blank=True)
     fetch_since_date = models.DateTimeField(null=True, blank=True)
+    updated_date = models.DateTimeField(auto_now=True)
 
     source = models.CharField(choices=SOURCE_CHOICES, max_length=255)
     fetch_type = models.CharField(choices=FETCH_TYPE_CHOICES, max_length=255)
@@ -1068,6 +1082,10 @@ class PaperFetchLog(models.Model):
 
     total_papers_processed = models.IntegerField(default=0)
     next_cursor = models.CharField(max_length=255, null=True, blank=True)
+
+    server = models.CharField(
+        choices=SERVER_CHOICES, max_length=255, null=True, blank=True
+    )
 
 
 class Figure(models.Model):
