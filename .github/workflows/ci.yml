@@ -58,7 +58,6 @@ jobs:
           SHORT_GIT_SHA=$(git rev-parse HEAD | cut -c1-7)
           echo "SHORT_GIT_SHA=$SHORT_GIT_SHA" >> "$GITHUB_ENV"
           echo "short_git_sha=$SHORT_GIT_SHA" >> "$GITHUB_OUTPUT"
-          echo "Git SHA: ${SHORT_GIT_SHA}"
 
       - name: Checkout deploy repository
         uses: actions/checkout@v4
@@ -84,7 +83,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: "backend-${{ env.SHORT_GIT_SHA }}"
+          name: "backend-${{ steps.short_git_sha.outputs.short_git_sha }}"
           path: target/deploy.zip
 
       - name: Get deploy role ARN
