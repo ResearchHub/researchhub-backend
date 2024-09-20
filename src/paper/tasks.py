@@ -574,7 +574,7 @@ def _pull_openalex_works(self, fetch_type, retry=0, paper_fetch_log_id=None):
                     source=PaperFetchLog.OPENALEX,
                     fetch_type=fetch_type,
                     status__in=[PaperFetchLog.SUCCESS, PaperFetchLog.FAILED],
-                    server=None,
+                    journal=None,
                 )
                 .order_by("-started_date")
                 .first()
@@ -603,7 +603,7 @@ def _pull_openalex_works(self, fetch_type, retry=0, paper_fetch_log_id=None):
                 fetch_type=fetch_type,
                 status=PaperFetchLog.PENDING,
                 started_date__gte=date_to_fetch_from,
-                server=None,
+                journal=None,
             ).exists()
 
             if pending_log:

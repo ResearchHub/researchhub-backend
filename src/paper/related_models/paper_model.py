@@ -1083,7 +1083,7 @@ class PaperFetchLog(models.Model):
     total_papers_processed = models.IntegerField(default=0)
     next_cursor = models.CharField(max_length=255, null=True, blank=True)
 
-    server = models.CharField(
+    journal = models.CharField(
         choices=SERVER_CHOICES, max_length=255, null=True, blank=True
     )
 

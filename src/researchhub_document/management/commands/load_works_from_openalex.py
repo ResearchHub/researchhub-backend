@@ -7,8 +7,8 @@ from user.related_models.author_model import Author
 from utils.openalex import OpenAlex
 from utils.paper_utils import PaperFetchLog
 
-# To pull papers from bioRxiv use source param:
-# python manage.py load_works_from_openalex --mode backfill --source s4306402567
+# To pull papers from bioRxiv use journal param:
+# python manage.py load_works_from_openalex --mode backfill --journal biorxiv
 
 
 def process_backfill_batch(queryset):
@@ -35,14 +35,14 @@ def process_openalex_work(openalex, openalex_id):
     process_openalex_works([work])
 
 
-def process_author_batch(openalex, openalex_author_id, source):
+def process_author_batch(openalex, openalex_author_id, journal):
     print("Fetching full author works for author: " + openalex_author_id)
     cursor = "*"
 
     while cursor:
         print("Processing cursor " + str(cursor))
         works, cursor = openalex.get_works(
-            source=source,
+            source=journal,
             types=[
                 "article",
                 "preprint",
@@ -62,22 +62,22 @@ def process_author_batch(openalex, openalex_author_id, source):
         author.save()
 
 
-def process_batch(openalex, source):
+def process_batch(openalex, journal):
     cursor = "*"
     pending_log = PaperFetchLog.objects.filter(
         source=PaperFetchLog.OPENALEX,
         status=PaperFetchLog.PENDING,
-        server=source,
+        journal=journal,
     ).exists()
     if pending_log:
-        print("There are pending logs for this source")
+        print("There are pending logs for this journal")
         return
 
     last_failed_log = (
         PaperFetchLog.objects.filter(
             source=PaperFetchLog.OPENALEX,
             status__in=[PaperFetchLog.FAILED],
-            server=source,
+            journal=journal,
         )
         .order_by("-started_date")
         .first()
@@ -98,7 +98,7 @@ def process_batch(openalex, source):
     while cursor:
         print("Processing cursor " + str(cursor))
         works, cursor = openalex.get_works(
-            source=source,
+            source=journal,
             types=[
                 "article",
                 "preprint",
@@ -136,10 +136,10 @@ class Command(BaseCommand):
             help="Paper id to stop at",
         )
         parser.add_argument(
-            "--source",
+            "--journal",
             default=None,
             type=str,
-            help="The paper respository source to pull from",
+            help="The paper respository journal ('biorxiv', 'arxiv', etc.) to pull from",
         )
         parser.add_argument(
             "--openalex_id",
@@ -166,7 +166,7 @@ class Command(BaseCommand):
         openalex_id = kwargs["openalex_id"]
         openalex_author_id = kwargs["openalex_author_id"]
         mode = kwargs["mode"]
-        source = kwargs["source"]
+        journal = kwargs["journal"]
         batch_size = 100
 
         if mode == "backfill":
@@ -200,6 +200,6 @@ class Command(BaseCommand):
             if openalex_id:
                 process_openalex_work(OA, openalex_id)
             elif openalex_author_id:
-                process_author_batch(OA, openalex_author_id, source)
+                process_author_batch(OA, openalex_author_id, journal)
             else:
-                process_batch(OA, source)
+                process_batch(OA, journal)
