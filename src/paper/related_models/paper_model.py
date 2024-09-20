@@ -1058,17 +1058,17 @@ class PaperFetchLog(models.Model):
     PENDING = "PENDING"
     STATUS_CHOICES = [(SUCCESS, SUCCESS), (FAILED, FAILED), (PENDING, PENDING)]
 
-    SERVER_BIORXIV = "biorxiv"
-    SERVER_MEDRXIV = "medrxiv"
-    SERVER_ARXIV = "arxiv"
-    SERVER_CHEMRXIV = "chemrxiv"
-    SERVER_PREPRINTS = "preprints.org"
-    SERVER_CHOICES = [
-        (SERVER_BIORXIV, SERVER_BIORXIV),
-        (SERVER_MEDRXIV, SERVER_MEDRXIV),
-        (SERVER_ARXIV, SERVER_ARXIV),
-        (SERVER_CHEMRXIV, SERVER_CHEMRXIV),
-        (SERVER_PREPRINTS, SERVER_PREPRINTS),
+    JOURNAL_BIORXIV = "biorxiv"
+    JOURNAL_MEDRXIV = "medrxiv"
+    JOURNAL_ARXIV = "arxiv"
+    JOURNAL_CHEMRXIV = "chemrxiv"
+    JOURNAL_PREPRINTS = "preprints.org"
+    JOURNAL_CHOICES = [
+        (JOURNAL_BIORXIV, JOURNAL_BIORXIV),
+        (JOURNAL_MEDRXIV, JOURNAL_MEDRXIV),
+        (JOURNAL_ARXIV, JOURNAL_ARXIV),
+        (JOURNAL_CHEMRXIV, JOURNAL_CHEMRXIV),
+        (JOURNAL_PREPRINTS, JOURNAL_PREPRINTS),
     ]
 
     started_date = models.DateTimeField(auto_now_add=True)
@@ -1084,7 +1084,7 @@ class PaperFetchLog(models.Model):
     next_cursor = models.CharField(max_length=255, null=True, blank=True)
 
     journal = models.CharField(
-        choices=SERVER_CHOICES, max_length=255, null=True, blank=True
+        choices=JOURNAL_CHOICES, max_length=255, null=True, blank=True
     )
 
 
