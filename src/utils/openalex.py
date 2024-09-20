@@ -355,6 +355,7 @@ class OpenAlex:
         openalex_ids=None,
         source=None,
         openalex_author_id=None,
+        from_updated_date=None,
     ):
         """
         Fetches works from OpenAlex based on the given criteria.
@@ -375,6 +376,11 @@ class OpenAlex:
             # Format the date in YYYY-MM-DD format
             formatted_date = since_date.strftime("%Y-%m-%d")
             oa_filters.append(f"from_created_date:{formatted_date}")
+
+        if from_updated_date:
+            # Format the date in YYYY-MM-DD format
+            formatted_date = from_updated_date.strftime("%Y-%m-%d")
+            oa_filters.append(f"from_updated_date:{formatted_date}")
 
         if isinstance(openalex_ids, list):
             oa_filters.append(f"ids.openalex:{'|'.join(openalex_ids)}")
