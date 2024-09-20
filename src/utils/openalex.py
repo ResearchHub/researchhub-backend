@@ -11,6 +11,13 @@ from utils.aws import download_pdf
 from utils.parsers import rebuild_sentence_from_inverted_index
 from utils.retryable_requests import retryable_requests_session
 
+SOURCE_TO_OPENALEX_ID = {
+    "biorxiv": "s4306402567",
+    "medrxiv": "s4306400573",
+    "arxiv": "s4306400194",
+    "chemrxiv": "s3005989158",
+}
+
 
 class OpenAlex:
     def __init__(self, timeout=10):
@@ -346,7 +353,7 @@ class OpenAlex:
         next_cursor="*",
         batch_size=100,
         openalex_ids=None,
-        source_id=None,
+        source=None,
         openalex_author_id=None,
     ):
         """
@@ -358,6 +365,8 @@ class OpenAlex:
         oa_filters = []
         if isinstance(types, list):
             oa_filters.append(f"type:{'|'.join(types)}")
+
+        source_id = SOURCE_TO_OPENALEX_ID.get(source, None)
 
         if source_id:
             oa_filters.append(f"primary_location.source.id:{source_id}")
