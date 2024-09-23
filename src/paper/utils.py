@@ -607,10 +607,6 @@ def merge_paper_bulletpoints(original_paper, new_paper):
                 new_bullet_point.delete()
 
 
-def reset_paper_cache(cache_key, data):
-    cache.set(cache_key, data, timeout=60 * 60 * 24 * 7)
-
-
 def get_cache_key(obj_type, pk):
     return f"{obj_type}_{pk}"
 

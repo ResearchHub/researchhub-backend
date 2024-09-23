@@ -835,9 +835,6 @@ class Paper(AbstractGenericReactionModel):
             return boost_amount
         return 0
 
-    def reset_cache(self, use_celery=True):
-        return
-
     def get_license(self, save=True):
         pdf_license = self.pdf_license
         if pdf_license:
