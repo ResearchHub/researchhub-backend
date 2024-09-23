@@ -372,6 +372,7 @@ class OpenAlex:
         if isinstance(types, list):
             oa_filters.append(f"type:{'|'.join(types)}")
 
+        source_id = None
         if source:
             source_id = SOURCE_TO_OPENALEX_ID.get(source)
             if source_id is None:
