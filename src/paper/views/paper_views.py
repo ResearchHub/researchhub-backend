@@ -459,8 +459,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         )
         decisions_api.apply_bad_user_decision(content_creator, "MANUAL_REVIEW", user)
 
-        # Commenting out paper cache
-        # paper.reset_cache(use_celery=False)
         return Response(self.get_serializer(instance=paper).data, status=200)
 
     @action(

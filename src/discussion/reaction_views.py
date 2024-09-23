@@ -87,9 +87,6 @@ def censor(requestor, item):
             filters=[DISCUSSED, HOT],
         )
 
-    # Commenting out paper cache
-    # if item.paper:
-    #     item.paper.reset_cache()
     return True
 
 
@@ -578,13 +575,6 @@ def update_or_create_vote(request, user, item, vote_type):
             target_vote=vote,
         )
 
-    # potential_paper = vote.item
-    # from paper.models import Paper
-
-    # Commenting out paper cache
-    # if isinstance(potential_paper, Paper):
-    #     potential_paper.reset_cache()
-
     app_label = item._meta.app_label
     model = item._meta.model.__name__.lower()
     create_contribution.apply_async(
@@ -607,9 +597,3 @@ def update_relavent_doc_caches_on_vote(cache_filters_to_reset, target_vote):
     reset_unified_document_cache(
         document_type=[doc_type, "all"], filters=cache_filters_to_reset
     )
-
-    # Commenting out paper cache
-    # from paper.models import Paper
-
-    # if isinstance(item, Paper):
-    #     item.reset_cache()

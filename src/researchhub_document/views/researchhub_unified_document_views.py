@@ -363,8 +363,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         if isinstance(inner_doc, Paper):
             inner_doc.is_removed = True
             inner_doc.save()
-            # Commenting out paper cache
-            # inner_doc.reset_cache(use_celery=False)
 
         action = inner_doc.actions
         if action.exists():
@@ -394,9 +392,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         if isinstance(inner_doc, Paper):
             inner_doc.is_removed = False
             inner_doc.save()
-            # Commenting out paper cache
-            # inner_doc.reset_cache(use_celery=False)
-
         action = inner_doc.actions
         if action.exists():
             action = action.first()

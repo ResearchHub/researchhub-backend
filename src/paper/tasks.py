@@ -148,8 +148,6 @@ def download_pdf(paper_id, retry=0):
             paper.file.save(filename, pdf)
             paper.save(update_fields=["file"])
             paper.extract_pdf_preview(use_celery=True)
-            # Commenting out paper cache
-            # paper.reset_cache(use_celery=False)
             paper.set_paper_completeness()
             paper.compress_and_linearize_file()
             celery_extract_pdf_sections.apply_async(
