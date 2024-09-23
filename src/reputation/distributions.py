@@ -1,11 +1,3 @@
-import datetime
-from time import time
-
-import pytz
-
-from researchhub_case.constants.case_constants import APPROVED
-
-
 class Distribution:
     def __init__(self, name, amount, give_rep=True, reputation=1):
         self._name = name
@@ -28,56 +20,6 @@ class Distribution:
     @property
     def gives_rep(self):
         return self._give_rep
-
-
-RSC_YEARLY_GIVEAWAY = 20000000
-MINUTES_IN_YEAR = 525960
-HOURS_IN_YEAR = MINUTES_IN_YEAR / 60
-DAYS_IN_YEAR = 365
-MONTHS_IN_YEAR = 12
-GROWTH = 0.2
-
-
-def calculate_rsc_per_upvote():
-    from discussion.models import Vote as ReactionVote
-    from paper.models import Vote
-
-    def calculate_rsc(timeframe, weight):
-        return RSC_YEARLY_GIVEAWAY * weight / timeframe
-
-    def calculate_votes(timeframe):
-        return (
-            Vote.objects.filter(vote_type=1, created_date__gte=timeframe).count()
-            + ReactionVote.objects.filter(
-                vote_type=1, created_date__gte=timeframe
-            ).count()
-        )
-
-    today = datetime.datetime.now(tz=pytz.utc).replace(hour=0, minute=0, second=0)
-    past_minute = today - datetime.timedelta(minutes=1)
-    past_hour = today - datetime.timedelta(minutes=60)
-    past_day = today - datetime.timedelta(days=1)
-    past_month = today - datetime.timedelta(days=30)
-    past_year = today - datetime.timedelta(days=365)
-
-    votes_in_past_minute = calculate_votes(past_minute)
-    votes_in_past_hour = calculate_votes(past_hour)
-    votes_in_past_day = calculate_votes(past_day)
-    votes_in_past_month = calculate_votes(past_month)
-    votes_in_past_year = calculate_votes(past_year)
-
-    rsc_by_minute = calculate_rsc(votes_in_past_minute * MINUTES_IN_YEAR, 0.25)
-    rsc_by_hour = calculate_rsc(votes_in_past_hour * HOURS_IN_YEAR, 0.3)
-    rsc_by_day = calculate_rsc(votes_in_past_day * DAYS_IN_YEAR, 0.25)
-    rsc_by_month = calculate_rsc(votes_in_past_month * MONTHS_IN_YEAR, 0.1)
-    rsc_by_year = calculate_rsc(votes_in_past_year, 0.1)
-
-    rsc_distribute = (
-        rsc_by_minute + rsc_by_hour + rsc_by_day + rsc_by_month + rsc_by_year
-    )
-    rsc_distribute *= 1 - GROWTH
-
-    return int(rsc_distribute)
 
 
 FlagPaper = Distribution("FLAG_PAPER", -1, give_rep=True, reputation=-1)
