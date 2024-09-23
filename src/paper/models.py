@@ -14,6 +14,5 @@ from paper.related_models.paper_model import (
     Flag,
     Paper,
     PaperFetchLog,
-    Vote,
 )
 from paper.related_models.paper_submission_model import PaperSubmission
