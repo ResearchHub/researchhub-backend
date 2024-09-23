@@ -797,7 +797,14 @@ class DynamicAuthorshipSerializer(DynamicModelFieldSerializer):
 
     def to_representation(self, authorship):
         context = self.context
-        context_fields = {"_include_fields": ["id", "first_name", "last_name"]}
+        context_fields = {
+            "_include_fields": [
+                "id",
+                "first_name",
+                "last_name",
+                "user",
+            ]
+        }
         author_data = DynamicAuthorSerializer(
             authorship.author,
             context=context,

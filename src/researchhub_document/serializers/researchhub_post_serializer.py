@@ -226,7 +226,14 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
 
     def get_authors(self, post):
         context = self.context
-        _context_fields = context.get("doc_dps_get_authors", {})
+        _context_fields = {
+            "_include_fields": [
+                "id",
+                "first_name",
+                "last_name",
+                "user",
+            ]
+        }
         serializer = DynamicAuthorSerializer(
             post.authors, context=context, many=True, **_context_fields
         )
