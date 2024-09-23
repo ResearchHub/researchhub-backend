@@ -372,7 +372,10 @@ class OpenAlex:
         if isinstance(types, list):
             oa_filters.append(f"type:{'|'.join(types)}")
 
-        source_id = SOURCE_TO_OPENALEX_ID.get(source, None)
+        if source:
+            source_id = SOURCE_TO_OPENALEX_ID.get(source)
+            if source_id is None:
+                raise ValueError(f"Invalid source: {source}")
 
         if source_id:
             oa_filters.append(f"primary_location.source.id:{source_id}")
