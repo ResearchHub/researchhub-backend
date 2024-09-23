@@ -24,6 +24,7 @@ class SimpleHubSerializer(ModelSerializer):
             "is_removed",
             "name",
             "slug",
+            "namespace",
             "is_used_for_rep",
         ]
         read_only_fields = ["editor_permission_groups"]
@@ -66,6 +67,7 @@ class HubSerializer(ModelSerializer):
             "paper_count",
             "slug",
             "subscriber_count",
+            "namespace",
             "is_used_for_rep",
         ]
         read_only_fields = ["editor_permission_groups"]
@@ -106,6 +108,7 @@ class HubContributionSerializer(ModelSerializer):
             "latest_comment_date",
             "latest_submission_date",
             "name",
+            "namespace",
             "submission_count",
             "support_count",
             "total_contribution_count",

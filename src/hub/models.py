@@ -8,6 +8,9 @@ from researchhub_access_group.constants import EDITOR
 from researchhub_access_group.models import Permission
 
 HELP_TEXT_IS_REMOVED = "Hides the hub because it is not allowed."
+JOURNAL_NAMESPACE = "journal"
+
+HUB_NAMESPACE_TYPES = ((JOURNAL_NAMESPACE, JOURNAL_NAMESPACE),)
 
 
 def get_default_hub_category():
@@ -93,6 +96,10 @@ class Hub(models.Model):
     )
 
     is_used_for_rep = models.BooleanField(default=False)
+    namespace = models.TextField(
+        choices=HUB_NAMESPACE_TYPES,
+        null=True,
+    )
 
     namespace = models.TextField(choices=Namespace.choices, null=True)
 

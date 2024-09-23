@@ -734,6 +734,33 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         return self.get_paginated_response(serializer_data)
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
+    def preprints(self, request):
+        documents = self.get_filtered_queryset()
+        context = self._get_serializer_context()
+        page = self.paginate_queryset(documents)
+
+        serializer = self.dynamic_serializer_class(
+            page,
+            _include_fields=[
+                "id",
+                "created_date",
+                "documents",
+                "document_filter",
+                "document_type",
+                "hot_score",
+                "hubs",
+                "reviews",
+                "score",
+            ],
+            many=True,
+            context=context,
+        )
+
+        serializer_data = serializer.data
+
+        return self.get_paginated_response(serializer_data)
+
+    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def get_featured_documents(self, request):
         featured_documents = self._get_featured_documents_queryset()
         context = self._get_serializer_context()
