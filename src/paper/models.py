@@ -12,7 +12,6 @@ from paper.related_models.paper_model import (
     AdditionalFile,
     Figure,
     Flag,
-    MetadataRetrievalAttempt,
     Paper,
     PaperFetchLog,
     Vote,

@@ -987,60 +987,6 @@ class Paper(AbstractGenericReactionModel):
         return HubCitationValue.calculate_base_claim_rsc_reward(self)
 
 
-class MetadataRetrievalAttempt(models.Model):
-    CROSSREF_DOI = "CROSSREF_DOI"
-    CROSSREF_QUERY = "CROSSREF_QUERY"
-    MANUBOT_DOI = "MANUBOT_DOI"
-    MANUBOT_PDF_URL = "MANUBOT_PDF_URL"
-    MANUBOT_URL = "MANUBOT_URL"
-    PARSE_PDF = "PARSE_PDF"
-    PDF_FROM_URL = "PDF_FROM_URL"
-
-    METHOD_CHOICES = [
-        (CROSSREF_DOI, CROSSREF_DOI),
-        (CROSSREF_QUERY, CROSSREF_QUERY),
-        (MANUBOT_DOI, MANUBOT_DOI),
-        (MANUBOT_PDF_URL, MANUBOT_PDF_URL),
-        (MANUBOT_URL, MANUBOT_URL),
-        (PARSE_PDF, PARSE_PDF),
-        (PDF_FROM_URL, PDF_FROM_URL),
-    ]
-
-    POPULATE_METADATA_METHODS = {
-        MANUBOT_URL: populate_metadata_from_manubot_url,
-        MANUBOT_PDF_URL: populate_metadata_from_manubot_pdf_url,
-        PDF_FROM_URL: populate_pdf_url_from_journal_url,
-        PARSE_PDF: populate_metadata_from_pdf,
-        CROSSREF_QUERY: populate_metadata_from_crossref,
-    }
-
-    # TODO use mixin here
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now_add=True)
-    paper = models.ForeignKey(
-        Paper, on_delete=models.CASCADE, related_name="metadata_retrieval_attempts"
-    )
-    method = models.CharField(choices=METHOD_CHOICES, max_length=125)
-
-    @classmethod
-    def get_url_method_priority_list(cls, url):
-        """
-        Evaluates the url and returns the methods in the order they should be
-        attempted to retrieve metadata.
-        """
-        methods = []
-        if check_url_contains_pdf(url):
-            methods.append(cls.MANUBOT_PDF_URL)
-            # TODO: Create util functions for these methods
-            methods.append(cls.PARSE_PDF)
-            methods.append(cls.CROSSREF_QUERY)
-        else:
-            methods.append(cls.PDF_FROM_URL)
-            # methods.append(cls.MANUBOT_PDF_URL)
-            methods.append(cls.MANUBOT_URL)
-        return methods
-
-
 class PaperFetchLog(models.Model):
     """
     Stores the logs for e.g. daily paper fetches from openalex
