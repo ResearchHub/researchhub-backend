@@ -16,6 +16,11 @@ SOURCE_TO_OPENALEX_ID = {
     "medrxiv": "s4306400573",
     "arxiv": "s4306400194",
     "chemrxiv": "s3005989158",
+    "research_square": "s4306402450",
+    "osf": "s4306401127",
+    "peerj": "s1983995261",
+    "authorea": "s4306402105",
+    "ssrn": "s4210172589",
 }
 
 
