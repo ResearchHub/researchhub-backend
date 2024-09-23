@@ -12,15 +12,15 @@ from utils.parsers import rebuild_sentence_from_inverted_index
 from utils.retryable_requests import retryable_requests_session
 
 SOURCE_TO_OPENALEX_ID = {
-    "biorxiv": "s4306402567",
-    "medrxiv": "s4306400573",
-    "arxiv": "s4306400194",
-    "chemrxiv": "s3005989158",
-    "research_square": "s4306402450",
-    "osf": "s4306401127",
-    "peerj": "s1983995261",
-    "authorea": "s4306402105",
-    "ssrn": "s4210172589",
+    "BIORXIV": "s4306402567",
+    "MEDRXIV": "s4306400573",
+    "ARXIV": "s4306400194",
+    "CHEMRXIV": "s3005989158",
+    "RESEARCH_SQUARE": "s4306402450",
+    "OSF": "s4306401127",
+    "PEERJ": "s1983995261",
+    "AUTHOREA": "s4306402105",
+    "SSRN": "s4210172589",
 }
 
 
