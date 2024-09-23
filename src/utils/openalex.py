@@ -11,6 +11,18 @@ from utils.aws import download_pdf
 from utils.parsers import rebuild_sentence_from_inverted_index
 from utils.retryable_requests import retryable_requests_session
 
+SOURCE_TO_OPENALEX_ID = {
+    "BIORXIV": "s4306402567",
+    "MEDRXIV": "s4306400573",
+    "ARXIV": "s4306400194",
+    "CHEMRXIV": "s3005989158",
+    "RESEARCH_SQUARE": "s4306402450",
+    "OSF": "s4306401127",
+    "PEERJ": "s1983995261",
+    "AUTHOREA": "s4306402105",
+    "SSRN": "s4210172589",
+}
+
 
 class OpenAlex:
     def __init__(self, timeout=10):
@@ -346,8 +358,9 @@ class OpenAlex:
         next_cursor="*",
         batch_size=100,
         openalex_ids=None,
-        source_id=None,
+        source=None,
         openalex_author_id=None,
+        from_updated_date=None,
     ):
         """
         Fetches works from OpenAlex based on the given criteria.
@@ -359,6 +372,12 @@ class OpenAlex:
         if isinstance(types, list):
             oa_filters.append(f"type:{'|'.join(types)}")
 
+        source_id = None
+        if source:
+            source_id = SOURCE_TO_OPENALEX_ID.get(source)
+            if source_id is None:
+                raise ValueError(f"Invalid source: {source}")
+
         if source_id:
             oa_filters.append(f"primary_location.source.id:{source_id}")
 
@@ -366,6 +385,11 @@ class OpenAlex:
             # Format the date in YYYY-MM-DD format
             formatted_date = since_date.strftime("%Y-%m-%d")
             oa_filters.append(f"from_created_date:{formatted_date}")
+
+        if from_updated_date:
+            # Format the date in YYYY-MM-DD format
+            formatted_date = from_updated_date.strftime("%Y-%m-%d")
+            oa_filters.append(f"from_updated_date:{formatted_date}")
 
         if isinstance(openalex_ids, list):
             oa_filters.append(f"ids.openalex:{'|'.join(openalex_ids)}")

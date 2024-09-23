@@ -1058,9 +1058,31 @@ class PaperFetchLog(models.Model):
     PENDING = "PENDING"
     STATUS_CHOICES = [(SUCCESS, SUCCESS), (FAILED, FAILED), (PENDING, PENDING)]
 
+    JOURNAL_BIORXIV = "BIORXIV"
+    JOURNAL_MEDRXIV = "MEDRXIV"
+    JOURNAL_ARXIV = "ARXIV"
+    JOURNAL_CHEMRXIV = "CHEMRXIV"
+    JOURNAL_RESEARCH_SQUARE = "RESEARCH_SQUARE"
+    JOURNAL_OSF = "OSF"
+    JOURNAL_PEERJ = "PEERJ"
+    JOURNAL_AUTHOREA = "AUTHOREA"
+    JOURNAL_SSRN = "SSRN"
+    JOURNAL_CHOICES = [
+        (JOURNAL_BIORXIV, JOURNAL_BIORXIV),
+        (JOURNAL_MEDRXIV, JOURNAL_MEDRXIV),
+        (JOURNAL_ARXIV, JOURNAL_ARXIV),
+        (JOURNAL_CHEMRXIV, JOURNAL_CHEMRXIV),
+        (JOURNAL_RESEARCH_SQUARE, JOURNAL_RESEARCH_SQUARE),
+        (JOURNAL_OSF, JOURNAL_OSF),
+        (JOURNAL_PEERJ, JOURNAL_PEERJ),
+        (JOURNAL_AUTHOREA, JOURNAL_AUTHOREA),
+        (JOURNAL_SSRN, JOURNAL_SSRN),
+    ]
+
     started_date = models.DateTimeField(auto_now_add=True)
     completed_date = models.DateTimeField(null=True, blank=True)
     fetch_since_date = models.DateTimeField(null=True, blank=True)
+    updated_date = models.DateTimeField(auto_now=True)
 
     source = models.CharField(choices=SOURCE_CHOICES, max_length=255)
     fetch_type = models.CharField(choices=FETCH_TYPE_CHOICES, max_length=255)
@@ -1068,6 +1090,10 @@ class PaperFetchLog(models.Model):
 
     total_papers_processed = models.IntegerField(default=0)
     next_cursor = models.CharField(max_length=255, null=True, blank=True)
+
+    journal = models.CharField(
+        choices=JOURNAL_CHOICES, max_length=255, null=True, blank=True
+    )
 
 
 class Figure(models.Model):

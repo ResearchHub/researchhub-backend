@@ -3,12 +3,12 @@ from django.utils import timezone
 
 from paper.openalex_util import process_openalex_works
 from paper.related_models.paper_model import Paper
-from topic.models import Topic
 from user.related_models.author_model import Author
 from utils.openalex import OpenAlex
+from utils.paper_utils import PaperFetchLog
 
-# To pull papers from bioRxiv use source param:
-# python manage.py load_works_from_openalex --mode backfill --source s4306402567
+# To pull papers from bioRxiv use journal param:
+# python manage.py load_works_from_openalex --mode backfill --journal biorxiv
 
 
 def process_backfill_batch(queryset):
@@ -24,6 +24,99 @@ def process_backfill_batch(queryset):
 
     works, cursor = OA.get_works(openalex_ids=oa_ids)
     process_openalex_works(works)
+
+
+def process_openalex_work(openalex, openalex_id):
+    print("Fetching single work with id: " + openalex_id)
+    work = openalex.get_work(
+        openalex_id=openalex_id,
+    )
+
+    process_openalex_works([work])
+
+
+def process_author_batch(openalex, openalex_author_id, journal):
+    print("Fetching full author works for author: " + openalex_author_id)
+    cursor = "*"
+
+    while cursor:
+        print("Processing cursor " + str(cursor))
+        works, cursor = openalex.get_works(
+            source=journal,
+            types=[
+                "article",
+                "preprint",
+                "review",
+            ],
+            next_cursor=cursor,
+            openalex_author_id=openalex_author_id,
+        )
+
+        process_openalex_works(works)
+
+    if openalex_author_id:
+        print("Finished fetching all works for author: " + openalex_author_id)
+        full_openalex_id = "https://openalex.org/" + openalex_author_id
+        author = Author.objects.get(openalex_ids__contains=[full_openalex_id])
+        author.last_full_fetch_from_openalex = timezone.now()
+        author.save()
+
+
+def process_batch(openalex, journal):
+    cursor = "*"
+    pending_log = PaperFetchLog.objects.filter(
+        source=PaperFetchLog.OPENALEX,
+        status=PaperFetchLog.PENDING,
+        journal=journal,
+    ).exists()
+    if pending_log:
+        print("There are pending logs for this journal")
+        return
+
+    last_failed_log = (
+        PaperFetchLog.objects.filter(
+            source=PaperFetchLog.OPENALEX,
+            status__in=[PaperFetchLog.FAILED],
+            journal=journal,
+        )
+        .order_by("-started_date")
+        .first()
+    )
+    if last_failed_log:
+        # Start from where we left off
+        cursor = last_failed_log.next_cursor
+
+    fetch_log = PaperFetchLog.objects.create(
+        source=PaperFetchLog.OPENALEX,
+        fetch_type=PaperFetchLog.FETCH_NEW,
+        status=PaperFetchLog.PENDING,
+        started_date=timezone.now(),
+        next_cursor=cursor,
+    )
+
+    total_papers_processed = 0
+    while cursor:
+        print("Processing cursor " + str(cursor))
+        works, cursor = openalex.get_works(
+            source=journal,
+            types=[
+                "article",
+                "preprint",
+                "review",
+            ],
+            next_cursor=cursor,
+        )
+
+        process_openalex_works(works)
+
+        total_papers_processed += len(works)
+        fetch_log.total_papers_processed = total_papers_processed
+        fetch_log.next_cursor = cursor
+        fetch_log.save()
+
+    fetch_log.status = PaperFetchLog.SUCCESS
+    fetch_log.finished_date = timezone.now()
+    fetch_log.save()
 
 
 class Command(BaseCommand):
@@ -43,10 +136,10 @@ class Command(BaseCommand):
             help="Paper id to stop at",
         )
         parser.add_argument(
-            "--source",
+            "--journal",
             default=None,
             type=str,
-            help="The paper respository source to pull from",
+            help="The paper respository journal ('biorxiv', 'arxiv', etc.) to pull from",
         )
         parser.add_argument(
             "--openalex_id",
@@ -73,7 +166,7 @@ class Command(BaseCommand):
         openalex_id = kwargs["openalex_id"]
         openalex_author_id = kwargs["openalex_author_id"]
         mode = kwargs["mode"]
-        source = kwargs["source"]
+        journal = kwargs["journal"]
         batch_size = 100
 
         if mode == "backfill":
@@ -104,42 +197,9 @@ class Command(BaseCommand):
         elif mode == "fetch":
             OA = OpenAlex()
 
-            cursor = "*"
-            page = 1
-            openalex_ids = None
-            openalex_types = [
-                "article",
-                "preprint",
-                "review",
-            ]
-
             if openalex_id:
-                print("Fetching single work with id: " + openalex_id)
-                work = OA.get_work(
-                    openalex_id=openalex_id,
-                )
-
-                process_openalex_works([work])
-                return
+                process_openalex_work(OA, openalex_id)
             elif openalex_author_id:
-                print("Fetching full author works for author: " + openalex_author_id)
-
-            while cursor:
-                print("Processing page " + str(page))
-                works, cursor = OA.get_works(
-                    source_id=source,
-                    types=openalex_types,
-                    next_cursor=cursor,
-                    openalex_ids=openalex_ids,
-                    openalex_author_id=openalex_author_id,
-                )
-
-                process_openalex_works(works)
-                page += 1
-
-            if openalex_author_id:
-                print("Finished fetching all works for author: " + openalex_author_id)
-                full_openalex_id = "https://openalex.org/" + openalex_author_id
-                author = Author.objects.get(openalex_ids__contains=[full_openalex_id])
-                author.last_full_fetch_from_openalex = timezone.now()
-                author.save()
+                process_author_batch(OA, openalex_author_id, journal)
+            else:
+                process_batch(OA, journal)
