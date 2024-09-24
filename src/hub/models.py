@@ -41,7 +41,7 @@ class Hub(models.Model):
 
     UNLOCK_AFTER = 14
 
-    name = models.CharField(max_length=1024, unique=True)
+    name = models.CharField(max_length=1024, unique=False)
     description = models.TextField(default="")
     hub_image = models.FileField(
         max_length=1024,
@@ -95,6 +95,13 @@ class Hub(models.Model):
     is_used_for_rep = models.BooleanField(default=False)
 
     namespace = models.TextField(choices=Namespace.choices, null=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["name", "namespace"], name="unique_name_namespace"
+            )
+        ]
 
     def __str__(self):
         return "{}:{}, locked: {}".format(self.namespace, self.name, self.is_locked)
