@@ -47,6 +47,9 @@ class HubDocument(BaseDocument):
             "discussion_count",
         ]
 
+    def get_queryset(self):
+        return super().get_queryset().exclude(namespace="journal")
+
     # Used specifically for "autocomplete" style suggest feature
     def prepare_name_suggest(self, instance):
         cleaned_name = re.sub(r"[^\w\s]", "", instance.name)
