@@ -36,74 +36,14 @@ from paper.utils import (
     merge_paper_bulletpoints,
     merge_paper_threads,
     merge_paper_votes,
-    reset_paper_cache,
 )
-from researchhub.celery import (
-    QUEUE_CACHES,
-    QUEUE_CERMINE,
-    QUEUE_PAPER_MISC,
-    QUEUE_PULL_PAPERS,
-    app,
-)
+from researchhub.celery import QUEUE_CERMINE, QUEUE_PAPER_MISC, QUEUE_PULL_PAPERS, app
 from researchhub.settings import APP_ENV, PRODUCTION, TESTING
 from utils import sentry
 from utils.http import check_url_contains_pdf
 from utils.openalex import OpenAlex
 
 logger = get_task_logger(__name__)
-
-
-@app.task(queue=QUEUE_CACHES)
-def celery_paper_reset_cache(paper_id):
-    from paper.serializers import DynamicPaperSerializer
-    from paper.views.paper_views import PaperViewSet
-
-    context = PaperViewSet()._get_paper_context()
-
-    Paper = apps.get_model("paper.Paper")
-    paper = Paper.objects.get(id=paper_id)
-    serializer = DynamicPaperSerializer(
-        paper,
-        context=context,
-        _include_fields=[
-            "abstract_src_markdown",
-            "abstract_src_type",
-            "abstract_src",
-            "abstract",
-            "authors",
-            "boost_amount",
-            "bounties",
-            "created_date",
-            "discussion_count",
-            "doi",
-            "external_source",
-            "file",
-            "first_preview",
-            "hubs",
-            "id",
-            "is_open_access",
-            "oa_status",
-            "paper_publish_date",
-            "paper_title",
-            "pdf_file_extract",
-            "pdf_license",
-            "pdf_url",
-            "raw_authors",
-            "score",
-            "slug",
-            "title",
-            "unified_document",
-            "uploaded_by",
-            "uploaded_date",
-            "uploaded_date",
-            "url",
-        ],
-    )
-    data = serializer.data
-
-    cache_key = get_cache_key("paper", paper_id)
-    reset_paper_cache(cache_key, data)
-    return data
 
 
 @app.task(queue=QUEUE_PAPER_MISC)
@@ -148,8 +88,6 @@ def download_pdf(paper_id, retry=0):
             paper.file.save(filename, pdf)
             paper.save(update_fields=["file"])
             paper.extract_pdf_preview(use_celery=True)
-            # Commenting out paper cache
-            # paper.reset_cache(use_celery=False)
             paper.set_paper_completeness()
             paper.compress_and_linearize_file()
             celery_extract_pdf_sections.apply_async(
