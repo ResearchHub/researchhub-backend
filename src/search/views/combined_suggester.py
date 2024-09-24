@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from search.documents.hub import HubDocument
+from search.documents.journal import JournalDocument
 from search.documents.paper import PaperDocument
 from search.documents.post import PostDocument
 from search.documents.user import UserDocument
@@ -31,6 +32,10 @@ class CombinedSuggestView(APIView):
             },
             {
                 "document": HubDocument,
+                "suggester_field": "name_suggest",
+            },
+            {
+                "document": JournalDocument,
                 "suggester_field": "name_suggest",
             },
         ]

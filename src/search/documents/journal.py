@@ -25,7 +25,7 @@ edge_ngram_analyzer = analyzer(
 
 
 @registry.register_document
-class HubDocument(BaseDocument):
+class JournalDocument(BaseDocument):
     auto_refresh = True
     queryset_pagination = 250
     description = es_fields.TextField(attr="description", analyzer=content_analyzer)
@@ -36,7 +36,7 @@ class HubDocument(BaseDocument):
     )
 
     class Index:
-        name = "hub"
+        name = "journal"
 
     class Django:
         model = Hub
@@ -48,7 +48,7 @@ class HubDocument(BaseDocument):
         ]
 
     def get_queryset(self):
-        return super().get_queryset().exclude(namespace="journal")
+        return super().get_queryset().filter(namespace="journal")
 
     # Used specifically for "autocomplete" style suggest feature
     def prepare_name_suggest(self, instance):
