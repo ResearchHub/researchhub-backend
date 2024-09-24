@@ -27,7 +27,6 @@ from paper.openalex_util import process_openalex_works
 from paper.utils import (
     check_crossref_title,
     check_pdf_title,
-    fitz_extract_figures,
     get_cache_key,
     get_crossref_results,
     get_csl_item,
@@ -126,70 +125,6 @@ def download_pdf(paper_id, retry=0):
         return
 
     return False
-
-
-@app.task(queue=QUEUE_PAPER_MISC)
-def celery_extract_figures(paper_id):
-    if paper_id is None:
-        return
-
-    Paper = apps.get_model("paper.Paper")
-    Figure = apps.get_model("paper.Figure")
-    paper = Paper.objects.get(id=paper_id)
-
-    file = paper.file
-    if not file:
-        return
-
-    path = f"/tmp/figures/{paper_id}/"
-    filename = f"{paper.id}.pdf"
-    file_path = f"{path}{filename}"
-    file_url = file.url
-
-    if not os.path.isdir(path):
-        os.mkdir(path)
-
-    try:
-        res = requests.get(file_url)
-        with open(file_path, "wb+") as f:
-            f.write(res.content)
-
-        fitz_extract_figures(file_path)
-
-        figures = os.listdir(path)
-        if len(figures) == 1:  # Only the pdf exists
-            args = [
-                "java",
-                "-jar",
-                "pdffigures2-assembly-0.1.0.jar",
-                file_path,
-                "-m",
-                path,
-                "-d",
-                path,
-                "-e",
-            ]
-            call_res = run(args, stdout=PIPE, stderr=PIPE)
-            figures = os.listdir(path)
-
-        for extracted_figure in figures:
-            extracted_figure_path = f"{path}{extracted_figure}"
-            if ".png" in extracted_figure:
-                with open(extracted_figure_path, "rb") as f:
-                    extracted_figures = Figure.objects.filter(paper=paper)
-                    if not extracted_figures.filter(
-                        file__contains=f.name, figure_type=Figure.FIGURE
-                    ):
-                        Figure.objects.create(
-                            file=File(f), paper=paper, figure_type=Figure.FIGURE
-                        )
-    except Exception as e:
-        message = call_res.stdout.decode("utf8")
-        sentry.log_error(e, message=message)
-    finally:
-        shutil.rmtree(path)
-        cache_key = get_cache_key("figure", paper_id)
-        cache.delete(cache_key)
 
 
 @app.task(queue=QUEUE_PAPER_MISC)

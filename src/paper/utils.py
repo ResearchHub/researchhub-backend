@@ -400,65 +400,6 @@ def get_redirect_url(url):
     return None
 
 
-def fitz_extract_xobj(file_path):
-    src = fitz.open(file_path)  # open input
-    doc = fitz.open()  # output file
-    xobj_total = 0  # counts total number of extracted xobjects
-    xrefs_encountered = []  # stores already extracted XObjects
-    for pno in range(len(src)):
-        xobj_count = 0  # counts extracted objects per page
-        xobj_list = src.getPageXObjectList(pno)  # get list of XObjects
-        for xobj in xobj_list:  # loop through them
-            if xobj[2] != 0:  # if not occurring directly on the page
-                continue  # skip
-            bbox = fitz.Rect(xobj[-1])  # bbox of XObject on input page
-            if bbox.isInfinite:  # no associated valid bbox?
-                continue  # skip
-            if xobj[0] in xrefs_encountered:  # already extracted?
-                continue  # skip
-            xrefs_encountered.append(xobj[0])
-            # ----------------------------------------------------------------------
-            # We want this XObject, so:
-            # (1) copy its page to the output PDF (enforcing zero rotation)
-            # (2) from that page remove everything except the XObject
-            # (3) modify page size to match the XObject bbox
-            # ----------------------------------------------------------------------
-            doc.insertPDF(src, from_page=pno, to_page=pno, rotate=0)
-            ref_name = xobj[1]  # the symbolic name
-            ref_cmd = (f"/{ref_name} Do").encode()  # build invocation command
-            page = doc[-1]  # page just inserted
-            page.setMediaBox(bbox)  # set its page size to XObject bbox
-            page.cleanContents()  # consolidate contents of copied page
-            xref = page.getContents()[0]  # and read resulting singular xref
-            doc.updateStream(xref, ref_cmd)  # replace it by our one-line cmd
-            xobj_count += 1  # increase counter
-
-        xobj_total += xobj_count  # increase total xobject count
-
-    if xobj_total > 0:
-        for page in doc:
-            pix = page.getPixmap(alpha=False)
-            pix.writePNG(f"{file_path}-{page.number}.png")
-    else:
-        print(f"No XObjects detected in {file_path}, no output generated.")
-
-
-def fitz_extract_figures(file_path):
-    doc = fitz.open(file_path)
-    for i in range(len(doc)):
-        for img in doc.getPageImageList(i):
-            xref = img[0]  # check if this xref was handled already?
-            pix = fitz.Pixmap(doc, xref)
-            if pix.colorspace is None:
-                continue
-            else:  # CMYK needs to be converted to RGB first
-                pix1 = fitz.Pixmap(fitz.csRGB, pix)  # make RGB pixmap copy
-                pix1.writePNG(f"{file_path}-p{i}-{xref}.png")
-                pix1 = None  # release storage early (optional)
-            pix = None  # release storage early (optional)
-    fitz_extract_xobj(file_path)
-
-
 def clean_pdf(file):
     researchgate_1 = "ResearchGate"
     researchgate_2 = "Some of the authors of this publication are also working on these related projects"

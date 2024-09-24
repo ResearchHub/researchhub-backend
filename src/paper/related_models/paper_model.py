@@ -22,11 +22,7 @@ from discussion.reaction_models import AbstractGenericReactionModel, Vote
 from hub.serializers import DynamicHubSerializer
 from paper.lib import journal_hosts
 from paper.related_models.citation_model import Citation
-from paper.tasks import (
-    celery_extract_figures,
-    celery_extract_meta_data,
-    celery_extract_pdf_preview,
-)
+from paper.tasks import celery_extract_meta_data, celery_extract_pdf_preview
 from paper.utils import (
     get_csl_item,
     paper_piecewise_log,
@@ -725,21 +721,6 @@ class Paper(AbstractGenericReactionModel):
             )
         )["discussion_count"]
         return thread_count + comment_count + reply_count
-
-    def extract_figures(self, use_celery=True):
-        # TODO: Make figure more consistent - temporarily removing figures
-        return
-        if TESTING:
-            return
-
-        if use_celery:
-            celery_extract_figures.apply_async(
-                (self.id,),
-                priority=3,
-                countdown=10,
-            )
-        else:
-            celery_extract_figures(self.id)
 
     def extract_pdf_preview(self, use_celery=True):
         if TESTING:
