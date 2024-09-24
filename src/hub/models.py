@@ -1,6 +1,7 @@
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models import Q, Sum
+from django.utils.translation import gettext_lazy as _
 from slugify import slugify
 
 from researchhub_access_group.constants import EDITOR
@@ -30,9 +31,17 @@ class HubCategory(models.Model):
 class Hub(models.Model):
     """A grouping of papers, organized by subject"""
 
+    class Namespace(models.TextChoices):
+        """
+        Since hubs are used like tags, the namespace is used to differentiate
+        between different types of hubs.
+        """
+
+        JOURNAL = "journal", _("Journal")
+
     UNLOCK_AFTER = 14
 
-    name = models.CharField(max_length=1024, unique=True)
+    name = models.CharField(max_length=1024, unique=False)
     description = models.TextField(default="")
     hub_image = models.FileField(
         max_length=1024,
@@ -85,8 +94,17 @@ class Hub(models.Model):
 
     is_used_for_rep = models.BooleanField(default=False)
 
+    namespace = models.TextField(choices=Namespace.choices, null=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["name", "namespace"], name="unique_name_namespace"
+            )
+        ]
+
     def __str__(self):
-        return "{}, locked: {}".format(self.name, self.is_locked)
+        return "{}:{}, locked: {}".format(self.namespace, self.name, self.is_locked)
 
     def save(self, *args, **kwargs):
         self.name = self.name.lower()
