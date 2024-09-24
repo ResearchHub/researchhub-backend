@@ -1,11 +1,11 @@
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
+from paper.models import PaperFetchLog
 from paper.openalex_util import process_openalex_works
 from paper.related_models.paper_model import Paper
 from user.related_models.author_model import Author
 from utils.openalex import OpenAlex
-from utils.paper_utils import PaperFetchLog
 
 # To pull papers from bioRxiv use journal param:
 # python manage.py load_works_from_openalex --mode backfill --journal biorxiv
