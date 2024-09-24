@@ -13,6 +13,7 @@ from search.views import (
     ThreadDocumentView,
     UserSuggesterDocumentView,
 )
+from search.views.journal import JournalDocumentView
 from search.views.journal_suggester import JournalSuggesterDocumentView
 
 router = DefaultRouter()
@@ -21,6 +22,7 @@ paper = router.register(r"paper", PaperDocumentView, basename="paper_document")
 post = router.register(r"post", PostDocumentView, basename="post_document")
 thread = router.register(r"thread", ThreadDocumentView, basename="thread_document")
 hub = router.register(r"hub", HubDocumentView, basename="hub_document")
+journal = router.register(r"journal", JournalDocumentView, basename="journal_document")
 user = router.register(r"user", UserSuggesterDocumentView, basename="user_document")
 citation = router.register(
     r"citation", CitationEntryDocumentView, basename="citation_document"
@@ -29,7 +31,7 @@ hub_suggester = router.register(
     r"hubs", HubSuggesterDocumentView, basename="hubs_document"
 )
 journal_suggester = router.register(
-    r"journals", JournalSuggesterDocumentView, basename="journal_document"
+    r"journals", JournalSuggesterDocumentView, basename="journal_suggester_document"
 )
 
 urlpatterns = [
