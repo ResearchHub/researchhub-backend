@@ -28,7 +28,7 @@ We believe that by empowering scientists to independently fund, create, and publ
 
 # Installation
 
-There are three different methods for running this project: [Dev Containers with VSCode](#dev-containers-and-vscode), [Docker Compose](#quick-install-using-docker-not-recommended-for-development) and [a native installation](#native-install-slower-recommended-for-development).
+There are two different methods for running this project: [Dev Containers with VSCode](#dev-containers-and-vscode) and [a native installation](#native-install-slower-recommended-for-development).
 
 ## Dev Containers and VSCode
 
@@ -90,26 +90,6 @@ Alternatively, debugging of the application is possible with the following launc
   ]
 }
 ```
-
-## Quick install using Docker (Not recommended for development)
-
-1. Download or clone this repository.
-2. Copy local config files. From inside the dir root, run
-
-```
-cp db_config.sample.py src/config_local/db.py
-cp keys.sample.py src/config_local/keys.py
-```
-
-3. Run:
-
-```
-docker build --tag researchhub-backend .
-docker-compose up
-```
-
-The backend will now run at localhost:8000  
-4. Setup and run the [web app](https://github.com/ResearchHub/researchhub-web) at localhost:3000
 
 ## Native install (Slower, recommended for development)
 
