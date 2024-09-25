@@ -644,71 +644,66 @@ def celery_create_paper(self, celery_data):
 
 @app.task(queue=QUEUE_PAPER_METADATA)
 def create_paper_related_tags(paper, openalex_concepts=[], openalex_topics=[]):
-    from django.db import transaction
+    # Process topics
+    sorted_topics = sorted(openalex_topics, key=lambda x: x["score"], reverse=True)
+    topic_ids = []
+    topic_relevancy = {}
 
-    with transaction.atomic():
-        # Process topics
-        sorted_topics = sorted(openalex_topics, key=lambda x: x["score"], reverse=True)
-        topic_ids = []
-        topic_relevancy = {}
+    for index, openalex_topic in enumerate(sorted_topics):
+        try:
+            topic = Topic.upsert_from_openalex(openalex_topic)
+            topic_ids.append(topic.id)
+            topic_relevancy[topic.id] = {
+                "relevancy_score": openalex_topic["score"],
+                "is_primary": index == 0,
+            }
 
-        for index, openalex_topic in enumerate(sorted_topics):
-            try:
-                topic = Topic.upsert_from_openalex(openalex_topic)
-                topic_ids.append(topic.id)
-                topic_relevancy[topic.id] = {
-                    "relevancy_score": openalex_topic["score"],
-                    "is_primary": index == 0,
-                }
+            # Add subfield hub
+            subfield_hub = Hub.get_from_subfield(topic.subfield)
+            paper.unified_document.hubs.add(subfield_hub)
+        except Exception as e:
+            sentry.log_error(e, message=f"Failed to process topic for paper {paper.id}")
 
-                # Add subfield hub
-                subfield_hub = Hub.get_from_subfield(topic.subfield)
-                paper.unified_document.hubs.add(subfield_hub)
-            except Exception as e:
-                sentry.log_error(
-                    e, message=f"Failed to process topic for paper {paper.id}"
-                )
+    # Bulk create/update UnifiedDocumentTopics
+    UnifiedDocumentTopics.objects.bulk_create(
+        [
+            UnifiedDocumentTopics(
+                unified_document=paper.unified_document,
+                topic_id=topic_id,
+                relevancy_score=topic_relevancy[topic_id]["relevancy_score"],
+                is_primary=topic_relevancy[topic_id]["is_primary"],
+            )
+            for topic_id in topic_ids
+        ],
+        ignore_conflicts=True,
+    )
 
-        # Bulk create/update UnifiedDocumentTopics
-        UnifiedDocumentTopics.objects.bulk_create(
-            [
-                UnifiedDocumentTopics(
-                    unified_document=paper.unified_document,
-                    topic_id=topic_id,
-                    relevancy_score=topic_relevancy[topic_id]["relevancy_score"],
-                    is_primary=topic_relevancy[topic_id]["is_primary"],
-                )
-                for topic_id in topic_ids
-            ],
-            ignore_conflicts=True,
-        )
+    # Process concepts
+    for openalex_concept in openalex_concepts:
+        try:
+            concept = Concept.upsert_from_openalex(openalex_concept)
+            paper.unified_document.concepts.add(
+                concept,
+                through_defaults={
+                    "relevancy_score": openalex_concept["score"],
+                    "level": openalex_concept["level"],
+                },
+            )
+        except Exception as e:
+            sentry.log_error(
+                e, message=f"Failed to process concept for paper {paper.id}"
+            )
 
-        # Process concepts
-        for openalex_concept in openalex_concepts:
-            try:
-                concept = Concept.upsert_from_openalex(openalex_concept)
-                paper.unified_document.concepts.add(
-                    concept,
-                    through_defaults={
-                        "relevancy_score": openalex_concept["score"],
-                        "level": openalex_concept["level"],
-                    },
-                )
-            except Exception as e:
-                sentry.log_error(
-                    e, message=f"Failed to process concept for paper {paper.id}"
-                )
+    # Bulk add concept hubs
+    concept_ids = paper.unified_document.concepts.values_list("id", flat=True)
+    concept_hubs = Hub.objects.filter(concept__id__in=concept_ids)
+    paper.unified_document.hubs.add(*concept_hubs)
 
-        # Bulk add concept hubs
-        concept_ids = paper.unified_document.concepts.values_list("id", flat=True)
-        concept_hubs = Hub.objects.filter(concept__id__in=concept_ids)
-        paper.unified_document.hubs.add(*concept_hubs)
-
-        # Add to bioRxiv hub if applicable
-        if paper.external_source and "bioRxiv" in paper.external_source:
-            biorxiv_hub_id = 436
-            if Hub.objects.filter(id=biorxiv_hub_id).exists():
-                paper.unified_document.hubs.add(biorxiv_hub_id)
+    # Add to bioRxiv hub if applicable
+    if paper.external_source and "bioRxiv" in paper.external_source:
+        biorxiv_hub_id = 436
+        if Hub.objects.filter(id=biorxiv_hub_id).exists():
+            paper.unified_document.hubs.add(biorxiv_hub_id)
 
     # Sync hubs to paper (if needed)
     paper.hubs.set(paper.unified_document.hubs.all())

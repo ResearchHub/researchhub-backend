@@ -481,80 +481,75 @@ def merge_openalex_author_with_researchhub_author(openalex_author, researchhub_a
     """
     Merges the OpenAlex author data with the ResearchHub author data. This is necessary because the OpenAlex author data
     """
-    with transaction.atomic():
-        # Update basic metadata fields
-        researchhub_author.i10_index = openalex_author.get("summary_stats", {}).get(
-            "i10_index"
-        )
-        researchhub_author.h_index = openalex_author.get("summary_stats", {}).get(
-            "h_index"
-        )
-        researchhub_author.two_year_mean_citedness = openalex_author.get(
-            "summary_stats", {}
-        ).get("2yr_mean_citedness")
-        researchhub_author.orcid_id = openalex_author.get("orcid")
+    # Update basic metadata fields
+    researchhub_author.i10_index = openalex_author.get("summary_stats", {}).get(
+        "i10_index"
+    )
+    researchhub_author.h_index = openalex_author.get("summary_stats", {}).get("h_index")
+    researchhub_author.two_year_mean_citedness = openalex_author.get(
+        "summary_stats", {}
+    ).get("2yr_mean_citedness")
+    researchhub_author.orcid_id = openalex_author.get("orcid")
 
-        # Associate this openalex id with the author
-        if openalex_author["id"] not in researchhub_author.openalex_ids:
-            researchhub_author.openalex_ids.append(openalex_author["id"])
+    # Associate this openalex id with the author
+    if openalex_author["id"] not in researchhub_author.openalex_ids:
+        researchhub_author.openalex_ids.append(openalex_author["id"])
 
-        researchhub_author.save()
+    researchhub_author.save()
 
-        # Prepare data for bulk operations
-        contribution_summaries = []
-        author_institutions = []
+    # Prepare data for bulk operations
+    contribution_summaries = []
+    author_institutions = []
 
-        # Process activity by year
-        activity_by_year = openalex_author.get("counts_by_year", [])
-        for activity in activity_by_year:
-            contribution_summaries.append(
-                AuthorContributionSummary(
-                    source=AuthorContributionSummary.SOURCE_OPENALEX,
-                    author=researchhub_author,
-                    year=activity.get("year"),
-                    works_count=activity.get("works_count"),
-                    citation_count=activity.get("cited_by_count"),
-                )
+    # Process activity by year
+    activity_by_year = openalex_author.get("counts_by_year", [])
+    for activity in activity_by_year:
+        contribution_summaries.append(
+            AuthorContributionSummary(
+                source=AuthorContributionSummary.SOURCE_OPENALEX,
+                author=researchhub_author,
+                year=activity.get("year"),
+                works_count=activity.get("works_count"),
+                citation_count=activity.get("cited_by_count"),
             )
+        )
 
-        # Process affiliations
-        affiliations = openalex_author.get("affiliations", [])
-        institution_ids = [
-            aff.get("institution", {}).get("id")
-            for aff in affiliations
-            if aff.get("institution")
-        ]
-        existing_institutions = {
-            inst.openalex_id: inst
-            for inst in Institution.objects.filter(openalex_id__in=institution_ids)
-        }
+    # Process affiliations
+    affiliations = openalex_author.get("affiliations", [])
+    institution_ids = [
+        aff.get("institution", {}).get("id")
+        for aff in affiliations
+        if aff.get("institution")
+    ]
+    existing_institutions = {
+        inst.openalex_id: inst
+        for inst in Institution.objects.filter(openalex_id__in=institution_ids)
+    }
 
-        for affiliation in affiliations:
-            oa_institution = affiliation.get("institution")
-            if not oa_institution:
-                continue
+    for affiliation in affiliations:
+        oa_institution = affiliation.get("institution")
+        if not oa_institution:
+            continue
 
-            institution = existing_institutions.get(oa_institution["id"])
-            if not institution:
-                continue
+        institution = existing_institutions.get(oa_institution["id"])
+        if not institution:
+            continue
 
-            author_institutions.append(
-                AuthorInstitution(
-                    author=researchhub_author,
-                    institution=institution,
-                    years=affiliation.get("years", []),
-                )
+        author_institutions.append(
+            AuthorInstitution(
+                author=researchhub_author,
+                institution=institution,
+                years=affiliation.get("years", []),
             )
+        )
 
-        # Perform bulk operations
-        AuthorContributionSummary.objects.bulk_create(
-            contribution_summaries,
-            update_conflicts=True,
-            unique_fields=["source", "author", "year"],
-            update_fields=["works_count", "citation_count"],
-        )
-        AuthorInstitution.objects.bulk_create(
-            author_institutions, ignore_conflicts=True
-        )
+    # Perform bulk operations
+    AuthorContributionSummary.objects.bulk_create(
+        contribution_summaries,
+        update_conflicts=True,
+        unique_fields=["source", "author", "year"],
+        update_fields=["works_count", "citation_count"],
+    )
+    AuthorInstitution.objects.bulk_create(author_institutions, ignore_conflicts=True)
 
     return researchhub_author
