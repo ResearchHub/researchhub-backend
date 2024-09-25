@@ -198,7 +198,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             )
         }
         context["rep_dbs_get_unified_document"] = {
-            "_include_fields": ("documents", "id", "document_type")
+            "_include_fields": ("documents", "id", "document_type", "hubs")
         }
         context["doc_duds_get_created_by"] = {"_include_fields": ("author_profile",)}
         context["doc_duds_get_documents"] = {
@@ -211,7 +211,10 @@ class BountyViewSet(viewsets.ModelViewSet):
         }
         context["dis_dts_get_created_by"] = {"_include_fields": ("author_profile",)}
         context["dis_dts_get_unified_document"] = {
-            "_include_fields": ("documents", "document_type")
+            "_include_fields": (
+                "documents",
+                "document_type",
+            )
         }
         context["rhc_dcs_get_created_by"] = {"_include_fields": ("author_profile",)}
         return context
@@ -462,10 +465,12 @@ class BountyViewSet(viewsets.ModelViewSet):
                 "content_type",
                 "id",
                 "item",
+                "hubs",
                 "expiration_date",
                 "status",
                 "total_amount",
                 "unified_document",
+                "bounty_type",
             ),
         )
 
