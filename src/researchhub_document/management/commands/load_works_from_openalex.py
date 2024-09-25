@@ -92,6 +92,7 @@ def process_batch(openalex, journal):
         status=PaperFetchLog.PENDING,
         started_date=timezone.now(),
         next_cursor=cursor,
+        journal=journal,
     )
 
     total_papers_processed = 0
