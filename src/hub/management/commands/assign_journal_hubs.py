@@ -41,5 +41,8 @@ class Command(BaseCommand):
             journal_hub = source_to_journalhub[paper.external_source]
             if not paper.hubs.filter(id=journal_hub.id).exists():
                 paper.hubs.add(journal_hub)
-                paper.unified_document.hubs.add(journal_hub)
-                print(f"Added paper {paper.id} to hub {journal_hub.name}")
+                if paper.unified_document:
+                    paper.unified_document.hubs.add(journal_hub)
+                print(
+                    f"Added paper {paper.id} (doc {paper.unified_document.id if paper.unified_document else 'none'}) to hub {journal_hub.name}"
+                )
