@@ -6,7 +6,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("paper", "0133_paperfetchlog_next_cursor"),
+        ("paper", "0134_paperfetchlog_journal_paperfetchlog_updated_date"),
     ]
 
     operations = [
