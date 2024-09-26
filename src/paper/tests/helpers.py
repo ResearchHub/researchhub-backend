@@ -1,6 +1,6 @@
 from django.core.files.uploadedfile import SimpleUploadedFile
 
-from paper.models import Flag, Paper, Vote
+from paper.models import Flag, Paper
 from researchhub_document.related_models.constants.document_type import (
     PAPER as PAPER_DOC_TYPE,
 )
