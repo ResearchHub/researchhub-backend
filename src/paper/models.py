@@ -11,7 +11,6 @@ from paper.related_models.paper_model import (
     HOT_SCORE_WEIGHT,
     AdditionalFile,
     Figure,
-    Flag,
     Paper,
     PaperFetchLog,
 )

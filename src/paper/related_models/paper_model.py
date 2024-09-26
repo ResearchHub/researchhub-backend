@@ -1042,32 +1042,6 @@ class Figure(models.Model):
     )
 
 
-# TODO: calvinhlee - remove this model once migration is confirmed to be good.
-class Flag(models.Model):
-    paper = models.ForeignKey(
-        Paper,
-        on_delete=models.CASCADE,
-        related_name="flags_legacy",
-        related_query_name="flag_legacy",
-    )
-    created_by = models.ForeignKey(
-        "user.User",
-        on_delete=models.CASCADE,
-        related_name="paper_flags",
-        related_query_name="paper_flag",
-    )
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)
-    reason = models.CharField(max_length=255, blank=True)
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["paper", "created_by"], name="unique_paper_flag"
-            )
-        ]
-
-
 class AdditionalFile(models.Model):
     file = models.FileField(
         max_length=1024,
