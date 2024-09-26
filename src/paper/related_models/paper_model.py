@@ -1036,29 +1036,3 @@ class Figure(models.Model):
         null=True,
         blank=True,
     )
-
-
-class AdditionalFile(models.Model):
-    file = models.FileField(
-        max_length=1024,
-        upload_to="uploads/paper_additional_files/%Y/%m/%d",
-        default=None,
-        null=True,
-        blank=True,
-    )
-    paper = models.ForeignKey(
-        Paper,
-        on_delete=models.CASCADE,
-        related_name="additional_files",
-        related_query_name="additional_file",
-    )
-    created_by = models.ForeignKey(
-        "user.User",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="paper_additional_files",
-        related_query_name="paper_additional_file",
-    )
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)
