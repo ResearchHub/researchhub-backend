@@ -27,10 +27,6 @@ from paper.utils import (
     get_csl_item,
     paper_piecewise_log,
     parse_author_name,
-    populate_metadata_from_crossref,
-    populate_metadata_from_manubot_pdf_url,
-    populate_metadata_from_manubot_url,
-    populate_metadata_from_pdf,
     populate_pdf_url_from_journal_url,
 )
 from purchase.models import Purchase
@@ -44,7 +40,7 @@ from researchhub_document.related_models.constants.editor_type import (
     TEXT_FIELD,
 )
 from utils.aws import lambda_compress_and_linearize_pdf
-from utils.http import check_url_contains_pdf, scraper_get_url
+from utils.http import scraper_get_url
 
 DOI_IDENTIFIER = "10."
 ARXIV_IDENTIFIER = "arXiv:"
