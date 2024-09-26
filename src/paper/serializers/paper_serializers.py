@@ -75,7 +75,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
     hubs = SimpleHubSerializer(many=True, required=False)
     promoted = serializers.SerializerMethodField()
     score = serializers.ReadOnlyField()  # GRM
-    summary = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
     unified_document_id = serializers.SerializerMethodField()
     uploaded_by = UserSerializer(read_only=True)
@@ -173,14 +172,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
         return serializer.data
 
     def get_bullet_points(self, paper):
-        return None
-
-    def get_summary(self, paper):
-        # return SummarySerializer(
-        #     paper.summary,
-        #     required=False,
-        #     context=self.context
-        # ).data
         return None
 
     def get_csl_item(self, paper):
