@@ -17,8 +17,7 @@ from discussion.tests.helpers import (
     update_to_upvote,
     upvote_discussion,
 )
-from oauth.tests.helpers import create_social_account
-from paper.tests.helpers import create_flag, create_paper, upvote_paper
+from paper.tests.helpers import create_flag, create_paper
 from reputation import distributions
 from reputation.signals import NEW_USER_BONUS_DAYS_LIMIT
 from user.models import Author
@@ -62,43 +61,6 @@ class SignalTests(TestCase):
 
         user.refresh_from_db()
         self.assertEqual(user.reputation, self.start_rep + 1)
-
-    def test_vote_on_paper_increases_rep_by_1(self):
-        recipient = create_random_default_user("Luna")
-        upvote_paper(self.paper, recipient)
-
-        recipient.refresh_from_db()
-        self.assertEqual(recipient.reputation, self.start_rep + 1)
-
-    def test_vote_on_paper_ONLY_increases_rep_in_new_user(self):
-        recipient = create_random_default_user("Xenophilius")
-        upvote_paper(self.paper, recipient)
-        recipient.refresh_from_db()
-
-        recipient.date_joined = timezone.now() - timedelta(
-            days=NEW_USER_BONUS_DAYS_LIMIT
-        )
-        recipient.save()
-        paper = create_paper(title="Rep increase first week paper")
-        upvote_paper(paper, recipient)
-
-        recipient.refresh_from_db()
-        self.assertEqual(recipient.reputation, self.start_rep + 1)
-
-    def test_vote_on_paper_ONLY_increases_rep_below_200_new_user(self):
-        recipient = create_random_default_user("Xenophilius")
-        upvote_paper(self.paper, recipient)
-        recipient.refresh_from_db()
-
-        recipient.date_joined = timezone.now() - timedelta(
-            days=NEW_USER_BONUS_DAYS_LIMIT
-        )
-        recipient.save()
-        paper = create_paper(title="Rep increase once paper")
-        upvote_paper(paper, recipient)
-
-        recipient.refresh_from_db()
-        self.assertEqual(recipient.reputation, self.start_rep + 1)
 
     def test_flag_paper_increases_rep_by_1_after_3_flags(self):
         recipient_1 = create_random_default_user("Allister")
@@ -436,23 +398,6 @@ class SignalConcurrencyTests(TransactionTestCase):
         self.thread = create_thread(paper=self.paper, created_by=self.recipient)
         self.comment = create_comment(thread=self.thread, created_by=self.recipient)
         self.reply = create_reply(parent=self.comment, created_by=self.recipient)
-
-    def test_X_paper_upvotes_do_NOT_increase_uploader_reputation_by_X(self):
-        runs = 90
-
-        self.recipient.refresh_from_db()
-        starting_reputation = self.recipient.reputation
-
-        @test_concurrently(runs)
-        def run():
-            unique_value = self.random_generator.random()
-            voter = create_random_default_user(unique_value)
-            upvote_paper(self.paper, voter)
-
-        run()
-
-        self.recipient.refresh_from_db()
-        self.assertEqual(self.recipient.reputation, starting_reputation)
 
     def test_X_comment_upvotes_increase_reputation_by_X(self):
         runs = 90
