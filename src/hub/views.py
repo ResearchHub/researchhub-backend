@@ -231,7 +231,7 @@ class HubViewSet(viewsets.ModelViewSet):
         try:
             target_user = User.objects.get(email=request.data.get("editor_email"))
             Permission.objects.create(
-                access_type=EDITOR,
+                access_type=request.data.get("editor_type"),
                 content_type=ContentType.objects.get_for_model(Hub),
                 object_id=request.data.get("selected_hub_id"),
                 user=target_user,
