@@ -1043,42 +1043,6 @@ class Figure(models.Model):
 
 
 # TODO: calvinhlee - remove this model once migration is confirmed to be good.
-class Vote(models.Model):
-    UPVOTE = 1
-    DOWNVOTE = 2
-    VOTE_TYPE_CHOICES = [
-        (UPVOTE, "Upvote"),
-        (DOWNVOTE, "Downvote"),
-    ]
-    paper = models.ForeignKey(
-        Paper,
-        on_delete=models.CASCADE,
-        related_name="votes_legacy",
-        related_query_name="vote_legacy",
-    )
-    created_by = models.ForeignKey(
-        "user.User",
-        on_delete=models.CASCADE,
-        related_name="paper_votes",
-        related_query_name="paper_vote",
-    )
-    created_date = models.DateTimeField(auto_now_add=True, db_index=True)
-    updated_date = models.DateTimeField(auto_now=True, db_index=True)
-    vote_type = models.IntegerField(choices=VOTE_TYPE_CHOICES)
-    is_removed = models.BooleanField(default=False, blank=True, null=True)
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["paper", "created_by"], name="unique_paper_vote"
-            )
-        ]
-
-    def __str__(self):
-        return "{} - {}".format(self.created_by, self.vote_type)
-
-
-# TODO: calvinhlee - remove this model once migration is confirmed to be good.
 class Flag(models.Model):
     paper = models.ForeignKey(
         Paper,

@@ -1,6 +1,6 @@
 from django.core.files.uploadedfile import SimpleUploadedFile
 
-from paper.models import Flag, Paper, Vote
+from paper.models import Flag, Paper
 from researchhub_document.related_models.constants.document_type import (
     PAPER as PAPER_DOC_TYPE,
 )
@@ -50,36 +50,6 @@ def create_paper(
     paper.unified_document = unified_doc
     paper.save()
     return paper
-
-
-def upvote_paper(paper, voter):
-    """Returns vote on `paper` created by `voter` with type upvote."""
-    return create_vote(created_by=voter, paper=paper, vote_type=Vote.UPVOTE)
-
-
-def downvote_paper(paper, voter):
-    """Returns vote on `paper` created by `voter` with type downvote."""
-    return create_vote(created_by=voter, paper=paper, vote_type=Vote.DOWNVOTE)
-
-
-def create_vote(created_by=None, paper=None, vote_type=Vote.UPVOTE):
-    if created_by is None:
-        created_by = create_random_default_user("paper")
-
-    if paper is None:
-        paper = create_paper()
-
-    return Vote.objects.create(created_by=created_by, paper=paper, vote_type=vote_type)
-
-
-def update_to_upvote(vote):
-    vote.vote_type = Vote.UPVOTE
-    vote.save(update_fields=["vote_type"])
-
-
-def update_to_downvote(vote):
-    vote.vote_type = Vote.DOWNVOTE
-    vote.save(update_fields=["vote_type"])
 
 
 def submit_paper_form(user, title="Building a Paper"):
