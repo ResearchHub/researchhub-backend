@@ -4,7 +4,11 @@ from django.db.models import Q, Sum
 from django.utils.translation import gettext_lazy as _
 from slugify import slugify
 
-from researchhub_access_group.constants import EDITOR
+from researchhub_access_group.constants import (
+    ASSISTANT_EDITOR,
+    ASSOCIATE_EDITOR,
+    SENIOR_EDITOR,
+)
 from researchhub_access_group.models import Permission
 
 HELP_TEXT_IS_REMOVED = "Hides the hub because it is not allowed."
@@ -144,7 +148,13 @@ class Hub(models.Model):
         return self.subscribers.filter(is_suspended=False).count()
 
     def get_editor_permission_groups(self):
-        return self.permissions.filter(access_type=EDITOR).all()
+        return self.permissions.filter(
+            (
+                Q(access_type=ASSISTANT_EDITOR)
+                | Q(access_type=ASSOCIATE_EDITOR)
+                | Q(access_type=SENIOR_EDITOR)
+            ),
+        ).all()
 
     # There are a handful of OpenAlex subfields that have duplicate names
     # but different IDs. This method will ensure that a corresponding hub is returned properly

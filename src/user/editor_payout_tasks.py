@@ -62,7 +62,8 @@ def editor_daily_payout_task():
         except Exception as error:
             # NOTE: moralis is a back up. Backup failing should not hard kill payout process.
             sentry.log_info(f"{APP_ENV}-running payout moralis Fail: {error}")
-            pass
+            raise Exception("Could not get payout amount")
+
         result = gecko_result or moralis_result
 
         excluded_user_email = Gatekeeper.objects.filter(
@@ -70,16 +71,7 @@ def editor_daily_payout_task():
         ).values_list("email", flat=True)
 
         editors = (
-            User.objects.filter(
-                (
-                    Q(permissions__access_type=ASSISTANT_EDITOR)
-                    | Q(permissions__access_type=ASSOCIATE_EDITOR)
-                    | Q(permissions__access_type=SENIOR_EDITOR)
-                ),
-                permissions__isnull=False,
-                permissions__content_type=ContentType.objects.get_for_model(Hub),
-            )
-            .distinct()
+            User.objects.editors()
             .exclude(email__in=(excluded_user_email))
             .annotate(editor_type=F("permissions__access_type"))
         )
@@ -114,7 +106,7 @@ def editor_daily_payout_task():
         sentry.log_error(error)
 
 
-def get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month, payout_amount):
+def get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month):
     recent_coin_gecko_rate = RscExchangeRate.objects.filter(
         price_source=COIN_GECKO,
         # greater than "TODAY" 2:50PM PST. Coin gecko prices are recorded every hr.
@@ -152,7 +144,7 @@ def get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month, payout_amou
     }
 
 
-def get_daily_rsc_payout_amount_from_deep_index(num_days_this_month, payout_amount):
+def get_daily_rsc_payout_amount_from_deep_index(num_days_this_month):
     headers = requests.utils.default_headers()
     headers["x-api-key"] = MORALIS_API_KEY
     moralis_request_result = requests.get(MORALIS_LOOKUP_URI, headers=headers)
