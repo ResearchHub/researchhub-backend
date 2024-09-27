@@ -54,7 +54,6 @@ from researchhub_document.related_models.constants.filters import (
     HOT,
     MOST_RSC,
 )
-from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 
@@ -130,12 +129,6 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             ),
             priority=1,
             countdown=10,
-        )
-
-        doc_type = get_doc_type_key(unified_document)
-        reset_unified_document_cache(
-            document_type=[doc_type, "all"],
-            filters=[DISCUSSED, HOT],
         )
 
         return Response(
@@ -277,11 +270,7 @@ class ThreadViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             )
         )
         unified_document = target_thread.unified_document
-        doc_type = get_doc_type_key(unified_document)
-        reset_unified_document_cache(
-            document_type=[doc_type],
-            filters=[EXPIRING_SOON, MOST_RSC],
-        )
+
         return Response({"thread_id": target_thread.id}, status=200)
         # except Exception as exception:
         #     return Response(str(exception), status=400)
@@ -342,12 +331,6 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             countdown=10,
         )
 
-        doc_type = get_doc_type_key(unified_document)
-        reset_unified_document_cache(
-            document_type=[doc_type, "all"],
-            filters=[DISCUSSED, HOT],
-        )
-
         return response
 
     def update(self, request, *args, **kwargs):
@@ -402,12 +385,7 @@ class CommentViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
                 FILTER_BOUNTY_OPEN,
             )
         )
-        unified_document = comment.unified_document
-        doc_type = get_doc_type_key(unified_document)
-        reset_unified_document_cache(
-            document_type=[doc_type],
-            filters=[EXPIRING_SOON, MOST_RSC],
-        )
+
         return Response({"comment_id": comment.id}, status=200)
 
     @action(
@@ -501,12 +479,6 @@ class ReplyViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
             ),
             priority=3,
             countdown=10,
-        )
-
-        doc_type = get_doc_type_key(unified_document)
-        reset_unified_document_cache(
-            document_type=[doc_type, "all"],
-            filters=[DISCUSSED, HOT],
         )
 
         return self.get_self_upvote_response(request, response, Reply)

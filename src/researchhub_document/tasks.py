@@ -54,6 +54,9 @@ def preload_trending_documents(
     filtering,
     time_scope,
 ):
+
+    print("=========================================")
+
     from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
     from researchhub_document.views import ResearchhubUnifiedDocumentViewSet
 

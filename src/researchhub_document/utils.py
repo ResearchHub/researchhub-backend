@@ -115,7 +115,6 @@ def update_unified_document_to_paper(paper):
             rh_unified_doc.hubs.add(*hubs)
             paper.calculate_hot_score()
             rh_unified_doc.save()
-            reset_unified_document_cache(list(hubs.values_list("id", flat=True)))
         except Exception as e:
             print(e)
             log_error(e)

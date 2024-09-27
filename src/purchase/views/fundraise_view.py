@@ -21,7 +21,6 @@ from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.constants.filters import HOT
-from researchhub_document.utils import reset_unified_document_cache
 from user.models import User
 from user.permissions import IsModerator
 from utils.sentry import log_error
@@ -177,11 +176,6 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             )
             fundraise.escrow = escrow
             fundraise.save()
-
-        reset_unified_document_cache(
-            document_type=["preregistration"],
-            filters=[HOT],
-        )
 
         context = self.get_serializer_context()
         serializer = self.get_serializer(fundraise, context=context)
@@ -348,11 +342,6 @@ class FundraiseViewSet(viewsets.ModelViewSet):
                 fundraise.save()
             else:
                 return Response({"message": "Failed to payout funds"}, status=500)
-
-        reset_unified_document_cache(
-            document_type=["preregistration"],
-            filters=[HOT],
-        )
 
         # return updated fundraise object
         context = self.get_serializer_context()

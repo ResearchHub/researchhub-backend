@@ -52,10 +52,7 @@ from researchhub_document.related_models.constants.filters import (
     NEW,
     UPVOTED,
 )
-from researchhub_document.utils import (
-    reset_unified_document_cache,
-    update_unified_document_to_paper,
-)
+from researchhub_document.utils import update_unified_document_to_paper
 from user.models import Author
 from user.serializers import (
     AuthorSerializer,
@@ -481,10 +478,6 @@ class PaperSerializer(BasePaperSerializer):
                     countdown=10,
                 )
 
-                reset_unified_document_cache(
-                    document_type=["paper", "all"],
-                    filters=[NEW],
-                )
                 paper.save()
                 return paper
         except IntegrityError as e:
@@ -560,11 +553,6 @@ class PaperSerializer(BasePaperSerializer):
 
                 if file:
                     self._add_file(paper, file)
-
-                reset_unified_document_cache(
-                    document_type=["paper", "all"],
-                    filters=[NEW, UPVOTED, HOT, DISCUSSED],
-                )
 
                 return paper
         except Exception as e:

@@ -29,7 +29,6 @@ from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_EXPIRED,
     FILTER_BOUNTY_OPEN,
 )
-from researchhub_document.utils import reset_unified_document_cache
 from user.models import User
 from user.related_models.author_model import Author
 from utils.message import send_email_message
@@ -286,10 +285,6 @@ def check_open_bounties():
         if refund_status is False:
             ids = expired_bounties.values_list("id", flat=True)
             log_info(f"Failed to refund bounties: {ids}")
-
-    reset_unified_document_cache(
-        document_type=[ALL.lower(), BOUNTY.lower()],
-    )
 
 
 @app.task

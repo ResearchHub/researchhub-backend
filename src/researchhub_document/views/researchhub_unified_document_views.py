@@ -400,10 +400,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             action.save()
 
         doc_type = get_doc_type_key(doc)
-        reset_unified_document_cache(
-            document_type=[doc_type, "all"],
-            filters=[NEW, UPVOTED, HOT, DISCUSSED, MOST_RSC, EXPIRING_SOON],
-        )
 
         return Response(self.get_serializer(instance=doc).data, status=200)
 
@@ -440,10 +436,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         doc = self.get_object()
         doc_type = get_doc_type_key(doc)
-        reset_unified_document_cache(
-            document_type=[doc_type, "all"],
-            filters=[NEW, UPVOTED, HOT, DISCUSSED],
-        )
 
         return update_response
 
@@ -868,44 +860,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         reset_unified_document_cache(
             document_type=["all", doc_type],
             filters=[UPVOTED, HOT, DISCUSSED],
-        )
-
-        return Response(status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=["post"], permission_classes=[IsModerator])
-    def feature_document(self, request, pk=None):
-        unified_document = self.get_object()
-        doc_type = get_doc_type_key(unified_document)
-        hub_ids = list(unified_document.hubs.values_list("id", flat=True))
-
-        if request.data["feature_in_homepage"] is True:
-            FeaturedContent.objects.get_or_create(
-                unified_document=unified_document, hub_id=None
-            )
-
-        if request.data["feature_in_hubs"] is True:
-            for hub_id in hub_ids:
-                FeaturedContent.objects.get_or_create(
-                    unified_document=unified_document, hub_id=hub_id
-                )
-
-        reset_unified_document_cache(
-            document_type=["all", doc_type],
-            filters=[HOT],
-        )
-
-        return Response(status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=["post"], permission_classes=[IsModerator])
-    def remove_from_featured(self, request, pk=None):
-        unified_document = self.queryset.get(id=pk)
-        doc_type = get_doc_type_key(unified_document)
-
-        FeaturedContent.objects.filter(unified_document=unified_document).delete()
-
-        reset_unified_document_cache(
-            document_type=["all", doc_type],
-            filters=[HOT],
         )
 
         return Response(status=status.HTTP_200_OK)
