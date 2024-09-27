@@ -228,14 +228,22 @@ class User(AbstractUser):
     def is_hub_editor(self):
         hub_content_type = ContentType.objects.get_for_model(Hub)
         return self.permissions.filter(
-            access_type=EDITOR,
+            (
+                Q(permissions__access_type=ASSISTANT_EDITOR)
+                | Q(permissions__access_type=ASSOCIATE_EDITOR)
+                | Q(permissions__access_type=SENIOR_EDITOR)
+            ),
             content_type=hub_content_type,
         ).exists()
 
     def is_hub_editor_of(self, hubs):
         hub_content_type = ContentType.objects.get_for_model(Hub)
         return self.permissions.filter(
-            access_type=EDITOR,
+            (
+                Q(permissions__access_type=ASSISTANT_EDITOR)
+                | Q(permissions__access_type=ASSOCIATE_EDITOR)
+                | Q(permissions__access_type=SENIOR_EDITOR)
+            ),
             content_type=hub_content_type,
             object_id__in=hubs.values_list("id", flat=True),
         ).exists()
