@@ -158,29 +158,17 @@ def update_elastic_registry(post):
 
 
 @app.task(queue=QUEUE_CACHES)
-def reset_primary_hub_caches():
-    primary_hubs = Hub.objects.filter(is_used_for_rep=True)
-    for hub in primary_hubs:
-        preload_trending_documents.apply_async(
-            (
-                ALL.lower(),
-                hub.id,
-                HOT,
-                "today",
-            ),
-            priority=3,
-            countdown=5,
-        )
+def reset_homepage_cache():
+    from researchhub_document.utils import reset_unified_document_cache
 
-    journal_hubs = Hub.objects.filter(namespace="journal")
-    for hub in journal_hubs:
-        preload_trending_documents.apply_async(
-            (
-                ALL.lower(),
-                hub.id,
-                HOT,
-                "today",
-            ),
-            priority=3,
-            countdown=5,
-        )
+    reset_unified_document_cache(
+        document_type=[
+            ALL.lower(),
+            POSTS.lower(),
+            PREREGISTRATION.lower(),
+            PAPER.lower(),
+            QUESTION.lower(),
+        ],
+        filters=[DISCUSSED, HOT, NEW, UPVOTED],
+        date_ranges=["today"],
+    ),

@@ -42,11 +42,11 @@ QUEUE_HUBS = "hubs"
 
 app.conf.beat_schedule = {
     # Unified Documents
-    "reset_primary_hub_caches": {
-        "task": "researchhub_document.tasks.reset_primary_hub_caches",
+    "reset_homepage_cache": {
+        "task": "researchhub_document.tasks.reset_homepage_cache",
         "schedule": crontab(minute=0, hour=1),
         "options": {
-            "priority": 5,
+            "priority": 2,
             "queue": QUEUE_CACHES,
         },
     },
