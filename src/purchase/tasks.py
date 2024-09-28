@@ -6,7 +6,6 @@ from purchase.models import Purchase, Support
 from researchhub.celery import QUEUE_NOTIFICATION, app
 from researchhub.settings import BASE_FRONTEND_URL
 from researchhub_document.models import ResearchhubPost
-from researchhub_document.utils import reset_unified_document_cache
 from utils.message import send_email_message
 
 
@@ -21,7 +20,6 @@ def update_purchases():
         if purchase.content_type == PAPER_CONTENT_TYPE:
             paper = PAPER_CONTENT_TYPE.get_object_for_this_type(id=purchase.object_id)
             paper.calculate_hot_score()
-    reset_unified_document_cache()
 
 
 @app.task(queue=QUEUE_NOTIFICATION)

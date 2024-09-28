@@ -40,8 +40,16 @@ QUEUE_HUBS = "hubs"
 
 # Scheduled tasks
 
-
 app.conf.beat_schedule = {
+    # Unified Documents
+    "reset_homepage_cache": {
+        "task": "researchhub_document.tasks.reset_homepage_cache",
+        "schedule": crontab(minute=0),
+        "options": {
+            "priority": 2,
+            "queue": QUEUE_CACHES,
+        },
+    },
     # Hub
     "hub_calculate-and-set-hub-counts": {
         "task": "hub.tasks.calculate_and_set_hub_counts",
@@ -58,15 +66,6 @@ app.conf.beat_schedule = {
         "options": {
             "priority": 9,
             "queue": QUEUE_NOTIFICATION,
-        },
-    },
-    # Paper
-    "paper_celery-update-hot-scores": {
-        "task": "paper.tasks.celery_update_hot_scores",
-        "schedule": crontab(minute=0, hour=0),
-        "options": {
-            "priority": 5,
-            "queue": QUEUE_HOT_SCORE,
         },
     },
     "paper_log-daily-uploads": {
@@ -141,14 +140,6 @@ app.conf.beat_schedule = {
         "options": {
             "priority": 5,
             "queue": QUEUE_REPUTATION,
-        },
-    },
-    "reputation_send-bounty-hub-notifications": {
-        "task": "reputation.tasks.send_bounty_hub_notifications",
-        "schedule": crontab(hour="0, 6, 12, 18", minute=0),
-        "options": {
-            "priority": 5,
-            "queue": QUEUE_BOUNTIES,
         },
     },
     "reputation_recalc-hot-score-for-open-bounties": {

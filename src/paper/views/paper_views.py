@@ -72,7 +72,6 @@ from researchhub_document.related_models.constants.filters import (
     NEW,
     UPVOTED,
 )
-from researchhub_document.utils import reset_unified_document_cache
 from user.related_models.author_model import Author
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.openalex import OpenAlex
@@ -373,11 +372,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         unified_document.is_removed = True
         unified_document.save()
 
-        reset_unified_document_cache(
-            filters=[HOT, UPVOTED, DISCUSSED, NEW],
-            document_type=["all", "paper"],
-        )
-
         return Response("Paper was deleted.", status=200)
 
     @action(
@@ -430,10 +424,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         paper.is_removed = False
         paper.save()
 
-        reset_unified_document_cache(
-            filters=[HOT, UPVOTED, DISCUSSED, NEW],
-            document_type=["all", "paper"],
-        )
         return Response(self.get_serializer(instance=paper).data, status=200)
 
     @action(

@@ -64,7 +64,7 @@ from researchhub_document.related_models.constants.filters import (
     HOT,
     MOST_RSC,
 )
-from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
+from researchhub_document.utils import get_doc_type_key
 from utils.siftscience import SIFT_COMMENT, sift_track
 from utils.throttles import THROTTLE_CLASSES
 
@@ -333,10 +333,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
 
                 unified_document.update_filter(SORT_DISCUSSED)
                 doc_type = get_doc_type_key(unified_document)
-                reset_unified_document_cache(
-                    document_type=[doc_type, "all"],
-                    filters=[DISCUSSED, HOT],
-                )
 
             context = self._get_retrieve_context()
             serializer_data = DynamicRhCommentSerializer(
@@ -420,9 +416,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     SORT_BOUNTY_EXPIRATION_DATE,
                     SORT_BOUNTY_TOTAL_AMOUNT,
                 )
-            )
-            reset_unified_document_cache(
-                document_type=[ALL.lower(), BOUNTY.lower()],
             )
 
             rh_comment = self.get_queryset().get(id=item_object_id)
@@ -640,10 +633,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             )
             unified_document = comment.unified_document
             doc_type = get_doc_type_key(unified_document)
-            reset_unified_document_cache(
-                document_type=[doc_type],
-                filters=[EXPIRING_SOON, MOST_RSC],
-            )
             return Response({"comment_id": comment.id}, status=200)
 
     @action(

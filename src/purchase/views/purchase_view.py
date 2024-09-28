@@ -32,7 +32,6 @@ from reputation.utils import calculate_support_fees, deduct_support_fees
 from researchhub.settings import BASE_FRONTEND_URL
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.constants.filters import HOT
-from researchhub_document.utils import reset_unified_document_cache
 from user.models import Action, User
 from utils.permissions import CreateOrReadOnly
 from utils.throttles import THROTTLE_CLASSES
@@ -178,10 +177,6 @@ class PurchaseViewSet(viewsets.ModelViewSet):
 
                 distribute_support_to_authors(paper, purchase, amount)
 
-                reset_unified_document_cache(
-                    document_type=["all", "paper"],
-                    filters=[HOT],
-                )
             elif content_type_str == "rhcommentmodel":
                 transfer_rsc = True
                 recipient = item.created_by
@@ -191,11 +186,6 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 transfer_rsc = True
                 recipient = item.created_by
                 unified_doc = item.unified_document
-
-                reset_unified_document_cache(
-                    document_type=["all", "posts"],
-                    filters=[HOT],
-                )
 
             if transfer_rsc and recipient and recipient != user:
                 distribution = create_purchase_distribution(user, amount)

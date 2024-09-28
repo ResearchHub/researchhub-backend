@@ -78,15 +78,6 @@ def censor(requestor, item):
         for purchase in purchases.iterator():
             purchase.actions.update(is_removed=True, display=False)
 
-    if hasattr(item, "unified_document"):
-        doc = item.unified_document
-        doc_type = get_doc_type_key(doc)
-
-        reset_unified_document_cache(
-            document_type=[doc_type, "all"],
-            filters=[DISCUSSED, HOT],
-        )
-
     return True
 
 
@@ -592,8 +583,12 @@ def update_or_create_vote(request, user, item, vote_type):
 
 
 def update_relavent_doc_caches_on_vote(cache_filters_to_reset, target_vote):
-    item = target_vote.item
-    doc_type = get_doc_type_key(item.unified_document)
-    reset_unified_document_cache(
-        document_type=[doc_type, "all"], filters=cache_filters_to_reset
-    )
+    # Kobe: This function would reset the unified document cache on every vote.
+    # This is not necessary and is a performance bottleneck. Stopping this temporarily in order to test performance impact.
+
+    pass
+    # item = target_vote.item
+    # doc_type = get_doc_type_key(item.unified_document)
+    # reset_unified_document_cache(
+    #     document_type=[doc_type, "all"], filters=cache_filters_to_reset
+    # )

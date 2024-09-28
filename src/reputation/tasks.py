@@ -29,7 +29,6 @@ from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_EXPIRED,
     FILTER_BOUNTY_OPEN,
 )
-from researchhub_document.utils import reset_unified_document_cache
 from user.models import User
 from user.related_models.author_model import Author
 from utils.message import send_email_message
@@ -287,10 +286,6 @@ def check_open_bounties():
             ids = expired_bounties.values_list("id", flat=True)
             log_info(f"Failed to refund bounties: {ids}")
 
-    reset_unified_document_cache(
-        document_type=[ALL.lower(), BOUNTY.lower()],
-    )
-
 
 @app.task
 def recalculate_rep_all_users():
@@ -426,52 +421,6 @@ def find_bounties_for_user_and_notify(user_id) -> Optional[Notification]:
             )
             notification.send_notification()
             return notification
-
-
-@app.task
-def send_bounty_hub_notifications():
-    action_user = User.objects.get_community_account()
-    open_bounties = Bounty.objects.filter(
-        status=Bounty.OPEN,
-    ).annotate(
-        time_left=Cast(
-            F("expiration_date") - datetime.now(pytz.UTC),
-            DurationField(),
-        )
-    )
-
-    upcoming_expirations = open_bounties.filter(
-        time_left__gt=timedelta(days=0), time_left__lte=timedelta(days=5)
-    )
-    for bounty in upcoming_expirations.iterator():
-        hubs = bounty.unified_document.hubs.all()
-        for hub in hubs.iterator():
-            for subscriber in hub.subscribers.all().iterator():
-                # Sends a notification if no notification exists for user in hub with current bounty
-                if not Notification.objects.filter(
-                    object_id=bounty.id,
-                    content_type=ContentType.objects.get_for_model(Bounty),
-                    recipient=subscriber,
-                    action_user=action_user,
-                ).exists():
-                    bounty_item = bounty.item
-                    if isinstance(bounty_item, ResearchhubUnifiedDocument):
-                        unified_doc = bounty_item
-                    else:
-                        unified_doc = bounty_item.unified_document
-                    notification = Notification.objects.create(
-                        item=bounty,
-                        action_user=action_user,
-                        recipient=subscriber,
-                        unified_document=unified_doc,
-                        notification_type=Notification.BOUNTY_HUB_EXPIRING_SOON,
-                        extra={
-                            "hub_details": json.dumps(
-                                {"name": hub.name, "slug": hub.slug}
-                            )
-                        },
-                    )
-                    notification.send_notification()
 
 
 @app.task
