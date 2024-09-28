@@ -44,7 +44,7 @@ app.conf.beat_schedule = {
     # Unified Documents
     "reset_homepage_cache": {
         "task": "researchhub_document.tasks.reset_homepage_cache",
-        "schedule": crontab(minute=0, hour=1),
+        "schedule": crontab(minute=0),
         "options": {
             "priority": 2,
             "queue": QUEUE_CACHES,
