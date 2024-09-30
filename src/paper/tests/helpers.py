@@ -1,13 +1,12 @@
 from django.core.files.uploadedfile import SimpleUploadedFile
 
-from paper.models import Flag, Paper
+from paper.models import Paper
 from researchhub_document.related_models.constants.document_type import (
     PAPER as PAPER_DOC_TYPE,
 )
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
-from user.tests.helpers import create_random_default_user
 from utils.test_helpers import get_authenticated_post_response
 
 
@@ -18,15 +17,6 @@ class TestData:
         " MARAUDER'S MAP"
     )
     paper_publish_date = "1990-10-01"
-
-
-def create_flag(paper=None, created_by=None, reason="Create flag reason"):
-    if paper is None:
-        paper = create_paper()
-    if created_by is None:
-        created_by = create_random_default_user("createflag")
-
-    return Flag.objects.create(paper=paper, created_by=created_by, reason=reason)
 
 
 def create_paper(
