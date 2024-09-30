@@ -105,7 +105,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
             ],
         )
 
-        cache.set(cache_key, serializer.data, timeout=3600)
+        cache.set(cache_key, serializer.data, timeout=60 * 60 * 24)
 
         return Response(serializer.data, status=200)
 
@@ -126,13 +126,19 @@ class AuthorViewSet(viewsets.ModelViewSet):
             ],
         )
 
-        cache.set(cache_key, serializer.data, timeout=3600)
+        cache.set(cache_key, serializer.data, timeout=60 * 60 * 24)
 
         return Response(serializer.data, status=200)
 
     @action(detail=True, methods=["get"], permission_classes=[AllowAny])
     def profile(self, request, pk=None):
         author = self.get_object()
+        cache_key = f"author-{author.id}-profile"
+        cache_hit = cache.get(cache_key)
+
+        if cache_hit:
+            return Response(cache_hit, 200)
+
         serializer = DynamicAuthorProfileSerializer(
             author,
             context={
@@ -219,6 +225,8 @@ class AuthorViewSet(viewsets.ModelViewSet):
                 "is_suspended",
             ),
         )
+
+        cache.set(cache_key, serializer.data, timeout=60 * 60 * 24)
         return Response(serializer.data, status=200)
 
     @action(
@@ -692,7 +700,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
             # Maintain the ordering authored papers
             documents = sorted(docs, key=lambda x: authored_doc_ids.index(x.id))
 
-            cache.set(cache_key, documents, timeout=3600)
+            cache.set(cache_key, documents, timeout=60 * 60 * 24)
 
         context = ResearchhubUnifiedDocumentViewSet._get_serializer_context(self)
         page = self.paginate_queryset(documents)
@@ -799,7 +807,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
             # Maintain the ordering authored papers
             documents = sorted(docs, key=lambda x: authored_doc_ids.index(x.id))
 
-            cache.set(cache_key, documents, timeout=3600)
+            cache.set(cache_key, documents, timeout=60 * 60 * 24)
 
         context = ResearchhubUnifiedDocumentViewSet._get_serializer_context(self)
         page = self.paginate_queryset(documents)
