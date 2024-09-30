@@ -24,7 +24,6 @@ from paper.lib import journal_hosts
 from paper.models import (
     ARXIV_IDENTIFIER,
     DOI_IDENTIFIER,
-    AdditionalFile,
     Figure,
     Paper,
     PaperSubmission,
@@ -43,7 +42,6 @@ from paper.utils import (
 from purchase.models import Purchase
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
-from researchhub.lib import get_document_id_from_path
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
 from researchhub_document.related_models.constants.filters import (
@@ -77,7 +75,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
     hubs = SimpleHubSerializer(many=True, required=False)
     promoted = serializers.SerializerMethodField()
     score = serializers.ReadOnlyField()  # GRM
-    summary = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
     unified_document_id = serializers.SerializerMethodField()
     uploaded_by = UserSerializer(read_only=True)
@@ -175,14 +172,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
         return serializer.data
 
     def get_bullet_points(self, paper):
-        return None
-
-    def get_summary(self, paper):
-        # return SummarySerializer(
-        #     paper.summary,
-        #     required=False,
-        #     context=self.context
-        # ).data
         return None
 
     def get_csl_item(self, paper):
@@ -1047,28 +1036,6 @@ class DynamicPaperSerializer(
         ):
             return paper.pdf_url
         return None
-
-
-class AdditionalFileSerializer(serializers.ModelSerializer):
-    class Meta:
-        fields = ["id", "file", "paper", "created_by", "created_date", "updated_date"]
-        read_only_fields = [
-            "id",
-            "paper",
-            "created_by",
-            "created_date",
-            "updated_date",
-        ]
-        model = AdditionalFile
-
-    def create(self, validated_data):
-        request = self.context["request"]
-        user = request.user
-        paper_id = get_document_id_from_path(request)
-        validated_data["created_by"] = user
-        validated_data["paper"] = Paper.objects.get(pk=paper_id)
-        additional_file = super().create(validated_data)
-        return additional_file
 
 
 class BookmarkSerializer(serializers.Serializer):

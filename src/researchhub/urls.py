@@ -54,12 +54,6 @@ router.register(
 )
 
 router.register(
-    r"paper/([0-9]+)/additional_file",
-    paper_views.AdditionalFileViewSet,
-    basename="additional_files",
-)
-
-router.register(
     r"paper/async_paper_updator",
     paper_views.AsyncPaperUpdatorViewSet,
     "async_paper_updator",
