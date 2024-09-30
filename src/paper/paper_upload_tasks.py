@@ -14,6 +14,7 @@ from django.apps import apps
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.postgres.search import SearchQuery
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.db.models import Q
 from habanero import Crossref
 from requests.exceptions import HTTPError
@@ -25,7 +26,6 @@ from paper.exceptions import (
     DuplicatePaperError,
     ManubotProcessingError,
 )
-from paper.openalex_util import process_openalex_works
 from paper.tasks import download_pdf, pull_openalex_author_works_batch
 from paper.utils import (
     DOI_REGEX,
