@@ -577,7 +577,8 @@ def celery_create_paper(self, celery_data):
         paper.full_clean()
         paper.get_abstract_backup(should_save=False)
         paper.get_pdf_link(should_save=False)
-        paper.save()
+        with transaction.atomic():
+            paper.save()
 
         paper_id = paper.id
         paper_submission.set_complete_status(save=False)
