@@ -446,7 +446,7 @@ class ViewTests(APITestCase):
         hub = create_hub()
         user_editor = create_random_default_user("user_editor")
         Permission.objects.create(
-            access_type=EDITOR,
+            access_type=SENIOR_EDITOR,
             content_type=ContentType.objects.get_for_model(Hub),
             object_id=hub.id,
             user=user_editor,
