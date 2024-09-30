@@ -95,7 +95,7 @@ def create_and_update_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
     # batch fetch existing papers
     existing_papers_query = (
         Paper.objects.filter(Q(doi__in=dois) | Q(openalex_id__in=openalex_ids))
-        .only("doi", "id")
+        .only("doi", "id", "unified_document")
         .distinct()
     )
     existing_paper_map = {paper.doi: paper for paper in existing_papers_query}
@@ -161,7 +161,9 @@ def create_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
             continue
 
         try:
-            paper.save()
+            with transaction.atomic():
+                paper.save()
+
             Citation(
                 paper=paper,
                 total_citation_count=paper.citations,
