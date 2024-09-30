@@ -404,11 +404,17 @@ def create_openalex_authorships_and_institutions(
 
                 # Set institutions associated with authorships if they do not already exist
                 for oa_inst in oa_authorship.get("institutions", []):
-                    institution = Institution.upsert_from_openalex(oa_inst)
-                    if institution:
-                        if key not in authorship_institution_relations:
-                            authorship_institution_relations[key] = []
-                        authorship_institution_relations[key].append(institution)
+                    try:
+                        institution = Institution.upsert_from_openalex(oa_inst)
+                        if institution:
+                            if key not in authorship_institution_relations:
+                                authorship_institution_relations[key] = []
+                            authorship_institution_relations[key].append(institution)
+                    except Exception as e:
+                        sentry.log_error(
+                            e,
+                            message=f"Failed to upsert institution: {e}",
+                        )
 
     Authorship.objects.bulk_create(
         authorships_to_create_or_update.values(),
