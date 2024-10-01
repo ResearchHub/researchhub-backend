@@ -3,8 +3,14 @@ from unittest.mock import patch
 
 from rest_framework.test import APITestCase
 
+from hub.models import Hub
 from paper.models import Paper
-from paper.openalex_util import clean_url, process_openalex_works
+from paper.openalex_util import (
+    OPENALEX_SOURCES_TO_JOURNAL_HUBS,
+    clean_url,
+    process_openalex_works,
+)
+from paper.paper_upload_tasks import _get_or_create_journal_hub
 from paper.related_models.citation_model import Citation
 from user.related_models.author_model import Author
 from utils.openalex import OpenAlex
@@ -85,9 +91,9 @@ class ProcessOpenAlexWorksTests(APITestCase):
             created_papers = Paper.objects.filter(doi__in=dois).order_by("doi")
 
             paper_hubs = created_papers[0].unified_document.hubs.all()
-            self.assertEqual(len(paper_hubs), 15)
+            self.assertEqual(len(paper_hubs), 16)
             paper_hubs = created_papers[1].unified_document.hubs.all()
-            self.assertEqual(len(paper_hubs), 22)
+            self.assertEqual(len(paper_hubs), 23)
 
     @patch.object(OpenAlex, "get_authors")
     def test_creating_papers_should_tag_with_reputation_hubs(self, mock_get_authors):
@@ -353,3 +359,38 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
         cleaned_url = clean_url(url)
         self.assertEqual(cleaned_url, "https://abc.com/def%20ghi")
+
+    def test_get_or_create_journal_hub(self):
+        # Arrange
+        journal_name = "jorunalName1"
+
+        # Act
+        journal_hub = _get_or_create_journal_hub(journal_name)
+
+        # Assert
+        self.assertEqual(journal_hub.name, journal_name)
+
+    def test_get_or_create_journal_hub_with_existing_hub(self):
+        # Arrange
+        journal_name = "jorunalName1"
+        Hub.objects.create(name=journal_name, namespace=Hub.Namespace.JOURNAL)
+
+        # Act
+        journal_hub = _get_or_create_journal_hub(journal_name)
+
+        # Assert
+        self.assertEqual(journal_hub.name, journal_name)
+
+    def test_get_or_create_journal_hub_witn_managed_journal_hub(self):
+        # Arrange
+        journal_name = next(iter(OPENALEX_SOURCES_TO_JOURNAL_HUBS))
+        managed_journal_hub = Hub.objects.create(
+            name=OPENALEX_SOURCES_TO_JOURNAL_HUBS.get(journal_name),
+            namespace=Hub.Namespace.JOURNAL,
+        )
+
+        # Act
+        journal_hub = _get_or_create_journal_hub(journal_name)
+
+        # Assert
+        self.assertEqual(journal_hub.name, managed_journal_hub.name)
