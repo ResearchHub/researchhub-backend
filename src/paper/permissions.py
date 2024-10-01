@@ -2,7 +2,7 @@ from django.db.models import Q
 
 from paper.related_models.paper_submission_model import PaperSubmission
 from user.models import Author
-from utils.http import POST, RequestMethods
+from utils.http import POST
 from utils.permissions import AuthorizationBasedPermission, RuleBasedPermission
 
 
@@ -18,29 +18,6 @@ class UpdatePaper(RuleBasedPermission):
 
     def satisfies_rule(self, request):
         return request.user.reputation >= 1 and not request.user.is_suspended
-
-
-class FlagPaper(RuleBasedPermission):
-    message = "Not enough reputation to flag paper."
-
-    def satisfies_rule(self, request):
-        if request.method == RequestMethods.DELETE:
-            return True
-        return request.user.reputation >= 1
-
-
-class UpvotePaper(RuleBasedPermission):
-    message = "Not enough reputation to upvote paper."
-
-    def satisfies_rule(self, request):
-        return request.user.reputation >= 1 and not request.user.is_suspended
-
-
-class DownvotePaper(RuleBasedPermission):
-    message = "Not enough reputation to upvote paper."
-
-    def satisfies_rule(self, request):
-        return request.user.reputation >= 25 and not request.user.is_suspended
 
 
 class IsAuthor(AuthorizationBasedPermission):
