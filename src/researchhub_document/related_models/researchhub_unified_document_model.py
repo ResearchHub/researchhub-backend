@@ -92,6 +92,25 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
                 & ~Q(document_type=NOTE)
                 & Q(document_filter__isnull=False),
             ),
+            models.Index(
+                fields=[
+                    "is_removed",
+                    "document_type",
+                    "hot_score_v2",
+                    "document_filter",
+                ],
+                name="idx_paper_filter_sort",
+                condition=Q(document_type="PAPER"),
+            ),
+            models.Index(
+                fields=["hot_score_v2"],
+                name="idx_unified_doc_hot_score_v2",
+            ),
+            models.Index(
+                fields=["is_removed", "document_type", "hot_score_v2"],
+                name="idx_document_type_hot_score",
+            ),
+            models.Index(fields=["document_type"], name="idx_document_type"),
         )
 
     def update_filter(self, filter_type):
@@ -244,3 +263,21 @@ class UnifiedDocumentConcepts(DefaultModel):
     level = models.IntegerField(
         default=0,
     )
+
+
+class ResearchhubUnifiedDocumentHub(models.Model):
+    researchhubunifieddocument = models.ForeignKey(
+        ResearchhubUnifiedDocument, on_delete=models.CASCADE
+    )
+    hub = models.ForeignKey(Hub, on_delete=models.CASCADE)
+
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=["hub", "researchhubunifieddocument"], name="idx_hub_unified_doc"
+            ),
+            models.Index(
+                fields=["researchhubunifieddocument", "hub"], name="idx_unified_doc_hub"
+            ),
+        ]
+        unique_together = ("researchhubunifieddocument", "hub")
