@@ -48,6 +48,23 @@ PAPER_FIELDS_ALLOWED_TO_UPDATE = [
     "retrieved_from_external_source",
 ]
 
+"""
+This dictionary maps OpenAlex sources (`external_source`) to ResearchHub journal hubs. 
+It is used to automatically tag papers with the appropriate journal hub when they are fetched from OpenAlex.
+Note: If the name of the journal hub changes, this dictionary will need to be updated.
+"""
+OPENALEX_SOURCES_TO_JOURNAL_HUBS: Dict[str, str] = {
+    "arXiv (Cornell University)": "Arxiv",
+    "bioRxiv (Cold Spring Harbor Laboratory)": "Biorxiv",
+    "medRxiv (Cold Spring Harbor Laboratory)": "Medrxiv",
+    "ChemRxiv": "Chemrxiv",
+    "Research Square (Research Square)": "Research Square",
+    "OSF Preprints (OSF Preprints)": "Osf Preprints",
+    "PeerJ": "Peerj",
+    "Authorea (Authorea)": "Authorea",
+    "SSRN Electronic Journal": "Ssrn",
+}
+
 
 def process_openalex_works(works):
     open_alex = OpenAlex()
