@@ -107,7 +107,7 @@ class Hub(models.Model):
         return "{}:{}, locked: {}".format(self.namespace, self.name, self.is_locked)
 
     def save(self, *args, **kwargs):
-        self.name = self.name.lower()
+        self.name = self.name
         self.slugify()
         return super(Hub, self).save(*args, **kwargs)
 
@@ -116,7 +116,7 @@ class Hub(models.Model):
 
     def slugify(self):
         if not self.slug:
-            self.slug = slugify(self.name)
+            self.slug = slugify(self.name.lower())
             hub_slugs = Hub.objects.filter(slug__startswith=self.slug).order_by(
                 "slug_index"
             )
@@ -151,13 +151,17 @@ class Hub(models.Model):
     @classmethod
     def get_from_subfield(cls, subfield):
         return Hub.objects.get(
-            Q(name=subfield.display_name.lower()) | Q(subfield_id=subfield.id)
+            Q(name__iexact=subfield.display_name) | Q(subfield_id=subfield.id)
         )
 
     @classmethod
     def create_or_update_hub_from_concept(cls, concept):
-        name = concept.display_name.lower()
-        hub, created = cls.objects.get_or_create(name=name)
+        hub, _ = Hub.objects.get_or_create(
+            name__iexact=concept.display_name,
+            defaults={
+                "name": concept.display_name,
+            },
+        )
 
         hub.concept_id = concept.id
         hub.description = concept.description
