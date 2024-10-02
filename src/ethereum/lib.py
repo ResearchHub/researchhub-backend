@@ -1,4 +1,5 @@
 import json
+import os
 from decimal import Decimal
 
 from smart_open import open
@@ -125,11 +126,6 @@ def transact(w3, method_call, sender, sender_signing_key, gas=None):
 
 
 def get_private_key():
-    url = f"s3://{AWS_ACCESS_KEY_ID}:{AWS_SECRET_ACCESS_KEY}@{WEB3_KEYSTORE_BUCKET}/{WEB3_KEYSTORE_FILE}"
-
-    with open(url) as keyfile:
-        encrypted_key = keyfile.read()
-        if WEB3_KEYSTORE_PASSWORD:
-            return w3.eth.account.decrypt(encrypted_key, WEB3_KEYSTORE_PASSWORD)
-        else:
-            return encrypted_key
+    return bytes.fromhex(
+        os.environ.get("BURNER_PRIVATE_KEY")
+    )  # Avoid using AWS during testing
