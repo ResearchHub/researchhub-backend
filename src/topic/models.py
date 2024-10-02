@@ -211,7 +211,7 @@ class Topic(DefaultModel):
         # Subfield hubs will be used for reputation calculation.
         try:
             hub, created = Hub.objects.get_or_create(
-                name=subfield.display_name.lower(),
+                name=subfield.display_name,
                 defaults={"subfield": subfield, "is_used_for_rep": True},
             )
 
