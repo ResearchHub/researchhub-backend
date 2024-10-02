@@ -491,6 +491,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "slug",
                     "is_removed",
                     "hub_image",
+                    "is_used_for_rep",
                 ],
             },
             "doc_duds_get_document_filter": {
