@@ -18,7 +18,6 @@ from django.core.files import File
 from django.core.files.base import ContentFile
 from django.db import IntegrityError
 from django.utils import timezone
-from habanero import Crossref
 from PIL import Image
 from psycopg2.errors import UniqueViolation
 from pytz import timezone as pytz_tz
@@ -231,37 +230,6 @@ def celery_extract_meta_data(paper_id, title, check_title):
         sentry.log_info(e)
     except Exception as e:
         sentry.log_info(e)
-
-
-@app.task(queue=QUEUE_PAPER_MISC)
-def celery_get_paper_citation_count(paper_id, doi):
-    if not doi:
-        return
-
-    Paper = apps.get_model("paper.Paper")
-    paper = Paper.objects.get(id=paper_id)
-
-    cr = Crossref()
-    filters = {"type": "journal-article", "doi": doi}
-    res = cr.works(filter=filters)
-
-    result_count = res["message"]["total-results"]
-    if result_count == 0:
-        return
-
-    citation_count = 0
-    for item in res["message"]["items"]:
-        keys = item.keys()
-        if "DOI" not in keys:
-            continue
-        if item["DOI"] != doi:
-            continue
-
-        if "is-referenced-by-count" in keys:
-            citation_count += item["is-referenced-by-count"]
-
-    paper.citations = citation_count
-    paper.save()
 
 
 @app.task(queue=QUEUE_CERMINE)
