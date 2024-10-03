@@ -8,7 +8,6 @@ import jellyfish
 import regex as re
 import requests
 from bs4 import BeautifulSoup
-from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.validators import URLValidator
