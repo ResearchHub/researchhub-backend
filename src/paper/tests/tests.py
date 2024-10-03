@@ -1,9 +1,7 @@
 from unittest import skip
 
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.db import IntegrityError
-from django.test import TestCase, TransactionTestCase, tag
-from psycopg2.errors import UniqueViolation
+from django.test import TestCase, tag
 
 from paper.serializers import DynamicPaperSerializer
 from paper.utils import (
