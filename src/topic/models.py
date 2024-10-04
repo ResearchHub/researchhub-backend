@@ -210,10 +210,19 @@ class Topic(DefaultModel):
         # Create hub associated with subfield if one does not already exist
         # Subfield hubs will be used for reputation calculation.
         try:
-            hub, created = Hub.objects.get_or_create(
-                name=subfield.display_name,
-                defaults={"subfield": subfield, "is_used_for_rep": True},
-            )
+            created = False
+            hub = None
+            try:
+                hub = Hub.get_from_subfield(subfield)
+            except Hub.DoesNotExist:
+                pass
+
+            if not hub:
+                hub, created = Hub.objects.create(
+                    name=subfield.display_name,
+                    subfield=subfield,
+                    is_used_for_rep=True,
+                )
 
             if created:
                 print(
