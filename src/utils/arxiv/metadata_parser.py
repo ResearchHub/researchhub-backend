@@ -1,8 +1,8 @@
 import gzip
 import os
 import shutil
-import xmltodict
 
+import xmltodict
 from django.db.models import Q
 from django.utils import timezone
 
@@ -56,26 +56,26 @@ class ArxivMetadata:
                     pdf_url=self.pdf_url,
                     raw_authors=self.raw_authors,
                     retrieved_from_external_source=True,
-                    external_source='arxiv',
-                    url=self.arxiv_url
+                    external_source="arxiv",
+                    url=self.arxiv_url,
                 )
             except Exception as e:
                 print(e)
         if paper is not None:
             paper.hubs.add(*self.hubs)
         else:
-            print('No paper for arxiv id', self.raw_arxiv_id)
+            print("No paper for arxiv id", self.raw_arxiv_id)
 
     def _build_arxiv_url(self):
-        return f'https://arxiv.org/abs/{self.raw_arxiv_id}'
+        return f"https://arxiv.org/abs/{self.raw_arxiv_id}"
 
     def _build_pdf_url(self):
-        return f'https://arxiv.org/pdf/{self.raw_arxiv_id}.pdf'
+        return f"https://arxiv.org/pdf/{self.raw_arxiv_id}.pdf"
 
     def _convert_categories_to_hubs(self):
         hubs = []
         for category in self.raw_category_names:
-            hub, created = Hub.objects.get_or_create(name=category.lower())
+            hub, _ = Hub.objects.get_or_create(name=category)
             hubs.append(hub)
         return hubs
 
@@ -85,31 +85,29 @@ def extract_from_directory(dir_name):
     extracted_count = 0
     for root, dirs, files in os.walk(dir_name):
         for file in files:
-            if file.endswith('.xml.gz'):
-                xml_path, did_extract = extract_xml_gzip(root + '/' + file)
+            if file.endswith(".xml.gz"):
+                xml_path, did_extract = extract_xml_gzip(root + "/" + file)
                 if xml_path is not None:
                     xml_files.append(xml_path)
                     if did_extract:
                         extracted_count += 1
-    print(f'Extracted {extracted_count} files. Returned {len(xml_files)}')
+    print(f"Extracted {extracted_count} files. Returned {len(xml_files)}")
     return xml_files
 
 
 def extract_xml_gzip(file):
-    print('Extracting file', file)
+    print("Extracting file", file)
     did_extract = False
-    xml_path = '.'.join(file.split('.')[:-1])
+    xml_path = ".".join(file.split(".")[:-1])
     if os.path.exists(xml_path):
-        print(
-            f'WARNING: Skipping {xml_path} . It already exists.'
-        )
+        print(f"WARNING: Skipping {xml_path} . It already exists.")
     else:
         try:
-            with gzip.open(file, 'r') as f_in, open(xml_path, 'wb') as f_out:  # noqa
+            with gzip.open(file, "r") as f_in, open(xml_path, "wb") as f_out:  # noqa
                 shutil.copyfileobj(f_in, f_out)
             did_extract = True
         except OSError as e:
-            print('Failed to open:', e)
+            print("Failed to open:", e)
     return xml_path, did_extract
 
 
@@ -119,13 +117,13 @@ def parse_arxiv_metadata(path_to_file):
     with open(path_to_file) as file:
         try:
             doc = xmltodict.parse(file.read())
-            for record in doc['Response']['ListRecords']['record']:
+            for record in doc["Response"]["ListRecords"]["record"]:
                 parsed = None
                 try:
-                    metadata = record['metadata']['arXivRaw']
+                    metadata = record["metadata"]["arXivRaw"]
                     parsed = parse_arXivRaw_format(metadata)
                 except KeyError:
-                    metadata = record['metadata']['arXiv']
+                    metadata = record["metadata"]["arXiv"]
                     parsed = parse_arXiv_format(metadata)
                 records.append(parsed)
         except Exception as e:
@@ -134,26 +132,24 @@ def parse_arxiv_metadata(path_to_file):
 
 
 def parse_arXiv_format(metadata):
-    abstract = metadata['abstract']
-    arxiv_id = metadata['id']
-    author_metadata = metadata['authors']['author']
+    abstract = metadata["abstract"]
+    arxiv_id = metadata["id"]
+    author_metadata = metadata["authors"]["author"]
     authors = []
     if type(author_metadata) is list:
         for author in author_metadata:
             authors.append(construct_author(author))
     else:
         authors.append(construct_author(author_metadata))
-    categories = metadata['categories'].split(' ')
-    category_names = [
-        get_category_name(category) for category in categories
-    ]
+    categories = metadata["categories"].split(" ")
+    category_names = [get_category_name(category) for category in categories]
     doi = None
     try:
-        doi = metadata['doi']
+        doi = metadata["doi"]
     except KeyError:
         pass
-    paper_date = metadata['created']
-    title = metadata['title']
+    paper_date = metadata["created"]
+    title = metadata["title"]
 
     parsed = ArxivMetadata(
         abstract=abstract,
@@ -163,7 +159,7 @@ def parse_arXiv_format(metadata):
         category_names=category_names,
         doi=doi,
         date=paper_date,
-        title=title
+        title=title,
     )
     return parsed
 
@@ -172,44 +168,39 @@ def construct_author(author):
     first_name = None
     last_name = None
     try:
-        first_name = author['forenames']
+        first_name = author["forenames"]
     except KeyError:
         pass
     try:
-        last_name = author['keyname']
+        last_name = author["keyname"]
     except KeyError:
         pass
-    return {'first_name': first_name, 'last_name': last_name}
+    return {"first_name": first_name, "last_name": last_name}
 
 
 def parse_arXivRaw_format(metadata):
-    abstract = metadata['abstract']
-    arxiv_id = metadata['id']
-    authors = metadata['authors'].split(', ')
-    categories = metadata['categories'].split(' ')
-    category_names = [
-        get_category_name(category) for category in categories
-    ]
+    abstract = metadata["abstract"]
+    arxiv_id = metadata["id"]
+    authors = metadata["authors"].split(", ")
+    categories = metadata["categories"].split(" ")
+    category_names = [get_category_name(category) for category in categories]
     doi = None
     try:
-        doi = metadata['doi']
+        doi = metadata["doi"]
     except KeyError:
         pass
     paper_date = None
     try:
-        paper_date = metadata['version'][0]['date']
+        paper_date = metadata["version"][0]["date"]
     except KeyError:
         try:
-            paper_date = metadata['version']['date']
+            paper_date = metadata["version"]["date"]
         except Exception:
             pass
     if paper_date is not None:
-        paper_date = timezone.datetime.strptime(
-            paper_date,
-            '%a, %d %b %Y %X %Z'
-        )
+        paper_date = timezone.datetime.strptime(paper_date, "%a, %d %b %Y %X %Z")
 
-    title = metadata['title']
+    title = metadata["title"]
 
     parsed = ArxivMetadata(
         abstract=abstract,
@@ -219,6 +210,6 @@ def parse_arXivRaw_format(metadata):
         category_names=category_names,
         doi=doi,
         date=paper_date,
-        title=title
+        title=title,
     )
     return parsed
