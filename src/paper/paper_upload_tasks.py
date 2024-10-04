@@ -743,7 +743,10 @@ def _get_or_create_journal_hub(external_source: str) -> Hub:
 
 
 def _get_journal_hub(journal: str) -> Hub:
-    return Hub.objects.filter(name=journal, namespace=Hub.Namespace.JOURNAL).first()
+    return Hub.objects.filter(
+        name__iexact=journal,
+        namespace=Hub.Namespace.JOURNAL,
+    ).first()
 
 
 @app.task(queue=QUEUE_PAPER_METADATA)
