@@ -219,7 +219,6 @@ INSTALLED_APPS = [
     "notification",
     "oauth",
     "paper",
-    "profiler",
     "purchase",
     "reputation",
     "researchhub_case",
