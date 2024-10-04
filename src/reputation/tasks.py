@@ -6,7 +6,7 @@ from typing import List, Optional
 import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import DurationField, F, Q, QuerySet
+from django.db.models import DurationField, F, Q
 from django.db.models.functions import Cast
 from web3 import Web3
 
@@ -24,8 +24,6 @@ from researchhub.celery import QUEUE_CONTRIBUTIONS, app
 from researchhub.settings import PRODUCTION, WEB3_WALLET_ADDRESS, w3
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
-    ALL,
-    BOUNTY,
     FILTER_BOUNTY_EXPIRED,
     FILTER_BOUNTY_OPEN,
 )
@@ -286,7 +284,7 @@ def find_qualified_users_and_notify(
     """
     Find qualified users for bounty and sends them a notification.
     """
-    from django.db.models import F, IntegerField, OuterRef, Subquery, Value
+    from django.db.models import IntegerField, OuterRef, Subquery, Value
     from django.db.models.functions import Coalesce
 
     # Minimum reputation score required to notify a user
