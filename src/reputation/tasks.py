@@ -6,7 +6,7 @@ from typing import List, Optional
 import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import DurationField, F, Q, QuerySet
+from django.db.models import DurationField, F, Q
 from django.db.models.functions import Cast
 from web3 import Web3
 
@@ -24,8 +24,6 @@ from researchhub.celery import QUEUE_CONTRIBUTIONS, app
 from researchhub.settings import PRODUCTION, WEB3_WALLET_ADDRESS, w3
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
-    ALL,
-    BOUNTY,
     FILTER_BOUNTY_EXPIRED,
     FILTER_BOUNTY_OPEN,
 )
@@ -67,24 +65,6 @@ def create_contribution(
         content_type=content_type,
         object_id=object_id,
     )
-
-
-@app.task(queue=QUEUE_CONTRIBUTIONS)
-def delete_contribution(contribution_type, instance_type, unified_doc_id, object_id):
-    content_type = ContentType.objects.get(**instance_type)
-    contribution = Contribution.objects.filter(
-        contribution_type=contribution_type,
-        content_type=content_type,
-        unified_document_id=unified_doc_id,
-        object_id=object_id,
-    )
-
-    # ignore if there's more than one contribution
-    if contribution.count() > 1:
-        return
-
-    if contribution.exists():
-        contribution.delete()
 
 
 @app.task(queue=QUEUE_CONTRIBUTIONS)
@@ -304,7 +284,7 @@ def find_qualified_users_and_notify(
     """
     Find qualified users for bounty and sends them a notification.
     """
-    from django.db.models import F, IntegerField, OuterRef, Subquery, Value
+    from django.db.models import IntegerField, OuterRef, Subquery, Value
     from django.db.models.functions import Coalesce
 
     # Minimum reputation score required to notify a user
