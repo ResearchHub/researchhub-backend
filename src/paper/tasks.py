@@ -32,9 +32,6 @@ from paper.utils import (
     get_csl_item,
     get_pdf_from_url,
     get_pdf_location_for_csl_item,
-    merge_paper_bulletpoints,
-    merge_paper_threads,
-    merge_paper_votes,
 )
 from researchhub.celery import QUEUE_CERMINE, QUEUE_PAPER_MISC, QUEUE_PULL_PAPERS, app
 from researchhub.settings import APP_ENV, PRODUCTION, TESTING
@@ -338,16 +335,6 @@ def celery_extract_pdf_sections(paper_id):
     finally:
         shutil.rmtree(path)
         return True, return_code
-
-
-@app.task(queue=QUEUE_PAPER_MISC)
-def handle_duplicate_doi(new_paper, doi):
-    Paper = apps.get_model("paper.Paper")
-    original_paper = Paper.objects.filter(doi=doi).order_by("created_date")[0]
-    merge_paper_votes(original_paper, new_paper)
-    merge_paper_threads(original_paper, new_paper)
-    merge_paper_bulletpoints(original_paper, new_paper)
-    new_paper.delete()
 
 
 @app.task
