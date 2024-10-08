@@ -4,7 +4,7 @@ from unittest.mock import patch
 from rest_framework.test import APITestCase
 
 from paper.models import Paper
-from paper.openalex_util import process_openalex_works
+from paper.openalex_util import clean_url, process_openalex_works
 from paper.related_models.citation_model import Citation
 from user.related_models.author_model import Author
 from utils.openalex import OpenAlex
@@ -347,3 +347,9 @@ class ProcessOpenAlexWorksTests(APITestCase):
             ).first()
 
             self.assertGreater(len(author.contribution_summaries.all()), 0)
+
+    def test_clean_url(self):
+        url = "https://abc.com/def ghi"
+
+        cleaned_url = clean_url(url)
+        self.assertEqual(cleaned_url, "https://abc.com/def%20ghi")

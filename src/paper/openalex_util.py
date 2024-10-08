@@ -1,8 +1,10 @@
 import copy
 import logging
+import urllib.parse
 from typing import Any, Dict, List
 
 from django.core.exceptions import ValidationError
+from django.core.validators import URLValidator
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from simple_history.utils import bulk_update_with_history
@@ -146,6 +148,10 @@ def create_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
             openalex_concepts,
             openalex_topics,
         ) = open_alex.build_paper_from_openalex_work(_work)
+
+        # Clean the pdf_url
+        if openalex_paper.get("pdf_url"):
+            openalex_paper["pdf_url"] = clean_url(openalex_paper["pdf_url"])
 
         paper = Paper(**openalex_paper)
 
@@ -561,3 +567,17 @@ def merge_openalex_author_with_researchhub_author(openalex_author, researchhub_a
     AuthorInstitution.objects.bulk_create(author_institutions, ignore_conflicts=True)
 
     return researchhub_author
+
+
+def clean_url(url):
+    url = url.strip()
+
+    url = urllib.parse.quote(url, safe=":/?&=")
+
+    validate = URLValidator()
+    try:
+        validate(url)
+    except ValidationError:
+        return None
+
+    return url
