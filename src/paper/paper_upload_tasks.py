@@ -16,6 +16,7 @@ from django.contrib.postgres.search import SearchQuery
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Q
+from django.db.utils import IntegrityError
 from habanero import Crossref
 from requests.exceptions import HTTPError
 
@@ -690,6 +691,8 @@ def create_paper_related_tags(paper, openalex_concepts=[], openalex_topics=[]):
                     "level": openalex_concept["level"],
                 },
             )
+        except IntegrityError:
+            pass
         except Exception as e:
             sentry.log_error(
                 e, message=f"Failed to process concept for paper {paper.id}"
