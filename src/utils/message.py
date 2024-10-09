@@ -13,13 +13,10 @@ from researchhub.settings import (
 
 
 def is_valid_email(email):
-    if TESTING:
+    if TESTING or PRODUCTION:
         return True
 
-    if not PRODUCTION:
-        return email in EMAIL_WHITELIST
-    else:
-        return True
+    return email in EMAIL_WHITELIST
 
 
 def send_email_message(
