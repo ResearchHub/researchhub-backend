@@ -17,8 +17,7 @@ def is_valid_email(email):
     if TESTING:
         return True
 
-    # Temporarily enforce the email allowlist for all environments in the new accounts:
-    if not PRODUCTION or AWS_ACCOUNT_ID != "794128250202":
+    if not PRODUCTION:
         return email in EMAIL_WHITELIST
     else:
         return True
