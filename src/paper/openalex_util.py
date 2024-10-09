@@ -95,8 +95,12 @@ def create_and_update_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
     openalex_ids = [work.get("id") for work in works]
 
     # batch fetch existing papers
+    doi_q_objects = Q()
+    for doi in dois:
+        doi_q_objects |= Q(doi__iexact=doi)
+
     existing_papers_query = (
-        Paper.objects.filter(Q(doi__iexact__in=dois) | Q(openalex_id__in=openalex_ids))
+        Paper.objects.filter(doi_q_objects | Q(openalex_id__in=openalex_ids))
         .only("doi", "id", "unified_document")
         .distinct()
     )
