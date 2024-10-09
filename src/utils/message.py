@@ -1,22 +1,16 @@
 from time import sleep
 
+from django.conf import settings
 from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from sentry_sdk import capture_exception
 
-from researchhub.settings import (
-    DEFAULT_FROM_EMAIL,
-    EMAIL_WHITELIST,
-    PRODUCTION,
-    TESTING,
-)
-
 
 def is_valid_email(email):
-    if TESTING or PRODUCTION:
+    if settings.TESTING or settings.PRODUCTION:
         return True
 
-    return email in EMAIL_WHITELIST
+    return email in settings.EMAIL_WHITELIST
 
 
 def send_email_message(
@@ -25,7 +19,7 @@ def send_email_message(
     subject,
     email_context,
     html_template=None,
-    sender=f"ResearchHub <{DEFAULT_FROM_EMAIL}>",
+    sender=f"ResearchHub <{settings.DEFAULT_FROM_EMAIL}>",
 ):
     """Emails `message` to `recipients` and returns a dict with results in the
     following form:
@@ -50,7 +44,7 @@ def send_email_message(
     if not isinstance(recipients, list):
         recipients = [recipients]
 
-    if not PRODUCTION:
+    if not settings.PRODUCTION:
         subject = "[Staging] " + subject
 
     result = {"success": [], "failure": [], "exclude": []}
