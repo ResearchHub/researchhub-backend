@@ -5,7 +5,6 @@ from django.template.loader import render_to_string
 from sentry_sdk import capture_exception
 
 from researchhub.settings import (
-    AWS_ACCOUNT_ID,
     DEFAULT_FROM_EMAIL,
     EMAIL_WHITELIST,
     PRODUCTION,
