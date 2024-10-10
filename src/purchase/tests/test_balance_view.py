@@ -19,7 +19,9 @@ class BalanceViewTests(APITestCase):
             price_source="COIN_GECKO",
             target_currency="USD",
         )
-        vote_content_type = ContentType.objects.get(model="vote", app_label="paper")
+        vote_content_type = ContentType.objects.get(
+            model="vote", app_label="discussion"
+        )
         self.transaction = Balance.objects.create(
             amount=1000, user=self.user, content_type=vote_content_type
         )
