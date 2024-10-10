@@ -10,7 +10,7 @@ from django.contrib.postgres.indexes import GinIndex, HashIndex
 from django.contrib.postgres.search import SearchVectorField
 from django.core.validators import FileExtensionValidator
 from django.db import models
-from django.db.models import Avg, Count, IntegerField, JSONField, Q, Sum
+from django.db.models import Avg, Count, Func, Index, IntegerField, JSONField, Q, Sum
 from django.db.models.functions import Cast, Extract
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 from manubot.cite.doi import get_doi_csl_item
@@ -333,6 +333,7 @@ class Paper(AbstractGenericReactionModel):
             GinIndex(fields=("url_svf",)),
             GinIndex(fields=("pdf_url_svf",)),
             GinIndex(fields=("doi_svf",)),
+            Index(Func("doi", function="UPPER"), name="paper_paper_doi_upper_idx"),
         )
 
     def __str__(self):
