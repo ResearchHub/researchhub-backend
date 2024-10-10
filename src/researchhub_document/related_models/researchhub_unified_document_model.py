@@ -127,7 +127,7 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
         # which is why we are filtering by authors
 
         if hasattr(self, "paper"):
-            return self.paper.authors.all()
+            return self.paper.authorship_authors.all()
 
         posts = self.posts
         if posts.exists():
