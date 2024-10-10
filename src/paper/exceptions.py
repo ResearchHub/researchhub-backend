@@ -27,7 +27,3 @@ class DOINotFoundError(Exception):
 
 class ManubotProcessingError(Exception):
     pass
-
-
-class CrossrefSearchError(Exception):
-    pass
