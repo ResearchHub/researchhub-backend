@@ -19,7 +19,11 @@ from mailing_list.models import EmailRecipient, HubSubscription
 from paper.models import Paper
 from paper.utils import get_cache_key
 from reputation.models import Contribution
-from researchhub_access_group.constants import EDITOR
+from researchhub_access_group.constants import (
+    ASSISTANT_EDITOR,
+    ASSOCIATE_EDITOR,
+    SENIOR_EDITOR,
+)
 from researchhub_access_group.models import Permission
 from user.models import User
 from utils.http import DELETE, GET, PATCH, POST, PUT
@@ -229,7 +233,7 @@ class HubViewSet(viewsets.ModelViewSet):
         try:
             target_user = User.objects.get(email=request.data.get("editor_email"))
             Permission.objects.create(
-                access_type=EDITOR,
+                access_type=request.data.get("editor_type"),
                 content_type=ContentType.objects.get_for_model(Hub),
                 object_id=request.data.get("selected_hub_id"),
                 user=target_user,
@@ -253,7 +257,11 @@ class HubViewSet(viewsets.ModelViewSet):
             target_user = User.objects.get(email=request.data.get("editor_email"))
 
             target_editors_permissions = Permission.objects.filter(
-                access_type=EDITOR,
+                (
+                    Q(access_type=ASSISTANT_EDITOR)
+                    | Q(access_type=ASSOCIATE_EDITOR)
+                    | Q(access_type=SENIOR_EDITOR)
+                ),
                 content_type=ContentType.objects.get_for_model(Hub),
                 object_id=request.data.get("selected_hub_id"),
                 user=target_user,
