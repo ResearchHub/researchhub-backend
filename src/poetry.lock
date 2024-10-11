@@ -2361,23 +2361,6 @@ files = [
 ]
 
 [[package]]
-name = "geoip2"
-version = "4.4.0"
-description = "MaxMind GeoIP2 API"
-optional = false
-python-versions = ">=3.6"
-files = [
-    {file = "geoip2-4.4.0-py2.py3-none-any.whl", hash = "sha256:f9172cdfb2a5f9225ace5e30dd7426413ad28798a5f474cd1538780686bd6a87"},
-    {file = "geoip2-4.4.0.tar.gz", hash = "sha256:f150bed3190d543712a17467208388d31bd8ddb49b2226fba53db8aaedb8ba89"},
-]
-
-[package.dependencies]
-aiohttp = ">=3.6.2,<4.0.0"
-maxminddb = ">=2.2.0,<3.0.0"
-requests = ">=2.24.0,<3.0.0"
-urllib3 = ">=1.25.2,<2.0.0"
-
-[[package]]
 name = "google"
 version = "3.0.0"
 description = "Python bindings to the Google search engine."
@@ -3364,16 +3347,6 @@ files = [
 
 [package.dependencies]
 traitlets = "*"
-
-[[package]]
-name = "maxminddb"
-version = "2.4.0"
-description = "Reader for the MaxMind DB format"
-optional = false
-python-versions = ">=3.7"
-files = [
-    {file = "maxminddb-2.4.0.tar.gz", hash = "sha256:81e54e53408bd502650e5969ccba16780af659ec1db1c44b2c997e4330a5ed96"},
-]
 
 [[package]]
 name = "mccabe"
@@ -6126,4 +6099,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.8"
-content-hash = "fb479a508c6512541abe5d3cc949ba1e62ef80403d141bbf482a710464c453a3"
+content-hash = "bb251770b9a16719004034dbfb720a2f834d694c0cbf12de195be630106e30bc"
