@@ -57,7 +57,7 @@ def track_revenue_event(
 
     try:
         user = User.objects.get(id=user_id)
-    except User.DoesNotExist:
+    except User.DoesNotExist as e:
         handle_log_error(e, "Error tracking revenue event")
         return
 
