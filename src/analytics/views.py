@@ -2,10 +2,8 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
-from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
-from analytics.amplitude import Amplitude
 from analytics.models import PaperEvent, WebsiteVisits
 from analytics.permissions import UpdateOrDelete
 from analytics.serializers import PaperEventSerializer, WebsiteVisitsSerializer
@@ -101,14 +99,3 @@ class PaperEventViewSet(viewsets.ModelViewSet):
 
         PaperEvent.objects.bulk_create(events)
         return Response({"msg": "Events Created"}, 201)
-
-
-# TODO: Delete this view
-class AmplitudeViewSet(viewsets.ViewSet):
-    authentication_classes = ()
-
-    def get_permissions(self):
-        return [AllowAny()]
-
-    def create(self, request, *args, **kwargs):
-        return Response(status=200)
