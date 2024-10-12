@@ -1,37 +1,10 @@
 from typing import Literal
 
-import segment.analytics as analytics
-
 from analytics.amplitude import Amplitude
-from analytics.utils.analytics_mapping_utils import (
-    build_bounty_event,
-    build_comment_event,
-    build_vote_event,
-)
-from discussion.reaction_models import Vote
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub.celery import QUEUE_EXTERNAL_REPORTING, app
 from researchhub.settings import DEVELOPMENT
 from utils.sentry import log_error
-
-
-@app.task(queue=QUEUE_EXTERNAL_REPORTING)
-def log_analytics_event(action_id):
-    from user.related_models.action_model import Action
-
-    try:
-        action = Action.objects.get(id=action_id)
-        if action.content_type.model == "vote" and action.item.vote_type == Vote.UPVOTE:
-            properties = build_vote_event(action)
-            analytics.track(properties["USER_ID"], properties["EVENT_TYPE"], properties)
-        elif action.content_type.model == "bounty":
-            properties = build_bounty_event(action)
-            analytics.track(properties["USER_ID"], properties["EVENT_TYPE"], properties)
-        elif action.content_type.model == "rhcommentmodel":
-            properties = build_comment_event(action)
-            analytics.track(properties["USER_ID"], properties["EVENT_TYPE"], properties)
-    except Exception as e:
-        print("Error logging analytics event: {}".format(e))
 
 
 @app.task(queue=QUEUE_EXTERNAL_REPORTING)
