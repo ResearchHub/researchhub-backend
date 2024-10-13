@@ -29,10 +29,10 @@ class IsModerator(AuthorizationBasedPermission):
     message = "Need to be a moderator."
 
     def has_permission(self, request, view):
-        return request.user.moderator
+        return request.user.is_authenticated and request.user.moderator
 
     def is_authorized(self, request, view, obj):
-        return request.user.moderator
+        return request.user.is_authenticated and request.user.moderator
 
 
 class CreateOrViewOrRevokeUserApiToken(BasePermission):
