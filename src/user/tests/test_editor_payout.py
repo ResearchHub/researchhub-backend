@@ -1,19 +1,24 @@
 import datetime
+from calendar import monthrange
 
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import F
 from rest_framework.test import APITestCase
 
 from hub.models import Hub
 from hub.tests.helpers import create_hub
 from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from reputation.distributions import Distribution  # this is NOT the model
+from reputation.distributor import Distributor
 from researchhub_access_group.constants import (
     ASSISTANT_EDITOR,
     ASSOCIATE_EDITOR,
     SENIOR_EDITOR,
 )
 from researchhub_access_group.models import Permission
-from user.editor_payout_tasks import editor_daily_payout_task
+from user.editor_payout_tasks import get_daily_rsc_payout_amount_from_coin_gecko
+from user.models import User
 from user.tests.helpers import create_random_default_user
 
 
@@ -41,6 +46,9 @@ class PayoutTests(APITestCase):
                 user=user,
             )
 
+        self.setUpPayout()
+
+    def setUpPayout(self):
         # Setting up static exchange rate for Coin Gecko to simulate payouts
         RscExchangeRate.objects.create(
             price_source=COIN_GECKO,
@@ -52,11 +60,50 @@ class PayoutTests(APITestCase):
             created_date=datetime.datetime.now().replace(hour=14, minute=55)
         )
 
-    def test_tiered_editors_payout(self):
-        editor_daily_payout_task()
+        # Code taken from editor_payout_tasks
+        # Unable to run task directly because of missing API keys
+        today = datetime.date.today()
+        num_days_this_month = monthrange(today.year, today.month)[1]
+        self.gecko_result = get_daily_rsc_payout_amount_from_coin_gecko(
+            num_days_this_month
+        )
 
+        editors = User.objects.editors().annotate(
+            editor_type=F("permissions__access_type")
+        )
+
+        for editor in editors.iterator():
+            editor_type = editor.editor_type
+            if editor_type == SENIOR_EDITOR:
+                pay_amount = self.gecko_result["senior_pay_amount"]
+            elif editor_type == ASSOCIATE_EDITOR:
+                pay_amount = self.gecko_result["associate_pay_amount"]
+            else:
+                pay_amount = self.gecko_result["assistant_pay_amount"]
+
+            distributor = Distributor(
+                # this is NOT the model. It's a simple object
+                Distribution("EDITOR_PAYOUT", pay_amount, False),
+                editor,
+                None,
+                today,
+            )
+            distributor.distribute()
+
+    def test_tiered_editors_payout(self):
         assistant_balance = self.assistant_editor.get_balance()
         associate_balance = self.associate_editor.get_balance()
         senior_balance = self.senior_editor.get_balance()
+
         self.assertGreater(associate_balance, assistant_balance)
         self.assertGreater(senior_balance, associate_balance)
+
+        self.assertEqual(
+            round(assistant_balance), round(self.gecko_result["assistant_pay_amount"])
+        )
+        self.assertEqual(
+            round(associate_balance), round(self.gecko_result["associate_pay_amount"])
+        )
+        self.assertEqual(
+            round(senior_balance), round(self.gecko_result["senior_pay_amount"])
+        )
