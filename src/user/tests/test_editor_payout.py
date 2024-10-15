@@ -3,7 +3,8 @@ from rest_framework.test import APITestCase
 
 from hub.models import Hub
 from hub.tests.helpers import create_hub
-from paper.tests.helpers import create_paper
+from purchase.related_models.constants.rsc_exchange_currency import COIN_GECKO
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_access_group.constants import (
     ASSISTANT_EDITOR,
     ASSOCIATE_EDITOR,
@@ -38,11 +39,20 @@ class PayoutTests(APITestCase):
                 user=user,
             )
 
+        # Setting up static exchange rate for Coin Gecko to simulate payouts
+        RscExchangeRate.objects.create(
+            price_source=COIN_GECKO,
+            rate=1,
+            real_rate=1,
+            target_currency="USD",
+        )
+
     def test_tiered_editors_payout(self):
         editor_daily_payout_task()
 
         assistant_balance = self.assistant_editor.get_balance()
         associate_balance = self.associate_editor.get_balance()
         senior_balance = self.senior_editor.get_balance()
+        print(associate_balance, associate_balance, senior_balance)
         self.assertGreater(associate_balance, assistant_balance)
         self.assertGreater(senior_balance, associate_balance)
