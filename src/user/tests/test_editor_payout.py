@@ -1,3 +1,5 @@
+import datetime
+
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APITestCase
 
@@ -46,6 +48,9 @@ class PayoutTests(APITestCase):
             real_rate=1,
             target_currency="USD",
         )
+        RscExchangeRate.objects.all().update(
+            created_date=datetime.datetime.now().replace(hour=14, minute=55)
+        )
 
     def test_tiered_editors_payout(self):
         editor_daily_payout_task()
@@ -53,6 +58,5 @@ class PayoutTests(APITestCase):
         assistant_balance = self.assistant_editor.get_balance()
         associate_balance = self.associate_editor.get_balance()
         senior_balance = self.senior_editor.get_balance()
-        print(associate_balance, associate_balance, senior_balance)
         self.assertGreater(associate_balance, assistant_balance)
         self.assertGreater(senior_balance, associate_balance)
