@@ -117,6 +117,7 @@ class Hub(models.Model):
     def slugify(self):
         if not self.slug:
             self.slug = slugify(self.name.lower())
+            # We only want slugs that equal exactly or are appended with "-{number}"
             hub_slugs = Hub.objects.filter(
                 models.Q(slug=self.slug)
                 | models.Q(slug__regex=r"^{}-\d+$".format(self.slug))
