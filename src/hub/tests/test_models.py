@@ -109,3 +109,64 @@ class HubModelsTests(TestCase):
 
         # Assert
         self.assertEqual(actual, hub)
+
+    def test_slugify_new_hub(self):
+        # Arrange
+        hub = Hub(name="Test Hub")
+
+        # Act
+        hub.save()
+
+        # Assert
+        self.assertEqual(hub.slug, "test-hub")
+        self.assertIsNone(hub.slug_index)
+
+    def test_slugify_existing_slug(self):
+        # Arrange
+        Hub.objects.create(name="Test Hub", slug="test-hub")
+        new_hub = Hub(name="Test Hub")
+
+        # Act
+        new_hub.save()
+
+        # Assert
+        self.assertEqual(new_hub.slug, "test-hub-1")
+        self.assertEqual(new_hub.slug_index, 1)
+
+    def test_slugify_multiple_existing_slugs(self):
+        # Arrange
+        Hub.objects.create(name="Test Hub", slug="test-hub")
+        Hub.objects.create(name="Test Hub", slug="test-hub-1", slug_index=1)
+        Hub.objects.create(name="Test Hub", slug="test-hub-9", slug_index=9)
+        Hub.objects.create(name="Test Hub", slug="test-hub-88", slug_index=88)
+        new_hub = Hub(name="Test Hub")
+
+        # Act
+        new_hub.save()
+
+        # Assert
+        self.assertEqual(new_hub.slug, "test-hub-89")
+        self.assertEqual(new_hub.slug_index, 89)
+
+    def test_slugify_with_special_characters(self):
+        # Arrange
+        hub = Hub(name="Test Hub! @#$%^&*()")
+
+        # Act
+        hub.save()
+
+        # Assert
+        self.assertEqual(hub.slug, "test-hub")
+        self.assertIsNone(hub.slug_index)
+
+    def test_slugify_existing_slug_starts_with(self):
+        # Arrange
+        Hub.objects.create(name="Test Hub Starts With", slug="test-hub-starts-with")
+        new_hub = Hub(name="Test Hub")
+
+        # Act
+        new_hub.save()
+
+        # Assert
+        self.assertEqual(new_hub.slug, "test-hub")
+        self.assertIsNone(new_hub.slug_index)

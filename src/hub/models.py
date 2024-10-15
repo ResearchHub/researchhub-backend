@@ -117,9 +117,12 @@ class Hub(models.Model):
     def slugify(self):
         if not self.slug:
             self.slug = slugify(self.name.lower())
-            hub_slugs = Hub.objects.filter(slug__startswith=self.slug).order_by(
-                "slug_index"
-            )
+            # We only want slugs that equal exactly or are appended with "-{number}"
+            hub_slugs = Hub.objects.filter(
+                models.Q(slug=self.slug)
+                | models.Q(slug__regex=r"^{}-\d+$".format(self.slug))
+            ).order_by(models.F("slug_index").asc(nulls_first=True))
+
             if hub_slugs.exists():
                 last_slug = hub_slugs.last()
                 if not last_slug.slug_index:
