@@ -40,3 +40,9 @@ class PayoutTests(APITestCase):
 
     def test_tiered_editors_payout(self):
         editor_daily_payout_task()
+
+        assistant_balance = self.assistant_editor.get_balance()
+        associate_balance = self.associate_editor.get_balance()
+        senior_balance = self.senior_editor.get_balance()
+        self.assertGreater(associate_balance, assistant_balance)
+        self.assertGreater(senior_balance, associate_balance)
