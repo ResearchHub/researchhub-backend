@@ -205,8 +205,12 @@ class BountyViewSet(viewsets.ModelViewSet):
                 "id",
                 "slug",
                 "title",
+                "abstract",
                 "authors",
             )
+        }
+        context["rep_dbs_get_hubs"] = {
+            "_include_fields": ("id", "name", "namespace", "slug", "is_used_for_rep")
         }
         context["dis_dts_get_created_by"] = {"_include_fields": ("author_profile",)}
         context["dis_dts_get_unified_document"] = {
@@ -384,6 +388,8 @@ class BountyViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticated, UserCanCancelBounty],
     )
     def cancel_bounty(self, request, pk=None):
+        from user.models import User
+
         with transaction.atomic():
             bounty = self.get_object()
             if bounty.status != Bounty.OPEN:
@@ -427,19 +433,23 @@ class BountyViewSet(viewsets.ModelViewSet):
                 raise Exception("Bounty cancel error")
 
     def list(self, request, *args, **kwargs):
+
+        hub_ids = request.query_params.getlist("hub_ids")
         personalized = (
             request.query_params.get("personalized", "false").lower() == "true"
             and request.user.is_authenticated
         )
 
-        if personalized:
+        if False:
             bounties = Bounty.find_bounties_for_user(
-                request.user, include_unrelated=True
+                User.objects.get(id=10), include_unrelated=True, hub_ids=hub_ids
             )
         else:
             bounties = self.filter_queryset(self.get_queryset()).order_by(
                 "-created_date"
             )
+            if hub_ids:
+                bounties = bounties.filter(unified_document__hubs__id__in=hub_ids)
 
         page = self.paginate_queryset(bounties)
         context = self._get_retrieve_context()
@@ -454,6 +464,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                 "item",
                 "expiration_date",
                 "status",
+                "hubs",
                 "total_amount",
                 "unified_document",
             ),
