@@ -109,12 +109,6 @@ router.register(
     r"events/paper", analytics.views.PaperEventViewSet, basename="events_paper"
 )
 
-router.register(
-    r"events/amplitude/forward_event",
-    analytics.views.AmplitudeViewSet,
-    basename="events_amplitude",
-)
-
 router.register(r"purchase", purchase.views.PurchaseViewSet, basename="purchase")
 
 router.register(r"transactions", purchase.views.BalanceViewSet, basename="transactions")
