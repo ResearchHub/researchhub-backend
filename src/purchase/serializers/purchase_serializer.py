@@ -194,17 +194,6 @@ class AggregatePurchaseSerializer(serializers.ModelSerializer):
         return data
 
     def get_stats(self, purchase):
-        distinct_views = purchase.purchases.filter(
-            paper__event__interaction=INTERACTIONS["VIEW"],
-            paper__event__paper_is_boosted=True,
-        ).distinct()
-        distinct_clicks = purchase.purchases.filter(
-            paper__event__interaction=INTERACTIONS["CLICK"],
-            paper__event__paper_is_boosted=True,
-        ).distinct()
-
-        total_views = distinct_views.values("paper__event").count()
-        total_clicks = distinct_clicks.values("paper__event").count()
         total_amount = sum(
             map(float, purchase.purchases.values_list("amount", flat=True))
         )
@@ -222,8 +211,8 @@ class AggregatePurchaseSerializer(serializers.ModelSerializer):
         end_date = (created_date + timedelta).isoformat()
 
         stats = {
-            "total_views": total_views,
-            "total_clicks": total_clicks,
+            "total_views": 0,  # TODO: Remove deprecated field
+            "total_clicks": 0,  # TODO: Remove deprecated field
             "total_amount": total_amount,
             "end_date": end_date,
         }
