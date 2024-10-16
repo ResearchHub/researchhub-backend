@@ -2,6 +2,7 @@ import decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
@@ -432,26 +433,61 @@ class BountyViewSet(viewsets.ModelViewSet):
                 # Exception is raised to rollback database transaction
                 raise Exception("Bounty cancel error")
 
+    def filter_queryset(self, queryset):
+        queryset = super().filter_queryset(queryset)
+
+        bounty_types = self.request.query_params.getlist("bounty_type")
+        hub_ids = self.request.query_params.getlist("hub_ids")
+
+        applied_filters = Q()
+
+        # Only return bounties within specific hubs
+        if hub_ids:
+            applied_filters &= Q(unified_document__hubs__id__in=hub_ids)
+
+        # ResearchHub foundation only filter
+        if "researchhub" in bounty_types:
+            RESEARCHHUB_FOUNDATION_EMAIL = "kobe@researchhub.com"
+            researchhub_foundation_user = User.objects.filter(
+                email=RESEARCHHUB_FOUNDATION_EMAIL
+            ).last()
+            applied_filters &= Q(created_by=researchhub_foundation_user)
+
+        # Handle review, answer, and other filters
+        review_or_answer_filter = Q()
+        if "review" in bounty_types:
+            review_or_answer_filter |= Q(bounty_type="REVIEW")
+        if "answer" in bounty_types:
+            review_or_answer_filter |= Q(bounty_type="ANSWER")
+        if "other" in bounty_types:
+            review_or_answer_filter |= Q(bounty_type="OTHER")
+
+        # Combine the filters
+        if review_or_answer_filter:
+            applied_filters &= review_or_answer_filter
+
+        # Apply the combined filter
+        return queryset.filter(applied_filters)
+
     def list(self, request, *args, **kwargs):
 
-        hub_ids = request.query_params.getlist("hub_ids")
         personalized = (
             request.query_params.get("personalized", "false").lower() == "true"
             and request.user.is_authenticated
         )
 
-        if False:
-            bounties = Bounty.find_bounties_for_user(
-                User.objects.get(id=10), include_unrelated=True, hub_ids=hub_ids
+        if personalized:
+            queryset = Bounty.find_bounties_for_user(
+                user=request.user,
+                include_unrelated=True,
             )
+            queryset = self.filter_queryset(queryset)
         else:
-            bounties = self.filter_queryset(self.get_queryset()).order_by(
+            queryset = self.filter_queryset(self.get_queryset()).order_by(
                 "-created_date"
             )
-            if hub_ids:
-                bounties = bounties.filter(unified_document__hubs__id__in=hub_ids)
 
-        page = self.paginate_queryset(bounties)
+        page = self.paginate_queryset(queryset)
         context = self._get_retrieve_context()
         serializer = DynamicBountySerializer(
             page,
@@ -464,6 +500,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                 "item",
                 "expiration_date",
                 "status",
+                "bounty_type",
                 "hubs",
                 "total_amount",
                 "unified_document",

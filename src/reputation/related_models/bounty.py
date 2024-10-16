@@ -194,7 +194,7 @@ class Bounty(DefaultModel):
 
     @classmethod
     def find_bounties_for_user(
-        cls, user, include_unrelated=False, hub_ids=[]
+        cls, user, include_unrelated=False
     ) -> List[AnnotatedBounty]:
         from django.db.models import F, IntegerField, OuterRef, Subquery, Value
 
@@ -215,7 +215,7 @@ class Bounty(DefaultModel):
             Bounty.objects.filter(status=Bounty.OPEN)
             .select_related("unified_document")
             .prefetch_related("unified_document__hubs")
-            .filter(unified_document__hubs__id__in=hub_ids)
+            # .filter(unified_document__hubs__id__in=hub_ids)
             .filter(
                 unified_document__hubs__id__in=user_expertise_scores.values_list(
                     "hub_id", flat=True
@@ -235,7 +235,7 @@ class Bounty(DefaultModel):
                 Bounty.objects.filter(status=Bounty.OPEN)
                 .select_related("unified_document")
                 .prefetch_related("unified_document__hubs")
-                .filter(unified_document__hubs__id__in=hub_ids)
+                # .filter(unified_document__hubs__id__in=hub_ids)
                 .annotate(
                     user_hub_score=Value(None, output_field=IntegerField()),
                     matching_hub_id=Value(None, output_field=IntegerField()),
