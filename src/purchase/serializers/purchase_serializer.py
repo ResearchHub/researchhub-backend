@@ -1,10 +1,10 @@
 import datetime
 
 import rest_framework.serializers as serializers
-from django.db.models import CharField, Count, F, Func, IntegerField, Sum, Value
+from django.db.models import IntegerField, Sum
 from django.db.models.functions import Cast
 
-from analytics.models import INTERACTIONS, PaperEvent
+from analytics.models import INTERACTIONS
 from discussion.serializers import (
     CommentSerializer,
     DynamicCommentSerializer,
@@ -209,34 +209,6 @@ class AggregatePurchaseSerializer(serializers.ModelSerializer):
             map(float, purchase.purchases.values_list("amount", flat=True))
         )
 
-        distinct_views_ids = distinct_views.values_list("paper__event", flat=True)
-        views = (
-            PaperEvent.objects.filter(id__in=distinct_views_ids)
-            .values(
-                date=Func(
-                    F("created_date"),
-                    Value("YYYY-MM-DD"),
-                    function="to_char",
-                    output_field=CharField(),
-                )
-            )
-            .annotate(views=Count("date"))
-        )
-
-        distinct_clicks_ids = distinct_clicks.values_list("paper__event", flat=True)
-        clicks = (
-            PaperEvent.objects.filter(id__in=distinct_clicks_ids)
-            .values(
-                date=Func(
-                    F("created_date"),
-                    Value("YYYY-MM-DD"),
-                    function="to_char",
-                    output_field=CharField(),
-                )
-            )
-            .annotate(clicks=Count("date"))
-        )
-
         created_date = purchase.created_date
 
         max_boost = (
@@ -250,8 +222,6 @@ class AggregatePurchaseSerializer(serializers.ModelSerializer):
         end_date = (created_date + timedelta).isoformat()
 
         stats = {
-            "views": views,
-            "clicks": clicks,
             "total_views": total_views,
             "total_clicks": total_clicks,
             "total_amount": total_amount,
