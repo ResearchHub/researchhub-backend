@@ -447,11 +447,10 @@ class BountyViewSet(viewsets.ModelViewSet):
 
         # ResearchHub foundation only filter
         if "researchhub" in bounty_types:
-            RESEARCHHUB_FOUNDATION_EMAIL = "kobe@researchhub.com"
-            researchhub_foundation_user = User.objects.filter(
-                email=RESEARCHHUB_FOUNDATION_EMAIL
-            ).last()
-            applied_filters &= Q(created_by=researchhub_foundation_user)
+            researchhub_official_user_accounts = User.objects.filter(
+                is_official_account=True
+            )
+            applied_filters &= Q(created_by__in=researchhub_official_user_accounts)
 
         # Handle review, answer, and other filters
         review_or_answer_filter = Q()
