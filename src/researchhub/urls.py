@@ -105,10 +105,6 @@ router.register(
     basename="websiteviews",
 )
 
-router.register(
-    r"events/paper", analytics.views.PaperEventViewSet, basename="events_paper"
-)
-
 router.register(r"purchase", purchase.views.PurchaseViewSet, basename="purchase")
 
 router.register(r"transactions", purchase.views.BalanceViewSet, basename="transactions")
