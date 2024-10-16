@@ -2,6 +2,7 @@ import logging
 
 import dj_rest_auth.registration.serializers as rest_auth_serializers
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import Q
 from rest_framework.serializers import (
     CharField,
     IntegerField,
@@ -20,7 +21,12 @@ from paper.models import Paper, PaperSubmission
 from purchase.models import Purchase
 from reputation.models import Bounty, Contribution, Score, Withdrawal
 from researchhub.serializers import DynamicModelFieldSerializer
-from researchhub_access_group.constants import EDITOR
+from researchhub_access_group.constants import (
+    ASSISTANT_EDITOR,
+    ASSOCIATE_EDITOR,
+    EDITOR,
+    SENIOR_EDITOR,
+)
 from researchhub_access_group.serializers import DynamicPermissionSerializer
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost
@@ -236,7 +242,12 @@ class AuthorSerializer(ModelSerializer):
 
         hub_content_type = ContentType.objects.get_for_model(Hub)
         target_permissions = user.permissions.filter(
-            access_type=EDITOR, content_type=hub_content_type
+            (
+                Q(access_type=ASSISTANT_EDITOR)
+                | Q(access_type=ASSOCIATE_EDITOR)
+                | Q(access_type=SENIOR_EDITOR)
+            ),
+            content_type=hub_content_type,
         )
         target_hub_ids = []
         for permission in target_permissions:
