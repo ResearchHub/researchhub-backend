@@ -5,10 +5,12 @@ from datetime import datetime
 from rest_framework.test import APITestCase
 
 from discussion.tests.helpers import create_rh_comment
+from hub.models import Hub
 from hub.tests.helpers import create_hub
+from paper.tests.helpers import create_paper
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
-from reputation.models import BountyFee
+from reputation.models import Bounty, BountyFee
 from user.models import User
 from user.tests.helpers import create_moderator, create_random_default_user, create_user
 
@@ -22,6 +24,11 @@ class BountyViewTests(APITestCase):
         self.user_4 = create_random_default_user("bounty_user_4")
         self.recipient = create_random_default_user("bounty_recipient")
         self.moderator = create_moderator(first_name="moderator", last_name="moderator")
+
+        self.rh_official = create_random_default_user("rh_official")
+        self.rh_official.is_official_account = True
+        self.rh_official.save()
+
         self.thread = create_rh_comment(created_by=self.recipient)
         self.thread_response_1 = create_rh_comment(
             created_by=self.user_2, parent=self.thread
@@ -40,6 +47,15 @@ class BountyViewTests(APITestCase):
 
         distributor = Distributor(
             distribution, self.user, self.user, time.time(), self.user
+        )
+        distributor.distribute()
+
+        distributor = Distributor(
+            distribution,
+            self.rh_official,
+            self.rh_official,
+            time.time(),
+            self.rh_official,
         )
         distributor.distribute()
 
@@ -683,3 +699,141 @@ class BountyViewTests(APITestCase):
         # Assert
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.data["results"]), 2)
+
+    def test_filter_official_account_bounties(self):
+        self.client.force_authenticate(self.rh_official)
+
+        # Create bounty
+        res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 2000,
+                "item_content_type": self.thread._meta.model_name,
+                "item_object_id": self.thread.id,
+            },
+        )
+
+        created_bounty_id = res.data["id"]
+
+        res = self.client.get(
+            "/api/bounty/",
+            {
+                "status": "OPEN",
+                "bounty_type": ["RESEARCHHUB"],
+            },
+        )
+
+        self.assertEqual(created_bounty_id, res.data["results"][0]["id"])
+
+    def test_filter_review_bounty_type(self):
+        self.client.force_authenticate(self.rh_official)
+
+        # Create bounty
+        res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 2000,
+                "item_content_type": self.thread._meta.model_name,
+                "item_object_id": self.thread.id,
+                "bounty_type": Bounty.REVIEW_TYPE,
+            },
+        )
+
+        created_bounty_id = res.data["id"]
+
+        res = self.client.get(
+            "/api/bounty/",
+            {
+                "status": "OPEN",
+                "bounty_type": [Bounty.REVIEW_TYPE],
+            },
+        )
+
+        self.assertEqual(created_bounty_id, res.data["results"][0]["id"])
+
+    def test_filter_answer_bounty_type(self):
+        self.client.force_authenticate(self.rh_official)
+
+        # Create bounty
+        res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 2000,
+                "item_content_type": self.thread._meta.model_name,
+                "item_object_id": self.thread.id,
+                "bounty_type": Bounty.ANSWER_TYPE,
+            },
+        )
+
+        created_bounty_id = res.data["id"]
+
+        res = self.client.get(
+            "/api/bounty/",
+            {
+                "status": "OPEN",
+                "bounty_type": [Bounty.ANSWER_TYPE],
+            },
+        )
+
+        self.assertEqual(created_bounty_id, res.data["results"][0]["id"])
+
+    def test_filter_other_bounty_type(self):
+        self.client.force_authenticate(self.rh_official)
+
+        # Create bounty
+        res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 2000,
+                "item_content_type": self.thread._meta.model_name,
+                "item_object_id": self.thread.id,
+                "bounty_type": Bounty.OTHER_TYPE,
+            },
+        )
+
+        created_bounty_id = res.data["id"]
+
+        res = self.client.get(
+            "/api/bounty/",
+            {
+                "status": "OPEN",
+                "bounty_type": [Bounty.OTHER_TYPE],
+            },
+        )
+
+        self.assertEqual(created_bounty_id, res.data["results"][0]["id"])
+
+    def test_filter_hub_specific_bounties_type(self):
+
+        # Arrange: Create hub and add it to the paper
+        paper = create_paper()
+        hub = Hub.objects.create(
+            name="testHub",
+        )
+
+        paper.unified_document.hubs.add(hub)
+        self.thread = create_rh_comment(created_by=self.rh_official, paper=paper)
+        self.client.force_authenticate(self.rh_official)
+
+        # Create bounty
+        res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 2000,
+                "item_content_type": self.thread._meta.model_name,
+                "item_object_id": self.thread.id,
+                "bounty_type": Bounty.OTHER_TYPE,
+            },
+        )
+
+        created_bounty_id = res.data["id"]
+
+        res = self.client.get(
+            "/api/bounty/",
+            {
+                "status": "OPEN",
+                "hub_ids": [hub.id],
+            },
+        )
+
+        self.assertEqual(created_bounty_id, res.data["results"][0]["id"])

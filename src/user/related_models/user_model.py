@@ -96,6 +96,10 @@ class User(AbstractUser):
     updated_date = models.DateTimeField(auto_now=True)
     upload_tutorial_complete = models.BooleanField(default=False)
 
+    # Official accounts are currently used as a distinguishing factor in bounties.
+    # Bounties are separated into two categories: official and community.
+    is_official_account = models.BooleanField(default=False)
+
     objects = UserManager()
 
     def full_name(self):

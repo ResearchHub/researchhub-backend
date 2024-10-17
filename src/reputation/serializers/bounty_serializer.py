@@ -7,6 +7,7 @@ from discussion.serializers import (
     DynamicReplySerializer,
     DynamicThreadSerializer,
 )
+from hub.serializers import DynamicHubSerializer
 from reputation.models import Bounty, BountySolution
 from reputation.serializers.escrow_serializer import DynamicEscrowSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -44,6 +45,7 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
     parent = serializers.SerializerMethodField()
     total_amount = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
+    hubs = serializers.SerializerMethodField()
     # Kobe: This is not great. This alias is used to disambiguate "parent" used in contribution_views because simply
     # using parent, may lead to infinite recursive loop -_-
     bounty_parent = serializers.SerializerMethodField(method_name="get_parent")
@@ -63,6 +65,19 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
     def get_content_type(self, bounty):
         content_type = bounty.item_content_type
         return {"id": content_type.id, "name": content_type.model}
+
+    def get_hubs(self, bounty):
+        context = self.context
+        _context_fields = context.get("rep_dbs_get_hubs", {})
+
+        serializer = DynamicHubSerializer(
+            bounty.unified_document.hubs.all(),
+            many=True,
+            context=context,
+            **_context_fields,
+        )
+
+        return serializer.data
 
     def get_item(self, bounty):
         serializer = None
