@@ -439,14 +439,16 @@ class BountyViewSet(viewsets.ModelViewSet):
         bounty_types = self.request.query_params.getlist("bounty_type")
         hub_ids = self.request.query_params.getlist("hub_ids")
 
+        # Build filters
         applied_filters = Q()
 
         # Only return bounties within specific hubs
         if hub_ids:
+            print("hub_ids", hub_ids)
             applied_filters &= Q(unified_document__hubs__id__in=hub_ids)
 
         # ResearchHub foundation only filter
-        if "researchhub" in bounty_types:
+        if "RESEARCHHUB" in bounty_types:
             researchhub_official_user_accounts = User.objects.filter(
                 is_official_account=True
             )
@@ -454,12 +456,12 @@ class BountyViewSet(viewsets.ModelViewSet):
 
         # Handle review, answer, and other filters
         review_or_answer_filter = Q()
-        if "review" in bounty_types:
-            review_or_answer_filter |= Q(bounty_type="REVIEW")
-        if "answer" in bounty_types:
-            review_or_answer_filter |= Q(bounty_type="ANSWER")
-        if "other" in bounty_types:
-            review_or_answer_filter |= Q(bounty_type="OTHER")
+        if Bounty.REVIEW_TYPE in bounty_types:
+            review_or_answer_filter |= Q(bounty_type=Bounty.REVIEW_TYPE)
+        if Bounty.ANSWER_TYPE in bounty_types:
+            review_or_answer_filter |= Q(bounty_type=Bounty.ANSWER_TYPE)
+        if Bounty.OTHER_TYPE in bounty_types:
+            review_or_answer_filter |= Q(bounty_type=Bounty.OTHER_TYPE)
 
         # Combine the filters
         if review_or_answer_filter:

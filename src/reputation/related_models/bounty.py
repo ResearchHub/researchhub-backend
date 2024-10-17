@@ -36,6 +36,14 @@ class Bounty(DefaultModel):
         (CANCELLED, CANCELLED),
         (EXPIRED, EXPIRED),
     )
+    REVIEW_TYPE = "REVIEW"
+    ANSWER_TYPE = "ANSWER"
+    OTHER_TYPE = "GENERIC_COMMENT"
+    type_choices = (
+        (REVIEW_TYPE, REVIEW_TYPE),
+        (ANSWER_TYPE, ANSWER_TYPE),
+        (OTHER_TYPE, OTHER_TYPE),
+    )
 
     expiration_date = models.DateTimeField(
         null=True,
@@ -49,7 +57,9 @@ class Bounty(DefaultModel):
         "item_content_type",
         "item_object_id",
     )
-    bounty_type = models.CharField(max_length=64, null=True, blank=True)
+    bounty_type = models.CharField(
+        choices=type_choices, max_length=64, null=True, blank=True
+    )
     amount = models.DecimalField(default=0, decimal_places=10, max_digits=19)
     created_by = models.ForeignKey(
         "user.User", on_delete=models.CASCADE, related_name="bounties"
