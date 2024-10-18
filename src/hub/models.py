@@ -154,7 +154,8 @@ class Hub(models.Model):
     @classmethod
     def get_from_subfield(cls, subfield):
         return Hub.objects.get(
-            Q(name__iexact=subfield.display_name) | Q(subfield_id=subfield.id)
+            (Q(name__iexact=subfield.display_name) | Q(subfield_id=subfield.id))
+            & ~Q(namespace="journal")
         )
 
     @classmethod
