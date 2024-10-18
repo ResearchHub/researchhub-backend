@@ -8,6 +8,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models import Sum
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 
 from reputation.related_models.escrow import Escrow
 from reputation.related_models.score import Score
@@ -26,6 +27,12 @@ class AnnotatedBounty(TypedDict):
 
 
 class Bounty(DefaultModel):
+
+    class Type(models.TextChoices):
+        REVIEW = "REVIEW", _("REVIEW")
+        ANSWER = "ANSWER", _("ANSWER")
+        OTHER = "GENERIC_COMMENT", _("GENERIC_COMMENT")
+
     OPEN = "OPEN"
     CANCELLED = "CANCELLED"
     EXPIRED = "EXPIRED"
@@ -35,14 +42,6 @@ class Bounty(DefaultModel):
         (CLOSED, CLOSED),
         (CANCELLED, CANCELLED),
         (EXPIRED, EXPIRED),
-    )
-    REVIEW_TYPE = "REVIEW"
-    ANSWER_TYPE = "ANSWER"
-    OTHER_TYPE = "GENERIC_COMMENT"
-    type_choices = (
-        (REVIEW_TYPE, REVIEW_TYPE),
-        (ANSWER_TYPE, ANSWER_TYPE),
-        (OTHER_TYPE, OTHER_TYPE),
     )
 
     expiration_date = models.DateTimeField(
@@ -57,9 +56,7 @@ class Bounty(DefaultModel):
         "item_content_type",
         "item_object_id",
     )
-    bounty_type = models.CharField(
-        choices=type_choices, max_length=64, null=True, blank=True
-    )
+    bounty_type = models.TextField(choices=Type.choices, null=True, blank=True)
     amount = models.DecimalField(default=0, decimal_places=10, max_digits=19)
     created_by = models.ForeignKey(
         "user.User", on_delete=models.CASCADE, related_name="bounties"
