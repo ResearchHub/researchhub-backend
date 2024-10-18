@@ -735,7 +735,7 @@ class BountyViewTests(APITestCase):
                 "amount": 2000,
                 "item_content_type": self.thread._meta.model_name,
                 "item_object_id": self.thread.id,
-                "bounty_type": Bounty.REVIEW_TYPE,
+                "bounty_type": Bounty.Type.REVIEW,
             },
         )
 
@@ -745,7 +745,7 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "status": "OPEN",
-                "bounty_type": [Bounty.REVIEW_TYPE],
+                "bounty_type": [Bounty.Type.REVIEW],
             },
         )
 
@@ -761,7 +761,7 @@ class BountyViewTests(APITestCase):
                 "amount": 2000,
                 "item_content_type": self.thread._meta.model_name,
                 "item_object_id": self.thread.id,
-                "bounty_type": Bounty.ANSWER_TYPE,
+                "bounty_type": Bounty.Type.ANSWER,
             },
         )
 
@@ -771,7 +771,7 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "status": "OPEN",
-                "bounty_type": [Bounty.ANSWER_TYPE],
+                "bounty_type": [Bounty.Type.ANSWER],
             },
         )
 
@@ -787,7 +787,7 @@ class BountyViewTests(APITestCase):
                 "amount": 2000,
                 "item_content_type": self.thread._meta.model_name,
                 "item_object_id": self.thread.id,
-                "bounty_type": Bounty.OTHER_TYPE,
+                "bounty_type": Bounty.Type.OTHER,
             },
         )
 
@@ -797,7 +797,7 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "status": "OPEN",
-                "bounty_type": [Bounty.OTHER_TYPE],
+                "bounty_type": [Bounty.Type.OTHER],
             },
         )
 
@@ -822,7 +822,7 @@ class BountyViewTests(APITestCase):
                 "amount": 2000,
                 "item_content_type": self.thread._meta.model_name,
                 "item_object_id": self.thread.id,
-                "bounty_type": Bounty.OTHER_TYPE,
+                "bounty_type": Bounty.Type.OTHER,
             },
         )
 
