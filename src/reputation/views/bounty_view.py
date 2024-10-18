@@ -478,10 +478,12 @@ class BountyViewSet(viewsets.ModelViewSet):
         )
 
         if personalized:
-            queryset = Bounty.find_bounties_for_user(
+            bounties = Bounty.find_bounties_for_user(
                 user=request.user,
                 include_unrelated=True,
             )
+
+            queryset = Bounty.objects.filter(id__in=[b.id for b in bounties])
             queryset = self.filter_queryset(queryset)
         else:
             queryset = self.filter_queryset(self.get_queryset()).order_by(
