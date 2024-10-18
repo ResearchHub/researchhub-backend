@@ -9,9 +9,7 @@ from paper.related_models.paper_model import (
     HELP_TEXT_IS_PUBLIC,
     HELP_TEXT_IS_REMOVED,
     HOT_SCORE_WEIGHT,
-    AdditionalFile,
     Figure,
-    Flag,
     Paper,
     PaperFetchLog,
 )

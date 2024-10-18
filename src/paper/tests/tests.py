@@ -1,12 +1,9 @@
 from unittest import skip
 
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.db import IntegrityError
-from django.test import TestCase, TransactionTestCase, tag
-from psycopg2.errors import UniqueViolation
+from django.test import TestCase, tag
 
 from paper.serializers import DynamicPaperSerializer
-from paper.tasks import handle_duplicate_doi
 from paper.utils import (
     convert_journal_url_to_pdf_url,
     convert_pdf_url_to_journal_url,
@@ -63,59 +60,6 @@ class PaperIntegrationTests(TestCase, TestHelper, IntegrationTestHelper):
         return form
 
 
-class DuplicatePaperIntegrationTest(
-    TransactionTestCase, TestHelper, IntegrationTestHelper
-):
-    def create_original_paper(self, doi="1"):
-        original_paper = self.create_paper_without_authors()
-        original_paper.doi = doi
-        original_paper.save()
-        return original_paper
-
-    @skip("Temporarily disabled because of the Django 4.1.13 upgrade")
-    def test_duplicate_papers(self):
-        doi = "1.1.1"
-        user1 = self.create_random_authenticated_user("user_1")
-        user2 = self.create_random_authenticated_user("user_2")
-        original_paper = self.create_original_paper(doi=doi)
-        new_paper = self.create_paper_without_authors()
-
-        # Adding upvote to papers
-        self.create_upvote(user1, original_paper)
-        self.create_upvote(user1, new_paper)
-        self.create_upvote(user2, new_paper)
-
-        # Adding threads to papers
-        self.create_thread(user1, original_paper, text="thread_1")
-        self.create_thread(user2, new_paper, text="thread_2")
-
-        try:
-            new_paper.doi = doi
-            new_paper.save()
-        except (UniqueViolation, IntegrityError):
-            handle_duplicate_doi(new_paper, doi)
-
-        # Checking merging results
-        original_results, new_results = 2, 0
-        original_paper_votes = original_paper.votes.count()
-        new_paper_votes = new_paper.votes.count()
-        self.assertEqual(original_paper_votes, original_results)
-        self.assertEqual(new_paper_votes, new_results)
-
-        original_thread_results = set(["thread_1", "thread_2"])
-        original_paper_threads = original_paper.threads.count()
-        original_paper_threads_text = set(
-            original_paper.threads.values_list("plain_text", flat=True)
-        )
-        new_paper_threads = new_paper.threads.count()
-        self.assertEqual(original_paper_threads, original_results)
-        self.assertEqual(new_paper_threads, new_results)
-        self.assertEqual(original_paper_threads_text, original_thread_results)
-
-        new_paper_id = None
-        self.assertEqual(new_paper.id, new_paper_id)
-
-
 class JournalPdfTests(TestCase):
     journal_test_urls = [
         "https://arxiv.org/abs/2007.10529",
@@ -129,10 +73,6 @@ class JournalPdfTests(TestCase):
         "https://advances.sciencemag.org/content/1/6/e1500251",
         "https://onlinelibrary.wiley.com/doi/full/10.1111/jvim.15646",
         "https://academic.oup.com/nar/article/46/W1/W180/5033528",
-        # "https://www.sciencedirect.com/science/article/abs/pii/S105381191832161X",
-        # "https://link.springer.com/article/10.1007/s11033-020-05249-1",
-        # "https://www.cell.com/current-biology/fulltext/S0960-9822(19)31258-8",
-        # "https://ieeexplore.ieee.org/document/8982960",
     ]
 
     pdf_test_urls = [

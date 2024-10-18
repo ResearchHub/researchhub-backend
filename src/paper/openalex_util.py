@@ -1,8 +1,10 @@
 import copy
 import logging
+import urllib.parse
 from typing import Any, Dict, List
 
 from django.core.exceptions import ValidationError
+from django.core.validators import URLValidator
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from simple_history.utils import bulk_update_with_history
@@ -45,6 +47,23 @@ PAPER_FIELDS_ALLOWED_TO_UPDATE = [
     "abstract",
     "retrieved_from_external_source",
 ]
+
+"""
+This dictionary maps OpenAlex sources (`external_source`) to ResearchHub journal hubs. 
+It is used to automatically tag papers with the appropriate journal hub when they are fetched from OpenAlex.
+Note: If the name of the journal hub changes, this dictionary will need to be updated.
+"""
+OPENALEX_SOURCES_TO_JOURNAL_HUBS: Dict[str, str] = {
+    "arXiv (Cornell University)": "Arxiv",
+    "bioRxiv (Cold Spring Harbor Laboratory)": "Biorxiv",
+    "medRxiv (Cold Spring Harbor Laboratory)": "Medrxiv",
+    "ChemRxiv": "Chemrxiv",
+    "Research Square (Research Square)": "Research Square",
+    "OSF Preprints (OSF Preprints)": "Osf Preprints",
+    "PeerJ": "Peerj",
+    "Authorea (Authorea)": "Authorea",
+    "SSRN Electronic Journal": "Ssrn",
+}
 
 
 def process_openalex_works(works):
@@ -93,9 +112,13 @@ def create_and_update_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
     openalex_ids = [work.get("id") for work in works]
 
     # batch fetch existing papers
+    doi_q_objects = Q()
+    for doi in dois:
+        doi_q_objects |= Q(doi__iexact=doi)
+
     existing_papers_query = (
-        Paper.objects.filter(Q(doi__in=dois) | Q(openalex_id__in=openalex_ids))
-        .only("doi", "id")
+        Paper.objects.filter(doi_q_objects | Q(openalex_id__in=openalex_ids))
+        .only("doi", "id", "unified_document")
         .distinct()
     )
     existing_paper_map = {paper.doi: paper for paper in existing_papers_query}
@@ -147,6 +170,10 @@ def create_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
             openalex_topics,
         ) = open_alex.build_paper_from_openalex_work(_work)
 
+        # Clean the pdf_url
+        if openalex_paper.get("pdf_url"):
+            openalex_paper["pdf_url"] = clean_url(openalex_paper["pdf_url"])
+
         paper = Paper(**openalex_paper)
 
         # Validate paper
@@ -161,7 +188,9 @@ def create_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
             continue
 
         try:
-            paper.save()
+            with transaction.atomic():
+                paper.save()
+
             Citation(
                 paper=paper,
                 total_citation_count=paper.citations,
@@ -402,11 +431,17 @@ def create_openalex_authorships_and_institutions(
 
                 # Set institutions associated with authorships if they do not already exist
                 for oa_inst in oa_authorship.get("institutions", []):
-                    institution = Institution.upsert_from_openalex(oa_inst)
-                    if institution:
-                        if key not in authorship_institution_relations:
-                            authorship_institution_relations[key] = []
-                        authorship_institution_relations[key].append(institution)
+                    try:
+                        institution = Institution.upsert_from_openalex(oa_inst)
+                        if institution:
+                            if key not in authorship_institution_relations:
+                                authorship_institution_relations[key] = []
+                            authorship_institution_relations[key].append(institution)
+                    except Exception as e:
+                        sentry.log_error(
+                            e,
+                            message=f"Failed to upsert institution: {e}",
+                        )
 
     Authorship.objects.bulk_create(
         authorships_to_create_or_update.values(),
@@ -553,3 +588,17 @@ def merge_openalex_author_with_researchhub_author(openalex_author, researchhub_a
     AuthorInstitution.objects.bulk_create(author_institutions, ignore_conflicts=True)
 
     return researchhub_author
+
+
+def clean_url(url):
+    url = url.strip()
+
+    url = urllib.parse.quote(url, safe=":/?&=")
+
+    validate = URLValidator()
+    try:
+        validate(url)
+    except ValidationError:
+        return None
+
+    return url

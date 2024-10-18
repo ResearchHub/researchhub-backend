@@ -16,7 +16,6 @@ from paper.models import Paper
 from paper.utils import get_cache_key
 from researchhub.celery import QUEUE_CACHES, QUEUE_ELASTIC_SEARCH, app
 from researchhub.settings import APP_ENV, PRODUCTION, STAGING
-from researchhub_document.utils import reset_unified_document_cache
 from user.editor_payout_tasks import editor_daily_payout_task
 from user.rsc_exchange_rate_record_tasks import rsc_exchange_rate_record_tasks
 from utils.sentry import log_info
@@ -39,7 +38,6 @@ def handle_spam_user_task(user_id, requestor=None):
                 censor(requestor, comment)
 
         user.actions.update(display=False, is_removed=True)
-        reset_unified_document_cache()
 
 
 @app.task
@@ -56,8 +54,6 @@ def reinstate_user_task(user_id):
     ResearchhubUnifiedDocument.all_objects.filter(paper__in=papers).update(
         is_removed=False
     )
-
-    reset_unified_document_cache()
 
 
 def get_latest_actions(cursor):

@@ -32,7 +32,6 @@ from researchhub_document.related_models.constants.document_type import (
     SORT_BOUNTY_EXPIRATION_DATE,
     SORT_BOUNTY_TOTAL_AMOUNT,
 )
-from researchhub_document.utils import reset_unified_document_cache
 from user.models import User
 from utils.permissions import PostOnly
 from utils.sentry import log_error
@@ -280,9 +279,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                     SORT_BOUNTY_TOTAL_AMOUNT,
                 )
             )
-            reset_unified_document_cache(
-                document_type=[ALL.lower(), BOUNTY.lower()],
-            )
+
             return Response(serializer.data, status=201)
 
     @track_event
@@ -364,9 +361,6 @@ class BountyViewSet(viewsets.ModelViewSet):
                 )
             )
 
-            reset_unified_document_cache(
-                document_type=[ALL.lower(), BOUNTY.lower()],
-            )
             context = self._get_create_context()
             serializer = DynamicBountySerializer(
                 bounty,
@@ -409,10 +403,6 @@ class BountyViewSet(viewsets.ModelViewSet):
                     SORT_BOUNTY_EXPIRATION_DATE,
                     SORT_BOUNTY_TOTAL_AMOUNT,
                 )
-            )
-
-            reset_unified_document_cache(
-                document_type=[ALL.lower(), BOUNTY.lower()],
             )
 
             if bounty_cancelled:

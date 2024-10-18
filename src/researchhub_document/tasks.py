@@ -4,10 +4,26 @@ from django.http.request import HttpRequest, QueryDict
 from django_elasticsearch_dsl.registries import registry
 from rest_framework.request import Request
 
+from hub.models import Hub
 from paper.utils import get_cache_key
 from researchhub.celery import QUEUE_CACHES, QUEUE_ELASTIC_SEARCH, QUEUE_HOT_SCORE, app
 from researchhub.settings import PRODUCTION, STAGING
-from researchhub_document.related_models.constants.document_type import BOUNTY
+from researchhub_document.related_models.constants.document_type import (
+    ALL,
+    BOUNTY,
+    PAPER,
+    POSTS,
+    PREREGISTRATION,
+    QUESTION,
+)
+from researchhub_document.related_models.constants.filters import (
+    DISCUSSED,
+    EXPIRING_SOON,
+    HOT,
+    MOST_RSC,
+    NEW,
+    UPVOTED,
+)
 from utils import sentry
 
 
@@ -54,6 +70,7 @@ def preload_trending_documents(
     filtering,
     time_scope,
 ):
+
     from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
     from researchhub_document.views import ResearchhubUnifiedDocumentViewSet
 
@@ -130,7 +147,7 @@ def preload_trending_documents(
 
     paginated_response = document_view.get_paginated_response(serializer_data)
     cache_key_hub = get_cache_key("hub", cache_pk)
-    cache.set(cache_key_hub, paginated_response.data, timeout=None)
+    cache.set(cache_key_hub, paginated_response.data, timeout=60 * 60 * 24)
 
     return paginated_response.data
 
@@ -138,3 +155,20 @@ def preload_trending_documents(
 @app.task(queue=QUEUE_ELASTIC_SEARCH)
 def update_elastic_registry(post):
     registry.update(post)
+
+
+@app.task(queue=QUEUE_CACHES)
+def reset_homepage_cache():
+    from researchhub_document.utils import reset_unified_document_cache
+
+    reset_unified_document_cache(
+        document_type=[
+            ALL.lower(),
+            POSTS.lower(),
+            PREREGISTRATION.lower(),
+            PAPER.lower(),
+            QUESTION.lower(),
+        ],
+        filters=[DISCUSSED, HOT, NEW, UPVOTED],
+        date_ranges=["today"],
+    ),

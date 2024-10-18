@@ -8,7 +8,6 @@ import jellyfish
 import regex as re
 import requests
 from bs4 import BeautifulSoup
-from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.validators import URLValidator
@@ -513,39 +512,6 @@ def get_crossref_results(query, index=10):
     )
     results = results["message"]["items"]
     return results[:index]
-
-
-def merge_paper_votes(original_paper, new_paper):
-    old_votes = original_paper.votes.all()
-    old_votes_user = old_votes.values_list("created_by_id", flat=True)
-    conflicting_votes = new_paper.votes.filter(created_by__in=old_votes_user)
-    conflicting_votes_user = conflicting_votes.values_list("created_by_id", flat=True)
-    new_votes = new_paper.votes.exclude(created_by_id__in=conflicting_votes_user)
-
-    # Delete conflicting votes from the new paper
-    conflicting_votes.delete()
-
-    # Transfer new votes to original paper
-    new_votes.update(object_id=original_paper.id)
-
-
-def merge_paper_threads(original_paper, new_paper):
-    new_paper.threads.update(paper=original_paper)
-
-
-def merge_paper_bulletpoints(original_paper, new_paper):
-    original_bullet_points = original_paper.bullet_points.all()
-    new_bullet_points = new_paper.bullet_points.all()
-    for new_bullet_point in new_bullet_points:
-        new_point_text = new_bullet_point.plain_text
-        for original_bullet_point in original_bullet_points:
-            original_point_text = original_bullet_point.plain_text
-            is_similar = check_similarity(original_point_text, new_point_text)
-            if not is_similar:
-                new_bullet_point.paper = original_paper
-                new_bullet_point.save()
-            else:
-                new_bullet_point.delete()
 
 
 def get_cache_key(obj_type, pk):

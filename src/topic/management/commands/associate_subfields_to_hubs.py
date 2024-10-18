@@ -21,7 +21,7 @@ class Command(BaseCommand):
                 hub = Hub.objects.get(subfield=subfield)
             except Hub.DoesNotExist:
                 hub, created = Hub.objects.get_or_create(
-                    name=subfield.display_name.lower(),
+                    name=subfield.display_name,
                     defaults={"subfield": subfield, "is_used_for_rep": True},
                 )
                 if created:

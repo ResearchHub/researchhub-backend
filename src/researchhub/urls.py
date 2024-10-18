@@ -37,7 +37,7 @@ from citation.views import CitationEntryViewSet, CitationProjectViewSet
 from researchhub.settings import INSTALLED_APPS, USE_DEBUG_TOOLBAR
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from review.views.review_view import ReviewViewSet
-from user.views import author_views, editor_views, persona_webhook_view
+from user.views import author_views, editor_views, moderator_view, persona_webhook_view
 
 router = routers.DefaultRouter()
 
@@ -51,12 +51,6 @@ router.register(
     r"new_feature_release",
     new_feature_release.views.NewFeatureViewSet,
     basename="new_feature_release",
-)
-
-router.register(
-    r"paper/([0-9]+)/additional_file",
-    paper_views.AdditionalFileViewSet,
-    basename="additional_files",
 )
 
 router.register(
@@ -111,16 +105,6 @@ router.register(
     basename="websiteviews",
 )
 
-router.register(
-    r"events/paper", analytics.views.PaperEventViewSet, basename="events_paper"
-)
-
-router.register(
-    r"events/amplitude/forward_event",
-    analytics.views.AmplitudeViewSet,
-    basename="events_amplitude",
-)
-
 router.register(r"purchase", purchase.views.PurchaseViewSet, basename="purchase")
 
 router.register(r"transactions", purchase.views.BalanceViewSet, basename="transactions")
@@ -132,6 +116,8 @@ router.register(r"withdrawal", reputation.views.WithdrawalViewSet)
 router.register(r"deposit", reputation.views.DepositViewSet)
 
 router.register(r"bounty", reputation.views.BountyViewSet)
+
+router.register(r"moderator", moderator_view.ModeratorView, basename="moderator")
 
 router.register(
     r"author_claim_case",

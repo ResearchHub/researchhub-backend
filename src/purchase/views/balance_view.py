@@ -1,10 +1,11 @@
+import csv
 import decimal
 import time
 from datetime import datetime
 
-import pandas as pd
 import pytz
 from django.contrib.contenttypes.models import ContentType
+from django.http import HttpResponse
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
@@ -72,19 +73,25 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
         permission_classes=[IsAuthenticated],
     )
     def list_csv(self, request):
-        queryset = self.get_queryset().values_list("created_date", "amount")
         default_exchange_rate = RscExchangeRate.objects.first()
 
-        data = []
         before_exchange_rate_date = "11-10-2022"
         before_exchange_datetime = datetime.strptime(
             before_exchange_rate_date, "%m-%d-%Y"
         )
         specific_date_aware = pytz.utc.localize(before_exchange_datetime)
-        for obj in queryset.iterator():
-            date, rsc = obj
+
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="transactions.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow(
+            ["date", "rsc_amount", "rsc_to_usd", "usd_value", "description"]
+        )
+
+        for balance in self.get_queryset().iterator():
             exchange_rate = RscExchangeRate.objects.filter(
-                created_date__lte=date
+                created_date__lte=balance.created_date
             ).last()
             if exchange_rate is None:
                 rate = default_exchange_rate.real_rate
@@ -93,21 +100,20 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
                 rate = exchange_rate.real_rate or exchange_rate.rate
 
             if (
-                date <= specific_date_aware
+                balance.created_date <= specific_date_aware
                 and exchange_rate is None
                 or not exchange_rate.real_rate
             ):
                 rate = 0
 
-            data.append(
-                (
-                    date,
-                    rsc,
+            writer.writerow(
+                [
+                    balance.created_date,
+                    balance.amount,
                     rate,
-                    f"{(decimal.Decimal(rsc) * decimal.Decimal(rate)):.2f}",
-                )
+                    f"{(decimal.Decimal(balance.amount) * decimal.Decimal(rate)):.2f}",
+                    balance.content_type.name,
+                ]
             )
-        df = pd.DataFrame(
-            data, columns=("date", "rsc_amount", "rsc_to_usd", "usd_value")
-        )
-        return Response(df.to_csv(index=False), status=200)
+
+        return response

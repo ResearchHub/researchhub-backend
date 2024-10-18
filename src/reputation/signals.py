@@ -1,23 +1,18 @@
-from datetime import timedelta
 from time import time
 
 from django.contrib.admin.options import get_content_type_for_model
-from django.contrib.contenttypes.models import ContentType
-from django.db.models import Q
 from django.db.models.signals import m2m_changed, post_delete, post_save
 from django.dispatch import receiver
-from django.utils import timezone
 
 import reputation.distributions as distributions
 from discussion.lib import check_is_discussion_item
 from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as GrmVote
 from paper.models import Paper
-from paper.related_models.authorship_model import Authorship
 from purchase.models import Purchase
 from reputation.distributor import Distributor
 from reputation.exceptions import ReputationSignalError
-from reputation.models import Contribution, Distribution, Score
+from reputation.models import Contribution, Distribution
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost
 from user.utils import reset_latest_acitvity_cache
@@ -56,60 +51,6 @@ def distribute_for_censor_paper(sender, instance, using, **kwargs):
                 instance.hubs.all(),
             )
             record = distributor.distribute()
-
-
-def is_eligible_for_create_summary(created, user):
-    return created and is_eligible_user(user) and is_eligible_for_new_user_bonus(user)
-
-
-def is_eligible_for_create_first_summary(created, update_fields, summary):
-    return (
-        not created
-        and check_approved_updated(update_fields)
-        and summary.is_first_paper_summary
-    )
-
-
-def is_eligible_for_summary_vote(recipient, voter):
-    """
-    Returns True if the recipient is eligible to receive an award.
-
-    Checks to ensure recipient is not also the voter.
-    """
-    if voter is None:
-        return True
-    return (recipient != voter) and is_eligible_user(recipient)
-
-
-def get_summary_vote_item_distribution(instance):
-    vote_type = instance.vote_type
-
-    if vote_type == SummaryVote.UPVOTE:
-        return distributions.SummaryUpvoted
-    elif vote_type == SummaryVote.DOWNVOTE:
-        return distributions.SummaryDownvoted
-    else:
-        raise TypeError("No vote type for summary instance")
-
-
-def check_approved_updated(update_fields):
-    if update_fields is not None:
-        return "approved" in update_fields
-    return False
-
-
-def check_summary_distribution_interval(distribution):
-    """
-    Returns True if distribution was created over an hour ago.
-    """
-    if not distribution:
-        return True
-    time_ago = timezone.now() - timedelta(hours=1)
-    return distribution.created_date < time_ago
-
-
-def check_reply_to_other_creator(reply):
-    return reply.parent.created_by is not reply.created_by
 
 
 @receiver(post_save, sender=Comment, dispatch_uid="censor_comment")
@@ -266,21 +207,6 @@ def vote_type_updated(update_fields):
     return False
 
 
-def get_discussion_flag_item_distribution(instance):
-    item_type = type(instance.item)
-
-    error = TypeError(f"Instance of type {item_type} is not supported")
-
-    if item_type == Comment:
-        return distributions.CommentFlagged
-    elif item_type == Reply:
-        return distributions.ReplyFlagged
-    elif item_type == Thread:
-        return distributions.ThreadFlagged
-    else:
-        raise error
-
-
 def get_discussion_vote_item_distribution(instance):
     vote_type = instance.vote_type
     item = instance.item
@@ -320,16 +246,6 @@ def revoke_reputation(sender, instance, **kwargs):
     current = recipient.reputation
     recipient.reputation = current - amount
     recipient.save(update_fields=["reputation"])
-
-
-def is_eligible_for_new_user_bonus(user):
-    return (user.date_joined > new_user_cutoff_date()) and (
-        user.reputation < NEW_USER_BONUS_REPUTATION_LIMIT
-    )
-
-
-def new_user_cutoff_date():
-    return timezone.now() - timedelta(days=NEW_USER_BONUS_DAYS_LIMIT)
 
 
 @receiver(post_save, sender=Contribution, dispatch_uid="preload_latest_activity")

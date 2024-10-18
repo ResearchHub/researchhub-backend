@@ -2,7 +2,6 @@ import functools
 import json
 
 import requests
-from ipware import get_client_ip
 
 from researchhub.settings import AMPLITUDE_API_KEY, DEVELOPMENT
 from utils.parsers import json_serial
@@ -50,35 +49,14 @@ class Amplitude:
             user_id = f"user: {user.email}_{user.id}"
         return user_id, user_properties
 
-    # DEPRECATED
-    # Requires geolocation data from frontend
-    def DEPRECATED_build_geo_properties(self, request):
-        ip, is_routable = get_client_ip(request)
-        data = {}
-        try:
-            geo_info = geo.city(ip)
-            data["ip"] = ip
-            data["country"] = geo_info["country_name"]
-            data["city"] = geo_info["city"]
-            data["region"] = geo_info["region"]
-            data["dma"] = geo_info["dma_code"]
-            data["location_lat"] = geo_info["latitude"]
-            data["location_lng"] = geo_info["longitude"]
-        except Exception as e:
-            log_info(e)
-            return {}
-        return data
-
     def build_hit(self, res, view, request, *args, **kwargs):
         user = request.user
         user_id, user_properties = self._build_user_properties(user)
         event_type = self._build_event_properties(view)
-        # geo_properties = self._build_geo_properties(request)
         data = {
             "user_id": user_id,
             "event_type": event_type,
             "user_properties": user_properties,
-            # **geo_properties,
         }
 
         res_data = res.data
@@ -99,7 +77,7 @@ class Amplitude:
         }
         hit = json.dumps(hit, default=json_serial)
         return self.forward_event(hit)
-    
+
     def _track_revenue_event(
         self,
         user,

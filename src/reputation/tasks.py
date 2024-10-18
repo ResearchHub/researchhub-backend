@@ -6,7 +6,7 @@ from typing import List, Optional
 import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import DurationField, F, Q, QuerySet
+from django.db.models import DurationField, F, Q
 from django.db.models.functions import Cast
 from web3 import Web3
 
@@ -24,12 +24,9 @@ from researchhub.celery import QUEUE_CONTRIBUTIONS, app
 from researchhub.settings import PRODUCTION, WEB3_WALLET_ADDRESS, w3
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
-    ALL,
-    BOUNTY,
     FILTER_BOUNTY_EXPIRED,
     FILTER_BOUNTY_OPEN,
 )
-from researchhub_document.utils import reset_unified_document_cache
 from user.models import User
 from user.related_models.author_model import Author
 from utils.message import send_email_message
@@ -68,24 +65,6 @@ def create_contribution(
         content_type=content_type,
         object_id=object_id,
     )
-
-
-@app.task(queue=QUEUE_CONTRIBUTIONS)
-def delete_contribution(contribution_type, instance_type, unified_doc_id, object_id):
-    content_type = ContentType.objects.get(**instance_type)
-    contribution = Contribution.objects.filter(
-        contribution_type=contribution_type,
-        content_type=content_type,
-        unified_document_id=unified_doc_id,
-        object_id=object_id,
-    )
-
-    # ignore if there's more than one contribution
-    if contribution.count() > 1:
-        return
-
-    if contribution.exists():
-        contribution.delete()
 
 
 @app.task(queue=QUEUE_CONTRIBUTIONS)
@@ -287,10 +266,6 @@ def check_open_bounties():
             ids = expired_bounties.values_list("id", flat=True)
             log_info(f"Failed to refund bounties: {ids}")
 
-    reset_unified_document_cache(
-        document_type=[ALL.lower(), BOUNTY.lower()],
-    )
-
 
 @app.task
 def recalculate_rep_all_users():
@@ -309,7 +284,7 @@ def find_qualified_users_and_notify(
     """
     Find qualified users for bounty and sends them a notification.
     """
-    from django.db.models import F, IntegerField, OuterRef, Subquery, Value
+    from django.db.models import IntegerField, OuterRef, Subquery, Value
     from django.db.models.functions import Coalesce
 
     # Minimum reputation score required to notify a user
@@ -426,52 +401,6 @@ def find_bounties_for_user_and_notify(user_id) -> Optional[Notification]:
             )
             notification.send_notification()
             return notification
-
-
-@app.task
-def send_bounty_hub_notifications():
-    action_user = User.objects.get_community_account()
-    open_bounties = Bounty.objects.filter(
-        status=Bounty.OPEN,
-    ).annotate(
-        time_left=Cast(
-            F("expiration_date") - datetime.now(pytz.UTC),
-            DurationField(),
-        )
-    )
-
-    upcoming_expirations = open_bounties.filter(
-        time_left__gt=timedelta(days=0), time_left__lte=timedelta(days=5)
-    )
-    for bounty in upcoming_expirations.iterator():
-        hubs = bounty.unified_document.hubs.all()
-        for hub in hubs.iterator():
-            for subscriber in hub.subscribers.all().iterator():
-                # Sends a notification if no notification exists for user in hub with current bounty
-                if not Notification.objects.filter(
-                    object_id=bounty.id,
-                    content_type=ContentType.objects.get_for_model(Bounty),
-                    recipient=subscriber,
-                    action_user=action_user,
-                ).exists():
-                    bounty_item = bounty.item
-                    if isinstance(bounty_item, ResearchhubUnifiedDocument):
-                        unified_doc = bounty_item
-                    else:
-                        unified_doc = bounty_item.unified_document
-                    notification = Notification.objects.create(
-                        item=bounty,
-                        action_user=action_user,
-                        recipient=subscriber,
-                        unified_document=unified_doc,
-                        notification_type=Notification.BOUNTY_HUB_EXPIRING_SOON,
-                        extra={
-                            "hub_details": json.dumps(
-                                {"name": hub.name, "slug": hub.slug}
-                            )
-                        },
-                    )
-                    notification.send_notification()
 
 
 @app.task

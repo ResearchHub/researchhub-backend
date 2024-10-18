@@ -83,6 +83,7 @@ class DocumentFilter(DefaultModel):
                 fields=("upvoted_date",),
                 name="flt_upvoted_date_idx",
             ),
+            models.Index(fields=["is_excluded_in_feed"], name="idx_excluded_in_feed"),
         )
 
     def update_filters(self, update_types):

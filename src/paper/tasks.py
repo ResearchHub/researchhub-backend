@@ -18,7 +18,6 @@ from django.core.files import File
 from django.core.files.base import ContentFile
 from django.db import IntegrityError
 from django.utils import timezone
-from habanero import Crossref
 from PIL import Image
 from psycopg2.errors import UniqueViolation
 from pytz import timezone as pytz_tz
@@ -32,9 +31,6 @@ from paper.utils import (
     get_csl_item,
     get_pdf_from_url,
     get_pdf_location_for_csl_item,
-    merge_paper_bulletpoints,
-    merge_paper_threads,
-    merge_paper_votes,
 )
 from researchhub.celery import QUEUE_CERMINE, QUEUE_PAPER_MISC, QUEUE_PULL_PAPERS, app
 from researchhub.settings import APP_ENV, PRODUCTION, TESTING
@@ -233,37 +229,6 @@ def celery_extract_meta_data(paper_id, title, check_title):
         sentry.log_info(e)
 
 
-@app.task(queue=QUEUE_PAPER_MISC)
-def celery_get_paper_citation_count(paper_id, doi):
-    if not doi:
-        return
-
-    Paper = apps.get_model("paper.Paper")
-    paper = Paper.objects.get(id=paper_id)
-
-    cr = Crossref()
-    filters = {"type": "journal-article", "doi": doi}
-    res = cr.works(filter=filters)
-
-    result_count = res["message"]["total-results"]
-    if result_count == 0:
-        return
-
-    citation_count = 0
-    for item in res["message"]["items"]:
-        keys = item.keys()
-        if "DOI" not in keys:
-            continue
-        if item["DOI"] != doi:
-            continue
-
-        if "is-referenced-by-count" in keys:
-            citation_count += item["is-referenced-by-count"]
-
-    paper.citations = citation_count
-    paper.save()
-
-
 @app.task(queue=QUEUE_CERMINE)
 def celery_extract_pdf_sections(paper_id):
     if paper_id is None:
@@ -338,25 +303,6 @@ def celery_extract_pdf_sections(paper_id):
     finally:
         shutil.rmtree(path)
         return True, return_code
-
-
-@app.task(queue=QUEUE_PAPER_MISC)
-def handle_duplicate_doi(new_paper, doi):
-    Paper = apps.get_model("paper.Paper")
-    original_paper = Paper.objects.filter(doi=doi).order_by("created_date")[0]
-    merge_paper_votes(original_paper, new_paper)
-    merge_paper_threads(original_paper, new_paper)
-    merge_paper_bulletpoints(original_paper, new_paper)
-    new_paper.delete()
-
-
-@app.task
-def celery_update_hot_scores():
-    Paper = apps.get_model("paper.Paper")
-    start_date = datetime.now() - timedelta(days=4)
-    papers = Paper.objects.filter(created_date__gte=start_date, is_removed=False)
-    for paper in papers.iterator():
-        paper.calculate_hot_score()
 
 
 @app.task

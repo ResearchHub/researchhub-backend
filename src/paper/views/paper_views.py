@@ -31,17 +31,11 @@ from discussion.reaction_views import ReactionViewActionMixin
 from google_analytics.signals import get_event_hit_response
 from paper.exceptions import DOINotFoundError, PaperSerializerError
 from paper.filters import PaperFilter
-from paper.models import AdditionalFile, Figure, Paper, PaperSubmission
+from paper.models import Figure, Paper, PaperSubmission
 from paper.paper_upload_tasks import celery_process_paper
-from paper.permissions import (
-    CreatePaper,
-    IsAuthor,
-    UpdateOrDeleteAdditionalFile,
-    UpdatePaper,
-)
+from paper.permissions import CreatePaper, IsAuthor, UpdatePaper
 from paper.related_models.authorship_model import Authorship
 from paper.serializers import (
-    AdditionalFileSerializer,
     BookmarkSerializer,
     DynamicPaperSerializer,
     FigureSerializer,
@@ -63,7 +57,6 @@ from reputation.related_models.paper_reward import (
     OPEN_DATA_MULTIPLIER,
     PREREGISTERED_MULTIPLIER,
 )
-from researchhub.lib import get_document_id_from_path
 from researchhub.permissions import IsObjectOwnerOrModerator
 from researchhub_document.permissions import HasDocumentCensorPermission
 from researchhub_document.related_models.constants.filters import (
@@ -72,7 +65,6 @@ from researchhub_document.related_models.constants.filters import (
     NEW,
     UPVOTED,
 )
-from researchhub_document.utils import reset_unified_document_cache
 from user.related_models.author_model import Author
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.openalex import OpenAlex
@@ -373,11 +365,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         unified_document.is_removed = True
         unified_document.save()
 
-        reset_unified_document_cache(
-            filters=[HOT, UPVOTED, DISCUSSED, NEW],
-            document_type=["all", "paper"],
-        )
-
         return Response("Paper was deleted.", status=200)
 
     @action(
@@ -430,10 +417,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         paper.is_removed = False
         paper.save()
 
-        reset_unified_document_cache(
-            filters=[HOT, UPVOTED, DISCUSSED, NEW],
-            document_type=["all", "paper"],
-        )
         return Response(self.get_serializer(instance=paper).data, status=200)
 
     @action(
@@ -901,20 +884,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             filename, ContentFile(json.dumps(data).encode("utf8"))
         )
         return Response(status=status.HTTP_200_OK)
-
-
-class AdditionalFileViewSet(viewsets.ModelViewSet):
-    queryset = AdditionalFile.objects.all()
-    serializer_class = AdditionalFileSerializer
-    throttle_classes = THROTTLE_CLASSES
-    permission_classes = [IsAuthenticatedOrReadOnly & UpdateOrDeleteAdditionalFile]
-
-    def get_queryset(self):
-        queryset = super().get_queryset()
-        paper_id = get_document_id_from_path(self.request)
-        if paper_id is not None:
-            queryset = queryset.filter(paper=paper_id)
-        return queryset
 
 
 class FigureViewSet(viewsets.ModelViewSet):

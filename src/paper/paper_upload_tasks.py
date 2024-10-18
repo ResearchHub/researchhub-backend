@@ -14,7 +14,9 @@ from django.apps import apps
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.postgres.search import SearchQuery
 from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.db.models import Q
+from django.db.utils import IntegrityError
 from habanero import Crossref
 from requests.exceptions import HTTPError
 
@@ -25,7 +27,7 @@ from paper.exceptions import (
     DuplicatePaperError,
     ManubotProcessingError,
 )
-from paper.openalex_util import process_openalex_works
+from paper.openalex_util import OPENALEX_SOURCES_TO_JOURNAL_HUBS
 from paper.tasks import download_pdf, pull_openalex_author_works_batch
 from paper.utils import (
     DOI_REGEX,
@@ -577,7 +579,8 @@ def celery_create_paper(self, celery_data):
         paper.full_clean()
         paper.get_abstract_backup(should_save=False)
         paper.get_pdf_link(should_save=False)
-        paper.save()
+        with transaction.atomic():
+            paper.save()
 
         paper_id = paper.id
         paper_submission.set_complete_status(save=False)
@@ -689,6 +692,8 @@ def create_paper_related_tags(paper, openalex_concepts=[], openalex_topics=[]):
                     "level": openalex_concept["level"],
                 },
             )
+        except IntegrityError:
+            pass
         except Exception as e:
             sentry.log_error(
                 e, message=f"Failed to process concept for paper {paper.id}"
@@ -699,14 +704,49 @@ def create_paper_related_tags(paper, openalex_concepts=[], openalex_topics=[]):
     concept_hubs = Hub.objects.filter(concept__id__in=concept_ids)
     paper.unified_document.hubs.add(*concept_hubs)
 
-    # Add to bioRxiv hub if applicable
-    if paper.external_source and "bioRxiv" in paper.external_source:
-        biorxiv_hub_id = 436
-        if Hub.objects.filter(id=biorxiv_hub_id).exists():
-            paper.unified_document.hubs.add(biorxiv_hub_id)
+    if paper.external_source:
+        journal = _get_or_create_journal_hub(paper.external_source)
+        paper.unified_document.hubs.add(journal)
+
+        # Add to bioRxiv hub if applicable
+        if "bioRxiv" in paper.external_source:
+            biorxiv_hub_id = 436
+            if Hub.objects.filter(id=biorxiv_hub_id).exists():
+                paper.unified_document.hubs.add(biorxiv_hub_id)
 
     # Sync hubs to paper (if needed)
     paper.hubs.set(paper.unified_document.hubs.all())
+
+
+def _get_or_create_journal_hub(external_source: str) -> Hub:
+    """
+    Get or create a journal hub from the given journal name.
+    This function also considers the managed mapping of OpenAlex sources to journal hubs
+    in `OPENALEX_SOURCES_TO_JOURNAL_HUBS`.
+    """
+    journal_hub = None
+
+    if external_source in OPENALEX_SOURCES_TO_JOURNAL_HUBS.keys():
+        journal_hub = _get_journal_hub(
+            OPENALEX_SOURCES_TO_JOURNAL_HUBS[external_source]
+        )
+
+    if journal_hub is None:
+        journal_hub = _get_journal_hub(external_source)
+        if journal_hub is None:
+            journal_hub = Hub.objects.create(
+                name=external_source,
+                namespace=Hub.Namespace.JOURNAL,
+            )
+
+    return journal_hub
+
+
+def _get_journal_hub(journal: str) -> Hub:
+    return Hub.objects.filter(
+        name__iexact=journal,
+        namespace=Hub.Namespace.JOURNAL,
+    ).first()
 
 
 @app.task(queue=QUEUE_PAPER_METADATA)

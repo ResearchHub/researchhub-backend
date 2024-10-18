@@ -10,7 +10,7 @@ from django.contrib.postgres.indexes import GinIndex, HashIndex
 from django.contrib.postgres.search import SearchVectorField
 from django.core.validators import FileExtensionValidator
 from django.db import models
-from django.db.models import Avg, Count, IntegerField, JSONField, Q, Sum
+from django.db.models import Avg, Count, Func, Index, IntegerField, JSONField, Q, Sum
 from django.db.models.functions import Cast, Extract
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 from manubot.cite.doi import get_doi_csl_item
@@ -27,10 +27,6 @@ from paper.utils import (
     get_csl_item,
     paper_piecewise_log,
     parse_author_name,
-    populate_metadata_from_crossref,
-    populate_metadata_from_manubot_pdf_url,
-    populate_metadata_from_manubot_url,
-    populate_metadata_from_pdf,
     populate_pdf_url_from_journal_url,
 )
 from purchase.models import Purchase
@@ -44,7 +40,7 @@ from researchhub_document.related_models.constants.editor_type import (
     TEXT_FIELD,
 )
 from utils.aws import lambda_compress_and_linearize_pdf
-from utils.http import check_url_contains_pdf, scraper_get_url
+from utils.http import scraper_get_url
 
 DOI_IDENTIFIER = "10."
 ARXIV_IDENTIFIER = "arXiv:"
@@ -337,6 +333,7 @@ class Paper(AbstractGenericReactionModel):
             GinIndex(fields=("url_svf",)),
             GinIndex(fields=("pdf_url_svf",)),
             GinIndex(fields=("doi_svf",)),
+            Index(Func("doi", function="UPPER"), name="paper_paper_doi_upper_idx"),
         )
 
     def __str__(self):
@@ -1040,55 +1037,3 @@ class Figure(models.Model):
         null=True,
         blank=True,
     )
-
-
-# TODO: calvinhlee - remove this model once migration is confirmed to be good.
-class Flag(models.Model):
-    paper = models.ForeignKey(
-        Paper,
-        on_delete=models.CASCADE,
-        related_name="flags_legacy",
-        related_query_name="flag_legacy",
-    )
-    created_by = models.ForeignKey(
-        "user.User",
-        on_delete=models.CASCADE,
-        related_name="paper_flags",
-        related_query_name="paper_flag",
-    )
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)
-    reason = models.CharField(max_length=255, blank=True)
-
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["paper", "created_by"], name="unique_paper_flag"
-            )
-        ]
-
-
-class AdditionalFile(models.Model):
-    file = models.FileField(
-        max_length=1024,
-        upload_to="uploads/paper_additional_files/%Y/%m/%d",
-        default=None,
-        null=True,
-        blank=True,
-    )
-    paper = models.ForeignKey(
-        Paper,
-        on_delete=models.CASCADE,
-        related_name="additional_files",
-        related_query_name="additional_file",
-    )
-    created_by = models.ForeignKey(
-        "user.User",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="paper_additional_files",
-        related_query_name="paper_additional_file",
-    )
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)

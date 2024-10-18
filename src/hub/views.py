@@ -25,7 +25,6 @@ from researchhub_access_group.constants import (
     SENIOR_EDITOR,
 )
 from researchhub_access_group.models import Permission
-from researchhub_document.utils import reset_unified_document_cache
 from user.models import User
 from utils.http import DELETE, GET, PATCH, POST, PUT
 from utils.message import send_email_message
@@ -119,7 +118,6 @@ class HubViewSet(viewsets.ModelViewSet):
         hub.is_removed = True
 
         hub.save(update_fields=["is_removed", "paper_count", "discussion_count"])
-        reset_unified_document_cache()
 
         return Response(self.get_serializer(instance=hub).data, status=200)
 

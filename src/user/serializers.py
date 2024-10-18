@@ -50,6 +50,38 @@ from user.related_models.gatekeeper_model import Gatekeeper
 from utils import sentry
 
 
+class ModeratorUserSerializer(ModelSerializer):
+    verification = SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "email",
+            "probable_spammer",
+            "is_suspended",
+            "verification",
+            "created_date",
+            "sift_risk_score",
+        ]
+
+    def get_verification(self, user):
+
+        user_verification = UserVerification.objects.filter(user=user).last()
+
+        if user_verification is None:
+            return None
+
+        return {
+            "first_name": user_verification.first_name,
+            "last_name": user_verification.last_name,
+            "created_date": user_verification.created_date,
+            "verified_by": user_verification.verified_by,
+            "external_id": user_verification.external_id,
+            "status": user_verification.status,
+        }
+
+
 class UniversitySerializer(ModelSerializer):
     class Meta:
         model = University
