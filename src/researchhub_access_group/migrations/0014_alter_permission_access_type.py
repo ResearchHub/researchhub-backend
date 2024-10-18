@@ -5,12 +5,12 @@ from researchhub_access_group.constants import ASSISTANT_EDITOR, EDITOR
 
 
 def migrate_hub_editors(apps, schema_editor):
-    Permission = apps.get_model('researchhub_access_group', 'permission')
-    ContentType = apps.get_model("contenttypes", "contenttype")
-    Hub = apps.get_model('hub', 'hub')
-    hub_content_type = ContentType.objects.get_for_model(Hub)
+    permission_model = apps.get_model('researchhub_access_group', 'permission')
+    content_type_model = apps.get_model("contenttypes", "contenttype")
+    hub_model = apps.get_model('hub', 'hub')
+    hub_content_type = content_type_model.objects.get_for_model(hub_model)
 
-    for permission in Permission.objects.filter(
+    for permission in permission_model.objects.filter(
         access_type=EDITOR,
         content_type=hub_content_type
     ).iterator():

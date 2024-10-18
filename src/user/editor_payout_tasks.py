@@ -62,7 +62,6 @@ def editor_daily_payout_task():
         except Exception as error:
             # NOTE: moralis is a back up. Backup failing should not hard kill payout process.
             sentry.log_info(f"{APP_ENV}-running payout moralis Fail: {error}")
-            raise Exception("Could not get payout amount")
 
         result = gecko_result or moralis_result
 

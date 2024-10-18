@@ -167,7 +167,7 @@ class Hub(models.Model):
     @classmethod
     def create_or_update_hub_from_concept(cls, concept):
         name = concept.display_name.lower()
-        hub, created = cls.objects.get_or_create(name=name)
+        hub, _ = cls.objects.get_or_create(name=name)
 
         hub.concept_id = concept.id
         hub.description = concept.description
