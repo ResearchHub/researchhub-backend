@@ -456,12 +456,12 @@ class BountyViewSet(viewsets.ModelViewSet):
 
         # Handle review, answer, and other filters
         review_or_answer_filter = Q()
-        if Bounty.REVIEW_TYPE in bounty_types:
-            review_or_answer_filter |= Q(bounty_type=Bounty.REVIEW_TYPE)
-        if Bounty.ANSWER_TYPE in bounty_types:
-            review_or_answer_filter |= Q(bounty_type=Bounty.ANSWER_TYPE)
-        if Bounty.OTHER_TYPE in bounty_types:
-            review_or_answer_filter |= Q(bounty_type=Bounty.OTHER_TYPE)
+        if Bounty.Type.REVIEW in bounty_types:
+            review_or_answer_filter |= Q(bounty_type=Bounty.Type.REVIEW)
+        if Bounty.Type.ANSWER in bounty_types:
+            review_or_answer_filter |= Q(bounty_type=Bounty.Type.ANSWER)
+        if Bounty.Type.OTHER in bounty_types:
+            review_or_answer_filter |= Q(bounty_type=Bounty.Type.OTHER)
 
         # Combine the filters
         if review_or_answer_filter:
