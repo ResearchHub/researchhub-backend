@@ -70,14 +70,11 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
         context = self.context
         _context_fields = context.get("rep_dbs_get_hubs", {})
 
-        serializer = DynamicHubSerializer(
-            bounty.unified_document.hubs.all(),
-            many=True,
-            context=context,
-            **_context_fields,
-        )
+        if _context_fields:
+            include_fields = _context_fields.get("_include_fields", [])
+            return list(bounty.unified_document.hubs.values(*include_fields))
 
-        return serializer.data
+        return []
 
     def get_item(self, bounty):
         serializer = None
