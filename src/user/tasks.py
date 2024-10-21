@@ -204,5 +204,6 @@ def invalidate_author_profile_caches(_ignore, author_id):
     """
     cache.delete(f"author-{author_id}-achievements")
     cache.delete(f"author-{author_id}-overview")
+    cache.delete(f"author-{author_id}-profile")
     cache.delete(f"author-{author_id}-publications")
     cache.delete(f"author-{author_id}-summary-stats")
