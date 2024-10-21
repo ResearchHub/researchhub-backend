@@ -5,6 +5,7 @@ coverage:
         target: auto
         threshold: 0.5%
 ignore:
+  - "**/migrations/*.py"
   - "**/tests/*"
   - "**/tests.py"
   - "**/test_*.py"
