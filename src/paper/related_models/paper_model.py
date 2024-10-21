@@ -957,6 +957,17 @@ class Paper(AbstractGenericReactionModel):
         return HubCitationValue.calculate_base_claim_rsc_reward(self)
 
 
+class PaperVersion(models.Model):
+    paper = models.ForeignKey(
+        Paper, on_delete=models.CASCADE, related_name="versions", unique=True
+    )
+    version = models.CharField(max_length=255)
+    base_doi = models.CharField(max_length=255)
+    message = models.TextField()
+    created_date = models.DateTimeField(auto_now_add=True)
+    updated_date = models.DateTimeField(auto_now=True)
+
+
 class PaperFetchLog(models.Model):
     """
     Stores the logs for e.g. daily paper fetches from openalex
