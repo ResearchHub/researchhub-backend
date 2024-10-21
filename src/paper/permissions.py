@@ -26,19 +26,3 @@ class IsAuthor(AuthorizationBasedPermission):
     def is_authorized(self, request, view, obj):
         author = Author.objects.get(user=request.user)
         return author in obj.authors.all()
-
-
-class IsAllowedToUpdateAsyncPaper(AuthorizationBasedPermission):
-    def is_authorized(self, request, view, obj):
-        if request.method != POST:
-            return False
-
-        submission_id = request.data.get("submission_id", None)
-        if submission_id is not None:
-            return PaperSubmission.objects.filter(
-                ~Q(paper_status=PaperSubmission.COMPLETE),
-                id=submission_id,
-                uploaded_by=request.user,
-            ).exists()
-
-        return False
