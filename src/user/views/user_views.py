@@ -54,7 +54,7 @@ from user.serializers import (
     UserSerializer,
 )
 from user.tasks import handle_spam_user_task, reinstate_user_task
-from user.utils import calculate_show_referral, reset_latest_acitvity_cache
+from user.utils import reset_latest_acitvity_cache
 from utils.http import POST, RequestMethods
 from utils.sentry import log_info
 
@@ -151,11 +151,6 @@ class UserViewSet(viewsets.ModelViewSet):
         user.clicked_on_balance_date = now
         user.save(update_fields=["clicked_on_balance_date"])
         return Response({"data": "ok"}, status=200)
-
-    @action(detail=False, methods=["GET"], permission_classes=[IsAuthenticated])
-    def get_referral_reputation(self, request):
-        show_referral = calculate_show_referral(request.user)
-        return Response({"show_referral": show_referral})
 
     @action(detail=False, methods=[POST], permission_classes=[IsAuthenticated, Censor])
     def censor(self, request, pk=None):
