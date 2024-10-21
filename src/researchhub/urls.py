@@ -53,12 +53,6 @@ router.register(
     basename="new_feature_release",
 )
 
-router.register(
-    r"paper/async_paper_updator",
-    paper_views.AsyncPaperUpdatorViewSet,
-    "async_paper_updator",
-)
-
 router.register(r"paper", paper_views.PaperViewSet, basename="paper")
 
 router.register(
