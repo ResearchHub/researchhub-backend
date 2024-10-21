@@ -4,6 +4,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -444,7 +445,6 @@ class BountyViewSet(viewsets.ModelViewSet):
 
         # Only return bounties within specific hubs
         if hub_ids:
-            print("hub_ids", hub_ids)
             applied_filters &= Q(unified_document__hubs__id__in=hub_ids)
 
         # ResearchHub foundation only filter
@@ -462,6 +462,12 @@ class BountyViewSet(viewsets.ModelViewSet):
             review_or_answer_filter |= Q(bounty_type=Bounty.Type.ANSWER)
         if Bounty.Type.OTHER in bounty_types:
             review_or_answer_filter |= Q(bounty_type=Bounty.Type.OTHER)
+
+        # Only show bounties that have not yet expired. We have CRON job to update expiration of bounties
+        # that have expired however, it only runs a few times a day so for a brief period, a situation could arise where a bounty
+        # is considered OPEN but has actually expired.
+        now = timezone.now()
+        applied_filters &= Q(expiration_date__gt=now)
 
         # Combine the filters
         if review_or_answer_filter:
