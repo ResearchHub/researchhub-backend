@@ -1,7 +1,6 @@
 import json
 from datetime import datetime
 
-from paper.related_models.async_paper_updator_model import AsyncPaperUpdator
 from paper.related_models.citation_model import Citation
 from paper.related_models.paper_model import (
     ARXIV_IDENTIFIER,
