@@ -3,8 +3,7 @@ from django.db import models
 from django.db.models import Case, When
 
 from paper.openalex_util import merge_openalex_author_with_researchhub_author
-from user.aggregates import TenPercentile, TwoPercentile
-from user.models import Organization, User
+from user.models import Organization
 from user.tasks import preload_latest_activity
 from utils.openalex import OpenAlex
 
@@ -74,22 +73,6 @@ def claim_openalex_author_profile(claiming_rh_author_id, openalex_author_id):
     merge_openalex_author_with_researchhub_author(openalex_author, claiming_rh_author)
 
     return claiming_rh_author
-
-
-def calculate_show_referral(user):
-    aggregation = User.objects.all().aggregate(TenPercentile("reputation"))
-    percentage = aggregation["reputation__ten-percentile"]
-    reputation = user.reputation
-    show_referral = float(reputation) >= percentage
-    return show_referral
-
-
-def calculate_eligible_enhanced_upvotes(user):
-    aggregation = User.objects.all().aggregate(TwoPercentile("reputation"))
-    percentage = aggregation["reputation__two-percentile"]
-    reputation = user.reputation
-    eligible = float(reputation) >= percentage
-    return eligible
 
 
 def reset_latest_acitvity_cache(
