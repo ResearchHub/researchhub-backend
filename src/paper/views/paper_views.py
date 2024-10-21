@@ -272,6 +272,8 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 "uploaded_date",
                 "uploaded_date",
                 "url",
+                "version",
+                "version_list",
             ],
         )
         serializer_data = serializer.data
