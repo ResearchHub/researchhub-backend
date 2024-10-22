@@ -3,6 +3,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from paper.serializers.paper_upload_serializer import PaperUploadSerializer
 from paper.services.storage_service import StorageService
 
 
@@ -23,6 +24,10 @@ class PaperUploadView(APIView):
         """
         user = request.user
         data = request.data
+
+        # Validate request data
+        serializer = PaperUploadSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
         filename = data.get("filename")
 
