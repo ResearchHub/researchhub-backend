@@ -471,8 +471,10 @@ class BountyViewTests(APITestCase):
 
     def test_user_cant_approve_approved_bounty(self):
         self.client.force_authenticate(self.user)
+        self.thread2 = create_rh_comment(created_by=self.user)
 
         bounty = self.test_user_can_create_bounty()
+
         approve_bounty_res = self.client.post(
             f"/api/bounty/{bounty.data['id']}/approve_bounty/",
             [
@@ -497,7 +499,8 @@ class BountyViewTests(APITestCase):
                 }
             ],
         )
-        self.assertEqual(approve_bounty_res_2.status_code, 403)
+
+        self.assertEqual(approve_bounty_res_2.status_code, 404)
 
     def test_random_user_cant_approve_bounty(self):
         self.client.force_authenticate(self.user)
@@ -630,11 +633,12 @@ class BountyViewTests(APITestCase):
         cancel_bounty_res_2 = self.client.post(
             f"/api/bounty/{bounty_1.data['id']}/cancel_bounty/",
         )
-        self.assertEqual(cancel_bounty_res_2.status_code, 403)
+        self.assertEqual(cancel_bounty_res_2.status_code, 404)
 
     def test_get_bounties(self):
         # Arrange
         self.client.force_authenticate(self.user)
+        self.thread2 = create_rh_comment(created_by=self.user)
 
         res = self.client.post(
             "/api/bounty/",
@@ -652,8 +656,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 2000,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.thread2._meta.model_name,
+                "item_object_id": self.thread2.id,
             },
         )
 
@@ -669,6 +673,7 @@ class BountyViewTests(APITestCase):
     def test_get_bounties_personalized(self):
         # Arrange
         self.client.force_authenticate(self.user)
+        self.thread2 = create_rh_comment(created_by=self.user)
 
         res = self.client.post(
             "/api/bounty/",
@@ -686,8 +691,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 2000,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.thread2._meta.model_name,
+                "item_object_id": self.thread2.id,
             },
         )
 

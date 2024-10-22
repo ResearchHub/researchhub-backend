@@ -296,6 +296,7 @@ class BountyViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticated, UserCanApproveBounty],
     )
     def approve_bounty(self, request, pk=None):
+
         data = request.data
         with transaction.atomic():
             bounty = self.get_object()
@@ -382,6 +383,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                     "status",
                 ),
             )
+
             return Response(serializer.data, status=200)
 
     @track_event
@@ -440,12 +442,16 @@ class BountyViewSet(viewsets.ModelViewSet):
 
         bounty_types = self.request.query_params.getlist("bounty_type")
         hub_ids = self.request.query_params.getlist("hub_ids")
+        only_parent_bounties = (
+            self.request.query_params.get("only_parent_bounties") == "true"
+        )
 
         # Build filters
         applied_filters = Q()
 
         # Only return parent bounties. Child bounty amounts are included in the parent bounty amount
-        applied_filters &= Q(parent__isnull=True)
+        if only_parent_bounties:
+            applied_filters &= Q(parent__isnull=True)
 
         # Only return bounties within specific hubs
         if hub_ids:
