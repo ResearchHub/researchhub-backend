@@ -467,7 +467,7 @@ class BountyViewSet(viewsets.ModelViewSet):
         if Bounty.Type.OTHER in bounty_types:
             review_or_answer_filter |= Q(bounty_type=Bounty.Type.OTHER)
 
-        # Only show bounties that have not yet expired. We have CRON job to update expiration of bounties
+        # Only show bounties that have not yet expired. We have a periodic celery task to update expiration of bounties
         # that have expired however, it only runs a few times a day so for a brief period, a situation could arise where a bounty
         # is considered OPEN but has actually expired.
         now = timezone.now()
