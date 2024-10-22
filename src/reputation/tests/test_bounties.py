@@ -837,3 +837,95 @@ class BountyViewTests(APITestCase):
         )
 
         self.assertEqual(created_bounty_id, res.data["results"][0]["id"])
+
+    def test_sort_bounties_by_expiring_soon(self):
+        # Arrange
+        paper = create_paper()
+        hub = Hub.objects.create(
+            name="testHub",
+        )
+
+        paper.unified_document.hubs.add(hub)
+        self.thread = create_rh_comment(created_by=self.rh_official, paper=paper)
+        self.thread2 = create_rh_comment(created_by=self.rh_official, paper=paper)
+        self.client.force_authenticate(self.rh_official)
+
+        # Create bounty 1
+        res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 101,
+                "item_content_type": self.thread._meta.model_name,
+                "item_object_id": self.thread.id,
+                "bounty_type": Bounty.Type.OTHER,
+                "expiration_date": "2040-01-01T00:00:00Z",
+            },
+        )
+
+        # Create bounty 2 (expiring sooner)
+        res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 102,
+                "item_content_type": self.thread._meta.model_name,
+                "item_object_id": self.thread2.id,
+                "bounty_type": Bounty.Type.OTHER,
+                "expiration_date": "2030-01-01T00:00:00Z",
+            },
+        )
+
+        expiring_soon_bounty_id = res.data["id"]
+
+        res = self.client.get(
+            "/api/bounty/",
+            {"status": "OPEN", "sort": "expiration_date"},
+        )
+
+        # Assert
+        self.assertEqual(expiring_soon_bounty_id, res.data["results"][0]["id"])
+
+    def test_sort_bounties_by_amount(self):
+        # Arrange
+        paper = create_paper()
+        hub = Hub.objects.create(
+            name="testHub",
+        )
+
+        paper.unified_document.hubs.add(hub)
+        self.thread = create_rh_comment(created_by=self.rh_official, paper=paper)
+        self.thread2 = create_rh_comment(created_by=self.rh_official, paper=paper)
+        self.client.force_authenticate(self.rh_official)
+
+        # Create bounty 1 (larger amount)
+        res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 1000,
+                "item_content_type": self.thread._meta.model_name,
+                "item_object_id": self.thread.id,
+                "bounty_type": Bounty.Type.OTHER,
+                "expiration_date": "2040-01-01T00:00:00Z",
+            },
+        )
+
+        larger_amount_id = res.data["id"]
+
+        # Create bounty 2
+        self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 100,
+                "item_content_type": self.thread._meta.model_name,
+                "item_object_id": self.thread2.id,
+                "bounty_type": Bounty.Type.OTHER,
+                "expiration_date": "2030-01-01T00:00:00Z",
+            },
+        )
+
+        res = self.client.get(
+            "/api/bounty/",
+            {"status": "OPEN", "sort": "-total_amount"},
+        )
+
+        # Assert
+        self.assertEqual(res.data["results"][0]["id"], larger_amount_id)

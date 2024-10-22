@@ -498,6 +498,7 @@ class BountyViewSet(viewsets.ModelViewSet):
         else:
             queryset = self.filter_queryset(self.get_queryset())
 
+            # Sorting by amount requires us to do some math and add up all of the child bounties
             if sort == "-total_amount":
                 # Subquery to calculate the sum of children amounts
                 children_sum = (
