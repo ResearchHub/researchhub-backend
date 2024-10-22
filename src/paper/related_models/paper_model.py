@@ -958,14 +958,22 @@ class Paper(AbstractGenericReactionModel):
 
 
 class PaperVersion(models.Model):
-    paper = models.ForeignKey(
-        Paper, on_delete=models.CASCADE, related_name="versions", unique=True
+    paper = models.OneToOneField(
+        Paper, on_delete=models.CASCADE, related_name="versions"
     )
-    version = models.CharField(max_length=255)
-    base_doi = models.CharField(max_length=255)
-    message = models.TextField()
+    version = models.IntegerField(default=1)
+    base_doi = models.CharField(max_length=255, default=None, null=True, blank=True)
+    message = models.TextField(default=None, null=True, blank=True)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = (
+            Index(
+                Func("base_doi", function="UPPER"),
+                name="paper_version_doi_upper_idx",
+            ),
+        )
 
 
 class PaperFetchLog(models.Model):
