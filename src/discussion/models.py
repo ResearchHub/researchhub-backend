@@ -3,14 +3,18 @@ from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelatio
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db import models
-from django.db.models import JSONField
+from django.db.models import JSONField, Q
 from django.utils.functional import cached_property
 
 from hub.models import Hub
 from paper.utils import get_cache_key
 from purchase.models import Purchase
 from researchhub.lib import CREATED_LOCATIONS
-from researchhub_access_group.constants import EDITOR
+from researchhub_access_group.constants import (
+    ASSISTANT_EDITOR,
+    ASSOCIATE_EDITOR,
+    SENIOR_EDITOR,
+)
 from researchhub_access_group.models import Permission
 
 from .reaction_models import AbstractGenericReactionModel, Flag, Vote
@@ -117,7 +121,11 @@ class BaseComment(AbstractGenericReactionModel):
         uni_doc = self.unified_document
         if uni_doc is not None:
             return Permission.objects.filter(
-                access_type=EDITOR,
+                (
+                    Q(access_type=ASSISTANT_EDITOR)
+                    | Q(access_type=ASSOCIATE_EDITOR)
+                    | Q(access_type=SENIOR_EDITOR)
+                ),
                 user=self.created_by,
                 content_type=ContentType.objects.get_for_model(Hub),
                 object_id__in=uni_doc.hubs.values_list("id", flat=True),

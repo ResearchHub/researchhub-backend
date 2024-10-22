@@ -7,7 +7,7 @@ from discussion.models import Thread
 from hub.models import Hub
 from hub.tests.helpers import create_hub
 from reputation.related_models.score import Score
-from researchhub_access_group.constants import EDITOR
+from researchhub_access_group.constants import ASSOCIATE_EDITOR
 from researchhub_access_group.models import Permission
 from user.models import Action, Author, University, User
 from user.related_models.organization_model import Organization
@@ -45,7 +45,7 @@ def create_hub_editor(unique_value, hub_name, moderator=False):
     user = create_random_default_user(unique_value, moderator)
     hub = create_hub(hub_name)
     Permission.objects.create(
-        access_type=EDITOR,
+        access_type=ASSOCIATE_EDITOR,
         content_type=ContentType.objects.get_for_model(Hub),
         object_id=hub.id,
         user=user,
