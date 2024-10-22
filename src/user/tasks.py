@@ -200,9 +200,10 @@ def invalidate_author_profile_caches(_ignore, author_id):
     Invalidates all caches related to an author profile.
     This task is designed to be called from a chain when other tasks complete.
     Celery requires the first argument to be the result of the previous task.
-    It is ignore in this case.
+    It is ignored in this case.
     """
     cache.delete(f"author-{author_id}-achievements")
     cache.delete(f"author-{author_id}-overview")
+    cache.delete(f"author-{author_id}-profile")
     cache.delete(f"author-{author_id}-publications")
     cache.delete(f"author-{author_id}-summary-stats")
