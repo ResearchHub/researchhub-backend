@@ -2,8 +2,10 @@ import decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import DecimalField, F, OuterRef, Q, Subquery, Sum, Value
+from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -294,6 +296,7 @@ class BountyViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticated, UserCanApproveBounty],
     )
     def approve_bounty(self, request, pk=None):
+
         data = request.data
         with transaction.atomic():
             bounty = self.get_object()
@@ -380,6 +383,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                     "status",
                 ),
             )
+
             return Response(serializer.data, status=200)
 
     @track_event
@@ -438,13 +442,19 @@ class BountyViewSet(viewsets.ModelViewSet):
 
         bounty_types = self.request.query_params.getlist("bounty_type")
         hub_ids = self.request.query_params.getlist("hub_ids")
+        only_parent_bounties = (
+            self.request.query_params.get("only_parent_bounties") == "true"
+        )
 
         # Build filters
         applied_filters = Q()
 
+        # Only return parent bounties. Child bounty amounts are included in the parent bounty amount
+        if only_parent_bounties:
+            applied_filters &= Q(parent__isnull=True)
+
         # Only return bounties within specific hubs
         if hub_ids:
-            print("hub_ids", hub_ids)
             applied_filters &= Q(unified_document__hubs__id__in=hub_ids)
 
         # ResearchHub foundation only filter
@@ -463,6 +473,12 @@ class BountyViewSet(viewsets.ModelViewSet):
         if Bounty.Type.OTHER in bounty_types:
             review_or_answer_filter |= Q(bounty_type=Bounty.Type.OTHER)
 
+        # Only show bounties that have not yet expired. We have a periodic celery task to update expiration of bounties
+        # that have expired however, it only runs a few times a day so for a brief period, a situation could arise where a bounty
+        # is considered OPEN but has actually expired.
+        now = timezone.now()
+        applied_filters &= Q(expiration_date__gt=now)
+
         # Combine the filters
         if review_or_answer_filter:
             applied_filters &= review_or_answer_filter
@@ -471,13 +487,13 @@ class BountyViewSet(viewsets.ModelViewSet):
         return queryset.filter(applied_filters)
 
     def list(self, request, *args, **kwargs):
+        sort = self.request.query_params.get("sort", "-created_date")
 
-        personalized = (
-            request.query_params.get("personalized", "false").lower() == "true"
-            and request.user.is_authenticated
-        )
+        # If sort is personalized but user is logged out, default to created_date
+        if sort == "personalized" and not request.user.is_authenticated:
+            sort = "-created_date"
 
-        if personalized:
+        if sort == "personalized":
             bounties = Bounty.find_bounties_for_user(
                 user=request.user,
                 include_unrelated=True,
@@ -486,9 +502,41 @@ class BountyViewSet(viewsets.ModelViewSet):
             queryset = Bounty.objects.filter(id__in=[b.id for b in bounties])
             queryset = self.filter_queryset(queryset)
         else:
-            queryset = self.filter_queryset(self.get_queryset()).order_by(
-                "-created_date"
-            )
+            queryset = self.filter_queryset(self.get_queryset())
+
+            # Sorting by amount requires us to do some math and add up all of the child bounties
+            if sort == "-total_amount":
+                # Subquery to calculate the sum of children amounts
+                children_sum = (
+                    Bounty.objects.filter(parent=OuterRef("pk"))
+                    .values("parent")
+                    .annotate(
+                        sum=Coalesce(
+                            Sum("amount"),
+                            Value(
+                                0,
+                                output_field=DecimalField(
+                                    max_digits=19, decimal_places=10
+                                ),
+                            ),
+                        )
+                    )
+                    .values("sum")
+                )
+
+                # Annotate queryset with total_amount for all cases
+                queryset = queryset.annotate(
+                    total_amount=F("amount")
+                    + Coalesce(
+                        Subquery(children_sum),
+                        Value(
+                            0,
+                            output_field=DecimalField(max_digits=19, decimal_places=10),
+                        ),
+                    )
+                )
+
+            queryset = queryset.order_by(sort)
 
         page = self.paginate_queryset(queryset)
         context = self._get_retrieve_context()
@@ -498,6 +546,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             context=context,
             _include_fields=(
                 "created_by",
+                "created_date",
                 "content_type",
                 "id",
                 "item",
