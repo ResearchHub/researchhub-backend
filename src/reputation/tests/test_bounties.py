@@ -851,7 +851,7 @@ class BountyViewTests(APITestCase):
         self.client.force_authenticate(self.rh_official)
 
         # Create bounty 1
-        res = self.client.post(
+        self.client.post(
             "/api/bounty/",
             {
                 "amount": 101,
