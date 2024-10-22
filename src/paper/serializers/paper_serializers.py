@@ -337,25 +337,22 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
     def get_version(self, paper):
         try:
             paper_version = PaperVersion.objects.get(paper=paper)
+            return paper_version.version
         except PaperVersion.DoesNotExist:
             return None
 
-        return paper_version.version
-
-    def get_version_list(self, paper) -> list:
+    def get_version_list(self, paper):
         try:
             paper_version = PaperVersion.objects.get(paper=paper)
+            paper_versions = PaperVersion.objects.filter(
+                base_doi=paper_version.base_doi
+            ).order_by("version")
+            return [
+                {"version": version.version, "paper_id": version.paper.id}
+                for version in paper_versions
+            ]
         except PaperVersion.DoesNotExist:
             return None
-
-        paper_versions = PaperVersion.objects.filter(
-            base_doi=paper_version.base_doi
-        ).order_by("version")
-        # Return a list of version pointing to the paper_id
-        return [
-            {"version": version.version, "paper_id": version.paper.id}
-            for version in paper_versions
-        ]
 
 
 class ContributionPaperSerializer(BasePaperSerializer):
@@ -403,6 +400,8 @@ class PaperSerializer(BasePaperSerializer):
             "user_vote",
             "users_who_bookmarked",
             "views",
+            "version",
+            "version_list",
         ]
         moderator_only_update_fields = [
             "pdf_license",
@@ -1062,6 +1061,30 @@ class DynamicPaperSerializer(
         ):
             return paper.pdf_url
         return None
+
+    def get_version(self, paper):
+        print("GETTING VERSION DYNAMIC")
+        try:
+            paper_version = PaperVersion.objects.get(paper=paper)
+        except PaperVersion.DoesNotExist:
+            return None
+
+        return paper_version
+
+    def get_version_list(self, paper) -> list:
+        try:
+            paper_version = PaperVersion.objects.get(paper=paper)
+        except PaperVersion.DoesNotExist:
+            return None
+
+        paper_versions = PaperVersion.objects.filter(
+            base_doi=paper_version.base_doi
+        ).order_by("version")
+        # Return a list of version pointing to the paper_id
+        return [
+            {"version": version.version, "paper_id": version.paper.id}
+            for version in paper_versions
+        ]
 
 
 class BookmarkSerializer(serializers.Serializer):
