@@ -1063,7 +1063,6 @@ class DynamicPaperSerializer(
         return None
 
     def get_version(self, paper):
-        print("GETTING VERSION DYNAMIC")
         try:
             paper_version = PaperVersion.objects.get(paper=paper)
         except PaperVersion.DoesNotExist:
