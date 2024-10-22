@@ -94,7 +94,11 @@ class Hub(models.Model):
 
     is_used_for_rep = models.BooleanField(default=False)
 
-    namespace = models.TextField(choices=Namespace.choices, null=True)
+    namespace = models.TextField(
+        choices=Namespace.choices,
+        default=None,
+        null=True,
+    )
 
     class Meta:
         constraints = [
