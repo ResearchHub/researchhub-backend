@@ -626,13 +626,10 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 is_removed=False,
             )
 
-        doc_ids = doc_ids.order_by("-hot_score_v2").values("id")
-
         qs = ResearchhubUnifiedDocument.objects.filter(
             id__in=doc_ids,
-        )
+        ).order_by("-hot_score_v2")
 
-        # qs = self.order_queryset(qs, ordering_value)
         qs = self.filter_queryset(qs)
         return qs
 
