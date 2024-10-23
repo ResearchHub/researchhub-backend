@@ -372,7 +372,6 @@ class UserSerializer(ModelSerializer):
             "id",
             "author_profile",
             "balance",
-            "bookmarks",
             "created_date",
             "has_seen_first_coin_modal",
             "has_seen_orcid_connect_modal",
@@ -391,7 +390,6 @@ class UserSerializer(ModelSerializer):
         read_only_fields = [
             "id",
             "author_profile",
-            "bookmarks",
             "created_date",
             "has_seen_first_coin_modal",
             "has_seen_orcid_connect_modal",
