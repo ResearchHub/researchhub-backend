@@ -44,12 +44,6 @@ from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
-from researchhub_document.related_models.constants.filters import (
-    DISCUSSED,
-    HOT,
-    NEW,
-    UPVOTED,
-)
 from researchhub_document.utils import update_unified_document_to_paper
 from user.models import Author
 from user.serializers import (
@@ -86,7 +80,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
         read_only_fields = [
             "user_vote",
             "user_flag",
-            "users_who_bookmarked",
             "unified_document_id",
             "slug",
         ]
@@ -375,7 +368,6 @@ class PaperSerializer(BasePaperSerializer):
             "unified_document",
             "user_flag",
             "user_vote",
-            "users_who_bookmarked",
             "views",
         ]
         moderator_only_update_fields = [
@@ -1036,11 +1028,6 @@ class DynamicPaperSerializer(
         ):
             return paper.pdf_url
         return None
-
-
-class BookmarkSerializer(serializers.Serializer):
-    user = serializers.IntegerField()
-    bookmarks = PaperSerializer(many=True)
 
 
 class FigureSerializer(serializers.ModelSerializer):
