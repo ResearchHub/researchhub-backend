@@ -59,12 +59,6 @@ from reputation.related_models.paper_reward import (
 )
 from researchhub.permissions import IsObjectOwnerOrModerator
 from researchhub_document.permissions import HasDocumentCensorPermission
-from researchhub_document.related_models.constants.filters import (
-    DISCUSSED,
-    HOT,
-    NEW,
-    UPVOTED,
-)
 from user.related_models.author_model import Author
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.openalex import OpenAlex
@@ -518,7 +512,8 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         paper = self.get_object()
         user = request.user
         vote = retrieve_vote(user, paper)
-        return get_vote_response(vote, 200)
+        serializer = GrmVoteSerializer(vote)
+        return Response(serializer.data, status=200)
 
     @user_vote.mapping.delete
     def delete_user_vote(self, request, pk=None):
@@ -979,24 +974,6 @@ class FigureViewSet(viewsets.ModelViewSet):
         # Returns regular figures
         serializer_data = self.get_figures(pk, figure_type=Figure.FIGURE)
         return Response({"data": serializer_data}, status=status.HTTP_200_OK)
-
-
-def find_vote(user, paper, vote_type):
-    vote = GrmVote.objects.filter(
-        content_type=get_content_type_for_model(paper),
-        created_by=user,
-        object_id=paper.id,
-        vote_type=vote_type,
-    )
-    if vote:
-        return True
-    return False
-
-
-def get_vote_response(vote, status_code):
-    """Returns Response with serialized `vote` data and `status_code`."""
-    serializer = GrmVoteSerializer(vote)
-    return Response(serializer.data, status=status_code)
 
 
 def retrieve_vote(user, paper):
