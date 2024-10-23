@@ -672,23 +672,23 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         hub_id = query_params.get("hub_id", 0) or 0
         page_number = int(query_params.get("page", 1))
 
-        cache_hit = self._get_unified_document_cache_hit(
-            document_request_type,
-            filtering,
-            hub_id,
-            page_number,
-            time_scope,
-        )
+        # cache_hit = self._get_unified_document_cache_hit(
+        #     document_request_type,
+        #     filtering,
+        #     hub_id,
+        #     page_number,
+        #     time_scope,
+        # )
 
-        if cache_hit and page_number == 1:
-            cache_hit = self._cache_hit_with_latest_metadata(cache_hit)
-            return Response(cache_hit)
-        elif not cache_hit and page_number == 1:
-            reset_unified_document_cache(
-                document_type=[document_request_type],
-                filters=[filtering],
-                date_ranges=[time_scope],
-            )
+        # if cache_hit and page_number == 1:
+        #     cache_hit = self._cache_hit_with_latest_metadata(cache_hit)
+        #     return Response(cache_hit)
+        # elif not cache_hit and page_number == 1:
+        #     reset_unified_document_cache(
+        #         document_type=[document_request_type],
+        #         filters=[filtering],
+        #         date_ranges=[time_scope],
+        #     )
 
         documents = self.get_filtered_queryset().prefetch_related("fundraises")
         context = self._get_serializer_context()
