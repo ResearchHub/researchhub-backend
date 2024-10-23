@@ -59,12 +59,6 @@ from reputation.related_models.paper_reward import (
 )
 from researchhub.permissions import IsObjectOwnerOrModerator
 from researchhub_document.permissions import HasDocumentCensorPermission
-from researchhub_document.related_models.constants.filters import (
-    DISCUSSED,
-    HOT,
-    NEW,
-    UPVOTED,
-)
 from user.related_models.author_model import Author
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.openalex import OpenAlex
