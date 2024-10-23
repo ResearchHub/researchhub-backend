@@ -17,7 +17,7 @@ from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
 from paper.models import Paper
 from paper.utils import get_cache_key
 from researchhub.settings import AWS_REGION_NAME
-from researchhub_document.filters import UnifiedDocumentFilter
+from researchhub_document.filters import TIME_SCOPE_CHOICES, UnifiedDocumentFilter
 from researchhub_document.models import (
     FeaturedContent,
     ResearchhubPost,
@@ -35,6 +35,9 @@ from researchhub_document.related_models.constants.filters import (
     MOST_RSC,
     NEW,
     UPVOTED,
+)
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocumentHub,
 )
 from researchhub_document.serializers import (
     DynamicUnifiedDocumentSerializer,
@@ -608,8 +611,72 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         return qs
 
     def get_filtered_queryset(self):
-        qs = self.get_queryset()
+        query_params = self.request.query_params
+        ordering_value = query_params.get("ordering", HOT)
+        hub_id = query_params.get("hub_id", 0) or 0
+
+        doc_ids = []
+        if hub_id:
+            doc_ids = ResearchhubUnifiedDocument.objects.filter(
+                hubs__id=hub_id,
+                is_removed=False,
+            )
+        else:
+            doc_ids = ResearchhubUnifiedDocument.objects.filter(
+                is_removed=False,
+            )
+
+        doc_ids = doc_ids.values("id")
+
+        qs = ResearchhubUnifiedDocument.objects.filter(
+            id__in=doc_ids,
+        )
+
+        qs = self.order_queryset(qs, ordering_value)
         qs = self.filter_queryset(qs)
+        return qs
+
+    def order_queryset(self, qs, ordering_value):
+        from researchhub_document.utils import get_date_ranges_by_time_scope
+
+        time_scope = self.request.query_params.get("time", "today")
+        start_date, end_date = get_date_ranges_by_time_scope(time_scope)
+
+        if time_scope not in TIME_SCOPE_CHOICES:
+            time_scope = "today"
+
+        ordering = []
+        if ordering_value == NEW:
+            qs = qs.filter(created_date__range=(start_date, end_date))
+            ordering.append("-created_date")
+        elif ordering_value == HOT:
+            ordering.append("-hot_score_v2")
+        elif ordering_value == DISCUSSED:
+            key = f"document_filter__discussed_{time_scope}"
+            if time_scope != "all":
+                qs = qs.filter(
+                    document_filter__discussed_date__range=(start_date, end_date),
+                    **{f"{key}__gt": 0},
+                )
+            else:
+                qs = qs.filter(document_filter__isnull=False)
+            ordering.append(f"-{key}")
+        elif ordering_value == UPVOTED:
+            if time_scope != "all":
+                qs = qs.filter(
+                    document_filter__upvoted_date__range=(start_date, end_date)
+                )
+            else:
+                qs = qs.filter(document_filter__isnull=False)
+            ordering.append(f"-document_filter__upvoted_{time_scope}")
+        elif ordering_value == EXPIRING_SOON:
+            ordering.append("document_filter__bounty_expiration_date")
+        elif ordering_value == MOST_RSC:
+            ordering.append("-document_filter__bounty_total_amount")
+
+        print("ordering", ordering)
+
+        qs = qs.order_by(*ordering)
         return qs
 
     def _get_unified_document_cache_hit(
@@ -647,12 +714,14 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "score",
             "fundraise",
         ]
+
         serializer = self.dynamic_serializer_class(
             page,
             _include_fields=_include_fields,
             many=True,
             context=context,
         )
+
         serializer_data = serializer.data
 
         return self.get_paginated_response(serializer_data)
@@ -690,7 +759,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 date_ranges=[time_scope],
             )
 
-        documents = self.get_filtered_queryset().prefetch_related("fundraises")
+        documents = self.get_filtered_queryset()
         context = self._get_serializer_context()
         context["hub_id"] = hub_id
         page = self.paginate_queryset(documents)

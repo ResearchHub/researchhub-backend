@@ -77,11 +77,6 @@ class UnifiedDocumentFilter(filters.FilterSet):
         null_value="all",
     )
     tags = filters.CharFilter(method="tag_filter", label="Tags")
-    ordering = filters.ChoiceFilter(
-        method="ordering_filter",
-        choices=ORDER_CHOICES,
-        label="Ordering",
-    )
     subscribed_hubs = filters.BooleanFilter(
         method="subscribed_filter",
         label="Subscribed Hubs",
@@ -95,7 +90,6 @@ class UnifiedDocumentFilter(filters.FilterSet):
         model = ResearchhubUnifiedDocument
         fields = [
             "hub_id",
-            "ordering",
             "subscribed_hubs",
             "type",
             "ignore_excluded_homepage",
@@ -152,6 +146,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
                 "hubs",
                 "paper",
                 "paper__authors",
+                "fundraises",
                 Prefetch(
                     "paper__figures",
                     queryset=Figure.objects.filter(figure_type=Figure.PREVIEW),
@@ -209,45 +204,6 @@ class UnifiedDocumentFilter(filters.FilterSet):
 
     def exclude_feed_filter(self, qs, name, values):
         qs = qs.exclude(document_filter__is_excluded_in_feed=True)
-        return qs
-
-    def ordering_filter(self, qs, name, value):
-        time_scope = self.data.get("time", "today")
-        start_date, end_date = get_date_ranges_by_time_scope(time_scope)
-
-        if time_scope not in TIME_SCOPE_CHOICES:
-            time_scope = "today"
-
-        ordering = []
-        if value == NEW:
-            qs = qs.filter(created_date__range=(start_date, end_date))
-            ordering.append("-created_date")
-        elif value == HOT:
-            ordering.append("-hot_score_v2")
-        elif value == DISCUSSED:
-            key = f"document_filter__discussed_{time_scope}"
-            if time_scope != "all":
-                qs = qs.filter(
-                    document_filter__discussed_date__range=(start_date, end_date),
-                    **{f"{key}__gt": 0},
-                )
-            else:
-                qs = qs.filter(document_filter__isnull=False)
-            ordering.append(f"-{key}")
-        elif value == UPVOTED:
-            if time_scope != "all":
-                qs = qs.filter(
-                    document_filter__upvoted_date__range=(start_date, end_date)
-                )
-            else:
-                qs = qs.filter(document_filter__isnull=False)
-            ordering.append(f"-document_filter__upvoted_{time_scope}")
-        elif value == EXPIRING_SOON:
-            ordering.append("document_filter__bounty_expiration_date")
-        elif value == MOST_RSC:
-            ordering.append("-document_filter__bounty_total_amount")
-
-        qs = qs.order_by(*ordering)
         return qs
 
     def subscribed_filter(self, qs, name, value):
