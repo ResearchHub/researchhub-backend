@@ -981,18 +981,6 @@ class FigureViewSet(viewsets.ModelViewSet):
         return Response({"data": serializer_data}, status=status.HTTP_200_OK)
 
 
-def find_vote(user, paper, vote_type):
-    vote = GrmVote.objects.filter(
-        content_type=get_content_type_for_model(paper),
-        created_by=user,
-        object_id=paper.id,
-        vote_type=vote_type,
-    )
-    if vote:
-        return True
-    return False
-
-
 def get_vote_response(vote, status_code):
     """Returns Response with serialized `vote` data and `status_code`."""
     serializer = GrmVoteSerializer(vote)
