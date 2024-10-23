@@ -630,7 +630,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             id__in=doc_ids,
         ).order_by("-hot_score_v2")
 
-        qs = self.filter_queryset(qs)
+        # qs = self.filter_queryset(qs)
         return qs
 
     def order_queryset(self, qs, ordering_value):
