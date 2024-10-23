@@ -64,9 +64,6 @@ User objects have the following fields by default:
 
 class User(AbstractUser):
     agreed_to_terms = models.BooleanField(default=False)
-    bookmarks = models.ManyToManyField(
-        "paper.Paper", related_name="users_who_bookmarked"
-    )
     clicked_on_balance_date = models.DateTimeField(auto_now_add=True)
     country_code = models.CharField(max_length=4, null=True, blank=True)
     created_date = models.DateTimeField(auto_now_add=True)
