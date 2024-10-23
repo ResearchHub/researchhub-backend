@@ -1074,7 +1074,7 @@ class DynamicPaperSerializer(
         try:
             paper_version = PaperVersion.objects.get(paper=paper)
         except PaperVersion.DoesNotExist:
-            return None
+            return []
 
         paper_versions = PaperVersion.objects.filter(
             base_doi=paper_version.base_doi
