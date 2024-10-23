@@ -512,7 +512,8 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         paper = self.get_object()
         user = request.user
         vote = retrieve_vote(user, paper)
-        return get_vote_response(vote, 200)
+        serializer = GrmVoteSerializer(vote)
+        return Response(serializer.data, status=200)
 
     @user_vote.mapping.delete
     def delete_user_vote(self, request, pk=None):
@@ -973,12 +974,6 @@ class FigureViewSet(viewsets.ModelViewSet):
         # Returns regular figures
         serializer_data = self.get_figures(pk, figure_type=Figure.FIGURE)
         return Response({"data": serializer_data}, status=status.HTTP_200_OK)
-
-
-def get_vote_response(vote, status_code):
-    """Returns Response with serialized `vote` data and `status_code`."""
-    serializer = GrmVoteSerializer(vote)
-    return Response(serializer.data, status=status_code)
 
 
 def retrieve_vote(user, paper):
