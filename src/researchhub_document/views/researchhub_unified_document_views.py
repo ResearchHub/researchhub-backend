@@ -610,28 +610,55 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         qs = self.get_queryset().filter(id__in=featured_content)
         return qs
 
+    # def get_filtered_queryset(self):
+    #     query_params = self.request.query_params
+    #     ordering_value = query_params.get("ordering", HOT)
+    #     hub_id = query_params.get("hub_id", 0) or 0
+
+    #     # First query: Get relevant document IDs with minimal columns
+    #     qs = ResearchhubUnifiedDocument.objects.filter(
+    #         is_removed=False
+    #     ).exclude(
+    #         document_type__in=['NOTE', 'PREREGISTRATION']
+    #     )
+
+    #     if hub_id:
+    #         doc_ids = qs.filter(
+    #             hubs__id=hub_id,
+    #         )
+
+    #     qs = qs.filter(
+    #         id__in=doc_ids,
+    #     ).order_by("-hot_score_v2")
+
+    #     return qs
+
     def get_filtered_queryset(self):
         query_params = self.request.query_params
         ordering_value = query_params.get("ordering", HOT)
         hub_id = query_params.get("hub_id", 0) or 0
 
-        doc_ids = []
+        # First query: Get relevant document IDs with minimal columns
+        qs = ResearchhubUnifiedDocument.objects.filter(is_removed=False).exclude(
+            document_type__in=["NOTE", "PREREGISTRATION"]
+        )
+
         if hub_id:
-            doc_ids = ResearchhubUnifiedDocument.objects.filter(
+            doc_ids = qs.filter(
                 hubs__id=hub_id,
-                is_removed=False,
-            )
-        else:
-            doc_ids = ResearchhubUnifiedDocument.objects.filter(
-                is_removed=False,
             )
 
-        qs = ResearchhubUnifiedDocument.objects.filter(
-            id__in=doc_ids,
-        ).order_by("-hot_score_v2")
+            # Get the filtered queryset and materialize it
+            qs = qs.filter(id__in=doc_ids)
+            materialized_qs = list(qs)  # Force evaluation
 
-        # qs = self.filter_queryset(qs)
-        return qs
+            # Convert back to queryset and order
+            ids = [doc.id for doc in materialized_qs]
+            return ResearchhubUnifiedDocument.objects.filter(id__in=ids).order_by(
+                "-hot_score_v2"
+            )
+
+        return qs.order_by("-hot_score_v2")
 
     def order_queryset(self, qs, ordering_value):
         from researchhub_document.utils import get_date_ranges_by_time_scope
