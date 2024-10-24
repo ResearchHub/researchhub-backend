@@ -352,7 +352,12 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
         ).order_by("version")
         # Return a list of version pointing to the paper_id
         return [
-            {"version": version.version, "paper_id": version.paper.id}
+            {
+                "version": version.version,
+                "paper_id": version.paper.id,
+                "published_date": paper.paper_publish_date,
+                "message": version.message,
+            }
             for version in paper_versions
         ]
 
@@ -1084,7 +1089,12 @@ class DynamicPaperSerializer(
         ).order_by("version")
         # Return a list of version pointing to the paper_id
         return [
-            {"version": version.version, "paper_id": version.paper.id}
+            {
+                "version": version.version,
+                "paper_id": version.paper.id,
+                "published_date": paper.paper_publish_date,
+                "message": version.message,
+            }
             for version in paper_versions
         ]
 
