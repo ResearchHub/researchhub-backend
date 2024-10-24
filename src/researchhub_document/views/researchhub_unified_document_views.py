@@ -14,6 +14,7 @@ from rest_framework.viewsets import ModelViewSet
 
 from discussion.models import Vote as GrmVote
 from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
+from hub.models import Hub
 from paper.models import Paper
 from paper.utils import get_cache_key
 from researchhub.settings import AWS_REGION_NAME
@@ -52,6 +53,43 @@ from user.permissions import IsModerator
 from user.utils import reset_latest_acitvity_cache
 from utils.aws import PERSONALIZE, get_arn
 from utils.permissions import ReadOnly
+
+
+class UnifiedDocumentPaginator:
+    LARGE_HUB_THRESHOLD = 1000
+    PAGE_SIZE = 20
+
+    def get_documents(self, hub_id, page_number=1, page_size=None):
+        """
+        Consistent query strategy using offset/limit for all cases
+        Returns only the results list, letting the view handle pagination links
+        """
+        page_size = page_size or self.PAGE_SIZE
+        offset = (page_number - 1) * page_size
+
+        # Base query
+        base_qs = ResearchhubUnifiedDocument.objects.filter(is_removed=False).exclude(
+            document_type__in=["NOTE", "PREREGISTRATION"]
+        )
+
+        if hub_id == 0:
+            hub_size = None
+        else:
+            base_qs = base_qs.filter(hubs__id=hub_id)
+            # Get hub size
+            hub_size = Hub.objects.get(id=hub_id).paper_count
+
+        if hub_size is None or hub_size > self.LARGE_HUB_THRESHOLD:
+            # For large hubs, use direct limit
+            qs = base_qs.order_by("-hot_score_v2")[offset : offset + page_size]
+        else:
+            # For small hubs, get IDs first but still use limit
+            doc_ids = list(base_qs.values_list("id", flat=True))
+            qs = base_qs.filter(id__in=doc_ids).order_by("-hot_score_v2")[
+                offset : offset + page_size
+            ]
+
+        return list(qs)
 
 
 class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
@@ -610,54 +648,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         qs = self.get_queryset().filter(id__in=featured_content)
         return qs
 
-    # def get_filtered_queryset(self):
-    #     query_params = self.request.query_params
-    #     ordering_value = query_params.get("ordering", HOT)
-    #     hub_id = query_params.get("hub_id", 0) or 0
-
-    #     # First query: Get relevant document IDs with minimal columns
-    #     qs = ResearchhubUnifiedDocument.objects.filter(
-    #         is_removed=False
-    #     ).exclude(
-    #         document_type__in=['NOTE', 'PREREGISTRATION']
-    #     )
-
-    #     if hub_id:
-    #         doc_ids = qs.filter(
-    #             hubs__id=hub_id,
-    #         )
-
-    #     qs = qs.filter(
-    #         id__in=doc_ids,
-    #     ).order_by("-hot_score_v2")
-
-    #     return qs
-
-    def get_filtered_queryset(self):
-        query_params = self.request.query_params
-        ordering_value = query_params.get("ordering", HOT)
-        hub_id = query_params.get("hub_id", 0) or 0
-
-        # First query: Get relevant document IDs with minimal columns
-        qs = ResearchhubUnifiedDocument.objects.filter(is_removed=False).exclude(
-            document_type__in=["NOTE", "PREREGISTRATION"]
-        )
-
-        if hub_id:
-            doc_ids = qs.filter(
-                hubs__id=hub_id,
-            )
-
-            # Get the filtered queryset and materialize it
-            qs = qs.filter(id__in=doc_ids)
-            # materialized_qs = list(qs)  # Force evaluation
-
-            # Convert back to queryset and order
-            # ids = [doc.id for doc in materialized_qs]
-            return qs
-
-        return qs  # .order_by("-hot_score_v2")
-
     def order_queryset(self, qs, ordering_value):
         from researchhub_document.utils import get_date_ranges_by_time_scope
 
@@ -750,6 +740,26 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def get_unified_documents(self, request):
+
+        def get_page_url(page_number):
+            from urllib.parse import urlencode
+
+            from django.urls import reverse
+
+            if page_number < 1:
+                return None
+
+            # Create a mutable copy of the query parameters
+            mutable_params = request.query_params.copy()
+            mutable_params["page"] = page_number
+
+            # The correct URL pattern based on your router configuration
+            base_url = reverse("researchhub_unified_document-get-unified-documents")
+            # If that doesn't work, try this alternative:
+            # base_url = '/api/researchhub_unified_document/get_unified_documents/'
+
+            return f"{request.build_absolute_uri(base_url)}?{urlencode(mutable_params)}"
+
         is_anonymous = request.user.is_anonymous
         query_params = request.query_params
         subscribed_hubs = query_params.get("subscribed_hubs", "false").lower() == "true"
@@ -781,16 +791,20 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         #         date_ranges=[time_scope],
         #     )
 
-        documents = self.get_filtered_queryset()
+        paginator = UnifiedDocumentPaginator()
+        results = paginator.get_documents(
+            hub_id=hub_id,
+            page_number=page_number,
+        )
+
         context = self._get_serializer_context()
         context["hub_id"] = hub_id
-        page = self.paginate_queryset(documents)
 
         # Don't forget to update the _include_fields in
         # the preload_trending_documents helper function
         # if these _include_fields fields are being updated
         serializer = self.dynamic_serializer_class(
-            page,
+            results,
             _include_fields=[
                 "id",
                 "created_date",
@@ -807,9 +821,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             context=context,
         )
 
-        serializer_data = serializer.data
+        response_data = {
+            "next": get_page_url(page_number + 1),
+            "previous": get_page_url(page_number - 1) if page_number > 1 else None,
+            "results": serializer.data,
+        }
 
-        return self.get_paginated_response(serializer_data)
+        return Response(response_data)
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def get_featured_documents(self, request):
