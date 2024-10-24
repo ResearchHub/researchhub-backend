@@ -55,6 +55,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         data = request.data
 
         amount = data["amount"]
+        client_id = data["client_id"]
         purchase_method = data["purchase_method"]
         purchase_type = data["purchase_type"]
         content_type_str = data["content_type"]
@@ -75,6 +76,13 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         content_type = ContentType.objects.get(model=content_type_str)
         with transaction.atomic():
             user = User.objects.select_for_update().get(id=user.id)
+
+            cached_serialized_data = cache.get(f"purchase_client_id_{client_id}")
+            if cached_serialized_data:
+                return Response(
+                    cached_serialized_data,
+                    status=201,
+                )
 
             purchase_data = {
                 "amount": amount,
@@ -194,8 +202,10 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 )
                 distributor.distribute()
 
-        serializer = self.serializer_class(purchase, context=context)
-        serializer_data = serializer.data
+            serializer = self.serializer_class(purchase, context=context)
+            serializer_data = serializer.data
+
+            cache.set(f"purchase_client_id_{client_id}", serializer_data, timeout=3600)
 
         if recipient and user:
             self.send_purchase_notification(
