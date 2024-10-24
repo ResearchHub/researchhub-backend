@@ -13,7 +13,6 @@ from paper.views.paper_views import PaperViewSet
 from user.tests.helpers import create_random_authenticated_user, create_user
 from utils.openalex import OpenAlex
 from utils.test_helpers import (
-    get_authenticated_delete_response,
     get_authenticated_get_response,
     get_authenticated_post_response,
 )
@@ -160,14 +159,6 @@ class PaperViewsTests(TestCase):
         self.paper = create_paper()
         self.user = create_random_authenticated_user("paper_views_user")
         self.trouble_maker = create_random_authenticated_user("trouble_maker")
-
-    def test_can_bookmark_paper(self):
-        response = self.get_bookmark_post_response(self.user)
-        self.assertContains(response, self.paper.title, status_code=201)
-
-    def test_can_delete_bookmark(self):
-        response = self.get_bookmark_delete_response(self.user)
-        self.assertContains(response, self.paper.id, status_code=200)
 
     def test_check_url_is_true_if_url_has_pdf(self):
         url = self.base_url + "check_url/"
@@ -329,19 +320,3 @@ class PaperViewsTests(TestCase):
         data = {"url": "org/this-is-a-bad-url"}
         response = get_authenticated_post_response(self.user, url, data)
         self.assertContains(response, "Double check that URL", status_code=400)
-
-    def get_bookmark_post_response(self, user):
-        url = self.base_url + f"{self.paper.id}/bookmark/"
-        data = None
-        response = get_authenticated_post_response(
-            user, url, data, content_type="application/json"
-        )
-        return response
-
-    def get_bookmark_delete_response(self, user):
-        url = self.base_url + f"{self.paper.id}/bookmark/"
-        data = None
-        response = get_authenticated_delete_response(
-            user, url, data, content_type="application/json"
-        )
-        return response

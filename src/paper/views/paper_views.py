@@ -36,7 +36,6 @@ from paper.paper_upload_tasks import celery_process_paper
 from paper.permissions import CreatePaper, IsAuthor, UpdatePaper
 from paper.related_models.authorship_model import Authorship
 from paper.serializers import (
-    BookmarkSerializer,
     DynamicPaperSerializer,
     FigureSerializer,
     PaperReferenceSerializer,
@@ -88,7 +87,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
     def prefetch_lookups(self):
         return (
             "uploaded_by",
-            "uploaded_by__bookmarks",
             "uploaded_by__author_profile",
             "uploaded_by__author_profile__user",
             "uploaded_by__subscribed_hubs",
@@ -452,38 +450,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         paper.moderators.add(*moderators)
         paper.save()
         return Response(PaperSerializer(paper).data)
-
-    @action(
-        detail=True,
-        methods=["post"],
-        permission_classes=[IsAuthenticatedOrReadOnly & CreateOrUpdateIfAllowed],
-    )
-    def bookmark(self, request, pk=None):
-        paper = self.get_object()
-        user = request.user
-
-        if paper in user.bookmarks.all():
-            return Response("Bookmark already added", status=400)
-        else:
-            user.bookmarks.add(paper)
-            user.save()
-            serialized = BookmarkSerializer(
-                {"user": user.id, "bookmarks": user.bookmarks.all()}
-            )
-            return Response(serialized.data, status=201)
-
-    @bookmark.mapping.delete
-    def delete_bookmark(self, request, pk=None):
-        paper = self.get_object()
-        user = request.user
-
-        try:
-            user.bookmarks.remove(paper)
-            user.save()
-            return Response(paper.id, status=200)
-        except Exception as e:
-            print(e)
-            return Response(f"Failed to remove {paper.id} from bookmarks", status=400)
 
     @action(detail=True, methods=[GET])
     def referenced_by(self, request, pk=None):
