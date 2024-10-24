@@ -1,0 +1,70 @@
+name: Deploy Elastic Beanstalk
+
+on:
+  workflow_call:
+    inputs:
+      deploy_env:
+        required: true
+        type: string
+      deploy_role_arn:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+    secrets:
+      aws_access_key_id:
+        required: true
+      aws_secret_access_key:
+        required: true
+
+jobs:
+  deploy:
+    name: ${{ inputs.deploy_env }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout application repository
+        uses: actions/checkout@v4
+
+      - name: Workflow details
+        run: |
+          echo "Environment: ${{ inputs.deploy_env }}"
+          echo "Version: ${{ inputs.version }}"
+
+      - name: Download deployment package
+        uses: actions/download-artifact@v4
+        with:
+          name: "backend-${{ inputs.version }}"
+
+      - name: Unpack deployment package
+        run: |
+          ls -lha
+          unzip deploy.zip -d target
+          ls -lhr ./.github/workflows
+
+      - name: Configure AWS credentials with assume role
+        id: aws_credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.aws_access_key_id }}
+          aws-secret-access-key: ${{ secrets.aws_secret_access_key }}
+          role-to-assume: ${{ inputs.deploy_role_arn }}
+          role-session-name: github-actions-beanstalk-session
+          role-duration-seconds: 1200
+          role-skip-session-tagging: true
+          aws-region: us-west-2
+          output-credentials: true
+
+      - name: Deploy Backend - API
+        uses: einaregilsson/beanstalk-deploy@v22
+        with:
+          aws_access_key: ${{ steps.aws_credentials.outputs.access_key_id }}
+          aws_secret_key: ${{ steps.aws_credentials.outputs.secret_access_key }}
+          application_name: backend
+          environment_name: ${{ inputs.deploy_env }}-backend-api
+          version_label: ${{ inputs.version }}
+          use_existing_version_if_available: true
+          region: us-west-2
+          deployment_package: target/deploy.zip
+          wait_for_environment_recovery: 120

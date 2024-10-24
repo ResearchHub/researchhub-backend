@@ -22,7 +22,7 @@ on:
         default: master
 
 jobs:
-  deploy:
+  package:
     runs-on: ubuntu-latest
     if: |
       github.event_name == 'workflow_dispatch' || 
@@ -35,6 +35,10 @@ jobs:
       STAGING_DEPLOY_ROLE_ARN: ${{ vars.STAGING_DEPLOY_ROLE_ARN }}
       PROD_DEPLOY_ROLE_ARN: ${{ vars.PROD_DEPLOY_ROLE_ARN }}
       DEPLOY_ENV: ${{ github.event.inputs.deploy_env || 'staging' }}
+
+    outputs:
+      deploy_role_arn: ${{ steps.get_role_arn.outputs.role_arn }}
+      short_git_sha: ${{ steps.short_git_sha.outputs.short_git_sha }}
 
     steps:
       - name: Workflow details
@@ -49,10 +53,11 @@ jobs:
           ref: ${{ github.event.inputs.git_ref }}
 
       - name: Set short Git SHA
+        id: short_git_sha
         run: |
           SHORT_GIT_SHA=$(git rev-parse HEAD | cut -c1-7)
           echo "SHORT_GIT_SHA=$SHORT_GIT_SHA" >> "$GITHUB_ENV"
-          echo "Git SHA: ${SHORT_GIT_SHA}"
+          echo "short_git_sha=$SHORT_GIT_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Checkout deploy repository
         uses: actions/checkout@v4
@@ -78,64 +83,23 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: "backend-${{ env.SHORT_GIT_SHA }}"
+          name: "backend-${{ steps.short_git_sha.outputs.short_git_sha }}"
           path: target/deploy.zip
 
       - name: Get deploy role ARN
-        id: get-role-arn
+        id: get_role_arn
         run: |
           role_arn_name=${DEPLOY_ENV^^}_DEPLOY_ROLE_ARN
           role_arn=$(eval echo \$$role_arn_name)
           echo "role_arn=$role_arn" >> "$GITHUB_OUTPUT"
 
-      - name: Configure AWS credentials with assume role
-        id: aws_credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          role-to-assume: ${{ steps.get-role-arn.outputs.role_arn }}
-          role-session-name: github-actions-beanstalk-session
-          role-duration-seconds: 1200
-          role-skip-session-tagging: true
-          aws-region: us-west-2
-          output-credentials: true
-
-      - name: Deploy ${{ env.DEPLOY_ENV }} Backend - API
-        uses: einaregilsson/beanstalk-deploy@v22
-        with:
-          aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
-          aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
-          application_name: backend
-          environment_name: ${{ env.DEPLOY_ENV }}-backend-api
-          version_label: ${{ env.SHORT_GIT_SHA }}
-          use_existing_version_if_available: true
-          region: us-west-2
-          deployment_package: target/deploy.zip
-          wait_for_environment_recovery: 120
-
-      - name: Deploy ${{ env.DEPLOY_ENV }} Backend - Main Worker
-        uses: einaregilsson/beanstalk-deploy@v22
-        with:
-          aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
-          aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
-          application_name: backend
-          environment_name: ${{ env.DEPLOY_ENV }}-backend-worker-main
-          version_label: ${{ env.SHORT_GIT_SHA }}
-          use_existing_version_if_available: true
-          region: us-west-2
-          deployment_package: target/deploy.zip
-          wait_for_environment_recovery: 120
-
-      - name: Deploy ${{ env.DEPLOY_ENV }} Backend - Cermine Worker
-        uses: einaregilsson/beanstalk-deploy@v22
-        with:
-          aws_access_key: ${{ steps.aws_credentials.outputs.aws-access-key-id }}
-          aws_secret_key: ${{ steps.aws_credentials.outputs.aws-secret-access-key }}
-          application_name: backend
-          environment_name: ${{ env.DEPLOY_ENV }}-backend-worker-cermine
-          version_label: ${{ env.SHORT_GIT_SHA }}
-          use_existing_version_if_available: true
-          region: us-west-2
-          deployment_package: target/deploy.zip
-          wait_for_environment_recovery: 120
+  deploy:
+    uses: researchhub/researchhub-backend/.github/workflows/deploy_eb.yml@github-workflow-reusable-deploy
+    needs: package
+    with:
+      deploy_env: ${{ inputs.deploy_env }}
+      deploy_role_arn: ${{ needs.package.outputs.deploy_role_arn }}
+      version: ${{ needs.package.outputs.short_git_sha }}
+    secrets:
+      aws_access_key_id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
