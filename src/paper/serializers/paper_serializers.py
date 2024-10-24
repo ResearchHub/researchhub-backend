@@ -341,18 +341,20 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
         except PaperVersion.DoesNotExist:
             return None
 
-    def get_version_list(self, paper):
+    def get_version_list(self, paper) -> list:
         try:
             paper_version = PaperVersion.objects.get(paper=paper)
-            paper_versions = PaperVersion.objects.filter(
-                base_doi=paper_version.base_doi
-            ).order_by("version")
-            return [
-                {"version": version.version, "paper_id": version.paper.id}
-                for version in paper_versions
-            ]
         except PaperVersion.DoesNotExist:
-            return None
+            return []
+
+        paper_versions = PaperVersion.objects.filter(
+            base_doi=paper_version.base_doi
+        ).order_by("version")
+        # Return a list of version pointing to the paper_id
+        return [
+            {"version": version.version, "paper_id": version.paper.id}
+            for version in paper_versions
+        ]
 
 
 class ContributionPaperSerializer(BasePaperSerializer):
@@ -841,6 +843,8 @@ class DynamicPaperSerializer(
     file = serializers.SerializerMethodField()
     pdf_url = serializers.SerializerMethodField()
     pdf_copyright_allows_display = serializers.SerializerMethodField()
+    version = serializers.SerializerMethodField()
+    version_list = serializers.SerializerMethodField()
 
     class Meta:
         model = Paper
@@ -1065,10 +1069,9 @@ class DynamicPaperSerializer(
     def get_version(self, paper):
         try:
             paper_version = PaperVersion.objects.get(paper=paper)
+            return paper_version.version
         except PaperVersion.DoesNotExist:
             return None
-
-        return paper_version
 
     def get_version_list(self, paper) -> list:
         try:
