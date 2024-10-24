@@ -1,6 +1,7 @@
 from django.core.files.uploadedfile import SimpleUploadedFile
 
 from paper.models import Paper
+from paper.related_models.paper_model import PaperVersion
 from researchhub_document.related_models.constants.document_type import (
     PAPER as PAPER_DOC_TYPE,
 )

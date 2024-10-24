@@ -27,6 +27,7 @@ from paper.models import (
     Figure,
     Paper,
     PaperSubmission,
+    PaperVersion,
 )
 from paper.related_models.authorship_model import Authorship
 from paper.tasks import celery_extract_pdf_sections, download_pdf
@@ -79,6 +80,8 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
     unified_document_id = serializers.SerializerMethodField()
     uploaded_by = UserSerializer(read_only=True)
     user_flag = serializers.SerializerMethodField()
+    version = serializers.SerializerMethodField()
+    version_list = serializers.SerializerMethodField()
 
     class Meta:
         abstract = True
@@ -331,6 +334,28 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
             return paper.pdf_url
         return None
 
+    def get_version(self, paper):
+        try:
+            paper_version = PaperVersion.objects.get(paper=paper)
+            return paper_version.version
+        except PaperVersion.DoesNotExist:
+            return None
+
+    def get_version_list(self, paper) -> list:
+        try:
+            paper_version = PaperVersion.objects.get(paper=paper)
+        except PaperVersion.DoesNotExist:
+            return []
+
+        paper_versions = PaperVersion.objects.filter(
+            base_doi=paper_version.base_doi
+        ).order_by("version")
+        # Return a list of version pointing to the paper_id
+        return [
+            {"version": version.version, "paper_id": version.paper.id}
+            for version in paper_versions
+        ]
+
 
 class ContributionPaperSerializer(BasePaperSerializer):
     uploaded_by = None
@@ -377,6 +402,8 @@ class PaperSerializer(BasePaperSerializer):
             "user_vote",
             "users_who_bookmarked",
             "views",
+            "version",
+            "version_list",
         ]
         moderator_only_update_fields = [
             "pdf_license",
@@ -816,6 +843,8 @@ class DynamicPaperSerializer(
     file = serializers.SerializerMethodField()
     pdf_url = serializers.SerializerMethodField()
     pdf_copyright_allows_display = serializers.SerializerMethodField()
+    version = serializers.SerializerMethodField()
+    version_list = serializers.SerializerMethodField()
 
     class Meta:
         model = Paper
@@ -1036,6 +1065,28 @@ class DynamicPaperSerializer(
         ):
             return paper.pdf_url
         return None
+
+    def get_version(self, paper):
+        try:
+            paper_version = PaperVersion.objects.get(paper=paper)
+            return paper_version.version
+        except PaperVersion.DoesNotExist:
+            return None
+
+    def get_version_list(self, paper) -> list:
+        try:
+            paper_version = PaperVersion.objects.get(paper=paper)
+        except PaperVersion.DoesNotExist:
+            return []
+
+        paper_versions = PaperVersion.objects.filter(
+            base_doi=paper_version.base_doi
+        ).order_by("version")
+        # Return a list of version pointing to the paper_id
+        return [
+            {"version": version.version, "paper_id": version.paper.id}
+            for version in paper_versions
+        ]
 
 
 class BookmarkSerializer(serializers.Serializer):

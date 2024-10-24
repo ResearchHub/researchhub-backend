@@ -11,5 +11,6 @@ from paper.related_models.paper_model import (
     Figure,
     Paper,
     PaperFetchLog,
+    PaperVersion,
 )
 from paper.related_models.paper_submission_model import PaperSubmission
