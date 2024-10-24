@@ -16,7 +16,6 @@ from rest_framework import routers
 
 import analytics.views
 import discussion.views
-import google_analytics.views
 import hub.views
 import invite.views as invite_views
 import mailing_list.views
@@ -176,7 +175,6 @@ router.register(r"fundraise", purchase.views.FundraiseViewSet, basename="fundrai
 
 urlpatterns = [
     re_path(r"^api/", include(router.urls)),
-    path("api/events/forward_event/", google_analytics.views.forward_event),
     # TODO: calvinhlee - consolidate all mod views into 1 set
     path("api/get_hub_active_contributors/", editor_views.get_hub_active_contributors),
     path(
