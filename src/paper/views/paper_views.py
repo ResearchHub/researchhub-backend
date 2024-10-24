@@ -137,16 +137,17 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
     @sift_track(SIFT_PAPER)
     def create(self, request, *args, **kwargs):
         try:
-            doi = request.data.get("doi", "")
-            duplicate_papers = Paper.objects.filter(doi=doi)
-            if duplicate_papers:
-                serializer = DynamicPaperSerializer(
-                    duplicate_papers[:1],
-                    _include_fields=["doi", "id", "title", "url"],
-                    many=True,
-                )
-                duplicate_data = {"data": serializer.data}
-                return Response(duplicate_data, status=status.HTTP_403_FORBIDDEN)
+            doi = request.data.get("doi")
+            if doi:
+                duplicate_papers = Paper.objects.filter(doi=doi)
+                if duplicate_papers.exists():
+                    serializer = DynamicPaperSerializer(
+                        duplicate_papers[:1],
+                        _include_fields=["doi", "id", "title", "url"],
+                        many=True,
+                    )
+                    duplicate_data = {"data": serializer.data}
+                    return Response(duplicate_data, status=status.HTTP_403_FORBIDDEN)
             response = super().create(request, *args, **kwargs)
             return response
         except IntegrityError as e:
