@@ -650,15 +650,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
             # Get the filtered queryset and materialize it
             qs = qs.filter(id__in=doc_ids)
-            materialized_qs = list(qs)  # Force evaluation
+            # materialized_qs = list(qs)  # Force evaluation
 
             # Convert back to queryset and order
-            ids = [doc.id for doc in materialized_qs]
-            return ResearchhubUnifiedDocument.objects.filter(id__in=ids).order_by(
-                "-hot_score_v2"
-            )
+            # ids = [doc.id for doc in materialized_qs]
+            return qs
 
-        return qs.order_by("-hot_score_v2")
+        return qs  # .order_by("-hot_score_v2")
 
     def order_queryset(self, qs, ordering_value):
         from researchhub_document.utils import get_date_ranges_by_time_scope
