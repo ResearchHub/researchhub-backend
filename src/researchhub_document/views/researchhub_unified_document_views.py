@@ -51,46 +51,7 @@ from user.utils import reset_latest_acitvity_cache
 from utils.aws import PERSONALIZE, get_arn
 from utils.permissions import ReadOnly
 
-
-class UnifiedDocumentPaginator:
-    LARGE_HUB_THRESHOLD = 1000
-    PAGE_SIZE = 30
-
-    def build_queryset(
-        self,
-        hub_id=0,
-        sort="-hot_score_v2",
-        initial_queryset=None,
-        page_number=1,
-        page_size=None,
-    ):
-        """
-        Consistent query strategy using offset/limit for all cases
-        Returns only the results list, letting the view handle pagination links
-        """
-
-        if initial_queryset is None:
-            # Base query
-            base_qs = ResearchhubUnifiedDocument.objects.filter(is_removed=False)
-        else:
-            base_qs = initial_queryset
-
-        if hub_id == 0:
-            hub_size = None
-        else:
-            base_qs = base_qs.filter(hubs__id=hub_id)
-            # Get hub size
-            hub_size = Hub.objects.get(id=hub_id).paper_count
-
-        if hub_size is None or hub_size > self.LARGE_HUB_THRESHOLD:
-            # For large hubs, use direct limit
-            qs = base_qs
-        else:
-            # For small hubs, get IDs first but still use limit
-            doc_ids = list(base_qs.values_list("id", flat=True))
-            qs = base_qs.filter(id__in=doc_ids)
-
-        return qs
+PAGE_SIZE = 30
 
 
 class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
@@ -694,22 +655,15 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         #         date_ranges=[time_scope],
         #     )
 
-        paginator = UnifiedDocumentPaginator()
-        queryset = paginator.build_queryset(
-            hub_id=hub_id,
-            page_number=page_number,
-            initial_queryset=self.filter_queryset(self.get_queryset()),
-            sort=filtering,
-        )
-
-        PAGE_SIZE = 30
-        queryset = self.order_queryset(queryset, filtering)
+        # Build queryset
+        queryset = self.filter_queryset(self.get_queryset())
         offset = (page_number - 1) * PAGE_SIZE
         queryset = queryset[offset : offset + PAGE_SIZE]
 
         # Materialize the queryset by flushing out the query
         results = list(queryset)
 
+        # Bulid serializer contet
         context = self._get_serializer_context()
         context["hub_id"] = hub_id
 

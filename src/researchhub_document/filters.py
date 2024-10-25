@@ -22,6 +22,7 @@ from researchhub_document.related_models.constants.filters import (
     NEW,
     UPVOTED,
 )
+from researchhub_document.utils import get_date_ranges_by_time_scope
 from review.models import Review
 
 DOC_CHOICES = (
@@ -61,6 +62,7 @@ ORDER_CHOICES = (
     (MOST_RSC, "Most RSC"),
 )
 TIME_SCOPE_CHOICES = ("today", "week", "month", "year", "all")
+LARGE_HUB_THRESHOLD = 1000
 
 
 class UnifiedDocumentFilter(filters.FilterSet):
@@ -75,13 +77,52 @@ class UnifiedDocumentFilter(filters.FilterSet):
         method="exclude_feed_filter",
         label="Excluded documents",
     )
+    ordering = filters.ChoiceFilter(
+        method="ordering_filter",
+        choices=ORDER_CHOICES,
+        label="Ordering",
+    )
+    hub_id = filters.NumberFilter(method="hub_filter")
 
     class Meta:
         model = ResearchhubUnifiedDocument
         fields = [
+            "hub_id",
+            "ordering",
             "type",
             "ignore_excluded_homepage",
         ]
+
+    def filter_queryset(self, queryset):
+        """
+        Override the default filter_queryset to apply filters in the correct order
+        and add pagination logic
+        """
+
+        # Apply hub filter
+        if "hub_id" in self.form.cleaned_data:
+            hub_id = self.form.cleaned_data["hub_id"]
+            queryset = self.filters["hub_id"].filter(queryset, hub_id)
+
+        # Apply document type filter
+        if "type" in self.form.cleaned_data:
+            type = self.form.cleaned_data["type"]
+            queryset = self.filters["type"].filter(queryset, type)
+
+        # Apply tags filter
+        if "tags" in self.form.cleaned_data:
+            tags = self.form.cleaned_data["tags"]
+            queryset = self.filters["tags"].filter(queryset, tags)
+
+        # Apply ignore_excluded_homepage filter
+        if "ignore_excluded_homepage" in self.form.cleaned_data:
+            queryset = self.filters["ignore_excluded_homepage"].filter(queryset, True)
+
+        # Apply ordering
+        ordering = self.form.cleaned_data.get("ordering") or HOT
+        queryset = self.filters["ordering"].filter(queryset, ordering)
+
+        return queryset
 
     def _map_tag_to_document_filter(self, value):
         if value == "closed":
@@ -93,6 +134,17 @@ class UnifiedDocumentFilter(filters.FilterSet):
         elif value == "unanswered":
             return "answered", False
         return value, True
+
+    def hub_filter(self, qs, name, value):
+        qs = qs.filter(hubs__id=value)
+        hub_size = Hub.objects.get(id=value).paper_count
+
+        if hub_size <= LARGE_HUB_THRESHOLD:
+            # For small hubs, get IDs first
+            doc_ids = list(qs.values_list("id", flat=True))
+            qs = qs.filter(id__in=doc_ids)
+
+        return qs
 
     def document_type_filter(self, qs, name, value):
         value = value.upper()
@@ -142,7 +194,6 @@ class UnifiedDocumentFilter(filters.FilterSet):
                 Prefetch("reviews", queryset=Review.objects.filter(is_removed=False)),
                 "related_bounties",
                 "paper__hubs",
-                "paper__figures",
                 "paper__purchases",
             )
         elif value == POSTS:
@@ -192,4 +243,43 @@ class UnifiedDocumentFilter(filters.FilterSet):
 
     def exclude_feed_filter(self, qs, name, values):
         qs = qs.exclude(document_filter__is_excluded_in_feed=True)
+        return qs
+
+    def ordering_filter(self, qs, name, value):
+        time_scope = self.data.get("time", "today")
+        start_date, end_date = get_date_ranges_by_time_scope(time_scope)
+
+        if time_scope not in TIME_SCOPE_CHOICES:
+            time_scope = "today"
+
+        ordering = []
+        if value == NEW:
+            qs = qs.filter(created_date__range=(start_date, end_date))
+            ordering.append("-created_date")
+        elif value == HOT:
+            ordering.append("-hot_score_v2")
+        elif value == DISCUSSED:
+            key = f"document_filter__discussed_{time_scope}"
+            if time_scope != "all":
+                qs = qs.filter(
+                    document_filter__discussed_date__range=(start_date, end_date),
+                    **{f"{key}__gt": 0},
+                )
+            else:
+                qs = qs.filter(document_filter__isnull=False)
+            ordering.append(f"-{key}")
+        elif value == UPVOTED:
+            if time_scope != "all":
+                qs = qs.filter(
+                    document_filter__upvoted_date__range=(start_date, end_date)
+                )
+            else:
+                qs = qs.filter(document_filter__isnull=False)
+            ordering.append(f"-document_filter__upvoted_{time_scope}")
+        elif value == EXPIRING_SOON:
+            ordering.append("document_filter__bounty_expiration_date")
+        elif value == MOST_RSC:
+            ordering.append("-document_filter__bounty_total_amount")
+
+        qs = qs.order_by(*ordering)
         return qs
