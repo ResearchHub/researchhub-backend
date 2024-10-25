@@ -22,7 +22,6 @@ from researchhub_document.related_models.constants.filters import (
     NEW,
     UPVOTED,
 )
-from researchhub_document.utils import get_date_ranges_by_time_scope
 from review.models import Review
 
 DOC_CHOICES = (
@@ -65,11 +64,6 @@ TIME_SCOPE_CHOICES = ("today", "week", "month", "year", "all")
 
 
 class UnifiedDocumentFilter(filters.FilterSet):
-    hub_id = filters.ModelChoiceFilter(
-        field_name="hubs",
-        queryset=Hub.objects.all(),
-        label="Hubs",
-    )
     type = filters.ChoiceFilter(
         field_name="document_type",
         method="document_type_filter",
@@ -77,10 +71,6 @@ class UnifiedDocumentFilter(filters.FilterSet):
         null_value="all",
     )
     tags = filters.CharFilter(method="tag_filter", label="Tags")
-    subscribed_hubs = filters.BooleanFilter(
-        method="subscribed_filter",
-        label="Subscribed Hubs",
-    )
     ignore_excluded_homepage = filters.BooleanFilter(
         method="exclude_feed_filter",
         label="Excluded documents",
@@ -89,8 +79,6 @@ class UnifiedDocumentFilter(filters.FilterSet):
     class Meta:
         model = ResearchhubUnifiedDocument
         fields = [
-            "hub_id",
-            "subscribed_hubs",
             "type",
             "ignore_excluded_homepage",
         ]
@@ -204,11 +192,4 @@ class UnifiedDocumentFilter(filters.FilterSet):
 
     def exclude_feed_filter(self, qs, name, values):
         qs = qs.exclude(document_filter__is_excluded_in_feed=True)
-        return qs
-
-    def subscribed_filter(self, qs, name, value):
-        if value and self.request.user.is_anonymous is not True:
-            user = self.request.user
-            hub_ids = user.subscribed_hubs.values_list("id", flat=True)
-            qs = qs.filter(hubs__in=hub_ids)
         return qs

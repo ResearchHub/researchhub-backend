@@ -37,17 +37,14 @@ from researchhub_document.related_models.constants.filters import (
     NEW,
     UPVOTED,
 )
-from researchhub_document.related_models.researchhub_unified_document_model import (
-    ResearchhubUnifiedDocumentHub,
-)
 from researchhub_document.serializers import (
     DynamicUnifiedDocumentSerializer,
     ResearchhubUnifiedDocumentSerializer,
 )
-from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
-from researchhub_document.views.custom.unified_document_pagination import (
-    UNIFIED_DOC_PAGE_SIZE,
-    UnifiedDocPagination,
+from researchhub_document.utils import (
+    get_date_ranges_by_time_scope,
+    get_doc_type_key,
+    reset_unified_document_cache,
 )
 from user.permissions import IsModerator
 from user.utils import reset_latest_acitvity_cache
@@ -57,23 +54,24 @@ from utils.permissions import ReadOnly
 
 class UnifiedDocumentPaginator:
     LARGE_HUB_THRESHOLD = 1000
-    PAGE_SIZE = 20
+    PAGE_SIZE = 30
 
-    def get_documents(
-        self, hub_id, initial_queryset=None, page_number=1, page_size=None
+    def build_queryset(
+        self,
+        hub_id=0,
+        sort="-hot_score_v2",
+        initial_queryset=None,
+        page_number=1,
+        page_size=None,
     ):
         """
         Consistent query strategy using offset/limit for all cases
         Returns only the results list, letting the view handle pagination links
         """
-        page_size = page_size or self.PAGE_SIZE
-        offset = (page_number - 1) * page_size
 
         if initial_queryset is None:
             # Base query
-            base_qs = ResearchhubUnifiedDocument.objects.filter(
-                is_removed=False
-            ).exclude(document_type__in=["NOTE", "PREREGISTRATION"])
+            base_qs = ResearchhubUnifiedDocument.objects.filter(is_removed=False)
         else:
             base_qs = initial_queryset
 
@@ -86,15 +84,13 @@ class UnifiedDocumentPaginator:
 
         if hub_size is None or hub_size > self.LARGE_HUB_THRESHOLD:
             # For large hubs, use direct limit
-            qs = base_qs.order_by("-hot_score_v2")[offset : offset + page_size]
+            qs = base_qs
         else:
             # For small hubs, get IDs first but still use limit
             doc_ids = list(base_qs.values_list("id", flat=True))
-            qs = base_qs.filter(id__in=doc_ids).order_by("-hot_score_v2")[
-                offset : offset + page_size
-            ]
+            qs = base_qs.filter(id__in=doc_ids)
 
-        return list(qs)
+        return qs
 
 
 class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
@@ -102,7 +98,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         IsAuthenticated | ReadOnly,
     ]
     dynamic_serializer_class = DynamicUnifiedDocumentSerializer
-    pagination_class = UnifiedDocPagination
     queryset = ResearchhubUnifiedDocument.objects.all()
     filter_backends = (DjangoFilterBackend,)
     filter_class = UnifiedDocumentFilter
@@ -449,29 +444,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         return Response(self.get_serializer(instance=doc).data, status=200)
 
-    @action(
-        detail=True,
-        methods=["get"],
-        permission_classes=[AllowAny],
-    )
-    def hot_score(self, request, pk=None):
-        debug = request.query_params.get("debug", False) == "true"
-
-        if debug:
-            time_start = perf_counter()
-
-        doc = self.get_object()
-        hot_score_tpl = doc.calculate_hot_score_v2(debug)
-
-        if debug:
-            time_stop = perf_counter()
-            elapsed_time = str((time_stop - time_start) * 1000) + "ms"
-            debug_obj = hot_score_tpl[1]
-            debug_obj["query_time"] = elapsed_time
-            return Response(hot_score_tpl[1], status=status.HTTP_200_OK)
-        else:
-            return Response({"score": hot_score_tpl[0]}, status=status.HTTP_200_OK)
-
     def update(self, request, *args, **kwargs):
         update_response = super().update(request, *args, **kwargs)
 
@@ -490,7 +462,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "doc_duds_get_documents": {
                 "_include_fields": [
                     "abstract",
-                    # "aggregate_citation_consensus",
                     "created_by",
                     "created_date",
                     "discussion_count",
@@ -517,18 +488,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "work_type",
                 ]
             },
-            # "doc_duds_get_bounties": {
-            #     "_include_fields": [
-            #         "amount",
-            #         "created_by",
-            #         "content_type",
-            #         "id",
-            #         "item",
-            #         "item_object_id",
-            #         "expiration_date",
-            #         "status",
-            #     ],
-            # },
             "doc_duds_get_hubs": {
                 "_include_fields": [
                     "id",
@@ -540,13 +499,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "is_used_for_rep",
                 ],
             },
-            # "doc_duds_get_document_filter": {
-            #     "_include_fields": [
-            #         "answered",
-            #         "bounty_open",
-            #         "bounty_total_amount",
-            #     ]
-            # },
             "pap_dps_get_authorships": {
                 "_include_fields": [
                     "id",
@@ -558,45 +510,12 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 ]
             },
             "authorship::get_author": {"_include_fields": ["id", "profile_image"]},
-            # "doc_dps_get_hubs": {
-            #     "_include_fields": [
-            #         "id",
-            #         "name",
-            #         "is_locked",
-            #         "slug",
-            #         "is_removed",
-            #         "hub_image",
-            #     ]
-            # },
-            # "pap_dps_get_hubs": {
-            #     "_include_fields": [
-            #         "id",
-            #         "name",
-            #         "is_locked",
-            #         "slug",
-            #         "is_removed",
-            #         "hub_image",
-            #     ]
-            # },
-            # "pap_dps_get_unified_document": {
-            #     "_include_fields": [
-            #         "id",
-            #         "title",
-            #         "slug",
-            #         "reviews",
-            #     ]
-            # },
             "doc_dps_get_created_by": {
                 "_include_fields": [
                     "id",
                     "author_profile",
                 ]
             },
-            # "doc_dps_get_threads": {
-            #     "_include_fields": [
-            #         "bounties",
-            #     ]
-            # },
             "pap_dps_get_uploaded_by": {
                 "_include_fields": [
                     "id",
@@ -606,25 +525,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "pap_dps_get_authors": {
                 "_include_fields": ["id", "first_name", "last_name"]
             },
-            # "usr_dus_get_author_profile": {
-            #     "_include_fields": [
-            #         "id",
-            #         "first_name",
-            #         "last_name",
-            #         "profile_image",
-            #     ]
-            # },
-            # "doc_duds_get_created_by": {
-            #     "_include_fields": [
-            #         "author_profile",
-            #     ]
-            # },
-            # "rep_dbs_get_created_by": {"_include_fields": ["author_profile", "id"]},
-            # "rep_dbs_get_item": {
-            #     "_include_fields": [
-            #         "plain_text",
-            #     ]
-            # },
             "doc_duds_get_fundraise": {
                 "_include_fields": [
                     "id",
@@ -690,8 +590,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             ordering.append("document_filter__bounty_expiration_date")
         elif ordering_value == MOST_RSC:
             ordering.append("-document_filter__bounty_total_amount")
-
-        print("ordering", ordering)
 
         qs = qs.order_by(*ordering)
         return qs
@@ -797,11 +695,20 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         #     )
 
         paginator = UnifiedDocumentPaginator()
-        results = paginator.get_documents(
+        queryset = paginator.build_queryset(
             hub_id=hub_id,
             page_number=page_number,
             initial_queryset=self.filter_queryset(self.get_queryset()),
+            sort=filtering,
         )
+
+        PAGE_SIZE = 30
+        queryset = self.order_queryset(queryset, filtering)
+        offset = (page_number - 1) * PAGE_SIZE
+        queryset = queryset[offset : offset + PAGE_SIZE]
+
+        # Materialize the queryset by flushing out the query
+        results = list(queryset)
 
         context = self._get_serializer_context()
         context["hub_id"] = hub_id
@@ -877,89 +784,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 elif isinstance(documents, dict):
                     documents["score"] = docs_to_score_map[doc["id"]]
         return cache_hit
-
-    def _get_subscribed_unified_documents(self, request):
-        hub_ids = request.user.subscribed_hubs.values_list("id", flat=True)
-        query_params = request.query_params
-        document_request_type = query_params.get("type", "all")
-        time_scope = query_params.get("time", "today")
-        filtering = query_params.get("ordering", HOT)
-        tags = query_params.get("tags", None)
-        page_number = int(query_params.get("page", 1))
-
-        all_documents = {}
-        if not tags:
-            for hub_id in hub_ids:
-                cache_hit = self._get_unified_document_cache_hit(
-                    document_request_type,
-                    filtering,
-                    hub_id,
-                    page_number,
-                    time_scope,
-                )
-
-                if cache_hit:
-                    cache_hit = self._cache_hit_with_latest_metadata(cache_hit)
-                    for doc in cache_hit["results"]:
-                        if doc["id"] not in all_documents:
-                            all_documents[doc["id"]] = doc
-
-        all_documents = list(all_documents.values())
-        if len(all_documents) == 0:
-            all_documents = self.get_filtered_queryset()
-
-            context = self._get_serializer_context()
-            page = self.paginate_queryset(all_documents)
-            serializer = self.dynamic_serializer_class(
-                page,
-                _include_fields=[
-                    "id",
-                    "created_date",
-                    "documents",
-                    "document_type",
-                    "hot_score",
-                    "hubs",
-                    "reviews",
-                    "score",
-                    "bounties",
-                    "fundraise",
-                ],
-                many=True,
-                context=context,
-            )
-            serializer_data = serializer.data
-            return self.get_paginated_response(serializer_data)
-
-        else:
-            ordering = query_params.get("ordering", None)
-            if ordering == UPVOTED:
-                sort_key = "score"
-            elif ordering == DISCUSSED:
-                sort_key = "hot_score_v2"
-            elif ordering == NEW:
-                sort_key = "created_date"
-            else:
-                sort_key = "hot_score_v2"
-
-            def compare(doc):
-                if sort_key == "created_date":
-                    return -parser.parse(doc["created_date"]).timestamp()
-                else:
-                    return -doc[sort_key]
-
-            all_documents = sorted(all_documents, key=compare)
-            all_documents = all_documents[:UNIFIED_DOC_PAGE_SIZE]
-            next_page = request.build_absolute_uri()
-            if len(all_documents) < UNIFIED_DOC_PAGE_SIZE:
-                next_page = None
-            else:
-                next_page = replace_query_param(next_page, "page", 2)
-            res = {
-                "count": len(all_documents),
-                "next": next_page,
-                "results": all_documents,
-            }
-            return Response(res, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"], permission_classes=[IsModerator])
     def exclude_from_feed(self, request, pk=None):
