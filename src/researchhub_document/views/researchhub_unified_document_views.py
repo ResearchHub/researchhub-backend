@@ -14,10 +14,11 @@ from rest_framework.viewsets import ModelViewSet
 
 from discussion.models import Vote as GrmVote
 from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
+from hub.models import Hub
 from paper.models import Paper
 from paper.utils import get_cache_key
 from researchhub.settings import AWS_REGION_NAME
-from researchhub_document.filters import UnifiedDocumentFilter
+from researchhub_document.filters import TIME_SCOPE_CHOICES, UnifiedDocumentFilter
 from researchhub_document.models import (
     FeaturedContent,
     ResearchhubPost,
@@ -36,6 +37,9 @@ from researchhub_document.related_models.constants.filters import (
     NEW,
     UPVOTED,
 )
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocumentHub,
+)
 from researchhub_document.serializers import (
     DynamicUnifiedDocumentSerializer,
     ResearchhubUnifiedDocumentSerializer,
@@ -49,6 +53,48 @@ from user.permissions import IsModerator
 from user.utils import reset_latest_acitvity_cache
 from utils.aws import PERSONALIZE, get_arn
 from utils.permissions import ReadOnly
+
+
+class UnifiedDocumentPaginator:
+    LARGE_HUB_THRESHOLD = 1000
+    PAGE_SIZE = 20
+
+    def get_documents(
+        self, hub_id, initial_queryset=None, page_number=1, page_size=None
+    ):
+        """
+        Consistent query strategy using offset/limit for all cases
+        Returns only the results list, letting the view handle pagination links
+        """
+        page_size = page_size or self.PAGE_SIZE
+        offset = (page_number - 1) * page_size
+
+        if initial_queryset is None:
+            # Base query
+            base_qs = ResearchhubUnifiedDocument.objects.filter(
+                is_removed=False
+            ).exclude(document_type__in=["NOTE", "PREREGISTRATION"])
+        else:
+            base_qs = initial_queryset
+
+        if hub_id == 0:
+            hub_size = None
+        else:
+            base_qs = base_qs.filter(hubs__id=hub_id)
+            # Get hub size
+            hub_size = Hub.objects.get(id=hub_id).paper_count
+
+        if hub_size is None or hub_size > self.LARGE_HUB_THRESHOLD:
+            # For large hubs, use direct limit
+            qs = base_qs.order_by("-hot_score_v2")[offset : offset + page_size]
+        else:
+            # For small hubs, get IDs first but still use limit
+            doc_ids = list(base_qs.values_list("id", flat=True))
+            qs = base_qs.filter(id__in=doc_ids).order_by("-hot_score_v2")[
+                offset : offset + page_size
+            ]
+
+        return list(qs)
 
 
 class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
@@ -444,7 +490,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "doc_duds_get_documents": {
                 "_include_fields": [
                     "abstract",
-                    "aggregate_citation_consensus",
+                    # "aggregate_citation_consensus",
                     "created_by",
                     "created_date",
                     "discussion_count",
@@ -471,18 +517,18 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "work_type",
                 ]
             },
-            "doc_duds_get_bounties": {
-                "_include_fields": [
-                    "amount",
-                    "created_by",
-                    "content_type",
-                    "id",
-                    "item",
-                    "item_object_id",
-                    "expiration_date",
-                    "status",
-                ],
-            },
+            # "doc_duds_get_bounties": {
+            #     "_include_fields": [
+            #         "amount",
+            #         "created_by",
+            #         "content_type",
+            #         "id",
+            #         "item",
+            #         "item_object_id",
+            #         "expiration_date",
+            #         "status",
+            #     ],
+            # },
             "doc_duds_get_hubs": {
                 "_include_fields": [
                     "id",
@@ -494,13 +540,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "is_used_for_rep",
                 ],
             },
-            "doc_duds_get_document_filter": {
-                "_include_fields": [
-                    "answered",
-                    "bounty_open",
-                    "bounty_total_amount",
-                ]
-            },
+            # "doc_duds_get_document_filter": {
+            #     "_include_fields": [
+            #         "answered",
+            #         "bounty_open",
+            #         "bounty_total_amount",
+            #     ]
+            # },
             "pap_dps_get_authorships": {
                 "_include_fields": [
                     "id",
@@ -512,45 +558,45 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 ]
             },
             "authorship::get_author": {"_include_fields": ["id", "profile_image"]},
-            "doc_dps_get_hubs": {
-                "_include_fields": [
-                    "id",
-                    "name",
-                    "is_locked",
-                    "slug",
-                    "is_removed",
-                    "hub_image",
-                ]
-            },
-            "pap_dps_get_hubs": {
-                "_include_fields": [
-                    "id",
-                    "name",
-                    "is_locked",
-                    "slug",
-                    "is_removed",
-                    "hub_image",
-                ]
-            },
-            "pap_dps_get_unified_document": {
-                "_include_fields": [
-                    "id",
-                    "title",
-                    "slug",
-                    "reviews",
-                ]
-            },
+            # "doc_dps_get_hubs": {
+            #     "_include_fields": [
+            #         "id",
+            #         "name",
+            #         "is_locked",
+            #         "slug",
+            #         "is_removed",
+            #         "hub_image",
+            #     ]
+            # },
+            # "pap_dps_get_hubs": {
+            #     "_include_fields": [
+            #         "id",
+            #         "name",
+            #         "is_locked",
+            #         "slug",
+            #         "is_removed",
+            #         "hub_image",
+            #     ]
+            # },
+            # "pap_dps_get_unified_document": {
+            #     "_include_fields": [
+            #         "id",
+            #         "title",
+            #         "slug",
+            #         "reviews",
+            #     ]
+            # },
             "doc_dps_get_created_by": {
                 "_include_fields": [
                     "id",
                     "author_profile",
                 ]
             },
-            "doc_dps_get_threads": {
-                "_include_fields": [
-                    "bounties",
-                ]
-            },
+            # "doc_dps_get_threads": {
+            #     "_include_fields": [
+            #         "bounties",
+            #     ]
+            # },
             "pap_dps_get_uploaded_by": {
                 "_include_fields": [
                     "id",
@@ -560,25 +606,25 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "pap_dps_get_authors": {
                 "_include_fields": ["id", "first_name", "last_name"]
             },
-            "usr_dus_get_author_profile": {
-                "_include_fields": [
-                    "id",
-                    "first_name",
-                    "last_name",
-                    "profile_image",
-                ]
-            },
-            "doc_duds_get_created_by": {
-                "_include_fields": [
-                    "author_profile",
-                ]
-            },
-            "rep_dbs_get_created_by": {"_include_fields": ["author_profile", "id"]},
-            "rep_dbs_get_item": {
-                "_include_fields": [
-                    "plain_text",
-                ]
-            },
+            # "usr_dus_get_author_profile": {
+            #     "_include_fields": [
+            #         "id",
+            #         "first_name",
+            #         "last_name",
+            #         "profile_image",
+            #     ]
+            # },
+            # "doc_duds_get_created_by": {
+            #     "_include_fields": [
+            #         "author_profile",
+            #     ]
+            # },
+            # "rep_dbs_get_created_by": {"_include_fields": ["author_profile", "id"]},
+            # "rep_dbs_get_item": {
+            #     "_include_fields": [
+            #         "plain_text",
+            #     ]
+            # },
             "doc_duds_get_fundraise": {
                 "_include_fields": [
                     "id",
@@ -607,9 +653,47 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         qs = self.get_queryset().filter(id__in=featured_content)
         return qs
 
-    def get_filtered_queryset(self):
-        qs = self.get_queryset()
-        qs = self.filter_queryset(qs)
+    def order_queryset(self, qs, ordering_value):
+        from researchhub_document.utils import get_date_ranges_by_time_scope
+
+        time_scope = self.request.query_params.get("time", "today")
+        start_date, end_date = get_date_ranges_by_time_scope(time_scope)
+
+        if time_scope not in TIME_SCOPE_CHOICES:
+            time_scope = "today"
+
+        ordering = []
+        if ordering_value == NEW:
+            qs = qs.filter(created_date__range=(start_date, end_date))
+            ordering.append("-created_date")
+        elif ordering_value == HOT:
+            ordering.append("-hot_score_v2")
+        elif ordering_value == DISCUSSED:
+            key = f"document_filter__discussed_{time_scope}"
+            if time_scope != "all":
+                qs = qs.filter(
+                    document_filter__discussed_date__range=(start_date, end_date),
+                    **{f"{key}__gt": 0},
+                )
+            else:
+                qs = qs.filter(document_filter__isnull=False)
+            ordering.append(f"-{key}")
+        elif ordering_value == UPVOTED:
+            if time_scope != "all":
+                qs = qs.filter(
+                    document_filter__upvoted_date__range=(start_date, end_date)
+                )
+            else:
+                qs = qs.filter(document_filter__isnull=False)
+            ordering.append(f"-document_filter__upvoted_{time_scope}")
+        elif ordering_value == EXPIRING_SOON:
+            ordering.append("document_filter__bounty_expiration_date")
+        elif ordering_value == MOST_RSC:
+            ordering.append("-document_filter__bounty_total_amount")
+
+        print("ordering", ordering)
+
+        qs = qs.order_by(*ordering)
         return qs
 
     def _get_unified_document_cache_hit(
@@ -647,18 +731,40 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "score",
             "fundraise",
         ]
+
         serializer = self.dynamic_serializer_class(
             page,
             _include_fields=_include_fields,
             many=True,
             context=context,
         )
+
         serializer_data = serializer.data
 
         return self.get_paginated_response(serializer_data)
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def get_unified_documents(self, request):
+
+        def get_page_url(page_number):
+            from urllib.parse import urlencode
+
+            from django.urls import reverse
+
+            if page_number < 1:
+                return None
+
+            # Create a mutable copy of the query parameters
+            mutable_params = request.query_params.copy()
+            mutable_params["page"] = page_number
+
+            # The correct URL pattern based on your router configuration
+            base_url = reverse("researchhub_unified_document-get-unified-documents")
+            # If that doesn't work, try this alternative:
+            # base_url = '/api/researchhub_unified_document/get_unified_documents/'
+
+            return f"{request.build_absolute_uri(base_url)}?{urlencode(mutable_params)}"
+
         is_anonymous = request.user.is_anonymous
         query_params = request.query_params
         subscribed_hubs = query_params.get("subscribed_hubs", "false").lower() == "true"
@@ -672,34 +778,39 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         hub_id = query_params.get("hub_id", 0) or 0
         page_number = int(query_params.get("page", 1))
 
-        cache_hit = self._get_unified_document_cache_hit(
-            document_request_type,
-            filtering,
-            hub_id,
-            page_number,
-            time_scope,
+        # cache_hit = self._get_unified_document_cache_hit(
+        #     document_request_type,
+        #     filtering,
+        #     hub_id,
+        #     page_number,
+        #     time_scope,
+        # )
+
+        # if cache_hit and page_number == 1:
+        #     cache_hit = self._cache_hit_with_latest_metadata(cache_hit)
+        #     return Response(cache_hit)
+        # elif not cache_hit and page_number == 1:
+        #     reset_unified_document_cache(
+        #         document_type=[document_request_type],
+        #         filters=[filtering],
+        #         date_ranges=[time_scope],
+        #     )
+
+        paginator = UnifiedDocumentPaginator()
+        results = paginator.get_documents(
+            hub_id=hub_id,
+            page_number=page_number,
+            initial_queryset=self.filter_queryset(self.get_queryset()),
         )
 
-        if cache_hit and page_number == 1:
-            cache_hit = self._cache_hit_with_latest_metadata(cache_hit)
-            return Response(cache_hit)
-        elif not cache_hit and page_number == 1:
-            reset_unified_document_cache(
-                document_type=[document_request_type],
-                filters=[filtering],
-                date_ranges=[time_scope],
-            )
-
-        documents = self.get_filtered_queryset().prefetch_related("fundraises")
         context = self._get_serializer_context()
         context["hub_id"] = hub_id
-        page = self.paginate_queryset(documents)
 
         # Don't forget to update the _include_fields in
         # the preload_trending_documents helper function
         # if these _include_fields fields are being updated
         serializer = self.dynamic_serializer_class(
-            page,
+            results,
             _include_fields=[
                 "id",
                 "created_date",
@@ -716,9 +827,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             context=context,
         )
 
-        serializer_data = serializer.data
+        response_data = {
+            "next": get_page_url(page_number + 1),
+            "previous": get_page_url(page_number - 1) if page_number > 1 else None,
+            "results": serializer.data,
+        }
 
-        return self.get_paginated_response(serializer_data)
+        return Response(response_data)
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def get_featured_documents(self, request):
