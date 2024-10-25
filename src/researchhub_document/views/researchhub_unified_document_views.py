@@ -51,7 +51,7 @@ from user.utils import reset_latest_acitvity_cache
 from utils.aws import PERSONALIZE, get_arn
 from utils.permissions import ReadOnly
 
-PAGE_SIZE = 30
+PAGE_SIZE = 20
 
 
 class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
@@ -619,9 +619,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
             # The correct URL pattern based on your router configuration
             base_url = reverse("researchhub_unified_document-get-unified-documents")
-            # If that doesn't work, try this alternative:
-            # base_url = '/api/researchhub_unified_document/get_unified_documents/'
-
             return f"{request.build_absolute_uri(base_url)}?{urlencode(mutable_params)}"
 
         is_anonymous = request.user.is_anonymous

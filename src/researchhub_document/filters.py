@@ -8,6 +8,7 @@ from researchhub_document.related_models.constants.document_type import (
     BOUNTY,
     DISCUSSION,
     ELN,
+    HYPOTHESIS,
     NOTE,
     PAPER,
     POSTS,
@@ -161,7 +162,6 @@ class UnifiedDocumentFilter(filters.FilterSet):
                 "paper__figures",
                 queryset=Figure.objects.filter(figure_type=Figure.PREVIEW),
             ),
-            "paper__hubs",
             "paper__purchases",
             "paper__figures",
             "posts",
@@ -226,7 +226,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
             # We do this for preregistrations so that they don't show up in the home feed,
             # but do show up on the /funding page.
             # This is a temporary solution as we trial out preregistration funding.
-            qs = qs.exclude(document_type__in=[NOTE, PREREGISTRATION])
+            qs = qs.exclude(document_type__in=[NOTE, PREREGISTRATION, HYPOTHESIS])
 
         return qs.select_related(*selects).prefetch_related(*prefetches)
 
