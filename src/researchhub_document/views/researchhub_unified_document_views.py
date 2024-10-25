@@ -59,7 +59,9 @@ class UnifiedDocumentPaginator:
     LARGE_HUB_THRESHOLD = 1000
     PAGE_SIZE = 20
 
-    def get_documents(self, hub_id, page_number=1, page_size=None):
+    def get_documents(
+        self, hub_id, initial_queryset=None, page_number=1, page_size=None
+    ):
         """
         Consistent query strategy using offset/limit for all cases
         Returns only the results list, letting the view handle pagination links
@@ -67,10 +69,13 @@ class UnifiedDocumentPaginator:
         page_size = page_size or self.PAGE_SIZE
         offset = (page_number - 1) * page_size
 
-        # Base query
-        base_qs = ResearchhubUnifiedDocument.objects.filter(is_removed=False).exclude(
-            document_type__in=["NOTE", "PREREGISTRATION"]
-        )
+        if initial_queryset is None:
+            # Base query
+            base_qs = ResearchhubUnifiedDocument.objects.filter(
+                is_removed=False
+            ).exclude(document_type__in=["NOTE", "PREREGISTRATION"])
+        else:
+            base_qs = initial_queryset
 
         if hub_id == 0:
             hub_size = None
@@ -485,7 +490,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "doc_duds_get_documents": {
                 "_include_fields": [
                     "abstract",
-                    "aggregate_citation_consensus",
+                    # "aggregate_citation_consensus",
                     "created_by",
                     "created_date",
                     "discussion_count",
@@ -512,18 +517,18 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "work_type",
                 ]
             },
-            "doc_duds_get_bounties": {
-                "_include_fields": [
-                    "amount",
-                    "created_by",
-                    "content_type",
-                    "id",
-                    "item",
-                    "item_object_id",
-                    "expiration_date",
-                    "status",
-                ],
-            },
+            # "doc_duds_get_bounties": {
+            #     "_include_fields": [
+            #         "amount",
+            #         "created_by",
+            #         "content_type",
+            #         "id",
+            #         "item",
+            #         "item_object_id",
+            #         "expiration_date",
+            #         "status",
+            #     ],
+            # },
             "doc_duds_get_hubs": {
                 "_include_fields": [
                     "id",
@@ -535,13 +540,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "is_used_for_rep",
                 ],
             },
-            "doc_duds_get_document_filter": {
-                "_include_fields": [
-                    "answered",
-                    "bounty_open",
-                    "bounty_total_amount",
-                ]
-            },
+            # "doc_duds_get_document_filter": {
+            #     "_include_fields": [
+            #         "answered",
+            #         "bounty_open",
+            #         "bounty_total_amount",
+            #     ]
+            # },
             "pap_dps_get_authorships": {
                 "_include_fields": [
                     "id",
@@ -553,45 +558,45 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 ]
             },
             "authorship::get_author": {"_include_fields": ["id", "profile_image"]},
-            "doc_dps_get_hubs": {
-                "_include_fields": [
-                    "id",
-                    "name",
-                    "is_locked",
-                    "slug",
-                    "is_removed",
-                    "hub_image",
-                ]
-            },
-            "pap_dps_get_hubs": {
-                "_include_fields": [
-                    "id",
-                    "name",
-                    "is_locked",
-                    "slug",
-                    "is_removed",
-                    "hub_image",
-                ]
-            },
-            "pap_dps_get_unified_document": {
-                "_include_fields": [
-                    "id",
-                    "title",
-                    "slug",
-                    "reviews",
-                ]
-            },
+            # "doc_dps_get_hubs": {
+            #     "_include_fields": [
+            #         "id",
+            #         "name",
+            #         "is_locked",
+            #         "slug",
+            #         "is_removed",
+            #         "hub_image",
+            #     ]
+            # },
+            # "pap_dps_get_hubs": {
+            #     "_include_fields": [
+            #         "id",
+            #         "name",
+            #         "is_locked",
+            #         "slug",
+            #         "is_removed",
+            #         "hub_image",
+            #     ]
+            # },
+            # "pap_dps_get_unified_document": {
+            #     "_include_fields": [
+            #         "id",
+            #         "title",
+            #         "slug",
+            #         "reviews",
+            #     ]
+            # },
             "doc_dps_get_created_by": {
                 "_include_fields": [
                     "id",
                     "author_profile",
                 ]
             },
-            "doc_dps_get_threads": {
-                "_include_fields": [
-                    "bounties",
-                ]
-            },
+            # "doc_dps_get_threads": {
+            #     "_include_fields": [
+            #         "bounties",
+            #     ]
+            # },
             "pap_dps_get_uploaded_by": {
                 "_include_fields": [
                     "id",
@@ -601,25 +606,25 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "pap_dps_get_authors": {
                 "_include_fields": ["id", "first_name", "last_name"]
             },
-            "usr_dus_get_author_profile": {
-                "_include_fields": [
-                    "id",
-                    "first_name",
-                    "last_name",
-                    "profile_image",
-                ]
-            },
-            "doc_duds_get_created_by": {
-                "_include_fields": [
-                    "author_profile",
-                ]
-            },
-            "rep_dbs_get_created_by": {"_include_fields": ["author_profile", "id"]},
-            "rep_dbs_get_item": {
-                "_include_fields": [
-                    "plain_text",
-                ]
-            },
+            # "usr_dus_get_author_profile": {
+            #     "_include_fields": [
+            #         "id",
+            #         "first_name",
+            #         "last_name",
+            #         "profile_image",
+            #     ]
+            # },
+            # "doc_duds_get_created_by": {
+            #     "_include_fields": [
+            #         "author_profile",
+            #     ]
+            # },
+            # "rep_dbs_get_created_by": {"_include_fields": ["author_profile", "id"]},
+            # "rep_dbs_get_item": {
+            #     "_include_fields": [
+            #         "plain_text",
+            #     ]
+            # },
             "doc_duds_get_fundraise": {
                 "_include_fields": [
                     "id",
@@ -795,6 +800,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         results = paginator.get_documents(
             hub_id=hub_id,
             page_number=page_number,
+            initial_queryset=self.filter_queryset(self.get_queryset()),
         )
 
         context = self._get_serializer_context()
@@ -807,15 +813,15 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             results,
             _include_fields=[
                 "id",
-                # "created_date",
-                # "documents",
-                # "document_filter",
-                # "document_type",
-                # "hot_score",
-                # "hubs",
-                # "reviews",
-                # "score",
-                # "fundraise",
+                "created_date",
+                "documents",
+                "document_filter",
+                "document_type",
+                "hot_score",
+                "hubs",
+                "reviews",
+                "score",
+                "fundraise",
             ],
             many=True,
             context=context,
