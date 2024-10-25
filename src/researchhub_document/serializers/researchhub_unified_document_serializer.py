@@ -165,10 +165,12 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
     def get_hubs(self, unified_doc):
         context = self.context
         _context_fields = context.get("doc_duds_get_hubs", {})
-        serializer = DynamicHubSerializer(
-            unified_doc.hubs, many=True, context=context, **_context_fields
-        )
-        return serializer.data
+
+        if _context_fields:
+            include_fields = _context_fields.get("_include_fields", [])
+            return list(unified_doc.hubs.values(*include_fields))
+
+        return []
 
     def get_reviews(self, unified_doc):
         if not unified_doc.reviews.exists():
