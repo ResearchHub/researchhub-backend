@@ -48,12 +48,14 @@ from researchhub_document.utils import (
     get_doc_type_key,
     reset_unified_document_cache,
 )
+from researchhub_document.views.custom.unified_document_pagination import (
+    UNIFIED_DOC_PAGE_SIZE,
+    UnifiedDocPagination,
+)
 from user.permissions import IsModerator
 from user.utils import reset_latest_acitvity_cache
 from utils.aws import PERSONALIZE, get_arn
 from utils.permissions import ReadOnly
-
-PAGE_SIZE = 20
 
 
 class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
@@ -306,7 +308,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         cache_hit = cache.get(cache_key)
 
         if cache_hit and not ignore_cache:
-            print("cache hit")
             return Response(cache_hit)
 
         recommendation_buckets = self._get_recommendation_buckets(user_id)
@@ -516,52 +517,16 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         qs = self.get_queryset().filter(id__in=featured_content)
         return qs
 
-    def order_queryset(self, qs, ordering_value):
-        from researchhub_document.utils import get_date_ranges_by_time_scope
-
-        time_scope = self.request.query_params.get("time", "today")
-        start_date, end_date = get_date_ranges_by_time_scope(time_scope)
-
-        if time_scope not in TIME_SCOPE_CHOICES:
-            time_scope = "today"
-
-        ordering = []
-        if ordering_value == NEW:
-            qs = qs.filter(created_date__range=(start_date, end_date))
-            ordering.append("-created_date")
-        elif ordering_value == HOT:
-            ordering.append("-hot_score_v2")
-        elif ordering_value == DISCUSSED:
-            key = f"document_filter__discussed_{time_scope}"
-            if time_scope != "all":
-                qs = qs.filter(
-                    document_filter__discussed_date__range=(start_date, end_date),
-                    **{f"{key}__gt": 0},
-                )
-            else:
-                qs = qs.filter(document_filter__isnull=False)
-            ordering.append(f"-{key}")
-        elif ordering_value == UPVOTED:
-            if time_scope != "all":
-                qs = qs.filter(
-                    document_filter__upvoted_date__range=(start_date, end_date)
-                )
-            else:
-                qs = qs.filter(document_filter__isnull=False)
-            ordering.append(f"-document_filter__upvoted_{time_scope}")
-        elif ordering_value == EXPIRING_SOON:
-            ordering.append("document_filter__bounty_expiration_date")
-        elif ordering_value == MOST_RSC:
-            ordering.append("-document_filter__bounty_total_amount")
-
-        qs = qs.order_by(*ordering)
+    def get_filtered_queryset(self):
+        qs = self.get_queryset()
+        qs = self.filter_queryset(qs)
         return qs
 
     def _get_unified_document_cache_hit(
         self, document_type, filtering, hub_id, page_number, time_scope
     ):
         cache_hit = None
-        if page_number == 1 and hub_id == 0:
+        if page_number == 1:
             cache_pk = f"{document_type}_{hub_id}_{filtering}_{time_scope}"
             cache_key_hub = get_cache_key("hub", cache_pk)
             cache_hit = cache.get(cache_key_hub)
@@ -631,28 +596,29 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         hub_id = query_params.get("hub_id", 0) or 0
         page_number = int(query_params.get("page", 1))
 
-        # cache_hit = self._get_unified_document_cache_hit(
-        #     document_request_type,
-        #     filtering,
-        #     hub_id,
-        #     page_number,
-        #     time_scope,
-        # )
+        cache_hit = self._get_unified_document_cache_hit(
+            document_request_type,
+            filtering,
+            hub_id,
+            page_number,
+            time_scope,
+        )
 
-        # if cache_hit and page_number == 1:
-        #     cache_hit = self._cache_hit_with_latest_metadata(cache_hit)
-        #     return Response(cache_hit)
-        # elif not cache_hit and page_number == 1:
-        #     reset_unified_document_cache(
-        #         document_type=[document_request_type],
-        #         filters=[filtering],
-        #         date_ranges=[time_scope],
-        #     )
+        if cache_hit and page_number == 1:
+            cache_hit = self._cache_hit_with_latest_metadata(cache_hit)
+            return Response(cache_hit)
+        elif not cache_hit and page_number == 1:
+            reset_unified_document_cache(
+                document_type=[document_request_type],
+                filters=[filtering],
+                date_ranges=[time_scope],
+                hub_id=hub_id,
+            )
 
         # Build queryset
-        queryset = self.filter_queryset(self.get_queryset())
-        offset = (page_number - 1) * PAGE_SIZE
-        queryset = queryset[offset : offset + PAGE_SIZE]
+        queryset = self.get_filtered_queryset()
+        offset = (page_number - 1) * UNIFIED_DOC_PAGE_SIZE
+        queryset = queryset[offset : offset + UNIFIED_DOC_PAGE_SIZE]
 
         # Materialize the queryset by flushing out the query
         results = list(queryset)

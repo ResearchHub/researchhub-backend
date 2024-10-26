@@ -146,6 +146,7 @@ def preload_trending_documents(
     serializer_data = serializer.data
 
     paginated_response = document_view.get_paginated_response(serializer_data)
+
     cache_key_hub = get_cache_key("hub", cache_pk)
     cache.set(cache_key_hub, paginated_response.data, timeout=60 * 60 * 24)
 

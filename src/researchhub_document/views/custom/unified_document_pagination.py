@@ -1,17 +1,19 @@
 from collections import OrderedDict
 
-from django.db import connection
 from django.core.paginator import Paginator
+from django.db import connection
 from django.utils.functional import cached_property
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
-UNIFIED_DOC_PAGE_SIZE = 20
+UNIFIED_DOC_PAGE_SIZE = 25
+
 
 class PaginatorWithApproximateCount(Paginator):
     """
     Adapted from: https://gist.github.com/noviluni/d86adfa24843c7b8ed10c183a9df2afe
     """
+
     @cached_property
     def count(self):
         """
@@ -23,7 +25,7 @@ class PaginatorWithApproximateCount(Paginator):
                 # reltuples is a cached value that approximates the number of rows in the table
                 cursor.execute(
                     "SELECT reltuples FROM pg_class WHERE relname = %s",
-                    [self.object_list.query.model._meta.db_table]
+                    [self.object_list.query.model._meta.db_table],
                 )
                 estimate = int(cursor.fetchone()[0])
                 return estimate
