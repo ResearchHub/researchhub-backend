@@ -86,6 +86,9 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
                 condition=~Q(document_type=NOTE),
             ),
             models.Index(
+                fields=["document_type", "-hot_score_v2"], name="doc_type_hot_score_idx"
+            ),
+            models.Index(
                 fields=("document_type",),
                 name="uni_doc_cond_idx",
                 condition=Q(is_removed=False)

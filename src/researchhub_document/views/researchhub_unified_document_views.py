@@ -1,9 +1,11 @@
 from time import perf_counter
+from urllib.parse import urlencode
 
 import boto3
 from dateutil import parser
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
+from django.urls import reverse
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
@@ -14,10 +16,11 @@ from rest_framework.viewsets import ModelViewSet
 
 from discussion.models import Vote as GrmVote
 from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
+from hub.models import Hub
 from paper.models import Paper
 from paper.utils import get_cache_key
 from researchhub.settings import AWS_REGION_NAME
-from researchhub_document.filters import UnifiedDocumentFilter
+from researchhub_document.filters import TIME_SCOPE_CHOICES, UnifiedDocumentFilter
 from researchhub_document.models import (
     FeaturedContent,
     ResearchhubPost,
@@ -40,7 +43,11 @@ from researchhub_document.serializers import (
     DynamicUnifiedDocumentSerializer,
     ResearchhubUnifiedDocumentSerializer,
 )
-from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
+from researchhub_document.utils import (
+    get_date_ranges_by_time_scope,
+    get_doc_type_key,
+    reset_unified_document_cache,
+)
 from researchhub_document.views.custom.unified_document_pagination import (
     UNIFIED_DOC_PAGE_SIZE,
     UnifiedDocPagination,
@@ -56,7 +63,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         IsAuthenticated | ReadOnly,
     ]
     dynamic_serializer_class = DynamicUnifiedDocumentSerializer
-    pagination_class = UnifiedDocPagination
     queryset = ResearchhubUnifiedDocument.objects.all()
     filter_backends = (DjangoFilterBackend,)
     filter_class = UnifiedDocumentFilter
@@ -302,7 +308,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         cache_hit = cache.get(cache_key)
 
         if cache_hit and not ignore_cache:
-            print("cache hit")
             return Response(cache_hit)
 
         recommendation_buckets = self._get_recommendation_buckets(user_id)
@@ -403,29 +408,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         return Response(self.get_serializer(instance=doc).data, status=200)
 
-    @action(
-        detail=True,
-        methods=["get"],
-        permission_classes=[AllowAny],
-    )
-    def hot_score(self, request, pk=None):
-        debug = request.query_params.get("debug", False) == "true"
-
-        if debug:
-            time_start = perf_counter()
-
-        doc = self.get_object()
-        hot_score_tpl = doc.calculate_hot_score_v2(debug)
-
-        if debug:
-            time_stop = perf_counter()
-            elapsed_time = str((time_stop - time_start) * 1000) + "ms"
-            debug_obj = hot_score_tpl[1]
-            debug_obj["query_time"] = elapsed_time
-            return Response(hot_score_tpl[1], status=status.HTTP_200_OK)
-        else:
-            return Response({"score": hot_score_tpl[0]}, status=status.HTTP_200_OK)
-
     def update(self, request, *args, **kwargs):
         update_response = super().update(request, *args, **kwargs)
 
@@ -444,7 +426,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "doc_duds_get_documents": {
                 "_include_fields": [
                     "abstract",
-                    "aggregate_citation_consensus",
                     "created_by",
                     "created_date",
                     "discussion_count",
@@ -471,18 +452,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "work_type",
                 ]
             },
-            "doc_duds_get_bounties": {
-                "_include_fields": [
-                    "amount",
-                    "created_by",
-                    "content_type",
-                    "id",
-                    "item",
-                    "item_object_id",
-                    "expiration_date",
-                    "status",
-                ],
-            },
             "doc_duds_get_hubs": {
                 "_include_fields": [
                     "id",
@@ -493,13 +462,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "hub_image",
                     "is_used_for_rep",
                 ],
-            },
-            "doc_duds_get_document_filter": {
-                "_include_fields": [
-                    "answered",
-                    "bounty_open",
-                    "bounty_total_amount",
-                ]
             },
             "pap_dps_get_authorships": {
                 "_include_fields": [
@@ -512,43 +474,10 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 ]
             },
             "authorship::get_author": {"_include_fields": ["id", "profile_image"]},
-            "doc_dps_get_hubs": {
-                "_include_fields": [
-                    "id",
-                    "name",
-                    "is_locked",
-                    "slug",
-                    "is_removed",
-                    "hub_image",
-                ]
-            },
-            "pap_dps_get_hubs": {
-                "_include_fields": [
-                    "id",
-                    "name",
-                    "is_locked",
-                    "slug",
-                    "is_removed",
-                    "hub_image",
-                ]
-            },
-            "pap_dps_get_unified_document": {
-                "_include_fields": [
-                    "id",
-                    "title",
-                    "slug",
-                    "reviews",
-                ]
-            },
             "doc_dps_get_created_by": {
                 "_include_fields": [
                     "id",
                     "author_profile",
-                ]
-            },
-            "doc_dps_get_threads": {
-                "_include_fields": [
-                    "bounties",
                 ]
             },
             "pap_dps_get_uploaded_by": {
@@ -559,25 +488,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             },
             "pap_dps_get_authors": {
                 "_include_fields": ["id", "first_name", "last_name"]
-            },
-            "usr_dus_get_author_profile": {
-                "_include_fields": [
-                    "id",
-                    "first_name",
-                    "last_name",
-                    "profile_image",
-                ]
-            },
-            "doc_duds_get_created_by": {
-                "_include_fields": [
-                    "author_profile",
-                ]
-            },
-            "rep_dbs_get_created_by": {"_include_fields": ["author_profile", "id"]},
-            "rep_dbs_get_item": {
-                "_include_fields": [
-                    "plain_text",
-                ]
             },
             "doc_duds_get_fundraise": {
                 "_include_fields": [
@@ -616,7 +526,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         self, document_type, filtering, hub_id, page_number, time_scope
     ):
         cache_hit = None
-        if page_number == 1 and hub_id == 0:
+        if page_number == 1:
             cache_pk = f"{document_type}_{hub_id}_{filtering}_{time_scope}"
             cache_key_hub = get_cache_key("hub", cache_pk)
             cache_hit = cache.get(cache_key_hub)
@@ -647,18 +557,32 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "score",
             "fundraise",
         ]
+
         serializer = self.dynamic_serializer_class(
             page,
             _include_fields=_include_fields,
             many=True,
             context=context,
         )
+
         serializer_data = serializer.data
 
         return self.get_paginated_response(serializer_data)
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def get_unified_documents(self, request):
+
+        def get_page_url(page_number):
+            if page_number < 1:
+                return None
+
+            # Create a mutable copy of the query parameters
+            mutable_params = request.query_params.copy()
+            mutable_params["page"] = page_number
+
+            base_url = reverse("researchhub_unified_document-get-unified-documents")
+            return f"{request.build_absolute_uri(base_url)}?{urlencode(mutable_params)}"
+
         is_anonymous = request.user.is_anonymous
         query_params = request.query_params
         subscribed_hubs = query_params.get("subscribed_hubs", "false").lower() == "true"
@@ -688,18 +612,26 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 document_type=[document_request_type],
                 filters=[filtering],
                 date_ranges=[time_scope],
+                hub_id=hub_id,
             )
 
-        documents = self.get_filtered_queryset().prefetch_related("fundraises")
+        # Build queryset
+        queryset = self.get_filtered_queryset()
+        offset = (page_number - 1) * UNIFIED_DOC_PAGE_SIZE
+        queryset = queryset[offset : offset + UNIFIED_DOC_PAGE_SIZE]
+
+        # Materialize the queryset by flushing out the query
+        results = list(queryset)
+
+        # Bulid serializer contet
         context = self._get_serializer_context()
         context["hub_id"] = hub_id
-        page = self.paginate_queryset(documents)
 
         # Don't forget to update the _include_fields in
         # the preload_trending_documents helper function
         # if these _include_fields fields are being updated
         serializer = self.dynamic_serializer_class(
-            page,
+            results,
             _include_fields=[
                 "id",
                 "created_date",
@@ -716,9 +648,13 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             context=context,
         )
 
-        serializer_data = serializer.data
+        response_data = {
+            "next": get_page_url(page_number + 1),
+            "previous": get_page_url(page_number - 1) if page_number > 1 else None,
+            "results": serializer.data,
+        }
 
-        return self.get_paginated_response(serializer_data)
+        return Response(response_data)
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def get_featured_documents(self, request):
@@ -762,89 +698,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 elif isinstance(documents, dict):
                     documents["score"] = docs_to_score_map[doc["id"]]
         return cache_hit
-
-    def _get_subscribed_unified_documents(self, request):
-        hub_ids = request.user.subscribed_hubs.values_list("id", flat=True)
-        query_params = request.query_params
-        document_request_type = query_params.get("type", "all")
-        time_scope = query_params.get("time", "today")
-        filtering = query_params.get("ordering", HOT)
-        tags = query_params.get("tags", None)
-        page_number = int(query_params.get("page", 1))
-
-        all_documents = {}
-        if not tags:
-            for hub_id in hub_ids:
-                cache_hit = self._get_unified_document_cache_hit(
-                    document_request_type,
-                    filtering,
-                    hub_id,
-                    page_number,
-                    time_scope,
-                )
-
-                if cache_hit:
-                    cache_hit = self._cache_hit_with_latest_metadata(cache_hit)
-                    for doc in cache_hit["results"]:
-                        if doc["id"] not in all_documents:
-                            all_documents[doc["id"]] = doc
-
-        all_documents = list(all_documents.values())
-        if len(all_documents) == 0:
-            all_documents = self.get_filtered_queryset()
-
-            context = self._get_serializer_context()
-            page = self.paginate_queryset(all_documents)
-            serializer = self.dynamic_serializer_class(
-                page,
-                _include_fields=[
-                    "id",
-                    "created_date",
-                    "documents",
-                    "document_type",
-                    "hot_score",
-                    "hubs",
-                    "reviews",
-                    "score",
-                    "bounties",
-                    "fundraise",
-                ],
-                many=True,
-                context=context,
-            )
-            serializer_data = serializer.data
-            return self.get_paginated_response(serializer_data)
-
-        else:
-            ordering = query_params.get("ordering", None)
-            if ordering == UPVOTED:
-                sort_key = "score"
-            elif ordering == DISCUSSED:
-                sort_key = "hot_score_v2"
-            elif ordering == NEW:
-                sort_key = "created_date"
-            else:
-                sort_key = "hot_score_v2"
-
-            def compare(doc):
-                if sort_key == "created_date":
-                    return -parser.parse(doc["created_date"]).timestamp()
-                else:
-                    return -doc[sort_key]
-
-            all_documents = sorted(all_documents, key=compare)
-            all_documents = all_documents[:UNIFIED_DOC_PAGE_SIZE]
-            next_page = request.build_absolute_uri()
-            if len(all_documents) < UNIFIED_DOC_PAGE_SIZE:
-                next_page = None
-            else:
-                next_page = replace_query_param(next_page, "page", 2)
-            res = {
-                "count": len(all_documents),
-                "next": next_page,
-                "results": all_documents,
-            }
-            return Response(res, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"], permission_classes=[IsModerator])
     def exclude_from_feed(self, request, pk=None):

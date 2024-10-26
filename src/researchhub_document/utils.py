@@ -81,9 +81,8 @@ def reset_unified_document_cache(
     ],
     filters=[DISCUSSED, HOT, NEW, UPVOTED, EXPIRING_SOON, MOST_RSC],
     date_ranges=CACHE_DATE_RANGES,
+    hub_id=0,  # Main feed
 ):
-    hub_id = 0  # Main feed
-
     for doc_type in document_type:
         for f in filters:
             for time_scope in date_ranges:

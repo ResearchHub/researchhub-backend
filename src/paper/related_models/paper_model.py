@@ -1056,3 +1056,8 @@ class Figure(models.Model):
         null=True,
         blank=True,
     )
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["paper", "figure_type"], name="figure_paper_type_idx"),
+        ]

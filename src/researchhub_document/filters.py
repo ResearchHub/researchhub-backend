@@ -8,6 +8,7 @@ from researchhub_document.related_models.constants.document_type import (
     BOUNTY,
     DISCUSSION,
     ELN,
+    HYPOTHESIS,
     NOTE,
     PAPER,
     POSTS,
@@ -62,14 +63,10 @@ ORDER_CHOICES = (
     (MOST_RSC, "Most RSC"),
 )
 TIME_SCOPE_CHOICES = ("today", "week", "month", "year", "all")
+LARGE_HUB_THRESHOLD = 1000
 
 
 class UnifiedDocumentFilter(filters.FilterSet):
-    hub_id = filters.ModelChoiceFilter(
-        field_name="hubs",
-        queryset=Hub.objects.all(),
-        label="Hubs",
-    )
     type = filters.ChoiceFilter(
         field_name="document_type",
         method="document_type_filter",
@@ -77,29 +74,56 @@ class UnifiedDocumentFilter(filters.FilterSet):
         null_value="all",
     )
     tags = filters.CharFilter(method="tag_filter", label="Tags")
+    ignore_excluded_homepage = filters.BooleanFilter(
+        method="exclude_feed_filter",
+        label="Excluded documents",
+    )
     ordering = filters.ChoiceFilter(
         method="ordering_filter",
         choices=ORDER_CHOICES,
         label="Ordering",
     )
-    subscribed_hubs = filters.BooleanFilter(
-        method="subscribed_filter",
-        label="Subscribed Hubs",
-    )
-    ignore_excluded_homepage = filters.BooleanFilter(
-        method="exclude_feed_filter",
-        label="Excluded documents",
-    )
+    hub_id = filters.NumberFilter(method="hub_filter")
 
     class Meta:
         model = ResearchhubUnifiedDocument
         fields = [
             "hub_id",
             "ordering",
-            "subscribed_hubs",
             "type",
             "ignore_excluded_homepage",
         ]
+
+    def filter_queryset(self, queryset):
+        """
+        Override the default filter_queryset to apply filters in the correct order
+        and add pagination logic
+        """
+
+        # Apply hub filter
+        if "hub_id" in self.form.cleaned_data:
+            hub_id = self.form.cleaned_data["hub_id"]
+            queryset = self.filters["hub_id"].filter(queryset, hub_id)
+
+        # Apply document type filter
+        if "type" in self.form.cleaned_data:
+            type = self.form.cleaned_data["type"]
+            queryset = self.filters["type"].filter(queryset, type)
+
+        # Apply tags filter
+        if "tags" in self.form.cleaned_data:
+            tags = self.form.cleaned_data["tags"]
+            queryset = self.filters["tags"].filter(queryset, tags)
+
+        # Apply ignore_excluded_homepage filter
+        if "ignore_excluded_homepage" in self.form.cleaned_data:
+            queryset = self.filters["ignore_excluded_homepage"].filter(queryset, True)
+
+        # Apply ordering
+        ordering = self.form.cleaned_data.get("ordering") or HOT
+        queryset = self.filters["ordering"].filter(queryset, ordering)
+
+        return queryset
 
     def _map_tag_to_document_filter(self, value):
         if value == "closed":
@@ -111,6 +135,17 @@ class UnifiedDocumentFilter(filters.FilterSet):
         elif value == "unanswered":
             return "answered", False
         return value, True
+
+    def hub_filter(self, qs, name, value):
+        qs = qs.filter(hubs__id=value)
+        hub_size = Hub.objects.get(id=value).paper_count
+
+        if hub_size <= LARGE_HUB_THRESHOLD:
+            # For small hubs, get IDs first
+            doc_ids = list(qs.values_list("id", flat=True))
+            qs = qs.filter(id__in=doc_ids)
+
+        return qs
 
     def document_type_filter(self, qs, name, value):
         value = value.upper()
@@ -127,7 +162,6 @@ class UnifiedDocumentFilter(filters.FilterSet):
                 "paper__figures",
                 queryset=Figure.objects.filter(figure_type=Figure.PREVIEW),
             ),
-            "paper__hubs",
             "paper__purchases",
             "paper__figures",
             "posts",
@@ -152,6 +186,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
                 "hubs",
                 "paper",
                 "paper__authors",
+                "fundraises",
                 Prefetch(
                     "paper__figures",
                     queryset=Figure.objects.filter(figure_type=Figure.PREVIEW),
@@ -159,7 +194,6 @@ class UnifiedDocumentFilter(filters.FilterSet):
                 Prefetch("reviews", queryset=Review.objects.filter(is_removed=False)),
                 "related_bounties",
                 "paper__hubs",
-                "paper__figures",
                 "paper__purchases",
             )
         elif value == POSTS:
@@ -192,7 +226,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
             # We do this for preregistrations so that they don't show up in the home feed,
             # but do show up on the /funding page.
             # This is a temporary solution as we trial out preregistration funding.
-            qs = qs.exclude(document_type__in=[NOTE, PREREGISTRATION])
+            qs = qs.exclude(document_type__in=[NOTE, PREREGISTRATION, HYPOTHESIS])
 
         return qs.select_related(*selects).prefetch_related(*prefetches)
 
@@ -248,11 +282,4 @@ class UnifiedDocumentFilter(filters.FilterSet):
             ordering.append("-document_filter__bounty_total_amount")
 
         qs = qs.order_by(*ordering)
-        return qs
-
-    def subscribed_filter(self, qs, name, value):
-        if value and self.request.user.is_anonymous is not True:
-            user = self.request.user
-            hub_ids = user.subscribed_hubs.values_list("id", flat=True)
-            qs = qs.filter(hubs__in=hub_ids)
         return qs
