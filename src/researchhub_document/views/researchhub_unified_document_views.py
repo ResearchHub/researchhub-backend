@@ -1,9 +1,11 @@
 from time import perf_counter
+from urllib.parse import urlencode
 
 import boto3
 from dateutil import parser
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
+from django.urls import reverse
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
@@ -606,10 +608,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     def get_unified_documents(self, request):
 
         def get_page_url(page_number):
-            from urllib.parse import urlencode
-
-            from django.urls import reverse
-
             if page_number < 1:
                 return None
 
@@ -617,7 +615,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             mutable_params = request.query_params.copy()
             mutable_params["page"] = page_number
 
-            # The correct URL pattern based on your router configuration
             base_url = reverse("researchhub_unified_document-get-unified-documents")
             return f"{request.build_absolute_uri(base_url)}?{urlencode(mutable_params)}"
 
