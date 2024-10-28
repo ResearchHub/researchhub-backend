@@ -33,6 +33,7 @@ import researchhub_document.views as researchhub_document_views
 import search.urls
 import user.views
 from citation.views import CitationEntryViewSet, CitationProjectViewSet
+from paper.views import paper_upload_views
 from researchhub.settings import INSTALLED_APPS, USE_DEBUG_TOOLBAR
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from review.views.review_view import ReviewViewSet
@@ -244,6 +245,11 @@ urlpatterns = [
     path("email_notifications/", mailing_list.views.email_notifications),
     path("health/", researchhub.views.healthcheck),
     path("", researchhub.views.index, name="index"),
+    path(
+        "paper/upload/",
+        paper_upload_views.PaperUploadView.as_view(),
+        name="paper_upload",
+    ),
     path("robots.txt", researchhub.views.robots_txt, name="robots_txt"),
     path(
         "webhooks/persona/",
