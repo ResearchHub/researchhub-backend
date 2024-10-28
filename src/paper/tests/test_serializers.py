@@ -44,6 +44,7 @@ class PaperSerializersTests(TestCase):
                     "paper_id": paper.id,
                     "message": "Test Message",
                     "published_date": paper.paper_publish_date,
+                    "is_latest": True,
                 }
             ],
         )
@@ -64,12 +65,14 @@ class PaperSerializersTests(TestCase):
                     "paper_id": paper.id,
                     "message": "Test Message",
                     "published_date": paper.paper_publish_date,
+                    "is_latest": False,
                 },
                 {
                     "version": 2,
                     "paper_id": paper2.id,
                     "message": "Test Message 2",
                     "published_date": paper2.paper_publish_date,
+                    "is_latest": True,
                 },
             ],
         )
@@ -90,6 +93,7 @@ class PaperSerializersTests(TestCase):
                     "paper_id": paper.id,
                     "message": "Test Message",
                     "published_date": paper.paper_publish_date,
+                    "is_latest": True,
                 }
             ],
         )
@@ -110,12 +114,14 @@ class PaperSerializersTests(TestCase):
                     "paper_id": paper.id,
                     "message": "Test Message",
                     "published_date": paper.paper_publish_date,
+                    "is_latest": False,
                 },
                 {
                     "version": 2,
                     "paper_id": paper2.id,
                     "message": "Test Message 2",
                     "published_date": paper2.paper_publish_date,
+                    "is_latest": True,
                 },
             ],
         )

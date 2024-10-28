@@ -343,6 +343,8 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
         paper_versions = PaperVersion.objects.filter(
             base_doi=paper_version.base_doi
         ).order_by("version")
+        latest_version = paper_versions.last()
+
         # Return a list of version pointing to the paper_id
         return [
             {
@@ -350,6 +352,7 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
                 "paper_id": version.paper.id,
                 "published_date": paper.paper_publish_date,
                 "message": version.message,
+                "is_latest": version.version == latest_version.version,
             }
             for version in paper_versions
         ]
@@ -1079,6 +1082,8 @@ class DynamicPaperSerializer(
         paper_versions = PaperVersion.objects.filter(
             base_doi=paper_version.base_doi
         ).order_by("version")
+        latest_version = paper_versions.last()
+
         # Return a list of version pointing to the paper_id
         return [
             {
@@ -1086,6 +1091,7 @@ class DynamicPaperSerializer(
                 "paper_id": version.paper.id,
                 "published_date": paper.paper_publish_date,
                 "message": version.message,
+                "is_latest": version.version == latest_version.version,
             }
             for version in paper_versions
         ]
