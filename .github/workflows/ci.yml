@@ -96,7 +96,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           role-to-assume: ${{ steps.get-role-arn.outputs.role_arn }}
           role-session-name: github-actions-beanstalk-session
-          role-duration-seconds: 1200
+          role-duration-seconds: 3600
           role-skip-session-tagging: true
           aws-region: us-west-2
           output-credentials: true
