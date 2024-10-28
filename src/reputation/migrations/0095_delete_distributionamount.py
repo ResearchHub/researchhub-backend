@@ -6,7 +6,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("reputation", "0092_remove_score_version_and_more"),
+        ("reputation", "0094_alter_bounty_bounty_type"),
     ]
 
     operations = [
