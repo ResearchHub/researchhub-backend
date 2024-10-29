@@ -31,7 +31,7 @@ from discussion.reaction_views import ReactionViewActionMixin
 from google_analytics.signals import get_event_hit_response
 from paper.exceptions import DOINotFoundError, PaperSerializerError
 from paper.filters import PaperFilter
-from paper.models import Figure, Paper, PaperSubmission
+from paper.models import Figure, Paper, PaperSubmission, PaperVersion
 from paper.paper_upload_tasks import celery_process_paper
 from paper.permissions import CreatePaper, IsAuthor, UpdatePaper
 from paper.related_models.authorship_model import Authorship
@@ -152,6 +152,113 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         except PaperSerializerError as e:
             print("EXCEPTION: ", e)
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
+
+    @action(
+        detail=False,
+        methods=["post"],
+        permission_classes=[IsAuthenticated & CreatePaper],
+    )
+    def create_researchhub_paper(self, request):
+        """
+        Create a paper with associated hubs and authors in a single request.
+
+        Required fields:
+        - title: string
+        - abstract: string
+        - author_ids: list[int]
+        - hub_ids: list[int]
+        - pdf_url: string
+        - previous_paper_id: int (optional)
+        - change_description: string (optional)
+        """
+        try:
+            # Extract data from request
+            title = request.data.get("title")
+            abstract = request.data.get("abstract")
+            author_ids = request.data.get("author_ids", [])
+            hub_ids = request.data.get("hub_ids", [])
+            pdf_url = request.data.get("pdf_url")
+            previous_paper_id = request.data.get("previous_paper_id")
+            change_description = request.data.get("change_description")
+
+            if not title or not abstract:
+                return Response(
+                    {"error": "Title and abstract are required"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Create paper
+            paper_data = {
+                "title": title,
+                "paper_title": title,
+                "abstract": abstract,
+                "uploaded_by": request.user,
+            }
+
+            if pdf_url:
+                paper_data["pdf_url"] = pdf_url
+
+            paper = Paper.objects.create(**paper_data)
+
+            # Associate authors
+            if author_ids:
+                authors = Author.objects.filter(id__in=author_ids)
+                for i, author in enumerate(authors):
+                    author_position = "middle"
+                    is_corresponding = False
+                    if i == 0:
+                        author_position = "first"
+                        is_corresponding = True
+                    elif i == len(authors) - 1:
+                        author_position = "last"
+
+                    Authorship.objects.create(
+                        paper=paper,
+                        author=author,
+                        source="RESEARCHHUB",
+                        author_position=author_position,
+                        is_corresponding=is_corresponding,
+                    )
+
+            # Associate hubs
+            if hub_ids:
+                paper.hubs.add(*hub_ids)
+
+            paper_version = 1
+            if previous_paper_id:
+                previous_paper = PaperVersion.objects.get(paper_id=previous_paper_id)
+                paper_version = previous_paper.version + 1
+
+            PaperVersion.objects.create(
+                paper=paper,
+                version=paper_version,
+                # base_doi=base_doi, TODO - add base_doi once we start creating DOIs
+                message=change_description,
+            )
+
+            # Return serialized paper
+            context = self._get_paper_context(request)
+            serializer = self.dynamic_serializer_class(
+                paper,
+                context=context,
+                _include_fields=[
+                    "id",
+                    "title",
+                    "abstract",
+                    "authors",
+                    "hubs",
+                    "version",
+                    "version_list",
+                ],
+            )
+
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            log_error(e)
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def _get_integrity_error_response(self, error):
         error_message = str(error)

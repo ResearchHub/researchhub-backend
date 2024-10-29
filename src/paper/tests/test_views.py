@@ -6,10 +6,12 @@ from unittest.mock import PropertyMock, patch
 from django.test import Client, TestCase
 from rest_framework.test import APITestCase
 
-from paper.models import Paper
+from hub.models import Hub
+from paper.models import Paper, PaperVersion
 from paper.related_models.authorship_model import Authorship
 from paper.tests.helpers import create_paper
 from paper.views.paper_views import PaperViewSet
+from user.models import Author
 from user.tests.helpers import create_random_authenticated_user, create_user
 from utils.openalex import OpenAlex
 from utils.test_helpers import (
@@ -149,6 +151,104 @@ class PaperApiTests(APITestCase):
         # Assert
         self.assertEqual(len(unclaimed_works), 3)
         self.assertEqual(unclaimed_works, openalex_works)
+
+    def test_create_researchhub_paper_creates_first_version(self):
+        """Test that creating a new paper sets version 1"""
+        user = create_random_authenticated_user("test_user")
+        self.client.force_authenticate(user)
+        hub = Hub.objects.create(name="Test Hub")
+        author = Author.objects.create(first_name="Test", last_name="Author")
+
+        data = {
+            "title": "Test Paper",
+            "abstract": "Test abstract",
+            "author_ids": [author.id],
+            "hub_ids": [hub.id],
+        }
+
+        response = self.client.post(
+            "/api/paper/create_researchhub_paper/", data, format="json"
+        )
+
+        self.assertEqual(response.status_code, 201)
+        paper_version = PaperVersion.objects.get(paper_id=response.data["id"])
+        self.assertEqual(paper_version.version, 1)
+        paper = Paper.objects.get(id=response.data["id"])
+        self.assertEqual(paper.title, "Test Paper")
+        self.assertEqual(paper.abstract, "Test abstract")
+        self.assertEqual(paper.authorship_authors.first().id, author.id)
+        self.assertEqual(paper.hubs.first().id, hub.id)
+
+    def test_create_researchhub_paper_increments_version(self):
+        """Test that creating a new version of an existing paper increments the version number"""
+        # Create initial paper
+        original_paper = create_paper()
+        PaperVersion.objects.create(paper=original_paper, version=1)
+
+        user = create_random_authenticated_user("test_user")
+        self.client.force_authenticate(user)
+
+        data = {
+            "title": "Updated Test Paper",
+            "abstract": "Updated abstract",
+            "author_ids": [],
+            "hub_ids": [],
+            "previous_paper_id": original_paper.id,
+            "change_description": "Updated content",
+        }
+
+        response = self.client.post(
+            "/api/paper/create_researchhub_paper/", data, format="json"
+        )
+
+        self.assertEqual(response.status_code, 201)
+        paper_version = PaperVersion.objects.get(paper_id=response.data["id"])
+        self.assertEqual(paper_version.version, 2)
+        self.assertEqual(paper_version.message, "Updated content")
+
+    def test_create_researchhub_paper_with_invalid_previous_paper(self):
+        """Test handling of invalid previous_paper_id"""
+        user = create_random_authenticated_user("test_user")
+        self.client.force_authenticate(user)
+
+        data = {
+            "title": "Test Paper",
+            "abstract": "Test abstract",
+            "author_ids": [],
+            "hub_ids": [],
+            "previous_paper_id": 99999,  # Non-existent ID
+        }
+
+        response = self.client.post(
+            "/api/paper/create_researchhub_paper/", data, format="json"
+        )
+
+        self.assertEqual(
+            response.status_code, 500
+        )  # Should return 500 as per current implementation
+
+    def test_create_researchhub_paper_requires_title_and_abstract(self):
+        """Test validation of required fields"""
+        user = create_random_authenticated_user("test_user")
+        self.client.force_authenticate(user)
+
+        # Missing title
+        data = {"abstract": "Test abstract", "author_ids": [], "hub_ids": []}
+
+        response = self.client.post(
+            "/api/paper/create_researchhub_paper/", data, format="json"
+        )
+
+        self.assertEqual(response.status_code, 400)
+
+        # Missing abstract
+        data = {"title": "Test Paper", "author_ids": [], "hub_ids": []}
+
+        response = self.client.post(
+            "/api/paper/create_researchhub_paper/", data, format="json"
+        )
+
+        self.assertEqual(response.status_code, 400)
 
 
 class PaperViewsTests(TestCase):
