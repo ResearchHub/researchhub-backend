@@ -180,7 +180,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             # Extract data from request
             title = request.data.get("title")
             abstract = request.data.get("abstract")
-            author_data = request.data.get("authors", [])
+            authors_data = request.data.get("authors", [])
             hub_ids = request.data.get("hub_ids", [])
             pdf_url = request.data.get("pdf_url")
             previous_paper_id = request.data.get("previous_paper_id")
@@ -193,14 +193,16 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 )
 
             # Validate author data
-            if not author_data:
+            if not authors_data:
                 return Response(
                     {"error": "At least one author is required"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
             # Check for at least one corresponding author
-            if not any(author.get("is_corresponding", False) for author in author_data):
+            if not any(
+                author.get("is_corresponding", False) for author in authors_data
+            ):
                 return Response(
                     {"error": "At least one corresponding author is required"},
                     status=status.HTTP_400_BAD_REQUEST,
@@ -220,17 +222,17 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             paper = Paper.objects.create(**paper_data)
 
             # Associate authors
-            author_ids = [author["id"] for author in author_data]
+            author_ids = [author_data["id"] for author_data in authors_data]
             authors = Author.objects.filter(id__in=author_ids)
             author_map = {author.id: author for author in authors}
 
-            for author_entry in author_data:
-                author_id = author_entry.get("id")
-                institution_id = author_entry.get("institution_id")
+            for author_data in authors_data:
+                author_id = author_data.get("id")
+                institution_id = author_data.get("institution_id")
                 if author_id not in author_map:
                     continue
 
-                author_position = author_entry.get("author_position", "middle")
+                author_position = author_data.get("author_position", "middle")
                 if author_position not in ["first", "middle", "last"]:
                     author_position = "middle"
 
@@ -239,7 +241,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                     author=author_map[author_id],
                     source="RESEARCHHUB",
                     author_position=author_position,
-                    is_corresponding=author_entry.get("is_corresponding", False),
+                    is_corresponding=author_data.get("is_corresponding", False),
                 )
 
                 if institution_id:
