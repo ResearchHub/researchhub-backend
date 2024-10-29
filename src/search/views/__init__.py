@@ -6,6 +6,7 @@ from .hub import HubDocumentView
 from .hub_suggester import HubSuggesterDocumentView
 from .paper import PaperDocumentView
 from .person import PersonDocumentView
+from .person_suggester import PersonSuggesterDocumentView
 from .post import PostDocumentView
 from .thread import ThreadDocumentView
 from .user_suggester import UserSuggesterDocumentView

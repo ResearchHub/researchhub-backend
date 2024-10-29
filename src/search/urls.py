@@ -15,6 +15,7 @@ from search.views import (
 )
 from search.views.journal import JournalDocumentView
 from search.views.journal_suggester import JournalSuggesterDocumentView
+from search.views.person_suggester import PersonSuggesterDocumentView
 
 router = DefaultRouter()
 person = router.register(r"person", PersonDocumentView, basename="person_document")
@@ -32,6 +33,9 @@ hub_suggester = router.register(
 )
 journal_suggester = router.register(
     r"journals", JournalSuggesterDocumentView, basename="journal_suggester_document"
+)
+people_suggester = router.register(
+    r"people", PersonSuggesterDocumentView, basename="people_suggester"
 )
 
 urlpatterns = [
