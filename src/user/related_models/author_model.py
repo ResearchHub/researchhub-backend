@@ -212,6 +212,18 @@ class Author(models.Model):
         return person_types
 
     @property
+    def institutions_indexing(self):
+        if self.institutions is not None:
+            return [
+                {
+                    "id": author_institution.institution.id,
+                    "name": author_institution.institution.display_name,
+                }
+                for author_institution in self.institutions.all()
+            ]
+        return None
+
+    @property
     def university_indexing(self):
         if self.university is not None:
             return self.university

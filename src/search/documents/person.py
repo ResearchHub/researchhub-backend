@@ -22,6 +22,13 @@ class PersonDocument(BaseDocument):
             "title": es_fields.TextField(),
         },
     )
+    institutions = es_fields.ObjectField(
+        attr="institutions_indexing",
+        properties={
+            "id": es_fields.IntegerField(),
+            "name": es_fields.TextField(),
+        },
+    )
 
     class Index:
         name = "person"

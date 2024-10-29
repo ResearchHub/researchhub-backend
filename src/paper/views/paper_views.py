@@ -265,6 +265,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 "score",
                 "slug",
                 "title",
+                "work_type",
                 "unified_document",
                 "uploaded_by",
                 "uploaded_date",
