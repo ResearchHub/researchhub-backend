@@ -1,7 +1,13 @@
 import uuid
+from typing import NamedTuple
 
 from researchhub import settings
 from utils import aws as aws_utils
+
+
+class PresignedUrl(NamedTuple):
+    object_key: str
+    url: str
 
 
 class StorageService:
@@ -15,7 +21,7 @@ class StorageService:
         user_id: str,
         content_type: str = "application/pdf",
         valid_for: int = 2,
-    ) -> str:
+    ) -> PresignedUrl:
         """
         Create a presigned URL for uploading a file to S3 that is time-limited.
         """
@@ -38,4 +44,4 @@ class StorageService:
             ExpiresIn=60 * valid_for,
         )
 
-        return url
+        return PresignedUrl(url=url, object_key=s3_filename)
