@@ -172,8 +172,6 @@ class PaperApiTests(APITestCase):
             "/api/paper/create_researchhub_paper/", data, format="json"
         )
 
-        print("response.data ------>", response.data)
-
         self.assertEqual(response.status_code, 201)
         paper_version = PaperVersion.objects.get(paper_id=response.data["id"])
         self.assertEqual(paper_version.version, 1)
