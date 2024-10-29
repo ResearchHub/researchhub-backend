@@ -29,6 +29,7 @@ class PersonDocument(BaseDocument):
             "name": es_fields.TextField(),
         },
     )
+    suggestion_phrases = es_fields.Completion()
 
     class Index:
         name = "person"
@@ -43,3 +44,42 @@ class PersonDocument(BaseDocument):
 
     def should_remove_from_index(self, obj):
         return False
+
+    def prepare_suggestion_phrases(self, instance):
+        suggestions = []
+
+        if instance.full_name:
+            suggestions.append({"input": instance.full_name, "weight": 10})
+
+        if instance.first_name:
+            suggestions.append({"input": instance.first_name, "weight": 5})
+        if instance.last_name:
+            suggestions.append({"input": instance.last_name, "weight": 5})
+
+        # Add institution names
+        for author_institution in instance.institutions.all():
+            if author_institution.institution.display_name:
+                suggestions.append(
+                    {"input": author_institution.institution.display_name, "weight": 3}
+                )
+
+                # Add full name + institution to account for people typing name + institution
+                suggestions.append(
+                    {
+                        "input": instance.first_name
+                        + " "
+                        + author_institution.institution.display_name,
+                        "weight": 3,
+                    }
+                )
+
+        return suggestions
+
+    def prepare(self, instance):
+        data = super().prepare(instance)
+        try:
+            data["suggestion_phrases"] = self.prepare_suggestion_phrases(instance)
+        except Exception as error:
+            print(f"Error preparing suggestions for {instance.id}: {error}")
+            data["suggestion_phrases"] = []
+        return data
