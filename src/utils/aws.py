@@ -3,6 +3,7 @@ import json
 from datetime import datetime
 from urllib.parse import urlparse
 
+import boto3
 from boto3.session import Session
 from django.core.files.storage import default_storage
 from django.utils.text import slugify
@@ -12,6 +13,7 @@ from researchhub.settings import (
     AWS_ACCESS_KEY_ID,
     AWS_ACCOUNT_ID,
     AWS_REGION_NAME,
+    AWS_ROLE_ARN,
     AWS_S3_REGION_NAME,
     AWS_SECRET_ACCESS_KEY,
     AWS_STORAGE_BUCKET_NAME,
@@ -19,7 +21,6 @@ from researchhub.settings import (
 )
 from utils.http import check_url_contains_pdf
 from utils.sentry import log_error
-
 
 PERSONALIZE = "personalize"
 
@@ -137,3 +138,39 @@ def download_pdf(url):
             return None
 
     return None
+
+
+def create_client(service_name: str) -> boto3.client:
+    """
+    Create a boto3 client for the given service.
+    The function uses role-based authentication if `AWS_ROLE_ARN` is set.
+    """
+    session = Session()
+    if AWS_ROLE_ARN:
+        sts_client = session.client(
+            "sts",
+            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+        )
+
+        assumed_role_object = sts_client.assume_role(
+            RoleArn=AWS_ROLE_ARN,
+            RoleSessionName="AssumeRoleSession",
+        )
+
+        credentials = assumed_role_object["Credentials"]
+
+        client = session.client(
+            service_name,
+            aws_access_key_id=credentials["AccessKeyId"],
+            aws_secret_access_key=credentials["SecretAccessKey"],
+            aws_session_token=credentials["SessionToken"],
+        )
+    else:
+        client = session.client(
+            service_name,
+            aws_access_key_id=AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+        )
+
+    return client
