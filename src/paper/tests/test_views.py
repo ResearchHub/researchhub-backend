@@ -162,7 +162,9 @@ class PaperApiTests(APITestCase):
         data = {
             "title": "Test Paper",
             "abstract": "Test abstract",
-            "author_ids": [author.id],
+            "authors": [
+                {"id": author.id, "author_position": "first", "is_corresponding": True}
+            ],
             "hub_ids": [hub.id],
         }
 
@@ -170,20 +172,103 @@ class PaperApiTests(APITestCase):
             "/api/paper/create_researchhub_paper/", data, format="json"
         )
 
+        print("response.data ------>", response.data)
+
         self.assertEqual(response.status_code, 201)
         paper_version = PaperVersion.objects.get(paper_id=response.data["id"])
         self.assertEqual(paper_version.version, 1)
         paper = Paper.objects.get(id=response.data["id"])
         self.assertEqual(paper.title, "Test Paper")
         self.assertEqual(paper.abstract, "Test abstract")
-        self.assertEqual(paper.authorship_authors.first().id, author.id)
+
+        authorship = paper.authorships.first()
+        self.assertEqual(authorship.author.id, author.id)
+        self.assertEqual(authorship.author_position, "first")
+        self.assertTrue(authorship.is_corresponding)
+
         self.assertEqual(paper.hubs.first().id, hub.id)
+
+    def test_create_researchhub_paper_with_multiple_authors(self):
+        """Test creating a paper with multiple authors in different positions"""
+        user = create_random_authenticated_user("test_user")
+        self.client.force_authenticate(user)
+
+        first_author = Author.objects.create(first_name="First", last_name="Author")
+        middle_author = Author.objects.create(first_name="Middle", last_name="Author")
+        last_author = Author.objects.create(first_name="Last", last_name="Author")
+
+        data = {
+            "title": "Test Paper",
+            "abstract": "Test abstract",
+            "authors": [
+                {
+                    "id": first_author.id,
+                    "author_position": "first",
+                    "is_corresponding": True,
+                },
+                {
+                    "id": middle_author.id,
+                    "author_position": "middle",
+                    "is_corresponding": False,
+                },
+                {
+                    "id": last_author.id,
+                    "author_position": "last",
+                    "is_corresponding": False,
+                },
+            ],
+            "hub_ids": [],
+        }
+
+        response = self.client.post(
+            "/api/paper/create_researchhub_paper/", data, format="json"
+        )
+
+        self.assertEqual(response.status_code, 201)
+        paper = Paper.objects.get(id=response.data["id"])
+        authorships = paper.authorships.all().order_by("author_position")
+
+        self.assertEqual(len(authorships), 3)
+        self.assertEqual(authorships[0].author.id, first_author.id)
+        self.assertEqual(authorships[0].author_position, "first")
+        self.assertTrue(authorships[0].is_corresponding)
+
+        self.assertEqual(authorships[1].author.id, last_author.id)
+        self.assertEqual(authorships[1].author_position, "last")
+        self.assertFalse(authorships[1].is_corresponding)
+
+        self.assertEqual(authorships[2].author.id, middle_author.id)
+        self.assertEqual(authorships[2].author_position, "middle")
+        self.assertFalse(authorships[2].is_corresponding)
+
+    def test_create_researchhub_paper_requires_corresponding_author(self):
+        """Test that at least one corresponding author is required"""
+        user = create_random_authenticated_user("test_user")
+        self.client.force_authenticate(user)
+        author = Author.objects.create(first_name="Test", last_name="Author")
+
+        data = {
+            "title": "Test Paper",
+            "abstract": "Test abstract",
+            "authors": [
+                {"id": author.id, "author_position": "first", "is_corresponding": False}
+            ],
+            "hub_ids": [],
+        }
+
+        response = self.client.post(
+            "/api/paper/create_researchhub_paper/", data, format="json"
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("corresponding author is required", str(response.data["error"]))
 
     def test_create_researchhub_paper_increments_version(self):
         """Test that creating a new version of an existing paper increments the version number"""
         # Create initial paper
         original_paper = create_paper()
         PaperVersion.objects.create(paper=original_paper, version=1)
+        author = Author.objects.create(first_name="Test", last_name="Author")
 
         user = create_random_authenticated_user("test_user")
         self.client.force_authenticate(user)
@@ -191,7 +276,9 @@ class PaperApiTests(APITestCase):
         data = {
             "title": "Updated Test Paper",
             "abstract": "Updated abstract",
-            "author_ids": [],
+            "authors": [
+                {"id": author.id, "author_position": "first", "is_corresponding": True}
+            ],
             "hub_ids": [],
             "previous_paper_id": original_paper.id,
             "change_description": "Updated content",
@@ -210,11 +297,14 @@ class PaperApiTests(APITestCase):
         """Test handling of invalid previous_paper_id"""
         user = create_random_authenticated_user("test_user")
         self.client.force_authenticate(user)
+        author = Author.objects.create(first_name="Test", last_name="Author")
 
         data = {
             "title": "Test Paper",
             "abstract": "Test abstract",
-            "author_ids": [],
+            "authors": [
+                {"id": author.id, "author_position": "first", "is_corresponding": True}
+            ],
             "hub_ids": [],
             "previous_paper_id": 99999,  # Non-existent ID
         }
@@ -223,9 +313,7 @@ class PaperApiTests(APITestCase):
             "/api/paper/create_researchhub_paper/", data, format="json"
         )
 
-        self.assertEqual(
-            response.status_code, 500
-        )  # Should return 500 as per current implementation
+        self.assertEqual(response.status_code, 400)
 
     def test_create_researchhub_paper_requires_title_and_abstract(self):
         """Test validation of required fields"""
@@ -233,7 +321,7 @@ class PaperApiTests(APITestCase):
         self.client.force_authenticate(user)
 
         # Missing title
-        data = {"abstract": "Test abstract", "author_ids": [], "hub_ids": []}
+        data = {"abstract": "Test abstract", "authors": [], "hub_ids": []}
 
         response = self.client.post(
             "/api/paper/create_researchhub_paper/", data, format="json"
@@ -242,7 +330,7 @@ class PaperApiTests(APITestCase):
         self.assertEqual(response.status_code, 400)
 
         # Missing abstract
-        data = {"title": "Test Paper", "author_ids": [], "hub_ids": []}
+        data = {"title": "Test Paper", "authors": [], "hub_ids": []}
 
         response = self.client.post(
             "/api/paper/create_researchhub_paper/", data, format="json"

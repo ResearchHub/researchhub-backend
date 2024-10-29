@@ -24,6 +24,7 @@ from rest_framework.permissions import (
 )
 from rest_framework.response import Response
 
+import institution
 from analytics.amplitude import track_event
 from discussion.models import Vote as GrmVote
 from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
@@ -162,10 +163,14 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         """
         Create a paper with associated hubs and authors in a single request.
 
-        Required fields:
+        Fields:
         - title: string
         - abstract: string
-        - author_ids: list[int]
+        - authors: list[dict] - Each dict contains:
+            - id: int (author ID)
+            - author_position: string ("first", "middle", or "last")
+            - institution_id: int (optional)
+            - is_corresponding: boolean
         - hub_ids: list[int]
         - pdf_url: string
         - previous_paper_id: int (optional)
@@ -175,7 +180,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             # Extract data from request
             title = request.data.get("title")
             abstract = request.data.get("abstract")
-            author_ids = request.data.get("author_ids", [])
+            author_data = request.data.get("authors", [])
             hub_ids = request.data.get("hub_ids", [])
             pdf_url = request.data.get("pdf_url")
             previous_paper_id = request.data.get("previous_paper_id")
@@ -184,6 +189,20 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             if not title or not abstract:
                 return Response(
                     {"error": "Title and abstract are required"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Validate author data
+            if not author_data:
+                return Response(
+                    {"error": "At least one author is required"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Check for at least one corresponding author
+            if not any(author.get("is_corresponding", False) for author in author_data):
+                return Response(
+                    {"error": "At least one corresponding author is required"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
@@ -201,38 +220,52 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             paper = Paper.objects.create(**paper_data)
 
             # Associate authors
-            if author_ids:
-                authors = Author.objects.filter(id__in=author_ids)
-                for i, author in enumerate(authors):
-                    author_position = "middle"
-                    is_corresponding = False
-                    if i == 0:
-                        author_position = "first"
-                        is_corresponding = True
-                    elif i == len(authors) - 1:
-                        author_position = "last"
+            author_ids = [author["id"] for author in author_data]
+            authors = Author.objects.filter(id__in=author_ids)
+            author_map = {author.id: author for author in authors}
 
-                    Authorship.objects.create(
-                        paper=paper,
-                        author=author,
-                        source="RESEARCHHUB",
-                        author_position=author_position,
-                        is_corresponding=is_corresponding,
-                    )
+            for author_entry in author_data:
+                author_id = author_entry.get("id")
+                institution_id = author_entry.get("institution_id")
+                if author_id not in author_map:
+                    continue
+
+                author_position = author_entry.get("author_position", "middle")
+                if author_position not in ["first", "middle", "last"]:
+                    author_position = "middle"
+
+                authorship = Authorship.objects.create(
+                    paper=paper,
+                    author=author_map[author_id],
+                    source="RESEARCHHUB",
+                    author_position=author_position,
+                    is_corresponding=author_entry.get("is_corresponding", False),
+                )
+
+                if institution_id:
+                    authorship.institutions.add(institution_id)
 
             # Associate hubs
             if hub_ids:
                 paper.hubs.add(*hub_ids)
 
+            # Create paper version
             paper_version = 1
             if previous_paper_id:
-                previous_paper = PaperVersion.objects.get(paper_id=previous_paper_id)
-                paper_version = previous_paper.version + 1
+                try:
+                    previous_paper = PaperVersion.objects.get(
+                        paper_id=previous_paper_id
+                    )
+                    paper_version = previous_paper.version + 1
+                except PaperVersion.DoesNotExist:
+                    return Response(
+                        {"error": "Invalid previous paper ID"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
             PaperVersion.objects.create(
                 paper=paper,
                 version=paper_version,
-                # base_doi=base_doi, TODO - add base_doi once we start creating DOIs
                 message=change_description,
             )
 
