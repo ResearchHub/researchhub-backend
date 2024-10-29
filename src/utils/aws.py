@@ -9,16 +9,7 @@ from django.core.files.storage import default_storage
 from django.utils.text import slugify
 
 from paper.utils import get_pdf_from_url
-from researchhub.settings import (
-    AWS_ACCESS_KEY_ID,
-    AWS_ACCOUNT_ID,
-    AWS_REGION_NAME,
-    AWS_ROLE_ARN,
-    AWS_S3_REGION_NAME,
-    AWS_SECRET_ACCESS_KEY,
-    AWS_STORAGE_BUCKET_NAME,
-    GHOSTSCRIPT_LAMBDA_ARN,
-)
+from researchhub import settings
 from utils.http import check_url_contains_pdf
 from utils.sentry import log_error
 
@@ -26,7 +17,7 @@ PERSONALIZE = "personalize"
 
 
 def get_arn(service, resource):
-    return f"arn:aws:{service}:{AWS_REGION_NAME}:{AWS_ACCOUNT_ID}:{resource}"
+    return f"arn:aws:{service}:{settings.AWS_REGION_NAME}:{settings.AWS_ACCOUNT_ID}:{resource}"
 
 
 def get_s3_object_name(key):
@@ -37,7 +28,7 @@ def get_s3_object_name(key):
 def get_s3_url(bucket, key, with_credentials=False):
     s3 = "s3://"
     if with_credentials is True:
-        return f"{s3}{AWS_ACCESS_KEY_ID}:{AWS_SECRET_ACCESS_KEY}@{bucket}{key}"
+        return f"{s3}{settings.AWS_ACCESS_KEY_ID}:{settings.AWS_SECRET_ACCESS_KEY}@{bucket}{key}"
     return f"{s3}{bucket}{key}"
 
 
@@ -91,21 +82,21 @@ def lambda_compress_and_linearize_pdf(key, file_name):
     file_name: file name (ex: test.pdf)
     """
     lambda_body = {
-        "bucket": AWS_STORAGE_BUCKET_NAME,
+        "bucket": settings.AWS_STORAGE_BUCKET_NAME,
         "key": key,
         "file_name": file_name,
     }
     data_bytes = json.dumps(lambda_body)
     session = Session(
-        aws_access_key_id=AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
-        region_name=AWS_S3_REGION_NAME,
+        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+        region_name=settings.AWS_S3_REGION_NAME,
     )
     lambda_client = session.client(
-        service_name="lambda", region_name=AWS_S3_REGION_NAME
+        service_name="lambda", region_name=settings.AWS_S3_REGION_NAME
     )
     response = lambda_client.invoke(
-        FunctionName=GHOSTSCRIPT_LAMBDA_ARN,
+        FunctionName=settings.GHOSTSCRIPT_LAMBDA_ARN,
         InvocationType="Event",
         Payload=data_bytes,
     )
@@ -146,15 +137,15 @@ def create_client(service_name: str) -> boto3.client:
     The function uses role-based authentication if `AWS_ROLE_ARN` is set.
     """
     session = Session()
-    if AWS_ROLE_ARN:
+    if settings.AWS_ROLE_ARN:
         sts_client = session.client(
             "sts",
-            aws_access_key_id=AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
         )
 
         assumed_role_object = sts_client.assume_role(
-            RoleArn=AWS_ROLE_ARN,
+            RoleArn=settings.AWS_ROLE_ARN,
             RoleSessionName="AssumeRoleSession",
         )
 
@@ -169,8 +160,8 @@ def create_client(service_name: str) -> boto3.client:
     else:
         client = session.client(
             service_name,
-            aws_access_key_id=AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
         )
 
     return client
