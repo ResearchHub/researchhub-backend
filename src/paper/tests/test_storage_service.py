@@ -8,15 +8,15 @@ from researchhub import settings
 
 class StorageServiceTest(TestCase):
 
-    @patch("paper.services.storage_service.session.Session")
+    @patch("paper.services.storage_service.aws_utils.create_client")
     @patch("paper.services.storage_service.uuid.uuid4")
-    def test_create_presigned_url(self, mock_uuid, mock_session):
+    def test_create_presigned_url(self, mock_uuid, mock_create_client):
         # Arrange
         uuid1 = uuid.uuid4()
         mock_uuid.return_value = uuid1
 
         mock_s3_client = Mock()
-        mock_session.return_value.client.return_value = mock_s3_client
+        mock_create_client.return_value = mock_s3_client
 
         mock_s3_client.generate_presigned_url.return_value = "https://presignedUrl1"
 

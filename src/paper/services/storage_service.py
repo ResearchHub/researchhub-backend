@@ -1,8 +1,7 @@
 import uuid
 
-from boto3 import session
-
 from researchhub import settings
+from utils import aws as aws_utils
 
 
 class StorageService:
@@ -23,12 +22,7 @@ class StorageService:
 
         s3_filename = f"/uploads/{user_id}/{uuid.uuid4()}/{filename}"
 
-        boto3_session = session.Session()
-        s3_client = boto3_session.client(
-            "s3",
-            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-        )
+        s3_client = aws_utils.create_client("s3")
 
         url = s3_client.generate_presigned_url(
             "put_object",
