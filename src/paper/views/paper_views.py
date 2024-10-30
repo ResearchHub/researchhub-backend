@@ -9,9 +9,10 @@ from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.validators import URLValidator
-from django.db import IntegrityError
+from django.db import IntegrityError, transaction
 from django.db.models import Count, F, IntegerField, Q, Sum, Value
 from django.db.models.functions import Cast, Coalesce
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from elasticsearch.exceptions import ConnectionError
 from rest_framework import status, viewsets
@@ -24,7 +25,6 @@ from rest_framework.permissions import (
 )
 from rest_framework.response import Response
 
-import institution
 from analytics.amplitude import track_event
 from discussion.models import Vote as GrmVote
 from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
@@ -177,99 +177,101 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         - change_description: string (optional)
         """
         try:
-            # Extract data from request
-            title = request.data.get("title")
-            abstract = request.data.get("abstract")
-            authors_data = request.data.get("authors", [])
-            hub_ids = request.data.get("hub_ids", [])
-            pdf_url = request.data.get("pdf_url")
-            previous_paper_id = request.data.get("previous_paper_id")
-            change_description = request.data.get("change_description")
+            with transaction.atomic():
+                # Extract data from request
+                title = request.data.get("title")
+                abstract = request.data.get("abstract")
+                authors_data = request.data.get("authors", [])
+                hub_ids = request.data.get("hub_ids", [])
+                pdf_url = request.data.get("pdf_url")
+                previous_paper_id = request.data.get("previous_paper_id")
+                change_description = request.data.get("change_description")
 
-            if not title or not abstract:
-                return Response(
-                    {"error": "Title and abstract are required"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Validate author data
-            if not authors_data:
-                return Response(
-                    {"error": "At least one author is required"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Check for at least one corresponding author
-            if not any(
-                author.get("is_corresponding", False) for author in authors_data
-            ):
-                return Response(
-                    {"error": "At least one corresponding author is required"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Create paper
-            paper_data = {
-                "title": title,
-                "paper_title": title,
-                "abstract": abstract,
-                "uploaded_by": request.user,
-            }
-
-            if pdf_url:
-                paper_data["pdf_url"] = pdf_url
-
-            paper = Paper.objects.create(**paper_data)
-
-            # Associate authors
-            author_ids = [author_data["id"] for author_data in authors_data]
-            authors = Author.objects.filter(id__in=author_ids)
-            author_map = {author.id: author for author in authors}
-
-            for author_data in authors_data:
-                author_id = author_data.get("id")
-                institution_id = author_data.get("institution_id")
-                if author_id not in author_map:
-                    continue
-
-                author_position = author_data.get("author_position", "middle")
-                if author_position not in ["first", "middle", "last"]:
-                    author_position = "middle"
-
-                authorship = Authorship.objects.create(
-                    paper=paper,
-                    author=author_map[author_id],
-                    source="RESEARCHHUB",
-                    author_position=author_position,
-                    is_corresponding=author_data.get("is_corresponding", False),
-                )
-
-                if institution_id:
-                    authorship.institutions.add(institution_id)
-
-            # Associate hubs
-            if hub_ids:
-                paper.hubs.add(*hub_ids)
-
-            # Create paper version
-            paper_version = 1
-            if previous_paper_id:
-                try:
-                    previous_paper = PaperVersion.objects.get(
-                        paper_id=previous_paper_id
-                    )
-                    paper_version = previous_paper.version + 1
-                except PaperVersion.DoesNotExist:
+                if not title or not abstract:
                     return Response(
-                        {"error": "Invalid previous paper ID"},
+                        {"error": "Title and abstract are required"},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
-            PaperVersion.objects.create(
-                paper=paper,
-                version=paper_version,
-                message=change_description,
-            )
+                # Validate author data
+                if not authors_data:
+                    return Response(
+                        {"error": "At least one author is required"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                # Check for at least one corresponding author
+                if not any(
+                    author.get("is_corresponding", False) for author in authors_data
+                ):
+                    return Response(
+                        {"error": "At least one corresponding author is required"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                # Create paper
+                paper_data = {
+                    "title": title,
+                    "paper_title": title,
+                    "abstract": abstract,
+                    "uploaded_by": request.user,
+                    "paper_publish_date": timezone.now(),
+                }
+
+                if pdf_url:
+                    paper_data["pdf_url"] = pdf_url
+
+                paper = Paper.objects.create(**paper_data)
+
+                # Associate authors
+                author_ids = [author_data["id"] for author_data in authors_data]
+                authors = Author.objects.filter(id__in=author_ids)
+                author_map = {author.id: author for author in authors}
+
+                for author_data in authors_data:
+                    author_id = author_data.get("id")
+                    institution_id = author_data.get("institution_id")
+                    if author_id not in author_map:
+                        continue
+
+                    author_position = author_data.get("author_position", "middle")
+                    if author_position not in ["first", "middle", "last"]:
+                        author_position = "middle"
+
+                    authorship = Authorship.objects.create(
+                        paper=paper,
+                        author=author_map[author_id],
+                        source="RESEARCHHUB",
+                        author_position=author_position,
+                        is_corresponding=author_data.get("is_corresponding", False),
+                    )
+
+                    if institution_id:
+                        authorship.institutions.add(institution_id)
+
+                # Associate hubs
+                if hub_ids:
+                    paper.hubs.add(*hub_ids)
+
+                # Create paper version
+                paper_version = 1
+                if previous_paper_id:
+                    try:
+                        previous_paper = PaperVersion.objects.get(
+                            paper_id=previous_paper_id
+                        )
+                        paper_version = previous_paper.version + 1
+                    except PaperVersion.DoesNotExist:
+                        return Response(
+                            {"error": "Invalid previous paper ID"},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                PaperVersion.objects.create(
+                    paper=paper,
+                    version=paper_version,
+                    message=change_description,
+                )
 
             # Return serialized paper
             context = self._get_paper_context(request)
