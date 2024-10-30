@@ -1,4 +1,5 @@
 from django_elasticsearch_dsl_drf.serializers import DocumentSerializer
+from elasticsearch_dsl.utils import AttrList
 from rest_framework import serializers
 
 from search.documents import PersonDocument
@@ -13,6 +14,7 @@ class PersonDocumentSerializer(serializers.ModelSerializer):
     person_types = serializers.SerializerMethodField()
     author_profile = serializers.SerializerMethodField()
     user = serializers.SerializerMethodField()
+    institutions = serializers.SerializerMethodField()
 
     class Meta(object):
         model = Author
@@ -29,6 +31,7 @@ class PersonDocumentSerializer(serializers.ModelSerializer):
             "person_types",
             "user",
             "author_profile",
+            "institutions",
         ]
         read_only_fields = fields
 
@@ -57,6 +60,14 @@ class PersonDocumentSerializer(serializers.ModelSerializer):
 
     def get_user_reputation(self, document):
         return document.user_reputation
+
+    def get_institutions(self, document):
+        institutions_data = document.institutions
+        if isinstance(institutions_data, AttrList):
+            return [
+                {"id": institution["id"], "name": institution["name"]}
+                for institution in institutions_data
+            ]
 
     def get_profile_image(self, document):
         if document.profile_image is not None:
