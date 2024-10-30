@@ -236,7 +236,6 @@ INSTALLED_APPS = [
 SITE_ID = 1
 
 MIDDLEWARE = [
-    "django.middleware.gzip.GZipMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "researchhub.middleware.csrf_disable.DisableCSRF",
     "django.middleware.security.SecurityMiddleware",
