@@ -30,6 +30,8 @@ class PersonDocument(BaseDocument):
         },
     )
     suggestion_phrases = es_fields.Completion()
+    user_id = es_fields.IntegerField(attr="user_id")
+    reputation_hubs = es_fields.KeywordField()
 
     class Index:
         name = "person"
@@ -44,6 +46,13 @@ class PersonDocument(BaseDocument):
 
     def should_remove_from_index(self, obj):
         return False
+
+    def prepare_reputation_hubs(self, instance):
+        reputation_hubs = []
+        for rep in instance.reputation_list:
+            reputation_hubs.append(rep["hub"]["name"])
+
+        return reputation_hubs
 
     def prepare_suggestion_phrases(self, instance):
         suggestions = []
