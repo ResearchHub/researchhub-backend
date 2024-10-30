@@ -332,13 +332,20 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
             paper_version = PaperVersion.objects.get(paper=paper)
             return paper_version.version
         except PaperVersion.DoesNotExist:
-            return None
+            return 1
 
     def get_version_list(self, paper) -> list:
         try:
             paper_version = PaperVersion.objects.get(paper=paper)
         except PaperVersion.DoesNotExist:
-            return []
+            return [
+                {
+                    "version": 1,
+                    "paper_id": paper.id,
+                    "published_date": paper.paper_publish_date,
+                    "is_latest": True,
+                }
+            ]
 
         paper_versions = PaperVersion.objects.filter(
             base_doi=paper_version.base_doi
@@ -1071,13 +1078,20 @@ class DynamicPaperSerializer(
             paper_version = PaperVersion.objects.get(paper=paper)
             return paper_version.version
         except PaperVersion.DoesNotExist:
-            return None
+            return 1
 
     def get_version_list(self, paper) -> list:
         try:
             paper_version = PaperVersion.objects.get(paper=paper)
         except PaperVersion.DoesNotExist:
-            return []
+            return [
+                {
+                    "version": 1,
+                    "paper_id": paper.id,
+                    "published_date": paper.paper_publish_date,
+                    "is_latest": True,
+                }
+            ]
 
         paper_versions = PaperVersion.objects.filter(
             base_doi=paper_version.base_doi
