@@ -347,9 +347,11 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
                 }
             ]
 
-        paper_versions = PaperVersion.objects.filter(
-            base_doi=paper_version.base_doi
-        ).order_by("version")
+        paper_versions = (
+            PaperVersion.objects.filter(base_doi=paper_version.base_doi)
+            .select_related("paper")
+            .order_by("version")
+        )
         latest_version = paper_versions.last()
 
         # Return a list of version pointing to the paper_id
@@ -357,7 +359,11 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
             {
                 "version": version.version,
                 "paper_id": version.paper.id,
-                "published_date": paper.paper_publish_date,
+                "published_date": (
+                    version.paper.paper_publish_date.strftime("%Y-%m-%d")
+                    if version.paper.paper_publish_date
+                    else None
+                ),
                 "message": version.message,
                 "is_latest": version.version == latest_version.version,
             }
@@ -1093,9 +1099,11 @@ class DynamicPaperSerializer(
                 }
             ]
 
-        paper_versions = PaperVersion.objects.filter(
-            base_doi=paper_version.base_doi
-        ).order_by("version")
+        paper_versions = (
+            PaperVersion.objects.filter(base_doi=paper_version.base_doi)
+            .select_related("paper")
+            .order_by("version")
+        )
         latest_version = paper_versions.last()
 
         # Return a list of version pointing to the paper_id
@@ -1103,7 +1111,11 @@ class DynamicPaperSerializer(
             {
                 "version": version.version,
                 "paper_id": version.paper.id,
-                "published_date": paper.paper_publish_date,
+                "published_date": (
+                    version.paper.paper_publish_date.strftime("%Y-%m-%d")
+                    if version.paper.paper_publish_date
+                    else None
+                ),
                 "message": version.message,
                 "is_latest": version.version == latest_version.version,
             }

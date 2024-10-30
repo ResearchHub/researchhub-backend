@@ -28,6 +28,22 @@ class PaperSerializersTests(TestCase):
         serialized = PaperSerializer(data=paper_dict)
         self.assertTrue(serialized.is_valid())
 
+    def test_paper_serializer_default_paper_version(self):
+        paper = helpers.create_paper(title="Serialized Paper Title")
+        serialized = PaperSerializer(paper)
+        self.assertEqual(serialized.data["version"], 1)
+        self.assertEqual(
+            serialized.data["version_list"],
+            [
+                {
+                    "version": 1,
+                    "paper_id": paper.id,
+                    "published_date": paper.paper_publish_date,
+                    "is_latest": True,
+                }
+            ],
+        )
+
     def test_paper_serializer_paper_versions(self):
         paper = helpers.create_paper(title="Serialized Paper Title")
         PaperVersion.objects.create(
