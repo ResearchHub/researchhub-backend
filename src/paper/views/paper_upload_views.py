@@ -35,6 +35,7 @@ class PaperUploadView(APIView):
 
         return Response(
             {
-                "presigned_url": presigned_url,
+                "presigned_url": presigned_url.url,
+                "object_key": presigned_url.object_key,
             }
         )

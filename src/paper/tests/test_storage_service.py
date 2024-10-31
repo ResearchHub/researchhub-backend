@@ -2,6 +2,7 @@ import uuid
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
+from paper.services import storage_service
 from paper.services.storage_service import StorageService
 from researchhub import settings
 
@@ -40,4 +41,10 @@ class StorageServiceTest(TestCase):
             ExpiresIn=60 * 2,
         )
 
-        self.assertEqual(url, "https://presignedUrl1")
+        self.assertEqual(
+            url,
+            storage_service.PresignedUrl(
+                url="https://presignedUrl1",
+                object_key=f"/uploads/userId1/{uuid1}/file1.pdf",
+            ),
+        )
