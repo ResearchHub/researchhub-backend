@@ -117,6 +117,39 @@ class Author(models.Model):
             f"{university_city}"
         )
 
+    def build_headline(self):
+        from collections import Counter
+
+        if self.headline:
+            return self.headline
+
+        try:
+            all_topics = []
+            authored_papers = self.authored_papers.all()
+
+            for p in authored_papers:
+                unified_document = p.unified_document
+                all_topics += list(unified_document.topics.all())
+
+            topic_counts = Counter(all_topics)
+
+            # Sort topics by frequency
+            sorted_topics = sorted(
+                topic_counts.items(), key=lambda x: x[1], reverse=True
+            )
+
+            # Extract topics from sorted list
+            sorted_topics = [topic for topic, _ in sorted_topics]
+
+            if not sorted_topics:
+                return None
+
+            return {
+                "title": "Author with expertise in " + sorted_topics[0].display_name
+            }
+        except Exception:
+            return None
+
     @property
     def full_name(self):
         return self.first_name + " " + self.last_name

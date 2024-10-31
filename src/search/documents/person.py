@@ -17,7 +17,6 @@ class PersonDocument(BaseDocument):
     full_name = es_fields.TextField(attr="full_name", analyzer=content_analyzer)
     person_types = es_fields.KeywordField(attr="person_types_indexing")
     headline = es_fields.ObjectField(
-        attr="headline",
         properties={
             "title": es_fields.TextField(),
         },
@@ -32,6 +31,8 @@ class PersonDocument(BaseDocument):
     suggestion_phrases = es_fields.Completion()
     user_id = es_fields.IntegerField(attr="user_id")
     reputation_hubs = es_fields.KeywordField()
+    education = es_fields.KeywordField()
+    created_date = es_fields.DateField(attr="created_date")
 
     class Index:
         name = "person"
@@ -47,6 +48,9 @@ class PersonDocument(BaseDocument):
     def should_remove_from_index(self, obj):
         return False
 
+    def prepare_headline(self, instance):
+        return instance.build_headline()
+
     def prepare_reputation_hubs(self, instance):
         reputation_hubs = []
         for rep in instance.reputation_list:
@@ -54,11 +58,21 @@ class PersonDocument(BaseDocument):
 
         return reputation_hubs
 
+    def prepare_education(self, instance):
+        education = []
+        for edu in instance.education:
+            education.append(edu["name"])
+
+        return education
+
     def prepare_suggestion_phrases(self, instance):
         suggestions = []
 
         if instance.full_name:
-            suggestions.append({"input": instance.full_name, "weight": 10})
+            if instance.user:
+                suggestions.append({"input": instance.full_name, "weight": 15})
+            else:
+                suggestions.append({"input": instance.full_name, "weight": 10})
 
         if instance.first_name:
             suggestions.append({"input": instance.first_name, "weight": 5})
