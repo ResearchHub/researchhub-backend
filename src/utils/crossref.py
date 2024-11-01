@@ -135,14 +135,17 @@ def generate_doi():
     )
 
 
-def register_doi(created_by, title, doi, rh_post):
+def register_doi(authors, title, doi, rh_post):
     dt = datetime.today()
-    contributors = [
-        {
-            "first_name": created_by.author_profile.first_name,
-            "last_name": created_by.author_profile.last_name,
-        },
-    ]
+    contributors = []
+    for author in authors:
+        contributors.append(
+            {
+                "first_name": author.first_name,
+                "last_name": author.last_name,
+            }
+        )
+
     context = {
         "timestamp": int(time.time()),
         "contributors": contributors,
