@@ -1,7 +1,5 @@
 import random
 import string
-import time
-from datetime import datetime
 
 import requests
 from django.contrib.contenttypes.models import ContentType
@@ -56,6 +54,7 @@ from researchhub_document.serializers.researchhub_post_serializer import (
 )
 from researchhub_document.utils import reset_unified_document_cache
 from user.related_models.author_model import Author
+from utils.crossref import generate_doi, register_doi
 from utils.sentry import log_error
 from utils.siftscience import SIFT_POST, sift_track
 from utils.throttles import THROTTLE_CLASSES
@@ -319,37 +318,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             return uni_doc
         except (KeyError, TypeError) as exception:
             print("create_unified_doc: ", exception)
-
-
-def generate_doi():
-    return CROSSREF_DOI_PREFIX + "".join(
-        random.choice(string.ascii_lowercase + string.digits)
-        for _ in range(CROSSREF_DOI_SUFFIX_LENGTH)
-    )
-
-
-def register_doi(created_by, title, doi, rh_post):
-    dt = datetime.today()
-    context = {
-        "timestamp": int(time.time()),
-        "first_name": created_by.author_profile.first_name,
-        "last_name": created_by.author_profile.last_name,
-        "title": title,
-        "publication_month": dt.month,
-        "publication_day": dt.day,
-        "publication_year": dt.year,
-        "doi": doi,
-        "url": f"{BASE_FRONTEND_URL}/post/{rh_post.id}/{rh_post.slug}",
-    }
-    crossref_xml = render_to_string("crossref.xml", context)
-    files = {
-        "operation": (None, "doMDUpload"),
-        "login_id": (None, CROSSREF_LOGIN_ID),
-        "login_passwd": (None, CROSSREF_LOGIN_PASSWORD),
-        "fname": ("crossref.xml", crossref_xml),
-    }
-    crossref_response = requests.post(CROSSREF_API_URL, files=files)
-    return crossref_response
 
 
 def charge_doi_fee(created_by, rh_post):

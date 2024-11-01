@@ -1,15 +1,30 @@
 import logging
+import random
 import re
+import string
+import time
+from datetime import datetime
 
-from django.apps import apps
-from django.utils import timezone
 import habanero
+import requests
+from django.apps import apps
+from django.template.loader import render_to_string
+from django.utils import timezone
+
+from researchhub.settings import (
+    BASE_FRONTEND_URL,
+    CROSSREF_API_URL,
+    CROSSREF_DOI_PREFIX,
+    CROSSREF_DOI_SUFFIX_LENGTH,
+    CROSSREF_LOGIN_ID,
+    CROSSREF_LOGIN_PASSWORD,
+)
 
 
 class Crossref:
     def __init__(self, id=None, query=None):
         # TODO: Handle query case
-        self.cr = habanero.Crossref(mailto='dev@quantfive.org')
+        self.cr = habanero.Crossref(mailto="dev@quantfive.org")
 
         self.data = None
         self.data_message = None
@@ -28,86 +43,76 @@ class Crossref:
     def handle_id(self):
         try:
             self.data = self.cr.works(ids=[self.id])
-            self.data_message = self.data['message']
+            self.data_message = self.data["message"]
         except Exception as e:
             self.data_message = None
             logging.warning(e)
         else:
-            self.abstract = self.data_message.get('abstract', None)
+            self.abstract = self.data_message.get("abstract", None)
 
             # Remove any jat xml tags
             if self.abstract is not None:
-                self.abstract = re.sub(r'<[^<]+>', '', self.abstract)
+                self.abstract = re.sub(r"<[^<]+>", "", self.abstract)
 
-            self.doi = self.data_message.get('DOI', None)
-            self.arxiv_id = self.data_message.get('arxiv', None)
+            self.doi = self.data_message.get("DOI", None)
+            self.arxiv_id = self.data_message.get("arxiv", None)
 
-            self.paper_publish_date = get_crossref_issued_date(
-                self.data_message
-            )
+            self.paper_publish_date = get_crossref_issued_date(self.data_message)
 
-            self.publication_type = self.data_message.get('type', None)
+            self.publication_type = self.data_message.get("type", None)
 
-            self.reference_count = self.data_message.get(
-                'reference-count',
-                None
-            )
+            self.reference_count = self.data_message.get("reference-count", None)
             self.referenced_by_count = self.data_message.get(
-                'is-referenced-by-count',
-                None
+                "is-referenced-by-count", None
             )
             if self.reference_count > 0:
                 try:
-                    self.references = self.data_message.get('reference', [])
+                    self.references = self.data_message.get("reference", [])
                 except Exception as e:
-                    logging.warning(
-                        f'Reference count > 0 but found error: {e}'
-                    )
+                    logging.warning(f"Reference count > 0 but found error: {e}")
             if self.referenced_by_count > 0:
                 try:
-                    relation = self.data_message.get('relation', None)
+                    relation = self.data_message.get("relation", None)
                     if relation is not None:
-                        self.referenced_by = relation.get('cites', [])
+                        self.referenced_by = relation.get("cites", [])
                 except Exception as e:
-                    logging.warning(
-                        f'Referenced by count > 0 but found error: {e}'
-                    )
+                    logging.warning(f"Referenced by count > 0 but found error: {e}")
 
             self.title = None
-            title = self.data_message.get('title', [None])
-            if (type(title) is list):
-                if (len(title) > 0):
+            title = self.data_message.get("title", [None])
+            if type(title) is list:
+                if len(title) > 0:
                     self.title = title[0]
-            elif type(title) is str and (title != ''):
+            elif type(title) is str and (title != ""):
                 self.title = title
             if self.title is None:
-                logging.warning('Crossref did not find title')
+                logging.warning("Crossref did not find title")
 
-            self.url = self.data_message.get('URL', None)
+            self.url = self.data_message.get("URL", None)
 
     def create_paper(self, is_public=False):
-        Paper = apps.get_model('paper.Paper')
+        Paper = apps.get_model("paper.Paper")
         if self.data_message is not None:
-            if self.publication_type == 'journal-article':
+            if self.publication_type == "journal-article":
                 if self.id is not None:
                     paper = Paper.objects.create(
                         title=self.title,
                         paper_title=self.title,
                         doi=self.doi,
-                        alternate_ids={'arxiv': self.arxiv_id},
+                        alternate_ids={"arxiv": self.arxiv_id},
                         url=self.url,
                         paper_publish_date=self.paper_publish_date,
                         publication_type=self.publication_type,
-                        external_source='crossref',
+                        external_source="crossref",
                         retrieved_from_external_source=True,
-                        is_public=is_public
+                        is_public=is_public,
                     )
                     return paper
         return None
 
 
 def get_crossref_issued_date(item):
-    parts = item['issued']['date-parts'][0]
+    parts = item["issued"]["date-parts"][0]
     day = 1
     month = 1
     year = None
@@ -121,3 +126,39 @@ def get_crossref_issued_date(item):
         return timezone.datetime(year, month, day)
     else:
         return None
+
+
+def generate_doi():
+    return CROSSREF_DOI_PREFIX + "".join(
+        random.choice(string.ascii_lowercase + string.digits)
+        for _ in range(CROSSREF_DOI_SUFFIX_LENGTH)
+    )
+
+
+def register_doi(created_by, title, doi, rh_post):
+    dt = datetime.today()
+    contributors = [
+        {
+            "first_name": created_by.author_profile.first_name,
+            "last_name": created_by.author_profile.last_name,
+        },
+    ]
+    context = {
+        "timestamp": int(time.time()),
+        "contributors": contributors,
+        "title": title,
+        "publication_month": dt.month,
+        "publication_day": dt.day,
+        "publication_year": dt.year,
+        "doi": doi,
+        "url": f"{BASE_FRONTEND_URL}/post/{rh_post.id}/{rh_post.slug}",
+    }
+    crossref_xml = render_to_string("crossref.xml", context)
+    files = {
+        "operation": (None, "doMDUpload"),
+        "login_id": (None, CROSSREF_LOGIN_ID),
+        "login_passwd": (None, CROSSREF_LOGIN_PASSWORD),
+        "fname": ("crossref.xml", crossref_xml),
+    }
+    crossref_response = requests.post(CROSSREF_API_URL, files=files)
+    return crossref_response

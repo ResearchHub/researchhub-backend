@@ -16,10 +16,12 @@
 		<report-paper>
 			<report-paper_metadata language = "en">
 				<contributors>
-					<person_name sequence="first" contributor_role="author">
-						<given_name>{{ first_name }}</given_name>
-						<surname>{{ last_name }}</surname>
+					{% for contributor in contributors %}
+					<person_name sequence="{% if forloop.first %}first{% else %}additional{% endif %}" contributor_role="author">
+						<given_name>{{ contributor.first_name }}</given_name>
+						<surname>{{ contributor.last_name }}</surname>
 					</person_name>
+					{% endfor %}
 				</contributors>
 				<titles>
 					<title>{{ title }}</title>
