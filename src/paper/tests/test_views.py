@@ -291,6 +291,35 @@ class PaperApiTests(APITestCase):
         self.assertEqual(paper_version.version, 2)
         self.assertEqual(paper_version.message, "Updated content")
 
+    def test_create_researchhub_paper_with_valid_previous_paper_no_version(self):
+        """Test creating a new paper with a valid previous_paper_id that has no versions"""
+        user = create_random_authenticated_user("test_user")
+        self.client.force_authenticate(user)
+        author = Author.objects.create(first_name="Test", last_name="Author")
+
+        previous_paper = create_paper()
+
+        data = {
+            "title": "Test Paper",
+            "abstract": "Test abstract",
+            "authors": [
+                {"id": author.id, "author_position": "first", "is_corresponding": True}
+            ],
+            "hub_ids": [],
+            "previous_paper_id": previous_paper.id,
+        }
+
+        response = self.client.post(
+            "/api/paper/create_researchhub_paper/", data, format="json"
+        )
+
+        self.assertEqual(response.status_code, 201)
+        paper = Paper.objects.get(id=response.data["id"])
+        self.assertEqual(paper.title, "Test Paper")
+        self.assertEqual(paper.abstract, "Test abstract")
+        self.assertEqual(previous_paper.version.version, 1)
+        self.assertEqual(paper.version.version, 2)
+
     def test_create_researchhub_paper_with_invalid_previous_paper(self):
         """Test handling of invalid previous_paper_id"""
         user = create_random_authenticated_user("test_user")
