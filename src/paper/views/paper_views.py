@@ -294,8 +294,6 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 if crossref_response.status_code != 200:
                     return Response("Crossref API Failure", status=400)
 
-                # look into hub issue
-
                 PaperVersion.objects.create(
                     paper=paper,
                     version=paper_version,
