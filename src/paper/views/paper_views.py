@@ -60,6 +60,7 @@ from reputation.related_models.paper_reward import (
 from researchhub.permissions import IsObjectOwnerOrModerator
 from researchhub_document.permissions import HasDocumentCensorPermission
 from user.related_models.author_model import Author
+from utils.crossref import generate_doi, register_doi_for_paper
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.openalex import OpenAlex
 from utils.permissions import CreateOrUpdateIfAllowed, HasAPIKey, PostOnly
@@ -253,6 +254,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                         author=author_map[author_id],
                         source="RESEARCHHUB",
                         author_position=author_position,
+                        raw_author_name=f"{author_map[author_id].first_name} {author_map[author_id].last_name}",
                         is_corresponding=author_data.get("is_corresponding", False),
                     )
 
@@ -262,12 +264,16 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 # Associate hubs
                 if hub_ids:
                     paper.hubs.add(*hub_ids)
+                    paper.unified_document.hubs.add(*hub_ids)
 
                 # Create paper version
                 paper_version = 1
+                base_doi = generate_doi()
                 if previous_paper:
                     try:
                         paper_version = previous_paper.version.version + 1
+                        if previous_paper.version.base_doi:
+                            base_doi = previous_paper.base_doi
                     except PaperVersion.DoesNotExist:
                         # If the previous paper version does not exist, create the initial version
                         # and set the current version to 2.
@@ -277,10 +283,24 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                         )
                         paper_version = 2
 
+                crossref_response = register_doi_for_paper(
+                    authors=authors,
+                    title=title,
+                    base_doi=base_doi,
+                    rh_paper=paper,
+                    version=paper_version,
+                )
+
+                if crossref_response.status_code != 200:
+                    return Response("Crossref API Failure", status=400)
+
+                # look into hub issue
+
                 PaperVersion.objects.create(
                     paper=paper,
                     version=paper_version,
                     message=change_description,
+                    base_doi=base_doi,
                 )
 
             # Return serialized paper

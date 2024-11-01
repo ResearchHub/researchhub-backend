@@ -135,9 +135,22 @@ def generate_doi():
     )
 
 
-def register_doi(authors, title, doi, rh_post):
+def register_doi_for_post(authors, title, base_doi, rh_post, version=None):
+    url = f"{BASE_FRONTEND_URL}/post/{rh_post.id}/{rh_post.slug}"
+    return register_doi(authors, title, base_doi, url, version)
+
+
+def register_doi_for_paper(authors, title, base_doi, rh_paper, version=None):
+    url = f"{BASE_FRONTEND_URL}/paper/{rh_paper.id}/{rh_paper.slug}"
+    return register_doi(authors, title, base_doi, url, version)
+
+
+def register_doi(authors, title, base_doi, url, version=None):
     dt = datetime.today()
     contributors = []
+    if version is not None:
+        base_doi = f"{base_doi}.{version}"
+
     for author in authors:
         institution = None
         if author.university:
@@ -165,8 +178,8 @@ def register_doi(authors, title, doi, rh_post):
         "publication_month": dt.month,
         "publication_day": dt.day,
         "publication_year": dt.year,
-        "doi": doi,
-        "url": f"{BASE_FRONTEND_URL}/post/{rh_post.id}/{rh_post.slug}",
+        "doi": base_doi,
+        "url": url,
     }
     crossref_xml = render_to_string("crossref.xml", context)
     files = {

@@ -54,7 +54,7 @@ from researchhub_document.serializers.researchhub_post_serializer import (
 )
 from researchhub_document.utils import reset_unified_document_cache
 from user.related_models.author_model import Author
-from utils.crossref import generate_doi, register_doi
+from utils.crossref import generate_doi, register_doi_for_post
 from utils.sentry import log_error
 from utils.siftscience import SIFT_POST, sift_track
 from utils.throttles import THROTTLE_CLASSES
@@ -189,7 +189,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                         rh_post.eln_src.save(file_name, full_src_file)
 
                 if assign_doi:
-                    crossref_response = register_doi(
+                    crossref_response = register_doi_for_post(
                         [created_by_author], title, doi, rh_post
                     )
                     if crossref_response.status_code != 200:
@@ -300,7 +300,9 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         )
 
         if assign_doi:
-            crossref_response = register_doi([created_by_author], title, doi, rh_post)
+            crossref_response = register_doi_for_post(
+                [created_by_author], title, doi, rh_post
+            )
             if crossref_response.status_code != 200:
                 return Response("Crossref API Failure", status=400)
             charge_doi_fee(created_by, rh_post)
