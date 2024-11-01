@@ -187,6 +187,16 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 previous_paper_id = request.data.get("previous_paper_id")
                 change_description = request.data.get("change_description")
 
+                previous_paper = None
+                if previous_paper_id:
+                    try:
+                        previous_paper = Paper.objects.get(id=previous_paper_id)
+                    except Paper.DoesNotExist:
+                        return Response(
+                            {"error": "Previous paper not found"},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
                 if not title or not abstract:
                     return Response(
                         {"error": "Title and abstract are required"},
@@ -255,17 +265,17 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
 
                 # Create paper version
                 paper_version = 1
-                if previous_paper_id:
+                if previous_paper:
                     try:
-                        previous_paper = PaperVersion.objects.get(
-                            paper_id=previous_paper_id
-                        )
-                        paper_version = previous_paper.version + 1
+                        paper_version = previous_paper.version.version + 1
                     except PaperVersion.DoesNotExist:
-                        return Response(
-                            {"error": "Invalid previous paper ID"},
-                            status=status.HTTP_400_BAD_REQUEST,
+                        # If the previous paper version does not exist, create the initial version
+                        # and set the current version to 2.
+                        PaperVersion.objects.create(
+                            paper=previous_paper,
+                            version=1,
                         )
+                        paper_version = 2
 
                 PaperVersion.objects.create(
                     paper=paper,

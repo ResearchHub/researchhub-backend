@@ -959,7 +959,7 @@ class Paper(AbstractGenericReactionModel):
 
 class PaperVersion(models.Model):
     paper = models.OneToOneField(
-        Paper, on_delete=models.CASCADE, related_name="versions"
+        Paper, on_delete=models.CASCADE, related_name="version"
     )
     version = models.IntegerField(default=1)
     base_doi = models.CharField(max_length=255, default=None, null=True, blank=True)
