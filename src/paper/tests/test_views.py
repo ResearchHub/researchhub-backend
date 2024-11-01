@@ -178,6 +178,9 @@ class PaperApiTests(APITestCase):
         paper = Paper.objects.get(id=response.data["id"])
         self.assertEqual(paper.title, "Test Paper")
         self.assertEqual(paper.abstract, "Test abstract")
+        hubs = paper.unified_document.hubs.all()
+        self.assertEqual(len(hubs), 1)
+        self.assertEqual(hubs[0].id, hub.id)
 
         authorship = paper.authorships.first()
         self.assertEqual(authorship.author.id, author.id)

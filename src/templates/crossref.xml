@@ -16,10 +16,23 @@
 		<report-paper>
 			<report-paper_metadata language = "en">
 				<contributors>
-					<person_name sequence="first" contributor_role="author">
-						<given_name>{{ first_name }}</given_name>
-						<surname>{{ last_name }}</surname>
+					{% for contributor in contributors %}
+					<person_name sequence="{% if forloop.first %}first{% else %}additional{% endif %}" contributor_role="author">
+						<given_name>{{ contributor.first_name }}</given_name>
+						<surname>{{ contributor.last_name }}</surname>
+						{% if contributor.institution %}
+						<institution>
+							<institution_name>{{ contributor.institution.name }}</institution_name>
+							{% if contributor.institution.place %}
+							<institution_place>{{ contributor.institution.place }}</institution_place>
+							{% endif %}
+						</institution>
+						{% endif %}
+						{% if contributor.orcid %}
+						<ORCID authenticated="true">https://orcid.org/{{ contributor.orcid }}</ORCID>
+						{% endif %}
 					</person_name>
+					{% endfor %}
 				</contributors>
 				<titles>
 					<title>{{ title }}</title>

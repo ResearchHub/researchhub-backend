@@ -1,7 +1,5 @@
 import random
 import string
-import time
-from datetime import datetime
 
 import requests
 from django.contrib.contenttypes.models import ContentType
@@ -56,6 +54,7 @@ from researchhub_document.serializers.researchhub_post_serializer import (
 )
 from researchhub_document.utils import reset_unified_document_cache
 from user.related_models.author_model import Author
+from utils.crossref import generate_doi, register_doi_for_post
 from utils.sentry import log_error
 from utils.siftscience import SIFT_POST, sift_track
 from utils.throttles import THROTTLE_CLASSES
@@ -150,6 +149,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         try:
             with transaction.atomic():
                 created_by = request.user
+                created_by_author = created_by.author_profile
                 doi = generate_doi() if assign_doi else None
 
                 if assign_doi and created_by.get_balance() - CROSSREF_DOI_RSC_FEE < 0:
@@ -189,7 +189,9 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                         rh_post.eln_src.save(file_name, full_src_file)
 
                 if assign_doi:
-                    crossref_response = register_doi(created_by, title, doi, rh_post)
+                    crossref_response = register_doi_for_post(
+                        [created_by_author], title, doi, rh_post
+                    )
                     if crossref_response.status_code != 200:
                         return Response("Crossref API Failure", status=400)
                     charge_doi_fee(created_by, rh_post)
@@ -238,6 +240,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 )
 
         created_by = request.user
+        created_by_author = created_by.author_profile
         hubs = data.pop("hubs", None)
         renderable_text = data.pop("renderable_text", "")
         title = data.get("title", "")
@@ -297,7 +300,9 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         )
 
         if assign_doi:
-            crossref_response = register_doi(created_by, title, doi, rh_post)
+            crossref_response = register_doi_for_post(
+                [created_by_author], title, doi, rh_post
+            )
             if crossref_response.status_code != 200:
                 return Response("Crossref API Failure", status=400)
             charge_doi_fee(created_by, rh_post)
@@ -319,37 +324,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             return uni_doc
         except (KeyError, TypeError) as exception:
             print("create_unified_doc: ", exception)
-
-
-def generate_doi():
-    return CROSSREF_DOI_PREFIX + "".join(
-        random.choice(string.ascii_lowercase + string.digits)
-        for _ in range(CROSSREF_DOI_SUFFIX_LENGTH)
-    )
-
-
-def register_doi(created_by, title, doi, rh_post):
-    dt = datetime.today()
-    context = {
-        "timestamp": int(time.time()),
-        "first_name": created_by.author_profile.first_name,
-        "last_name": created_by.author_profile.last_name,
-        "title": title,
-        "publication_month": dt.month,
-        "publication_day": dt.day,
-        "publication_year": dt.year,
-        "doi": doi,
-        "url": f"{BASE_FRONTEND_URL}/post/{rh_post.id}/{rh_post.slug}",
-    }
-    crossref_xml = render_to_string("crossref.xml", context)
-    files = {
-        "operation": (None, "doMDUpload"),
-        "login_id": (None, CROSSREF_LOGIN_ID),
-        "login_passwd": (None, CROSSREF_LOGIN_PASSWORD),
-        "fname": ("crossref.xml", crossref_xml),
-    }
-    crossref_response = requests.post(CROSSREF_API_URL, files=files)
-    return crossref_response
 
 
 def charge_doi_fee(created_by, rh_post):
