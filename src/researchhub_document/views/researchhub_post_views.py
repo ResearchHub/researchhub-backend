@@ -149,6 +149,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         try:
             with transaction.atomic():
                 created_by = request.user
+                created_by_author = created_by.author_profile
                 doi = generate_doi() if assign_doi else None
 
                 if assign_doi and created_by.get_balance() - CROSSREF_DOI_RSC_FEE < 0:
@@ -188,7 +189,9 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                         rh_post.eln_src.save(file_name, full_src_file)
 
                 if assign_doi:
-                    crossref_response = register_doi([created_by], title, doi, rh_post)
+                    crossref_response = register_doi(
+                        [created_by_author], title, doi, rh_post
+                    )
                     if crossref_response.status_code != 200:
                         return Response("Crossref API Failure", status=400)
                     charge_doi_fee(created_by, rh_post)
@@ -237,6 +240,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 )
 
         created_by = request.user
+        created_by_author = created_by.author_profile
         hubs = data.pop("hubs", None)
         renderable_text = data.pop("renderable_text", "")
         title = data.get("title", "")
@@ -296,7 +300,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         )
 
         if assign_doi:
-            crossref_response = register_doi([created_by], title, doi, rh_post)
+            crossref_response = register_doi([created_by_author], title, doi, rh_post)
             if crossref_response.status_code != 200:
                 return Response("Crossref API Failure", status=400)
             charge_doi_fee(created_by, rh_post)

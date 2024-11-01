@@ -139,10 +139,22 @@ def register_doi(authors, title, doi, rh_post):
     dt = datetime.today()
     contributors = []
     for author in authors:
+        institution = None
+        if author.university:
+            place = None
+            if author.university.city:
+                place = "{author.university.city}, {author.university.state}"
+            institution = {
+                "name": author.university.name,
+                "place": place,
+            }
+
         contributors.append(
             {
                 "first_name": author.first_name,
                 "last_name": author.last_name,
+                "orcid": author.orcid_id,
+                "institution": institution,
             }
         )
 
