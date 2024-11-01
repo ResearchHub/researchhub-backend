@@ -267,10 +267,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 paper_version = 1
                 if previous_paper:
                     try:
-                        previous_paper_version = PaperVersion.objects.get(
-                            paper_id=previous_paper.id
-                        )
-                        paper_version = previous_paper_version.version + 1
+                        paper_version = previous_paper.version.version + 1
                     except PaperVersion.DoesNotExist:
                         # If the previous paper version does not exist, create the initial version
                         # and set the current version to 2.
