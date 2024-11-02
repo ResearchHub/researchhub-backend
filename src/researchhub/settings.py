@@ -266,7 +266,7 @@ INSTALLED_APPS = [
     "review",
     "simple_history",
     # Health checks
-    "heatlh_check",
+    "health_check",
     "health_check.db",
     "health_check.cache",
 ]
