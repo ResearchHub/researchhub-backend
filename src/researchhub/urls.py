@@ -36,7 +36,6 @@ from citation.views import CitationEntryViewSet, CitationProjectViewSet
 from paper.views import paper_upload_views
 from researchhub.settings import INSTALLED_APPS, USE_DEBUG_TOOLBAR
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
-from review.views.peer_review_view import PeerReviewViewSet
 from review.views.review_view import ReviewViewSet
 from user.views import author_views, editor_views, moderator_view, persona_webhook_view
 
@@ -161,12 +160,6 @@ router.register(
 )
 
 router.register(
-    r"paper/([0-9]+)/peer_review",
-    PeerReviewViewSet,
-    basename="peer_review",
-)
-
-router.register(
     r"exchange_rate", purchase.views.RscExchangeRateViewSet, basename="exchange_rate"
 )
 router.register(r"citation_entry", CitationEntryViewSet, basename="citation_entry")
@@ -182,6 +175,11 @@ router.register(
 router.register(r"fundraise", purchase.views.FundraiseViewSet, basename="fundraise")
 
 urlpatterns = [
+    # Health check
+    path(
+        r"health/",
+        include("health_check.urls"),
+    ),
     re_path(r"^api/", include(router.urls)),
     # TODO: calvinhlee - consolidate all mod views into 1 set
     path("api/get_hub_active_contributors/", editor_views.get_hub_active_contributors),
