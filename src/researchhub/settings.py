@@ -125,6 +125,10 @@ ALLOWED_HOSTS = [
 ]
 
 if ELASTIC_BEANSTALK:
+    # Prefer X-Forwarded-Host header over Host header.
+    # See: https://docs.djangoproject.com/en/5.1/ref/settings/#use-x-forwarded-host
+    USE_X_FORWARDED_HOST = True
+
     # This is for health checks
     try:
         EC2_METADATA_HEADERS = {"X-aws-ec2-metadata-token-ttl-seconds": "21600"}
