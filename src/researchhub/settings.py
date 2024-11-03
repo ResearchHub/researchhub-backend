@@ -269,6 +269,10 @@ INSTALLED_APPS = [
     "new_feature_release",
     "review",
     "simple_history",
+    # Health checks
+    "health_check",
+    "health_check.db",
+    "health_check.cache",
 ]
 
 SITE_ID = 1

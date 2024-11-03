@@ -175,6 +175,11 @@ router.register(
 router.register(r"fundraise", purchase.views.FundraiseViewSet, basename="fundraise")
 
 urlpatterns = [
+    # Health check
+    path(
+        r"health/",
+        include("health_check.urls"),
+    ),
     re_path(r"^api/", include(router.urls)),
     # TODO: calvinhlee - consolidate all mod views into 1 set
     path("api/get_hub_active_contributors/", editor_views.get_hub_active_contributors),
@@ -243,7 +248,6 @@ urlpatterns = [
         name="popover_user",
     ),
     path("email_notifications/", mailing_list.views.email_notifications),
-    path("health/", researchhub.views.healthcheck),
     path("", researchhub.views.index, name="index"),
     path(
         "paper/upload/",
