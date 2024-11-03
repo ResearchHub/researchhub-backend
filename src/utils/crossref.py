@@ -1,24 +1,9 @@
 import logging
-import random
 import re
-import string
-import time
-from datetime import datetime
 
 import habanero
-import requests
 from django.apps import apps
-from django.template.loader import render_to_string
 from django.utils import timezone
-
-from researchhub.settings import (
-    BASE_FRONTEND_URL,
-    CROSSREF_API_URL,
-    CROSSREF_DOI_PREFIX,
-    CROSSREF_DOI_SUFFIX_LENGTH,
-    CROSSREF_LOGIN_ID,
-    CROSSREF_LOGIN_PASSWORD,
-)
 
 
 class Crossref:
@@ -126,67 +111,3 @@ def get_crossref_issued_date(item):
         return timezone.datetime(year, month, day)
     else:
         return None
-
-
-def generate_doi():
-    return CROSSREF_DOI_PREFIX + "".join(
-        random.choice(string.ascii_lowercase + string.digits)
-        for _ in range(CROSSREF_DOI_SUFFIX_LENGTH)
-    )
-
-
-def register_doi_for_post(authors, title, base_doi, rh_post, version=None):
-    url = f"{BASE_FRONTEND_URL}/post/{rh_post.id}/{rh_post.slug}"
-    return register_doi(authors, title, base_doi, url, version)
-
-
-def register_doi_for_paper(authors, title, base_doi, rh_paper, version=None):
-    url = f"{BASE_FRONTEND_URL}/paper/{rh_paper.id}/{rh_paper.slug}"
-    return register_doi(authors, title, base_doi, url, version)
-
-
-def register_doi(authors, title, base_doi, url, version=None):
-    dt = datetime.today()
-    contributors = []
-    if version is not None:
-        base_doi = f"{base_doi}.{version}"
-
-    for author in authors:
-        institution = None
-        if author.university:
-            place = None
-            if author.university.city:
-                place = "{author.university.city}, {author.university.state}"
-            institution = {
-                "name": author.university.name,
-                "place": place,
-            }
-
-        contributors.append(
-            {
-                "first_name": author.first_name,
-                "last_name": author.last_name,
-                "orcid": author.orcid_id,
-                "institution": institution,
-            }
-        )
-
-    context = {
-        "timestamp": int(time.time()),
-        "contributors": contributors,
-        "title": title,
-        "publication_month": dt.month,
-        "publication_day": dt.day,
-        "publication_year": dt.year,
-        "doi": base_doi,
-        "url": url,
-    }
-    crossref_xml = render_to_string("crossref.xml", context)
-    files = {
-        "operation": (None, "doMDUpload"),
-        "login_id": (None, CROSSREF_LOGIN_ID),
-        "login_passwd": (None, CROSSREF_LOGIN_PASSWORD),
-        "fname": ("crossref.xml", crossref_xml),
-    }
-    crossref_response = requests.post(CROSSREF_API_URL, files=files)
-    return crossref_response

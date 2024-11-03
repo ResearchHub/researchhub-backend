@@ -61,6 +61,7 @@ from researchhub.permissions import IsObjectOwnerOrModerator
 from researchhub_document.permissions import HasDocumentCensorPermission
 from user.related_models.author_model import Author
 from utils.crossref import generate_doi, register_doi_for_paper
+from utils.doi import DOI
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.openalex import OpenAlex
 from utils.permissions import CreateOrUpdateIfAllowed, HasAPIKey, PostOnly
@@ -268,7 +269,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
 
                 # Create paper version
                 paper_version = 1
-                base_doi = generate_doi()
+                base_doi = None
                 if previous_paper:
                     try:
                         paper_version = previous_paper.version.version + 1
@@ -283,22 +284,25 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                         )
                         paper_version = 2
 
-                crossref_response = register_doi_for_paper(
+                doi = DOI(base_doi=base_doi, version=paper_version)
+
+                crossref_response = doi.register_doi_for_paper(
                     authors=authors,
                     title=title,
-                    base_doi=base_doi,
                     rh_paper=paper,
-                    version=paper_version,
                 )
 
                 if crossref_response.status_code != 200:
                     return Response("Crossref API Failure", status=400)
 
+                paper.doi = doi.doi
+                paper.save()
+
                 PaperVersion.objects.create(
                     paper=paper,
                     version=paper_version,
                     message=change_description,
-                    base_doi=base_doi,
+                    base_doi=doi.base_doi,
                 )
 
             # Return serialized paper
