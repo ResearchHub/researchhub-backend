@@ -27,8 +27,9 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "researchhub.settings")
 
 routing = {}
 
+routing["http"] = django_asgi_app
+
 if not CELERY_WORKER:
-    routing["http"] = django_asgi_app
     routing["websocket"] = AllowedHostsOriginValidator(
         TokenAuthMiddlewareStack(
             URLRouter(
