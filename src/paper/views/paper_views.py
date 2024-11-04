@@ -60,7 +60,6 @@ from reputation.related_models.paper_reward import (
 from researchhub.permissions import IsObjectOwnerOrModerator
 from researchhub_document.permissions import HasDocumentCensorPermission
 from user.related_models.author_model import Author
-from utils.crossref import generate_doi, register_doi_for_paper
 from utils.doi import DOI
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.openalex import OpenAlex
