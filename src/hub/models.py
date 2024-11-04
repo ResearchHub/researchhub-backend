@@ -111,7 +111,6 @@ class Hub(models.Model):
         return "{}:{}, locked: {}".format(self.namespace, self.name, self.is_locked)
 
     def save(self, *args, **kwargs):
-        self.name = self.name
         self.slugify()
         return super(Hub, self).save(*args, **kwargs)
 
