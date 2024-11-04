@@ -3,11 +3,11 @@ import logging
 from django.db import IntegrityError
 from rest_framework import status, viewsets
 from rest_framework.exceptions import ValidationError
-from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
 from review.models.peer_review_model import PeerReview
 from review.serializers.peer_review_serializer import PeerReviewSerializer
+from user.permissions import IsModerator
 
 logger = logging.getLogger(__name__)
 
@@ -17,11 +17,14 @@ class PeerReviewViewSet(viewsets.ModelViewSet):
     Views for peer reviews on papers.
     """
 
-    permission_classes = [
-        IsAuthenticatedOrReadOnly,
-    ]
     queryset = PeerReview.objects.all()
     serializer_class = PeerReviewSerializer
+
+    def get_permissions(self):
+        if self.action == "list":
+            return []
+        else:
+            return [IsModerator()]
 
     def get_queryset(self):
         paper_id = self.kwargs.get("paper_id")
