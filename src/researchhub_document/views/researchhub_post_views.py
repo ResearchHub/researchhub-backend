@@ -1,11 +1,6 @@
-import random
-import string
-
-import requests
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.db import transaction
-from django.template.loader import render_to_string
 from django.utils.text import slugify
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
@@ -17,16 +12,7 @@ from discussion.reaction_views import ReactionViewActionMixin
 from hub.models import Hub
 from note.related_models.note_model import Note
 from purchase.models import Balance, Purchase
-from researchhub.settings import (
-    BASE_FRONTEND_URL,
-    CROSSREF_API_URL,
-    CROSSREF_DOI_PREFIX,
-    CROSSREF_DOI_RSC_FEE,
-    CROSSREF_DOI_SUFFIX_LENGTH,
-    CROSSREF_LOGIN_ID,
-    CROSSREF_LOGIN_PASSWORD,
-    TESTING,
-)
+from researchhub.settings import CROSSREF_DOI_RSC_FEE, TESTING
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.permissions import HasDocumentEditingPermission
 from researchhub_document.related_models.constants.document_type import (
@@ -54,7 +40,7 @@ from researchhub_document.serializers.researchhub_post_serializer import (
 )
 from researchhub_document.utils import reset_unified_document_cache
 from user.related_models.author_model import Author
-from utils.crossref import generate_doi, register_doi_for_post
+from utils.doi import DOI
 from utils.sentry import log_error
 from utils.siftscience import SIFT_POST, sift_track
 from utils.throttles import THROTTLE_CLASSES
@@ -150,7 +136,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             with transaction.atomic():
                 created_by = request.user
                 created_by_author = created_by.author_profile
-                doi = generate_doi() if assign_doi else None
+                doi = DOI() if assign_doi else None
 
                 if assign_doi and created_by.get_balance() - CROSSREF_DOI_RSC_FEE < 0:
                     return Response("Insufficient Funds", status=402)
@@ -166,7 +152,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 rh_post = ResearchhubPost.objects.create(
                     created_by=created_by,
                     document_type=document_type,
-                    doi=doi,
+                    doi=doi.doi if doi else None,
                     slug=slug,
                     editor_type=CK_EDITOR if editor_type is None else editor_type,
                     note_id=note_id,
@@ -189,8 +175,8 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                         rh_post.eln_src.save(file_name, full_src_file)
 
                 if assign_doi:
-                    crossref_response = register_doi_for_post(
-                        [created_by_author], title, doi, rh_post
+                    crossref_response = doi.register_doi_for_post(
+                        [created_by_author], title, rh_post
                     )
                     if crossref_response.status_code != 200:
                         return Response("Crossref API Failure", status=400)
@@ -245,7 +231,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         renderable_text = data.pop("renderable_text", "")
         title = data.get("title", "")
         assign_doi = data.get("assign_doi", False)
-        doi = generate_doi() if assign_doi else None
+        doi = DOI() if assign_doi else None
 
         if type(title) is not str or len(title) < MIN_POST_TITLE_LENGTH:
             return Response(
@@ -268,7 +254,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         if assign_doi and created_by.get_balance() - CROSSREF_DOI_RSC_FEE < 0:
             return Response("Insufficient Funds", status=402)
 
-        rh_post.doi = doi or rh_post.doi
+        rh_post.doi = doi.doi if doi else rh_post.doi
         rh_post.save(update_fields=["doi"])
 
         serializer = ResearchhubPostSerializer(rh_post, data=request.data, partial=True)
@@ -300,8 +286,8 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         )
 
         if assign_doi:
-            crossref_response = register_doi_for_post(
-                [created_by_author], title, doi, rh_post
+            crossref_response = doi.register_doi_for_post(
+                [created_by_author], title, rh_post
             )
             if crossref_response.status_code != 200:
                 return Response("Crossref API Failure", status=400)
