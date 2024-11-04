@@ -36,6 +36,7 @@ from citation.views import CitationEntryViewSet, CitationProjectViewSet
 from paper.views import paper_upload_views
 from researchhub.settings import INSTALLED_APPS, USE_DEBUG_TOOLBAR
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
+from review.views.peer_review_view import PeerReviewViewSet
 from review.views.review_view import ReviewViewSet
 from user.views import author_views, editor_views, moderator_view, persona_webhook_view
 
@@ -157,6 +158,12 @@ router.register(
 
 router.register(
     r"researchhub_unified_document/([0-9]+)/review", ReviewViewSet, basename="review"
+)
+
+router.register(
+    r"paper/(?P<paper_id>\d+)/peer-review",
+    PeerReviewViewSet,
+    basename="peer_review",
 )
 
 router.register(
