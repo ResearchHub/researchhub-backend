@@ -9,6 +9,7 @@ from django.template.loader import render_to_string
 import researchhub.settings as settings
 
 
+# Class for handling Digital Object Identifier (DOI) generation and registration with Crossref.
 class DOI:
     def __init__(self, base_doi=None, version=None):
         self.base_doi = base_doi
@@ -20,20 +21,24 @@ class DOI:
         if version is not None:
             self.doi = "base_doi.{version}"
 
+    # Generate a random DOI using the configured prefix ("https://doi.org/10.55277/ResearchHub.") and a random suffix.
     def generate_base_doi(self):
         return settings.CROSSREF_DOI_PREFIX + "".join(
             random.choice(string.ascii_lowercase + string.digits)
             for _ in range(settings.CROSSREF_DOI_SUFFIX_LENGTH)
         )
 
+    # Register DOI for a ResearchHub post.
     def register_doi_for_post(self, authors, title, rh_post):
         url = f"{settings.BASE_FRONTEND_URL}/post/{rh_post.id}/{rh_post.slug}"
         return self.register_doi(authors, title, url)
 
+    # Register DOI for a ResearchHub paper.
     def register_doi_for_paper(self, authors, title, rh_paper):
         url = f"{settings.BASE_FRONTEND_URL}/paper/{rh_paper.id}/{rh_paper.slug}"
         return self.register_doi(authors, title, url)
 
+    # Main method to register a DOI with Crossref.
     def register_doi(self, authors, title, url):
         dt = datetime.today()
         contributors = []
