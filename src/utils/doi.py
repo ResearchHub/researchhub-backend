@@ -58,7 +58,7 @@ class DOI:
             if author.university:
                 place = None
                 if author.university.city:
-                    place = "{author.university.city}, {author.university.state}"
+                    place = f"{author.university.city}, {author.university.state}"
                 institution = {
                     "name": author.university.name,
                     "place": place,
