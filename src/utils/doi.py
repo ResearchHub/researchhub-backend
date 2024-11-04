@@ -6,14 +6,7 @@ from datetime import datetime
 import requests
 from django.template.loader import render_to_string
 
-from researchhub.settings import (
-    BASE_FRONTEND_URL,
-    CROSSREF_API_URL,
-    CROSSREF_DOI_PREFIX,
-    CROSSREF_DOI_SUFFIX_LENGTH,
-    CROSSREF_LOGIN_ID,
-    CROSSREF_LOGIN_PASSWORD,
-)
+import researchhub.settings as settings
 
 
 class DOI:
@@ -28,17 +21,17 @@ class DOI:
             self.doi = "base_doi.{version}"
 
     def generate_base_doi(self):
-        return CROSSREF_DOI_PREFIX + "".join(
+        return settings.CROSSREF_DOI_PREFIX + "".join(
             random.choice(string.ascii_lowercase + string.digits)
-            for _ in range(CROSSREF_DOI_SUFFIX_LENGTH)
+            for _ in range(settings.CROSSREF_DOI_SUFFIX_LENGTH)
         )
 
     def register_doi_for_post(self, authors, title, rh_post):
-        url = f"{BASE_FRONTEND_URL}/post/{rh_post.id}/{rh_post.slug}"
+        url = f"{settings.BASE_FRONTEND_URL}/post/{rh_post.id}/{rh_post.slug}"
         return self.register_doi(authors, title, url)
 
     def register_doi_for_paper(self, authors, title, rh_paper):
-        url = f"{BASE_FRONTEND_URL}/paper/{rh_paper.id}/{rh_paper.slug}"
+        url = f"{settings.BASE_FRONTEND_URL}/paper/{rh_paper.id}/{rh_paper.slug}"
         return self.register_doi(authors, title, url)
 
     def register_doi(self, authors, title, url):
@@ -78,9 +71,9 @@ class DOI:
         crossref_xml = render_to_string("crossref.xml", context)
         files = {
             "operation": (None, "doMDUpload"),
-            "login_id": (None, CROSSREF_LOGIN_ID),
-            "login_passwd": (None, CROSSREF_LOGIN_PASSWORD),
+            "login_id": (None, settings.CROSSREF_LOGIN_ID),
+            "login_passwd": (None, settings.CROSSREF_LOGIN_PASSWORD),
             "fname": ("crossref.xml", crossref_xml),
         }
-        crossref_response = requests.post(CROSSREF_API_URL, files=files)
+        crossref_response = requests.post(settings.CROSSREF_API_URL, files=files)
         return crossref_response
