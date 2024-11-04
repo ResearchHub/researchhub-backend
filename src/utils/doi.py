@@ -2,44 +2,54 @@ import random
 import string
 import time
 from datetime import datetime
+from typing import List, Optional
 
 import requests
+from django.http import HttpResponse
 from django.template.loader import render_to_string
 
 import researchhub.settings as settings
+from paper.models import Paper
+from researchhub_document.models import ResearchhubPost
+from user.models import Author
 
 
 # Class for handling Digital Object Identifier (DOI) generation and registration with Crossref.
 class DOI:
-    def __init__(self, base_doi=None, version=None):
+    def __init__(
+        self, base_doi: Optional[str] = None, version: Optional[int] = None
+    ) -> None:
         self.base_doi = base_doi
         if base_doi is None:
-            self.base_doi = self.generate_base_doi()
+            self.base_doi = self._generate_base_doi()
 
-        self.doi = base_doi
-
+        self.doi = self.base_doi
         if version is not None:
-            self.doi = "base_doi.{version}"
+            self.doi = f"{base_doi}.{version}"
 
-    # Generate a random DOI using the configured prefix ("https://doi.org/10.55277/ResearchHub.") and a random suffix.
-    def generate_base_doi(self):
+    # Generate a random DOI using the configured prefix ("10.55277/ResearchHub.") and a random suffix.
+    def _generate_base_doi(self) -> str:
         return settings.CROSSREF_DOI_PREFIX + "".join(
             random.choice(string.ascii_lowercase + string.digits)
             for _ in range(settings.CROSSREF_DOI_SUFFIX_LENGTH)
         )
 
     # Register DOI for a ResearchHub post.
-    def register_doi_for_post(self, authors, title, rh_post):
+    def register_doi_for_post(
+        self, authors: List[Author], title: str, rh_post: ResearchhubPost
+    ) -> HttpResponse:
         url = f"{settings.BASE_FRONTEND_URL}/post/{rh_post.id}/{rh_post.slug}"
         return self.register_doi(authors, title, url)
 
     # Register DOI for a ResearchHub paper.
-    def register_doi_for_paper(self, authors, title, rh_paper):
+    def register_doi_for_paper(
+        self, authors: List[Author], title: str, rh_paper: Paper
+    ) -> HttpResponse:
         url = f"{settings.BASE_FRONTEND_URL}/paper/{rh_paper.id}/{rh_paper.slug}"
         return self.register_doi(authors, title, url)
 
     # Main method to register a DOI with Crossref.
-    def register_doi(self, authors, title, url):
+    def register_doi(self, authors: List[Author], title: str, url: str) -> HttpResponse:
         dt = datetime.today()
         contributors = []
 
