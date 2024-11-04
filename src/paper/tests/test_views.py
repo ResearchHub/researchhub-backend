@@ -268,7 +268,7 @@ class PaperApiTests(APITestCase):
         """Test that creating a new version of an existing paper increments the version number"""
         # Create initial paper
         original_paper = create_paper()
-        PaperVersion.objects.create(paper=original_paper, version=1)
+        PaperVersion.objects.create(paper=original_paper, version=2)
         author = Author.objects.create(first_name="Test", last_name="Author")
 
         user = create_random_authenticated_user("test_user")
@@ -291,7 +291,7 @@ class PaperApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 201)
         paper_version = PaperVersion.objects.get(paper_id=response.data["id"])
-        self.assertEqual(paper_version.version, 2)
+        self.assertEqual(paper_version.version, 3)
         self.assertEqual(paper_version.message, "Updated content")
 
     def test_create_researchhub_paper_with_valid_previous_paper_no_version(self):
