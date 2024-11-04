@@ -25,7 +25,7 @@ class DOI:
 
         self.doi = self.base_doi
         if version is not None:
-            self.doi = f"{base_doi}.{version}"
+            self.doi = f"{self.base_doi}.{version}"
 
     # Generate a random DOI using the configured prefix ("10.55277/ResearchHub.") and a random suffix.
     def _generate_base_doi(self) -> str:

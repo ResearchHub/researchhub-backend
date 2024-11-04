@@ -40,12 +40,13 @@ class TestDOI(unittest.TestCase):
     def test_init_with_version(self):
         version = 1
         doi = DOI(version=version)
-        self.assertTrue(doi.doi.endswith(f".{version}"))
+        self.assertEqual(doi.doi, f"{doi.base_doi}.{version}")
 
     def test_init_with_version_and_base_doi(self):
         base = "10.1234/test"
         version = 1
         doi = DOI(base_doi=base, version=version)
+        self.assertTrue(doi.doi.startswith(doi.base_doi))
         self.assertEqual(doi.doi, f"{base}.{version}")
 
     def test_generate_base_doi(self):
