@@ -23,8 +23,12 @@ class PeerReviewViewSet(viewsets.ModelViewSet):
     queryset = PeerReview.objects.all()
     serializer_class = PeerReviewSerializer
 
-    def initial(self, request, *args, **kwargs):
-        return super().initial(request, *args, **kwargs)
+    def get_queryset(self):
+        paper_id = self.kwargs.get("paper_id")
+        if not paper_id:
+            return PeerReview.objects.none()
+
+        return PeerReview.objects.filter(paper_id=paper_id)
 
     def create(self, request, *args, **kwargs):
         data = request.data
