@@ -65,7 +65,7 @@ class TestDOI(unittest.TestCase):
             # Add expected template name
             mock_render.return_value = "<test>xml</test>"
 
-            response = self.doi.register_doi(
+            self.doi.register_doi(
                 authors=[self.mock_author], title=self.test_title, url=self.test_url
             )
 
