@@ -31,6 +31,15 @@ class PeerReview(SoftDeletableModel, DefaultModel):
         db_comment="The user who is assigned to the peer review.",
     )
 
+    paper = models.ForeignKey(
+        "paper.Paper",
+        related_name="peer_reviews",
+        blank=False,
+        null=False,
+        on_delete=models.CASCADE,
+        db_comment="The paper that is under peer review.",
+    )
+
     comment_thread = models.ForeignKey(
         "researchhub_comment.RhCommentThreadModel",
         blank=False,
@@ -48,7 +57,7 @@ class PeerReview(SoftDeletableModel, DefaultModel):
     class Meta:
         constraints = [
             UniqueConstraint(
-                fields=["user", "comment_thread"],
-                name="unique_comment_thread_user",
+                fields=["user", "paper"],
+                name="unique_paper_user",
             ),
         ]
