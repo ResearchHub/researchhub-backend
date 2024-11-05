@@ -463,6 +463,10 @@ DATABASES = {
     }
 }
 
+# Persistent database connections.
+# See: https://docs.djangoproject.com/en/4.2/ref/databases/#persistent-database-connections
+if STAGING:
+    DATABASES["default"]["MAX_CONN_AGE"] = 180
 
 # Password validation
 # https://docs.djangoproject.com/en/2.2/ref/settings/#auth-password-validators
