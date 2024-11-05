@@ -26,7 +26,7 @@ class StorageService:
         Create a presigned URL for uploading a file to S3 that is time-limited.
         """
 
-        s3_filename = f"/uploads/{user_id}/{uuid.uuid4()}/{filename}"
+        s3_filename = f"uploads/papers/users/{user_id}/{uuid.uuid4()}/{filename}"
 
         s3_client = aws_utils.create_client("s3")
 
