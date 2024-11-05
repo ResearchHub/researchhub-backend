@@ -10,6 +10,7 @@ from django.template.loader import render_to_string
 
 import researchhub.settings as settings
 from paper.models import Paper
+from paper.related_models.authorship_model import Authorship
 from researchhub_document.models import ResearchhubPost
 from user.models import Author
 
@@ -39,22 +40,29 @@ class DOI:
         self, authors: List[Author], title: str, rh_post: ResearchhubPost
     ) -> HttpResponse:
         url = f"{settings.BASE_FRONTEND_URL}/post/{rh_post.id}/{rh_post.slug}"
-        return self.register_doi(authors, title, url)
+        return self.register_doi(authors, [], title, url)
 
     # Register DOI for a ResearchHub paper.
     def register_doi_for_paper(
         self, authors: List[Author], title: str, rh_paper: Paper
     ) -> HttpResponse:
         url = f"{settings.BASE_FRONTEND_URL}/paper/{rh_paper.id}/{rh_paper.slug}"
-        return self.register_doi(authors, title, url)
+        return self.register_doi(authors, rh_paper.authorships, title, url)
 
     # Main method to register a DOI with Crossref.
-    def register_doi(self, authors: List[Author], title: str, url: str) -> HttpResponse:
+    def register_doi(
+        self,
+        authors: List[Author],
+        authorships: List[Authorship],
+        title: str,
+        url: str,
+    ) -> HttpResponse:
         dt = datetime.today()
         contributors = []
 
         for author in authors:
             institution = author.institutions.first()
+            authorship = authorships.filter(author_id=author.id).first()
             if institution:
                 place = None
                 if institution.city:
@@ -70,7 +78,7 @@ class DOI:
                     "last_name": author.last_name,
                     "orcid": author.orcid_id,
                     "institution": institution,
-                    "department": author.authorship.department,
+                    "department": authorship.department if authorship else None,
                 }
             )
 
