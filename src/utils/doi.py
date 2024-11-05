@@ -62,7 +62,9 @@ class DOI:
 
         for author in authors:
             institution = author.institutions.first()
-            authorship = authorships.filter(author_id=author.id).first()
+            authorship = next(
+                (a for a in authorships if a.author_id == author.id), None
+            )
             if institution:
                 place = None
                 if institution.city:
