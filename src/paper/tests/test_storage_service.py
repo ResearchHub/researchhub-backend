@@ -31,7 +31,7 @@ class StorageServiceTest(TestCase):
             "put_object",
             Params={
                 "Bucket": settings.AWS_STORAGE_BUCKET_NAME,
-                "Key": f"/uploads/userId1/{uuid1}/file1.pdf",
+                "Key": f"uploads/papers/users/userId1/{uuid1}/file1.pdf",
                 "ContentType": "application/pdf",
                 "Metadata": {
                     "created-by-id": "userId1",
@@ -45,6 +45,6 @@ class StorageServiceTest(TestCase):
             url,
             storage_service.PresignedUrl(
                 url="https://presignedUrl1",
-                object_key=f"/uploads/userId1/{uuid1}/file1.pdf",
+                object_key=f"uploads/papers/users/userId1/{uuid1}/file1.pdf",
             ),
         )
