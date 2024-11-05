@@ -54,13 +54,13 @@ class DOI:
         contributors = []
 
         for author in authors:
-            institution = None
-            if author.university:
+            institution = author.institutions.first()
+            if institution:
                 place = None
-                if author.university.city:
-                    place = f"{author.university.city}, {author.university.state}"
+                if institution.city:
+                    place = f"{institution.city}, {institution.region}"
                 institution = {
-                    "name": author.university.name,
+                    "name": institution.display_name,
                     "place": place,
                 }
 
@@ -70,6 +70,7 @@ class DOI:
                     "last_name": author.last_name,
                     "orcid": author.orcid_id,
                     "institution": institution,
+                    "department": author.authorship.department,
                 }
             )
 
