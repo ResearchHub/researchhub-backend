@@ -47,7 +47,7 @@ class DOI:
         self, authors: List[Author], title: str, rh_paper: Paper
     ) -> HttpResponse:
         url = f"{settings.BASE_FRONTEND_URL}/paper/{rh_paper.id}/{rh_paper.slug}"
-        return self.register_doi(authors, rh_paper.authorships, title, url)
+        return self.register_doi(authors, rh_paper.authorships.all(), title, url)
 
     # Main method to register a DOI with Crossref.
     def register_doi(
