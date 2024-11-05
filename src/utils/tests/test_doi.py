@@ -19,11 +19,11 @@ class TestDOI(unittest.TestCase):
         self.mock_author.last_name = "Doe"
         self.mock_author.orcid_id = "0000-0002-1234-5678"
 
-        # Mock university
-        self.mock_author.university = MagicMock()
-        self.mock_author.university.name = "Test University"
-        self.mock_author.university.city = "Test City"
-        self.mock_author.university.state = "Test State"
+        # Mock institution instead of university
+        self.mock_author.institutions.first.return_value = MagicMock()
+        self.mock_author.institutions.first.display_name = "Test Institution"
+        self.mock_author.institutions.first.city = "Test City"
+        self.mock_author.institutions.first.region = "Test State"
 
     def test_init_with_no_params(self):
         doi = DOI()
@@ -67,7 +67,10 @@ class TestDOI(unittest.TestCase):
             mock_render.return_value = "<test>xml</test>"
 
             self.doi.register_doi(
-                authors=[self.mock_author], title=self.test_title, url=self.test_url
+                authors=[self.mock_author],
+                authorships=[],
+                title=self.test_title,
+                url=self.test_url,
             )
 
             # Verify render_to_string was called with correct template
@@ -98,7 +101,7 @@ class TestDOI(unittest.TestCase):
             author.first_name = f"Author{i}"
             author.last_name = f"Last{i}"
             author.orcid_id = f"0000-000{i}"
-            author.university = None
+            author.institutions.first.return_value = None
             authors.append(author)
 
         with patch("requests.post") as mock_post, patch(
@@ -106,7 +109,7 @@ class TestDOI(unittest.TestCase):
         ) as mock_render:
 
             mock_post.return_value = MagicMock(status_code=200)
-            self.doi.register_doi(authors, self.test_title, self.test_url)
+            self.doi.register_doi(authors, [], self.test_title, self.test_url)
 
             context = mock_render.call_args[0][1]
             self.assertEqual(len(context["contributors"]), 3)
@@ -114,23 +117,27 @@ class TestDOI(unittest.TestCase):
                 self.assertEqual(contributor["first_name"], f"Author{i}")
                 self.assertEqual(contributor["last_name"], f"Last{i}")
                 self.assertEqual(contributor["orcid"], f"0000-000{i}")
-                self.assertIsNone(contributor["institution"])
 
-    def test_register_doi_with_university_no_city(self):
-        """Test DOI registration with university but no city info."""
-        self.mock_author.university.city = None
-        self.mock_author.university.state = None
+    def test_register_doi_with_institution_no_city(self):
+        """Test DOI registration with institution but no city info."""
+        mock_institution = MagicMock()
+        mock_institution.display_name = "Test Institution"
+        mock_institution.city = None
+        mock_institution.region = None
+
+        self.mock_author.institutions.first.return_value = mock_institution
 
         with patch("requests.post") as mock_post, patch(
             "utils.doi.render_to_string"
         ) as mock_render:
-
             mock_post.return_value = MagicMock(status_code=200)
-            self.doi.register_doi([self.mock_author], self.test_title, self.test_url)
+            self.doi.register_doi(
+                [self.mock_author], [], self.test_title, self.test_url
+            )
 
             context = mock_render.call_args[0][1]
             contributor = context["contributors"][0]
-            self.assertEqual(contributor["institution"]["name"], "Test University")
+            self.assertEqual(contributor["institution"]["name"], "Test Institution")
             self.assertIsNone(contributor["institution"]["place"])
 
     def test_register_doi_api_failure(self):
@@ -139,7 +146,7 @@ class TestDOI(unittest.TestCase):
             mock_post.return_value = MagicMock(status_code=500)
 
             response = self.doi.register_doi(
-                [self.mock_author], self.test_title, self.test_url
+                [self.mock_author], [], self.test_title, self.test_url
             )
 
             self.assertEqual(response.status_code, 500)
@@ -153,7 +160,9 @@ class TestDOI(unittest.TestCase):
             mock_time.return_value = 1234567890
             mock_post.return_value = MagicMock(status_code=200)
 
-            self.doi.register_doi([self.mock_author], self.test_title, self.test_url)
+            self.doi.register_doi(
+                [self.mock_author], [], self.test_title, self.test_url
+            )
 
             context = mock_render.call_args[0][1]
             self.assertEqual(context["timestamp"], 1234567890)

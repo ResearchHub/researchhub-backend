@@ -165,28 +165,29 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         Create a paper with associated hubs and authors in a single request.
 
         Fields:
-        - title: string
         - abstract: string
         - authors: list[dict] - Each dict contains:
             - id: int (author ID)
             - author_position: string ("first", "middle", or "last")
+            - department: string
             - institution_id: int (optional)
             - is_corresponding: boolean
+        - change_description: string (optional)
         - hub_ids: list[int]
         - pdf_url: string
         - previous_paper_id: int (optional)
-        - change_description: string (optional)
+        - title: string
         """
         try:
             with transaction.atomic():
                 # Extract data from request
-                title = request.data.get("title")
                 abstract = request.data.get("abstract")
                 authors_data = request.data.get("authors", [])
+                change_description = request.data.get("change_description")
                 hub_ids = request.data.get("hub_ids", [])
                 pdf_url = request.data.get("pdf_url")
                 previous_paper_id = request.data.get("previous_paper_id")
-                change_description = request.data.get("change_description")
+                title = request.data.get("title")
 
                 previous_paper = None
                 if previous_paper_id:
@@ -252,6 +253,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                     authorship = Authorship.objects.create(
                         paper=paper,
                         author=author_map[author_id],
+                        department=author_data.get("department"),
                         source="RESEARCHHUB",
                         author_position=author_position,
                         raw_author_name=f"{author_map[author_id].first_name} {author_map[author_id].last_name}",

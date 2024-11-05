@@ -26,6 +26,9 @@
 							{% if contributor.institution.place %}
 							<institution_place>{{ contributor.institution.place }}</institution_place>
 							{% endif %}
+							{% if contributor.department %}
+							<department>{{ contributor.department }}</department>
+							{% endif %}
 						</institution>
 						{% endif %}
 						{% if contributor.orcid %}

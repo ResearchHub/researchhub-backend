@@ -44,6 +44,12 @@ class Authorship(DefaultModel):
         blank=False,
     )
 
+    department = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+    )
+
     is_corresponding = models.BooleanField(
         default=False,
     )
