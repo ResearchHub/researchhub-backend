@@ -42,6 +42,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
         actions = (
             self.get_filtered_queryset()
             .exclude(Q(is_removed=True) | Q(display=False))
+            .exclude(user__is_active=False)
             .filter(
                 user__isnull=False,
                 content_type__model__in=self._get_allowed_models(),

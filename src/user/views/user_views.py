@@ -163,6 +163,8 @@ class UserViewSet(viewsets.ModelViewSet):
         user_to_censor = User.objects.get(author_profile__id=author_id)
         user_to_censor.set_probable_spammer()
         user_to_censor.set_suspended()
+        user_to_censor.is_active = False
+        user_to_censor.save()
         handle_spam_user_task(user_to_censor.id, request.user)
 
         return Response({"message": "User is Censored"}, status=200)
@@ -746,6 +748,7 @@ class UserViewSet(viewsets.ModelViewSet):
     def reinstate(self, request):
         author_id = request.data["author_id"]
         user = Author.objects.get(id=author_id).user
+        user.is_active = True
         user.is_suspended = False
         user.probable_spammer = False
         user.save()
@@ -791,6 +794,9 @@ class UserViewSet(viewsets.ModelViewSet):
                         f"Suspending User - {user.id}: {user.first_name} {user.last_name} - {decision_id}"
                     )
                     user.set_suspended(is_manual=False)
+                    user.is_active = False
+                    user.save()
+
             serialized = UserSerializer(user)
             return Response(serialized.data, status=200)
         else:
