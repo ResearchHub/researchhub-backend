@@ -1,6 +1,5 @@
 import logging
 
-from django.db import IntegrityError
 from rest_framework import status, viewsets
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
@@ -43,16 +42,6 @@ class PeerReviewViewSet(viewsets.ModelViewSet):
             return Response(
                 {"message": e.detail},
                 status=status.HTTP_400_BAD_REQUEST,
-            )
-        except IntegrityError as e:
-            logger.warning(
-                "Failed to insert peer review for paper %s: %s",
-                paper,
-                e,
-            )
-            return Response(
-                {"message": "Invalid request"},
-                status=status.HTTP_409_CONFLICT,
             )
         except Exception as e:
             logger.error(
