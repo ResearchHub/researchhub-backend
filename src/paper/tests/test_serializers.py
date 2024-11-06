@@ -5,6 +5,8 @@ from hub.tests.helpers import create_hub
 from paper.models import PaperVersion
 from paper.serializers import DynamicPaperSerializer, PaperSerializer
 from paper.tests import helpers
+from review.models.peer_review_model import PeerReview
+from user.tests.helpers import create_random_default_user
 
 
 class PaperSerializersTests(TestCase):
@@ -141,3 +143,20 @@ class PaperSerializersTests(TestCase):
                 },
             ],
         )
+
+    def test_peer_reviews(self):
+        # Arrange
+        paper = helpers.create_paper(title="paper1")
+        user1 = create_random_default_user("user1")
+        user2 = create_random_default_user("user2")
+        peer_review1 = PeerReview.objects.create(paper=paper, user=user1)
+        peer_review2 = PeerReview.objects.create(paper=paper, user=user2)
+
+        # Act
+        actual = DynamicPaperSerializer(paper)
+
+        # Assert
+        self.assertTrue(len(actual.data["peer_reviews"]) == 2)
+        peer_review_ids = {review["id"] for review in actual.data["peer_reviews"]}
+        expected_ids = {peer_review1.id, peer_review2.id}
+        self.assertEqual(peer_review_ids, expected_ids)
