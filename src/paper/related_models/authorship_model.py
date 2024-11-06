@@ -50,6 +50,12 @@ class Authorship(DefaultModel):
         blank=True,
     )
 
+    email = models.EmailField(
+        max_length=255,
+        null=True,
+        blank=True,
+    )
+
     is_corresponding = models.BooleanField(
         default=False,
     )

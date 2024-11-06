@@ -170,6 +170,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             - id: int (author ID)
             - author_position: string ("first", "middle", or "last")
             - department: string
+            - email: string (optional)
             - institution_id: int (optional)
             - is_corresponding: boolean
         - change_description: string (optional)
@@ -254,6 +255,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                         paper=paper,
                         author=author_map[author_id],
                         department=author_data.get("department"),
+                        email=author_data.get("email"),
                         source="RESEARCHHUB",
                         author_position=author_position,
                         raw_author_name=f"{author_map[author_id].first_name} {author_map[author_id].last_name}",
