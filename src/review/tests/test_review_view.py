@@ -1,5 +1,3 @@
-from unittest import skip
-
 from rest_framework.test import APITestCase
 
 from discussion.tests.helpers import create_paper
