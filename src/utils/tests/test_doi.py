@@ -19,11 +19,16 @@ class TestDOI(unittest.TestCase):
         self.mock_author.last_name = "Doe"
         self.mock_author.orcid_id = "0000-0002-1234-5678"
 
-        # Mock institution instead of university
-        self.mock_author.institutions.first.return_value = MagicMock()
-        self.mock_author.institutions.first.display_name = "Test Institution"
-        self.mock_author.institutions.first.city = "Test City"
-        self.mock_author.institutions.first.region = "Test State"
+        # Create nested mock for institution
+        mock_author_institution = MagicMock()
+        mock_institution = MagicMock()
+        mock_institution.display_name = "Test Institution"
+        mock_institution.city = "Test City"
+        mock_institution.region = "Test State"
+        mock_author_institution.institution = mock_institution
+
+        # Update author's institutions mock
+        self.mock_author.institutions.first.return_value = mock_author_institution
 
     def test_init_with_no_params(self):
         doi = DOI()
@@ -120,12 +125,15 @@ class TestDOI(unittest.TestCase):
 
     def test_register_doi_with_institution_no_city(self):
         """Test DOI registration with institution but no city info."""
+        # Create nested mock for institution without city
+        mock_author_institution = MagicMock()
         mock_institution = MagicMock()
         mock_institution.display_name = "Test Institution"
         mock_institution.city = None
         mock_institution.region = None
+        mock_author_institution.institution = mock_institution
 
-        self.mock_author.institutions.first.return_value = mock_institution
+        self.mock_author.institutions.first.return_value = mock_author_institution
 
         with patch("requests.post") as mock_post, patch(
             "utils.doi.render_to_string"
