@@ -178,6 +178,7 @@ class PaperApiTests(APITestCase):
         paper = Paper.objects.get(id=response.data["id"])
         self.assertEqual(paper.title, "Test Paper")
         self.assertEqual(paper.abstract, "Test abstract")
+        self.assertEqual(paper.pdf_license, "cc-by-nc-4.0")
         hubs = paper.unified_document.hubs.all()
         self.assertEqual(len(hubs), 1)
         self.assertEqual(hubs[0].id, hub.id)
