@@ -650,8 +650,16 @@ def pdf_copyright_allows_display(paper):
     if is_pdf_removed_by_moderator:
         return False
 
-    # we can only show papers that allow for commercial use
-    if license in ["cc-by", "cc-by-sa", "cc-by-nd", "public-domain", "mit", "pd"]:
+    # If the license starts with cc-by, it allows for commercial use
+    if license.startswith("cc-by"):
+        return True
+
+    # In addition, we can only show the following licenses allowed for commercial use
+    if license in [
+        "public-domain",
+        "mit",
+        "pd",
+    ]:
         return True
 
     # only rely on oa_status if license is null or unknown

@@ -229,6 +229,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                     "abstract": abstract,
                     "uploaded_by": request.user,
                     "paper_publish_date": timezone.now(),
+                    "pdf_license": "cc-by-nc-4.0",
                 }
 
                 if pdf_url:
