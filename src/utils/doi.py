@@ -61,16 +61,17 @@ class DOI:
         contributors = []
 
         for author in authors:
-            institution = author.institutions.first()
+            author_institution = author.institutions.first()
             authorship = next(
                 (a for a in authorships if a.author_id == author.id), None
             )
-            if institution:
+            institution = None
+            if author_institution:
                 place = None
-                if institution.city:
-                    place = f"{institution.city}, {institution.region}"
+                if author_institution.institution.city:
+                    place = f"{author_institution.institution.city}, {author_institution.institution.region}"
                 institution = {
-                    "name": institution.display_name,
+                    "name": author_institution.institution.display_name,
                     "place": place,
                 }
 
