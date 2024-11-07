@@ -196,6 +196,9 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https:\/\/(\w)*[-]*(researchhub+)([-](\w)*)*(.vercel.app){1}/",
 ]
 
+# Health check
+
+HEALTH_CHECK_TOKEN = os.environ.get("HEALTH_CHECK_TOKEN", keys.HEALTH_CHECK_TOKEN)
 
 # Application definition
 
