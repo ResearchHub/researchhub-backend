@@ -46,6 +46,7 @@ from reputation.tasks import create_contribution
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
 from researchhub_document.utils import update_unified_document_to_paper
+from review.serializers.peer_review_serializer import PeerReviewSerializer
 from user.models import Author
 from user.serializers import (
     AuthorSerializer,
@@ -856,6 +857,7 @@ class DynamicPaperSerializer(
     file = serializers.SerializerMethodField()
     pdf_url = serializers.SerializerMethodField()
     pdf_copyright_allows_display = serializers.SerializerMethodField()
+    peer_reviews = PeerReviewSerializer(many=True, read_only=True)
     version = serializers.SerializerMethodField()
     version_list = serializers.SerializerMethodField()
 
