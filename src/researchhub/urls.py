@@ -184,7 +184,8 @@ router.register(r"fundraise", purchase.views.FundraiseViewSet, basename="fundrai
 urlpatterns = [
     # Health check
     path(
-        r"health/",
+        r"health/"
+        + (settings.HEALTH_CHECK_TOKEN + "/" if settings.HEALTH_CHECK_TOKEN else ""),
         include("health_check.urls"),
     ),
     re_path(r"^api/", include(router.urls)),
