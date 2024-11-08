@@ -34,7 +34,7 @@ import search.urls
 import user.views
 from citation.views import CitationEntryViewSet, CitationProjectViewSet
 from paper.views import paper_upload_views
-from researchhub.settings import INSTALLED_APPS, USE_DEBUG_TOOLBAR
+from researchhub import settings
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from review.views.peer_review_view import PeerReviewViewSet
 from review.views.review_view import ReviewViewSet
@@ -184,7 +184,8 @@ router.register(r"fundraise", purchase.views.FundraiseViewSet, basename="fundrai
 urlpatterns = [
     # Health check
     path(
-        r"health/",
+        r"health/"
+        + (settings.HEALTH_CHECK_TOKEN + "/" if settings.HEALTH_CHECK_TOKEN else ""),
         include("health_check.urls"),
     ),
     re_path(r"^api/", include(router.urls)),
@@ -269,10 +270,10 @@ urlpatterns = [
     ),
 ]
 
-if "silk" in INSTALLED_APPS:
+if "silk" in settings.INSTALLED_APPS:
     urlpatterns = [
         path("silk/", include("silk.urls", namespace="silk")),
     ] + urlpatterns
 
-if USE_DEBUG_TOOLBAR:
+if settings.USE_DEBUG_TOOLBAR:
     urlpatterns += [path("__debug__/", include(debug_toolbar.urls))]
