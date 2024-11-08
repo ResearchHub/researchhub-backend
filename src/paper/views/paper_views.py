@@ -279,7 +279,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 if previous_paper:
                     try:
                         paper_version = previous_paper.version
-                        original_paper_id = paper_version.id
+                        original_paper_id = paper_version.paper_id
                         paper_version_number = paper_version.version + 1
                         if previous_paper.version.base_doi:
                             base_doi = previous_paper.version.base_doi
@@ -292,7 +292,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                         PaperVersion.objects.create(
                             paper=previous_paper,
                             version=1,
-                            original_paper_id=original_paper_id.id,
+                            original_paper_id=original_paper_id,
                         )
                         paper_version_number = 2
 
@@ -315,6 +315,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                     version=paper_version_number,
                     message=change_description,
                     base_doi=doi.base_doi,
+                    original_paper_id=original_paper_id,
                 )
 
             # Return serialized paper
