@@ -47,9 +47,14 @@ class PaperSerializersTests(TestCase):
         )
 
     def test_paper_serializer_paper_versions(self):
+        # Create first paper and version
         paper = helpers.create_paper(title="Serialized Paper Title")
         PaperVersion.objects.create(
-            paper=paper, version=1, base_doi="10.1234/test", message="Test Message"
+            paper=paper,
+            version=1,
+            base_doi="10.1234/test",
+            message="Test Message",
+            original_paper=paper,  # Add original_paper reference
         )
 
         serialized = PaperSerializer(paper)
@@ -67,12 +72,17 @@ class PaperSerializersTests(TestCase):
             ],
         )
 
-        # Create another version
+        # Create second version
         paper2 = helpers.create_paper(title="Serialized Paper Title V2")
         PaperVersion.objects.create(
-            paper=paper2, version=2, base_doi="10.1234/test", message="Test Message 2"
+            paper=paper2,
+            version=2,
+            base_doi="10.1234/test",
+            message="Test Message 2",
+            original_paper=paper,  # Link to original paper
         )
 
+        # Test serialization of both versions
         serialized2 = PaperSerializer(paper2)
         self.assertEqual(serialized2.data["version"], 2)
         self.assertEqual(
@@ -96,9 +106,14 @@ class PaperSerializersTests(TestCase):
         )
 
     def test_dynamic_paper_serializer_paper_versions(self):
+        # Create first paper and version
         paper = helpers.create_paper(title="Serialized Paper Title")
         PaperVersion.objects.create(
-            paper=paper, version=1, base_doi="10.1234/test", message="Test Message"
+            paper=paper,
+            version=1,
+            base_doi="10.1234/test",
+            message="Test Message",
+            original_paper=paper,  # Add original_paper reference
         )
 
         serialized = DynamicPaperSerializer(paper)
@@ -116,12 +131,17 @@ class PaperSerializersTests(TestCase):
             ],
         )
 
-        # Create another version
+        # Create second version
         paper2 = helpers.create_paper(title="Serialized Paper Title V2")
         PaperVersion.objects.create(
-            paper=paper2, version=2, base_doi="10.1234/test", message="Test Message 2"
+            paper=paper2,
+            version=2,
+            base_doi="10.1234/test",
+            message="Test Message 2",
+            original_paper=paper,  # Link to original paper
         )
 
+        # Test serialization of both versions
         serialized2 = DynamicPaperSerializer(paper2)
         self.assertEqual(serialized2.data["version"], 2)
         self.assertEqual(
