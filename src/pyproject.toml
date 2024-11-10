@@ -8,7 +8,6 @@ authors = ["Your Name <you@example.com>"]
 arxiv = "^1.4.8"
 beautifulsoup4 = "4.12.2"
 bibtexparser = {version = "^2.0.0b3", allow-prereleases = true}
-black = "24.4.2"
 boto3 = "1.34.69"
 celery = "5.4.0"
 celery-redbeat = "2.2.0"
@@ -80,6 +79,7 @@ web3 = {version = "6.17.1", extras = ["tester"]}
 xmltodict = "0.12.0"
 
 [tool.poetry.dev-dependencies]
+black = "24.4.2"
 pre-commit = "2.17.0"
 
 [tool.poetry.group.dev.dependencies]
