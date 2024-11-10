@@ -3,7 +3,7 @@ set -e
 
 # Install dependencies
 poetry install --directory=src
-pip install -r src/requirements.txt --no-deps
+pip install -r src/requirements-dev.txt --no-deps
 
 cd src
 # Apply database migrations
