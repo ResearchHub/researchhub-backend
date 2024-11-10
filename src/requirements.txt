@@ -2406,8 +2406,8 @@ setuptools==75.3.0 ; python_version >= "3.11" and python_version < "4.0" \
     --hash=sha256:fba5dd4d766e97be1b1681d98712680ae8f2f26d7881245f2ce9e40714f1a686
 sgmllib3k==1.0.0 ; python_version >= "3.11" and python_version < "4.0" \
     --hash=sha256:7868fb1c8bfa764c1ac563d3cf369c381d1325d36124933a726f29fcdaa812e9
-sift==5.4.0 ; python_version >= "3.11" and python_version < "4.0" \
-    --hash=sha256:9d4568ac4bdbfdc48daf9d76beb8d7cb932cd1e127441aba66eb520e480dbc22
+sift==5.6.1 ; python_version >= "3.11" and python_version < "4.0" \
+    --hash=sha256:611589dcd75cfb733051475b8ceb23a675d034d2876b0b88c064126de0349a99
 six==1.16.0 ; python_version >= "3.11" and python_version < "4.0" \
     --hash=sha256:1e61c37477a1626458e36f7b1d82aa5c9b094fa4802892072e49de9c60c4c926 \
     --hash=sha256:8abb2f1d86890a2dfb989f9a77cfcfd3e47c2a354b01111771326f8aa26e0254
