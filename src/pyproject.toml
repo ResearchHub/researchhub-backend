@@ -60,7 +60,6 @@ pandas = "^2.2.3"
 pdf2doi = "1.5"
 Pillow = "10.4.0"
 postgres = "^4.0"
-pre-commit = "2.17.0"
 psycopg2-binary = "2.9.10"
 PyJWT = "2.8.0"
 PyMuPDF = "1.21.0"
@@ -81,6 +80,7 @@ web3 = {version = "6.17.1", extras = ["tester"]}
 xmltodict = "0.12.0"
 
 [tool.poetry.dev-dependencies]
+pre-commit = "2.17.0"
 
 [tool.poetry.group.dev.dependencies]
 coverage = ">=7.6.1"
