@@ -1463,17 +1463,17 @@ with-social = ["django-allauth (>=0.40.0,<0.53.0)"]
 
 [[package]]
 name = "django"
-version = "4.2.16"
+version = "5.1.3"
 description = "A high-level Python web framework that encourages rapid development and clean, pragmatic design."
 optional = false
-python-versions = ">=3.8"
+python-versions = ">=3.10"
 files = [
-    {file = "Django-4.2.16-py3-none-any.whl", hash = "sha256:1ddc333a16fc139fd253035a1606bb24261951bbc3a6ca256717fa06cc41a898"},
-    {file = "Django-4.2.16.tar.gz", hash = "sha256:6f1616c2786c408ce86ab7e10f792b8f15742f7b7b7460243929cb371e7f1dad"},
+    {file = "Django-5.1.3-py3-none-any.whl", hash = "sha256:8b38a9a12da3ae00cb0ba72da985ec4b14de6345046b1e174b1fd7254398f818"},
+    {file = "Django-5.1.3.tar.gz", hash = "sha256:c0fa0e619c39325a169208caef234f90baa925227032ad3f44842ba14d75234a"},
 ]
 
 [package.dependencies]
-asgiref = ">=3.6.0,<4"
+asgiref = ">=3.8.1,<4"
 sqlparse = ">=0.3.1"
 tzdata = {version = "*", markers = "sys_platform == \"win32\""}
 
@@ -1688,17 +1688,17 @@ files = [
 
 [[package]]
 name = "django-mjml"
-version = "1.2"
+version = "1.3"
 description = "Use MJML in Django templates"
 optional = false
 python-versions = ">=3.6"
 files = [
-    {file = "django-mjml-1.2.tar.gz", hash = "sha256:5a8a670614602016bac11470a0499b77c451768af32ed253983c80597bb2f449"},
-    {file = "django_mjml-1.2-py3-none-any.whl", hash = "sha256:6ede759763f46f74fb0f9346e9b10d282bb88599c077aaa11939cfb67e3b2845"},
+    {file = "django_mjml-1.3-py3-none-any.whl", hash = "sha256:a8eb15f32b6a9c497da48bff36e998b61dcf9bca2c44f3d98c7517e9edd06fe6"},
+    {file = "django_mjml-1.3.tar.gz", hash = "sha256:d6d2f6cf664f2f7d7e42e12dd1587a45545a7f43393b8dc1a574382975150516"},
 ]
 
 [package.dependencies]
-django = ">=2.2,<5.1"
+django = ">=2.2,<5.2"
 
 [package.extras]
 requests = ["requests (>=2.24)"]
@@ -6136,4 +6136,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "1b7ba5086b8506ae39f7f26808328f5411744ef3a2fe86415c426f9016aecd21"
+content-hash = "177610691678ea0c497d569eaae1f7ec79523f3368ac806bd39ae167e117020a"
