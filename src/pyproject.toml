@@ -42,7 +42,6 @@ elastic-apm = "6.13.2"
 elasticsearch = "7.13.4"
 elasticsearch-dsl = "7.3.0"
 feedparser = "6.0.8"
-flake8 = "5.0.4"
 flower = "^2.0.1"
 google-api-python-client = "1.12.1"
 habanero = "1.0.0"
@@ -80,6 +79,7 @@ xmltodict = "0.12.0"
 
 [tool.poetry.dev-dependencies]
 black = "24.4.2"
+flake8 = "5.0.4"
 pre-commit = "2.17.0"
 
 [tool.poetry.group.dev.dependencies]
