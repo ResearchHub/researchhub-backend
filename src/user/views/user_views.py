@@ -64,7 +64,7 @@ class UserViewSet(viewsets.ModelViewSet):
     serializer_class = UserEditableSerializer
     permission_classes = [IsAuthenticatedOrReadOnly, DeleteUserPermission]
     filter_backends = (DjangoFilterBackend,)
-    filter_class = UserFilter
+    filterset_class = UserFilter
 
     def get_serializer_class(self):
         if self.request.GET.get("referral_code") or self.request.GET.get("invited_by"):
