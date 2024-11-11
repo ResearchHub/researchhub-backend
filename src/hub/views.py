@@ -63,7 +63,7 @@ class HubViewSet(viewsets.ModelViewSet):
     ]
     pagination_class = CustomPageLimitPagination
     throttle_classes = THROTTLE_CLASSES
-    filter_class = HubFilter
+    filterset_class = HubFilter
     search_fields = "name"
 
     def get_serializer_context(self):
