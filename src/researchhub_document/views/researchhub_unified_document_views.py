@@ -3,6 +3,7 @@ from urllib.parse import urlencode
 import boto3
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
+from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
@@ -824,7 +825,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
     @action(detail=True, methods=["get"], permission_classes=[AllowAny])
     def get_document_metadata(self, request, pk=None):
-        unified_document = self.get_object()
+        unified_document = get_object_or_404(ResearchhubUnifiedDocument, pk=pk)
         metadata_context = self._get_document_metadata_context()
 
         serializer = self.dynamic_serializer_class(
