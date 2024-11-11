@@ -1,8 +1,6 @@
-from time import perf_counter
 from urllib.parse import urlencode
 
 import boto3
-from dateutil import parser
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.urls import reverse
@@ -11,16 +9,14 @@ from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.utils.urls import replace_query_param
 from rest_framework.viewsets import ModelViewSet
 
 from discussion.models import Vote as GrmVote
 from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
-from hub.models import Hub
 from paper.models import Paper
 from paper.utils import get_cache_key
 from researchhub.settings import AWS_REGION_NAME
-from researchhub_document.filters import TIME_SCOPE_CHOICES, UnifiedDocumentFilter
+from researchhub_document.filters import UnifiedDocumentFilter
 from researchhub_document.models import (
     FeaturedContent,
     ResearchhubPost,
@@ -43,14 +39,9 @@ from researchhub_document.serializers import (
     DynamicUnifiedDocumentSerializer,
     ResearchhubUnifiedDocumentSerializer,
 )
-from researchhub_document.utils import (
-    get_date_ranges_by_time_scope,
-    get_doc_type_key,
-    reset_unified_document_cache,
-)
+from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
 from researchhub_document.views.custom.unified_document_pagination import (
     UNIFIED_DOC_PAGE_SIZE,
-    UnifiedDocPagination,
 )
 from user.permissions import IsModerator
 from user.utils import reset_latest_acitvity_cache
