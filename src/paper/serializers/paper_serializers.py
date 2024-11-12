@@ -349,7 +349,9 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
             ]
 
         paper_versions = (
-            PaperVersion.objects.filter(base_doi=paper_version.base_doi)
+            PaperVersion.objects.filter(
+                original_paper_id=paper_version.original_paper_id
+            )
             .select_related("paper")
             .order_by("version")
         )
@@ -1102,7 +1104,9 @@ class DynamicPaperSerializer(
             ]
 
         paper_versions = (
-            PaperVersion.objects.filter(base_doi=paper_version.base_doi)
+            PaperVersion.objects.filter(
+                original_paper_id=paper_version.original_paper_id
+            )
             .select_related("paper")
             .order_by("version")
         )

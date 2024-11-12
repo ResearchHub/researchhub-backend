@@ -273,23 +273,30 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                     paper.unified_document.hubs.add(*hub_ids)
 
                 # Create paper version
-                paper_version = 1
+                paper_version_number = 1
                 base_doi = None
+                original_paper_id = paper.id
                 if previous_paper:
                     try:
-                        paper_version = previous_paper.version.version + 1
+                        paper_version = previous_paper.version
+                        original_paper_id = paper_version.paper_id
+                        paper_version_number = paper_version.version + 1
                         if previous_paper.version.base_doi:
                             base_doi = previous_paper.version.base_doi
                     except PaperVersion.DoesNotExist:
                         # If the previous paper version does not exist, create the initial version
                         # and set the current version to 2.
+                        original_paper_id = (
+                            previous_paper.id
+                        )  # The original paper was created outside of ResearchHub
                         PaperVersion.objects.create(
                             paper=previous_paper,
                             version=1,
+                            original_paper_id=original_paper_id,
                         )
-                        paper_version = 2
+                        paper_version_number = 2
 
-                doi = DOI(base_doi=base_doi, version=paper_version)
+                doi = DOI(base_doi=base_doi, version=paper_version_number)
 
                 crossref_response = doi.register_doi_for_paper(
                     authors=authors,
@@ -305,9 +312,10 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
 
                 PaperVersion.objects.create(
                     paper=paper,
-                    version=paper_version,
+                    version=paper_version_number,
                     message=change_description,
                     base_doi=doi.base_doi,
+                    original_paper_id=original_paper_id,
                 )
 
             # Return serialized paper

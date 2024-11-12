@@ -958,6 +958,9 @@ class PaperVersion(models.Model):
     )
     version = models.IntegerField(default=1)
     base_doi = models.CharField(max_length=255, default=None, null=True, blank=True)
+    original_paper = models.ForeignKey(
+        "Paper", related_name="original_paper", null=True, on_delete=models.SET_NULL
+    )
     message = models.TextField(default=None, null=True, blank=True)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
