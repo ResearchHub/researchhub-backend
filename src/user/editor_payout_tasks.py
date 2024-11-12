@@ -6,6 +6,7 @@ from calendar import monthrange
 import requests
 from django.apps import apps
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import F, Q
 
 from hub.models import Hub
 from purchase.related_models.constants.currency import USD
@@ -14,7 +15,11 @@ from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import Distribution  # this is NOT the model
 from reputation.related_models.distribution import Distribution as DistributionModel
 from researchhub.settings import APP_ENV, MORALIS_API_KEY, WEB3_RSC_ADDRESS
-from researchhub_access_group.constants import EDITOR
+from researchhub_access_group.constants import (
+    ASSISTANT_EDITOR,
+    ASSOCIATE_EDITOR,
+    SENIOR_EDITOR,
+)
 from user.constants.gatekeeper_constants import (
     EDITOR_PAYOUT_ADMIN,
     PAYOUT_EXCLUSION_LIST,
@@ -25,7 +30,9 @@ from utils import sentry
 UNI_SWAP_BUNDLE_ID = 1  # their own hard-coded eth-bundle id
 UNI_SWAP_GRAPH_URI = "https://api.thegraph.com/subgraphs/name/uniswap/uniswap-v2"
 # TODO: calvinhlee consider moving these to ENV variable
-USD_PAY_AMOUNT_PER_MONTH = 1000
+ASSISTANT_EDITOR_USD_PAY_AMOUNT_PER_MONTH = 1000
+ASSOCIATE_EDITOR_USD_PAY_AMOUNT_PER_MONTH = 1500
+SENIOR_EDITOR_USD_PAY_AMOUNT_PER_MONTH = 2000
 USD_PER_RSC_PRICE_FLOOR = 0.01
 
 MORALIS_LOOKUP_URI = (
@@ -55,7 +62,7 @@ def editor_daily_payout_task():
         except Exception as error:
             # NOTE: moralis is a back up. Backup failing should not hard kill payout process.
             sentry.log_info(f"{APP_ENV}-running payout moralis Fail: {error}")
-            pass
+
         result = gecko_result or moralis_result
 
         excluded_user_email = Gatekeeper.objects.filter(
@@ -63,20 +70,23 @@ def editor_daily_payout_task():
         ).values_list("email", flat=True)
 
         editors = (
-            User.objects.filter(
-                permissions__isnull=False,
-                permissions__access_type=EDITOR,
-                permissions__content_type=ContentType.objects.get_for_model(Hub),
-            )
-            .distinct()
+            User.objects.editors()
             .exclude(email__in=(excluded_user_email))
+            .annotate(editor_type=F("permissions__access_type"))
         )
 
         from reputation.distributor import Distributor
 
         for editor in editors.iterator():
             try:
-                pay_amount = result["pay_amount"]
+                editor_type = editor.editor_type
+                if editor_type == SENIOR_EDITOR:
+                    pay_amount = result["senior_pay_amount"]
+                elif editor_type == ASSOCIATE_EDITOR:
+                    pay_amount = result["associate_pay_amount"]
+                else:
+                    pay_amount = result["assistant_pay_amount"]
+
                 distributor = Distributor(
                     # this is NOT the model. It's a simple object
                     Distribution("EDITOR_PAYOUT", pay_amount, False),
@@ -115,8 +125,18 @@ def get_daily_rsc_payout_amount_from_coin_gecko(num_days_this_month):
     return {
         "rate": recent_coin_gecko_rate.rate,
         "real_rate": recent_coin_gecko_rate.real_rate,
-        "pay_amount": (
-            USD_PAY_AMOUNT_PER_MONTH
+        "assistant_pay_amount": (
+            ASSISTANT_EDITOR_USD_PAY_AMOUNT_PER_MONTH
+            * math.pow(gecko_payout_usd_per_rsc, -1)
+            / num_days_this_month
+        ),
+        "associate_pay_amount": (
+            ASSOCIATE_EDITOR_USD_PAY_AMOUNT_PER_MONTH
+            * math.pow(gecko_payout_usd_per_rsc, -1)
+            / num_days_this_month
+        ),
+        "senior_pay_amount": (
+            SENIOR_EDITOR_USD_PAY_AMOUNT_PER_MONTH
             * math.pow(gecko_payout_usd_per_rsc, -1)
             / num_days_this_month
         ),
@@ -138,8 +158,18 @@ def get_daily_rsc_payout_amount_from_deep_index(num_days_this_month):
     result = {
         "rate": payout_usd_per_rsc,
         "real_rate": real_usd_per_rsc,
-        "pay_amount": (
-            USD_PAY_AMOUNT_PER_MONTH
+        "assistant_pay_amount": (
+            ASSISTANT_EDITOR_USD_PAY_AMOUNT_PER_MONTH
+            * math.pow(payout_usd_per_rsc, -1)
+            / num_days_this_month
+        ),
+        "associate_pay_amount": (
+            ASSOCIATE_EDITOR_USD_PAY_AMOUNT_PER_MONTH
+            * math.pow(payout_usd_per_rsc, -1)
+            / num_days_this_month
+        ),
+        "senior_pay_amount": (
+            SENIOR_EDITOR_USD_PAY_AMOUNT_PER_MONTH
             * math.pow(payout_usd_per_rsc, -1)
             / num_days_this_month
         ),
@@ -153,31 +183,3 @@ def get_daily_rsc_payout_amount_from_deep_index(num_days_this_month):
     )
 
     return result
-
-
-def get_daily_rsc_payout_amount_from_uniswap(num_days_this_month):
-    today = datetime.date.today()
-    num_days_this_month = monthrange(today.year, today.month)[1]
-
-    uni_swap_query = """{
-        rsc: token(id: "%s") {
-          derivedETH
-        }
-        bundle(id: %i) {
-          ethPrice
-        }
-    }""" % (
-        WEB3_RSC_ADDRESS,
-        UNI_SWAP_BUNDLE_ID,
-    )
-
-    request_result = requests.post(
-        UNI_SWAP_GRAPH_URI, json={"query": uni_swap_query}, timeout=1
-    )
-    payload = json.loads(request_result.text).data
-
-    eth_per_rsc = float(payload["rsc"]["derivedETH"])
-    usd_per_eth = float(payload["bundle"]["ethPrice"])
-    rsc_per_usd = math.pow((usd_per_eth * eth_per_rsc) or USD_PER_RSC_PRICE_FLOOR, -1)
-
-    return USD_PAY_AMOUNT_PER_MONTH * rsc_per_usd / num_days_this_month

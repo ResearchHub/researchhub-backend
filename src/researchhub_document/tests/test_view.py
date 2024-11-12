@@ -9,7 +9,7 @@ from note.tests.helpers import create_note
 from paper.tests.helpers import create_paper
 from reputation.distributions import Distribution
 from reputation.distributor import Distributor
-from researchhub_access_group.constants import EDITOR
+from researchhub_access_group.constants import SENIOR_EDITOR
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.related_models.author_model import Author
@@ -422,7 +422,7 @@ class ViewTests(APITestCase):
         hub = create_hub()
         user_editor = create_random_default_user("user_editor")
         Permission.objects.create(
-            access_type=EDITOR,
+            access_type=SENIOR_EDITOR,
             content_type=ContentType.objects.get_for_model(Hub),
             object_id=hub.id,
             user=user_editor,
@@ -446,7 +446,7 @@ class ViewTests(APITestCase):
         hub = create_hub()
         user_editor = create_random_default_user("user_editor")
         Permission.objects.create(
-            access_type=EDITOR,
+            access_type=SENIOR_EDITOR,
             content_type=ContentType.objects.get_for_model(Hub),
             object_id=hub.id,
             user=user_editor,

@@ -2,7 +2,6 @@ import uuid
 
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.contrib.contenttypes.models import ContentType
-from django.core.exceptions import ObjectDoesNotExist
 from django.db import models
 from django.db.models import DecimalField, Q, Sum, Value
 from django.db.models.functions import Cast, Coalesce
@@ -10,16 +9,13 @@ from django.utils import timezone
 
 from hub.models import Hub
 from mailing_list.models import EmailRecipient
-from reputation.models import (
-    Bounty,
-    Contribution,
-    Distribution,
-    PaidStatusModelMixin,
-    Score,
-    Withdrawal,
-)
+from reputation.models import Bounty, Distribution, PaidStatusModelMixin, Withdrawal
 from researchhub.settings import ASSETS_BASE_URL, BASE_FRONTEND_URL, NO_ELASTIC
-from researchhub_access_group.constants import EDITOR
+from researchhub_access_group.constants import (
+    ASSISTANT_EDITOR,
+    ASSOCIATE_EDITOR,
+    SENIOR_EDITOR,
+)
 from user.tasks import update_elastic_registry
 from utils.message import send_email_message
 from utils.siftscience import decisions_api
@@ -29,8 +25,12 @@ from utils.throttles import UserSustainedRateThrottle
 class UserManager(UserManager):
     def editors(self):
         editors = self.filter(
+            (
+                Q(permissions__access_type=ASSISTANT_EDITOR)
+                | Q(permissions__access_type=ASSOCIATE_EDITOR)
+                | Q(permissions__access_type=SENIOR_EDITOR)
+            ),
             permissions__isnull=False,
-            permissions__access_type=EDITOR,
             permissions__content_type=ContentType.objects.get_for_model(Hub),
         ).distinct()
         return editors
@@ -229,14 +229,22 @@ class User(AbstractUser):
     def is_hub_editor(self):
         hub_content_type = ContentType.objects.get_for_model(Hub)
         return self.permissions.filter(
-            access_type=EDITOR,
+            (
+                Q(access_type=ASSISTANT_EDITOR)
+                | Q(access_type=ASSOCIATE_EDITOR)
+                | Q(access_type=SENIOR_EDITOR)
+            ),
             content_type=hub_content_type,
         ).exists()
 
     def is_hub_editor_of(self, hubs):
         hub_content_type = ContentType.objects.get_for_model(Hub)
         return self.permissions.filter(
-            access_type=EDITOR,
+            (
+                Q(access_type=ASSISTANT_EDITOR)
+                | Q(access_type=ASSOCIATE_EDITOR)
+                | Q(access_type=SENIOR_EDITOR)
+            ),
             content_type=hub_content_type,
             object_id__in=hubs.values_list("id", flat=True),
         ).exists()

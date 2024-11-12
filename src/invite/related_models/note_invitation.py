@@ -2,10 +2,7 @@ from django.db import models
 
 from invite.models import Invitation
 from note.models import Note
-from researchhub.settings import (
-    ASSETS_BASE_URL,
-    BASE_FRONTEND_URL,
-)
+from researchhub.settings import ASSETS_BASE_URL, BASE_FRONTEND_URL
 from researchhub_access_group.constants import ACCESS_TYPE_CHOICES, VIEWER
 from utils.message import send_email_message
 
@@ -13,7 +10,7 @@ from utils.message import send_email_message
 class NoteInvitation(Invitation):
 
     invite_type = models.CharField(
-        max_length=12, choices=ACCESS_TYPE_CHOICES, default=VIEWER
+        max_length=16, choices=ACCESS_TYPE_CHOICES, default=VIEWER
     )
     note = models.ForeignKey(
         Note, on_delete=models.CASCADE, related_name="invited_users"
