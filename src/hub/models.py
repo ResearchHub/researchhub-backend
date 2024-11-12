@@ -1,8 +1,8 @@
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 from django.db.models import Q, Sum
+from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
-from slugify import slugify
 
 from researchhub_access_group.constants import (
     ASSISTANT_EDITOR,
