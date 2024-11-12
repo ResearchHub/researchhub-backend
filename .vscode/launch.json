@@ -8,8 +8,7 @@
             "program": "${workspaceFolder}/src/manage.py",
             "args": [
                 "runserver",
-                "[::]:8000",
-                "--ipv6"
+                "[::]:8000"
             ],
             "env": {
                 "USE_DEBUG_TOOLBAR": "True"
