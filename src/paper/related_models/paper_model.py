@@ -538,11 +538,6 @@ class Paper(AbstractGenericReactionModel):
     def get_analytics_id(self):
         return self.get_analytics_type() + "_" + str(self.id)
 
-    def true_author_count(self):
-        registered_author_count = self.authorship_authors.count()
-        raw_author_count = self.raw_author_count()
-        return raw_author_count + registered_author_count
-
     def raw_author_count(self):
         raw_author_count = 0
 
