@@ -68,7 +68,7 @@ class CitationEntryPagination(PageNumberPagination):
 
 class CitationEntryViewSet(ModelViewSet):
     queryset = CitationEntry.objects.all()
-    filter_class = CitationEntryFilter
+    filterset_class = CitationEntryFilter
     filter_backends = (DjangoFilterBackend, OrderingFilter)
     permission_classes = [
         IsAuthenticated,

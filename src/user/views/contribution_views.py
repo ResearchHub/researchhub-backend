@@ -21,7 +21,7 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
     pagination_class = CursorSetPagination
     filter_backends = (DjangoFilterBackend,)
-    filter_class = ContributionFilter
+    filterset_class = ContributionFilter
     filterset_fields = ("hubs",)
     order_fields = ("created_date",)
 

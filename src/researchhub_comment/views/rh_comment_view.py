@@ -107,7 +107,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
     queryset = RhCommentModel.objects.all()
     serializer_class = RhCommentSerializer
     filter_backends = (DjangoFilterBackend,)
-    filter_class = RHCommentFilter
+    filterset_class = RHCommentFilter
     pagination_class = CommentPagination
     permission_classes = [
         IsAuthenticatedOrReadOnly,

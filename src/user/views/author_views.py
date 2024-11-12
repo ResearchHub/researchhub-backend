@@ -54,7 +54,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
     queryset = Author.objects.all()
     serializer_class = AuthorSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
-    filter_class = AuthorFilter
+    filterset_class = AuthorFilter
     search_fields = ("first_name", "last_name")
     permission_classes = [
         (IsAuthenticatedOrReadOnly & UpdateAuthor & CreateOrUpdateIfAllowed)
