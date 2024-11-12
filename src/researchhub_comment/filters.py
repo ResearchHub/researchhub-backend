@@ -181,9 +181,7 @@ class RHCommentFilter(filters.FilterSet):
                 qs, annotation_filters=[{"bounties__status": Bounty.OPEN}]
             )
         elif value == REVIEW:
-            qs = qs.filter(comment_type=REVIEW)
-        elif value == PEER_REVIEW:
-            qs = qs.filter(comment_type=PEER_REVIEW)
+            qs = qs.filter(comment_type__in=[REVIEW, PEER_REVIEW])
         elif value == INNER_CONTENT_COMMENT:
             qs = qs.filter(comment_type=INNER_CONTENT_COMMENT)
         elif value == DISCUSSION:
