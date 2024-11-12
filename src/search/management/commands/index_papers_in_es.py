@@ -81,8 +81,8 @@ def index_papers_in_bulk(es, from_id, to_id, max_attempts=5):
 
                 actions.append(action)
 
-            except:
-                print(f"Error processing paper {paper.id}")
+            except Exception as e:
+                print(f"Error processing paper {paper.id}: {e}")
                 pass
 
         for attempt in range(1, max_attempts + 1):
