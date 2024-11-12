@@ -38,10 +38,23 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
     content_object = SerializerMethodField()
     content_type = SerializerMethodField()
     privacy_type = SerializerMethodField()
+    peer_review = SerializerMethodField()
 
     class Meta:
         fields = "__all__"
         model = RhCommentThreadModel
+
+    def get_peer_review(self, thread):
+        peer_review = thread.peer_review
+
+        if peer_review.exists():
+            peer_review = peer_review.first()
+            return {
+                "id": peer_review.id,
+                "status": peer_review.status,
+            }
+
+        return peer_review.first().id if peer_review.exists() else None
 
     def get_comments(self, thread):
         from researchhub_comment.serializers import DynamicRhCommentSerializer

@@ -211,6 +211,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "object_id",
                     "privacy_type",
                     "thread_type",
+                    "peer_review",
                 )
             },
             "rhc_dcs_get_created_by": {
