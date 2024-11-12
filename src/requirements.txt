@@ -1587,9 +1587,9 @@ parso==0.8.4 ; python_version >= "3.11" and python_version < "4.0" \
 pathspec==0.12.1 ; python_version >= "3.11" and python_version < "4.0" \
     --hash=sha256:a0d503e138a4c123b27490a4f7beda6a01c6f288df0e4a8b79c7eb0dc7b4cc08 \
     --hash=sha256:a482d51503a1ab33b1c67a6c3813a26953dbdc71c31dacaef9a838c4e29f5712
-pdf2doi==1.5 ; python_version >= "3.11" and python_version < "4.0" \
-    --hash=sha256:3567be5c2deeb8184ddaf2ef060efbb4c188baef6dabf317a316f0e65cc954da \
-    --hash=sha256:bbcb057b83c8b64f7a3cb7c95770190f7ed89ed9c3f5a89d96d6fc6d1683da05
+pdf2doi==1.7 ; python_version >= "3.11" and python_version < "4.0" \
+    --hash=sha256:54d257bce59397ef577c588c8bc8a35930ffd1e7d05e7c3c454423bf5679bf2e \
+    --hash=sha256:75d1de78acebe3ca004317bf695eb2520d642d41c7c07d56d4eb211a64216551
 pdfminer-six==20221105 ; python_version >= "3.11" and python_version < "4.0" \
     --hash=sha256:1eaddd712d5b2732f8ac8486824533514f8ba12a0787b3d5fe1e686cd826532d \
     --hash=sha256:8448ab7b939d18b64820478ecac5394f482d7a79f5f7eaa7703c6c959c175e1d
@@ -2045,37 +2045,15 @@ pyjwt[crypto]==2.8.0 ; python_version >= "3.11" and python_version < "4.0" \
     --hash=sha256:59127c392cc44c2da5bb3192169a91f429924e17aff6534d70fdc02ab3e04320
 pylatexenc==2.10 ; python_version >= "3.11" and python_version < "4.0" \
     --hash=sha256:3dd8fd84eb46dc30bee1e23eaab8d8fb5a7f507347b23e5f38ad9675c84f40d3
-pymupdf==1.21.0 ; python_version >= "3.11" and python_version < "4.0" \
-    --hash=sha256:133a466d7bf98a23e0b09ea79a27d3d8a3f6941a4ac1ee71947c7e96670b9fc0 \
-    --hash=sha256:19cd56deefcdde40d31389a42c80f38e19213cbab5f13579f590faab6f74c267 \
-    --hash=sha256:2133a8bcb7a28a9379249d5be4bac71db6899865b981e858551f28072b14baf1 \
-    --hash=sha256:2ab85a283ea602aafde3c8cf41c30928e17e4aea91f64057181aa4ba2eb591e7 \
-    --hash=sha256:362cf30d0962700f8639c554d83fffd9d33ec62de3356e8822bfaca0515ec7b9 \
-    --hash=sha256:371f560ca168279bc28d4e14947817df7f5ffd369c2c289f9678c3f703c9239c \
-    --hash=sha256:491720d1a133e8b4f22d6b9b2a5aa460e1adc68d6388882544fa5ad2985b929e \
-    --hash=sha256:4c695c9e46d3157e585b97479844f7eeabb5ba8d756529f788c2053d503ba98a \
-    --hash=sha256:5fa1dfea26be28aa54faa6afa6d6eeeec049b7921d347f5e7f69f030c3fc2a67 \
-    --hash=sha256:602d5392eac8ac7041f0ed9cab569bb4a356f1dcdfe54f3d2f8f17d862a0b96e \
-    --hash=sha256:65167764259c9b6061c4d68fffe0ba956b3c639a15d9125e6d8397c847a24914 \
-    --hash=sha256:6c1f253eff2a29eca1273e8ced2e24eea9528e39a48590b65767ce98aa76e3b8 \
-    --hash=sha256:711479db0f2e6321527404ca3a063405f68f25579761d721c28cdf519edaa1d6 \
-    --hash=sha256:76552c9c6665633b65565bda2969a861e0373dddb5551f8ea7d08731b7cde4bc \
-    --hash=sha256:89c3d84aa4f0d6b37192c986e2e73aa2adc2643fe79caa805bf1934e852eecb6 \
-    --hash=sha256:956da7f652ce184dcbdea65c88b5f7a98d8975587aa191143cd4035f6d403ff2 \
-    --hash=sha256:a3803e74a5d732ded3e89d871b5f66fca03aeb1cd8b0db61c8d30990ca6bbc5d \
-    --hash=sha256:a63dfc289e127a16ab60310ee6005fe83121c7a97f7c120db688f9281c9e5d0f \
-    --hash=sha256:aa9a522527c2a9601e908bba1b2deb4f9e9e864dd3976d711aecd8939bdc4c21 \
-    --hash=sha256:ad8b9a9d8a399e2274ef8864ec8ef243ce38a2337e71de1e432c8d701c9841a5 \
-    --hash=sha256:af7df18b8e78f23b0457702facfb271d25235e0dc365852e18691b5d11928023 \
-    --hash=sha256:af8f0ba66eb989a5ce2a319bfbc3d1b2b62219242ab91cf8b8c9c7e6a7ff4799 \
-    --hash=sha256:c997258341715f8ba342d5aee7f4c47a9b0fe2352c4ca0c3dfa40c1df8e38ab4 \
-    --hash=sha256:cae729e29eabf25fa050a3c239dbe35e92c92a98823bda837d5236cd68624a7a \
-    --hash=sha256:cebbeb5492e7bd3ce54305f08166d5b2c0c4c66a303db81e734dc9b79434b9d3 \
-    --hash=sha256:d5da13d14852ef5c17101f84dd1ca49fb4a81c8aad93d91472e03ab482a1491e \
-    --hash=sha256:de2b60cc21d5c87c7d7dae2ce2d604315cc37173055e4c5049d8da30a740068c \
-    --hash=sha256:e06da813f9874897dbcfbc502b6a79fc67ec55a70d7446ff9a4d2728611348ab \
-    --hash=sha256:e6ff3388396396a12b54a117bde5196938fa1f2b2871f383f6975f34648cf2a7 \
-    --hash=sha256:f7ce0fb00ea5d37d9a04b641ce0ef7707d7b3600dd346cef01f4a1923f57b4ca
+pymupdf==1.24.13 ; python_version >= "3.11" and python_version < "4.0" \
+    --hash=sha256:240d5c43daa9278db50d609162b48f673ab256d7e5c73eea67af517c1fc2d47c \
+    --hash=sha256:4520558580ac6b5a7164fda29fbc14e39d3114fd803420721500edbf47d04872 \
+    --hash=sha256:6ec3ab3c6d5cba60bfcf58daaa2d1a5b700b0366ce52be666445007351461fa4 \
+    --hash=sha256:ab22828d4fc205791ef1332a64893cbfc38cd9c331c5f46ae4537372ffee6fc1 \
+    --hash=sha256:c11bb9198af69d490b4b346421db827d875a28fbc760d239e691d4b3ed12b5ad \
+    --hash=sha256:c830610e4fde237fcf0532f1f8c1381453f48c164a5eadd0c6e5fd0bea1ca8e3 \
+    --hash=sha256:e4c8808e62afbbde0f7b9c4151c4b1a5735911c2d39c34332860df600dba76f8 \
+    --hash=sha256:ec17914e4a560f4070212a2e84db5cc8b561d85d1ead193605a22f9561b03148
 pynliner==0.8.0 ; python_version >= "3.11" and python_version < "4.0" \
     --hash=sha256:32da16ed8ba1fec775909e39f0ffa8e6e02a674b889286c9a2370c3c03f617a5 \
     --hash=sha256:83e7dd4d48001bebbe0a648d7089e94e21ffb74c5af2f582c47d8793ffe8628e
@@ -2088,6 +2066,9 @@ pyparsing==3.2.0 ; python_version >= "3.11" and python_version < "4.0" \
 pypdf2==2.0.0 ; python_version >= "3.11" and python_version < "4.0" \
     --hash=sha256:6c2c686cbdad1fa6d42a8cafb5d2f033d1798dd00e13e8d7691b510c567efa34 \
     --hash=sha256:eb9eb675d91c0d167abd63fa5f5037486d5b9ef9715c5c8b55b99c3627619402
+pypdf==5.1.0 ; python_version >= "3.11" and python_version < "4.0" \
+    --hash=sha256:3bd4f503f4ebc58bae40d81e81a9176c400cbbac2ba2d877367595fb524dfdfc \
+    --hash=sha256:425a129abb1614183fd1aca6982f650b47f8026867c0ce7c4b9f281c443d2740
 pyperclip==1.9.0 ; python_version >= "3.11" and python_version < "4.0" \
     --hash=sha256:b7de0142ddc81bfc5c7507eea19da920b92252b548b96186caf94a5e2527d310
 python-crontab==3.2.0 ; python_version >= "3.11" and python_version < "4.0" \
