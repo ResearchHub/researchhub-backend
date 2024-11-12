@@ -5280,12 +5280,12 @@ files = [
 
 [[package]]
 name = "sift"
-version = "5.4.0"
+version = "5.6.1"
 description = "Python bindings for Sift Science's API"
 optional = false
 python-versions = ">=2.7"
 files = [
-    {file = "Sift-5.4.0.tar.gz", hash = "sha256:9d4568ac4bdbfdc48daf9d76beb8d7cb932cd1e127441aba66eb520e480dbc22"},
+    {file = "Sift-5.6.1.tar.gz", hash = "sha256:611589dcd75cfb733051475b8ceb23a675d034d2876b0b88c064126de0349a99"},
 ]
 
 [package.dependencies]
@@ -6139,4 +6139,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "e9d5f1a534c8177d71a0aa55544da65e580e3e128fcbad147f833e8bec2d4479"
+content-hash = "372ef984eac61b5fa1e17ad97a21c635bb805eb542cccb3912a966bdd2601f86"
