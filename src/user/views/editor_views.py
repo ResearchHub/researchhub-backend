@@ -11,7 +11,11 @@ from rest_framework.response import Response
 
 from hub.models import Hub
 from reputation.models import Contribution
-from researchhub_access_group.constants import EDITOR
+from researchhub_access_group.constants import (
+    ASSISTANT_EDITOR,
+    ASSOCIATE_EDITOR,
+    SENIOR_EDITOR,
+)
 from user.related_models.user_model import User
 from user.serializers import EditorContributionSerializer
 from utils.http import GET
@@ -23,16 +27,20 @@ def resolve_timeframe_for_contribution(start_date, end_date, query_key=None):
 
     if start_date:
         dateFrame[
-            "contributions__created_date__gte"
-            if query_key is None
-            else query_key + "__gte"
+            (
+                "contributions__created_date__gte"
+                if query_key is None
+                else query_key + "__gte"
+            )
         ] = start_date
 
     if end_date:
         dateFrame[
-            "contributions__created_date__lte"
-            if query_key is None
-            else query_key + "__lte"
+            (
+                "contributions__created_date__lte"
+                if query_key is None
+                else query_key + "__lte"
+            )
         ] = end_date
 
     return dateFrame
@@ -60,7 +68,8 @@ def get_hub_active_contributors(request):
 
         hub_content_type = ContentType.objects.get_for_model(Hub)
         target_permissions = user.permissions.filter(
-            access_type=EDITOR, content_type=hub_content_type
+            access_type__in=[ASSISTANT_EDITOR, ASSOCIATE_EDITOR, SENIOR_EDITOR],
+            content_type=hub_content_type,
         )
         target_hub_ids = []
         for permission in target_permissions:
@@ -116,7 +125,11 @@ def get_hub_active_contributors(request):
 def get_editors_by_contributions(request):
     editor_qs = User.objects.filter(
         permissions__isnull=False,
-        permissions__access_type=EDITOR,
+        permissions__access_type__in=[
+            ASSISTANT_EDITOR,
+            ASSOCIATE_EDITOR,
+            SENIOR_EDITOR,
+        ],
         permissions__content_type=ContentType.objects.get_for_model(Hub),
     ).distinct()
 
