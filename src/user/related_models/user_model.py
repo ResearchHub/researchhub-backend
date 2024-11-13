@@ -71,7 +71,6 @@ class User(AbstractUser):
     # onboarding state
     has_seen_first_coin_modal = models.BooleanField(default=False)
     has_seen_orcid_connect_modal = models.BooleanField(default=False)
-    has_seen_stripe_modal = models.BooleanField(default=False)
     has_completed_onboarding = models.BooleanField(default=False)
 
     invited_by = models.ForeignKey(
@@ -147,10 +146,6 @@ class User(AbstractUser):
 
     def set_has_seen_orcid_connect_modal(self, has_seen):
         self.has_seen_orcid_connect_modal = has_seen
-        self.save()
-
-    def set_has_seen_stripe_modal(self, has_seen):
-        self.has_seen_stripe_modal = has_seen
         self.save()
 
     def set_probable_spammer(self, probable_spammer=True):
