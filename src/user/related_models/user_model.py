@@ -3,7 +3,7 @@ import uuid
 from django.contrib.auth.models import AbstractUser, UserManager
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.db.models import DecimalField, Q, Sum, Value
+from django.db.models import Count, DecimalField, Q, Sum, Value
 from django.db.models.functions import Cast, Coalesce
 from django.utils import timezone
 
@@ -135,7 +135,7 @@ class User(AbstractUser):
         if not NO_ELASTIC:
             try:
                 update_elastic_registry.apply_async([self.id])
-            except Exception as e:
+            except Exception:
                 pass
 
         return user_to_save
@@ -254,8 +254,6 @@ class User(AbstractUser):
 
     @property
     def upvote_count(self):
-        from django.db.models import Count, Sum
-
         from discussion.models import Vote as GrmVote
 
         upvote_count = (
@@ -285,8 +283,6 @@ class User(AbstractUser):
 
     @property
     def peer_review_count(self):
-        from django.db.models import Count, Sum
-
         from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 
         peer_review_count = RhCommentModel.objects.filter(
