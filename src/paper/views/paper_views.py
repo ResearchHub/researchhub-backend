@@ -231,6 +231,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                     "uploaded_by": request.user,
                     "paper_publish_date": timezone.now(),
                     "pdf_license": "cc-by-nc-4.0",
+                    "work_type": "preprint",
                 }
 
                 if pdf_url:
