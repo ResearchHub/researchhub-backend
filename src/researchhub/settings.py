@@ -16,7 +16,6 @@ import sys
 import requests
 import segment.analytics as analytics
 import sentry_sdk
-import stripe
 from corsheaders.defaults import default_headers
 from sentry_sdk.integrations.django import DjangoIntegration
 from web3 import Web3
@@ -772,9 +771,6 @@ AMPLITUDE_API_KEY = os.environ.get("AMPLITUDE_API_KEY", keys.AMPLITUDE_API_KEY)
 
 if STAGING or PRODUCTION:
     GDAL_LIBRARY_PATH = "/home/ec2-user/miniconda3/lib/libgdal.so"
-
-# Stripe
-stripe.api_key = os.environ.get("STRIPE_API_KEY", keys.STRIPE_API_KEY)
 
 # Killswitch Variables
 SERIALIZER_SWITCH = os.environ.get("SERIALIZER_SWITCH", True)
