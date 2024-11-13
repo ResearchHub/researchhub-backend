@@ -16,6 +16,7 @@ import sys
 import requests
 import segment.analytics as analytics
 import sentry_sdk
+import stripe
 from corsheaders.defaults import default_headers
 from sentry_sdk.integrations.django import DjangoIntegration
 from web3 import Web3
@@ -618,6 +619,9 @@ if PRODUCTION or STAGING:
         integrations=[DjangoIntegration()],
         environment=SENTRY_ENVIRONMENT,
     )
+
+# Stripe
+stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", keys.STRIPE_SECRET_KEY)
 
 # Search (Elastic)
 

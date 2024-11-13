@@ -25,6 +25,8 @@ SIFT_ACCOUNT_ID = os.environ.get("SIFT_ACCOUNT_ID", "PLACEHOLDER")
 SIFT_REST_API_KEY = os.environ.get("SIFT_REST_API_KEY", "PLACEHOLDER")
 SIFT_WEBHOOK_SECRET_KEY = os.environ.get("SIFT_WEBHOOK_SECRET_KEY", "")
 
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET", "")
+
 AMPLITUDE_API_KEY = os.environ.get("AMPLITUDE_API_KEY", "")
 
 SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
