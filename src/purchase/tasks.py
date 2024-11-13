@@ -94,9 +94,7 @@ def send_support_email(
             <a href="{url}" class="header-link">key takeaway</a>
         """
 
-    if payment_type == Support.STRIPE:
-        payment_type = "USD"
-    elif payment_type == Support.PAYPAL:
+    if payment_type == Support.PAYPAL:
         payment_type = "Paypal"
     elif payment_type == Support.ETH:
         payment_type = "Ethereum"

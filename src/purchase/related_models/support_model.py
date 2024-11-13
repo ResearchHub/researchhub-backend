@@ -5,7 +5,6 @@ from django.db.models import JSONField
 
 
 class Support(models.Model):
-    STRIPE = "STRIPE"
     PAYPAL = "PAYPAL"
     ETH = "ETH"
     BTC = "BTC"
@@ -16,7 +15,6 @@ class Support(models.Model):
     MONTHLY = "MONTHLY"
 
     payment_type_choices = [
-        (STRIPE, STRIPE),
         (PAYPAL, PAYPAL),
         (ETH, ETH),
         (BTC, BTC),
