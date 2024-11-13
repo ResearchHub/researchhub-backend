@@ -2433,6 +2433,9 @@ sqlparse==0.5.1 ; python_version >= "3.11" and python_version < "4.0" \
 stack-data==0.6.3 ; python_version >= "3.11" and python_version < "4.0" \
     --hash=sha256:836a778de4fec4dcd1dcd89ed8abff8a221f58308462e1c4aa2a3cf30148f0b9 \
     --hash=sha256:d5558e0c25a4cb0853cddad3d77da9891a08cb85dd9f9f91b9f8cd66e511e695
+stripe==11.2.0 ; python_version >= "3.11" and python_version < "4.0" \
+    --hash=sha256:4c53d61d7b596070324bfa5d7215843145fe5466e48973d828aab41ad209b5ce \
+    --hash=sha256:dec812eabc95488862be40e6c799acdaf2e1225d686490a793f949fab745fdd0
 tenacity==9.0.0 ; python_version >= "3.11" and python_version < "4.0" \
     --hash=sha256:807f37ca97d62aa361264d497b0e31e92b8027044942bfa756160d908320d73b \
     --hash=sha256:93de0c98785b27fcf659856aa9f54bfbd399e29969b0621bc7f762bd441b4539
