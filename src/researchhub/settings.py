@@ -622,6 +622,9 @@ if PRODUCTION or STAGING:
 
 # Stripe
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", keys.STRIPE_SECRET_KEY)
+STRIPE_WEBHOOK_SIGNING_SECRET = os.environ.get(
+    "STRIPE_WEBHOOK_SIGNING_SECRET", keys.STRIPE_WEBHOOK_SIGNING_SECRET
+)
 
 # Search (Elastic)
 
