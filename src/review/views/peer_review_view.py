@@ -18,7 +18,6 @@ class PeerReviewViewSet(viewsets.ModelViewSet):
 
     queryset = PeerReview.objects.all()
     serializer_class = PeerReviewSerializer
-    http_method_names = ["get", "post", "put", "patch"]
 
     def get_permissions(self):
         if self.action == "list":
