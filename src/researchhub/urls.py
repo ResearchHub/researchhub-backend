@@ -34,6 +34,7 @@ import search.urls
 import user.views
 from citation.views import CitationEntryViewSet, CitationProjectViewSet
 from paper.views import paper_upload_views
+from purchase.views import stripe_webhook_view
 from researchhub import settings
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from review.views.peer_review_view import PeerReviewViewSet
@@ -267,6 +268,11 @@ urlpatterns = [
         "webhooks/persona/",
         persona_webhook_view.PersonaWebhookView.as_view(),
         name="persona_webhook",
+    ),
+    path(
+        "webhooks/stripe/",
+        stripe_webhook_view.StripeWebhookView.as_view(),
+        name="stripe_webhook",
     ),
 ]
 
