@@ -1,17 +1,14 @@
 from django.db import models
 
-
-# Article processing charges (APC) for papers
-class PaperAPC(models.Model):
-    paper = models.ForeignKey("Paper", on_delete=models.CASCADE, related_name="apcs")
-    amount = models.IntegerField(null=True, blank=True)
-    currency = models.CharField(max_length=3, null=True, blank=True)
-    paid = models.BooleanField(default=False)
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)
+from utils.models import DefaultModel
 
 
-class PaperAPCDeclaration(models.Model):
+# A series of papers, representing all versions of a paper
+class PaperSeries(DefaultModel):
+    pass
+
+
+class PaperSeriesDeclaration(DefaultModel):
     ACCEPT_TERMS_AND_CONDITIONS = "ACCEPT_TERMS_AND_CONDITIONS"
     AUTHORIZE_CC_BY_4_0 = "AUTHORIZE_CC_BY_4_0"
     CONFIRM_AUTHORS_RIGHTS = "CONFIRM_AUTHORS_RIGHTS"
@@ -26,8 +23,8 @@ class PaperAPCDeclaration(models.Model):
         (ACKNOWLEDGE_OPEN_PEER_REVIEWS, "Acknowledge Open Peer Reviews"),
     ]
 
-    paper_apc = models.ForeignKey(
-        "PaperAPC", on_delete=models.CASCADE, related_name="declarations"
+    paper_series = models.ForeignKey(
+        "PaperSeries", on_delete=models.CASCADE, related_name="declarations"
     )
     declaration_type = models.CharField(
         max_length=100,
@@ -50,7 +47,7 @@ class PaperAPCDeclaration(models.Model):
     updated_date = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ["paper_apc", "declaration_type", "accepted_by"]
+        unique_together = ["paper_series", "declaration_type", "accepted_by"]
         indexes = [
-            models.Index(fields=["paper_apc", "declaration_type", "accepted_by"]),
+            models.Index(fields=["paper_series", "declaration_type", "accepted_by"]),
         ]
