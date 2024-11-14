@@ -1,6 +1,7 @@
 import json
 from datetime import datetime
 
+from paper.related_models.apc_model import PaperAPC, PaperAPCDeclaration
 from paper.related_models.citation_model import Citation
 from paper.related_models.paper_model import (
     ARXIV_IDENTIFIER,

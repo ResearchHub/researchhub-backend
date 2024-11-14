@@ -1,7 +1,7 @@
 from django.db import models
 
 
-# Model for article processing charges (APC) for papers
+# Article processing charges (APC) for papers
 class PaperAPC(models.Model):
     paper = models.ForeignKey("Paper", on_delete=models.CASCADE, related_name="apcs")
     amount = models.IntegerField(null=True, blank=True)
@@ -50,7 +50,7 @@ class PaperAPCDeclaration(models.Model):
     updated_date = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ["paper", "declaration_type", "accepted_by"]
+        unique_together = ["paper_apc", "declaration_type", "accepted_by"]
         indexes = [
-            models.Index(fields=["paper", "declaration_type", "accepted_by"]),
+            models.Index(fields=["paper_apc", "declaration_type", "accepted_by"]),
         ]
