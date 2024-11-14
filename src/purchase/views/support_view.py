@@ -1,7 +1,5 @@
-import datetime
 import decimal
 
-import stripe
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from rest_framework import viewsets
@@ -115,25 +113,6 @@ class SupportViewSet(viewsets.ModelViewSet):
 
                 sender_balance_date = sender_bal.created_date.strftime("%m/%d/%Y")
                 recipient_balance_date = recipient_bal.created_date.strftime("%m/%d/%Y")
-            elif payment_type == Support.STRIPE:
-                recipient_stripe_acc = recipient.wallet.stripe_acc
-                if not recipient_stripe_acc:
-                    return Response(
-                        "Author has not created a Stripe Account", status=403
-                    )
-
-                payment_intent = stripe.PaymentIntent.create(
-                    payment_method_types=["card"],
-                    amount=amount * 100,  # The amount in cents
-                    currency="usd",
-                    application_fee_amount=0,
-                    transfer_data={"destination": recipient_stripe_acc},
-                )
-                support.proof = payment_intent
-                support.save()
-                data["client_secret"] = payment_intent["client_secret"]
-                sender_balance_date = datetime.datetime.now().strftime("%m/%d/%Y")
-                recipient_balance_date = datetime.datetime.now().strftime("%m/%d/%Y")
 
         send_support_email.apply_async(
             (

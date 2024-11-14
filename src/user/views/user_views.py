@@ -731,17 +731,6 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @action(
         detail=False,
-        methods=[RequestMethods.PATCH],
-    )
-    def has_seen_stripe_modal(self, request):
-        user = request.user
-        user = User.objects.get(pk=user.id)
-        user.set_has_seen_stripe_modal(True)
-        serialized = UserSerializer(user)
-        return Response(serialized.data, status=200)
-
-    @action(
-        detail=False,
         methods=[RequestMethods.POST],
         permission_classes=[IsAuthenticated, Censor],
     )

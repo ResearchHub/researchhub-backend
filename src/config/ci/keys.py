@@ -27,8 +27,6 @@ SIFT_WEBHOOK_SECRET_KEY = os.environ.get("SIFT_WEBHOOK_SECRET_KEY", "NOT_REAL")
 
 AMPLITUDE_API_KEY = os.environ.get("AMPLITUDE_API_KEY", "NOT_REAL")
 
-STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY", "NOT_REAL")
-
 SENTRY_DSN = os.environ.get("SENTRY_DSN", "NOT_REAL")
 
 APM_URL = os.environ.get("APM_URL", "NOT_REAL")

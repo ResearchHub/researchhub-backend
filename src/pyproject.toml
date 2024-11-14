@@ -74,7 +74,6 @@ sentry-sdk = "1.45.1"
 setuptools = "^75.4.0"
 Sift = "^5.6.1"
 smart-open = "5.2.1"
-stripe = "2.62.0"
 watchdog = "2.1.9"
 web3 = {version = "6.17.1", extras = ["tester"]}
 xmltodict = "0.12.0"

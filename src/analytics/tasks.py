@@ -19,7 +19,7 @@ def track_revenue_event(
     ],
     rsc_revenue: str,
     usd_revenue: str = None,
-    transaction_method: Literal["OFF_CHAIN", "ON_CHAIN", "STRIPE"] = None,
+    transaction_method: Literal["OFF_CHAIN", "ON_CHAIN"] = None,
     # it's useful to be able to see e.g. how much did we make on paper tips versus comment tips.
     # so we should use these fields to point to the object that the revenue is associated with.
     # and not simply the Purchase/Balance/Fundraise object.
