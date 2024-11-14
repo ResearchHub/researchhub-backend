@@ -13,14 +13,12 @@ class PaperSeriesDeclaration(DefaultModel):
     AUTHORIZE_CC_BY_4_0 = "AUTHORIZE_CC_BY_4_0"
     CONFIRM_AUTHORS_RIGHTS = "CONFIRM_AUTHORS_RIGHTS"
     CONFIRM_ORIGINALITY_AND_COMPLIANCE = "CONFIRM_ORIGINALITY_AND_COMPLIANCE"
-    ACKNOWLEDGE_OPEN_PEER_REVIEWS = "ACKNOWLEDGE_OPEN_PEER_REVIEWS"
 
     DECLARATION_TYPE_CHOICES = [
         (ACCEPT_TERMS_AND_CONDITIONS, "Accept Terms and Conditions"),
         (AUTHORIZE_CC_BY_4_0, "Authorize CC BY 4.0"),
         (CONFIRM_AUTHORS_RIGHTS, "Confirm Authors Rights"),
         (CONFIRM_ORIGINALITY_AND_COMPLIANCE, "Confirm Originality and Compliance"),
-        (ACKNOWLEDGE_OPEN_PEER_REVIEWS, "Acknowledge Open Peer Reviews"),
     ]
 
     paper_series = models.ForeignKey(
