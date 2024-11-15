@@ -247,13 +247,38 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 # Create paper series
                 paper_series = PaperSeries.objects.create()
 
-                # Create paper series declarations
-                for declaration in declarations:
-                    PaperSeriesDeclaration.objects.create(
-                        paper_series=paper_series,
-                        declaration_type=declaration["declaration_type"],
-                        accepted=declaration["accepted"],
-                        accepted_by=request.user,
+                # Get valid declaration types
+                valid_declaration_types = dict(
+                    PaperSeriesDeclaration.DECLARATION_TYPE_CHOICES
+                ).keys()
+
+                # Check for missing declarations
+                missing_declarations = [
+                    d_type
+                    for d_type in valid_declaration_types
+                    if not any(d["declaration_type"] == d_type for d in declarations)
+                ]
+                if missing_declarations:
+                    return Response(
+                        {
+                            "error": f"Missing required declarations: {', '.join(missing_declarations)}"
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                # Check for unaccepted declarations
+                unaccepted_declarations = [
+                    d["declaration_type"]
+                    for d in declarations
+                    if d["declaration_type"] in valid_declaration_types
+                    and not d.get("accepted", False)
+                ]
+                if unaccepted_declarations:
+                    return Response(
+                        {
+                            "error": f"All declarations must be accepted. Unaccepted declarations: {', '.join(unaccepted_declarations)}"
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
                     )
 
                 paper.series = paper_series
