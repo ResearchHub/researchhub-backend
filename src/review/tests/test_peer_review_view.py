@@ -61,6 +61,8 @@ class PeerReviewTests(APITestCase):
             },
         )
 
+        print(actual.data)
+
         # Assert
         self.assertEqual(actual.status_code, status.HTTP_400_BAD_REQUEST)
 

@@ -6,7 +6,7 @@ from review.models.peer_review_model import PeerReview
 
 
 class PeerReviewSerializer(ModelSerializer):
-    user = serializers.SerializerMethodField()
+    user_details = serializers.SerializerMethodField()
 
     class Meta:
         model = PeerReview
@@ -17,6 +17,7 @@ class PeerReviewSerializer(ModelSerializer):
             "paper",
             "status",
             "user",
+            "user_details",  # Detailed user response. Needed to avoid validation clash with "user" field
             # metadata
             "created_date",
             "updated_date",
@@ -27,7 +28,7 @@ class PeerReviewSerializer(ModelSerializer):
             "updated_date",
         )
 
-    def get_user(self, obj):
+    def get_user_details(self, obj):
         user = obj.user
 
         # Get author profile data safely

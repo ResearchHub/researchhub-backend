@@ -54,7 +54,7 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
                 "status": peer_review.status,
             }
 
-        return peer_review.first().id if peer_review.exists() else None
+        return None
 
     def get_comments(self, thread):
         from researchhub_comment.serializers import DynamicRhCommentSerializer
