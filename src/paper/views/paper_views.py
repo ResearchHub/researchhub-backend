@@ -182,6 +182,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         - title: string
         - declarations: list[dict] - Each dict contains:
             - declaration_type: string
+                - options: ACCEPT_TERMS_AND_CONDITIONS, AUTHORIZE_CC_BY_4_0, CONFIRM_AUTHORS_RIGHTS, CONFIRM_ORIGINALITY_AND_COMPLIANCE
             - accepted: boolean
         """
         try:
