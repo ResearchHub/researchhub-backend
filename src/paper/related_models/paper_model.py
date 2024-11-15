@@ -326,6 +326,14 @@ class Paper(AbstractGenericReactionModel):
         max_length=10,
     )
 
+    paper_series = models.ForeignKey(
+        "PaperSeries",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="papers",
+    )
+
     class Meta:
         indexes = (
             HashIndex(fields=("url",), name="paper_paper_url_hix"),

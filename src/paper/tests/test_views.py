@@ -166,6 +166,15 @@ class PaperApiTests(APITestCase):
                 {"id": author.id, "author_position": "first", "is_corresponding": True}
             ],
             "hub_ids": [hub.id],
+            "declarations": [
+                {"declaration_type": "ACCEPT_TERMS_AND_CONDITIONS", "accepted": True},
+                {"declaration_type": "AUTHORIZE_CC_BY_4_0", "accepted": True},
+                {"declaration_type": "CONFIRM_AUTHORS_RIGHTS", "accepted": True},
+                {
+                    "declaration_type": "CONFIRM_ORIGINALITY_AND_COMPLIANCE",
+                    "accepted": True,
+                },
+            ],
         }
 
         response = self.client.post(
@@ -221,6 +230,15 @@ class PaperApiTests(APITestCase):
                 },
             ],
             "hub_ids": [],
+            "declarations": [
+                {"declaration_type": "ACCEPT_TERMS_AND_CONDITIONS", "accepted": True},
+                {"declaration_type": "AUTHORIZE_CC_BY_4_0", "accepted": True},
+                {"declaration_type": "CONFIRM_AUTHORS_RIGHTS", "accepted": True},
+                {
+                    "declaration_type": "CONFIRM_ORIGINALITY_AND_COMPLIANCE",
+                    "accepted": True,
+                },
+            ],
         }
 
         response = self.client.post(
@@ -257,6 +275,15 @@ class PaperApiTests(APITestCase):
                 {"id": author.id, "author_position": "first", "is_corresponding": False}
             ],
             "hub_ids": [],
+            "declarations": [
+                {"declaration_type": "ACCEPT_TERMS_AND_CONDITIONS", "accepted": True},
+                {"declaration_type": "AUTHORIZE_CC_BY_4_0", "accepted": True},
+                {"declaration_type": "CONFIRM_AUTHORS_RIGHTS", "accepted": True},
+                {
+                    "declaration_type": "CONFIRM_ORIGINALITY_AND_COMPLIANCE",
+                    "accepted": True,
+                },
+            ],
         }
 
         response = self.client.post(
@@ -285,6 +312,15 @@ class PaperApiTests(APITestCase):
                 {"id": author.id, "author_position": "first", "is_corresponding": True}
             ],
             "hub_ids": [],
+            "declarations": [
+                {"declaration_type": "ACCEPT_TERMS_AND_CONDITIONS", "accepted": True},
+                {"declaration_type": "AUTHORIZE_CC_BY_4_0", "accepted": True},
+                {"declaration_type": "CONFIRM_AUTHORS_RIGHTS", "accepted": True},
+                {
+                    "declaration_type": "CONFIRM_ORIGINALITY_AND_COMPLIANCE",
+                    "accepted": True,
+                },
+            ],
             "previous_paper_id": original_paper.id,
             "change_description": "Updated content",
         }
@@ -314,6 +350,15 @@ class PaperApiTests(APITestCase):
                 {"id": author.id, "author_position": "first", "is_corresponding": True}
             ],
             "hub_ids": [],
+            "declarations": [
+                {"declaration_type": "ACCEPT_TERMS_AND_CONDITIONS", "accepted": True},
+                {"declaration_type": "AUTHORIZE_CC_BY_4_0", "accepted": True},
+                {"declaration_type": "CONFIRM_AUTHORS_RIGHTS", "accepted": True},
+                {
+                    "declaration_type": "CONFIRM_ORIGINALITY_AND_COMPLIANCE",
+                    "accepted": True,
+                },
+            ],
             "previous_paper_id": previous_paper.id,
         }
 
@@ -341,6 +386,15 @@ class PaperApiTests(APITestCase):
                 {"id": author.id, "author_position": "first", "is_corresponding": True}
             ],
             "hub_ids": [],
+            "declarations": [
+                {"declaration_type": "ACCEPT_TERMS_AND_CONDITIONS", "accepted": True},
+                {"declaration_type": "AUTHORIZE_CC_BY_4_0", "accepted": True},
+                {"declaration_type": "CONFIRM_AUTHORS_RIGHTS", "accepted": True},
+                {
+                    "declaration_type": "CONFIRM_ORIGINALITY_AND_COMPLIANCE",
+                    "accepted": True,
+                },
+            ],
             "previous_paper_id": 99999,  # Non-existent ID
         }
 
@@ -356,7 +410,20 @@ class PaperApiTests(APITestCase):
         self.client.force_authenticate(user)
 
         # Missing title
-        data = {"abstract": "Test abstract", "authors": [], "hub_ids": []}
+        data = {
+            "abstract": "Test abstract",
+            "authors": [],
+            "hub_ids": [],
+            "declarations": [
+                {"declaration_type": "ACCEPT_TERMS_AND_CONDITIONS", "accepted": True},
+                {"declaration_type": "AUTHORIZE_CC_BY_4_0", "accepted": True},
+                {"declaration_type": "CONFIRM_AUTHORS_RIGHTS", "accepted": True},
+                {
+                    "declaration_type": "CONFIRM_ORIGINALITY_AND_COMPLIANCE",
+                    "accepted": True,
+                },
+            ],
+        }
 
         response = self.client.post(
             "/api/paper/create_researchhub_paper/", data, format="json"
@@ -372,6 +439,62 @@ class PaperApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
+
+    def test_create_researchhub_paper_with_unaccepted_declarations(self):
+        """Test that paper creation fails if valid declarations are not accepted"""
+        user = create_random_authenticated_user("test_user")
+        self.client.force_authenticate(user)
+        author = Author.objects.create(first_name="Test", last_name="Author")
+
+        data = {
+            "title": "Test Paper",
+            "abstract": "Test abstract",
+            "authors": [
+                {"id": author.id, "author_position": "first", "is_corresponding": True}
+            ],
+            "hub_ids": [],
+            "declarations": [
+                {"declaration_type": "ACCEPT_TERMS_AND_CONDITIONS", "accepted": False},
+                {"declaration_type": "AUTHORIZE_CC_BY_4_0", "accepted": True},
+                {"declaration_type": "CONFIRM_AUTHORS_RIGHTS", "accepted": True},
+                {
+                    "declaration_type": "CONFIRM_ORIGINALITY_AND_COMPLIANCE",
+                    "accepted": True,
+                },
+            ],
+        }
+
+        response = self.client.post(
+            "/api/paper/create_researchhub_paper/", data, format="json"
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("ACCEPT_TERMS_AND_CONDITIONS", str(response.data["error"]))
+
+    def test_create_researchhub_paper_with_missing_declarations(self):
+        """Test that paper creation fails if valid declarations are not accepted"""
+        user = create_random_authenticated_user("test_user")
+        self.client.force_authenticate(user)
+        author = Author.objects.create(first_name="Test", last_name="Author")
+
+        data = {
+            "title": "Test Paper",
+            "abstract": "Test abstract",
+            "authors": [
+                {"id": author.id, "author_position": "first", "is_corresponding": True}
+            ],
+            "hub_ids": [],
+            "declarations": [
+                {"declaration_type": "ACCEPT_TERMS_AND_CONDITIONS", "accepted": True},
+            ],
+        }
+
+        response = self.client.post(
+            "/api/paper/create_researchhub_paper/", data, format="json"
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Missing required declarations", str(response.data["error"]))
 
 
 class PaperViewsTests(TestCase):

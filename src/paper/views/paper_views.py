@@ -36,6 +36,7 @@ from paper.models import Figure, Paper, PaperSubmission, PaperVersion
 from paper.paper_upload_tasks import celery_process_paper
 from paper.permissions import CreatePaper, IsAuthor, UpdatePaper
 from paper.related_models.authorship_model import Authorship
+from paper.related_models.series_model import PaperSeries, PaperSeriesDeclaration
 from paper.serializers import (
     DynamicPaperSerializer,
     FigureSerializer,
@@ -179,6 +180,10 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         - pdf_url: string
         - previous_paper_id: int (optional)
         - title: string
+        - declarations: list[dict] - Each dict contains:
+            - declaration_type: string
+                - options: ACCEPT_TERMS_AND_CONDITIONS, AUTHORIZE_CC_BY_4_0, CONFIRM_AUTHORS_RIGHTS, CONFIRM_ORIGINALITY_AND_COMPLIANCE
+            - accepted: boolean
         """
         try:
             with transaction.atomic():
@@ -190,6 +195,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 pdf_url = request.data.get("pdf_url")
                 previous_paper_id = request.data.get("previous_paper_id")
                 title = request.data.get("title")
+                declarations = request.data.get("declarations", [])
 
                 previous_paper = None
                 if previous_paper_id:
@@ -238,6 +244,46 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                     paper_data["pdf_url"] = pdf_url
 
                 paper = Paper.objects.create(**paper_data)
+
+                # Create paper series
+                paper_series = PaperSeries.objects.create()
+
+                # Get valid declaration types
+                valid_declaration_types = dict(
+                    PaperSeriesDeclaration.DECLARATION_TYPE_CHOICES
+                ).keys()
+
+                # Check for missing declarations
+                missing_declarations = [
+                    d_type
+                    for d_type in valid_declaration_types
+                    if not any(d["declaration_type"] == d_type for d in declarations)
+                ]
+                if missing_declarations:
+                    return Response(
+                        {
+                            "error": f"Missing required declarations: {', '.join(missing_declarations)}"
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                # Check for unaccepted declarations
+                unaccepted_declarations = [
+                    d["declaration_type"]
+                    for d in declarations
+                    if d["declaration_type"] in valid_declaration_types
+                    and not d.get("accepted", False)
+                ]
+                if unaccepted_declarations:
+                    return Response(
+                        {
+                            "error": f"All declarations must be accepted. Unaccepted declarations: {', '.join(unaccepted_declarations)}"
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                paper.series = paper_series
+                paper.save()
 
                 # Associate authors
                 author_ids = [author_data["id"] for author_data in authors_data]

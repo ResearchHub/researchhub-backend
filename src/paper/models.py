@@ -14,3 +14,4 @@ from paper.related_models.paper_model import (
     PaperVersion,
 )
 from paper.related_models.paper_submission_model import PaperSubmission
+from paper.related_models.series_model import PaperSeries, PaperSeriesDeclaration
