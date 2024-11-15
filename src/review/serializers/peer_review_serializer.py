@@ -1,3 +1,4 @@
+import rest_framework.serializers as serializers
 from rest_framework.exceptions import ValidationError
 from rest_framework.serializers import ModelSerializer
 
@@ -5,6 +6,8 @@ from review.models.peer_review_model import PeerReview
 
 
 class PeerReviewSerializer(ModelSerializer):
+    user_details = serializers.SerializerMethodField()
+
     class Meta:
         model = PeerReview
         fields = (
@@ -14,6 +17,7 @@ class PeerReviewSerializer(ModelSerializer):
             "paper",
             "status",
             "user",
+            "user_details",  # Detailed user response. Needed to avoid validation clash with "user" field
             # metadata
             "created_date",
             "updated_date",
@@ -23,6 +27,31 @@ class PeerReviewSerializer(ModelSerializer):
             "created_date",
             "updated_date",
         )
+
+    def get_user_details(self, obj):
+        user = obj.user
+
+        # Get author profile data safely
+        author_profile_data = {
+            "id": user.author_profile.id,
+            "profile_image": None,  # Default to None if image is inaccessible
+            "first_name": user.author_profile.first_name,
+            "last_name": user.author_profile.last_name,
+        }
+
+        # Check if profile_image field has a value without accessing the file
+        if (
+            hasattr(user.author_profile, "profile_image")
+            and user.author_profile.profile_image.name
+        ):
+            author_profile_data["profile_image"] = user.author_profile.profile_image.url
+
+        return {
+            "id": user.id,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "author_profile": author_profile_data,
+        }
 
     def validate(self, attrs):
         request = self.context.get("request")
