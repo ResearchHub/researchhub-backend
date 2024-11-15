@@ -35,7 +35,7 @@ class PaperSeriesDeclaration(DefaultModel):
         "user.User",
         on_delete=models.CASCADE,
         null=True,
-        related_name="paper_apc_declarations",
+        related_name="paper_series_declarations",
         help_text="User who accepted this declaration",
     )
     accepted_date = models.DateTimeField(
