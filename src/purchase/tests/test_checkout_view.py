@@ -68,3 +68,30 @@ class CheckoutSessionViewTest(APITestCase):
             },
         )
         mock_stripe_session_create.assert_not_called()
+
+    @patch("stripe.checkout.Session.create")
+    def test_create_checkout_session_error(self, mock_stripe_session_create):
+        # Arrange
+        mock_stripe_session_create.side_effect = Exception("Stripe error")
+
+        paper = Paper.objects.create(title="title1")
+
+        data = {
+            "paper": paper.id,
+            "success_url": "https://researchhub.com/success",
+            "failure_url": "https://researchhub.com/failure",
+        }
+
+        self.client.force_authenticate(user=self.user)
+
+        # Act
+        response = self.client.post(self.url, data=data)
+
+        # Assert
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(
+            response.data,
+            {
+                "message": "Failed to create checkout session",
+            },
+        )
