@@ -21,7 +21,6 @@ from corsheaders.defaults import default_headers
 from sentry_sdk.integrations.django import DjangoIntegration
 from web3 import Web3
 
-from config.keys import STRIPE_SECRET_KEY
 from utils.sentry import log_error
 
 APP_ENV = os.environ.get("APP_ENV") or "development"
@@ -622,7 +621,7 @@ if PRODUCTION or STAGING:
     )
 
 # Stripe
-STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", STRIPE_SECRET_KEY)
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", keys.STRIPE_SECRET_KEY)
 STRIPE_WEBHOOK_SIGNING_SECRET = os.environ.get(
     "STRIPE_WEBHOOK_SIGNING_SECRET", keys.STRIPE_WEBHOOK_SIGNING_SECRET
 )
