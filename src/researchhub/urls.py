@@ -274,6 +274,11 @@ urlpatterns = [
         stripe_webhook_view.StripeWebhookView.as_view(),
         name="stripe_webhook",
     ),
+    path(
+        "api/payment/checkout-session/",
+        purchase.views.CheckoutView.as_view(),
+        name="payment_view",
+    ),
 ]
 
 if "silk" in settings.INSTALLED_APPS:
