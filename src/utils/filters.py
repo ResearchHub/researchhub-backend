@@ -34,31 +34,6 @@ FIELD_LOOKUPS = (
 )
 
 
-class ListFilter(filters.CharFilter):
-
-    def __init__(self, **kwargs):
-        super(ListFilter, self).__init__(**kwargs)
-
-    def sanitize(self, value_list):
-        """
-        remove empty items in case of ?number=1,,2
-        """
-        return [v for v in value_list if v != u'']
-
-    def customize(self, value):
-        return value
-
-    def filter(self, qs, value):
-        multiple_vals = value.split(u",")
-        multiple_vals = self.sanitize(multiple_vals)
-        multiple_vals = map(self.customize, multiple_vals)
-        f = Q()
-        for v in multiple_vals:
-            kwargs = {self.field_name: v}
-            f = f | Q(**kwargs)
-        return qs.filter(f).distinct()
-
-
 class ListExcludeFilter(filters.CharFilter):
 
     def __init__(self, **kwargs):
