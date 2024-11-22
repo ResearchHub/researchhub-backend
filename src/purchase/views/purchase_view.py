@@ -62,6 +62,14 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         transfer_rsc = False
         recipient = None
 
+        if user.probable_spammer:
+            return Response(
+                {
+                    "detail": f"Account under review. Please contact support.",
+                },
+                status=403,
+            )
+
         if content_type_str not in self.ALLOWED_CONTENT_TYPES:
             return Response(status=400)
 

@@ -237,3 +237,36 @@ class SendRSCTest(APITestCase, TestCase, TestHelper, IntegrationTestHelper):
                 "purchase_type": "BOOST",
             },
         )
+
+    def test_probable_spammer_cannot_support(self):
+        user = create_random_authenticated_user("spammer_user")
+        poster = create_random_authenticated_user("poster_user")
+        post = create_post(created_by=poster)
+
+        # Set user as probable spammer
+        user.probable_spammer = True
+        user.save()
+
+        # give the user 10,000 RSC
+        DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model="distribution")
+        Balance.objects.create(
+            amount="10000", user=user, content_type=DISTRIBUTION_CONTENT_TYPE
+        )
+
+        response = self._post_support_response(user, post.id, "researchhubpost", 100)
+
+        self.assertEqual(response.status_code, 403)
+
+        # Verify no balance entries were created
+        self.assertEqual(
+            Balance.objects.filter(
+                user=user, content_type=ContentType.objects.get_for_model(SupportFee)
+            ).count(),
+            0,
+        )
+        self.assertEqual(
+            Balance.objects.filter(
+                user=poster, content_type=ContentType.objects.get(model="distribution")
+            ).count(),
+            0,
+        )
