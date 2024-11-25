@@ -25,14 +25,6 @@ def get_crossref_issued_date(item):
         return timezone.datetime(year, month, day)
 
 
-def get_unique_crossref_items(items):
-    results = {}
-    for item in items:
-        if results.get(item['title'][0]) is None:
-            results[item['title'][0]] = item
-    return results.values()
-
-
 def tf_calc(dl, avgdl):
     freq = 1
     k1 = 1.2
