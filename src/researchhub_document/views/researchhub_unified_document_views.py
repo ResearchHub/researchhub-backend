@@ -1,6 +1,5 @@
 from urllib.parse import urlencode
 
-import boto3
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.shortcuts import get_object_or_404
@@ -16,7 +15,6 @@ from discussion.models import Vote as GrmVote
 from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
 from paper.models import Paper
 from paper.utils import get_cache_key
-from researchhub.settings import AWS_REGION_NAME
 from researchhub_document.filters import UnifiedDocumentFilter
 from researchhub_document.models import (
     FeaturedContent,
@@ -46,7 +44,6 @@ from researchhub_document.views.custom.unified_document_pagination import (
 )
 from user.permissions import IsModerator
 from user.utils import reset_latest_acitvity_cache
-from utils.aws import PERSONALIZE, get_arn
 from utils.permissions import ReadOnly
 
 
@@ -80,271 +77,31 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             return ResearchhubUnifiedDocument.all_objects.all()
         return super().get_queryset()
 
-    def _get_unified_doc_ids_from_rec_ids(self, rec_ids):
-        rec_ids = [item_id.split("_") for item_id in rec_ids if "_" in item_id]
-        paper_ids = [
-            analytics_id[1] for analytics_id in rec_ids if analytics_id[0] == "paper"
-        ]
-        post_ids = [
-            analytics_id[1]
-            for analytics_id in rec_ids
-            if analytics_id[0] == "question" or analytics_id[0] == "post"
-        ]
-
-        unified_doc_ids = list(
-            Paper.objects.filter(id__in=paper_ids).values_list(
-                "unified_document", flat=True
-            )
-        )
-        unified_doc_ids.extend(
-            list(
-                ResearchhubPost.objects.filter(id__in=post_ids).values_list(
-                    "unified_document", flat=True
-                )
-            )
-        )
-
-        return unified_doc_ids
-
-    def _exclude_unacceptable_rec_ids(self, rec_ids):
-        return [
-            rec_id
-            for rec_id in rec_ids
-            if "_" in rec_id and rec_id.split("_")[0] in ["paper", "question", "post"]
-        ]
-
-    def _get_recommendation_buckets(self, user_id):
-        personalize_runtime = boto3.client(
-            "personalize-runtime", region_name=AWS_REGION_NAME
-        )
-
-        user_ranking_arn = get_arn(PERSONALIZE, "campaign/user-ranking")
-
-        buckets = [
-            {
-                "name": "rh-hot-score",
-                "source": "researchhub",
-                "num_results": 100,
-                "dist_pct": 0.3,
-            },
-            {
-                "name": "highly-cited",
-                "source": "personalize",
-                "campaign_arn": get_arn(PERSONALIZE, "campaign/recommendations"),
-                "filter_arn": get_arn(PERSONALIZE, "filter/highly-cited"),
-                "num_results": 100,
-                "dist_pct": 0.1,
-            },
-            {
-                "name": "trending-citations",
-                "source": "personalize",
-                "campaign_arn": get_arn(PERSONALIZE, "campaign/recommendations"),
-                "filter_arn": get_arn(PERSONALIZE, "filter/trending-citations"),
-                "num_results": 100,
-                "dist_pct": 0.25,
-            },
-            {
-                "name": "popular-on-social-media",
-                "source": "personalize",
-                "campaign_arn": get_arn(PERSONALIZE, "campaign/recommendations"),
-                "filter_arn": get_arn(PERSONALIZE, "filter/popular-on-social-media"),
-                "num_results": 100,
-                "dist_pct": 0.1,
-            },
-            {
-                "name": "only-papers",
-                "source": "personalize",
-                "campaign_arn": get_arn(PERSONALIZE, "campaign/recommendations"),
-                "filter_arn": get_arn(PERSONALIZE, "filter/only-papers"),
-                "num_results": 100,
-                "dist_pct": 0.1,
-            },
-            {
-                "name": "trending-on-rh",
-                "source": "personalize",
-                "campaign_arn": get_arn(PERSONALIZE, "campaign/trending"),
-                "filter_arn": None,
-                "num_results": 100,
-                "dist_pct": 0.15,
-            },
-        ]
-
-        for bucket in buckets:
-            if bucket["source"] == "researchhub":
-                if bucket["name"] == "rh-hot-score":
-                    unified_doc_ids = list(
-                        ResearchhubUnifiedDocument.objects.filter(
-                            document_type__in=["PAPER", "QUESTION", "DISCUSSION"]
-                        )
-                        .order_by("-hot_score_v2")[: bucket["num_results"]]
-                        .values_list("id", flat=True)
-                    )
-                    bucket["unified_doc_ids"] = unified_doc_ids
-            else:
-                args = {
-                    "campaignArn": bucket["campaign_arn"],
-                    "userId": str(user_id),
-                    "numResults": bucket["num_results"],
-                }
-
-                if bucket["filter_arn"]:
-                    args["filterArn"] = bucket["filter_arn"]
-
-                response = personalize_runtime.get_recommendations(**args)
-                rec_ids = [item["itemId"] for item in response["itemList"]]
-
-                rec_ids = self._exclude_unacceptable_rec_ids(rec_ids)
-
-                response = personalize_runtime.get_personalized_ranking(
-                    campaignArn=user_ranking_arn,
-                    inputList=rec_ids,
-                    userId=str(user_id),
-                )
-                ranked_ids = [
-                    item["itemId"] for item in response["personalizedRanking"]
-                ]
-
-                unified_doc_ids = self._get_unified_doc_ids_from_rec_ids(ranked_ids)
-                bucket["unified_doc_ids"] = unified_doc_ids
-
-        return self._deduplicate_recommendations(buckets)
-
-    def _deduplicate_recommendations(self, buckets):
-        seen_doc_ids = set()
-        new_buckets = []
-
-        for bucket in buckets:
-            new_doc_ids = []
-            for doc_id in bucket["unified_doc_ids"]:
-                if doc_id not in seen_doc_ids:
-                    seen_doc_ids.add(doc_id)
-                    new_doc_ids.append(doc_id)
-
-            # Update the bucket with the deduplicated list of doc IDs
-            new_bucket = bucket.copy()
-            new_bucket["unified_doc_ids"] = new_doc_ids
-            new_buckets.append(new_bucket)
-
-        # Replace the original buckets with the deduplicated version
-        buckets = new_buckets
-
-        return buckets
-
-    def _build_recommendation_pages(
-        self, recommendation_buckets, num_pages_to_build, num_per_page
-    ):
-        pages = []
-        for i in range(num_pages_to_build):
-            this_page = []
-            for bucket in recommendation_buckets:
-                bucket_items_per_page = int(num_per_page * bucket["dist_pct"])
-                doc_ids = bucket["unified_doc_ids"][:bucket_items_per_page]
-                docs = ResearchhubUnifiedDocument.objects.filter(id__in=doc_ids)
-
-                for doc in docs:
-                    doc.recommendation_metadata = bucket
-                    this_page.append(doc)
-
-                bucket["unified_doc_ids"] = bucket["unified_doc_ids"][
-                    bucket_items_per_page:
-                ]
-
-            pages.append(this_page)
-
-        return pages
-
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def recommendations(self, request, *args, **kwargs):
-        page_number = int(request.query_params.get("page", 1))
-        ignore_cache = request.query_params.get("ignore_cache", False) == "true"
-        if request.query_params.get("user_id", None):
-            user_id = int(request.query_params.get("user_id"))
-        elif request.user.is_authenticated:
-            user_id = request.user.id
-        else:
-            # For logged out users and all other cases, let's deafult to "hot" results
-            qs = self.get_queryset().order_by("-hot_score_v2")[:20]
-            page = self.paginate_queryset(qs)
-            context = self._get_serializer_context()
-            serializer = self.dynamic_serializer_class(
-                page,
-                _include_fields=[
-                    "id",
-                    "created_date",
-                    "documents",
-                    "document_filter",
-                    "document_type",
-                    "hot_score",
-                    "hubs",
-                    "reviews",
-                    "score",
-                    "fundraise",
-                ],
-                many=True,
-                context=context,
-            )
+        qs = self.get_queryset().order_by("-hot_score_v2")[:20]
+        page = self.paginate_queryset(qs)
+        context = self._get_serializer_context()
+        serializer = self.dynamic_serializer_class(
+            page,
+            _include_fields=[
+                "id",
+                "created_date",
+                "documents",
+                "document_filter",
+                "document_type",
+                "hot_score",
+                "hubs",
+                "reviews",
+                "score",
+                "fundraise",
+            ],
+            many=True,
+            context=context,
+        )
 
-            serializer_data = serializer.data
-            return self.get_paginated_response(serializer_data)
-
-        # Session ID will be used to log impressions. It is essential to associate impressions with a user's session
-        session_id = request.session.session_key
-        if not session_id:
-            # If there isn't a session yet, accessing any session attribute will create one.
-            request.session["init"] = True
-            request.session.save()
-            session_id = request.session.session_key
-            print("Session ID:", session_id)
-
-        cache_key = f"recs-user-{user_id}-page-{page_number}"
-        cache_hit = cache.get(cache_key)
-
-        if cache_hit and not ignore_cache:
-            return Response(cache_hit)
-
-        recommendation_buckets = self._get_recommendation_buckets(user_id)
-        pages = self._build_recommendation_pages(recommendation_buckets, 5, 20)
-
-        serialized_data_pages = []
-        i = 1
-        for unified_docs in pages:
-            context = self._get_serializer_context()
-            cache_key = f"recs-user-{user_id}-page-{i}"
-            serializer = self.dynamic_serializer_class(
-                unified_docs,
-                _include_fields=[
-                    "id",
-                    "created_date",
-                    "documents",
-                    "document_filter",
-                    "document_type",
-                    "hot_score",
-                    "hubs",
-                    "reviews",
-                    "score",
-                    "fundraise",
-                    "recommendation_metadata",
-                ],
-                many=True,
-                context=context,
-            )
-
-            data = {
-                "count": len(unified_docs),
-                "previous": (
-                    f"{request.scheme}://{request.get_host()}/api/researchhub_unified_document/recommendations/?user_id={user_id}&page={i - 1}"
-                    if i > 1
-                    else None
-                ),
-                "next": f"{request.scheme}://{request.get_host()}/api/researchhub_unified_document/recommendations/?user_id={user_id}&page={i + 1}",
-                "results": serializer.data,
-            }
-
-            cache.set(cache_key, data, timeout=60 * 60 * 24)
-            serialized_data_pages.append(data)
-            i += 1
-
-        return Response(serialized_data_pages[page_number - 1])
+        serializer_data = serializer.data
+        return self.get_paginated_response(serializer_data)
 
     @action(
         detail=True,
