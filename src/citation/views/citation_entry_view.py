@@ -41,8 +41,8 @@ from paper.exceptions import DOINotFoundError
 from paper.models import Paper
 from paper.serializers import PaperCitationSerializer
 from paper.utils import DOI_REGEX, clean_dois, pdf_copyright_allows_display
+from researchhub import settings
 from researchhub.pagination import FasterDjangoPaginator
-from researchhub.settings import AWS_STORAGE_BUCKET_NAME
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.related_models.user_model import User
 from user.utils import get_user_organizations
@@ -105,7 +105,7 @@ class CitationEntryViewSet(ModelViewSet):
         res = s3_client.generate_presigned_url(
             "put_object",
             Params={
-                "Bucket": AWS_STORAGE_BUCKET_NAME,
+                "Bucket": settings.AWS_STORAGE_BUCKET_NAME,
                 "Key": f"uploads/citation_pdfs/{user_key}_{cleaned_filename}",
                 "ContentType": "application/pdf",
                 "Metadata": {
