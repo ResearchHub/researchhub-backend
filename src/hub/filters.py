@@ -8,7 +8,7 @@ class HubFilter(filters.FilterSet):
 
     class Meta:
         model = Hub
-        fields = [field.name for field in model._meta.fields]
+        fields = "__all__"
         filter_overrides = {
             FileField: {
                 "filter_class": filters.CharFilter,
