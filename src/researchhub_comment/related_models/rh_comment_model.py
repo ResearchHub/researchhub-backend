@@ -166,14 +166,6 @@ class RhCommentModel(
 
         return total_count
 
-    # Used for analytics such as Amazon Personalize
-    def get_analytics_type(self):
-        return "comment"
-
-    # Used for analytics such as Amazon Personalize
-    def get_analytics_id(self):
-        return self.get_analytics_type() + "_" + str(self.id)
-
     def update_comment_content(self):
         celery_create_comment_content_src.apply_async(
             (self.id, self.comment_content_json), countdown=2
