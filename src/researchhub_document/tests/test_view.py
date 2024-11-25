@@ -548,3 +548,18 @@ class ViewTests(APITestCase):
 
         self.assertEqual(doc_response.status_code, 200)
         self.assertEqual(int(author.get_balance()), 5)
+
+    def test_get_document_metadata(self):
+        # Arrange
+        self.client.force_authenticate(self.non_member)
+
+        paper = create_paper(title="title1", uploaded_by=self.non_member)
+
+        # Act
+        response = self.client.get(
+            f"/api/researchhub_unified_document/{paper.unified_document.id}/get_document_metadata/"
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["id"], paper.unified_document.id)
