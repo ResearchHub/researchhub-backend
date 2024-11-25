@@ -40,14 +40,6 @@ class Vote(DefaultModel):
     )
     vote_type = IntegerField(choices=VOTE_TYPE_CHOICES)
 
-    # Used for analytics such as Amazon Personalize
-    def get_analytics_type(self):
-        return "vote"
-
-    # Used for analytics such as Amazon Personalize
-    def get_analytics_id(self):
-        return self.get_analytics_type() + "_" + str(self.id)
-
     class Meta:
         constraints = [
             UniqueConstraint(
