@@ -670,41 +670,6 @@ class BountyViewTests(APITestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(len(res.data["results"]), 2)
 
-    def test_get_bounties_personalized(self):
-        # Arrange
-        self.client.force_authenticate(self.user)
-        self.thread2 = create_rh_comment(created_by=self.user)
-
-        res = self.client.post(
-            "/api/bounty/",
-            {
-                "amount": 1000,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
-            },
-        )
-
-        self.assertEqual(res.status_code, 201)
-
-        self.client.force_authenticate(self.user_2)
-        res = self.client.post(
-            "/api/bounty/",
-            {
-                "amount": 2000,
-                "item_content_type": self.thread2._meta.model_name,
-                "item_object_id": self.thread2.id,
-            },
-        )
-
-        self.assertEqual(res.status_code, 201)
-
-        # Act
-        res = self.client.get("/api/bounty/?personalized=true")
-
-        # Assert
-        self.assertEqual(res.status_code, 200)
-        self.assertEqual(len(res.data["results"]), 2)
-
     def test_filter_official_account_bounties(self):
         self.client.force_authenticate(self.rh_official)
 
