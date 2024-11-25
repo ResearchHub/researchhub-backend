@@ -1,11 +1,11 @@
 from decimal import Decimal
 
-from smart_open import open
 from web3 import Web3
 
 from ethereum.utils import decimal_to_token_amount
 from researchhub import settings
 from researchhub.settings import w3
+from utils.aws import create_client
 
 TOKENS = {
     "RSC": {
@@ -117,13 +117,14 @@ def transact(w3, method_call, sender, sender_signing_key, gas=None):
 
 
 def get_private_key():
-    url = f"s3://{settings.AWS_ACCESS_KEY_ID}:{settings.AWS_SECRET_ACCESS_KEY}@{settings.WEB3_KEYSTORE_BUCKET}/{settings.WEB3_KEYSTORE_FILE}"
+    s3_client = create_client("s3")
+    response = s3_client.get_object(
+        Bucket=settings.WEB3_KEYSTORE_BUCKET,
+        Key=settings.WEB3_KEYSTORE_FILE,
+    )
+    encrypted_key = response["Body"].read().decode("utf-8")
 
-    with open(url) as keyfile:
-        encrypted_key = keyfile.read()
-        if settings.WEB3_KEYSTORE_PASSWORD:
-            return w3.eth.account.decrypt(
-                encrypted_key, settings.WEB3_KEYSTORE_PASSWORD
-            )
-        else:
-            return encrypted_key
+    if settings.WEB3_KEYSTORE_PASSWORD:
+        return w3.eth.account.decrypt(encrypted_key, settings.WEB3_KEYSTORE_PASSWORD)
+    else:
+        return encrypted_key
