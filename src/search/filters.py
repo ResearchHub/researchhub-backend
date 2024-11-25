@@ -1,9 +1,5 @@
-from elasticsearch_dsl.query import Match
-from elasticsearch_dsl import query, Q
+from elasticsearch_dsl import Q, query
 from rest_framework import filters
-
-from .utils import practical_score, get_avgdl
-from paper.models import Paper
 
 
 class ElasticsearchFuzzyFilter(filters.SearchFilter):
@@ -49,26 +45,4 @@ class ElasticsearchFuzzyFilter(filters.SearchFilter):
             es = es[:limit]
 
         response = es.execute()
-        return response
-
-
-class ElasticsearchPaperTitleFilter(filters.SearchFilter):
-
-    def filter_queryset(self, request, queryset, view):
-        search = getattr(view, 'search')
-
-        search_terms = self.get_search_terms(request)
-        terms_count = len(search_terms)
-        terms = ' '.join(search_terms)
-        query = Match(
-            title=terms
-        )
-
-        es = search.query(query)
-        N = Paper.objects.count()
-        dl = len(search_terms)
-        avgdl = get_avgdl(es, Paper.objects)
-        threshold = practical_score(search_terms, N, dl, avgdl) - terms_count
-        response = es.execute()
-        response = [res for res in response if res.meta.score >= threshold]
         return response
