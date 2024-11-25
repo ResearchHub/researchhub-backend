@@ -1,14 +1,11 @@
 import math
 
-from django_elasticsearch_dsl import Document, Index
-from django_elasticsearch_dsl import fields
 from django_elasticsearch_dsl import fields as es_fields
 from django_elasticsearch_dsl.registries import registry
-from elasticsearch_dsl import analyzer, token_filter, tokenizer
 
 from paper.models import Paper
 from paper.utils import format_raw_authors, pdf_copyright_allows_display
-from search.analyzers import content_analyzer, name_analyzer, title_analyzer
+from search.analyzers import content_analyzer, title_analyzer
 from utils import sentry
 
 from .base import BaseDocument
