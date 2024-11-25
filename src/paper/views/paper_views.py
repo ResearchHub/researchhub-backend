@@ -76,7 +76,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
     dynamic_serializer_class = DynamicPaperSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     search_fields = ("title", "doi", "paper_title")
-    filter_class = PaperFilter
+    filterset_class = PaperFilter
     throttle_classes = THROTTLE_CLASSES
     ordering = "-created_date"
 

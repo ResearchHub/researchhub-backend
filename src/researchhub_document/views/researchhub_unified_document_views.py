@@ -57,7 +57,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
     dynamic_serializer_class = DynamicUnifiedDocumentSerializer
     queryset = ResearchhubUnifiedDocument.objects.all()
     filter_backends = (DjangoFilterBackend,)
-    filter_class = UnifiedDocumentFilter
+    filterset_class = UnifiedDocumentFilter
     serializer_class = ResearchhubUnifiedDocumentSerializer
 
     def create(self, *args, **kwargs):
