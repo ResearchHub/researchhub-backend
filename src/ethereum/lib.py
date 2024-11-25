@@ -1,4 +1,3 @@
-import json
 from decimal import Decimal
 
 from smart_open import open
