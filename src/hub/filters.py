@@ -3,6 +3,7 @@ from django_filters import rest_framework as filters
 
 from .models import Hub
 
+
 class HubFilter(filters.FilterSet):
     name__iexact = filters.CharFilter(field_name="name", lookup_expr="iexact")
 
