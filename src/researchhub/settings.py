@@ -467,10 +467,22 @@ DATABASES = {
     }
 }
 
-# Persistent database connections.
-# See: https://docs.djangoproject.com/en/4.2/ref/databases/#persistent-database-connections
 if ELASTIC_BEANSTALK:
+    # Persistent database connections.
+    # See: https://docs.djangoproject.com/en/4.2/ref/databases/#persistent-database-connections
     DATABASES["default"]["MAX_CONN_AGE"] = 180
+
+    # Connection pooling
+    # See: https://docs.djangoproject.com/en/5.1/ref/databases/#connection-pool
+    # See: https://www.psycopg.org/psycopg3/docs/api/pool.html#psycopg_pool.ConnectionPool
+    DB_POOL_MIN_SIZE = os.environ.get("DB_POOL_MIN_SIZE", 10)
+    DB_POOL_MAX_SIZE = os.environ.get("DB_POOL_MAX_SIZE", 50)
+
+    DATABASES["default"].setdefault("OPTIONS", {})
+    DATABASES["default"]["OPTIONS"]["pool"] = {
+        "min_size": DB_POOL_MIN_SIZE,
+        "max_size": DB_POOL_MAX_SIZE,
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/2.2/ref/settings/#auth-password-validators
