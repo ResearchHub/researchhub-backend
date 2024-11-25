@@ -73,11 +73,6 @@ class OrFilter(filters.CharFilter):
         if self.model is None or not hasattr(self.model, "_meta"):
             raise ValueError("no model provided to or_filter")
 
-        # Force field_name to be or_filter?
-        # if kwargs.get('field_name', 'or_filter') != 'or_filter':
-        #    raise ValueError('OrFilter must have field_name as "or_filter"')
-        # kwargs['field_name'] = 'or_filter'
-
         # Set field_name to or_filter if none provided
         if kwargs.get("field_name") is None:
             kwargs["field_name"] = "or_filter"
