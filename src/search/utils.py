@@ -1,19 +1,19 @@
 import math
-import utils.sentry as sentry
 
-from django.db.models import Q, Count
 from django.core.cache import cache
+from django.db.models import Count, Q
 from django.utils import timezone
 
+import utils.sentry as sentry
 from paper.models import Paper
 
 
 def get_crossref_doi(item):
-    return item['DOI']
+    return item["DOI"]
 
 
 def get_crossref_issued_date(item):
-    parts = item['issued']['date-parts'][0]
+    parts = item["issued"]["date-parts"][0]
     day = 1
     month = 1
     if len(parts) > 2:
@@ -48,7 +48,7 @@ def practical_score(terms, N, dl, avgdl):
     total_score = 0
     aggregate_dict = {}
     for term in terms:
-        aggregate_dict[term] = Count('pk', filter=Q(title__contains=term))
+        aggregate_dict[term] = Count("pk", filter=Q(title__contains=term))
 
     counts = Paper.objects.aggregate(**aggregate_dict)
     for n in counts.values():
@@ -59,12 +59,12 @@ def practical_score(terms, N, dl, avgdl):
 
 
 def get_avgdl_from_hit(hit):
-    details = hit['details'][::-1]
+    details = hit["details"][::-1]
     for detail in details:
-        description = detail['description']
+        description = detail["description"]
 
-        if 'average length of field' in description:
-            return detail['value']
+        if "average length of field" in description:
+            return detail["value"]
 
         res = get_avgdl_from_hit(detail)
         if type(res) is float:
@@ -74,32 +74,28 @@ def get_avgdl_from_hit(hit):
 
 def get_avgdl_from_qs(qs):
     qs_count = qs.count()
-    total_len = sum(
-        [len(paper.title.split()) for paper in qs.iterator()]
-    )
+    total_len = sum([len(paper.title.split()) for paper in qs.iterator()])
     avgdl = max(1, (total_len / qs_count) - 1)
     return avgdl
 
 
 def get_avgdl(es, qs):
-    cache_key = 'paper_avgdl'
+    cache_key = "paper_avgdl"
     avgdl = cache.get(cache_key)
     if avgdl is None:
         try:
-            explanation = es.extra(
-                explain=True
-            ).execute().to_dict()
-            explanation = explanation['hits']['hits']
-            first_hit = explanation[0]['_explanation']
+            explanation = es.extra(explain=True).execute().to_dict()
+            explanation = explanation["hits"]["hits"]
+            first_hit = explanation[0]["_explanation"]
 
             avgdl = get_avgdl_from_hit(first_hit)
             if not avgdl:
                 avgdl = get_avgdl_from_qs(qs)
-                sentry.log_info('Could not find avgdl from explanation')
+                sentry.log_info("Could not find avgdl from explanation")
             else:
-                cache.set(cache_key, avgdl, timeout=60*60*24)
+                cache.set(cache_key, avgdl, timeout=60 * 60 * 24)
         except Exception as e:
-            sentry.log_info('Missing Elasticsearch explanation', error=e)
+            sentry.log_info("Missing Elasticsearch explanation", error=e)
             avgdl = get_avgdl_from_qs(qs)
 
     return avgdl
