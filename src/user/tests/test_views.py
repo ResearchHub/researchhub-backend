@@ -100,13 +100,17 @@ class UserApiTests(APITestCase):
         # Arrange
         self.client.force_authenticate(self.user_with_published_works)
 
-        document = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
-        Paper.objects.create(title="title1", unified_document=document)
+        paper = Paper.objects.create(
+            title="title1",
+        )
+        cached_data = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER", paper=paper
+        )
 
         cache_key = (
             f"author-{self.user_with_published_works.author_profile.id}-publications"
         )
-        cache.set(cache_key, [document])
+        cache.set(cache_key, [cached_data])
 
         # Act
         url = f"/api/author/{self.user_with_published_works.author_profile.id}/publications/"
@@ -116,7 +120,7 @@ class UserApiTests(APITestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["count"], 1)
         self.assertEqual(
-            resp.json()["results"][0]["documents"]["id"], document.paper.id
+            resp.json()["results"][0]["documents"]["id"], cached_data.paper.id
         )
 
     @patch.object(OpenAlex, "get_works")
@@ -474,11 +478,15 @@ class UserViewsTests(TestCase):
         # Arrange
         author = Author.objects.create(first_name="firstName1", last_name="lastName1")
 
-        document = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
-        Paper.objects.create(title="title1", unified_document=document)
+        paper = Paper.objects.create(
+            title="title1",
+        )
+        cached_data = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER", paper=paper
+        )
 
         cache_key = f"author-{author.id}-overview"
-        cache.set(cache_key, [document])
+        cache.set(cache_key, [cached_data])
 
         # Act
         url = f"/api/author/{author.id}/overview/"
@@ -490,7 +498,7 @@ class UserViewsTests(TestCase):
         self.assertTrue(response.status_code, 200)
         self.assertEqual(response.json()["count"], 1)
         self.assertEqual(
-            response.json()["results"][0]["documents"]["id"], document.paper.id
+            response.json()["results"][0]["documents"]["id"], cached_data.paper.id
         )
 
     def get_actions_response(self, user):
