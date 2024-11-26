@@ -27,8 +27,6 @@ from reputation.serializers import (
 from reputation.tasks import create_contribution
 from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
 from researchhub_document.related_models.constants.document_type import (
-    ALL,
-    BOUNTY,
     FILTER_BOUNTY_CLOSED,
     FILTER_BOUNTY_OPEN,
     FILTER_HAS_BOUNTY,
@@ -489,38 +487,54 @@ class BountyViewSet(viewsets.ModelViewSet):
     def list(self, request, *args, **kwargs):
         sort = self.request.query_params.get("sort", "-created_date")
 
-        queryset = self.filter_queryset(self.get_queryset())
+        # If sort is personalized but user is logged out, default to created_date
+        if sort == "personalized" and not request.user.is_authenticated:
+            sort = "-created_date"
 
-        # Sorting by amount requires us to do some math and add up all of the child bounties
-        if sort == "-total_amount":
-            # Subquery to calculate the sum of children amounts
-            children_sum = (
-                Bounty.objects.filter(parent=OuterRef("pk"))
-                .values("parent")
-                .annotate(
-                    sum=Coalesce(
-                        Sum("amount"),
+        if sort == "personalized":
+            bounties = Bounty.find_bounties_for_user(
+                user=request.user,
+                include_unrelated=True,
+            )
+
+            queryset = Bounty.objects.filter(id__in=[b.id for b in bounties])
+            queryset = self.filter_queryset(queryset)
+        else:
+            queryset = self.filter_queryset(self.get_queryset())
+
+            # Sorting by amount requires us to do some math and add up all of the child bounties
+            if sort == "-total_amount":
+                # Subquery to calculate the sum of children amounts
+                children_sum = (
+                    Bounty.objects.filter(parent=OuterRef("pk"))
+                    .values("parent")
+                    .annotate(
+                        sum=Coalesce(
+                            Sum("amount"),
+                            Value(
+                                0,
+                                output_field=DecimalField(
+                                    max_digits=19, decimal_places=10
+                                ),
+                            ),
+                        )
+                    )
+                    .values("sum")
+                )
+
+                # Annotate queryset with total_amount for all cases
+                queryset = queryset.annotate(
+                    total_amount=F("amount")
+                    + Coalesce(
+                        Subquery(children_sum),
                         Value(
                             0,
                             output_field=DecimalField(max_digits=19, decimal_places=10),
                         ),
                     )
                 )
-                .values("sum")
-            )
-            # Annotate queryset with total_amount for all cases
-            queryset = queryset.annotate(
-                total_amount=F("amount")
-                + Coalesce(
-                    Subquery(children_sum),
-                    Value(
-                        0,
-                        output_field=DecimalField(max_digits=19, decimal_places=10),
-                    ),
-                )
-            )
 
-        queryset = queryset.order_by(sort)
+            queryset = queryset.order_by(sort)
 
         page = self.paginate_queryset(queryset)
         context = self._get_retrieve_context()
