@@ -538,14 +538,6 @@ class Paper(AbstractGenericReactionModel):
             return [self.get_vote_for_index(vote) for vote in all_votes]
         return {}
 
-    # Used for analytics such as Amazon Personalize
-    def get_analytics_type(self):
-        return "paper"
-
-    # Used for analytics such as Amazon Personalize
-    def get_analytics_id(self):
-        return self.get_analytics_type() + "_" + str(self.id)
-
     def raw_author_count(self):
         raw_author_count = 0
 

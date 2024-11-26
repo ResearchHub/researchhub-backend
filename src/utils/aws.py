@@ -13,12 +13,6 @@ from researchhub import settings
 from utils.http import check_url_contains_pdf
 from utils.sentry import log_error
 
-PERSONALIZE = "personalize"
-
-
-def get_arn(service, resource):
-    return f"arn:aws:{service}:{settings.AWS_REGION_NAME}:{settings.AWS_ACCOUNT_ID}:{resource}"
-
 
 def get_s3_object_name(key):
     parts = key.split("/")

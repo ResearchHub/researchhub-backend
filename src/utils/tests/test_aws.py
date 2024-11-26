@@ -1,10 +1,6 @@
 from django.test import TestCase
 
-from utils.aws import (
-    get_arn,
-    http_to_s3,
-    PERSONALIZE,
-)
+from utils.aws import http_to_s3
 
 
 class AWSUtilsTests(TestCase):
@@ -20,10 +16,3 @@ class AWSUtilsTests(TestCase):
         result = http_to_s3(self.https_pdf_url)
         expected = f"s3://{self.bucket}{self.key}"
         self.assertEqual(result, expected)
-
-    def test_get_arn(self):
-        result = get_arn(PERSONALIZE, "campaign/campaign1")
-        self.assertEqual(
-            result,
-            "arn:aws:personalize:awsRegionName1:awsAccountId1:campaign/campaign1",
-        )

@@ -7,7 +7,7 @@ from django.db.models import Avg, Count, IntegerField, Q, Sum
 from django.db.models.functions import Cast, Extract
 
 from discussion.reaction_models import AbstractGenericReactionModel, Vote
-from hub.serializers import DynamicHubSerializer, HubSerializer
+from hub.serializers import DynamicHubSerializer
 from paper.utils import paper_piecewise_log
 from purchase.models import Purchase
 from researchhub_comment.models import RhCommentThreadModel
@@ -204,23 +204,6 @@ class ResearchhubPost(AbstractGenericReactionModel):
             return "question"
 
         return "post"
-
-    # Used for analytics such as Amazon Personalize
-    def get_analytics_type(self):
-        if self.document_type == "BOUNTY":
-            return "bounty"
-        elif self.document_type == "DISCUSSION":
-            return "post"
-        elif self.document_type == "QUESTION":
-            return "question"
-        elif self.document_type == "PREREGISTRATION":
-            return "preregistration"
-
-        return "post"
-
-    # Used for analytics such as Amazon Personalize
-    def get_analytics_id(self):
-        return self.get_analytics_type() + "_" + str(self.id)
 
     def get_accepted_answer(self):
         return self.threads.filter(
