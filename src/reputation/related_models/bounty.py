@@ -91,6 +91,14 @@ class Bounty(DefaultModel):
             ),
         )
 
+    # Used for analytics such as Amazon Personalize
+    def get_analytics_type(self):
+        return "bounty"
+
+    # Used for analytics such as Amazon Personalize
+    def get_analytics_id(self):
+        return self.get_analytics_type() + "_" + str(self.id)
+
     def __str__(self):
         return f"Bounty: {self.id}"
 
