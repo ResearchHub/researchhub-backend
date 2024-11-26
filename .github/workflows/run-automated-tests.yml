@@ -14,7 +14,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16.1-alpine
+        image: postgres:16.3-alpine
         env:
           POSTGRES_DB: researchhub
           POSTGRES_USER: rh_developer
