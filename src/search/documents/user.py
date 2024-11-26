@@ -1,8 +1,7 @@
 from django_elasticsearch_dsl import fields as es_fields
 from django_elasticsearch_dsl.registries import registry
-from elasticsearch_dsl import analyzer, token_filter, tokenizer
+from elasticsearch_dsl import analyzer, token_filter
 
-from search.analyzers import whitespace_edge_ngram_analyzer
 from user.models import User
 
 from .base import BaseDocument
