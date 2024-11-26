@@ -600,7 +600,10 @@ EMAIL_WHITELIST = [
     for email in os.environ.get("EMAIL_WHITELIST", keys.EMAIL_WHITELIST).split(",")
 ]
 
-SIFT_MODERATION_WHITELIST = [35747, 34581, 36837, 35436, 14, 33287, 34416]
+SIFT_MODERATION_WHITELIST = [
+    user_id.strip()
+    for user_id in os.environ.get("SIFT_MODERATION_WHITELIST", "").split(",")
+]
 
 # Persona
 PERSONA_WEBHOOK_SECRET = os.environ.get(
