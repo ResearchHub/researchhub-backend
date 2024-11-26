@@ -32,7 +32,7 @@ services:
       - researchhub
 
   postgres:
-    image: postgres:16.1-alpine
+    image: postgres:16.3-alpine
     restart: unless-stopped
     volumes:
       - postgres-data:/var/lib/postgresql/data
