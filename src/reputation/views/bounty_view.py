@@ -27,8 +27,6 @@ from reputation.serializers import (
 from reputation.tasks import create_contribution
 from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
 from researchhub_document.related_models.constants.document_type import (
-    ALL,
-    BOUNTY,
     FILTER_BOUNTY_CLOSED,
     FILTER_BOUNTY_OPEN,
     FILTER_HAS_BOUNTY,
