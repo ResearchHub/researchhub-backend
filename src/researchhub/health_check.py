@@ -32,21 +32,21 @@ class GitHashBackend(BaseHealthCheckBackend):
         return long_hash
 
     def _read_git_hash_from_file(self):
-        hash = None
+        git_hash = None
         try:
             with open("git_hash.txt", "r") as f:
-                hash = f.read().strip()
+                git_hash = f.read().strip()
         except FileNotFoundError:
             pass
 
-        return hash
+        return git_hash
 
     def _read_git_hash_from_process(self):
-        hash = None
+        git_hash = None
         try:
             import subprocess
 
-            hash = (
+            git_hash = (
                 subprocess.check_output(["git", "rev-parse", "HEAD"])
                 .decode("utf-8")
                 .strip()
@@ -54,4 +54,4 @@ class GitHashBackend(BaseHealthCheckBackend):
         except Exception:
             pass
 
-        return hash
+        return git_hash
