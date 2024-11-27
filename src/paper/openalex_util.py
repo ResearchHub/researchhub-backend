@@ -413,8 +413,6 @@ def create_openalex_authorships_and_institutions(
 
             for author in authors_for_oa_author:
                 # Associate paper with author
-                related_paper.authors.add(author)
-
                 is_corresponding = oa_authorship.get("is_corresponding")
                 raw_author_name = oa_authorship.get("author", {}).get("display_name")
 
