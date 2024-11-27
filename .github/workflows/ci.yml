@@ -48,9 +48,11 @@ jobs:
         with:
           ref: ${{ github.event.inputs.git_ref }}
 
-      - name: Set short Git SHA
+      - name: Get Git SHA
         run: |
-          SHORT_GIT_SHA=$(git rev-parse HEAD | cut -c1-7)
+          GIT_SHA=$(git rev-parse HEAD)
+          echo "$GIT_SHA" > src/git_hash.txt
+          SHORT_GIT_SHA=${GIT_SHA:0:7}
           echo "SHORT_GIT_SHA=$SHORT_GIT_SHA" >> "$GITHUB_ENV"
           echo "Git SHA: ${SHORT_GIT_SHA}"
 
