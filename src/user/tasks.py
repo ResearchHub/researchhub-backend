@@ -65,7 +65,7 @@ def get_latest_actions(cursor):
 
 def get_authored_paper_updates(author, latest_actions):
     updates = []
-    papers = author.authored_papers.all()
+    papers = author.papers.all()
     for action in latest_actions:
         item = action.item
 
@@ -80,7 +80,7 @@ def get_authored_paper_updates(author, latest_actions):
 
 def get_my_updates(user, actions):
     updates = []
-    my_papers = user.author_profile.authored_papers.all()
+    my_papers = user.author_profile.papers.all()
     my_threads = Thread.objects.filter(created_by=user)
     my_comments = Comment.objects.filter(created_by=user)
 

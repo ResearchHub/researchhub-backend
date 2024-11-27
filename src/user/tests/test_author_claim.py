@@ -109,7 +109,7 @@ class AuthorClaimTests(APITestCase):
                 self.assertCountEqual(
                     [
                         p.openalex_id
-                        for p in self.claiming_user.author_profile.authored_papers.all()
+                        for p in self.claiming_user.author_profile.papers.all()
                     ],
                     work_ids,
                 )
