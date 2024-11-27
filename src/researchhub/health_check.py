@@ -1,3 +1,5 @@
+import os
+
 from health_check.backends import BaseHealthCheckBackend
 
 
@@ -23,10 +25,9 @@ class GitHashBackend(BaseHealthCheckBackend):
         return f"🔢 Git Hash: {self.git_hash}"
 
     def _get_git_hash(self):
-        if self.git_hash is None:
-            long_hash = self._read_git_hash_from_file()
+        long_hash = self._read_git_hash_from_file()
 
-        if self.git_hash is None:
+        if long_hash is None:
             long_hash = self._read_git_hash_from_process()
 
         return long_hash
@@ -34,7 +35,10 @@ class GitHashBackend(BaseHealthCheckBackend):
     def _read_git_hash_from_file(self):
         git_hash = None
         try:
-            with open("git_hash.txt", "r") as f:
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            parent_dir = os.path.dirname(base_dir)
+            file_path = os.path.join(parent_dir, "git_hash.txt")
+            with open(file_path, "r") as f:
                 git_hash = f.read().strip()
         except FileNotFoundError:
             pass
