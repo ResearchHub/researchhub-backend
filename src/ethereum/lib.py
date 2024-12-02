@@ -1,24 +1,16 @@
-import json
 from decimal import Decimal
 
-from smart_open import open
 from web3 import Web3
 
 from ethereum.utils import decimal_to_token_amount
-from researchhub.settings import (
-    AWS_ACCESS_KEY_ID,
-    AWS_SECRET_ACCESS_KEY,
-    WEB3_KEYSTORE_BUCKET,
-    WEB3_KEYSTORE_FILE,
-    WEB3_KEYSTORE_PASSWORD,
-    WEB3_RSC_ADDRESS,
-    w3,
-)
+from researchhub import settings
+from researchhub.settings import w3
+from utils.aws import create_client
 
 TOKENS = {
     "RSC": {
         "name": "ResearchCoin",
-        "contract_address": WEB3_RSC_ADDRESS,
+        "contract_address": settings.WEB3_RSC_ADDRESS,
         "ticker": "RSC",
         "denomination": 18,
         "reputation_exchange_rate": "1.0",
@@ -125,11 +117,14 @@ def transact(w3, method_call, sender, sender_signing_key, gas=None):
 
 
 def get_private_key():
-    url = f"s3://{AWS_ACCESS_KEY_ID}:{AWS_SECRET_ACCESS_KEY}@{WEB3_KEYSTORE_BUCKET}/{WEB3_KEYSTORE_FILE}"
+    s3_client = create_client("s3")
+    response = s3_client.get_object(
+        Bucket=settings.WEB3_KEYSTORE_BUCKET,
+        Key=settings.WEB3_KEYSTORE_FILE,
+    )
+    encrypted_key = response["Body"].read().decode("utf-8")
 
-    with open(url) as keyfile:
-        encrypted_key = keyfile.read()
-        if WEB3_KEYSTORE_PASSWORD:
-            return w3.eth.account.decrypt(encrypted_key, WEB3_KEYSTORE_PASSWORD)
-        else:
-            return encrypted_key
+    if settings.WEB3_KEYSTORE_PASSWORD:
+        return w3.eth.account.decrypt(encrypted_key, settings.WEB3_KEYSTORE_PASSWORD)
+    else:
+        return encrypted_key
