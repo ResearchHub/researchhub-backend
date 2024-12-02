@@ -631,29 +631,20 @@ ELASTICSEARCH_DSL = {
     "default": {
         "hosts": ELASTICSEARCH_HOST if ELASTICSEARCH_HOST else "http://localhost:9200",
         "timeout": 30,
+        "client_meta": False,
     },
 }
 
-if PRODUCTION:
+if PRODUCTION or STAGING:
     ELASTICSEARCH_DSL = {
         "default": {
             "hosts": ELASTICSEARCH_HOST,  # noqa: E501
             "port": 443,
             "use_ssl": True,
             "max_retries": 5,
+            "client_meta": False,
         },
     }
-
-if STAGING:
-    ELASTICSEARCH_DSL = {
-        "default": {
-            "hosts": ELASTICSEARCH_HOST,  # noqa: E501
-            "port": 443,
-            "use_ssl": True,
-            "max_retries": 5,
-        },
-    }
-
 
 ELASTICSEARCH_AUTO_REINDEX = True
 ELASTICSEARCH_DSL_PARALLEL = True
