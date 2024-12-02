@@ -10,6 +10,8 @@ AWS_ROLE_ARN = os.environ.get("AWS_ROLE_ARN", "")
 AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME", "awsBucketName1")
 AWS_SES_REGION_ENDPOINT = os.environ.get("AWS_SES_REGION_ENDPOINT", "")
 
+EMAIL_WHITELIST = os.environ.get("EMAIL_WHITELIST", "no-one@researchhub.com")
+
 GHOSTSCRIPT_LAMBDA_ARN = os.environ.get("GHOSTSCRIPT_LAMBDA_ARN", "NOT_REAL")
 
 HEALTH_CHECK_TOKEN = os.environ.get("HEALTH_CHECK_TOKEN", "")
