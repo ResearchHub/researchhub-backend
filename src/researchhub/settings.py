@@ -584,7 +584,8 @@ if TESTING:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 EMAIL_WHITELIST = [
-    email.strip() for email in os.environ.get("EMAIL_WHITELIST", "").split(",")
+    email.strip()
+    for email in os.environ.get("EMAIL_WHITELIST", keys.EMAIL_WHITELIST).split(",")
 ]
 
 SIFT_MODERATION_WHITELIST = [35747, 34581, 36837, 35436, 14, 33287, 34416]
