@@ -101,7 +101,7 @@ class Paper(AbstractGenericReactionModel):
     moderators = models.ManyToManyField(
         "user.User", related_name="moderated_papers", blank=True
     )
-    authorship_authors = models.ManyToManyField(
+    authors = models.ManyToManyField(
         "user.Author",
         through="Authorship",
         related_name="papers",
@@ -437,13 +437,13 @@ class Paper(AbstractGenericReactionModel):
     @property
     def owners(self):
         mods = list(self.moderators.all())
-        authors = list(self.authorship_authors.all())
+        authors = list(self.authors.all())
         return mods + authors
 
     @property
     def users_to_notify(self):
         users = list(self.moderators.all())
-        paper_authors = self.authorship_authors.all()
+        paper_authors = self.authors.all()
         for author in paper_authors:
             if (
                 author.user
@@ -478,7 +478,7 @@ class Paper(AbstractGenericReactionModel):
 
     @property
     def authors_indexing(self):
-        return [parse_author_name(author) for author in self.authorship_authors.all()]
+        return [parse_author_name(author) for author in self.authors.all()]
 
     @property
     def discussion_count_indexing(self):
@@ -537,7 +537,7 @@ class Paper(AbstractGenericReactionModel):
         if isinstance(self.raw_authors, list):
             raw_author_count = len(self.raw_authors)
             for author in self.raw_authors:
-                if self.authorship_authors.filter(
+                if self.authors.filter(
                     first_name=author.get("first_name"),
                     last_name=author.get("last_name"),
                 ).exists():
