@@ -160,7 +160,7 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
 
     def get_authors(self, paper):
         serializer = AuthorSerializer(
-            paper.authorship_authors.filter(claimed=True),
+            paper.authors.filter(claimed=True),
             many=True,
             read_only=False,
             required=False,
@@ -477,10 +477,10 @@ class PaperSerializer(BasePaperSerializer):
 
                 # Now add m2m values properly
                 if validated_data["paper_type"] == Paper.PRE_REGISTRATION:
-                    paper.authorship_authors.add(user.author_profile)
+                    paper.authors.add(user.author_profile)
 
                 # TODO: Do we still need add authors from the request content?
-                paper.authorship_authors.add(*authors)
+                paper.authors.add(*authors)
                 paper.hubs.add(*hubs)
                 paper.unified_document.hubs.add(*hubs)
 
@@ -705,7 +705,7 @@ class PaperSerializer(BasePaperSerializer):
 
     def get_authors(self, paper):
         serializer = AuthorSerializer(
-            paper.authorship_authors.all(),
+            paper.authors.all(),
             many=True,
             read_only=False,
             required=False,

@@ -11,7 +11,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         alice = create_random_authenticated_user("alice")
         paper = create_paper()
-        paper.authorship_authors.add(alice.author_profile)
+        paper.authors.add(alice.author_profile)
         alice.emailrecipient.paper_subscription.none = True
         alice.emailrecipient.paper_subscription.save()
         bob = create_random_authenticated_user("bob")
