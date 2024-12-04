@@ -16,10 +16,8 @@ from django.apps import apps
 from django.core.cache import cache
 from django.core.files import File
 from django.core.files.base import ContentFile
-from django.db import IntegrityError
 from django.utils import timezone
 from PIL import Image
-from psycopg2.errors import UniqueViolation
 from pytz import timezone as pytz_tz
 
 from paper.openalex_util import process_openalex_works
@@ -223,8 +221,6 @@ def celery_extract_meta_data(paper_id, title, check_title):
 
         paper.check_doi()
         paper.save()
-    except (UniqueViolation, IntegrityError) as e:
-        sentry.log_info(e)
     except Exception as e:
         sentry.log_info(e)
 
