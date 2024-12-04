@@ -125,7 +125,7 @@ class Author(models.Model):
 
         try:
             all_topics = []
-            authored_papers = self.authored_papers.all()
+            authored_papers = self.papers.all()
 
             for p in authored_papers:
                 unified_document = p.unified_document
@@ -399,7 +399,7 @@ class Author(models.Model):
         related_unified_documents = []
 
         # Get unified documents associated with authored papers
-        authored_papers = self.authored_papers.all()
+        authored_papers = self.papers.all()
         for authored_paper in authored_papers:
             related_unified_documents.append(authored_paper.unified_document)
 
@@ -436,13 +436,13 @@ class Author(models.Model):
         return expertise_hubs[:max_results]
 
     def calculate_score(self):
-        aggregated_score = self.authored_papers.annotate(
+        aggregated_score = self.papers.annotate(
             paper_score=PAPER_SCORE_Q_ANNOTATION
         ).aggregate(total_score=Sum("paper_score"))
-        aggregated_discussion_count = self.authored_papers.aggregate(
+        aggregated_discussion_count = self.papers.aggregate(
             total_score=Sum("discussion_count")
         )
-        paper_count = self.authored_papers.count()
+        paper_count = self.papers.count()
         paper_scores = 0
         if aggregated_score["total_score"]:
             paper_scores = aggregated_score["total_score"]

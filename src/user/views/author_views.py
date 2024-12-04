@@ -237,7 +237,7 @@ class AuthorViewSet(viewsets.ModelViewSet):
         author = self.get_object()
         prefetch_lookups = PaperViewSet.prefetch_lookups(self)
         authored_papers = (
-            author.authored_papers.filter(is_removed=False)
+            author.papers.filter(is_removed=False)
             .prefetch_related(
                 *prefetch_lookups,
             )

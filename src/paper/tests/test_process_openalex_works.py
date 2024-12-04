@@ -163,9 +163,9 @@ class ProcessOpenAlexWorksTests(APITestCase):
             authors = Author.objects.all()
             self.assertEqual(len(authors), 5)
 
-            paper_authors = created_papers.first().authors.all()
+            paper_authors = created_papers.first().authorships.all()
             self.assertEqual(len(paper_authors), 3)
-            paper_authors = created_papers.last().authors.all()
+            paper_authors = created_papers.last().authorships.all()
             self.assertEqual(len(paper_authors), 3)
 
     @patch.object(OpenAlex, "get_authors")
@@ -184,9 +184,9 @@ class ProcessOpenAlexWorksTests(APITestCase):
             authors = Author.objects.all()
             self.assertEqual(len(authors), 5)
 
-            paper_authors = created_papers.first().authors.all()
+            paper_authors = created_papers.first().authorships.all()
             self.assertEqual(len(paper_authors), 3)
-            paper_authors = created_papers.last().authors.all()
+            paper_authors = created_papers.last().authorships.all()
             self.assertEqual(len(paper_authors), 3)
 
     @patch.object(OpenAlex, "get_authors")
