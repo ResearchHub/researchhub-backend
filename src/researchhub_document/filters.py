@@ -157,7 +157,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
         )
         prefetches = (
             "hubs",
-            "paper__authors",
+            "paper__authorship_authors",
             Prefetch(
                 "paper__figures",
                 queryset=Figure.objects.filter(figure_type=Figure.PREVIEW),
@@ -185,7 +185,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
             prefetches = (
                 "hubs",
                 "paper",
-                "paper__authors",
+                "paper__authorship_authors",
                 "fundraises",
                 Prefetch(
                     "paper__figures",
