@@ -5,12 +5,10 @@ from django.core.cache import cache
 from django.test import TestCase
 from rest_framework.test import APITestCase
 
-from hub.models import Hub
 from paper.openalex_util import process_openalex_works
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
 from reputation.models import Score
-from researchhub_comment.tests.test_comments import CommentViewTests
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -341,7 +339,7 @@ class UserViewsTests(TestCase):
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
 
             papers = Paper.objects.filter(doi__in=dois)
-            first_author = papers.first().authors.first()
+            first_author = papers.first().authorship_authors.first()
 
             hub1 = papers.first().hubs.first()
             hub2 = papers.last().hubs.first()
@@ -401,7 +399,7 @@ class UserViewsTests(TestCase):
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
 
             papers = Paper.objects.filter(doi__in=dois)
-            first_author = papers.first().authors.first()
+            first_author = papers.first().authorship_authors.first()
 
             url = f"/api/author/{first_author.id}/profile/"
             response = self.client.get(
@@ -430,7 +428,7 @@ class UserViewsTests(TestCase):
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
 
             papers = Paper.objects.filter(doi__in=dois)
-            first_author = papers.first().authors.first()
+            first_author = papers.first().authorship_authors.first()
 
             url = f"/api/author/{first_author.id}/overview/"
             response = self.client.get(
@@ -459,7 +457,7 @@ class UserViewsTests(TestCase):
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
 
             papers = Paper.objects.filter(doi__in=dois)
-            first_author = papers.first().authors.first()
+            first_author = papers.first().authorship_authors.first()
 
             # Act
             url = f"/api/author/{first_author.id}/overview/"
