@@ -1,8 +1,4 @@
-from django.db.models import Q
-
-from paper.related_models.paper_submission_model import PaperSubmission
 from user.models import Author
-from utils.http import POST
 from utils.permissions import AuthorizationBasedPermission, RuleBasedPermission
 
 
@@ -25,4 +21,4 @@ class IsAuthor(AuthorizationBasedPermission):
 
     def is_authorized(self, request, view, obj):
         author = Author.objects.get(user=request.user)
-        return author in obj.authors.all()
+        return author in obj.authorship_authors.all()

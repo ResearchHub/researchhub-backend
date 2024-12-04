@@ -101,13 +101,6 @@ class Paper(AbstractGenericReactionModel):
     moderators = models.ManyToManyField(
         "user.User", related_name="moderated_papers", blank=True
     )
-    # Deprecated: Use `authorship_authors` instead.
-    authors = models.ManyToManyField(
-        "user.Author",
-        related_name="authored_papers",
-        blank=True,
-        help_text="Author that participated in the research paper",
-    )
     authorship_authors = models.ManyToManyField(
         "user.Author",
         through="Authorship",
