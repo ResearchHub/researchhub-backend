@@ -25,8 +25,8 @@ class DiscussionModelsTests(TestCase):
     def test_thread_users_to_notify_includes_paper_authors(self):
         user_1 = create_random_default_user("Amy")
         user_2 = create_random_default_user("Bamy")
-        self.paper.authorship_authors.add(user_1.author_profile)
-        self.paper.authorship_authors.add(user_2.author_profile)
+        self.paper.authors.add(user_1.author_profile)
+        self.paper.authors.add(user_2.author_profile)
         self.assertTrue(user_1 in self.thread.users_to_notify)
         self.assertTrue(user_2 in self.thread.users_to_notify)
 

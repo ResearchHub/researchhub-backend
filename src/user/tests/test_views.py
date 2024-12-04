@@ -339,7 +339,7 @@ class UserViewsTests(TestCase):
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
 
             papers = Paper.objects.filter(doi__in=dois)
-            first_author = papers.first().authorship_authors.first()
+            first_author = papers.first().authors.first()
 
             hub1 = papers.first().hubs.first()
             hub2 = papers.last().hubs.first()
@@ -399,7 +399,7 @@ class UserViewsTests(TestCase):
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
 
             papers = Paper.objects.filter(doi__in=dois)
-            first_author = papers.first().authorship_authors.first()
+            first_author = papers.first().authors.first()
 
             url = f"/api/author/{first_author.id}/profile/"
             response = self.client.get(
@@ -428,7 +428,7 @@ class UserViewsTests(TestCase):
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
 
             papers = Paper.objects.filter(doi__in=dois)
-            first_author = papers.first().authorship_authors.first()
+            first_author = papers.first().authors.first()
 
             url = f"/api/author/{first_author.id}/overview/"
             response = self.client.get(
@@ -457,7 +457,7 @@ class UserViewsTests(TestCase):
             dois = [doi.replace("https://doi.org/", "") for doi in dois]
 
             papers = Paper.objects.filter(doi__in=dois)
-            first_author = papers.first().authorship_authors.first()
+            first_author = papers.first().authors.first()
 
             # Act
             url = f"/api/author/{first_author.id}/overview/"

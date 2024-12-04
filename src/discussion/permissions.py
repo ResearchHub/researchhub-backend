@@ -210,7 +210,7 @@ class Endorse(AuthorizationBasedPermission):
         paper_id = get_document_id_from_path(request)
         paper = Paper.objects.get(pk=paper_id)
         author = Author.objects.get(user=request.user)
-        return (author in paper.authorship_authors.all()) or (
+        return (author in paper.authors.all()) or (
             request.user in paper.moderators.all()
         )
 
