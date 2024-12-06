@@ -1,5 +1,6 @@
 from django.contrib.contenttypes.models import ContentType
 from django.contrib.postgres.fields import ArrayField
+from django.contrib.postgres.indexes import GinIndex
 from django.db import models, transaction
 from django.db.models import JSONField, Sum
 from django.db.models.deletion import SET_NULL
@@ -103,6 +104,11 @@ class Author(models.Model):
         blank=True,
         related_name="merged_authors",
     )
+
+    class Meta:
+        indexes = [
+            GinIndex(fields=["openalex_ids"], name="user_author_openalex_ids_idx"),
+        ]
 
     def __str__(self):
         university = self.university
