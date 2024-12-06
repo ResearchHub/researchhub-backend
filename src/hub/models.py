@@ -110,6 +110,11 @@ class Hub(models.Model):
                 fields=["name", "namespace"], name="unique_name_namespace"
             )
         ]
+        indexes = [
+            models.Index(
+                models.Func("name", function="UPPER"), name="hub_hub_name_upper_idx"
+            )
+        ]
 
     def __str__(self):
         return "{}:{}, locked: {}".format(self.namespace, self.name, self.is_locked)
