@@ -9,7 +9,7 @@ from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
 from purchase.related_models.purchase_model import Purchase
-from reputation.models import Score, ScoreChange
+from reputation.models import Score
 from researchhub_case.constants.case_constants import APPROVED
 from researchhub_comment.models import RhCommentThreadModel
 from user.related_models.profile_image_storage import ProfileImageStorage
