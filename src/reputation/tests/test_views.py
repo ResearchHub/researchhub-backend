@@ -11,7 +11,7 @@ from rest_framework.test import APITestCase
 
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
-from reputation.lib import PendingWithdrawal
+from reputation.lib import PendingWithdrawal, get_hotwallet_rsc_balance
 from reputation.models import Withdrawal
 from reputation.tests.helpers import create_deposit, create_withdrawals
 from reputation.views.withdrawal_view import WithdrawalViewSet
@@ -49,8 +49,16 @@ class ReputationViewsTests(APITestCase):
             coingecko_matcher, json={RSC_COIN_GECKO_ID: {"usd": 0.01, "eth": 0.0001}}
         )
 
+        # Add mock for hotwallet balance
+        self.hotwallet_patcher = mock.patch(
+            "reputation.views.withdrawal_view.get_hotwallet_rsc_balance",
+            return_value=1000000,  # Set a large enough balance for tests
+        )
+        self.hotwallet_patcher.start()
+
     def tearDown(self):
         self.mocker.stop()
+        self.hotwallet_patcher.stop()  # Stop the hotwallet mock
 
     def test_deposit_user_can_list_deposits(self):
         user = create_random_authenticated_user("deposit_user")
@@ -519,6 +527,35 @@ class ReputationViewsTests(APITestCase):
 
         # Assert
         self.assertEqual(actual, "You're limited to 1 withdrawal every 2 weeks.")
+
+    def test_withdrawal_fails_with_insufficient_hotwallet_balance(self):
+        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.save()
+
+        create_deposit(user)
+        self.client.force_authenticate(user)
+
+        # Temporarily override the hotwallet balance mock to return insufficient funds
+        with mock.patch(
+            "reputation.views.withdrawal_view.get_hotwallet_rsc_balance",
+            return_value=10,  # Set a small balance that won't cover the withdrawal
+        ):
+            response = self.client.post(
+                "/api/withdrawal/",
+                {
+                    "agreed_to_terms": True,
+                    "amount": "550",
+                    "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "transaction_fee": 15,
+                },
+            )
+
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(
+                response.data, "Hotwallet balance is lower than the withdrawal amount"
+            )
 
     """
     Helper methods
