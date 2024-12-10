@@ -1,7 +1,6 @@
 import hashlib
 import json
 from datetime import datetime
-from urllib.parse import urlparse
 
 import boto3
 from boto3.session import Session
