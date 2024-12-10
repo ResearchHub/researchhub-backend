@@ -378,7 +378,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         return True, None, net_amount
 
-    def _check_hotwallet_balance(self, amount):
+    def _check_hotwallet_balance(self, amount) -> tuple[bool, str | None]:
         rsc_balance_eth = get_hotwallet_rsc_balance()
         if rsc_balance_eth < amount:
             return (False, "Hotwallet balance is lower than the withdrawal amount")
