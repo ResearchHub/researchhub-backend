@@ -19,7 +19,12 @@ from rest_framework.response import Response
 from analytics.tasks import track_revenue_event
 from purchase.models import Balance, RscExchangeRate
 from reputation.exceptions import WithdrawalError
-from reputation.lib import WITHDRAWAL_MINIMUM, PendingWithdrawal, gwei_to_eth
+from reputation.lib import (
+    WITHDRAWAL_MINIMUM,
+    PendingWithdrawal,
+    get_hotwallet_rsc_balance,
+    gwei_to_eth,
+)
 from reputation.models import Withdrawal
 from reputation.permissions import AllowWithdrawalIfNotSuspecious
 from reputation.serializers import WithdrawalSerializer
@@ -97,6 +102,10 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             valid, message, amount = self._check_withdrawal_amount(
                 amount, transaction_fee, user
             )
+
+        if valid:
+            valid, message = self._check_hotwallet_balance(amount)
+
         if valid:
             try:
                 withdrawal = Withdrawal.objects.create(
@@ -368,3 +377,9 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             return (False, "You do not have enough RSC to make this withdrawal", None)
 
         return True, None, net_amount
+
+    def _check_hotwallet_balance(self, amount) -> tuple[bool, str | None]:
+        rsc_balance_eth = get_hotwallet_rsc_balance()
+        if rsc_balance_eth < amount:
+            return (False, "Hotwallet balance is lower than the withdrawal amount")
+        return (True, None)

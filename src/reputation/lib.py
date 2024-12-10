@@ -415,12 +415,7 @@ def check_hotwallet():
     Alerts admins if the hotwallet is low on eth or RSC
     """
 
-    contract = w3.eth.contract(
-        abi=contract_abi, address=Web3.to_checksum_address(RSC_CONTRACT_ADDRESS)
-    )
-    rsc_balance_wei = contract.functions.balanceOf(WEB3_WALLET_ADDRESS).call()
-    decimals = contract.functions.decimals().call()
-    rsc_balance_eth = rsc_balance_wei / (10**decimals)
+    rsc_balance_eth = get_hotwallet_rsc_balance()
     eth_balance_wei = w3.eth.get_balance(WEB3_WALLET_ADDRESS)
     eth_balanace_eth = eth_balance_wei / (10**18)
     send_email = False
@@ -449,6 +444,16 @@ def check_hotwallet():
             context,
             html_template="general_email_message.html",
         )
+
+
+def get_hotwallet_rsc_balance():
+    contract = w3.eth.contract(
+        abi=contract_abi, address=Web3.to_checksum_address(RSC_CONTRACT_ADDRESS)
+    )
+    rsc_balance_wei = contract.functions.balanceOf(WEB3_WALLET_ADDRESS).call()
+    decimals = contract.functions.decimals().call()
+    rsc_balance_eth = rsc_balance_wei / (10**decimals)
+    return rsc_balance_eth
 
 
 def gwei_to_eth(gwei):
