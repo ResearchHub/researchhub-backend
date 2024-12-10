@@ -468,10 +468,6 @@ DATABASES = {
 }
 
 if ELASTIC_BEANSTALK:
-    # Persistent database connections.
-    # See: https://docs.djangoproject.com/en/4.2/ref/databases/#persistent-database-connections
-    DATABASES["default"]["MAX_CONN_AGE"] = 180
-
     # Connection pooling
     # See: https://docs.djangoproject.com/en/5.1/ref/databases/#connection-pool
     # See: https://www.psycopg.org/psycopg3/docs/api/pool.html#psycopg_pool.ConnectionPool
