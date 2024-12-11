@@ -1,7 +1,6 @@
 import hashlib
 import json
 from datetime import datetime
-from urllib.parse import urlparse
 
 import boto3
 from boto3.session import Session
@@ -66,14 +65,7 @@ def lambda_compress_and_linearize_pdf(key, file_name):
         "file_name": file_name,
     }
     data_bytes = json.dumps(lambda_body)
-    session = Session(
-        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-        region_name=settings.AWS_S3_REGION_NAME,
-    )
-    lambda_client = session.client(
-        service_name="lambda", region_name=settings.AWS_S3_REGION_NAME
-    )
+    lambda_client = create_client("lambda")
     response = lambda_client.invoke(
         FunctionName=settings.GHOSTSCRIPT_LAMBDA_ARN,
         InvocationType="Event",
