@@ -65,7 +65,7 @@ class AuthorClaimTests(APITestCase):
                 )
 
                 self.claiming_user.refresh_from_db()
-                self.assertEquals(
+                self.assertEqual(
                     claiming_user_openalex_id
                     in self.claiming_user.author_profile.openalex_ids,
                     True,
@@ -150,15 +150,15 @@ class AuthorClaimTests(APITestCase):
 
                 self.claiming_user.refresh_from_db()
                 openalex_author = authors_data[0]
-                self.assertEquals(
+                self.assertEqual(
                     self.claiming_user.author_profile.orcid_id,
                     openalex_author.get("orcid"),
                 )
-                self.assertEquals(
+                self.assertEqual(
                     self.claiming_user.author_profile.two_year_mean_citedness,
                     openalex_author.get("summary_stats", {}).get("2yr_mean_citedness"),
                 )
-                self.assertEquals(
+                self.assertEqual(
                     self.claiming_user.author_profile.h_index,
                     openalex_author.get("summary_stats", {}).get("h_index"),
                 )
@@ -186,7 +186,7 @@ class AuthorClaimTests(APITestCase):
                 unclaimed_author = Author.objects.get(
                     openalex_ids__contains=[claiming_user_openalex_id]
                 )
-                self.assertEquals(unclaimed_author.user, None)
+                self.assertEqual(unclaimed_author.user, None)
 
                 # Get author work Ids first
                 openalex_api = OpenAlex()
@@ -207,7 +207,7 @@ class AuthorClaimTests(APITestCase):
 
                 self.claiming_user.refresh_from_db()
                 unclaimed_author.refresh_from_db()
-                self.assertEquals(
+                self.assertEqual(
                     self.claiming_user.author_profile.id,
                     unclaimed_author.merged_with_author.id,
                 )
