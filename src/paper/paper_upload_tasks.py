@@ -27,8 +27,9 @@ from paper.exceptions import (
     DuplicatePaperError,
     ManubotProcessingError,
 )
+from paper.openalex_tasks import pull_openalex_author_works_batch
 from paper.openalex_util import OPENALEX_SOURCES_TO_JOURNAL_HUBS
-from paper.tasks import download_pdf, pull_openalex_author_works_batch
+from paper.tasks import download_pdf
 from paper.utils import (
     DOI_REGEX,
     clean_abstract,
