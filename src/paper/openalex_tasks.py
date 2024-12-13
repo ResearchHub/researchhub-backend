@@ -1,19 +1,22 @@
 from datetime import timedelta
 
 from celery.exceptions import MaxRetriesExceededError
+from django.core.cache import cache
 from django.utils import timezone
 
+from notification.models import Notification
+from paper.models import PaperFetchLog
 from paper.openalex_util import process_openalex_works
+from reputation.tasks import find_bounties_for_user_and_notify
 from researchhub.celery import QUEUE_PULL_PAPERS, app
 from researchhub.settings import PRODUCTION, TESTING
+from user.related_models.user_model import User
 from utils import sentry
 from utils.openalex import OpenAlex
 
 
 @app.task(bind=True, max_retries=3)
 def pull_new_openalex_works(self, retry=0, paper_fetch_log_id=None):
-    from paper.models import PaperFetchLog
-
     return _pull_openalex_works(
         self, PaperFetchLog.FETCH_NEW, retry, paper_fetch_log_id
     )
@@ -21,16 +24,12 @@ def pull_new_openalex_works(self, retry=0, paper_fetch_log_id=None):
 
 @app.task(bind=True, max_retries=3)
 def pull_updated_openalex_works(self, retry=0, paper_fetch_log_id=None):
-    from paper.models import PaperFetchLog
-
     return _pull_openalex_works(
         self, PaperFetchLog.FETCH_UPDATE, retry, paper_fetch_log_id
     )
 
 
 def _pull_openalex_works(self, fetch_type, retry=0, paper_fetch_log_id=None):
-    from paper.models import PaperFetchLog
-
     """
     Pull works (papers) from OpenAlex.
     This looks complicated because we're trying to handle retries and logging.
@@ -204,10 +203,6 @@ def _pull_openalex_works(self, fetch_type, retry=0, paper_fetch_log_id=None):
 def pull_openalex_author_works_batch(
     openalex_ids, user_id_to_notify_after_completion=None
 ):
-    from notification.models import Notification
-    from reputation.tasks import find_bounties_for_user_and_notify
-    from user.related_models.user_model import User
-
     open_alex_api = OpenAlex()
 
     oa_ids = []
@@ -246,3 +241,27 @@ def pull_openalex_author_works_batch(
             find_bounties_for_user_and_notify.apply_async(
                 (user.id,), priority=3, countdown=1
             )
+
+
+LOCK_TTL = 3600
+
+
+def _aquire_lock(lock_key: str) -> None:
+    """
+    Acquire a lock using the specified name.
+    """
+    cache.set(lock_key, True, timeout=LOCK_TTL)
+
+
+def _extend_lock(lock_key: str) -> None:
+    """
+    Extend the lock using the specified name.
+    """
+    cache.touch(lock_key, LOCK_TTL)
+
+
+def _release_lock(lock_key: str) -> None:
+    """
+    Release the lock using the specified name.
+    """
+    cache.delete(lock_key)
