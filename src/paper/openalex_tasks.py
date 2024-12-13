@@ -59,7 +59,7 @@ def _pull_openalex_works(self, fetch_type, retry=0, paper_fetch_log_id=None) -> 
     4. Log the results
     """
     if not (PRODUCTION or TESTING):
-        return
+        return False
 
     date_to_fetch_from = timezone.now() - timedelta(days=1)
     # openalex uses a cursor to paginate through results,
@@ -118,7 +118,7 @@ def _pull_openalex_works(self, fetch_type, retry=0, paper_fetch_log_id=None) -> 
 
             if pending_log:
                 sentry.log_info(message="Pending log exists for updated works")
-                return
+                return False
         except Exception as e:
             sentry.log_error(e, message="Failed to get pending log")
 
