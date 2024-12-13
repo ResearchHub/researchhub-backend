@@ -4,14 +4,14 @@ from celery.exceptions import MaxRetriesExceededError, Retry
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from paper.models import Paper, PaperFetchLog
-from paper.tasks import pull_new_openalex_works, pull_updated_openalex_works
+from paper.models import PaperFetchLog
+from paper.openalex_tasks import pull_new_openalex_works, pull_updated_openalex_works
 
 
 class TestPullNewOpenAlexWorks(TestCase):
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
-    @patch("paper.tasks.OpenAlex")
-    @patch("paper.tasks.process_openalex_works")
+    @patch("paper.openalex_tasks.OpenAlex")
+    @patch("paper.openalex_tasks.process_openalex_works")
     def test_pull_new_openalex_works_success(self, mock_process_works, mock_openalex):
         # Mock OpenAlex.get_works to return some test data
         mock_openalex_instance = mock_openalex.return_value
@@ -38,8 +38,8 @@ class TestPullNewOpenAlexWorks(TestCase):
         self.assertEqual(log.total_papers_processed, 4)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
-    @patch("paper.tasks.OpenAlex")
-    @patch("paper.tasks.process_openalex_works")
+    @patch("paper.openalex_tasks.OpenAlex")
+    @patch("paper.openalex_tasks.process_openalex_works")
     def test_pull_new_openalex_works_no_results(
         self, mock_process_works, mock_openalex
     ):
@@ -64,8 +64,8 @@ class TestPullNewOpenAlexWorks(TestCase):
         self.assertEqual(log.total_papers_processed, 0)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
-    @patch("paper.tasks.OpenAlex")
-    @patch("paper.tasks.process_openalex_works")
+    @patch("paper.openalex_tasks.OpenAlex")
+    @patch("paper.openalex_tasks.process_openalex_works")
     def test_pull_new_openalex_works_existing_pending_log(
         self, mock_process_works, mock_openalex
     ):
@@ -90,9 +90,9 @@ class TestPullNewOpenAlexWorks(TestCase):
         self.assertEqual(PaperFetchLog.objects.count(), 1)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
-    @patch("paper.tasks.OpenAlex")
-    @patch("paper.tasks.process_openalex_works")
-    @patch("paper.tasks.pull_new_openalex_works.retry")
+    @patch("paper.openalex_tasks.OpenAlex")
+    @patch("paper.openalex_tasks.process_openalex_works")
+    @patch("paper.openalex_tasks.pull_new_openalex_works.retry")
     def test_pull_new_openalex_works_failed_retry(
         self, mock_retry, mock_process_works, mock_openalex
     ):
@@ -138,8 +138,8 @@ class TestPullNewOpenAlexWorks(TestCase):
         self.assertIsNotNone(paper_fetch_log.completed_date)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
-    @patch("paper.tasks.OpenAlex")
-    @patch("paper.tasks.process_openalex_works")
+    @patch("paper.openalex_tasks.OpenAlex")
+    @patch("paper.openalex_tasks.process_openalex_works")
     def test_pull_new_openalex_works_successful_retry(
         self, mock_process_works, mock_openalex
     ):
@@ -176,8 +176,8 @@ class TestPullNewOpenAlexWorks(TestCase):
 
 class TestPullUpdatedOpenAlexWorks(TestCase):
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
-    @patch("paper.tasks.OpenAlex")
-    @patch("paper.tasks.process_openalex_works")
+    @patch("paper.openalex_tasks.OpenAlex")
+    @patch("paper.openalex_tasks.process_openalex_works")
     def test_pull_updated_openalex_works_success(
         self, mock_process_works, mock_openalex
     ):
@@ -212,8 +212,8 @@ class TestPullUpdatedOpenAlexWorks(TestCase):
         self.assertEqual(log.total_papers_processed, 4)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
-    @patch("paper.tasks.OpenAlex")
-    @patch("paper.tasks.process_openalex_works")
+    @patch("paper.openalex_tasks.OpenAlex")
+    @patch("paper.openalex_tasks.process_openalex_works")
     def test_pull_updated_openalex_works_no_results(
         self, mock_process_works, mock_openalex
     ):
@@ -238,8 +238,8 @@ class TestPullUpdatedOpenAlexWorks(TestCase):
         self.assertEqual(log.total_papers_processed, 0)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
-    @patch("paper.tasks.OpenAlex")
-    @patch("paper.tasks.process_openalex_works")
+    @patch("paper.openalex_tasks.OpenAlex")
+    @patch("paper.openalex_tasks.process_openalex_works")
     def test_pull_updated_openalex_works_existing_pending_log(
         self, mock_process_works, mock_openalex
     ):
@@ -264,9 +264,9 @@ class TestPullUpdatedOpenAlexWorks(TestCase):
         self.assertEqual(PaperFetchLog.objects.count(), 1)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
-    @patch("paper.tasks.OpenAlex")
-    @patch("paper.tasks.process_openalex_works")
-    @patch("paper.tasks.pull_updated_openalex_works.retry")
+    @patch("paper.openalex_tasks.OpenAlex")
+    @patch("paper.openalex_tasks.process_openalex_works")
+    @patch("paper.openalex_tasks.pull_updated_openalex_works.retry")
     def test_pull_updated_openalex_works_retry_and_fail(
         self, mock_retry, mock_process_works, mock_openalex
     ):
@@ -312,8 +312,8 @@ class TestPullUpdatedOpenAlexWorks(TestCase):
         self.assertIsNotNone(paper_fetch_log.completed_date)
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
-    @patch("paper.tasks.OpenAlex")
-    @patch("paper.tasks.process_openalex_works")
+    @patch("paper.openalex_tasks.OpenAlex")
+    @patch("paper.openalex_tasks.process_openalex_works")
     def test_pull_updated_openalex_works_successful_retry(
         self, mock_process_works, mock_openalex
     ):

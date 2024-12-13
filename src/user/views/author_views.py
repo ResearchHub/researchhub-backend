@@ -15,9 +15,9 @@ from rest_framework.response import Response
 
 from discussion.serializers import DynamicThreadSerializer
 from paper.models import Paper
+from paper.openalex_tasks import pull_openalex_author_works_batch
 from paper.related_models.authorship_model import Authorship
 from paper.serializers import DynamicPaperSerializer
-from paper.tasks import pull_openalex_author_works_batch
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
 from paper.views import PaperViewSet
 from reputation.models import Bounty, BountySolution, Contribution

@@ -76,7 +76,7 @@ app.conf.beat_schedule = {
         },
     },
     "paper_pull-new-openalex-works": {
-        "task": "paper.tasks.pull_new_openalex_works",
+        "task": "paper.openalex_tasks.pull_new_openalex_works",
         "schedule": crontab(minute=0, hour=6),
         "options": {
             "priority": 3,
@@ -84,7 +84,7 @@ app.conf.beat_schedule = {
         },
     },
     "paper_pull-updated-openalex-works": {
-        "task": "paper.tasks.pull_updated_openalex_works",
+        "task": "paper.openalex_tasks.pull_updated_openalex_works",
         "schedule": crontab(minute=0, hour=0),
         "options": {
             "priority": 3,

@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 
-from paper.tasks import pull_new_openalex_works
+from paper.openalex_tasks import pull_new_openalex_works
 
 
 class Command(BaseCommand):
