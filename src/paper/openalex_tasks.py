@@ -1,9 +1,10 @@
+import logging
 from datetime import timedelta
 
 from celery.exceptions import MaxRetriesExceededError
-from django.core.cache import cache
 from django.utils import timezone
 
+import utils.locking as lock
 from notification.models import Notification
 from paper.models import PaperFetchLog
 from paper.openalex_util import process_openalex_works
@@ -14,22 +15,40 @@ from user.related_models.user_model import User
 from utils import sentry
 from utils.openalex import OpenAlex
 
-
-@app.task(bind=True, max_retries=3)
-def pull_new_openalex_works(self, retry=0, paper_fetch_log_id=None):
-    return _pull_openalex_works(
-        self, PaperFetchLog.FETCH_NEW, retry, paper_fetch_log_id
-    )
+logger = logging.getLogger(__name__)
 
 
 @app.task(bind=True, max_retries=3)
-def pull_updated_openalex_works(self, retry=0, paper_fetch_log_id=None):
-    return _pull_openalex_works(
-        self, PaperFetchLog.FETCH_UPDATE, retry, paper_fetch_log_id
-    )
+def pull_new_openalex_works(self, retry=0, paper_fetch_log_id=None) -> bool:
+    key = lock.name(PaperFetchLog.FETCH_NEW)
+    if not lock.acquire(key):
+        logger.warning(f"Already locked {key}, skipping task")
+        return False
+
+    try:
+        return _pull_openalex_works(
+            self, PaperFetchLog.FETCH_NEW, retry, paper_fetch_log_id
+        )
+    finally:
+        lock.release(key)
 
 
-def _pull_openalex_works(self, fetch_type, retry=0, paper_fetch_log_id=None):
+@app.task(bind=True, max_retries=3)
+def pull_updated_openalex_works(self, retry=0, paper_fetch_log_id=None) -> bool:
+    key = lock.name(PaperFetchLog.FETCH_UPDATE)
+    if not lock.acquire(key):
+        logger.warning(f"Already locked {key}, skipping task")
+        return False
+
+    try:
+        return _pull_openalex_works(
+            self, PaperFetchLog.FETCH_UPDATE, retry, paper_fetch_log_id
+        )
+    finally:
+        lock.release(key)
+
+
+def _pull_openalex_works(self, fetch_type, retry=0, paper_fetch_log_id=None) -> bool:
     """
     Pull works (papers) from OpenAlex.
     This looks complicated because we're trying to handle retries and logging.
@@ -165,6 +184,12 @@ def _pull_openalex_works(self, fetch_type, retry=0, paper_fetch_log_id=None):
                     next_cursor=next_cursor,
                 )
 
+            # extend the lock
+            key = lock.name(fetch_type)
+            if not lock.extend(key):
+                logger.warning(f"Failed to extend lock {key}, exiting task")
+                return False
+
         # done processing all works
         if paper_fetch_log_id is not None:
             PaperFetchLog.objects.filter(id=paper_fetch_log_id).update(
@@ -241,27 +266,3 @@ def pull_openalex_author_works_batch(
             find_bounties_for_user_and_notify.apply_async(
                 (user.id,), priority=3, countdown=1
             )
-
-
-LOCK_TTL = 3600
-
-
-def _aquire_lock(lock_key: str) -> None:
-    """
-    Acquire a lock using the specified name.
-    """
-    cache.set(lock_key, True, timeout=LOCK_TTL)
-
-
-def _extend_lock(lock_key: str) -> None:
-    """
-    Extend the lock using the specified name.
-    """
-    cache.touch(lock_key, LOCK_TTL)
-
-
-def _release_lock(lock_key: str) -> None:
-    """
-    Release the lock using the specified name.
-    """
-    cache.delete(lock_key)
