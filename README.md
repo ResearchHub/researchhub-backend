@@ -172,6 +172,7 @@ Alternatively, debugging of the application is possible with the following launc
   cd src
   ./start-celery.sh
   ```
+  > Celery may need to be added to your env PATH manually.
 
 ### Seed the database
 
