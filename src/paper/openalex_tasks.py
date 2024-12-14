@@ -59,6 +59,7 @@ def _pull_openalex_works(self, fetch_type, retry=0, paper_fetch_log_id=None) -> 
     4. Log the results
     """
     if not (PRODUCTION or TESTING):
+        logger.info("Not in production or testing, skipping OpenAlex pull")
         return False
 
     date_to_fetch_from = timezone.now() - timedelta(days=1)
@@ -101,6 +102,7 @@ def _pull_openalex_works(self, fetch_type, retry=0, paper_fetch_log_id=None) -> 
                 date_to_fetch_from = last_successful_run_log.fetch_since_date
                 next_cursor = last_successful_run_log.next_cursor or "*"
         except Exception as e:
+            logger.error("Failed to get last successful or failed log")
             sentry.log_error(e, message="Failed to get last successful or failed log")
 
         # check if there's a pending log within the last 24 hours
@@ -117,9 +119,11 @@ def _pull_openalex_works(self, fetch_type, retry=0, paper_fetch_log_id=None) -> 
             ).exists()
 
             if pending_log:
+                logger.info("Pending log exists for updated works")
                 sentry.log_info(message="Pending log exists for updated works")
                 return False
         except Exception as e:
+            logger.error("Failed to get pending log")
             sentry.log_error(e, message="Failed to get pending log")
 
         lg = PaperFetchLog.objects.create(
@@ -131,6 +135,7 @@ def _pull_openalex_works(self, fetch_type, retry=0, paper_fetch_log_id=None) -> 
             next_cursor=next_cursor,
         )
         paper_fetch_log_id = lg.id
+        logger.info(f"Starting New OpenAlex pull: {paper_fetch_log_id}")
         sentry.log_info(f"Starting New OpenAlex pull: {paper_fetch_log_id}")
     else:
         # if paper_fetch_log_id is provided, it means we're retrying
@@ -140,6 +145,7 @@ def _pull_openalex_works(self, fetch_type, retry=0, paper_fetch_log_id=None) -> 
             date_to_fetch_from = last_successful_run_log.fetch_since_date
             total_papers_processed = last_successful_run_log.total_papers_processed or 0
         except Exception as e:
+            logger.error(f"Failed to get last log for ID={paper_fetch_log_id}")
             sentry.log_error(
                 e, message=f"Failed to get last log for id {paper_fetch_log_id}"
             )
@@ -150,6 +156,7 @@ def _pull_openalex_works(self, fetch_type, retry=0, paper_fetch_log_id=None) -> 
             )
             return False
 
+        logger.info(f"Retrying OpenAlex pull: {paper_fetch_log_id}")
         sentry.log_info(f"Retrying OpenAlex pull: {paper_fetch_log_id}")
 
     try:
@@ -199,6 +206,7 @@ def _pull_openalex_works(self, fetch_type, retry=0, paper_fetch_log_id=None) -> 
                 next_cursor=None,
             )
     except Exception as e:
+        logger.error("Failed to pull new works from OpenAlex, retrying")
         sentry.log_error(e, message="Failed to pull new works from OpenAlex, retrying")
         # update total_papers_processed in the log
         if paper_fetch_log_id is not None:
@@ -249,6 +257,7 @@ def pull_openalex_author_works_batch(
         try:
             user.author_profile.calculate_hub_scores()
         except Exception as e:
+            logger.error(f"Failed to calculate hub scores for user {user.id}")
             sentry.log_error(e)
 
         notification = Notification.objects.create(
