@@ -37,6 +37,8 @@ DEFAULT_REWARD = 1000000
 
 PENDING_TRANSACTION_TTL = 60 * 60 * 1  # 1 hour
 
+logger = logging.getLogger(__name__)
+
 
 @app.task(queue=QUEUE_CONTRIBUTIONS)
 def create_contribution(
@@ -152,7 +154,7 @@ def evaluate_transaction(transaction_hash):
 
 @app.task
 def check_deposits():
-    logging.info("Starting check deposits task")
+    logger.info("Starting check deposits task")
     # Sort by created date to ensure a malicious user doesn't attempt to take credit for
     # a deposit made by another user. This is a temporary solution until we add signed messages
     # to validate users own wallets.
@@ -199,14 +201,14 @@ def check_deposits():
             log_error(e, "Failed to process deposit")
             deposit.set_paid_pending()
 
-    logging.info("Finished check deposits task")
+    logger.info("Finished check deposits task")
 
 
 @app.task
 def check_pending_withdrawals():
-    logging.info("Starting check pending withdrawals task")
+    logger.info("Starting check pending withdrawals task")
     check_pending_withdrawal()
-    logging.info("Starting check pending withdrawals task")
+    logger.info("Starting check pending withdrawals task")
 
 
 @app.task
