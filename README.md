@@ -172,6 +172,7 @@ Alternatively, debugging of the application is possible with the following launc
   cd src
   ./start-celery.sh
   ```
+  > Celery may need to be added to your env PATH manually.
 
 ### Seed the database
 
@@ -198,17 +199,17 @@ Alternatively, debugging of the application is possible with the following launc
    **OR**
    * in Python: run `python manage.py shell_plus` to open a Python terminal in the virtual environment. Then, paste the following code:
 
-   ```python
-   import pandas as pd
-   from hub.models import Hub
+```python
+import pandas as pd
+from hub.models import Hub
 
-   hub_df = pd.read_csv("../misc/hub_hub.csv")
-   hub_df = hub_df.drop("slug_index", axis=1)
-   hub_df = hub_df.drop("acronym", axis=1)
-   hub_df = hub_df.drop("hub_image", axis=1)
-   hubs = [Hub(**row.to_dict()) for _, row in hub_df.iterrows()]
-   Hub.objects.bulk_create(hubs)
-   ```
+hub_df = pd.read_csv("../misc/hub_hub.csv")
+hub_df = hub_df.drop("slug_index", axis=1)
+hub_df = hub_df.drop("acronym", axis=1)
+hub_df = hub_df.drop("hub_image", axis=1)
+hubs = [Hub(**row.to_dict()) for _, row in hub_df.iterrows()]
+Hub.objects.bulk_create(hubs)
+```
 
 ### Run the development server:
 
