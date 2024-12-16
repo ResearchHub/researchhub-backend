@@ -1,3 +1,4 @@
+import os
 import re
 import time
 from datetime import datetime, timedelta
@@ -555,6 +556,118 @@ class ReputationViewsTests(APITestCase):
             self.assertEqual(response.status_code, 400)
             self.assertEqual(
                 response.data, "Hotwallet balance is lower than the withdrawal amount"
+            )
+
+    def test_base_network_withdrawal_succeeds(self):
+        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.save()
+
+        create_deposit(user)
+        self.client.force_authenticate(user)
+
+        with mock.patch.object(
+            PendingWithdrawal, "complete_token_transfer", return_value=None
+        ):
+            response = self.client.post(
+                "/api/withdrawal/",
+                {
+                    "agreed_to_terms": True,
+                    "amount": "550",
+                    "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "transaction_fee": 15,
+                    "network": "BASE",
+                },
+            )
+            self.assertEqual(response.status_code, 201)
+            withdrawal = Withdrawal.objects.get(id=response.data["id"])
+            self.assertEqual(withdrawal.network, "BASE")
+
+    def test_invalid_network_withdrawal_fails(self):
+        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.save()
+
+        create_deposit(user)
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            "/api/withdrawal/",
+            {
+                "agreed_to_terms": True,
+                "amount": "550",
+                "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "transaction_fee": 15,
+                "network": "INVALID",
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.data, "Invalid network. Please choose either 'BASE' or 'ETHEREUM'"
+        )
+
+    def test_base_network_withdrawal_fails_with_insufficient_hotwallet_balance(self):
+        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.save()
+
+        create_deposit(user)
+        self.client.force_authenticate(user)
+
+        # Temporarily override the hotwallet balance mock to return insufficient funds
+        with mock.patch(
+            "reputation.views.withdrawal_view.get_hotwallet_rsc_balance",
+            return_value=10,  # Set a small balance that won't cover the withdrawal
+        ):
+            response = self.client.post(
+                "/api/withdrawal/",
+                {
+                    "agreed_to_terms": True,
+                    "amount": "550",
+                    "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "transaction_fee": 15,
+                    "network": "BASE",
+                },
+            )
+
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(
+                response.data, "Hotwallet balance is lower than the withdrawal amount"
+            )
+
+    def test_base_network_withdrawal_uses_correct_token_address(self):
+        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.save()
+
+        create_deposit(user)
+        self.client.force_authenticate(user)
+
+        with mock.patch.object(
+            PendingWithdrawal, "complete_token_transfer", return_value=None
+        ):
+            response = self.client.post(
+                "/api/withdrawal/",
+                {
+                    "agreed_to_terms": True,
+                    "amount": "550",
+                    "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "transaction_fee": 15,
+                    "network": "BASE",
+                },
+            )
+            self.assertEqual(response.status_code, 201)
+            withdrawal = Withdrawal.objects.get(id=response.data["id"])
+            self.assertEqual(
+                withdrawal.token_address,
+                os.environ.get(
+                    "WEB3_BASE_RSC_ADDRESS",
+                    "0xD101dCC414F310268c37eEb4cD376CcFA507F571",
+                ),
             )
 
     """

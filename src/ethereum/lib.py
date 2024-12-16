@@ -9,28 +9,50 @@ from utils.aws import create_client
 
 TOKENS = {
     "RSC": {
-        "name": "ResearchCoin",
-        "contract_address": settings.WEB3_RSC_ADDRESS,
-        "ticker": "RSC",
-        "denomination": 18,
-        "reputation_exchange_rate": "1.0",
+        "ethereum": {
+            "name": "ResearchCoin",
+            "contract_address": settings.WEB3_RSC_ADDRESS,
+            "ticker": "RSC",
+            "denomination": 18,
+            "reputation_exchange_rate": "1.0",
+            "chain_id": 1,  # Ethereum mainnet
+        },
+        "base": {
+            "name": "ResearchCoin",
+            "contract_address": settings.WEB3_BASE_RSC_ADDRESS,
+            "ticker": "RSC",
+            "denomination": 18,
+            "reputation_exchange_rate": "1.0",
+            "chain_id": 8453,  # Base mainnet
+        },
     },
 }
 
-RSC_CONTRACT_ADDRESS = TOKENS["RSC"]["contract_address"]  # convenient
+RSC_CONTRACT_ADDRESS = TOKENS["RSC"]["ethereum"]["contract_address"]
+
+
+def get_token_config(token, network="ethereum"):
+    """Get token configuration for specified network."""
+    return TOKENS[token][network]
 
 
 def get_token_address_choices():
-    return [
-        (token["contract_address"], f'{token["name"]} address')
-        for token in TOKENS.values()
-    ]
+    choices = []
+    for token in TOKENS:
+        for network in TOKENS[token]:
+            config = TOKENS[token][network]
+            choices.append(
+                (config["contract_address"], f'{config["name"]} address ({network})')
+            )
+    return choices
 
 
 TOKEN_ADDRESS_CHOICES = get_token_address_choices()
 
 
-def convert_reputation_amount_to_token_amount(token, reputation_amount):
+def convert_reputation_amount_to_token_amount(
+    token, reputation_amount, network="ethereum"
+):
     """Converts `reputation_amount` based on the `token` reputation exchange
     rate.
 
@@ -41,7 +63,7 @@ def convert_reputation_amount_to_token_amount(token, reputation_amount):
     if reputation_amount < 0:
         raise ValueError("`reputation_amount` must be a positive number")
 
-    token = TOKENS[token]
+    token = get_token_config(token, network)
     rate = Decimal(str(token["reputation_exchange_rate"]))
     reputation = Decimal(str(reputation_amount))
     total = rate * reputation
@@ -90,26 +112,33 @@ def execute_erc20_transfer(w3, sender, sender_signing_key, contract, to, amount)
     )
 
 
-def transact(w3, method_call, sender, sender_signing_key, gas=None):
+def transact(w3, method_call, sender, sender_signing_key, network="ethereum", gas=None):
     """Executes the contract's `method_call` on chain.
 
     !!! NOTE: This method should be used carefully because it sends funds.
 
     Args:
-        gas (int) - Amount of gas to fund transaction execution. Defaults to
-            method_call.estimateGas()
-        sender (str) - Address of message sender
-        sender_signing_key (bytes) - Private key of sender
+        w3 (Web3): Web3 instance for the target network
+        method_call: Contract method to call
+        sender (str): Address of message sender
+        sender_signing_key (bytes): Private key of sender
+        network (str): Network to use ("ethereum" or "base")
+        gas (int): Amount of gas to fund transaction execution
     """
     gas_estimate = get_gas_estimate(method_call)
     checksum_sender = Web3.to_checksum_address(sender)
+
+    chain_id = 1 if network == "ethereum" else 8453  # Default to mainnet if unknown
+
     tx = method_call.build_transaction(
         {
             "from": checksum_sender,
             "nonce": get_nonce(w3, checksum_sender),
             "gas": gas or gas_estimate,
+            "chainId": chain_id,
         }
     )
+
     signing_key = sender_signing_key
     signed = w3.eth.account.sign_transaction(tx, signing_key)
     tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)

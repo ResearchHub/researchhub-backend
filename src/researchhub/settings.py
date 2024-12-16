@@ -673,6 +673,22 @@ ELASTICSEARCH_DSL_SIGNAL_PROCESSOR = "search.celery.CelerySignalProcessor"
 
 # Mainnet
 WEB3_RSC_ADDRESS = os.environ.get("WEB3_RSC_ADDRESS", keys.WEB3_RSC_ADDRESS)
+WEB3_BASE_RSC_ADDRESS = os.environ.get(
+    "WEB3_BASE_RSC_ADDRESS", keys.WEB3_BASE_RSC_ADDRESS
+)
+
+# Provider URLs for each network
+WEB3_PROVIDER_URL = os.environ.get("WEB3_PROVIDER_URL", keys.WEB3_PROVIDER_URL)
+WEB3_BASE_PROVIDER_URL = os.environ.get(
+    "WEB3_BASE_PROVIDER_URL", keys.WEB3_BASE_PROVIDER_URL
+)
+
+# Create Web3 instances for each network
+w3_ethereum = Web3(Web3.HTTPProvider(WEB3_PROVIDER_URL))
+w3_base = Web3(Web3.HTTPProvider(WEB3_BASE_PROVIDER_URL))
+
+# For backward compatibility
+w3 = w3_ethereum
 
 # Redis
 # redis://:password@hostname:port/db_number
