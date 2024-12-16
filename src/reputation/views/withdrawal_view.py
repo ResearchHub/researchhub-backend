@@ -198,21 +198,25 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
     def calculate_transaction_fee(self):
         """
-        rsc_to_usd_url = 'https://api.coinbase.com/v2/prices/RSC-USD/spot'
-        eth_to_usd_url = 'https://api.coinbase.com/v2/prices/ETH-USD/spot'
-        rsc_price = requests.get(rsc_to_usd_url).json()['data']['amount']
-        eth_price = requests.get(eth_to_usd_url).json()['data']['amount']
-        rsc_to_eth_ratio = rsc_price / eth_price
-        return math.ceil(amount * rsc_to_eth_ratio)
+        Calculate the transaction fee based on the network.
+        Base network typically has lower fees than Ethereum.
         """
-        res = requests.get(
-            f"https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey={ETHERSCAN_API_KEY}",
-            timeout=10,
-        )
-        json = res.json()
-        print(json)
-        gas_price = json.get("result", {}).get("SafeGasPrice", 40)
-        gas_limit = 120000.0
+        network = self.request.data.get("network", "ETHEREUM").upper()
+
+        if network == "BASE":
+            # Base network typically has lower fees
+            gas_price = 1  # 1 gwei is usually sufficient for Base
+            gas_limit = 100000.0  # Lower gas limit for Base
+        else:
+            # For Ethereum network
+            res = requests.get(
+                f"https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey={ETHERSCAN_API_KEY}",
+                timeout=10,
+            )
+            json = res.json()
+            gas_price = json.get("result", {}).get("SafeGasPrice", 40)
+            gas_limit = 120000.0
+
         gas_fee_in_eth = gwei_to_eth(float(gas_price) * gas_limit)
         rsc = RscExchangeRate.eth_to_rsc(gas_fee_in_eth)
         return int(round(rsc))
