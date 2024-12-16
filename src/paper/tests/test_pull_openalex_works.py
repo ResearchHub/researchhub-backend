@@ -88,14 +88,14 @@ class TestPullNewOpenAlexWorks(TestCase):
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     @patch("paper.openalex_tasks.OpenAlex")
     @patch("paper.openalex_tasks.process_openalex_works")
-    def test_pull_new_openalex_works_existing_pending_log(
+    def test_pull_new_openalex_works_existing_success_log(
         self, mock_process_works, mock_openalex
     ):
-        # Create a pending log
+        # Create a success log
         PaperFetchLog.objects.create(
             source=PaperFetchLog.OPENALEX,
             fetch_type=PaperFetchLog.FETCH_NEW,
-            status=PaperFetchLog.PENDING,
+            status=PaperFetchLog.SUCCESS,
             started_date=timezone.now(),
         )
 
@@ -284,14 +284,14 @@ class TestPullUpdatedOpenAlexWorks(TestCase):
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     @patch("paper.openalex_tasks.OpenAlex")
     @patch("paper.openalex_tasks.process_openalex_works")
-    def test_pull_updated_openalex_works_existing_pending_log(
+    def test_pull_updated_openalex_works_existing_success_log(
         self, mock_process_works, mock_openalex
     ):
-        # Create a pending log
+        # Create a success log
         PaperFetchLog.objects.create(
             source=PaperFetchLog.OPENALEX,
             fetch_type=PaperFetchLog.FETCH_UPDATE,
-            status=PaperFetchLog.PENDING,
+            status=PaperFetchLog.SUCCESS,
             started_date=timezone.now(),
         )
 
