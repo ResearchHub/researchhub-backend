@@ -67,7 +67,7 @@ class TestPullNewOpenAlexWorks(TestCase):
     @patch("paper.openalex_tasks.OpenAlex")
     @patch("paper.openalex_tasks.process_openalex_works")
     @patch("paper.openalex_tasks.lock.acquire")
-    def test_pull_new_openalex_works_existing_success_log(
+    def test_pull_new_openalex_works_locked(
         self, mock_lock, mock_process_works, mock_openalex
     ):
         # Arrange
@@ -263,7 +263,7 @@ class TestPullUpdatedOpenAlexWorks(TestCase):
     @patch("paper.openalex_tasks.OpenAlex")
     @patch("paper.openalex_tasks.process_openalex_works")
     @patch("paper.openalex_tasks.lock.acquire")
-    def test_pull_updated_openalex_works_existing_success_log(
+    def test_pull_updated_openalex_works_locked(
         self, mock_lock, mock_process_works, mock_openalex
     ):
         # Arrange
