@@ -66,6 +66,28 @@ class TestPullNewOpenAlexWorks(TestCase):
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     @patch("paper.openalex_tasks.OpenAlex")
     @patch("paper.openalex_tasks.process_openalex_works")
+    @patch("paper.openalex_tasks.lock.acquire")
+    def test_pull_new_openalex_works_existing_success_log(
+        self, mock_lock, mock_process_works, mock_openalex
+    ):
+        # Arrange
+        mock_lock.return_value = False
+
+        # Act
+        actual = pull_new_openalex_works.apply()
+
+        # Assert
+        self.assertFalse(actual.result)
+
+        # Check that get_works was not called
+        mock_openalex.assert_not_called()
+
+        # Check that process_openalex_works was not called
+        mock_process_works.assert_not_called()
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
+    @patch("paper.openalex_tasks.OpenAlex")
+    @patch("paper.openalex_tasks.process_openalex_works")
     def test_pull_new_openalex_works_existing_pending_log(
         self, mock_process_works, mock_openalex
     ):
@@ -236,6 +258,28 @@ class TestPullUpdatedOpenAlexWorks(TestCase):
         self.assertEqual(log.fetch_type, PaperFetchLog.FETCH_UPDATE)
         self.assertEqual(log.status, PaperFetchLog.SUCCESS)
         self.assertEqual(log.total_papers_processed, 0)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
+    @patch("paper.openalex_tasks.OpenAlex")
+    @patch("paper.openalex_tasks.process_openalex_works")
+    @patch("paper.openalex_tasks.lock.acquire")
+    def test_pull_updated_openalex_works_existing_success_log(
+        self, mock_lock, mock_process_works, mock_openalex
+    ):
+        # Arrange
+        mock_lock.return_value = False
+
+        # Act
+        actual = pull_updated_openalex_works.apply()
+
+        # Assert
+        self.assertFalse(actual.result)
+
+        # Check that get_works was not called
+        mock_openalex.assert_not_called()
+
+        # Check that process_openalex_works was not called
+        mock_process_works.assert_not_called()
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     @patch("paper.openalex_tasks.OpenAlex")
