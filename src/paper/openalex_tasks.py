@@ -18,7 +18,7 @@ from utils.openalex import OpenAlex
 logger = logging.getLogger(__name__)
 
 
-@app.task(bind=True, max_retries=3)
+@app.task(bind=True, late_acks=True, max_retries=3)
 def pull_new_openalex_works(self, retry=0, paper_fetch_log_id=None) -> bool:
     key = lock.name(PaperFetchLog.FETCH_NEW)
     if not lock.acquire(key):
@@ -33,7 +33,7 @@ def pull_new_openalex_works(self, retry=0, paper_fetch_log_id=None) -> bool:
         lock.release(key)
 
 
-@app.task(bind=True, max_retries=3)
+@app.task(bind=True, late_acks=True, max_retries=3)
 def pull_updated_openalex_works(self, retry=0, paper_fetch_log_id=None) -> bool:
     key = lock.name(PaperFetchLog.FETCH_UPDATE)
     if not lock.acquire(key):
