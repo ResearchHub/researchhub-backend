@@ -128,7 +128,7 @@ def transact(w3, method_call, sender, sender_signing_key, network="ethereum", ga
     gas_estimate = get_gas_estimate(method_call)
     checksum_sender = Web3.to_checksum_address(sender)
 
-    chain_id = 1 if network == "ethereum" else 8453  # Default to mainnet if unknown
+    chain_id = TOKENS["RSC"][network]["chain_id"]
 
     tx = method_call.build_transaction(
         {
