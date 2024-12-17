@@ -105,22 +105,25 @@ def _pull_openalex_works(self, fetch_type, retry=0, paper_fetch_log_id=None) -> 
             logger.error("Failed to get last successful or failed log")
             sentry.log_error(e, message="Failed to get last successful or failed log")
 
-        # check if there's a pending log within the last 24 hours
-        # if there is, skip this run.
-        # this is to prevent multiple runs from being queued at the same time,
-        # since our celery setup sometimes triggers multiple runs
+        # Check if there's already a successfully completed run today.
+        # If there is, skip this run.
         try:
             pending_log = PaperFetchLog.objects.filter(
                 source=PaperFetchLog.OPENALEX,
                 fetch_type=fetch_type,
-                status=PaperFetchLog.PENDING,
-                started_date__gte=timezone.now() - timedelta(days=1),
+                status=PaperFetchLog.SUCCESS,
+                started_date__date=timezone.now().date(),
                 journal=None,
-            ).exists()
+            )
 
-            if pending_log:
-                logger.info("Pending log exists for updated works")
-                sentry.log_info(message="Pending log exists for updated works")
+            if pending_log.exists():
+                pl = pending_log.first()
+                logger.info(
+                    f"Success log {pl.id} already exists for {fetch_type} works"
+                )
+                sentry.log_info(
+                    message=f"Success log {pl.id} already exists for {fetch_type} works"
+                )
                 return False
         except Exception as e:
             logger.error("Failed to get pending log")
@@ -180,6 +183,7 @@ def _pull_openalex_works(self, fetch_type, retry=0, paper_fetch_log_id=None) -> 
             if next_cursor is None or works is None or len(works) == 0:
                 break
 
+            logger.info(f"Processing {len(works)} works...")
             process_openalex_works(works)
 
             total_papers_processed += len(works)
