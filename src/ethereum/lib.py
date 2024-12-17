@@ -4,7 +4,6 @@ from web3 import Web3
 
 from ethereum.utils import decimal_to_token_amount
 from researchhub import settings
-from researchhub.settings import w3
 from utils.aws import create_client
 
 
@@ -124,7 +123,9 @@ def get_fee_estimate(w3, method_call):
     return gas_estimate * gas_price
 
 
-def execute_erc20_transfer(w3, sender, sender_signing_key, contract, to, amount):
+def execute_erc20_transfer(
+    w3, sender, sender_signing_key, contract, to, amount, network="ETHEREUM"
+):
     """Sends `amount` of the token located at `contract` to `to`.
 
     !!! NOTE: This method should be used carefully because it sends funds.
@@ -136,31 +137,27 @@ def execute_erc20_transfer(w3, sender, sender_signing_key, contract, to, amount)
         to (str) - Ethereum address of recipient
         amount (int) - Amount of token to send (in smallest possible
             denomination)
+        network (str) - Network to use ("ETHEREUM" or "BASE")
     """
     decimals = contract.functions.decimals().call()
     decimal_amount = amount * 10 ** int(decimals)
-    return transact(
-        w3, contract.functions.transfer(to, decimal_amount), sender, sender_signing_key
+    return _transact(
+        w3,
+        contract.functions.transfer(to, decimal_amount),
+        sender,
+        sender_signing_key,
+        network=network,
     )
 
 
-def transact(w3, method_call, sender, sender_signing_key, network="ethereum", gas=None):
-    """Executes the contract's `method_call` on chain.
-
-    !!! NOTE: This method should be used carefully because it sends funds.
-
-    Args:
-        w3 (Web3): Web3 instance for the target network
-        method_call: Contract method to call
-        sender (str): Address of message sender
-        sender_signing_key (bytes): Private key of sender
-        network (str): Network to use ("ethereum" or "base")
-        gas (int): Amount of gas to fund transaction execution
-    """
+def _transact(
+    w3, method_call, sender, sender_signing_key, network="ETHEREUM", gas=None
+):
+    """Executes the contract's `method_call` on chain."""
     gas_estimate = get_gas_estimate(method_call)
     checksum_sender = Web3.to_checksum_address(sender)
 
-    chain_id = TOKENS["RSC"][network]["chain_id"]
+    chain_id = TOKENS["RSC"][network.lower()]["chain_id"]
 
     tx = method_call.build_transaction(
         {

@@ -381,7 +381,13 @@ class PendingWithdrawal:
         amount = int(self.amount)
         to = self.withdrawal.to_address
         tx_hash = execute_erc20_transfer(
-            self.w3, WEB3_WALLET_ADDRESS, PRIVATE_KEY, contract, to, amount
+            self.w3,
+            WEB3_WALLET_ADDRESS,
+            PRIVATE_KEY,
+            contract,
+            to,
+            amount,
+            network=self.network,
         )
         self.withdrawal.transaction_hash = tx_hash
         self.withdrawal.save()
