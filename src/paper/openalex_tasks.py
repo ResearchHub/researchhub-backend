@@ -114,14 +114,15 @@ def _pull_openalex_works(self, fetch_type, retry=0, paper_fetch_log_id=None) -> 
                 status=PaperFetchLog.SUCCESS,
                 started_date__date=timezone.now().date(),
                 journal=None,
-            ).exists()
+            )
 
-            if pending_log:
+            if pending_log.exists():
+                pl = pending_log.first()
                 logger.info(
-                    f"Success log {pending_log.id} already exists for {fetch_type} works"
+                    f"Success log {pl.id} already exists for {fetch_type} works"
                 )
                 sentry.log_info(
-                    message=f"Success log {pending_log.id} already exists for {fetch_type} works"
+                    message=f"Success log {pl.id} already exists for {fetch_type} works"
                 )
                 return False
         except Exception as e:
@@ -182,6 +183,7 @@ def _pull_openalex_works(self, fetch_type, retry=0, paper_fetch_log_id=None) -> 
             if next_cursor is None or works is None or len(works) == 0:
                 break
 
+            logger.info(f"Processing {len(works)} works...")
             process_openalex_works(works)
 
             total_papers_processed += len(works)
