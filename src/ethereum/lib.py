@@ -7,24 +7,56 @@ from researchhub import settings
 from researchhub.settings import w3
 from utils.aws import create_client
 
-TOKENS = {
-    "RSC": {
+
+def get_network_config(network="ethereum"):
+    """Get the appropriate network configuration based on environment"""
+    base_config = {
         "ethereum": {
-            "name": "ResearchCoin",
-            "contract_address": settings.WEB3_RSC_ADDRESS,
-            "ticker": "RSC",
-            "denomination": 18,
-            "reputation_exchange_rate": "1.0",
-            "chain_id": 1,  # Ethereum mainnet
+            "mainnet": {
+                "name": "ResearchCoin",
+                "contract_address": settings.WEB3_RSC_ADDRESS,
+                "ticker": "RSC",
+                "denomination": 18,
+                "reputation_exchange_rate": "1.0",
+                "chain_id": 1,  # Ethereum mainnet
+            },
+            "testnet": {
+                "name": "ResearchCoin",
+                "contract_address": settings.WEB3_RSC_ADDRESS,
+                "ticker": "RSC",
+                "denomination": 18,
+                "reputation_exchange_rate": "1.0",
+                "chain_id": 11155111,  # Sepolia testnet
+            },
         },
         "base": {
-            "name": "ResearchCoin",
-            "contract_address": settings.WEB3_BASE_RSC_ADDRESS,
-            "ticker": "RSC",
-            "denomination": 18,
-            "reputation_exchange_rate": "1.0",
-            "chain_id": 8453,  # Base mainnet
+            "mainnet": {
+                "name": "ResearchCoin",
+                "contract_address": settings.WEB3_BASE_RSC_ADDRESS,
+                "ticker": "RSC",
+                "denomination": 18,
+                "reputation_exchange_rate": "1.0",
+                "chain_id": 8453,  # Base mainnet
+            },
+            "testnet": {
+                "name": "ResearchCoin",
+                "contract_address": settings.WEB3_BASE_RSC_ADDRESS,
+                "ticker": "RSC",
+                "denomination": 18,
+                "reputation_exchange_rate": "1.0",
+                "chain_id": 84532,  # Base Sepolia testnet
+            },
         },
+    }
+
+    env = "mainnet" if settings.PRODUCTION else "testnet"
+    return base_config[network][env]
+
+
+TOKENS = {
+    "RSC": {
+        "ethereum": get_network_config("ethereum"),
+        "base": get_network_config("base"),
     },
 }
 
