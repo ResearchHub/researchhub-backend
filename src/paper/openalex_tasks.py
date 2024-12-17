@@ -117,9 +117,11 @@ def _pull_openalex_works(self, fetch_type, retry=0, paper_fetch_log_id=None) -> 
             ).exists()
 
             if pending_log:
-                logger.info(f"Success log already exists for {fetch_type} works")
+                logger.info(
+                    f"Success log {pending_log.id} already exists for {fetch_type} works"
+                )
                 sentry.log_info(
-                    message=f"Success log already exists for {fetch_type} works"
+                    message=f"Success log {pending_log.id} already exists for {fetch_type} works"
                 )
                 return False
         except Exception as e:
