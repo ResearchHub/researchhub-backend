@@ -835,9 +835,9 @@ if TESTING:
 try:
     w3_ethereum = Web3(Web3.HTTPProvider(WEB3_PROVIDER_URL))
     w3_base = Web3(Web3.HTTPProvider(WEB3_BASE_PROVIDER_URL))
+    w3 = w3_ethereum
 except Exception as e:
     log_error(e)
-    print(e)
 
 
 # API Key Settings
