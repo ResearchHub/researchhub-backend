@@ -9,7 +9,13 @@ from ethereum.lib import RSC_CONTRACT_ADDRESS, execute_erc20_transfer, get_priva
 from mailing_list.lib import base_email_context
 from reputation.models import Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
-from researchhub.settings import WEB3_KEYSTORE_BUCKET, WEB3_WALLET_ADDRESS, w3
+from researchhub.settings import (
+    WEB3_BASE_RSC_ADDRESS,
+    WEB3_KEYSTORE_BUCKET,
+    WEB3_WALLET_ADDRESS,
+    w3_base,
+    w3_ethereum,
+)
 from utils.message import send_email_message
 from utils.sentry import log_error
 
@@ -338,10 +344,12 @@ except Exception as e:
 
 
 class PendingWithdrawal:
-    def __init__(self, withdrawal, balance_record_id, amount):
+    def __init__(self, withdrawal, balance_record_id, amount, network="ETHEREUM"):
         self.withdrawal = withdrawal
         self.balance_record_id = balance_record_id
         self.amount = amount
+        self.network = network
+        self.w3 = w3_ethereum if network == "ETHEREUM" else w3_base
 
     def complete_token_transfer(self):
         self.withdrawal.set_paid_pending()
@@ -362,26 +370,36 @@ class PendingWithdrawal:
         return token_payout
 
     def _request_transfer(self, token):
-        contract = w3.eth.contract(
-            abi=contract_abi, address=Web3.to_checksum_address(RSC_CONTRACT_ADDRESS)
+        contract = self.w3.eth.contract(
+            abi=contract_abi,
+            address=Web3.to_checksum_address(
+                WEB3_BASE_RSC_ADDRESS
+                if self.network == "BASE"
+                else RSC_CONTRACT_ADDRESS
+            ),
         )
         amount = int(self.amount)
         to = self.withdrawal.to_address
         tx_hash = execute_erc20_transfer(
-            w3, WEB3_WALLET_ADDRESS, PRIVATE_KEY, contract, to, amount
+            self.w3,
+            WEB3_WALLET_ADDRESS,
+            PRIVATE_KEY,
+            contract,
+            to,
+            amount,
+            network=self.network,
         )
         self.withdrawal.transaction_hash = tx_hash
         self.withdrawal.save()
 
 
-def evaluate_transaction_hash(
-    transaction_hash,
-):
+def evaluate_transaction_hash(transaction_hash, network="ETHEREUM"):
     paid_date = None
     paid_status = "PENDING"
     try:
         timeout = 5 * 1  # 5 second timeout
-        transaction_receipt = w3.eth.wait_for_transaction_receipt(
+        w3_instance = w3_ethereum if network == "ETHEREUM" else w3_base
+        transaction_receipt = w3_instance.eth.wait_for_transaction_receipt(
             transaction_hash, timeout=timeout
         )
         if transaction_receipt["status"] == 0:
@@ -404,7 +422,9 @@ def check_pending_withdrawal():
         paid_status=PaidStatusModelMixin.PENDING
     )
     for withdrawal in pending_withdrawals:
-        paid_status, paid_date = evaluate_transaction_hash(withdrawal.transaction_hash)
+        paid_status, paid_date = evaluate_transaction_hash(
+            withdrawal.transaction_hash, network=withdrawal.network
+        )
         withdrawal.paid_status = paid_status
         withdrawal.paid_date = paid_date
         withdrawal.save()
@@ -412,43 +432,66 @@ def check_pending_withdrawal():
 
 def check_hotwallet():
     """
-    Alerts admins if the hotwallet is low on eth or RSC
+    Alerts admins if the hotwallet is low on eth or RSC on either network
     """
-
-    rsc_balance_eth = get_hotwallet_rsc_balance()
-    eth_balance_wei = w3.eth.get_balance(WEB3_WALLET_ADDRESS)
-    eth_balanace_eth = eth_balance_wei / (10**18)
+    messages = []
     send_email = False
-    outer_subject = "RSC is running low in the hotwallet"
 
-    if rsc_balance_eth <= 50000:
-        outer_subject = "RSC is running low in the hotwallet"
+    # Check Ethereum network
+    eth_rsc_balance = get_hotwallet_rsc_balance("ETHEREUM")
+    eth_balance_wei = w3_ethereum.eth.get_balance(WEB3_WALLET_ADDRESS)
+    eth_balance_eth = eth_balance_wei / (10**18)
+
+    if eth_rsc_balance <= 50000:
+        messages.append(
+            f"RSC is running low in the Ethereum hotwallet: {eth_rsc_balance:,}"
+        )
         send_email = True
 
-    if eth_balanace_eth < 0.08:
-        outer_subject = "ETH is running low in the hotwallet"
+    if eth_balance_eth < 0.08:
+        messages.append(
+            f"ETH is running low in the Ethereum hotwallet: {eth_balance_eth:,}"
+        )
+        send_email = True
+
+    # Check Base network
+    base_rsc_balance = get_hotwallet_rsc_balance("BASE")
+    base_balance_wei = w3_base.eth.get_balance(WEB3_WALLET_ADDRESS)
+    base_balance_eth = base_balance_wei / (10**18)
+
+    if base_rsc_balance <= 50000:
+        messages.append(
+            f"RSC is running low in the Base hotwallet: {base_rsc_balance:,}"
+        )
+        send_email = True
+
+    if base_balance_eth < 0.08:
+        messages.append(
+            f"ETH is running low in the Base hotwallet: {base_balance_eth:,}"
+        )
         send_email = True
 
     if send_email:
         context = {**base_email_context}
-        context["action"] = {
-            "message": "RSC: {:,}\n\nETH: {:,}".format(
-                rsc_balance_eth, eth_balanace_eth
-            )
-        }
-        context["subject"] = outer_subject
+        context["action"] = {"message": "\n\n".join(messages)}
+        context["subject"] = "Hotwallet Balance Alert"
         send_email_message(
             ["pat@researchhub.com", "tyler@researchhub.com", "dev@researchhub.com"],
             "general_email_message.txt",
-            outer_subject,
+            "Hotwallet Balance Alert",
             context,
             html_template="general_email_message.html",
         )
 
 
-def get_hotwallet_rsc_balance():
-    contract = w3.eth.contract(
-        abi=contract_abi, address=Web3.to_checksum_address(RSC_CONTRACT_ADDRESS)
+def get_hotwallet_rsc_balance(network="ETHEREUM"):
+    w3_instance = w3_ethereum if network == "ETHEREUM" else w3_base
+    token_address = (
+        RSC_CONTRACT_ADDRESS if network == "ETHEREUM" else WEB3_BASE_RSC_ADDRESS
+    )
+
+    contract = w3_instance.eth.contract(
+        abi=contract_abi, address=Web3.to_checksum_address(token_address)
     )
     rsc_balance_wei = contract.functions.balanceOf(WEB3_WALLET_ADDRESS).call()
     decimals = contract.functions.decimals().call()

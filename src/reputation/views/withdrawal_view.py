@@ -28,7 +28,7 @@ from reputation.lib import (
 from reputation.models import Withdrawal
 from reputation.permissions import AllowWithdrawalIfNotSuspecious
 from reputation.serializers import WithdrawalSerializer
-from researchhub.settings import ETHERSCAN_API_KEY, WEB3_RSC_ADDRESS
+from researchhub.settings import ETHERSCAN_API_KEY, WEB3_PROVIDER_URL, WEB3_RSC_ADDRESS
 from user.related_models.user_model import User
 from user.related_models.user_verification_model import UserVerification
 from user.serializers import UserSerializer
@@ -37,6 +37,18 @@ from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfAllowed, UserNot
 from utils.throttles import THROTTLE_CLASSES
 
 TRANSACTION_FEE = int(os.environ.get("TRANSACTION_FEE", 100))
+NETWORKS = {
+    "ETHEREUM": {
+        "provider_url": WEB3_PROVIDER_URL,
+        "token_address": WEB3_RSC_ADDRESS,
+    },
+    "BASE": {
+        "provider_url": os.environ.get(
+            "WEB3_BASE_PROVIDER_URL", "https://sepolia.base.org"
+        ),
+        "token_address": os.environ.get("WEB3_BASE_RSC_ADDRESS", WEB3_RSC_ADDRESS),
+    },
+}
 
 
 class WithdrawalViewSet(viewsets.ModelViewSet):
@@ -63,12 +75,19 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             object_repr="WITHDRAWAL_SWITCH", action_flag=3
         ).exists():
             return Response(
-                "Withdrawals are suspended for the time being. Please be patient as we work to turn withdrawals back on",
+                "Withdrawals are suspended for the time being. "
+                "Please be patient as we work to turn withdrawals back on",
                 status=400,
             )
 
         user = request.user
         amount = decimal.Decimal(request.data["amount"])
+        network = request.data.get("network", "ETHEREUM").upper()
+        if network not in NETWORKS:
+            return Response(
+                "Invalid network. Please choose either 'BASE' or 'ETHEREUM'", status=400
+            )
+
         transaction_fee = self.calculate_transaction_fee()
         to_address = request.data.get("to_address")
 
@@ -78,21 +97,21 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         if pending_tx.exists():
             return Response(
-                "Please wait for your previous withdrawal to finish before starting another one.",
+                "Please wait for your previous withdrawal to finish "
+                "before starting another one.",
                 status=400,
             )
 
         if not self._can_withdraw(user):
             return Response(
                 "Your reputation is too low to withdraw. "
-                + "Please claim papers you have authored and contribute to the community to increase your reputation."
-                + "Alternatively, verify your identity to withdraw.",
+                "Please claim papers you have authored and contribute to the "
+                "community to increase your reputation. "
+                "Alternatively, verify your identity to withdraw.",
                 status=400,
             )
 
         valid, message = self._check_meets_withdrawal_minimum(amount)
-        # if valid:
-        #     valid, message = self._check_agreed_to_terms(user, request)
         if valid:
             valid, message = self._check_withdrawal_interval(user, to_address)
         if valid:
@@ -104,16 +123,17 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             )
 
         if valid:
-            valid, message = self._check_hotwallet_balance(amount)
+            valid, message = self._check_hotwallet_balance(amount, network)
 
         if valid:
             try:
                 withdrawal = Withdrawal.objects.create(
                     user=user,
-                    token_address=WEB3_RSC_ADDRESS,
+                    token_address=NETWORKS[network]["token_address"],
                     to_address=to_address,
                     amount=amount,
                     fee=transaction_fee,
+                    network=network,
                 )
 
                 self._pay_withdrawal(withdrawal, amount, transaction_fee)
@@ -178,21 +198,25 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
     def calculate_transaction_fee(self):
         """
-        rsc_to_usd_url = 'https://api.coinbase.com/v2/prices/RSC-USD/spot'
-        eth_to_usd_url = 'https://api.coinbase.com/v2/prices/ETH-USD/spot'
-        rsc_price = requests.get(rsc_to_usd_url).json()['data']['amount']
-        eth_price = requests.get(eth_to_usd_url).json()['data']['amount']
-        rsc_to_eth_ratio = rsc_price / eth_price
-        return math.ceil(amount * rsc_to_eth_ratio)
+        Calculate the transaction fee based on the network.
+        Base network typically has lower fees than Ethereum.
         """
-        res = requests.get(
-            f"https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey={ETHERSCAN_API_KEY}",
-            timeout=10,
-        )
-        json = res.json()
-        print(json)
-        gas_price = json.get("result", {}).get("SafeGasPrice", 40)
-        gas_limit = 120000.0
+        network = self.request.data.get("network", "ETHEREUM").upper()
+
+        if network == "BASE":
+            # Base network typically has lower fees
+            gas_price = 1  # 1 gwei is usually sufficient for Base
+            gas_limit = 100000.0  # Lower gas limit for Base
+        else:
+            # For Ethereum network
+            res = requests.get(
+                f"https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey={ETHERSCAN_API_KEY}",
+                timeout=10,
+            )
+            json = res.json()
+            gas_price = json.get("result", {}).get("SafeGasPrice", 40)
+            gas_limit = 120000.0
+
         gas_fee_in_eth = gwei_to_eth(float(gas_price) * gas_limit)
         rsc = RscExchangeRate.eth_to_rsc(gas_fee_in_eth)
         return int(round(rsc))
@@ -221,7 +245,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 0,
             )
             pending_withdrawal = PendingWithdrawal(
-                withdrawal, ending_balance_record.id, amount
+                withdrawal, ending_balance_record.id, amount, network=withdrawal.network
             )
             pending_withdrawal.complete_token_transfer()
             ending_balance_record.amount = f"-{amount + fee}"
@@ -378,8 +402,14 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         return True, None, net_amount
 
-    def _check_hotwallet_balance(self, amount) -> tuple[bool, str | None]:
-        rsc_balance_eth = get_hotwallet_rsc_balance()
+    def _check_hotwallet_balance(
+        self, amount, network="ETHEREUM"
+    ) -> tuple[bool, str | None]:
+        if network == "ETHEREUM":
+            rsc_balance_eth = get_hotwallet_rsc_balance()
+        else:
+            rsc_balance_eth = get_hotwallet_rsc_balance(network="BASE")
+
         if rsc_balance_eth < amount:
             return (False, "Hotwallet balance is lower than the withdrawal amount")
         return (True, None)

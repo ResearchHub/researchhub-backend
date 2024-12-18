@@ -1,3 +1,4 @@
+import os
 import re
 import time
 from datetime import datetime, timedelta
@@ -9,9 +10,10 @@ from django.utils import timezone
 from pytz import utc
 from rest_framework.test import APITestCase
 
+from purchase.models import RscExchangeRate
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
-from reputation.lib import PendingWithdrawal, get_hotwallet_rsc_balance
+from reputation.lib import PendingWithdrawal, gwei_to_eth
 from reputation.models import Withdrawal
 from reputation.tests.helpers import create_deposit, create_withdrawals
 from reputation.views.withdrawal_view import WithdrawalViewSet
@@ -556,6 +558,119 @@ class ReputationViewsTests(APITestCase):
             self.assertEqual(
                 response.data, "Hotwallet balance is lower than the withdrawal amount"
             )
+
+    def test_base_network_withdrawal_succeeds(self):
+        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.save()
+
+        create_deposit(user)
+        self.client.force_authenticate(user)
+
+        with mock.patch.object(
+            PendingWithdrawal, "complete_token_transfer", return_value=None
+        ):
+            response = self.client.post(
+                "/api/withdrawal/",
+                {
+                    "agreed_to_terms": True,
+                    "amount": "550",
+                    "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "transaction_fee": 15,
+                    "network": "BASE",
+                },
+            )
+            self.assertEqual(response.status_code, 201)
+            withdrawal = Withdrawal.objects.get(id=response.data["id"])
+            self.assertEqual(withdrawal.network, "BASE")
+
+    def test_invalid_network_withdrawal_fails(self):
+        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.save()
+
+        create_deposit(user)
+        self.client.force_authenticate(user)
+
+        response = self.client.post(
+            "/api/withdrawal/",
+            {
+                "agreed_to_terms": True,
+                "amount": "550",
+                "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                "transaction_fee": 15,
+                "network": "INVALID",
+            },
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.data, "Invalid network. Please choose either 'BASE' or 'ETHEREUM'"
+        )
+
+    def test_base_network_withdrawal_fails_with_insufficient_hotwallet_balance(self):
+        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        user.date_joined = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.created_date = datetime(year=2020, month=1, day=1, tzinfo=utc)
+        user.save()
+
+        create_deposit(user)
+        self.client.force_authenticate(user)
+
+        # Temporarily override the hotwallet balance mock to return insufficient funds
+        with mock.patch(
+            "reputation.views.withdrawal_view.get_hotwallet_rsc_balance",
+            return_value=10,  # Set a small balance that won't cover the withdrawal
+        ):
+            response = self.client.post(
+                "/api/withdrawal/",
+                {
+                    "agreed_to_terms": True,
+                    "amount": "550",
+                    "to_address": "0x0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+                    "transaction_fee": 15,
+                    "network": "BASE",
+                },
+            )
+
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(
+                response.data, "Hotwallet balance is lower than the withdrawal amount"
+            )
+
+    def test_base_network_transaction_fee_is_lower(self):
+        """Test that Base network transaction fees are lower than Ethereum."""
+        user = create_random_authenticated_user_with_reputation("rep_user", 1000)
+        self.client.force_authenticate(user)
+
+        # Mock etherscan response for Ethereum network with higher gas price
+        etherscan_matcher = re.compile("https://api.etherscan.io/.*")
+        self.mocker.get(etherscan_matcher, json={"result": {"SafeGasPrice": "30"}})
+
+        # Get Ethereum network fee first
+        eth_response = self.client.get("/api/withdrawal/transaction_fee/")
+        eth_fee = eth_response.data
+
+        # Override the mock for Base network to use lower gas price
+        self.mocker.get(etherscan_matcher, json={"result": {"SafeGasPrice": "1"}})
+
+        # Get Base network fee
+        base_response = self.client.get(
+            "/api/withdrawal/transaction_fee/",
+            {"network": "BASE"},
+        )
+        base_fee = base_response.data
+
+        # Base fee should be lower than Ethereum fee
+        self.assertLess(base_fee, eth_fee)
+
+        # Base fee should be reasonable (using 1 gwei gas price)
+        expected_base_gas_fee = gwei_to_eth(1 * 100000)  # 1 gwei * 100000 gas
+        expected_base_rsc = int(
+            round(RscExchangeRate.eth_to_rsc(expected_base_gas_fee))
+        )
+        self.assertEqual(base_fee, expected_base_rsc)
 
     """
     Helper methods
