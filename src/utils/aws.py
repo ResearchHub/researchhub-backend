@@ -105,34 +105,6 @@ def download_pdf(url):
 def create_client(service_name: str) -> boto3.client:
     """
     Create a boto3 client for the given service.
-    The function uses role-based authentication if `AWS_ROLE_ARN` is set.
     """
     session = Session()
-    if settings.AWS_ROLE_ARN:
-        sts_client = session.client(
-            "sts",
-            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-        )
-
-        assumed_role_object = sts_client.assume_role(
-            RoleArn=settings.AWS_ROLE_ARN,
-            RoleSessionName="AssumeRoleSession",
-        )
-
-        credentials = assumed_role_object["Credentials"]
-
-        client = session.client(
-            service_name,
-            aws_access_key_id=credentials["AccessKeyId"],
-            aws_secret_access_key=credentials["SecretAccessKey"],
-            aws_session_token=credentials["SessionToken"],
-        )
-    else:
-        client = session.client(
-            service_name,
-            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-        )
-
-    return client
+    return session.client(service_name)
