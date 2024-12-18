@@ -21,7 +21,7 @@ class Withdrawal(SoftDeletableModel, PaidStatusModelMixin):
     network = models.CharField(
         max_length=10,
         choices=[("BASE", "Base"), ("ETHEREUM", "Ethereum")],
-        default="ETHEREUM",
+        db_default="ETHEREUM",
     )
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
