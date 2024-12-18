@@ -522,16 +522,10 @@ STATIC_URL = "/static/"
 STATIC_ROOT = os.path.join(BASE_DIR, "static")
 STATICFILES_DIRS = ["stylesheets"]
 
-
 # AWS
 
-AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID", keys.AWS_ACCESS_KEY_ID)
-AWS_SECRET_ACCESS_KEY = os.environ.get(
-    "AWS_SECRET_ACCESS_KEY", keys.AWS_SECRET_ACCESS_KEY
-)
 AWS_ACCOUNT_ID = os.environ.get("AWS_ACCOUNT_ID", keys.AWS_ACCOUNT_ID)
 AWS_REGION_NAME = os.environ.get("AWS_REGION_NAME", keys.AWS_REGION_NAME)
-AWS_ROLE_ARN = os.environ.get("AWS_ROLE_ARN", keys.AWS_ROLE_ARN)
 
 # AWS Lambda
 
