@@ -88,7 +88,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 "Invalid network. Please choose either 'BASE' or 'ETHEREUM'", status=400
             )
 
-        transaction_fee = self.calculate_transaction_fee()
+        transaction_fee = self.calculate_transaction_fee(network)
         to_address = request.data.get("to_address")
 
         pending_tx = Withdrawal.objects.filter(
@@ -196,12 +196,11 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         ).data
         return resp
 
-    def calculate_transaction_fee(self):
+    def calculate_transaction_fee(self, network="ETHEREUM"):
         """
         Calculate the transaction fee based on the network.
         Base network typically has lower fees than Ethereum.
         """
-        network = self.request.data.get("network", "ETHEREUM").upper()
 
         if network == "BASE":
             # Base network typically has lower fees
@@ -225,7 +224,9 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
     @method_decorator(cache_page(60 * 5))
     @action(detail=False, methods=["get"], permission_classes=[])
     def transaction_fee(self, request):
-        fee = self.calculate_transaction_fee()
+        network = request.GET.get("network", "ETHEREUM").upper()
+        fee = self.calculate_transaction_fee(network)
+
         return Response(fee, status=200)
 
     def _create_balance_record(self, withdrawal, amount):
