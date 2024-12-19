@@ -1,4 +1,4 @@
-import os
+import decimal
 import re
 import time
 from datetime import datetime, timedelta
@@ -10,10 +10,9 @@ from django.utils import timezone
 from pytz import utc
 from rest_framework.test import APITestCase
 
-from purchase.models import RscExchangeRate
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
-from reputation.lib import PendingWithdrawal, gwei_to_eth
+from reputation.lib import PendingWithdrawal
 from reputation.models import Withdrawal
 from reputation.tests.helpers import create_deposit, create_withdrawals
 from reputation.views.withdrawal_view import WithdrawalViewSet
@@ -44,6 +43,10 @@ class ReputationViewsTests(APITestCase):
         # Mock calls to etherscan
         etherscan_matcher = re.compile("https://api.etherscan.io/.*")
         self.mocker.get(etherscan_matcher, json={"result": {"SafeGasPrice": "30"}})
+
+        # Mock calls to basescan
+        basescan_matcher = re.compile("https://api.basescan.org/.*")
+        self.mocker.get(basescan_matcher, json={"result": "0x38a5ef"})
 
         # Mock calls to coingecko
         coingecko_matcher = re.compile("https://api.coingecko.com/.*")
@@ -220,7 +223,6 @@ class ReputationViewsTests(APITestCase):
                     "transaction_fee": 15,
                 },
             )
-
             self.assertEqual(response.status_code, 201)
 
     def test_unverified_user_cannot_rewithdraw_rsc_within_14_days(self):
@@ -665,12 +667,7 @@ class ReputationViewsTests(APITestCase):
         # Base fee should be lower than Ethereum fee
         self.assertLess(base_fee, eth_fee)
 
-        # Base fee should be reasonable (using 1 gwei gas price)
-        expected_base_gas_fee = gwei_to_eth(1 * 100000)  # 1 gwei * 100000 gas
-        expected_base_rsc = int(
-            round(RscExchangeRate.eth_to_rsc(expected_base_gas_fee))
-        )
-        self.assertEqual(base_fee, expected_base_rsc)
+        self.assertEqual(base_fee, decimal.Decimal("0.004454994"))
 
     """
     Helper methods

@@ -859,6 +859,9 @@ OPENALEX_KEY = os.environ.get("OPENALEX_KEY", keys.OPENALEX_KEY)
 # Etherscan API Key
 ETHERSCAN_API_KEY = os.environ.get("ETHERSCAN_API_KEY", keys.ETHERSCAN_API_KEY)
 
+# Basescan API Key
+BASESCAN_API_KEY = os.environ.get("BASESCAN_API_KEY", keys.BASESCAN_API_KEY)
+
 # CoinGecko API Key
 COIN_GECKO_API_KEY = os.environ.get("COIN_GECKO_API_KEY", keys.COIN_GECKO_API_KEY)
 
