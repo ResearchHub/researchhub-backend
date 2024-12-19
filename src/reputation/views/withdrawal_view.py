@@ -41,7 +41,6 @@ from utils import sentry
 from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfAllowed, UserNotSpammer
 from utils.throttles import THROTTLE_CLASSES
 
-TRANSACTION_FEE = int(os.environ.get("TRANSACTION_FEE", 100))
 NETWORKS = {
     "ETHEREUM": {
         "provider_url": WEB3_PROVIDER_URL,
@@ -232,7 +231,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         gas_fee_in_eth = gwei_to_eth(float(gas_price) * gas_limit)
         rsc = RscExchangeRate.eth_to_rsc(gas_fee_in_eth)
-        return rsc
+        return decimal.Decimal(str(rsc))
 
     # 5 minute cache
     @method_decorator(cache_page(60 * 5))
