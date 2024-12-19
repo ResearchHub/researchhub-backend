@@ -28,7 +28,12 @@ from reputation.lib import (
 from reputation.models import Withdrawal
 from reputation.permissions import AllowWithdrawalIfNotSuspecious
 from reputation.serializers import WithdrawalSerializer
-from researchhub.settings import ETHERSCAN_API_KEY, WEB3_PROVIDER_URL, WEB3_RSC_ADDRESS
+from researchhub.settings import (
+    BASESCAN_API_KEY,
+    ETHERSCAN_API_KEY,
+    WEB3_PROVIDER_URL,
+    WEB3_RSC_ADDRESS,
+)
 from user.related_models.user_model import User
 from user.related_models.user_verification_model import UserVerification
 from user.serializers import UserSerializer
@@ -203,9 +208,17 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         """
 
         if network == "BASE":
-            # Base network typically has lower fees
-            gas_price = 1  # 1 gwei is usually sufficient for Base
-            gas_limit = 100000.0  # Lower gas limit for Base
+            # Get gas price from Basescan API
+            res = requests.get(
+                f"https://api.basescan.org/api"
+                f"?module=proxy"
+                f"&action=eth_gasPrice"
+                f"&apikey={BASESCAN_API_KEY}",
+                timeout=10,
+            )
+            json = res.json()
+            gas_price_wei = int(json.get("result", "0x0"), 16)  # Convert hex to int
+            gas_price = gas_price_wei / 10**9  # Convert wei to gwei
         else:
             # For Ethereum network
             res = requests.get(
@@ -214,11 +227,12 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             )
             json = res.json()
             gas_price = json.get("result", {}).get("SafeGasPrice", 40)
-            gas_limit = 120000.0
+
+        gas_limit = 120000.0
 
         gas_fee_in_eth = gwei_to_eth(float(gas_price) * gas_limit)
         rsc = RscExchangeRate.eth_to_rsc(gas_fee_in_eth)
-        return int(round(rsc))
+        return rsc
 
     # 5 minute cache
     @method_decorator(cache_page(60 * 5))
