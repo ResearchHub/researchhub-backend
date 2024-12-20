@@ -43,7 +43,7 @@ class Author(models.Model):
     i10_index = models.IntegerField(default=0)
     profile_image = models.FileField(
         upload_to="uploads/author_profile_images/%Y/%m/%d",
-        max_length=1024,
+        max_length=2048,
         default=None,
         null=True,
         blank=True,
@@ -53,8 +53,8 @@ class Author(models.Model):
     university = models.ForeignKey(
         University, on_delete=models.SET_NULL, null=True, blank=True
     )
-    orcid_id = models.CharField(
-        max_length=1024, default=None, null=True, blank=True, unique=False
+    orcid_id = models.TextField(
+        default=None, null=True, blank=True
     )
     openalex_ids = ArrayField(
         models.CharField(
