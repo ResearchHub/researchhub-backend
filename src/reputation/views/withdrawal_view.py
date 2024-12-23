@@ -1,5 +1,6 @@
 import decimal
 import logging
+import math
 import os
 from datetime import datetime, timedelta
 
@@ -231,7 +232,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         gas_fee_in_eth = gwei_to_eth(float(gas_price) * gas_limit)
         rsc = RscExchangeRate.eth_to_rsc(gas_fee_in_eth)
-        return decimal.Decimal(str(round(rsc, 4)))
+        return decimal.Decimal(str(math.ceil(rsc * 100) / 100))
 
     # 5 minute cache
     @method_decorator(cache_page(60 * 5))
