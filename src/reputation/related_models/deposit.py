@@ -9,6 +9,11 @@ class Deposit(SoftDeletableModel, PaidStatusModelMixin):
         "user.User", related_name="deposits", on_delete=models.SET_NULL, null=True
     )
     amount = models.CharField(max_length=255, default="0.0")
+    network = models.CharField(
+        max_length=10,
+        choices=[("BASE", "Base"), ("ETHEREUM", "Ethereum")],
+        db_default="ETHEREUM",
+    )
     from_address = models.CharField(max_length=255)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
