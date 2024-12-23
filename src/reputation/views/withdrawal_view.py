@@ -231,7 +231,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         gas_fee_in_eth = gwei_to_eth(float(gas_price) * gas_limit)
         rsc = RscExchangeRate.eth_to_rsc(gas_fee_in_eth)
-        return decimal.Decimal(str(rsc))
+        return decimal.Decimal(str(round(rsc, 4)))
 
     # 5 minute cache
     @method_decorator(cache_page(60 * 5))
