@@ -228,7 +228,9 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             json = res.json()
             gas_price = json.get("result", {}).get("SafeGasPrice", 40)
 
-        gas_limit = 120000.0
+        gas_limit = (
+            120000.0  # Maximum amount of gas we are willing to consume on a transaction
+        )
 
         gas_fee_in_eth = gwei_to_eth(float(gas_price) * gas_limit)
         rsc = RscExchangeRate.eth_to_rsc(gas_fee_in_eth)
