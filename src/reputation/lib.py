@@ -465,7 +465,7 @@ def check_hotwallet():
         )
         send_email = True
 
-    if base_balance_eth < 0.08:
+    if base_balance_eth < 0.001:
         messages.append(
             f"ETH is running low in the Base hotwallet: {base_balance_eth:,}"
         )
