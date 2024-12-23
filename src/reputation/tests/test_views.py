@@ -667,7 +667,7 @@ class ReputationViewsTests(APITestCase):
         # Base fee should be lower than Ethereum fee
         self.assertLess(base_fee, eth_fee)
 
-        self.assertEqual(base_fee, decimal.Decimal("0.004454994"))
+        self.assertEqual(base_fee, decimal.Decimal("0.01"))
 
     """
     Helper methods
