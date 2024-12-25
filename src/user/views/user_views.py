@@ -35,11 +35,7 @@ from reputation.serializers import (
     DynamicContributionSerializer,
 )
 from reputation.views import BountyViewSet
-from researchhub.settings import (
-    EMAIL_WHITELIST,
-    SIFT_MODERATION_WHITELIST,
-    SIFT_WEBHOOK_SECRET_KEY,
-)
+from researchhub import settings
 from researchhub_comment.models import RhCommentModel
 from user.filters import UserFilter
 from user.models import Author, Follow, Major, University, User
@@ -758,7 +754,7 @@ class UserViewSet(viewsets.ModelViewSet):
         postback_signature = request.headers.get("X-Sift-Science-Signature")
 
         # Next, let's try to assemble the signature on our side to verify
-        key = SIFT_WEBHOOK_SECRET_KEY.encode("utf-8")
+        key = settings.SIFT_WEBHOOK_SECRET_KEY.encode("utf-8")
         postback_body = request.body
 
         h = hmac.new(key, postback_body, sha1)
@@ -771,8 +767,8 @@ class UserViewSet(viewsets.ModelViewSet):
             user = User.objects.get(id=user_id)
 
             if (
-                not user.moderator or user.email not in EMAIL_WHITELIST
-            ) and user.id not in SIFT_MODERATION_WHITELIST:
+                not user.moderator or user.email not in settings.EMAIL_WHITELIST
+            ) and user.id not in settings.SIFT_MODERATION_WHITELIST:
                 if "mark_as_probable_spammer_content_abuse" in decision_id:
                     log_info(
                         f"Possible Spammer - {user.id}: {user.first_name} {user.last_name} - {decision_id}"
