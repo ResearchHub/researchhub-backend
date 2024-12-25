@@ -99,13 +99,13 @@ def index_papers_in_bulk(es, from_id, to_id, max_attempts=5):
             ) as e:
                 if attempt == max_attempts:
                     print(
-                        f"Failed to index papers after {max_attempts} attempts due to persistent timeouts. Last ID attempted was {current_id}."
+                        f"Failed to index papers after {max_attempts} attempts due to persistent timeouts. Last ID attempted was {current_id}: {e}"
                     )
                     return
                 else:
                     wait_time = 2**attempt  # Exponential backoff
                     print(
-                        f"Timeout encountered. Retrying batch starting at {current_id} in {wait_time} seconds (Attempt {attempt}/{max_attempts})..."
+                        f"Timeout encountered: {e}. Retrying batch starting at {current_id} in {wait_time} seconds (Attempt {attempt}/{max_attempts})..."
                     )
                     time.sleep(wait_time)
 
