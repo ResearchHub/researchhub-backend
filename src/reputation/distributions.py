@@ -23,8 +23,8 @@ class Distribution:
 
 
 FlagPaper = Distribution("FLAG_PAPER", -1, give_rep=True, reputation=-1)
-PaperUpvoted = Distribution("PAPER_UPVOTED", 1, give_rep=True, reputation=1)
-PaperDownvoted = Distribution("PAPER_Downvoted", -1, give_rep=True, reputation=-1)
+PaperUpvoted = Distribution("PAPER_UPVOTED", 0.01, give_rep=True, reputation=1)
+PaperDownvoted = Distribution("PAPER_Downvoted", -0.01, give_rep=True, reputation=-1)
 
 CreateBulletPoint = Distribution("CREATE_BULLET_POINT", 1, give_rep=True, reputation=1)
 BulletPointCensored = Distribution(
