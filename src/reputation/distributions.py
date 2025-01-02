@@ -22,52 +22,62 @@ class Distribution:
         return self._give_rep
 
 
-FlagPaper = Distribution("FLAG_PAPER", -1, give_rep=True, reputation=-1)
+FlagPaper = Distribution("FLAG_PAPER", -0.01, give_rep=True, reputation=-1)
 PaperUpvoted = Distribution("PAPER_UPVOTED", 0.01, give_rep=True, reputation=1)
 PaperDownvoted = Distribution("PAPER_Downvoted", -0.01, give_rep=True, reputation=-1)
 
 CreateBulletPoint = Distribution("CREATE_BULLET_POINT", 1, give_rep=True, reputation=1)
 BulletPointCensored = Distribution(
-    "BULLET_POINT_CENSORED", -2, give_rep=True, reputation=-2
+    "BULLET_POINT_CENSORED", -0.02, give_rep=True, reputation=-2
 )
 BulletPointFlagged = Distribution(
-    "BULLET_POINT_FLAGGED", -2, give_rep=True, reputation=-2
+    "BULLET_POINT_FLAGGED", -0.02, give_rep=True, reputation=-2
 )
 BulletPointUpvoted = Distribution(
-    "BULLET_POINT_UPVOTED", 1, give_rep=True, reputation=1
+    "BULLET_POINT_UPVOTED", 0.01, give_rep=True, reputation=1
 )
 BulletPointDownvoted = Distribution(
-    "BULLET_POINT_DOWNVOTED", -1, give_rep=True, reputation=-1
+    "BULLET_POINT_DOWNVOTED", -0.01, give_rep=True, reputation=-1
 )
 
-RhCommentCensored = Distribution("RhCOMMENT_CENSORED", -2, give_rep=True, reputation=-2)
-RhCommentFlagged = Distribution("RhCOMMENT_FLAGGED", -2, give_rep=True, reputation=-2)
-RhCommentUpvoted = Distribution("RhCOMMENT_UPVOTED", 1, give_rep=True, reputation=1)
+RhCommentCensored = Distribution(
+    "RhCOMMENT_CENSORED", -0.02, give_rep=True, reputation=-2
+)
+RhCommentFlagged = Distribution(
+    "RhCOMMENT_FLAGGED", -0.02, give_rep=True, reputation=-2
+)
+RhCommentUpvoted = Distribution("RhCOMMENT_UPVOTED", 0.01, give_rep=True, reputation=1)
 RhCommentDownvoted = Distribution(
-    "RhCOMMENT_DOWNVOTED", -1, give_rep=True, reputation=-1
+    "RhCOMMENT_DOWNVOTED", -0.01, give_rep=True, reputation=-1
 )
 
-CommentCensored = Distribution("COMMENT_CENSORED", -2, give_rep=True, reputation=-2)
-CommentFlagged = Distribution("COMMENT_FLAGGED", -2, give_rep=True, reputation=-2)
-CommentUpvoted = Distribution("COMMENT_UPVOTED", 1, give_rep=True, reputation=1)
-CommentDownvoted = Distribution("COMMENT_DOWNVOTED", -1, give_rep=True, reputation=-1)
+CommentCensored = Distribution("COMMENT_CENSORED", -0.02, give_rep=True, reputation=-2)
+CommentFlagged = Distribution("COMMENT_FLAGGED", -0.02, give_rep=True, reputation=-2)
+CommentUpvoted = Distribution("COMMENT_UPVOTED", 0.01, give_rep=True, reputation=1)
+CommentDownvoted = Distribution(
+    "COMMENT_DOWNVOTED", -0.01, give_rep=True, reputation=-1
+)
 
-ReplyCensored = Distribution("REPLY_CENSORED", -2, give_rep=True, reputation=-2)
-ReplyFlagged = Distribution("REPLY_FLAGGED", -2, give_rep=True, reputation=-2)
-ReplyUpvoted = Distribution("REPLY_UPVOTED", 1, give_rep=True, reputation=2)
-ReplyDownvoted = Distribution("REPLY_DOWNVOTED", -1, True, -1)
+ReplyCensored = Distribution("REPLY_CENSORED", -0.02, give_rep=True, reputation=-2)
+ReplyFlagged = Distribution("REPLY_FLAGGED", -0.02, give_rep=True, reputation=-2)
+ReplyUpvoted = Distribution("REPLY_UPVOTED", 0.01, give_rep=True, reputation=1)
+ReplyDownvoted = Distribution("REPLY_DOWNVOTED", -0.01, give_rep=True, reputation=-1)
 
-ThreadCensored = Distribution("THREAD_CENSORED", -2, give_rep=True, reputation=-2)
-ThreadFlagged = Distribution("THREAD_FLAGGED", -2, give_rep=True, reputation=-2)
-ThreadUpvoted = Distribution("THREAD_UPVOTED", 1, give_rep=True, reputation=-2)
-ThreadDownvoted = Distribution("THREAD_DOWNVOTED", -1, give_rep=True, reputation=-1)
+ThreadCensored = Distribution("THREAD_CENSORED", -0.02, give_rep=True, reputation=-2)
+ThreadFlagged = Distribution("THREAD_FLAGGED", -0.02, give_rep=True, reputation=-2)
+ThreadUpvoted = Distribution("THREAD_UPVOTED", 0.01, give_rep=True, reputation=1)
+ThreadDownvoted = Distribution("THREAD_DOWNVOTED", -0.01, give_rep=True, reputation=-1)
 
-HypothesisUpvoted = Distribution("HYPOTHESIS_UPVOTED", 1, give_rep=True, reputation=-1)
+HypothesisUpvoted = Distribution(
+    "HYPOTHESIS_UPVOTED", 0.01, give_rep=True, reputation=1
+)
 HypothesisDownvoted = Distribution(
-    "HYPOTHESIS_DOWNVOTED", -1, give_rep=True, reputation=-1
+    "HYPOTHESIS_DOWNVOTED", -0.01, give_rep=True, reputation=-1
 )
-CitationUpvoted = Distribution("CITATION_UPVOTED", 1, give_rep=True, reputation=-1)
-CitationDownvoted = Distribution("CITATION_DOWNVOTED", -1, give_rep=True, reputation=-1)
+CitationUpvoted = Distribution("CITATION_UPVOTED", 0.01, give_rep=True, reputation=1)
+CitationDownvoted = Distribution(
+    "CITATION_DOWNVOTED", -0.01, give_rep=True, reputation=-1
+)
 
 CreateSummary = Distribution("CREATE_SUMMARY", 1, give_rep=True, reputation=-1)
 CreateFirstSummary = Distribution(
@@ -76,16 +86,18 @@ CreateFirstSummary = Distribution(
 SummaryApproved = Distribution("SUMMARY_APPROVED", 15, give_rep=True, reputation=15)
 SummaryRejected = Distribution("SUMMARY_REJECTED", -2, give_rep=True, reputation=-2)
 SummaryFlagged = Distribution("SUMMARY_FLAGGED", -5, give_rep=True, reputation=-5)
-SummaryUpvoted = Distribution("SUMMARY_UPVOTED", 1, give_rep=True, reputation=-1)
-SummaryDownvoted = Distribution("SUMMARY_DOWNVOTED", -1, give_rep=True, reputation=-1)
+SummaryUpvoted = Distribution("SUMMARY_UPVOTED", 0.01, give_rep=True, reputation=1)
+SummaryDownvoted = Distribution(
+    "SUMMARY_DOWNVOTED", -0.01, give_rep=True, reputation=-1
+)
 ResearchhubPostUpvoted = Distribution(
-    "RESEARCHHUB_POST_UPVOTED", 1, give_rep=True, reputation=1
+    "RESEARCHHUB_POST_UPVOTED", 0.01, give_rep=True, reputation=1
 )
 ResearchhubPostDownvoted = Distribution(
-    "RESEARCHHUB_POST_DOWNVOTED", -1, give_rep=True, reputation=-1
+    "RESEARCHHUB_POST_DOWNVOTED", -0.01, give_rep=True, reputation=-1
 )
 ResearchhubPostCensored = Distribution(
-    "RESEARCHHUB_POST_CENSORED", -2, give_rep=True, reputation=-2
+    "RESEARCHHUB_POST_CENSORED", -0.02, give_rep=True, reputation=-2
 )
 NeutralVote = Distribution("NEUTRAL_VOTE", 0, give_rep=False, reputation=0)
 
