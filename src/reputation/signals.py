@@ -138,7 +138,7 @@ def distribute_for_discussion_vote(sender, instance, created, update_fields, **k
     try:
         instance_item = instance.item
         if isinstance(instance_item, Paper):
-            recipient = instance.item.uploaded_by
+            return
         else:
             recipient = instance.item.created_by
     except Exception as e:
