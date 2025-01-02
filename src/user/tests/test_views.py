@@ -1,6 +1,8 @@
 import json
+import re
 from unittest.mock import patch
 
+import requests_mock
 from django.core.cache import cache
 from django.test import TestCase
 from rest_framework.test import APITestCase
@@ -118,13 +120,17 @@ class UserApiTests(APITestCase):
         )
 
     @patch.object(OpenAlex, "get_works")
-    def test_add_publications_to_author(self, mock_get_works):
+    @patch.object(OpenAlex, "get_authors")
+    def test_add_publications_to_author(self, mock_get_authors, mock_get_works):
         with open(
             "./user/tests/test_files/openalex_author_works.json", "r"
         ) as works_file:
             # Mock responses for OpenAlex API calls
             mock_data = json.load(works_file)
             mock_get_works.return_value = (mock_data["results"], None)
+
+            # Add mock for get_authors
+            mock_get_authors.return_value = (mock_data["results"], None)
 
             self.client.force_authenticate(self.user_with_published_works)
 
@@ -216,13 +222,17 @@ class UserApiTests(APITestCase):
         )
 
     @patch.object(OpenAlex, "get_works")
-    def _add_publications_to_author(self, author, mock_get_works):
+    @patch.object(OpenAlex, "get_authors")
+    def _add_publications_to_author(self, author, mock_get_authors, mock_get_works):
         with open(
             "./user/tests/test_files/openalex_author_works.json", "r"
         ) as works_file:
             # Mock responses for OpenAlex API calls
             mock_data = json.load(works_file)
             mock_get_works.return_value = (mock_data["results"], None)
+
+            # Add mock for get_authors
+            mock_get_authors.return_value = (mock_data["results"], None)
 
             self.client.force_authenticate(self.user_with_published_works)
 
