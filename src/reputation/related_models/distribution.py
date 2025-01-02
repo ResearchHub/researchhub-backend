@@ -40,7 +40,9 @@ class Distribution(SoftDeletableModel, PaidStatusModelMixin):
         Hub,
         related_name="reputation_records",
     )
-    amount = models.BigIntegerField(default=0)  # RSC Amount
+    amount = models.DecimalField(
+        default=0, max_digits=19, decimal_places=8
+    )  # RSC Amount - Supports up to 999,999,999.99999999
     reputation_amount = models.IntegerField(default=0)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
