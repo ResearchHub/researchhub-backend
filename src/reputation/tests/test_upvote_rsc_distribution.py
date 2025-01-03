@@ -58,9 +58,11 @@ class BaseTests(TestCase, TestHelper):
         new_user.save()
         comment = create_rh_comment(created_by=new_user, paper=self.original_paper)
         GrmVote.objects.create(item=comment, vote_type=1, created_by=voter_user)
-        distribution = distributions.Distribution(1, 1, 1)
+        distribution = distributions.Distribution(1, 0.01, 1)
         self.assertEqual(Distribution.objects.count(), 1)
-        self.assertEqual(distribution.amount, Distribution.objects.first().amount)
+        self.assertEqual(
+            float(distribution.amount), float(Distribution.objects.first().amount)
+        )
 
     def test_upvote_downvote_upvote(self):
         if Distribution.objects.count() > 0:
@@ -92,15 +94,19 @@ class BaseTests(TestCase, TestHelper):
             item=reply, vote_type=1, created_by=voter_user
         )
 
-        distribution = distributions.Distribution(1, 1, 1)
+        distribution = distributions.Distribution(1, 0.01, 1)
         self.assertEqual(Distribution.objects.count(), 1)
-        self.assertEqual(distribution.amount, Distribution.objects.first().amount)
+        self.assertEqual(
+            float(distribution.amount), float(Distribution.objects.first().amount)
+        )
         reply_vote.vote_type = 2
         reply_vote.save()
         reply_vote.vote_type = 1
         reply_vote.save()
         self.assertEqual(Distribution.objects.count(), 1)
-        self.assertEqual(distribution.amount, Distribution.objects.first().amount)
+        self.assertEqual(
+            float(distribution.amount), float(Distribution.objects.first().amount)
+        )
 
     def test_upvote_distribution(self):
         if Distribution.objects.count() > 0:
@@ -121,5 +127,5 @@ class BaseTests(TestCase, TestHelper):
         eligible_user.reputation = 20000
         eligible_user.save()
 
-        distribution = distributions.Distribution(1, 1, 1)
-        self.assertEqual(distribution.amount, 1)
+        distribution = distributions.Distribution(1, 0.01, 1)
+        self.assertEqual(distribution.amount, 0.01)
