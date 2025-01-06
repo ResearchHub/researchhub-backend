@@ -83,7 +83,7 @@ def censor_comment(comment):
             WHERE child.parent_id = comments.id AND child.is_removed = FALSE
         )
         SELECT id
-        FROM comments
+        FROM comments;
     """
 
     for bounty in comment.bounties.iterator():
