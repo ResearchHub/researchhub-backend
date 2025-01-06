@@ -84,7 +84,6 @@ def censor_comment(comment):
         )
         SELECT id
         FROM comments
-        WHERE is_removed = FALSE;
     """
 
     for bounty in comment.bounties.iterator():
@@ -93,8 +92,9 @@ def censor_comment(comment):
             raise Exception("Failed to close bounties on comment")
 
     # Only update discussion count if no parent is deleted since if a parent is deleted,
-    # we've already reduced the count for this comment and children.
-    if not has_deleted_parent(comment):
+    # we've already reduced the count for this comment and children. Same for if the comment
+    # is deleted.
+    if not has_deleted_parent(comment) and not comment.is_removed:
         comment_count = len(RhCommentModel.objects.raw(query, [comment.id]))
         comment._update_related_discussion_count(-comment_count)
 
