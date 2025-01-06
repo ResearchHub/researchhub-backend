@@ -91,8 +91,26 @@ def censor_comment(comment):
         if not cancelled:
             raise Exception("Failed to close bounties on comment")
 
-    comment_count = len(RhCommentModel.objects.raw(query, [comment.id]))
-    comment._update_related_discussion_count(-comment_count)
+    # Only update discussion count if no parent is deleted since if a parent is deleted,
+    # we've already reduced the count for this comment and children. Same for if the comment
+    # is deleted.
+    if not has_deleted_parent(comment) and not comment.is_removed:
+        comment_count = len(RhCommentModel.objects.raw(query, [comment.id]))
+        comment._update_related_discussion_count(-comment_count)
+
+
+def has_deleted_parent(comment):
+    """Check if any parent comment is deleted/removed."""
+    current = comment
+    while current.parent_id:
+        try:
+            current = RhCommentModel.objects.get(id=current.parent_id)
+            if current.is_removed:
+                return True
+        except RhCommentModel.DoesNotExist:
+            # If we can't find the parent, treat it as deleted
+            return True
+    return False
 
 
 class CommentPagination(PageNumberPagination):
