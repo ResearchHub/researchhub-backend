@@ -100,10 +100,15 @@ def censor_comment(comment):
 
 
 def has_deleted_parent(comment):
+    """Check if any parent comment is deleted/removed."""
     current = comment
     while current.parent_id:
-        current = RhCommentModel.objects.get(id=current.parent_id)
-        if current.is_removed:
+        try:
+            current = RhCommentModel.objects.get(id=current.parent_id)
+            if current.is_removed:
+                return True
+        except RhCommentModel.DoesNotExist:
+            # If we can't find the parent, treat it as deleted
             return True
     return False
 

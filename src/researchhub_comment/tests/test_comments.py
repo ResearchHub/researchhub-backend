@@ -261,3 +261,88 @@ class CommentViewTests(APITestCase):
         notification = Notification.objects.filter(recipient=user1_with_expertise)
 
         self.assertEqual(notification.exists(), False)
+
+    def test_censor_comment_updates_discussion_count(self):
+        # Create a parent comment with multiple children
+        parent_comment = self._create_paper_comment(self.paper.id, self.user_1)
+        child1 = self._create_paper_comment(
+            self.paper.id, self.user_2, parent_id=parent_comment.data["id"]
+        )
+        child2 = self._create_paper_comment(
+            self.paper.id, self.user_3, parent_id=parent_comment.data["id"]
+        )
+
+        # Verify initial discussion count
+        paper_res = self.client.get(f"/api/paper/{self.paper.id}/")
+        initial_count = paper_res.data["discussion_count"]
+        self.assertEqual(initial_count, 3)
+
+        # Censor parent comment
+        self.client.force_authenticate(self.moderator)
+        censor_res = self.client.delete(
+            f"/api/paper/{self.paper.id}/comments/{parent_comment.data['id']}/censor/"
+        )
+
+        # Verify discussion count was reduced by 3 (parent + 2 children)
+        paper_res = self.client.get(f"/api/paper/{self.paper.id}/")
+        self.assertEqual(paper_res.data["discussion_count"], 0)
+
+    def test_censor_child_with_deleted_parent_preserves_count(self):
+        # Create a comment chain: parent -> child1 -> child2
+        parent_comment = self._create_paper_comment(self.paper.id, self.user_1)
+        child1 = self._create_paper_comment(
+            self.paper.id, self.user_2, parent_id=parent_comment.data["id"]
+        )
+        child2 = self._create_paper_comment(
+            self.paper.id, self.user_3, parent_id=child1.data["id"]
+        )
+
+        # Get initial count
+        paper_res = self.client.get(f"/api/paper/{self.paper.id}/")
+        initial_count = paper_res.data["discussion_count"]
+        self.assertEqual(initial_count, 3)
+
+        # Censor parent first
+        self.client.force_authenticate(self.moderator)
+        self.client.delete(
+            f"/api/paper/{self.paper.id}/comments/{parent_comment.data['id']}/censor/"
+        )
+
+        # Verify count reduced by 3
+        paper_res = self.client.get(f"/api/paper/{self.paper.id}/")
+        self.assertEqual(paper_res.data["discussion_count"], 0)
+
+        # Now censor child2 - this shouldn't change the count since parent is already censored
+        censor_res = self.client.delete(
+            f"/api/paper/{self.paper.id}/comments/{child2.data['id']}/censor/"
+        )
+
+        paper_res = self.client.get(f"/api/paper/{self.paper.id}/")
+        self.assertEqual(paper_res.data["discussion_count"], 0)
+
+    def test_censor_nested_comments(self):
+        # Create a deeply nested chain of comments
+        parent = self._create_paper_comment(self.paper.id, self.user_1)
+        child1 = self._create_paper_comment(
+            self.paper.id, self.user_2, parent_id=parent.data["id"]
+        )
+        child2 = self._create_paper_comment(
+            self.paper.id, self.user_3, parent_id=child1.data["id"]
+        )
+        child3 = self._create_paper_comment(
+            self.paper.id, self.user_4, parent_id=child2.data["id"]
+        )
+
+        # Verify initial count
+        paper_res = self.client.get(f"/api/paper/{self.paper.id}/")
+        self.assertEqual(paper_res.data["discussion_count"], 4)
+
+        # Censor child2 (middle of chain)
+        self.client.force_authenticate(self.moderator)
+        self.client.delete(
+            f"/api/paper/{self.paper.id}/comments/{child2.data['id']}/censor/"
+        )
+
+        # Should reduce count by 2 (child2 and child3)
+        paper_res = self.client.get(f"/api/paper/{self.paper.id}/")
+        self.assertEqual(paper_res.data["discussion_count"], 2)
