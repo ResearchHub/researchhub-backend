@@ -1,14 +1,8 @@
-import os
-import time
-
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from web3 import Web3
 
-from reputation.distributions import Distribution as Dist
-from reputation.distributor import Distributor
 from reputation.models import Deposit
 from reputation.serializers import DepositSerializer
 
@@ -40,6 +34,7 @@ class DepositViewSet(viewsets.ReadOnlyModelViewSet):
             amount=request.data.get("amount"),
             from_address=request.data.get("from_address"),
             transaction_hash=request.data.get("transaction_hash"),
+            network=request.data.get("network"),
         )
 
         return Response(200)

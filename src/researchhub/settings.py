@@ -827,9 +827,9 @@ if TESTING:
     http_provider = Web3.EthereumTesterProvider()
 
 try:
+    # Create Web3 instances for each network
     w3_ethereum = Web3(Web3.HTTPProvider(WEB3_PROVIDER_URL))
     w3_base = Web3(Web3.HTTPProvider(WEB3_BASE_PROVIDER_URL))
-    w3 = w3_ethereum
 except Exception as e:
     log_error(e)
 

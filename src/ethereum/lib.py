@@ -4,7 +4,6 @@ from django.conf import settings
 from web3 import Web3
 
 from ethereum.utils import decimal_to_token_amount
-from researchhub.settings import w3_ethereum
 from utils.aws import create_client
 
 
@@ -186,4 +185,4 @@ def get_private_key():
     )
     password = response["SecretString"]
 
-    return w3_ethereum.eth.account.decrypt(encrypted_key, password)
+    return settings.w3_ethereum.eth.account.decrypt(encrypted_key, password)
