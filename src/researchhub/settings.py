@@ -524,7 +524,6 @@ STATICFILES_DIRS = ["stylesheets"]
 
 # AWS
 
-AWS_ACCOUNT_ID = os.environ.get("AWS_ACCOUNT_ID", keys.AWS_ACCOUNT_ID)
 AWS_REGION_NAME = os.environ.get("AWS_REGION_NAME", keys.AWS_REGION_NAME)
 
 # AWS Lambda
