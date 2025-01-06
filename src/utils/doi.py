@@ -92,7 +92,7 @@ class DOI:
             "publication_month": dt.month,
             "publication_day": dt.day,
             "publication_year": dt.year,
-            "doi": self.base_doi,
+            "doi": self.doi,
             "url": url,
         }
         crossref_xml = render_to_string("crossref.xml", context)
