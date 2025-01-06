@@ -210,7 +210,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 f"https://api.basescan.org/api"
                 f"?module=proxy"
                 f"&action=eth_gasPrice"
-                f"&apikey={BASESCAN_API_KEY}",
+                f"&apikey={settings.BASESCAN_API_KEY}",
                 timeout=10,
             )
             json = res.json()
