@@ -105,7 +105,7 @@ app.conf.beat_schedule = {
         "task": "reputation.tasks.check_deposits",
         "schedule": crontab(minute="*/5"),
         "options": {
-            "priority": 3,
+            "priority": 2,
             "queue": QUEUE_PURCHASES,
         },
     },
@@ -113,7 +113,7 @@ app.conf.beat_schedule = {
         "task": "reputation.tasks.check_pending_withdrawals",
         "schedule": crontab(minute="*/5"),
         "options": {
-            "priority": 4,
+            "priority": 2,
             "queue": QUEUE_PURCHASES,
         },
     },
@@ -121,7 +121,7 @@ app.conf.beat_schedule = {
         "task": "reputation.tasks.check_hotwallet_balance",
         "schedule": crontab(minute="*/30"),
         "options": {
-            "priority": 4,
+            "priority": 2,
             "queue": QUEUE_PURCHASES,
         },
     },
@@ -137,7 +137,7 @@ app.conf.beat_schedule = {
         "task": "reputation.tasks.recalculate_rep_all_users",
         "schedule": crontab(hour=0, minute=0),
         "options": {
-            "priority": 5,
+            "priority": 2,
             "queue": QUEUE_REPUTATION,
         },
     },
