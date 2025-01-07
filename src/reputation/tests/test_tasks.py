@@ -17,14 +17,14 @@ class TaskTests(APITestCase):
         tx_receipt["status"] = 1
         return tx_receipt
 
-    def mock_get_transaction_data(self, transaction_hash):
+    def mock_get_transaction_data(self, transaction_hash, w3):
         tx = TxData()
         tx["blockNumber"] = 0
         tx["input"] = "0x"
         return tx
 
     def mock_get_block_data(self, timestamp=time.time()):
-        def _mock_get_block_data(block_number):
+        def _mock_get_block_data(block_number, w3):
             block = BlockData()
             block["timestamp"] = timestamp
             return block
@@ -61,8 +61,7 @@ class TaskTests(APITestCase):
 
         # Set the return values for the mock objects
         self.mock_get_transaction_receipt.side_effect = (
-            self.mock_get_transaction_receipt_data,
-            settings.w3_ethereum,
+            self.mock_get_transaction_receipt_data
         )
         self.mock_get_transaction.side_effect = self.mock_get_transaction_data
         self.mock_get_block.side_effect = self.mock_get_block_data(time.time())
