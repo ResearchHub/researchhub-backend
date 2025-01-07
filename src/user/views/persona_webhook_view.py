@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 
 from notification.models import Notification
 from user.models import User, UserVerification
+from utils.siftscience import events_api, update_user_risk_score
 
 
 class PersonaWebhookView(APIView):
@@ -105,6 +106,11 @@ class PersonaWebhookView(APIView):
         )
         user_verification.save()
 
+        user = User.objects.get(id=user_verification.user_id)
+        tracked_account = events_api.track_account(user, request, update=True)
+        update_user_risk_score(user, tracked_account)
+
+        self._create_notification(user_verification)
         self._create_notification(user_verification)
 
     def _create_notification(self, user_verification: UserVerification):
