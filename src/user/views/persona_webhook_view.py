@@ -106,12 +106,11 @@ class PersonaWebhookView(APIView):
         )
         user_verification.save()
 
+        self._create_notification(user_verification)
+
         user = User.objects.get(id=user_verification.user_id)
         tracked_account = events_api.track_account(user, request, update=True)
         update_user_risk_score(user, tracked_account)
-
-        self._create_notification(user_verification)
-        self._create_notification(user_verification)
 
     def _create_notification(self, user_verification: UserVerification):
         user = User.objects.get(id=user_verification.user_id)
