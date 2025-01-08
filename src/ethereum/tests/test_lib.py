@@ -1,6 +1,7 @@
 from unittest.mock import Mock, call, patch
 
-from django.test import TestCase
+from django.conf import settings
+from django.test import TestCase, override_settings
 
 from ethereum.lib import convert_reputation_amount_to_token_amount, get_private_key
 
@@ -34,6 +35,10 @@ class EthereumLibTests(TestCase):
         with self.assertRaises(ValueError):
             convert_reputation_amount_to_token_amount(self.token_ticker, rep)
 
+    @override_settings(
+        WEB3_KEYSTORE_SECRET_ID="researchhub-web3-keystore",
+        WEB3_KEYSTORE_PASSWORD_SECRET_ID="researchhub-web3-keystore-password",
+    )
     @patch("ethereum.lib.create_client")
     @patch("ethereum.lib.w3_ethereum")
     def test_get_private_key(self, mock_w3_ethereum, mock_create_client):
