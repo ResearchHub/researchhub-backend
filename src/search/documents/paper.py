@@ -7,6 +7,7 @@ from paper.models import Paper
 from paper.utils import format_raw_authors, pdf_copyright_allows_display
 from search.analyzers import content_analyzer, title_analyzer
 from utils import sentry
+from utils.doi import DOI
 
 from .base import BaseDocument
 
@@ -28,11 +29,20 @@ class PaperDocument(BaseDocument):
     paper_publish_year = es_fields.IntegerField()
     abstract = es_fields.TextField(attr="abstract_indexing", analyzer=content_analyzer)
     doi = es_fields.TextField(attr="doi_indexing", analyzer="keyword")
+    openalex_id = es_fields.TextField(attr="openalex_id")
+    # TODO: Deprecate this field once we move over to new app. It should not longer be necessary since authors property will replace it.
     raw_authors = es_fields.ObjectField(
         attr="raw_authors_indexing",
         properties={
             "first_name": es_fields.TextField(),
             "last_name": es_fields.TextField(),
+            "full_name": es_fields.TextField(),
+        },
+    )
+    authors = es_fields.ObjectField(
+        properties={
+            "author_id": es_fields.IntegerField(),
+            "author_position": es_fields.KeywordField(),
             "full_name": es_fields.TextField(),
         },
     )
@@ -84,8 +94,13 @@ class PaperDocument(BaseDocument):
             phrases.append(instance.paper_title)
             phrases.extend(instance.title.split())
 
+        # Add DOI variations for search
         if instance.doi:
-            phrases.append(instance.doi)
+            clean_doi = DOI.normalize_doi(instance.doi)
+            if clean_doi:
+                phrases.append(clean_doi)  # Clean DOI
+                phrases.append(f"https://doi.org/{clean_doi}")  # Full DOI with protocol
+                phrases.append(f"doi.org/{clean_doi}")  # DOI with domain, no protocol
 
         if instance.url:
             phrases.append(instance.url)
@@ -167,6 +182,22 @@ class PaperDocument(BaseDocument):
         if instance.unified_document:
             return instance.unified_document.hot_score_v2
         return 0
+
+    def prepare_authors(self, instance):
+        """
+        Prepare authors data from paper authorships.
+        Returns a list of authors with their IDs, positions, and names.
+        """
+        authors = []
+        for authorship in instance.authorships.all():
+            authors.append(
+                {
+                    "author_id": authorship.author.id,
+                    "author_position": authorship.author_position,
+                    "full_name": authorship.raw_author_name,
+                }
+            )
+        return authors
 
     def prepare(self, instance):
         try:

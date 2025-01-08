@@ -351,6 +351,18 @@ class OpenAlex:
     ):
         return self._get(f"works/{openalex_id}")
 
+    def autocomplete_works(self, query):
+        """
+        Search for works using OpenAlex's autocomplete endpoint.
+        Returns suggestions for works matching the query.
+        Only returns results that have a DOI.
+        """
+        filters = {
+            "q": query,
+            "filter": "has_doi:true",
+        }  # Only return works that have a DOI
+        return self._get("autocomplete/works", filters=filters)
+
     def get_works(
         self,
         since_date=None,

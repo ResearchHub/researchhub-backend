@@ -26,6 +26,7 @@ class PostDocument(BaseDocument):
         attr="renderable_text", analyzer=content_analyzer
     )
     created_by_id = es_fields.IntegerField(attr="created_by_id")
+    # TODO: Update this structure to match the paper document authors property
     authors = es_fields.ObjectField(
         attr="authors_indexing",
         properties={

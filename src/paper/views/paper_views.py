@@ -15,6 +15,7 @@ from django.db.models.functions import Cast, Coalesce
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from elasticsearch.exceptions import ConnectionError
+from elasticsearch_dsl import Search
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -60,6 +61,7 @@ from reputation.related_models.paper_reward import (
 )
 from researchhub.permissions import IsObjectOwnerOrModerator
 from researchhub_document.permissions import HasDocumentCensorPermission
+from search.documents.paper import PaperDocument
 from user.related_models.author_model import Author
 from utils.doi import DOI
 from utils.http import GET, POST, check_url_contains_pdf
@@ -898,16 +900,142 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def doi_search_via_openalex(self, request):
-        doi_string = request.query_params.get("doi", None)
-        if doi_string is None:
-            return Response(status=400)
+        doi = request.query_params.get("doi", None)
+        if not doi:
+            return Response(
+                {"error": "DOI is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
         try:
-            open_alex = OpenAlex()
-            open_alex_json = open_alex.get_data_from_doi(doi_string)
-        except Exception:
-            return Response(status=404)
+            openalex = OpenAlex()
+            work = openalex.get_data_from_doi(doi)
+            return Response(work)
+        except DOINotFoundError:
+            return Response(
+                {"error": "DOI not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
-        return Response(open_alex_json, status=200)
+    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
+    def suggest(self, request):
+        """
+        Combined autocomplete search using both OpenAlex and local Elasticsearch.
+        Query params:
+        - q: search query (required)
+        """
+        query = request.query_params.get("q", None)
+        if not query:
+            return Response(
+                {"error": "Search query is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+
+            def transform_openalex_result(result):
+                normalized_doi = DOI.normalize_doi(result.get("external_id"))
+                return {
+                    "entity_type": "work",
+                    "doi": (
+                        f"https://doi.org/{normalized_doi}" if normalized_doi else None
+                    ),
+                    "normalized_doi": normalized_doi,  # Used for comparison
+                    "display_name": result.get("display_name", ""),
+                    "authors": (
+                        result.get("hint", "").split(", ") if result.get("hint") else []
+                    ),
+                    "_score": result.get("cited_by_count", 0),
+                    "citations": result.get("cited_by_count", 0),
+                    "source": "openalex",
+                    "openalex_id": result.get("id"),  # OpenAlex ID from result
+                }
+
+            def transform_es_result(result):
+                source = result.get("_source", {})
+                normalized_doi = DOI.normalize_doi(source.get("doi"))
+                return {
+                    "entity_type": "work",
+                    "doi": (
+                        f"https://doi.org/{normalized_doi}" if normalized_doi else None
+                    ),
+                    "normalized_doi": normalized_doi,  # Used for comparison
+                    "display_name": source.get("paper_title", ""),
+                    "authors": [
+                        author.get("full_name", "")
+                        for author in source.get("raw_authors", [])
+                        if author.get("full_name")
+                    ],
+                    "_score": result.get("_score", 0),
+                    "citations": source.get("citations", 0),
+                    "source": "researchhub",
+                    "openalex_id": source.get(
+                        "openalex_id"
+                    ),  # OpenAlex ID if exists in ES
+                }
+
+            # Get OpenAlex results
+            openalex = OpenAlex()
+            openalex_response = openalex.autocomplete_works(query)
+            openalex_results = [
+                transform_openalex_result(result)
+                for result in openalex_response.get("results", [])
+                if result.get(
+                    "external_id"
+                )  # Only include results with external_id (DOI)
+            ]
+
+            # Get local Elasticsearch results
+            search = Search(index=PaperDocument._index._name)
+            suggest = search.suggest(
+                "suggestions", query, completion={"field": "suggestion_phrases"}
+            )
+            es_response = suggest.execute().suggest.to_dict()
+            es_results = []
+            for suggestion in es_response.get("suggestions", []):
+                es_results.extend(
+                    [
+                        transform_es_result(option)
+                        for option in suggestion.get("options", [])[:3]
+                        if option.get("_source", {}).get(
+                            "doi"
+                        )  # Only include results with DOI
+                    ]
+                )
+
+            # Combine results and deduplicate by DOI
+            seen_dois = set()
+            unique_results = []
+
+            # First add ResearchHub results (all should have DOIs at this point)
+            for result in sorted(
+                es_results, key=lambda x: x.get("_score", 0), reverse=True
+            ):
+                doi = result.get("normalized_doi")
+                seen_dois.add(doi)
+                unique_results.append(result)
+
+            # Then add OpenAlex results if DOI not already seen
+            for result in sorted(
+                openalex_results, key=lambda x: x.get("_score", 0), reverse=True
+            ):
+                doi = result.get("normalized_doi")
+                if doi not in seen_dois:
+                    seen_dois.add(doi)
+                    unique_results.append(result)
+
+            # Remove normalized_doi from results before sending response
+            for result in unique_results:
+                del result["normalized_doi"]
+
+            return Response({"data": unique_results[:10]}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def fetch_publications_by_doi(self, request):

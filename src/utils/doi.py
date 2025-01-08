@@ -35,6 +35,23 @@ class DOI:
             for _ in range(settings.CROSSREF_DOI_SUFFIX_LENGTH)
         )
 
+    @staticmethod
+    def normalize_doi(doi: Optional[str]) -> Optional[str]:
+        """
+        Normalize a DOI by removing protocol, domain, trailing slashes, and whitespace.
+        Returns lowercase version for consistent comparison.
+        """
+        if not doi:
+            return None
+        return (
+            doi.replace("https://doi.org/", "")
+            .replace("http://doi.org/", "")
+            .replace("doi.org/", "")
+            .rstrip("/")
+            .strip()
+            .lower()
+        )
+
     # Register DOI for a ResearchHub post.
     def register_doi_for_post(
         self, authors: List[Author], title: str, rh_post: ResearchhubPost
