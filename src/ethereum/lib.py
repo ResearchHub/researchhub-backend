@@ -176,16 +176,12 @@ def _transact(
 
 
 def get_private_key():
-    s3_client = create_client("s3")
-    response = s3_client.get_object(
-        Bucket=settings.WEB3_KEYSTORE_BUCKET,
-        Key=settings.WEB3_KEYSTORE_FILE,
-    )
-    encrypted_key = response["Body"].read().decode("utf-8")
+    client = create_client("secretsmanager")
 
-    if settings.WEB3_KEYSTORE_PASSWORD:
-        return w3_ethereum.eth.account.decrypt(
-            encrypted_key, settings.WEB3_KEYSTORE_PASSWORD
-        )
-    else:
-        return encrypted_key
+    response = client.get_secret_value(SecretId="researchhub-web3-keystore")
+    encrypted_key = response["SecretString"]
+
+    response = client.get_secret_value(SecretId="researchhub-web3-keystore-password")
+    password = response["SecretString"]
+
+    return w3_ethereum.eth.account.decrypt(encrypted_key, password)
