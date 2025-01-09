@@ -102,9 +102,11 @@ def download_pdf(url):
     return None
 
 
-def create_client(service_name: str) -> boto3.client:
+def create_client(
+    service_name: str, region_name: str = settings.AWS_REGION_NAME
+) -> boto3.client:
     """
     Create a boto3 client for the given service.
     """
-    session = Session()
+    session = Session(region_name=region_name)
     return session.client(service_name)

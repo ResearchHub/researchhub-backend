@@ -11,7 +11,7 @@ from reputation.models import Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
 from researchhub.settings import (
     WEB3_BASE_RSC_ADDRESS,
-    WEB3_KEYSTORE_BUCKET,
+    WEB3_KEYSTORE_SECRET_ID,
     WEB3_WALLET_ADDRESS,
     w3_base,
     w3_ethereum,
@@ -337,7 +337,7 @@ contract_abi = [
 ]
 
 try:
-    PRIVATE_KEY = get_private_key() if WEB3_KEYSTORE_BUCKET else None
+    PRIVATE_KEY = get_private_key() if WEB3_KEYSTORE_SECRET_ID else None
 except Exception as e:
     PRIVATE_KEY = None
     log_error(e)
