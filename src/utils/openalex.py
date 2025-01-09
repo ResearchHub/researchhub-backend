@@ -359,7 +359,7 @@ class OpenAlex:
         """
         filters = {
             "q": query,
-            "filter": "has_doi:true",
+            "filter": "has_doi:true,type:preprint|review|article",
         }  # Only return works that have a DOI
         return self._get("autocomplete/works", filters=filters)
 

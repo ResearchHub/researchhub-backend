@@ -24,6 +24,7 @@ from rest_framework.permissions import (
     IsAuthenticated,
     IsAuthenticatedOrReadOnly,
 )
+from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 
 from analytics.amplitude import track_event
@@ -918,7 +919,12 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[AllowAny],
+        renderer_classes=[JSONRenderer],
+    )
     def suggest(self, request):
         """
         Combined autocomplete search using both OpenAlex and local Elasticsearch.
@@ -957,6 +963,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 normalized_doi = DOI.normalize_doi(source.get("doi"))
                 return {
                     "entity_type": "work",
+                    "id": source.get("id"),  # ResearchHub paper ID
                     "doi": (
                         f"https://doi.org/{normalized_doi}" if normalized_doi else None
                     ),
@@ -1029,7 +1036,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             for result in unique_results:
                 del result["normalized_doi"]
 
-            return Response({"data": unique_results[:10]}, status=status.HTTP_200_OK)
+            return Response(unique_results, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response(
@@ -1213,6 +1220,57 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             filename, ContentFile(json.dumps(data).encode("utf8"))
         )
         return Response(status=status.HTTP_200_OK)
+
+    @action(
+        detail=False,
+        methods=["post"],
+        permission_classes=[AllowAny],
+    )
+    def create_by_openalex_id(self, request):
+        """
+        Create a paper by fetching data from OpenAlex using an OpenAlex ID.
+        Request body:
+        - openalex_id: string (required) - The OpenAlex ID of the work
+        """
+        openalex_id = request.data.get("openalex_id")
+        if not openalex_id:
+            return Response(
+                {"error": "OpenAlex ID is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            # Fetch work from OpenAlex
+            openalex = OpenAlex()
+            work = openalex.get_work(openalex_id=openalex_id)
+            if not work:
+                return Response(
+                    {"error": "Work not found in OpenAlex"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Check if paper already exists with this OpenAlex ID
+            existing_paper = Paper.objects.filter(openalex_id=openalex_id).first()
+            print("existing_paper", existing_paper)
+            if existing_paper:
+                return Response(
+                    {"paper_id": existing_paper.id}, status=status.HTTP_200_OK
+                )
+
+            # Process the work
+            from paper.openalex_util import process_openalex_works
+
+            process_openalex_works([work])
+            paper_id = Paper.objects.get(openalex_id=openalex_id).id
+
+            return Response({"paper_id": paper_id}, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            log_error(e)
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 class FigureViewSet(viewsets.ModelViewSet):
