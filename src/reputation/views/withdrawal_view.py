@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 
 import pytz
 import requests
+from django.conf import settings
 from django.contrib.admin.models import LogEntry
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
@@ -29,7 +30,6 @@ from reputation.lib import (
 from reputation.models import Withdrawal
 from reputation.permissions import AllowWithdrawalIfNotSuspecious
 from reputation.serializers import WithdrawalSerializer
-from researchhub import settings
 from user.related_models.user_model import User
 from user.related_models.user_verification_model import UserVerification
 from user.serializers import UserSerializer

@@ -833,6 +833,9 @@ try:
 except Exception as e:
     log_error(e)
 
+# w3_ethereum2 = web3_provider.ethereum
+# w3_base2 = web3_provider.base
+
 
 # API Key Settings
 API_KEY_CUSTOM_HEADER = "HTTP_RH_API_KEY"

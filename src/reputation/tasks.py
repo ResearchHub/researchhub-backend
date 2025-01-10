@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 
 import pytz
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import DurationField, F, Q
@@ -21,7 +22,6 @@ from reputation.lib import check_hotwallet, check_pending_withdrawal, contract_a
 from reputation.models import Bounty, Contribution, Deposit
 from reputation.related_models.bounty import AnnotatedBounty
 from reputation.related_models.score import Score
-from researchhub import settings
 from researchhub.celery import QUEUE_CONTRIBUTIONS, app
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
@@ -32,6 +32,7 @@ from user.models import User
 from user.related_models.author_model import Author
 from utils.message import send_email_message
 from utils.sentry import log_error, log_info
+from utils.web3_utils import web3_provider
 
 DEFAULT_REWARD = 1000000
 
@@ -184,7 +185,9 @@ def check_deposits():
         user = deposit.user
         try:
             w3_instance = (
-                settings.w3_base if deposit.network == "BASE" else settings.w3_ethereum
+                web3_provider.base
+                if deposit.network == "BASE"
+                else web3_provider.ethereum
             )
             token_address = (
                 settings.WEB3_BASE_RSC_ADDRESS

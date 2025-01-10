@@ -2,12 +2,12 @@ import time
 from datetime import timedelta
 from unittest.mock import Mock, patch
 
+from django.conf import settings
 from rest_framework.test import APITestCase
 from web3.types import BlockData, TxData, TxReceipt
 
 from reputation.tasks import PENDING_TRANSACTION_TTL, check_deposits
 from reputation.tests.helpers import create_deposit
-from researchhub import settings
 from user.tests.helpers import create_random_authenticated_user
 
 

@@ -12,6 +12,7 @@ from reputation.models import Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
 from utils.message import send_email_message
 from utils.sentry import log_error
+from utils.web3_utils import web3_provider
 
 WITHDRAWAL_MINIMUM = int(os.environ.get("WITHDRAWAL_MINIMUM", 500))
 WITHDRAWAL_PER_TWO_WEEKS = 100000
@@ -343,7 +344,9 @@ class PendingWithdrawal:
         self.balance_record_id = balance_record_id
         self.amount = amount
         self.network = network
-        self.w3 = settings.w3_ethereum if network == "ETHEREUM" else settings.w3_base
+        self.w3 = (
+            web3_provider.ethereum if network == "ETHEREUM" else web3_provider.base
+        )
 
     def complete_token_transfer(self):
         self.withdrawal.set_paid_pending()
@@ -393,7 +396,7 @@ def evaluate_transaction_hash(transaction_hash, network="ETHEREUM"):
     try:
         timeout = 5 * 1  # 5 second timeout
         w3_instance = (
-            settings.w3_ethereum if network == "ETHEREUM" else settings.w3_base
+            web3_provider.ethereum if network == "ETHEREUM" else web3_provider.base
         )
         transaction_receipt = w3_instance.eth.wait_for_transaction_receipt(
             transaction_hash, timeout=timeout
@@ -435,7 +438,9 @@ def check_hotwallet():
 
     # Check Ethereum network
     eth_rsc_balance = get_hotwallet_rsc_balance("ETHEREUM")
-    eth_balance_wei = settings.w3_ethereum.eth.get_balance(settings.WEB3_WALLET_ADDRESS)
+    eth_balance_wei = web3_provider.ethereum.eth.get_balance(
+        settings.WEB3_WALLET_ADDRESS
+    )
     eth_balance_eth = eth_balance_wei / (10**18)
 
     if eth_rsc_balance <= 50000:
@@ -452,7 +457,7 @@ def check_hotwallet():
 
     # Check Base network
     base_rsc_balance = get_hotwallet_rsc_balance("BASE")
-    base_balance_wei = settings.w3_base.eth.get_balance(settings.WEB3_WALLET_ADDRESS)
+    base_balance_wei = web3_provider.base.eth.get_balance(settings.WEB3_WALLET_ADDRESS)
     base_balance_eth = base_balance_wei / (10**18)
 
     if base_rsc_balance <= 50000:
@@ -481,7 +486,7 @@ def check_hotwallet():
 
 
 def get_hotwallet_rsc_balance(network="ETHEREUM"):
-    w3_instance = settings.w3_ethereum if network == "ETHEREUM" else settings.w3_base
+    w3_instance = web3_provider.base if network == "BASE" else web3_provider.ethereum
     token_address = (
         RSC_CONTRACT_ADDRESS
         if network == "ETHEREUM"

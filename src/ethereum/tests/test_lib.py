@@ -40,7 +40,7 @@ class EthereumLibTests(TestCase):
         WEB3_KEYSTORE_PASSWORD_SECRET_ID="researchhub-web3-keystore-password",
     )
     @patch("ethereum.lib.create_client")
-    @patch("ethereum.lib.w3_ethereum")
+    @patch("ethereum.lib.web3_provider.ethereum")
     def test_get_private_key(self, mock_w3_ethereum, mock_create_client):
         # Arrange
         mock_client = Mock()
