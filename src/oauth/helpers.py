@@ -17,8 +17,6 @@ from django.http import HttpResponseRedirect, JsonResponse
 from django.shortcuts import render
 from rest_framework.authtoken.models import Token
 
-import researchhub.settings as app_settings
-
 oauth_method = settings.OAUTH_METHOD
 
 
@@ -103,7 +101,7 @@ def complete_social_signup(request, sociallogin):
     return complete_signup(
         request,
         sociallogin.user,
-        app_settings.ACCOUNT_EMAIL_VERIFICATION,
+        settings.ACCOUNT_EMAIL_VERIFICATION,
         sociallogin.get_redirect_url(request),
         signal_kwargs={"sociallogin": sociallogin},
     )
