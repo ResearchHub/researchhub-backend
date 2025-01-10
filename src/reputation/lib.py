@@ -332,7 +332,7 @@ contract_abi = [
 ]
 
 try:
-    PRIVATE_KEY = get_private_key() if settings.WEB3_KEYSTORE_BUCKET else None
+    PRIVATE_KEY = get_private_key() if settings.WEB3_KEYSTORE_SECRET_ID else None
 except Exception as e:
     PRIVATE_KEY = None
     log_error(e)
