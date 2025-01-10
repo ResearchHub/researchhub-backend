@@ -171,7 +171,41 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
         methods=["GET"],
         permission_classes=[IsAuthenticated],
     )
-    def list_csv_turbotax(self, request):
+    def turbotax_csv_export(self, request):
+        """Export transactions in TurboTax-compatible CSV format."""
+        
+        def format_decimal(value: Optional[Decimal]) -> str:
+            """Format decimal to 8 decimal places."""
+            if value is None:
+                return "0.00"
+            return "{:.8f}".format(float(value))
+        
+        def get_transaction_type_for_turbotax(balance) -> str:
+            """
+            Map balance content type to TurboTax transaction type.
+            
+            Rules:
+            - withdrawal -> Withdrawal
+            - deposit -> Deposit
+            - *fee* in type -> Expense
+            - negative RSC amount -> Buy
+            - positive RSC amount -> Income
+            """
+            model_name = balance.content_type.model.lower()
+            
+            # First check for specific model names
+            if model_name == "withdrawal":
+                return "Withdrawal"
+            if model_name == "deposit":
+                return "Deposit"
+            
+            # Check for fee in the model name or description
+            if "fee" in model_name:
+                return "Expense"
+                
+            # For all other transactions, base it on amount
+            return "Buy" if Decimal(balance.amount) < 0 else "Income"
+
         default_exchange_rate = RscExchangeRate.objects.first()
         
         response = HttpResponse(content_type="text/csv")
@@ -204,7 +238,7 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
             else:
                 rate = exchange_rate.real_rate or exchange_rate.rate or Decimal('0.00')
 
-            transaction_type = self.get_transaction_type(balance)
+            transaction_type = get_transaction_type_for_turbotax(balance)
             amount = abs(Decimal(balance.amount))  # Use absolute value for amounts
             usd_value = amount * Decimal(rate)
             
@@ -217,13 +251,13 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
                     balance.created_date.strftime("%Y-%m-%d %H:%M:%S"),
                     transaction_type,
                     "RSC",  # Sent Asset
-                    self.format_decimal(amount),  # Sent Amount (positive)
+                    format_decimal(amount),  # Sent Amount (positive)
                     "",  # Received Asset
                     "",  # Received Amount
                     "",  # Fee Asset
                     "",  # Fee Amount
                     "USD",  # Market Value Currency
-                    self.format_decimal(usd_value),  # Market Value
+                    format_decimal(usd_value),  # Market Value
                     balance.content_type.name,  # Description
                     "",  # Transaction Hash
                     str(balance.id)  # Transaction ID
@@ -235,11 +269,11 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
                     "",  # Sent Asset
                     "",  # Sent Amount
                     "RSC",  # Received Asset
-                    self.format_decimal(amount),  # Received Amount (positive)
+                    format_decimal(amount),  # Received Amount (positive)
                     "",  # Fee Asset
                     "",  # Fee Amount
                     "USD",  # Market Value Currency
-                    self.format_decimal(usd_value),  # Market Value
+                    format_decimal(usd_value),  # Market Value
                     balance.content_type.name,  # Description
                     "",  # Transaction Hash
                     str(balance.id)  # Transaction ID
