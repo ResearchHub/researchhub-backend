@@ -80,41 +80,6 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
 
         return Response({"message": "RSC Sent!"})
 
-    @staticmethod
-    def get_transaction_type(balance) -> str:
-        """
-        Map balance content type to TurboTax transaction type.
-        
-        Rules:
-        - withdrawal -> Withdrawal
-        - deposit -> Deposit
-        - *fee* in type -> Expense
-        - negative RSC amount -> Buy
-        - positive RSC amount -> Income
-        """
-        model_name = balance.content_type.model.lower()
-        
-        # First check for specific model names
-        if model_name == "withdrawal":
-            return "Withdrawal"
-        if model_name == "deposit":
-            return "Deposit"
-        
-        # Check for fee in the model name or description
-        if "fee" in model_name:
-            return "Expense"
-            
-        # For all other transactions, base it on amount
-        return "Buy" if Decimal(balance.amount) < 0 else "Income"
-
-    @staticmethod
-    def format_decimal(value: Optional[Decimal]) -> str:
-        """Format decimal to 8 decimal places."""
-        if value is None:
-            return "0.00"
-        # Convert to string with proper decimal formatting
-        return "{:.8f}".format(float(value)) 
-    
     @action(
         detail=False,
         methods=["GET"],
@@ -246,7 +211,7 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
             is_negative = Decimal(balance.amount) < 0
             
             # Format the row based on transaction type and amount sign
-            if is_negative or transaction_type in ["Withdrawal", "Expense"]:
+            if is_negative or transaction_type == "Withdrawal":
                 row = [
                     balance.created_date.strftime("%Y-%m-%d %H:%M:%S"),
                     transaction_type,
