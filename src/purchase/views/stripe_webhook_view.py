@@ -1,6 +1,7 @@
 import logging
 
 import stripe
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from rest_framework import status
 from rest_framework.permissions import AllowAny
@@ -9,7 +10,6 @@ from rest_framework.views import APIView
 
 from paper.related_models.paper_model import Paper
 from purchase.related_models.payment_model import Payment, PaymentProcessor
-from researchhub import settings
 
 logger = logging.getLogger(__name__)
 

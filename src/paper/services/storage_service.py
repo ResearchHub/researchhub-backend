@@ -1,7 +1,8 @@
 import uuid
 from typing import NamedTuple
 
-from researchhub import settings
+from django.conf import settings
+
 from utils import aws as aws_utils
 
 

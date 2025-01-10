@@ -23,12 +23,12 @@ oauth_method = settings.OAUTH_METHOD
 
 
 class OAuthMethods:
-    TOKEN = 'token'
+    TOKEN = "token"
 
 
-'''
+"""
 Copied from allauth/socialaccount/helpers.py
-'''
+"""
 
 
 def complete_social_login(request, sociallogin):
@@ -36,10 +36,10 @@ def complete_social_login(request, sociallogin):
     sociallogin.lookup()
     try:
         get_adapter(request).pre_social_login(request, sociallogin)
-        signals.pre_social_login.send(sender=SocialLogin,
-                                      request=request,
-                                      sociallogin=sociallogin)
-        process = sociallogin.state.get('process')
+        signals.pre_social_login.send(
+            sender=SocialLogin, request=request, sociallogin=sociallogin
+        )
+        process = sociallogin.state.get("process")
         if process == AuthProcess.REDIRECT:
             return _social_login_redirect(request, sociallogin)
         elif process == AuthProcess.CONNECT:
@@ -51,7 +51,7 @@ def complete_social_login(request, sociallogin):
 
 
 def _social_login_redirect(request, sociallogin):
-    next_url = sociallogin.get_redirect_url(request) or '/'
+    next_url = sociallogin.get_redirect_url(request) or "/"
     return _send_response(request, HttpResponseRedirect(next_url))
 
 
@@ -59,9 +59,9 @@ def _add_social_account(request, sociallogin):
     if request.user.is_anonymous:
         # This should not happen. Simply redirect to the connections
         # view (which has a login required)
-        return HttpResponseRedirect(reverse('socialaccount_connections'))
+        return HttpResponseRedirect(reverse("socialaccount_connections"))
     level = messages.INFO
-    message = 'socialaccount/messages/account_connected.txt'
+    message = "socialaccount/messages/account_connected.txt"
     action = None
     if sociallogin.is_existing:
         if sociallogin.user != request.user:
@@ -70,43 +70,43 @@ def _add_social_account(request, sociallogin):
             # remove the social account from the other user, as
             # that may render the account unusable.
             level = messages.ERROR
-            message = 'socialaccount/messages/account_connected_other.txt'
+            message = "socialaccount/messages/account_connected_other.txt"
         else:
             # This account is already connected -- we give the opportunity
             # for customized behaviour through use of a signal.
-            action = 'updated'
-            message = 'socialaccount/messages/account_connected_updated.txt'
+            action = "updated"
+            message = "socialaccount/messages/account_connected_updated.txt"
             signals.social_account_updated.send(
-                sender=SocialLogin,
-                request=request,
-                sociallogin=sociallogin)
+                sender=SocialLogin, request=request, sociallogin=sociallogin
+            )
     else:
         # New account, let's connect
-        action = 'added'
+        action = "added"
         sociallogin.connect(request, request.user)
-        signals.social_account_added.send(sender=SocialLogin,
-                                          request=request,
-                                          sociallogin=sociallogin)
+        signals.social_account_added.send(
+            sender=SocialLogin, request=request, sociallogin=sociallogin
+        )
     default_next = get_adapter(request).get_connect_redirect_url(
-        request,
-        sociallogin.account)
+        request, sociallogin.account
+    )
     next_url = sociallogin.get_redirect_url(request) or default_next
     get_account_adapter(request).add_message(
-        request, level, message,
-        message_context={
-            'sociallogin': sociallogin,
-            'action': action
-        }
+        request,
+        level,
+        message,
+        message_context={"sociallogin": sociallogin, "action": action},
     )
     return _send_response(request, HttpResponseRedirect(next_url))
 
 
 def complete_social_signup(request, sociallogin):
-    return complete_signup(request,
-                           sociallogin.user,
-                           app_settings.ACCOUNT_EMAIL_VERIFICATION,
-                           sociallogin.get_redirect_url(request),
-                           signal_kwargs={'sociallogin': sociallogin})
+    return complete_signup(
+        request,
+        sociallogin.user,
+        app_settings.ACCOUNT_EMAIL_VERIFICATION,
+        sociallogin.get_redirect_url(request),
+        signal_kwargs={"sociallogin": sociallogin},
+    )
 
 
 def _process_signup(request, sociallogin):
@@ -119,17 +119,14 @@ def _process_signup(request, sociallogin):
             get_account_adapter(request).clean_username(username)
         except ValidationError:
             # This username is no good ...
-            user_username(sociallogin.user, '')
+            user_username(sociallogin.user, "")
     # FIXME: This part contains a lot of duplication of logic
     # ("closed" rendering, create user, send email, in active
     # etc..)
-    if not get_adapter(request).is_open_for_signup(
-            request,
-            sociallogin):
+    if not get_adapter(request).is_open_for_signup(request, sociallogin):
         return render(
-            request,
-            "account/signup_closed." +
-            account_settings.TEMPLATE_EXTENSION)
+            request, "account/signup_closed." + account_settings.TEMPLATE_EXTENSION
+        )
     get_adapter(request).save_user(request, sociallogin, form=None)
     ret = complete_social_signup(request, sociallogin)
     return ret
@@ -142,9 +139,8 @@ def _complete_social_login(request, sociallogin):
         # Login existing user
         ret = _login_social_account(request, sociallogin)
         signals.social_account_updated.send(
-            sender=SocialLogin,
-            request=request,
-            sociallogin=sociallogin)
+            sender=SocialLogin, request=request, sociallogin=sociallogin
+        )
     else:
         # New social user
         ret = _process_signup(request, sociallogin)
@@ -152,9 +148,9 @@ def _complete_social_login(request, sociallogin):
     return _send_response(request, ret)
 
 
-'''
+"""
 Custom helper methods not copied from allauth
-'''
+"""
 
 
 def _send_response(original_request, default_response):
@@ -165,7 +161,7 @@ def _send_response(original_request, default_response):
 
 def _respond_with_token(user):
     token = get_or_create_user_token(user)
-    response = JsonResponse({'key': token})
+    response = JsonResponse({"key": token})
     return response
 
 

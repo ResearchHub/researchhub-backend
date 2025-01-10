@@ -4,11 +4,11 @@ from datetime import datetime
 
 import boto3
 from boto3.session import Session
+from django.conf import settings
 from django.core.files.storage import default_storage
 from django.utils.text import slugify
 
 from paper.utils import get_pdf_from_url
-from researchhub import settings
 from utils.http import check_url_contains_pdf
 from utils.sentry import log_error
 
