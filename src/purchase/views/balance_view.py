@@ -155,95 +155,82 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
             - *fee* in type -> Expense
             - negative RSC amount -> Buy
             - positive RSC amount -> Income
+            
+            Turbotax CSV format:
+            https://ttlc.intuit.com/turbotax-support/en-us/help-article/
+            cryptocurrency/create-csv-file-unsupported-source/L1yhp71Nt_US_en_US?
             """
             model_name = balance.content_type.model.lower()
             
-            # First check for specific model names
             if model_name == "withdrawal":
                 return "Withdrawal"
             if model_name == "deposit":
                 return "Deposit"
-            
-            # Check for fee in the model name or description
             if "fee" in model_name:
                 return "Expense"
-                
-            # For all other transactions, base it on amount
             return "Buy" if Decimal(balance.amount) < 0 else "Income"
 
+        def format_transaction_row(balance, rate: Decimal) -> list:
+            """Format a single transaction row for TurboTax CSV."""
+            amount = abs(Decimal(balance.amount))
+            usd_value = amount * Decimal(rate)
+            transaction_type = get_transaction_type_for_turbotax(balance)
+            is_outgoing = (
+                Decimal(balance.amount) < 0 or transaction_type == "Withdrawal"
+            )
+
+            base_row = [
+                balance.created_date.strftime("%Y-%m-%d %H:%M:%S"),
+                transaction_type,
+                "",  # Sent Asset
+                "",  # Sent Amount
+                "",  # Received Asset
+                "",  # Received Amount
+                "",  # Fee Asset
+                "",  # Fee Amount
+                "USD",  # Market Value Currency
+                format_decimal(usd_value),  # Market Value
+                balance.content_type.name,  # Description
+                "",  # Transaction Hash
+                str(balance.id)  # Transaction ID
+            ]
+
+            if is_outgoing:
+                base_row[2] = "RSC"  # Sent Asset
+                base_row[3] = format_decimal(amount)  # Sent Amount
+            else:
+                base_row[4] = "RSC"  # Received Asset
+                base_row[5] = format_decimal(amount)  # Received Amount
+
+            return base_row
+
         default_exchange_rate = RscExchangeRate.objects.first()
-        
         response = HttpResponse(content_type="text/csv")
-        response["Content-Disposition"] = 'attachment; filename="transactions_turbotax.csv"'
+        response["Content-Disposition"] = (
+            'attachment; filename="transactions_turbotax.csv"'
+        )
         
         writer = csv.writer(response)
-        writer.writerow([
-            "Date",
-            "Type",
-            "Sent Asset",
-            "Sent Amount",
-            "Received Asset",
-            "Received Amount",
-            "Fee Asset",
-            "Fee Amount",
-            "Market Value Currency",
-            "Market Value",
-            "Description",
-            "Transaction Hash",
-            "Transaction ID"
-        ])
+        headers = [
+            "Date", "Type", "Sent Asset", "Sent Amount", "Received Asset",
+            "Received Amount", "Fee Asset", "Fee Amount",
+            "Market Value Currency", "Market Value", "Description",
+            "Transaction Hash", "Transaction ID"
+        ]
+        writer.writerow(headers)
 
         for balance in self.get_queryset().iterator():
             exchange_rate = RscExchangeRate.objects.filter(
                 created_date__lte=balance.created_date
             ).last()
             
-            if exchange_rate is None:
-                rate = default_exchange_rate.real_rate or Decimal('0.00')
-            else:
-                rate = exchange_rate.real_rate or exchange_rate.rate or Decimal('0.00')
+            rate = (
+                exchange_rate.real_rate or exchange_rate.rate
+                if exchange_rate
+                else default_exchange_rate.real_rate
+            ) or Decimal('0.00')
 
-            transaction_type = get_transaction_type_for_turbotax(balance)
-            amount = abs(Decimal(balance.amount))  # Use absolute value for amounts
-            usd_value = amount * Decimal(rate)
-            
-            # Determine if this is a send or receive based on amount sign
-            is_negative = Decimal(balance.amount) < 0
-            
-            # Format the row based on transaction type and amount sign
-            if is_negative or transaction_type == "Withdrawal":
-                row = [
-                    balance.created_date.strftime("%Y-%m-%d %H:%M:%S"),
-                    transaction_type,
-                    "RSC",  # Sent Asset
-                    format_decimal(amount),  # Sent Amount (positive)
-                    "",  # Received Asset
-                    "",  # Received Amount
-                    "",  # Fee Asset
-                    "",  # Fee Amount
-                    "USD",  # Market Value Currency
-                    format_decimal(usd_value),  # Market Value
-                    balance.content_type.name,  # Description
-                    "",  # Transaction Hash
-                    str(balance.id)  # Transaction ID
-                ]
-            else:  # Positive amounts and other transaction types
-                row = [
-                    balance.created_date.strftime("%Y-%m-%d %H:%M:%S"),
-                    transaction_type,
-                    "",  # Sent Asset
-                    "",  # Sent Amount
-                    "RSC",  # Received Asset
-                    format_decimal(amount),  # Received Amount (positive)
-                    "",  # Fee Asset
-                    "",  # Fee Amount
-                    "USD",  # Market Value Currency
-                    format_decimal(usd_value),  # Market Value
-                    balance.content_type.name,  # Description
-                    "",  # Transaction Hash
-                    str(balance.id)  # Transaction ID
-                ]
-
+            row = format_transaction_row(balance, rate)
             writer.writerow(row)
 
         return response
