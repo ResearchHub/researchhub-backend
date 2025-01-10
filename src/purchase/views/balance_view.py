@@ -2,6 +2,8 @@ import csv
 import decimal
 import time
 from datetime import datetime
+from typing import Optional
+from decimal import Decimal
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
@@ -11,6 +13,7 @@ from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from django_filters import rest_framework as filters
 
 from purchase.models import Balance, RscExchangeRate
 from purchase.permissions import CanSendRSC
@@ -22,9 +25,19 @@ from user.permissions import IsModerator
 from utils.throttles import THROTTLE_CLASSES
 
 
+class BalanceFilter(filters.FilterSet):
+    created_date = filters.DateTimeFromToRangeFilter()
+
+    class Meta:
+        model = Balance
+        fields = ['created_date']
+
+
 class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Balance.objects.all()
     serializer_class = BalanceSerializer
+    filterset_class = BalanceFilter
+    filter_backends = [filters.DjangoFilterBackend]
     permission_classes = [
         IsAuthenticated,
     ]
@@ -67,6 +80,41 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
 
         return Response({"message": "RSC Sent!"})
 
+    @staticmethod
+    def get_transaction_type(balance) -> str:
+        """
+        Map balance content type to TurboTax transaction type.
+        
+        Rules:
+        - withdrawal -> Withdrawal
+        - deposit -> Deposit
+        - *fee* in type -> Expense
+        - negative RSC amount -> Buy
+        - positive RSC amount -> Income
+        """
+        model_name = balance.content_type.model.lower()
+        
+        # First check for specific model names
+        if model_name == "withdrawal":
+            return "Withdrawal"
+        if model_name == "deposit":
+            return "Deposit"
+        
+        # Check for fee in the model name or description
+        if "fee" in model_name:
+            return "Expense"
+            
+        # For all other transactions, base it on amount
+        return "Buy" if Decimal(balance.amount) < 0 else "Income"
+
+    @staticmethod
+    def format_decimal(value: Optional[Decimal]) -> str:
+        """Format decimal to 8 decimal places."""
+        if value is None:
+            return "0.00"
+        # Convert to string with proper decimal formatting
+        return "{:.8f}".format(float(value)) 
+    
     @action(
         detail=False,
         methods=["GET"],
@@ -115,5 +163,88 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
                     balance.content_type.name,
                 ]
             )
+
+        return response
+
+    @action(
+        detail=False,
+        methods=["GET"],
+        permission_classes=[IsAuthenticated],
+    )
+    def list_csv_turbotax(self, request):
+        default_exchange_rate = RscExchangeRate.objects.first()
+        
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = 'attachment; filename="transactions_turbotax.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow([
+            "Date",
+            "Type",
+            "Sent Asset",
+            "Sent Amount",
+            "Received Asset",
+            "Received Amount",
+            "Fee Asset",
+            "Fee Amount",
+            "Market Value Currency",
+            "Market Value",
+            "Description",
+            "Transaction Hash",
+            "Transaction ID"
+        ])
+
+        for balance in self.get_queryset().iterator():
+            exchange_rate = RscExchangeRate.objects.filter(
+                created_date__lte=balance.created_date
+            ).last()
+            
+            if exchange_rate is None:
+                rate = default_exchange_rate.real_rate or Decimal('0.00')
+            else:
+                rate = exchange_rate.real_rate or exchange_rate.rate or Decimal('0.00')
+
+            transaction_type = self.get_transaction_type(balance)
+            amount = abs(Decimal(balance.amount))  # Use absolute value for amounts
+            usd_value = amount * Decimal(rate)
+            
+            # Determine if this is a send or receive based on amount sign
+            is_negative = Decimal(balance.amount) < 0
+            
+            # Format the row based on transaction type and amount sign
+            if is_negative or transaction_type in ["Withdrawal", "Expense"]:
+                row = [
+                    balance.created_date.strftime("%Y-%m-%d %H:%M:%S"),
+                    transaction_type,
+                    "RSC",  # Sent Asset
+                    self.format_decimal(amount),  # Sent Amount (positive)
+                    "",  # Received Asset
+                    "",  # Received Amount
+                    "",  # Fee Asset
+                    "",  # Fee Amount
+                    "USD",  # Market Value Currency
+                    self.format_decimal(usd_value),  # Market Value
+                    balance.content_type.name,  # Description
+                    "",  # Transaction Hash
+                    str(balance.id)  # Transaction ID
+                ]
+            else:  # Positive amounts and other transaction types
+                row = [
+                    balance.created_date.strftime("%Y-%m-%d %H:%M:%S"),
+                    transaction_type,
+                    "",  # Sent Asset
+                    "",  # Sent Amount
+                    "RSC",  # Received Asset
+                    self.format_decimal(amount),  # Received Amount (positive)
+                    "",  # Fee Asset
+                    "",  # Fee Amount
+                    "USD",  # Market Value Currency
+                    self.format_decimal(usd_value),  # Market Value
+                    balance.content_type.name,  # Description
+                    "",  # Transaction Hash
+                    str(balance.id)  # Transaction ID
+                ]
+
+            writer.writerow(row)
 
         return response
