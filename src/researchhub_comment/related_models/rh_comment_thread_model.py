@@ -5,7 +5,6 @@ from django.db.models import CharField, Count, JSONField, Q
 from researchhub_access_group.models import Permission
 from researchhub_comment.constants.rh_comment_thread_types import (
     GENERIC_COMMENT,
-    INNER_CONTENT_COMMENT,
     PEER_REVIEW,
     RH_COMMENT_THREAD_TYPES,
     SUMMARY,
@@ -26,18 +25,7 @@ from utils.models import AbstractGenericRelationModel
 class RhCommentThreadManager(models.Manager):
     def get_discussion_aggregates(self):
         return self.exclude(rh_comments__bounties__isnull=False).aggregate(
-            discussion_count=Count(
-                "rh_comments",
-                filter=(
-                    Q(thread_type=INNER_CONTENT_COMMENT)
-                    | Q(thread_type=GENERIC_COMMENT)
-                )
-                & Q(
-                    rh_comments__is_removed=False,
-                    rh_comments__bounties__isnull=True,
-                    rh_comments__parent__bounties__isnull=True,
-                ),
-            ),
+            discussion_count=self.get_discussion_count(),
             review_count=Count(
                 "rh_comments",
                 filter=Q(
@@ -57,6 +45,39 @@ class RhCommentThreadManager(models.Manager):
                 ),
             ),
         )
+
+    def get_discussion_count(self):
+        from researchhub_comment.models import RhCommentModel
+
+        query = """
+            WITH RECURSIVE comments AS (
+                SELECT id, parent_id, 0 AS relative_depth
+                FROM "researchhub_comment_rhcommentmodel"
+                WHERE id = %s
+
+                UNION ALL
+
+                SELECT child.id, child.parent_id, comments.relative_depth + 1
+                FROM "researchhub_comment_rhcommentmodel" child, comments
+                WHERE child.parent_id = comments.id AND child.is_removed = FALSE
+            )
+            SELECT id
+            FROM comments;
+        """
+
+        discussion_count = 0
+        for thread in self.all():
+            parent_comment = thread.rh_comments.filter(
+                parent_id__isnull=True,
+                is_removed=False,
+            ).first()
+
+            if parent_comment:
+                discussion_count += len(
+                    RhCommentModel.objects.raw(query, [parent_comment.id])
+                )
+
+        return discussion_count
 
 
 class RhCommentThreadModel(AbstractGenericRelationModel):
