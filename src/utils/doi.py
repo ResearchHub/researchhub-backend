@@ -36,21 +36,69 @@ class DOI:
         )
 
     @staticmethod
-    def normalize_doi(doi: Optional[str]) -> Optional[str]:
-        """
-        Normalize a DOI by removing protocol, domain, trailing slashes, and whitespace.
-        Returns lowercase version for consistent comparison.
+    def normalize_doi(doi):
+        """Convert DOI to standard https://doi.org/ format.
+
+        Handles bare DOIs, doi.org URLs, and full https URLs.
+        Returns None if input is invalid.
         """
         if not doi:
             return None
-        return (
-            doi.replace("https://doi.org/", "")
-            .replace("http://doi.org/", "")
-            .replace("doi.org/", "")
-            .rstrip("/")
-            .strip()
-            .lower()
-        )
+
+        # Remove any trailing slashes and whitespace
+        doi = doi.strip().rstrip("/")
+
+        # Handle various URL formats
+        if "doi.org" in doi:
+            # Extract everything after doi.org/
+            parts = doi.split("doi.org/")
+            if len(parts) < 2:
+                return None
+            return f"https://doi.org/{parts[1]}"
+
+        # If it's a bare DOI (no domain), add the prefix
+        return f"https://doi.org/{doi}"
+
+    @staticmethod
+    def get_variants(doi):
+        """Return all variants of a DOI for searching.
+
+        Args:
+            doi: Any DOI format (bare, with domain, or full URL)
+
+        Returns:
+            List of variants: [normalized URL, domain-only, bare DOI]
+            Empty list if input is invalid
+        """
+        normalized = DOI.normalize_doi(doi)
+        if not normalized:
+            return []
+
+        # Extract bare DOI from normalized version
+        bare_doi = normalized.split("doi.org/")[-1]
+
+        return [
+            normalized,  # Full URL: https://doi.org/XXX
+            f"doi.org/{bare_doi}",  # Domain only: doi.org/XXX
+            bare_doi,  # Bare DOI: XXX
+        ]
+
+    @staticmethod
+    def get_bare_doi(doi):
+        """Extract bare DOI from any DOI format.
+
+        Args:
+            doi: Any DOI format (bare, with domain, or full URL)
+
+        Returns:
+            Bare DOI (e.g. "10.1111/ijsw.12716") or None if invalid
+        """
+        normalized = DOI.normalize_doi(doi)
+        if not normalized:
+            return None
+
+        # Extract bare DOI from normalized version
+        return normalized.split("doi.org/")[-1]
 
     # Register DOI for a ResearchHub post.
     def register_doi_for_post(

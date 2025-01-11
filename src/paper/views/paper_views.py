@@ -1245,7 +1245,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             work = openalex.get_work(openalex_id=openalex_id)
             if not work:
                 return Response(
-                    {"error": "Work not found in OpenAlex"},
+                    {"error": "Work not found"},
                     status=status.HTTP_404_NOT_FOUND,
                 )
 
@@ -1264,6 +1264,177 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             paper_id = Paper.objects.get(openalex_id=openalex_id).id
 
             return Response({"paper_id": paper_id}, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            log_error(e)
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[AllowAny],
+    )
+    def retrieve_by_doi(self, request):
+        """
+        Get a paper by DOI or create it if it doesn't exist by importing from OpenAlex.
+        Query params:
+        - doi: string (required) - The DOI to look up
+        """
+        doi = request.query_params.get("doi")
+        if not doi:
+            return Response(
+                {"error": "DOI is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            # Normalize DOI for comparison
+            normalized_doi = DOI.normalize_doi(doi)
+            if not normalized_doi:
+                return Response(
+                    {"error": "Invalid DOI format"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Get bare DOI for database lookup (since we store bare DOIs)
+            bare_doi = DOI.get_bare_doi(doi)
+            if not bare_doi:
+                return Response(
+                    {"error": "Could not extract DOI"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Check if paper exists in our database
+            try:
+                existing_paper = Paper.objects.get(doi=bare_doi)
+                # Use the existing retrieve logic to maintain consistency
+                context = self._get_paper_context(request)
+                serializer = self.dynamic_serializer_class(
+                    existing_paper,
+                    context=context,
+                    _include_fields=[
+                        "abstract",
+                        "abstract_src_markdown",
+                        "authors",
+                        "boost_amount",
+                        "created_date",
+                        "discussion_count",
+                        "doi",
+                        "external_source",
+                        "file",
+                        "first_preview",
+                        "id",
+                        "is_open_access",
+                        "oa_status",
+                        "paper_publish_date",
+                        "paper_title",
+                        "pdf_file_extract",
+                        "pdf_license",
+                        "pdf_url",
+                        "pdf_copyright_allows_display",
+                        "peer_reviews",
+                        "purchases",
+                        "raw_authors",
+                        "score",
+                        "slug",
+                        "title",
+                        "work_type",
+                        "unified_document",
+                        "uploaded_by",
+                        "uploaded_date",
+                        "url",
+                        "version",
+                        "version_list",
+                    ],
+                )
+                serializer_data = serializer.data
+                vote = self.dynamic_serializer_class(context=context).get_user_vote(
+                    existing_paper
+                )
+                serializer_data["user_vote"] = vote
+                return Response(serializer_data)
+            except Paper.DoesNotExist:
+                # Paper doesn't exist, try to import it from OpenAlex
+                return self.create_by_doi(request, doi=bare_doi)
+
+        except Exception as e:
+            log_error(e)
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def create_by_doi(self, request, doi):
+        """
+        Create a paper by fetching data from OpenAlex using a DOI.
+        Args:
+            doi: Bare DOI (without https://doi.org/ prefix)
+        """
+        try:
+            # Fetch work from OpenAlex
+            openalex = OpenAlex()
+            work = openalex.get_work_by_doi(doi)
+            if not work:
+                return Response(
+                    {"error": "Work not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Process the work
+            from paper.openalex_util import process_openalex_works
+
+            process_openalex_works([work])
+
+            # Get the created paper
+            paper = Paper.objects.get(doi=doi)
+
+            # Return the same format as retrieve
+            context = self._get_paper_context(request)
+            serializer = self.dynamic_serializer_class(
+                paper,
+                context=context,
+                _include_fields=[
+                    "abstract",
+                    "abstract_src_markdown",
+                    "authors",
+                    "boost_amount",
+                    "created_date",
+                    "discussion_count",
+                    "doi",
+                    "external_source",
+                    "file",
+                    "first_preview",
+                    "id",
+                    "is_open_access",
+                    "oa_status",
+                    "paper_publish_date",
+                    "paper_title",
+                    "pdf_file_extract",
+                    "pdf_license",
+                    "pdf_url",
+                    "pdf_copyright_allows_display",
+                    "peer_reviews",
+                    "purchases",
+                    "raw_authors",
+                    "score",
+                    "slug",
+                    "title",
+                    "work_type",
+                    "unified_document",
+                    "uploaded_by",
+                    "uploaded_date",
+                    "url",
+                    "version",
+                    "version_list",
+                ],
+            )
+            serializer_data = serializer.data
+            vote = self.dynamic_serializer_class(context=context).get_user_vote(paper)
+            serializer_data["user_vote"] = vote
+            return Response(serializer_data, status=status.HTTP_201_CREATED)
 
         except Exception as e:
             log_error(e)

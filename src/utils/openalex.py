@@ -464,3 +464,13 @@ class OpenAlex:
                 )
 
         return _generic_openalex_object
+
+    def get_work_by_doi(self, doi):
+        """
+        Fetch a work from OpenAlex using its DOI.
+        Returns None if no work is found.
+        """
+        filters = {"filter": f"doi:{doi}"}
+        response = self._get("works", filters=filters)
+        results = response.get("results", [])
+        return results[0] if results else None

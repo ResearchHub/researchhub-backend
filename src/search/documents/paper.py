@@ -96,11 +96,7 @@ class PaperDocument(BaseDocument):
 
         # Add DOI variations for search
         if instance.doi:
-            clean_doi = DOI.normalize_doi(instance.doi)
-            if clean_doi:
-                phrases.append(clean_doi)  # Clean DOI
-                phrases.append(f"https://doi.org/{clean_doi}")  # Full DOI with protocol
-                phrases.append(f"doi.org/{clean_doi}")  # DOI with domain, no protocol
+            phrases.extend(DOI.get_variants(instance.doi))
 
         if instance.url:
             phrases.append(instance.url)
