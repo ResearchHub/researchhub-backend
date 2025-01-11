@@ -25,17 +25,11 @@ from utils.models import AbstractGenericRelationModel
 
 class RhCommentThreadManager(models.Manager):
     def get_discussion_aggregates(self):
-        """
-        1) Compute discussion_count separately using our custom method
-        2) Compute review_count and summary_count with standard Django aggregations
-        3) Combine them all into a single dictionary and return
-        """
-        # First do the standard aggregations for review & summary
         aggregator = self.exclude(rh_comments__bounties__isnull=False).aggregate(
             review_count=Count(
                 "rh_comments",
                 filter=Q(
-                    thread_type="PEER_REVIEW",
+                    thread_type=PEER_REVIEW,
                     rh_comments__is_removed=False,
                     rh_comments__parent__isnull=False,
                     rh_comments__parent__bounties__isnull=True,
@@ -44,14 +38,14 @@ class RhCommentThreadManager(models.Manager):
             summary_count=Count(
                 "rh_comments",
                 filter=Q(
-                    thread_type="SUMMARY",
+                    thread_type=SUMMARY,
                     rh_comments__is_removed=False,
                     rh_comments__parent__isnull=False,
                     rh_comments__parent__bounties__isnull=True,
                 ),
             ),
         )
-        # Then compute the custom discussion_count
+
         aggregator["discussion_count"] = self.get_discussion_count()
         return aggregator
 

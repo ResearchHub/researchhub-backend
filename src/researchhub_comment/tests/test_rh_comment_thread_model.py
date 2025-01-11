@@ -112,23 +112,30 @@ class TestRhCommentThreadModel(TestCase):
             comment_content_json={"ops": [{"insert": "Generic parent comment"}]},
             created_by=self.user,
         )
-        review_parent = RhCommentModel.objects.create(
+        RhCommentModel.objects.create(
             thread=self.review_thread,
             comment_content_json={"ops": [{"insert": "Review parent comment"}]},
             created_by=self.user,
         )
 
-        # Create replies (one removed)
-        RhCommentModel.objects.create(
+        # Create removed reply, should not be counted
+        removed_comment = RhCommentModel.objects.create(
             thread=self.generic_thread,
             comment_content_json={"ops": [{"insert": "Generic reply"}]},
             parent=generic_parent,
-            is_removed=True,  # This comment should not be counted
+            is_removed=True,
             created_by=self.user,
         )
+        # Child of removed comment should not be counted
         RhCommentModel.objects.create(
             thread=self.review_thread,
             comment_content_json={"ops": [{"insert": "Review reply"}]},
-            parent=review_parent,
+            parent=removed_comment,
             created_by=self.user,
         )
+
+        aggregates = RhCommentThreadModel.objects.get_discussion_aggregates()
+
+        self.assertEqual(aggregates["discussion_count"], 2)
+        self.assertEqual(aggregates["review_count"], 1)
+        self.assertEqual(aggregates["summary_count"], 0)
