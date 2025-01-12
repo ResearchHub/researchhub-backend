@@ -262,7 +262,7 @@ class CommentViewTests(APITestCase):
 
         self.assertEqual(notification.exists(), False)
 
-    def test_censor_comment_updates_discussion_count(self):
+    def test_remove_bounties_updates_discussion_count(self):
         # Create a parent comment with multiple children
         parent_comment = self._create_paper_comment(self.paper.id, self.user_1)
         child1 = self._create_paper_comment(

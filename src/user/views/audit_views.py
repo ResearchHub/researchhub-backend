@@ -16,7 +16,7 @@ from mailing_list.lib import base_email_context
 from notification.models import Notification
 from researchhub.settings import EMAIL_DOMAIN
 from researchhub_comment.models import RhCommentModel
-from researchhub_comment.views.rh_comment_view import censor_comment
+from researchhub_comment.views.rh_comment_view import remove_bounties
 from user.filters import AuditDashboardFilterBackend
 from user.models import Action, User
 from user.permissions import IsModerator, UserIsEditor
@@ -436,8 +436,10 @@ class AuditViewSet(viewsets.GenericViewSet):
         with transaction.atomic():
             flag_item = flag.item
             if isinstance(flag_item, RhCommentModel):
-                censor_comment(flag_item)
-            return censor(flag.verdict.created_by, flag_item)
+                remove_bounties(flag_item)
+            censor_response = censor(flag.verdict.created_by, flag_item)
+            flag_item.refresh_related_discussion_count()
+            return censor_response
 
     def _send_notification_to_content_creator(self, verdict, remover, send_email=True):
         flag = verdict.flag
