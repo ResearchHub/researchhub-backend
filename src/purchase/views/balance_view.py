@@ -172,6 +172,14 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
 
         def format_transaction_row(balance, rate: Decimal) -> list:
             """Format a single transaction row for TurboTax CSV."""
+            # Skip failed withdrawals
+            is_failed_withdrawal = (
+                balance.content_type.model.lower() == "withdrawal" and 
+                getattr(balance.source, 'paid_status', '').upper() == 'FAILED'
+            )
+            if is_failed_withdrawal:
+                return None
+
             amount = abs(Decimal(balance.amount))
             usd_value = amount * Decimal(rate)
             transaction_type = get_transaction_type_for_turbotax(balance)
@@ -231,6 +239,7 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
             ) or Decimal('0.00')
 
             row = format_transaction_row(balance, rate)
-            writer.writerow(row)
+            if row:  # Only write row if it's not a failed withdrawal
+                writer.writerow(row)
 
         return response
