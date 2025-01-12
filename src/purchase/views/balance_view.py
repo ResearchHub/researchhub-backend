@@ -178,7 +178,7 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
                 getattr(balance.source, 'paid_status', '').upper() == 'FAILED'
             )
             if is_failed_withdrawal:
-                return None
+                return []
 
             amount = abs(Decimal(balance.amount))
             usd_value = amount * Decimal(rate)
