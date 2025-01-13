@@ -48,7 +48,7 @@ class RhCommentThreadQuerySet(models.QuerySet):
             result = cursor.fetchone()
             return result[0] if result else 0
 
-    def get_discussion_aggregates(self):
+    def get_discussion_aggregates(self, item):
         """
         Example aggregator, adapted from your code.
         Note: self.exclude(...) etc. uses the QuerySet instead of Manager.
@@ -74,7 +74,7 @@ class RhCommentThreadQuerySet(models.QuerySet):
             ),
         )
 
-        aggregator["discussion_count"] = self.get_discussion_count()
+        aggregator["discussion_count"] = item.discussion_count
         return aggregator
 
 
@@ -85,8 +85,8 @@ class RhCommentThreadManager(models.Manager):
     def get_discussion_count(self):
         return self.get_queryset().get_discussion_count()
 
-    def get_discussion_aggregates(self):
-        return self.get_queryset().get_discussion_aggregates()
+    def get_discussion_aggregates(self, item):
+        return self.get_queryset().get_discussion_aggregates(item)
 
 
 class RhCommentThreadModel(AbstractGenericRelationModel):

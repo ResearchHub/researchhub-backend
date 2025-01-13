@@ -47,7 +47,7 @@ class TestRhCommentThreadModel(TestCase):
 
     def test_get_discussion_aggregates_empty(self):
         """Test aggregates when there are no comments"""
-        aggregates = RhCommentThreadModel.objects.get_discussion_aggregates()
+        aggregates = RhCommentThreadModel.objects.get_discussion_aggregates(self.paper)
 
         self.assertEqual(aggregates["discussion_count"], 0)
         self.assertEqual(aggregates["review_count"], 0)
@@ -92,7 +92,10 @@ class TestRhCommentThreadModel(TestCase):
             created_by=self.user,
         )
 
-        aggregates = RhCommentThreadModel.objects.get_discussion_aggregates()
+        generic_parent.refresh_related_discussion_count()
+        self.paper.refresh_from_db()
+
+        aggregates = RhCommentThreadModel.objects.get_discussion_aggregates(self.paper)
 
         self.assertEqual(
             aggregates["discussion_count"], 6
@@ -134,7 +137,10 @@ class TestRhCommentThreadModel(TestCase):
             created_by=self.user,
         )
 
-        aggregates = RhCommentThreadModel.objects.get_discussion_aggregates()
+        generic_parent.refresh_related_discussion_count()
+        self.paper.refresh_from_db()
+
+        aggregates = RhCommentThreadModel.objects.get_discussion_aggregates(self.paper)
 
         self.assertEqual(aggregates["discussion_count"], 2)
         self.assertEqual(aggregates["review_count"], 1)

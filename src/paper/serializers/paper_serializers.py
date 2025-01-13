@@ -962,7 +962,7 @@ class DynamicPaperSerializer(
         return serializer.data
 
     def get_discussion_aggregates(self, paper):
-        return paper.rh_threads.get_discussion_aggregates()
+        return paper.rh_threads.get_discussion_aggregates(paper)
 
     def get_hubs(self, paper):
         context = self.context

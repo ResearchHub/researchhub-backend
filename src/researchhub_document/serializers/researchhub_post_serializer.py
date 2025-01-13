@@ -279,7 +279,7 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
         return serializer.data
 
     def get_discussion_aggregates(self, post):
-        return post.rh_threads.get_discussion_aggregates()
+        return post.rh_threads.get_discussion_aggregates(post)
 
     def get_note(self, post):
         from note.serializers import DynamicNoteSerializer
