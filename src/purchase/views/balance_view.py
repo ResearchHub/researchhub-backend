@@ -183,9 +183,7 @@ class BalanceViewSet(viewsets.ReadOnlyModelViewSet):
             amount = abs(Decimal(balance.amount))
             usd_value = amount * Decimal(rate)
             transaction_type = get_transaction_type_for_turbotax(balance)
-            is_outgoing = (
-                Decimal(balance.amount) < 0 or transaction_type == "Withdrawal"
-            )
+            is_outgoing = Decimal(balance.amount) < 0
 
             base_row = [
                 balance.created_date.strftime("%Y-%m-%d %H:%M:%S"),
