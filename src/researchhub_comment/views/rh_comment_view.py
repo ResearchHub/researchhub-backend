@@ -69,34 +69,11 @@ from utils.siftscience import SIFT_COMMENT, sift_track
 from utils.throttles import THROTTLE_CLASSES
 
 
-def censor_comment(comment):
-    query = """
-        WITH RECURSIVE comments AS (
-            SELECT id, parent_id, 0 AS relative_depth
-            FROM "researchhub_comment_rhcommentmodel"
-            WHERE id = %s
-
-            UNION ALL
-
-            SELECT child.id, child.parent_id, comments.relative_depth + 1
-            FROM "researchhub_comment_rhcommentmodel" child, comments
-            WHERE child.parent_id = comments.id AND child.is_removed = FALSE
-        )
-        SELECT id
-        FROM comments;
-    """
-
+def remove_bounties(comment):
     for bounty in comment.bounties.iterator():
         cancelled = bounty.close(Bounty.CANCELLED)
         if not cancelled:
             raise Exception("Failed to close bounties on comment")
-
-    # Only update discussion count if no parent is deleted since if a parent is deleted,
-    # we've already reduced the count for this comment and children. Same for if the comment
-    # is deleted.
-    if not has_deleted_parent(comment) and not comment.is_removed:
-        comment_count = len(RhCommentModel.objects.raw(query, [comment.id]))
-        comment._update_related_discussion_count(-comment_count)
 
 
 def has_deleted_parent(comment):
@@ -597,8 +574,12 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
     def censor(self, request, *args, **kwargs):
         with transaction.atomic():
             comment = self.get_object()
-            censor_comment(comment)
-            return super().censor(request, *args, **kwargs)
+            remove_bounties(comment)
+            censor_response = super().censor(request, *args, **kwargs)
+
+            comment.refresh_related_discussion_count()
+
+            return censor_response
 
     @action(
         detail=True,

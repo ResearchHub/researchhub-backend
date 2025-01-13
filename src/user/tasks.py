@@ -25,17 +25,18 @@ from utils.sentry import log_info
 def handle_spam_user_task(user_id, requestor=None):
     User = apps.get_model("user.User")
     user = User.objects.filter(id=user_id).first()
-    from researchhub_comment.views.rh_comment_view import censor_comment
+    from researchhub_comment.views.rh_comment_view import remove_bounties
 
     if user:
         user.papers.update(is_removed=True)
         comments = user.created_researchhub_comment_rhcommentmodel.all()
         for comment in comments.iterator():
-            censor_comment(comment)
+            remove_bounties(comment)
             if requestor:
                 from discussion.reaction_views import censor
 
                 censor(requestor, comment)
+                comment.refresh_related_discussion_count()
 
         user.actions.update(display=False, is_removed=True)
 
