@@ -77,7 +77,7 @@ class CommentViewTests(APITestCase):
         self.client.force_authenticate(created_by)
 
         res = self._create_comment(
-            "post",
+            "researchhubpost",
             post_id,
             created_by,
             {
@@ -262,7 +262,7 @@ class CommentViewTests(APITestCase):
 
         self.assertEqual(notification.exists(), False)
 
-    def test_remove_bounties_updates_discussion_count(self):
+    def test_censor_paper_comments_updates_discussion_count(self):
         # Create a parent comment with multiple children
         parent_comment = self._create_paper_comment(self.paper.id, self.user_1)
         child1 = self._create_paper_comment(
@@ -346,3 +346,144 @@ class CommentViewTests(APITestCase):
         # Should reduce count by 2 (child2 and child3)
         paper_res = self.client.get(f"/api/paper/{self.paper.id}/")
         self.assertEqual(paper_res.data["discussion_count"], 2)
+
+    def test_censor_post_comments_updates_discussion_count(self):
+        # Create a post first
+        self.client.force_authenticate(self.user_1)
+        post_res = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "title": "Test Post needs to be 20 characters long",
+                "content_json": {
+                    "ops": [
+                        {
+                            "insert": "Test content needs to be 50 characters long, minimum."
+                        }
+                    ]
+                },
+                "document_type": "DISCUSSION",
+                "full_src": "Test content needs to be 50 characters long, minimum.",
+                "renderable_text": "Test content needs to be 50 characters long, minimum.",
+            },
+        )
+        post_id = post_res.data["id"]
+
+        # Create a parent comment with multiple children
+        parent_comment = self._create_post_comment(post_id, self.user_1)
+        child1 = self._create_post_comment(
+            post_id, self.user_2, parent_id=parent_comment.data["id"]
+        )
+        child2 = self._create_post_comment(
+            post_id, self.user_3, parent_id=parent_comment.data["id"]
+        )
+
+        # Verify initial discussion count
+        post_res = self.client.get(f"/api/researchhubpost/{post_id}/")
+        initial_count = post_res.data["discussion_count"]
+        self.assertEqual(initial_count, 3)
+
+        # Censor parent comment
+        self.client.force_authenticate(self.moderator)
+        censor_res = self.client.delete(
+            f"/api/researchhubpost/{post_id}/comments/{parent_comment.data['id']}/censor/"
+        )
+
+        # Verify discussion count was reduced by 3 (parent + 2 children)
+        post_res = self.client.get(f"/api/researchhubpost/{post_id}/")
+        self.assertEqual(post_res.data["discussion_count"], 0)
+
+    def test_censor_post_child_with_deleted_parent_preserves_count(self):
+        # Create a post
+        self.client.force_authenticate(self.user_1)
+        post_res = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "title": "Test Post needs to be 20 characters long",
+                "content_json": {
+                    "ops": [
+                        {
+                            "insert": "Test content needs to be 50 characters long, minimum."
+                        }
+                    ]
+                },
+                "document_type": "DISCUSSION",
+                "full_src": "Test content needs to be 50 characters long, minimum.",
+                "renderable_text": "Test content needs to be 50 characters long, minimum.",
+            },
+        )
+        post_id = post_res.data["id"]
+
+        # Create parent and child comments
+        parent_comment = self._create_post_comment(post_id, self.user_1)
+        child_comment = self._create_post_comment(
+            post_id, self.user_2, parent_id=parent_comment.data["id"]
+        )
+
+        # Delete parent first
+        self.client.force_authenticate(self.user_1)
+        self.client.delete(
+            f"/api/researchhubpost/{post_id}/comments/{parent_comment.data['id']}/"
+        )
+
+        # Verify count after parent deletion
+        post_res = self.client.get(f"/api/researchhubpost/{post_id}/")
+        count_after_parent_delete = post_res.data["discussion_count"]
+
+        # Censor child comment
+        self.client.force_authenticate(self.moderator)
+        self.client.delete(
+            f"/api/researchhubpost/{post_id}/comments/{child_comment.data['id']}/censor/"
+        )
+
+        # Verify final count
+        post_res = self.client.get(f"/api/researchhubpost/{post_id}/")
+        self.assertEqual(
+            post_res.data["discussion_count"], count_after_parent_delete - 1
+        )
+
+    def test_censor_nested_post_comments(self):
+        # Create a post
+        self.client.force_authenticate(self.user_1)
+        post_res = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "title": "Test Post needs to be 20 characters long",
+                "content_json": {
+                    "ops": [
+                        {
+                            "insert": "Test content needs to be 50 characters long, minimum."
+                        }
+                    ]
+                },
+                "document_type": "DISCUSSION",
+                "full_src": "Test content needs to be 50 characters long, minimum.",
+                "renderable_text": "Test content needs to be 50 characters long, minimum.",
+            },
+        )
+        post_id = post_res.data["id"]
+
+        # Create nested comment structure
+        parent = self._create_post_comment(post_id, self.user_1)
+        child1 = self._create_post_comment(
+            post_id, self.user_2, parent_id=parent.data["id"]
+        )
+        grandchild1 = self._create_post_comment(
+            post_id, self.user_3, parent_id=child1.data["id"]
+        )
+        child2 = self._create_post_comment(
+            post_id, self.user_2, parent_id=parent.data["id"]
+        )
+
+        # Verify initial count
+        post_res = self.client.get(f"/api/researchhubpost/{post_id}/")
+        self.assertEqual(post_res.data["discussion_count"], 4)
+
+        # Censor child1 (which should also censor grandchild1)
+        self.client.force_authenticate(self.moderator)
+        self.client.delete(
+            f"/api/researchhubpost/{post_id}/comments/{child1.data['id']}/censor/"
+        )
+
+        # Verify count after censoring (should decrease by 2)
+        post_res = self.client.get(f"/api/researchhubpost/{post_id}/")
+        self.assertEqual(post_res.data["discussion_count"], 2)

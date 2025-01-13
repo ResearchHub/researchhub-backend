@@ -194,6 +194,7 @@ class RhCommentModel(
 
         if hasattr(related_document, "discussion_count"):
             related_document.discussion_count = related_document.get_discussion_count()
+
             related_document.save(update_fields=["discussion_count"])
 
     def increment_discussion_count(self):

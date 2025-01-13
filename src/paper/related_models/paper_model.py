@@ -673,39 +673,7 @@ class Paper(AbstractGenericReactionModel):
         return False
 
     def get_discussion_count(self):
-        from discussion.models import Thread
-
-        sources = [Thread.RESEARCHHUB, Thread.INLINE_ABSTRACT, Thread.INLINE_PAPER_BODY]
-
-        thread_count = self.threads.aggregate(
-            discussion_count=Count(
-                1,
-                filter=Q(
-                    is_removed=False, created_by__isnull=False, source__in=sources
-                ),
-            )
-        )["discussion_count"]
-        comment_count = self.threads.aggregate(
-            discussion_count=Count(
-                "comments",
-                filter=Q(
-                    comments__is_removed=False,
-                    comments__created_by__isnull=False,
-                    source__in=sources,
-                ),
-            )
-        )["discussion_count"]
-        reply_count = self.threads.aggregate(
-            discussion_count=Count(
-                "comments__replies",
-                filter=Q(
-                    comments__replies__is_removed=False,
-                    comments__replies__created_by__isnull=False,
-                    source__in=sources,
-                ),
-            )
-        )["discussion_count"]
-        return thread_count + comment_count + reply_count
+        return self.rh_threads.get_discussion_count()
 
     def extract_pdf_preview(self, use_celery=True):
         if TESTING:

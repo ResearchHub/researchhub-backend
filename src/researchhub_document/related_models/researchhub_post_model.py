@@ -250,34 +250,7 @@ class ResearchhubPost(AbstractGenericReactionModel):
             return None
 
     def get_discussion_count(self):
-        thread_count = self.threads.aggregate(
-            discussion_count=Count(
-                1,
-                filter=Q(
-                    is_removed=False,
-                    created_by__isnull=False,
-                ),
-            )
-        )["discussion_count"]
-        comment_count = self.threads.aggregate(
-            discussion_count=Count(
-                "comments",
-                filter=Q(
-                    comments__is_removed=False,
-                    comments__created_by__isnull=False,
-                ),
-            )
-        )["discussion_count"]
-        reply_count = self.threads.aggregate(
-            discussion_count=Count(
-                "comments__replies",
-                filter=Q(
-                    comments__replies__is_removed=False,
-                    comments__replies__created_by__isnull=False,
-                ),
-            )
-        )["discussion_count"]
-        return thread_count + comment_count + reply_count
+        return self.rh_threads.get_discussion_count()
 
     def calculate_hot_score(self):
         ALGO_START_UNIX = 1546329600
