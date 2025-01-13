@@ -79,12 +79,9 @@ class RhCommentThreadQuerySet(models.QuerySet):
 
 
 class RhCommentThreadManager(models.Manager):
-    # Make sure your manager returns the custom QuerySet
     def get_queryset(self):
         return RhCommentThreadQuerySet(self.model, using=self._db)
 
-    # If you ever want a manager shortcut for all threads, you can keep
-    # similarly named methods here that call the QuerySet versions.
     def get_discussion_count(self):
         return self.get_queryset().get_discussion_count()
 

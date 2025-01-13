@@ -438,7 +438,10 @@ class AuditViewSet(viewsets.GenericViewSet):
             if isinstance(flag_item, RhCommentModel):
                 remove_bounties(flag_item)
             censor_response = censor(flag.verdict.created_by, flag_item)
-            flag_item.refresh_related_discussion_count()
+
+            if isinstance(flag_item, RhCommentModel):
+                flag_item.refresh_related_discussion_count()
+
             return censor_response
 
     def _send_notification_to_content_creator(self, verdict, remover, send_email=True):
