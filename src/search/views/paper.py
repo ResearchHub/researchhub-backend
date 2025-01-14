@@ -20,21 +20,11 @@ from elasticsearch_dsl import Q, Search
 from search.backends.multi_match_filter import MultiMatchSearchFilterBackend
 from search.documents.paper import PaperDocument
 from search.serializers.paper import PaperDocumentSerializer
+from utils.doi import DOI
 from utils.permissions import ReadOnly
 
 
 class PaperDocumentView(DocumentViewSet):
-    def _is_doi(search_term):
-        try:
-            # Regex imported from https://stackoverflow.com/questions/27910/finding-a-doi-in-a-document-or-page
-            regex = '(10[.][0-9]{4,}(?:[.][0-9]+)*/(?:(?![%"#? ])\\S)+)'
-            if re.match(regex, search_term):
-                return True
-        except:
-            pass
-
-        return False
-
     document = PaperDocument
     permission_classes = [ReadOnly]
     serializer_class = PaperDocumentSerializer
@@ -62,7 +52,7 @@ class PaperDocumentView(DocumentViewSet):
 
     multi_match_search_fields = {
         "doi": {
-            "condition": _is_doi,
+            "condition": DOI.is_doi,
             "options": {
                 "analyzer": "keyword",
                 "boost": 10,

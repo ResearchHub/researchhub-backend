@@ -1,4 +1,5 @@
 import random
+import re
 import string
 import time
 from datetime import datetime
@@ -99,6 +100,24 @@ class DOI:
 
         # Extract bare DOI from normalized version
         return normalized.split("doi.org/")[-1]
+
+    @staticmethod
+    def is_doi(text):
+        """
+        Check if a string is a DOI using the same logic as the client-side implementation.
+        Returns True if the text matches the DOI pattern, False otherwise.
+        """
+        if not text or not isinstance(text, str):
+            return False
+
+        # Remove common DOI URL prefixes
+        cleaned_text = re.sub(r"^https?://(dx\.)?doi\.org/", "", text)
+
+        # Simpler DOI pattern that matches 10.XXXX/any.characters
+        doi_regex = r"10\.\d{4,}/[-._;()\/:a-zA-Z0-9]+"
+        match = re.search(doi_regex, cleaned_text)
+
+        return bool(match)
 
     # Register DOI for a ResearchHub post.
     def register_doi_for_post(

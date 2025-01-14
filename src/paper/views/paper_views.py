@@ -473,11 +473,14 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         }
         return context
 
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
+    def _serialize_paper(self, paper, request):
+        """
+        Common serialization method for papers.
+        Used by both retrieve and retrieve_by_doi endpoints.
+        """
         context = self._get_paper_context(request)
         serializer = self.dynamic_serializer_class(
-            instance,
+            paper,
             context=context,
             _include_fields=[
                 "abstract",
@@ -509,17 +512,22 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 "unified_document",
                 "uploaded_by",
                 "uploaded_date",
-                "uploaded_date",
                 "url",
                 "version",
                 "version_list",
             ],
         )
         serializer_data = serializer.data
-        vote = self.dynamic_serializer_class(context=context).get_user_vote(instance)
+        vote = self.dynamic_serializer_class(context=context).get_user_vote(paper)
         serializer_data["user_vote"] = vote
+        return serializer_data
 
-        # cache.set(cache_key, serializer_data, timeout=60 * 60 * 24 * 7)
+    def retrieve(self, request, *args, **kwargs):
+        """
+        Retrieve a paper by ID.
+        """
+        paper = super().get_object()
+        serializer_data = self._serialize_paper(paper, request)
         return Response(serializer_data)
 
     def list(self, request, *args, **kwargs):
@@ -944,9 +952,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 normalized_doi = DOI.normalize_doi(result.get("external_id"))
                 return {
                     "entity_type": "work",
-                    "doi": (
-                        f"https://doi.org/{normalized_doi}" if normalized_doi else None
-                    ),
+                    "doi": (f"{normalized_doi}" if normalized_doi else None),
                     "normalized_doi": normalized_doi,  # Used for comparison
                     "display_name": result.get("display_name", ""),
                     "authors": (
@@ -964,9 +970,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 return {
                     "entity_type": "work",
                     "id": source.get("id"),  # ResearchHub paper ID
-                    "doi": (
-                        f"https://doi.org/{normalized_doi}" if normalized_doi else None
-                    ),
+                    "doi": (f"{normalized_doi}" if normalized_doi else None),
                     "normalized_doi": normalized_doi,  # Used for comparison
                     "display_name": source.get("paper_title", ""),
                     "authors": [
@@ -1310,55 +1314,11 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             # Check if paper exists in our database
             try:
                 existing_paper = Paper.objects.get(doi=bare_doi)
-                # Use the existing retrieve logic to maintain consistency
-                context = self._get_paper_context(request)
-                serializer = self.dynamic_serializer_class(
-                    existing_paper,
-                    context=context,
-                    _include_fields=[
-                        "abstract",
-                        "abstract_src_markdown",
-                        "authors",
-                        "boost_amount",
-                        "created_date",
-                        "discussion_count",
-                        "doi",
-                        "external_source",
-                        "file",
-                        "first_preview",
-                        "id",
-                        "is_open_access",
-                        "oa_status",
-                        "paper_publish_date",
-                        "paper_title",
-                        "pdf_file_extract",
-                        "pdf_license",
-                        "pdf_url",
-                        "pdf_copyright_allows_display",
-                        "peer_reviews",
-                        "purchases",
-                        "raw_authors",
-                        "score",
-                        "slug",
-                        "title",
-                        "work_type",
-                        "unified_document",
-                        "uploaded_by",
-                        "uploaded_date",
-                        "url",
-                        "version",
-                        "version_list",
-                    ],
-                )
-                serializer_data = serializer.data
-                vote = self.dynamic_serializer_class(context=context).get_user_vote(
-                    existing_paper
-                )
-                serializer_data["user_vote"] = vote
+                serializer_data = self._serialize_paper(existing_paper, request)
                 return Response(serializer_data)
             except Paper.DoesNotExist:
                 # Paper doesn't exist, try to import it from OpenAlex
-                return self.create_by_doi(request, doi=bare_doi)
+                return self._create_by_doi(request, doi=bare_doi)
 
         except Exception as e:
             log_error(e)
@@ -1367,7 +1327,7 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    def create_by_doi(self, request, doi):
+    def _create_by_doi(self, request, doi):
         """
         Create a paper by fetching data from OpenAlex using a DOI.
         Args:
@@ -1388,52 +1348,9 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
 
             process_openalex_works([work])
 
-            # Get the created paper
+            # Get the created paper and serialize it
             paper = Paper.objects.get(doi=doi)
-
-            # Return the same format as retrieve
-            context = self._get_paper_context(request)
-            serializer = self.dynamic_serializer_class(
-                paper,
-                context=context,
-                _include_fields=[
-                    "abstract",
-                    "abstract_src_markdown",
-                    "authors",
-                    "boost_amount",
-                    "created_date",
-                    "discussion_count",
-                    "doi",
-                    "external_source",
-                    "file",
-                    "first_preview",
-                    "id",
-                    "is_open_access",
-                    "oa_status",
-                    "paper_publish_date",
-                    "paper_title",
-                    "pdf_file_extract",
-                    "pdf_license",
-                    "pdf_url",
-                    "pdf_copyright_allows_display",
-                    "peer_reviews",
-                    "purchases",
-                    "raw_authors",
-                    "score",
-                    "slug",
-                    "title",
-                    "work_type",
-                    "unified_document",
-                    "uploaded_by",
-                    "uploaded_date",
-                    "url",
-                    "version",
-                    "version_list",
-                ],
-            )
-            serializer_data = serializer.data
-            vote = self.dynamic_serializer_class(context=context).get_user_vote(paper)
-            serializer_data["user_vote"] = vote
+            serializer_data = self._serialize_paper(paper, request)
             return Response(serializer_data, status=status.HTTP_201_CREATED)
 
         except Exception as e:
@@ -1623,18 +1540,3 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
 
         # Duplicate DOI check
         duplicate_papers = Paper.objects.filter(doi_svf=SearchQuery(doi))
-        if duplicate_papers:
-            serializer = DynamicPaperSerializer(
-                duplicate_papers,
-                _include_fields=["doi", "id", "title", "url"],
-                many=True,
-            )
-            duplicate_data = {"data": serializer.data}
-            return Response(duplicate_data, status=status.HTTP_403_FORBIDDEN)
-
-        data["uploaded_by"] = request.user.id
-        response = super().create(request)
-        if response.status_code == 201:
-            data = response.data
-            celery_process_paper(data["id"])
-        return response
