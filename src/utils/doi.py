@@ -1,4 +1,5 @@
 import random
+import re
 import string
 import time
 from datetime import datetime
@@ -75,11 +76,22 @@ class DOI:
                     "place": place,
                 }
 
+            orcid = None
+            if author.orcid_id:
+                orcid = author.orcid_id
+                if orcid:
+                    # Strip https://orcid.org/ if present
+                    if orcid.startswith("https://orcid.org/"):
+                        orcid = orcid.replace("https://orcid.org/", "")
+
+                    if not re.match(r"^\d{4}-\d{4}-\d{4}-\d{4}$", orcid):
+                        orcid = None
+
             contributors.append(
                 {
                     "first_name": author.first_name,
                     "last_name": author.last_name,
-                    "orcid": author.orcid_id,
+                    "orcid": orcid,
                     "institution": institution,
                     "department": authorship.department if authorship else None,
                 }
