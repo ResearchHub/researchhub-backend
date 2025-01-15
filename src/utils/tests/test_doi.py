@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
-import researchhub.settings as settings
+from django.conf import settings
 
 from ..doi import DOI
 

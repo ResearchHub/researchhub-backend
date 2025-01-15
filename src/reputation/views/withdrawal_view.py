@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 
 import pytz
 import requests
+from django.conf import settings
 from django.contrib.admin.models import LogEntry
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
@@ -29,12 +30,6 @@ from reputation.lib import (
 from reputation.models import Withdrawal
 from reputation.permissions import AllowWithdrawalIfNotSuspecious
 from reputation.serializers import WithdrawalSerializer
-from researchhub.settings import (
-    BASESCAN_API_KEY,
-    ETHERSCAN_API_KEY,
-    WEB3_PROVIDER_URL,
-    WEB3_RSC_ADDRESS,
-)
 from user.related_models.user_model import User
 from user.related_models.user_verification_model import UserVerification
 from user.serializers import UserSerializer
@@ -44,14 +39,16 @@ from utils.throttles import THROTTLE_CLASSES
 
 NETWORKS = {
     "ETHEREUM": {
-        "provider_url": WEB3_PROVIDER_URL,
-        "token_address": WEB3_RSC_ADDRESS,
+        "provider_url": settings.WEB3_PROVIDER_URL,
+        "token_address": settings.WEB3_RSC_ADDRESS,
     },
     "BASE": {
         "provider_url": os.environ.get(
             "WEB3_BASE_PROVIDER_URL", "https://sepolia.base.org"
         ),
-        "token_address": os.environ.get("WEB3_BASE_RSC_ADDRESS", WEB3_RSC_ADDRESS),
+        "token_address": os.environ.get(
+            "WEB3_BASE_RSC_ADDRESS", settings.WEB3_RSC_ADDRESS
+        ),
     },
 }
 
@@ -213,7 +210,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 f"https://api.basescan.org/api"
                 f"?module=proxy"
                 f"&action=eth_gasPrice"
-                f"&apikey={BASESCAN_API_KEY}",
+                f"&apikey={settings.BASESCAN_API_KEY}",
                 timeout=10,
             )
             json = res.json()
@@ -222,7 +219,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         else:
             # For Ethereum network
             res = requests.get(
-                f"https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey={ETHERSCAN_API_KEY}",
+                f"https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey={settings.ETHERSCAN_API_KEY}",
                 timeout=10,
             )
             json = res.json()

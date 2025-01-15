@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 
 import cloudscraper
 from bs4 import BeautifulSoup
+from django.conf import settings
 from django.db import transaction
 from django.utils.crypto import get_random_string
 from django_filters.rest_framework import DjangoFilterBackend
@@ -41,7 +42,6 @@ from paper.exceptions import DOINotFoundError
 from paper.models import Paper
 from paper.serializers import PaperCitationSerializer
 from paper.utils import DOI_REGEX, clean_dois, pdf_copyright_allows_display
-from researchhub import settings
 from researchhub.pagination import FasterDjangoPaginator
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.related_models.user_model import User

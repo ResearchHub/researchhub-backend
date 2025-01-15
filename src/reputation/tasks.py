@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from typing import List, Optional
 
 import pytz
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import DurationField, F, Q
@@ -22,7 +23,6 @@ from reputation.models import Bounty, Contribution, Deposit
 from reputation.related_models.bounty import AnnotatedBounty
 from reputation.related_models.score import Score
 from researchhub.celery import QUEUE_CONTRIBUTIONS, app
-from researchhub.settings import PRODUCTION, WEB3_WALLET_ADDRESS, w3
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_EXPIRED,
@@ -32,6 +32,7 @@ from user.models import User
 from user.related_models.author_model import Author
 from utils.message import send_email_message
 from utils.sentry import log_error, log_info
+from utils.web3_utils import web3_provider
 
 DEFAULT_REWARD = 1000000
 
@@ -93,7 +94,7 @@ def create_author_contribution(contribution_type, user_id, unified_doc_id, objec
     Contribution.objects.bulk_create(contributions)
 
 
-def get_transaction_receipt(transaction_hash):
+def get_transaction_receipt(transaction_hash, w3):
     # Check if connected successfully
     if not w3.is_connected():
         raise Exception("Failed to connect to Ethereum node.")
@@ -102,11 +103,12 @@ def get_transaction_receipt(transaction_hash):
     return w3.eth.get_transaction_receipt(transaction_hash)
 
 
-def check_transaction_success(transaction_hash):
-    return get_transaction_receipt(transaction_hash)["status"] == 1
+def check_transaction_success(transaction_hash, w3):
+    return get_transaction_receipt(transaction_hash, w3)["status"] == 1
 
 
-def get_transaction(transaction_hash):
+def get_transaction(transaction_hash, w3):
+    """Get transaction details using provided Web3 instance."""
     # Check if connected successfully
     if not w3.is_connected():
         raise Exception("Failed to connect to Ethereum node.")
@@ -114,7 +116,8 @@ def get_transaction(transaction_hash):
     return w3.eth.get_transaction(transaction_hash)
 
 
-def get_block(block_number):
+def get_block(block_number, w3):
+    """Get block details using provided Web3 instance."""
     # Check if connected successfully
     if not w3.is_connected():
         raise Exception("Failed to connect to Ethereum node.")
@@ -122,25 +125,27 @@ def get_block(block_number):
     return w3.eth.get_block(block_number)
 
 
-def get_contract():
+def get_contract(w3, token_address):
+    """Get RSC contract instance using provided Web3 instance and token address."""
     # Check if connected successfully
     if not w3.is_connected():
         raise Exception("Failed to connect to Ethereum node.")
 
     return w3.eth.contract(
-        abi=contract_abi, address=Web3.to_checksum_address(RSC_CONTRACT_ADDRESS)
+        abi=contract_abi, address=Web3.to_checksum_address(token_address)
     )
 
 
-def evaluate_transaction(transaction_hash):
-    tx = get_transaction(transaction_hash)
-    block = get_block(tx["blockNumber"])
+def evaluate_transaction(transaction_hash, w3, token_address):
+    """Evaluate transaction details using provided Web3 instance."""
+    tx = get_transaction(transaction_hash, w3)
+    block = get_block(tx["blockNumber"], w3)
 
-    contract = get_contract()
+    contract = get_contract(w3, token_address)
 
     func_name, func_params = contract.decode_function_input(tx["input"])
     is_transfer = func_name.fn_name == "transfer"
-    is_correct_to_address = func_params["_to"] == WEB3_WALLET_ADDRESS
+    is_correct_to_address = func_params["_to"] == settings.WEB3_WALLET_ADDRESS
     block_timestamp = datetime.fromtimestamp(block["timestamp"])
     is_recent_transaction = block_timestamp > datetime.now() - timedelta(
         seconds=PENDING_TRANSACTION_TTL
@@ -179,13 +184,26 @@ def check_deposits():
 
         user = deposit.user
         try:
-            transaction_success = check_transaction_success(deposit.transaction_hash)
+            w3_instance = (
+                web3_provider.base
+                if deposit.network == "BASE"
+                else web3_provider.ethereum
+            )
+            token_address = (
+                settings.WEB3_BASE_RSC_ADDRESS
+                if deposit.network == "BASE"
+                else RSC_CONTRACT_ADDRESS
+            )
+
+            transaction_success = check_transaction_success(
+                deposit.transaction_hash, w3_instance
+            )
             if not transaction_success:
                 deposit.set_paid_pending()
                 continue
 
             valid_deposit, deposit_amount = evaluate_transaction(
-                deposit.transaction_hash
+                deposit.transaction_hash, w3_instance, token_address
             )
             if not valid_deposit:
                 deposit.set_paid_failed()
@@ -213,7 +231,7 @@ def check_pending_withdrawals():
 
 @app.task
 def check_hotwallet_balance():
-    if PRODUCTION:
+    if settings.PRODUCTION:
         check_hotwallet()
 
 

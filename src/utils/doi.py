@@ -5,10 +5,10 @@ from datetime import datetime
 from typing import List, Optional
 
 import requests
+from django.conf import settings
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 
-import researchhub.settings as settings
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
 from researchhub_document.models import ResearchhubPost

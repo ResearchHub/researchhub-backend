@@ -11,6 +11,7 @@ from dj_rest_auth.views import (
     PasswordResetConfirmView,
     PasswordResetView,
 )
+from django.conf import settings
 from django.urls import include, path, re_path
 from rest_framework import routers
 
@@ -35,7 +36,6 @@ import user.views
 from citation.views import CitationEntryViewSet, CitationProjectViewSet
 from paper.views import paper_upload_views
 from purchase.views import stripe_webhook_view
-from researchhub import settings
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from review.views.peer_review_view import PeerReviewViewSet
 from review.views.review_view import ReviewViewSet

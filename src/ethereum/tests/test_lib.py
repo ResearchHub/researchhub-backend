@@ -40,8 +40,8 @@ class EthereumLibTests(TestCase):
         WEB3_KEYSTORE_PASSWORD_SECRET_ID="researchhub-web3-keystore-password",
     )
     @patch("ethereum.lib.create_client")
-    @patch("ethereum.lib.w3_ethereum")
-    def test_get_private_key(self, mock_w3_ethereum, mock_create_client):
+    @patch("ethereum.lib.web3_provider")
+    def test_get_private_key(self, mock_provider, mock_create_client):
         # Arrange
         mock_client = Mock()
         mock_create_client.return_value = mock_client
@@ -52,8 +52,10 @@ class EthereumLibTests(TestCase):
         }
         mock_client.get_secret_value.side_effect = lambda SecretId: secrets[SecretId]
 
-        mock_private_key = "mock_private_key"
-        mock_w3_ethereum.eth.account.decrypt.return_value = mock_private_key
+        # Set up the ethereum mock on the provider
+        mock_eth = Mock()
+        mock_provider.ethereum = mock_eth
+        mock_eth.eth.account.decrypt.return_value = "mock_private_key"
 
         # Act
         actual = get_private_key()
@@ -66,7 +68,7 @@ class EthereumLibTests(TestCase):
                 call(SecretId="researchhub-web3-keystore-password"),
             ]
         )
-        mock_w3_ethereum.eth.account.decrypt.assert_called_with(
+        mock_eth.eth.account.decrypt.assert_called_with(
             "mock_keystore", "mock_password"
         )
-        self.assertEqual(actual, mock_private_key)
+        self.assertEqual(actual, "mock_private_key")

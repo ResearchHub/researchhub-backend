@@ -2,9 +2,10 @@ import uuid
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
+from django.conf import settings
+
 from paper.services import storage_service
 from paper.services.storage_service import StorageService
-from researchhub import settings
 
 
 class StorageServiceTest(TestCase):

@@ -1,6 +1,7 @@
 import os
 from datetime import datetime
 
+from django.conf import settings
 from web3 import Web3
 
 import ethereum.lib
@@ -9,15 +10,9 @@ from ethereum.lib import RSC_CONTRACT_ADDRESS, execute_erc20_transfer, get_priva
 from mailing_list.lib import base_email_context
 from reputation.models import Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
-from researchhub.settings import (
-    WEB3_BASE_RSC_ADDRESS,
-    WEB3_KEYSTORE_SECRET_ID,
-    WEB3_WALLET_ADDRESS,
-    w3_base,
-    w3_ethereum,
-)
 from utils.message import send_email_message
 from utils.sentry import log_error
+from utils.web3_utils import web3_provider
 
 WITHDRAWAL_MINIMUM = int(os.environ.get("WITHDRAWAL_MINIMUM", 500))
 WITHDRAWAL_PER_TWO_WEEKS = 100000
@@ -337,7 +332,7 @@ contract_abi = [
 ]
 
 try:
-    PRIVATE_KEY = get_private_key() if WEB3_KEYSTORE_SECRET_ID else None
+    PRIVATE_KEY = get_private_key() if settings.WEB3_KEYSTORE_SECRET_ID else None
 except Exception as e:
     PRIVATE_KEY = None
     log_error(e)
@@ -349,7 +344,9 @@ class PendingWithdrawal:
         self.balance_record_id = balance_record_id
         self.amount = amount
         self.network = network
-        self.w3 = w3_ethereum if network == "ETHEREUM" else w3_base
+        self.w3 = (
+            web3_provider.ethereum if network == "ETHEREUM" else web3_provider.base
+        )
 
     def complete_token_transfer(self):
         self.withdrawal.set_paid_pending()
@@ -373,7 +370,7 @@ class PendingWithdrawal:
         contract = self.w3.eth.contract(
             abi=contract_abi,
             address=Web3.to_checksum_address(
-                WEB3_BASE_RSC_ADDRESS
+                settings.WEB3_BASE_RSC_ADDRESS
                 if self.network == "BASE"
                 else RSC_CONTRACT_ADDRESS
             ),
@@ -382,7 +379,7 @@ class PendingWithdrawal:
         to = self.withdrawal.to_address
         tx_hash = execute_erc20_transfer(
             self.w3,
-            WEB3_WALLET_ADDRESS,
+            settings.WEB3_WALLET_ADDRESS,
             PRIVATE_KEY,
             contract,
             to,
@@ -398,7 +395,9 @@ def evaluate_transaction_hash(transaction_hash, network="ETHEREUM"):
     paid_status = "PENDING"
     try:
         timeout = 5 * 1  # 5 second timeout
-        w3_instance = w3_ethereum if network == "ETHEREUM" else w3_base
+        w3_instance = (
+            web3_provider.ethereum if network == "ETHEREUM" else web3_provider.base
+        )
         transaction_receipt = w3_instance.eth.wait_for_transaction_receipt(
             transaction_hash, timeout=timeout
         )
@@ -439,7 +438,9 @@ def check_hotwallet():
 
     # Check Ethereum network
     eth_rsc_balance = get_hotwallet_rsc_balance("ETHEREUM")
-    eth_balance_wei = w3_ethereum.eth.get_balance(WEB3_WALLET_ADDRESS)
+    eth_balance_wei = web3_provider.ethereum.eth.get_balance(
+        settings.WEB3_WALLET_ADDRESS
+    )
     eth_balance_eth = eth_balance_wei / (10**18)
 
     if eth_rsc_balance <= 50000:
@@ -456,7 +457,7 @@ def check_hotwallet():
 
     # Check Base network
     base_rsc_balance = get_hotwallet_rsc_balance("BASE")
-    base_balance_wei = w3_base.eth.get_balance(WEB3_WALLET_ADDRESS)
+    base_balance_wei = web3_provider.base.eth.get_balance(settings.WEB3_WALLET_ADDRESS)
     base_balance_eth = base_balance_wei / (10**18)
 
     if base_rsc_balance <= 50000:
@@ -485,15 +486,17 @@ def check_hotwallet():
 
 
 def get_hotwallet_rsc_balance(network="ETHEREUM"):
-    w3_instance = w3_ethereum if network == "ETHEREUM" else w3_base
+    w3_instance = web3_provider.base if network == "BASE" else web3_provider.ethereum
     token_address = (
-        RSC_CONTRACT_ADDRESS if network == "ETHEREUM" else WEB3_BASE_RSC_ADDRESS
+        RSC_CONTRACT_ADDRESS
+        if network == "ETHEREUM"
+        else settings.WEB3_BASE_RSC_ADDRESS
     )
 
     contract = w3_instance.eth.contract(
         abi=contract_abi, address=Web3.to_checksum_address(token_address)
     )
-    rsc_balance_wei = contract.functions.balanceOf(WEB3_WALLET_ADDRESS).call()
+    rsc_balance_wei = contract.functions.balanceOf(settings.WEB3_WALLET_ADDRESS).call()
     decimals = contract.functions.decimals().call()
     rsc_balance_eth = rsc_balance_wei / (10**decimals)
     return rsc_balance_eth

@@ -1,32 +1,30 @@
 import time
 from datetime import timedelta
-from typing import Any
 from unittest.mock import Mock, patch
 
+from django.conf import settings
 from rest_framework.test import APITestCase
-from web3.contract import Contract
 from web3.types import BlockData, TxData, TxReceipt
 
 from reputation.tasks import PENDING_TRANSACTION_TTL, check_deposits
 from reputation.tests.helpers import create_deposit
-from researchhub.settings import WEB3_WALLET_ADDRESS
 from user.tests.helpers import create_random_authenticated_user
 
 
 class TaskTests(APITestCase):
-    def mock_get_transaction_receipt_data(self, transaction_hash):
+    def mock_get_transaction_receipt_data(self, transaction_hash, w3):
         tx_receipt = TxReceipt()
         tx_receipt["status"] = 1
         return tx_receipt
 
-    def mock_get_transaction_data(self, transaction_hash):
+    def mock_get_transaction_data(self, transaction_hash, w3):
         tx = TxData()
         tx["blockNumber"] = 0
         tx["input"] = "0x"
         return tx
 
     def mock_get_block_data(self, timestamp=time.time()):
-        def _mock_get_block_data(block_number):
+        def _mock_get_block_data(block_number, w3):
             block = BlockData()
             block["timestamp"] = timestamp
             return block
@@ -40,7 +38,10 @@ class TaskTests(APITestCase):
 
         function_name = FunctionName("transfer")
 
-        function_params = {"_to": WEB3_WALLET_ADDRESS, "_amount": 2000 * 10**18}
+        function_params = {
+            "_to": settings.WEB3_WALLET_ADDRESS,
+            "_amount": 2000 * 10**18,
+        }
         return (function_name, function_params)
 
     def setUp(self):

@@ -9,3 +9,8 @@ class ResearchhubConfig(AppConfig):
         from researchhub.health_check import GitHashBackend
 
         plugin_dir.register(GitHashBackend)
+
+        from utils.web3_utils import web3_provider
+
+        _ = web3_provider.ethereum
+        _ = web3_provider.base

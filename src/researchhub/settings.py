@@ -820,19 +820,6 @@ WEB3_KEYSTORE_PASSWORD_SECRET_ID = os.environ.get(
 )
 WEB3_WALLET_ADDRESS = os.environ.get("WEB3_WALLET_ADDRESS", keys.WEB3_WALLET_ADDRESS)
 
-WEB3_PROVIDER_URL = os.environ.get("WEB3_PROVIDER_URL", keys.WEB3_PROVIDER_URL)
-http_provider = Web3.HTTPProvider(WEB3_PROVIDER_URL)
-# If test then use mock provider
-if TESTING:
-    http_provider = Web3.EthereumTesterProvider()
-
-try:
-    w3_ethereum = Web3(Web3.HTTPProvider(WEB3_PROVIDER_URL))
-    w3_base = Web3(Web3.HTTPProvider(WEB3_BASE_PROVIDER_URL))
-    w3 = w3_ethereum
-except Exception as e:
-    log_error(e)
-
 
 # API Key Settings
 API_KEY_CUSTOM_HEADER = "HTTP_RH_API_KEY"
