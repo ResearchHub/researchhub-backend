@@ -105,7 +105,7 @@ class TestDOI(unittest.TestCase):
             author = MagicMock()
             author.first_name = f"Author{i}"
             author.last_name = f"Last{i}"
-            author.orcid_id = f"0000-000{i}"
+            author.orcid_id = f"0000-0000-0000-000{i}"
             author.institutions.first.return_value = None
             authors.append(author)
 
@@ -121,7 +121,18 @@ class TestDOI(unittest.TestCase):
             for i, contributor in enumerate(context["contributors"]):
                 self.assertEqual(contributor["first_name"], f"Author{i}")
                 self.assertEqual(contributor["last_name"], f"Last{i}")
-                self.assertEqual(contributor["orcid"], f"0000-000{i}")
+                self.assertEqual(contributor["orcid"], f"0000-0000-0000-000{i}")
+
+    def test_clean_orcid_id(self):
+        self.assertEqual(
+            self.doi.clean_orcid_id("https://orcid.org/0000-0000-0000-0000"),
+            "0000-0000-0000-0000",
+        )
+        self.assertEqual(
+            self.doi.clean_orcid_id("0000-0000-0000-0000"), "0000-0000-0000-0000"
+        )
+        self.assertEqual(self.doi.clean_orcid_id("0000-0000-0000-00001"), None)
+        self.assertEqual(self.doi.clean_orcid_id("0000-0000-0000-00001"), None)
 
     def test_register_doi_with_institution_no_city(self):
         """Test DOI registration with institution but no city info."""

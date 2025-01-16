@@ -1,4 +1,5 @@
 import random
+import re
 import string
 import time
 from datetime import datetime
@@ -49,6 +50,14 @@ class DOI:
         url = f"{settings.BASE_FRONTEND_URL}/paper/{rh_paper.id}/{rh_paper.slug}"
         return self.register_doi(authors, rh_paper.authorships.all(), title, url)
 
+    def clean_orcid_id(self, orcid_id: str) -> Optional[str]:
+        if orcid_id.startswith("https://orcid.org/"):
+            orcid_id = orcid_id.replace("https://orcid.org/", "")
+
+        if not re.match(r"^\d{4}-\d{4}-\d{4}-\d{4}$", orcid_id):
+            return None
+        return orcid_id
+
     # Main method to register a DOI with Crossref.
     def register_doi(
         self,
@@ -79,7 +88,11 @@ class DOI:
                 {
                     "first_name": author.first_name,
                     "last_name": author.last_name,
-                    "orcid": author.orcid_id,
+                    "orcid": (
+                        self.clean_orcid_id(author.orcid_id)
+                        if author.orcid_id
+                        else None
+                    ),
                     "institution": institution,
                     "department": authorship.department if authorship else None,
                 }
