@@ -526,6 +526,10 @@ STATICFILES_DIRS = ["stylesheets"]
 
 AWS_REGION_NAME = os.environ.get("AWS_REGION_NAME", keys.AWS_REGION_NAME)
 
+if not (CLOUD or TESTING) and os.environ.get("AWS_PROFILE") is None:
+    # Set AWS profile for local development
+    os.environ["AWS_PROFILE"] = keys.AWS_PROFILE
+
 # AWS Lambda
 
 GHOSTSCRIPT_LAMBDA_ARN = os.environ.get(
