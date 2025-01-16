@@ -42,7 +42,7 @@ from researchhub.settings import (
 )
 from researchhub_comment.models import RhCommentModel
 from user.filters import UserFilter
-from user.models import Author, Follow, Major, University, User
+from user.models import Author, Major, University, User
 from user.permissions import Censor, DeleteUserPermission, RequestorIsOwnUser
 from user.serializers import (
     AuthorSerializer,
@@ -387,44 +387,6 @@ class UserViewSet(viewsets.ModelViewSet):
 
         return self.get_paginated_response(serializer.data)
 
-    @action(
-        detail=True, methods=[RequestMethods.POST], permission_classes=[IsAuthenticated]
-    )
-    def follow(self, request, pk=None):
-        data = request.data
-        user = self.get_object()
-        followee_id = data.get("followee_id")
-        followee = Author.objects.get(id=followee_id).user
-
-        try:
-            follow = Follow.objects.create(user=user, followee=followee)
-        except IntegrityError:
-            follow = Follow.objects.get(user=user, followee=followee)
-            follow.delete()
-
-        is_following = user.following.filter(followee=followee).exists()
-        return Response(is_following, status=200)
-
-    @action(
-        detail=True, methods=[RequestMethods.GET], permission_classes=[IsAuthenticated]
-    )
-    def following(self, request, pk=None):
-        user = self.get_object()
-        following_ids = user.following.values_list("followee")
-        following = self.queryset.filter(id__in=following_ids)
-        serializer = UserSerializer(following, many=True)
-        data = {user["id"]: user for user in serializer.data}
-        return Response(data, status=200)
-
-    @action(
-        detail=True, methods=[RequestMethods.GET], permission_classes=[IsAuthenticated]
-    )
-    def check_follow(self, request, pk=None):
-        user = request.user
-        followee = Author.objects.get(id=pk).user
-        is_following = user.following.filter(followee=followee).exists()
-        return Response(is_following, status=200)
-
     @action(detail=False, methods=[RequestMethods.GET], permission_classes=[AllowAny])
     def following_latest_activity(self, request):
         query_params = request.query_params
@@ -497,7 +459,6 @@ class UserViewSet(viewsets.ModelViewSet):
             return cache_hit
 
     def _get_latest_activity_queryset(self, hub_ids, ordering):
-        # following_ids = user.following.values_list('followee')
         contribution_type = [
             Contribution.SUBMITTER,
             Contribution.COMMENTER,
