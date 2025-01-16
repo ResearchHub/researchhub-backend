@@ -123,6 +123,17 @@ class TestDOI(unittest.TestCase):
                 self.assertEqual(contributor["last_name"], f"Last{i}")
                 self.assertEqual(contributor["orcid"], f"0000-0000-0000-000{i}")
 
+    def test_clean_orcid_id(self):
+        self.assertEqual(
+            self.doi.clean_orcid_id("https://orcid.org/0000-0000-0000-0000"),
+            "0000-0000-0000-0000",
+        )
+        self.assertEqual(
+            self.doi.clean_orcid_id("0000-0000-0000-0000"), "0000-0000-0000-0000"
+        )
+        self.assertEqual(self.doi.clean_orcid_id("0000-0000-0000-00001"), None)
+        self.assertEqual(self.doi.clean_orcid_id("0000-0000-0000-00001"), None)
+
     def test_register_doi_with_institution_no_city(self):
         """Test DOI registration with institution but no city info."""
         # Create nested mock for institution without city
