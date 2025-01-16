@@ -20,17 +20,6 @@
 					<person_name sequence="{% if forloop.first %}first{% else %}additional{% endif %}" contributor_role="author">
 						<given_name>{{ contributor.first_name }}</given_name>
 						<surname>{{ contributor.last_name }}</surname>
-						{% if contributor.institution %}
-						<institution>
-							<institution_name>{{ contributor.institution.name }}</institution_name>
-							{% if contributor.institution.place %}
-							<institution_place>{{ contributor.institution.place }}</institution_place>
-							{% endif %}
-							{% if contributor.department %}
-							<department>{{ contributor.department }}</department>
-							{% endif %}
-						</institution>
-						{% endif %}
 						{% if contributor.orcid %}
 						<ORCID authenticated="true">https://orcid.org/{{ contributor.orcid }}</ORCID>
 						{% endif %}
