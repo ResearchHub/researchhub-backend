@@ -1,7 +1,11 @@
+from django.contrib.contenttypes.models import ContentType
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
+from user.related_models.follow_model import Follow
+from user.related_models.user_model import User
 from user.tests.helpers import create_user
 
 
@@ -39,3 +43,50 @@ class AuthorModelsTests(TestCase):
 
     def test_achievements(self):
         self.assertIn("CITED_AUTHOR", self.user.author_profile.achievements)
+
+
+class FollowModelTests(TestCase):
+    def setUp(self):
+        self.user = create_user(
+            email="random@researchhub.com",
+            first_name="random",
+            last_name="user",
+        )
+
+    def test_follow_user(self):
+        # Arrange & Act
+        follow = Follow.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(User),
+            object_id=self.user.id,
+        )
+
+        # Assert
+        self.assertEqual(follow.user, self.user)
+        self.assertEqual(follow.content_type, ContentType.objects.get_for_model(User))
+        self.assertEqual(follow.object_id, self.user.id)
+
+    def test_follow_paper(self):
+        # Arrange
+        paper = Paper.objects.create(title="title1", citations=10, is_open_access=True)
+
+        # Act
+        follow = Follow.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=paper.id,
+        )
+
+        # Assert
+        self.assertEqual(follow.user, self.user)
+        self.assertEqual(follow.content_type, ContentType.objects.get_for_model(Paper))
+        self.assertEqual(follow.object_id, paper.id)
+
+    def test_follow_unsupported_model(self):
+        # Arrange
+        with self.assertRaises(ValidationError):
+            Follow.objects.create(
+                user=self.user,
+                content_type=ContentType.objects.get_for_model(Authorship),
+                object_id=1,
+            )
