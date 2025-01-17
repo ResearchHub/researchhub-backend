@@ -4,7 +4,6 @@ from hashlib import sha1
 
 from allauth.account.models import EmailAddress
 from django.contrib.contenttypes.models import ContentType
-from django.core.cache import cache
 from django.db import transaction
 from django.db.models import F, Q, Sum
 from django.db.models.functions import Coalesce
@@ -22,17 +21,14 @@ from rest_framework.permissions import (
     IsAuthenticatedOrReadOnly,
 )
 from rest_framework.response import Response
-from rest_framework.utils.urls import replace_query_param
 
-from discussion.models import Comment, Reply, Thread
 from paper.models import Paper
 from paper.serializers import DynamicPaperSerializer
-from paper.utils import PAPER_SCORE_Q_ANNOTATION, get_cache_key
-from reputation.models import Bounty, Contribution, Distribution
+from paper.utils import PAPER_SCORE_Q_ANNOTATION
+from reputation.models import Bounty, Distribution
 from reputation.serializers import (
     DynamicBountySerializer,
     DynamicBountySolutionSerializer,
-    DynamicContributionSerializer,
 )
 from reputation.views import BountyViewSet
 from researchhub.settings import (
@@ -40,7 +36,6 @@ from researchhub.settings import (
     SIFT_MODERATION_WHITELIST,
     SIFT_WEBHOOK_SECRET_KEY,
 )
-from researchhub_comment.models import RhCommentModel
 from user.filters import UserFilter
 from user.models import Author, Major, University, User
 from user.permissions import Censor, DeleteUserPermission, RequestorIsOwnUser
@@ -54,7 +49,7 @@ from user.serializers import (
     UserSerializer,
 )
 from user.tasks import handle_spam_user_task, reinstate_user_task
-from user.utils import calculate_show_referral, reset_latest_acitvity_cache
+from user.utils import calculate_show_referral
 from utils.http import POST, RequestMethods
 from utils.sentry import log_info
 
@@ -386,188 +381,6 @@ class UserViewSet(viewsets.ModelViewSet):
         )
 
         return self.get_paginated_response(serializer.data)
-
-    @action(detail=False, methods=[RequestMethods.GET], permission_classes=[AllowAny])
-    def following_latest_activity(self, request):
-        query_params = request.query_params
-        ordering = query_params.get("ordering", "-created_date")
-        hub_ids = query_params.get("hub_ids", "")
-        page_number = query_params.get("page", 1)
-
-        cache_hit = self._get_latest_activity_cache_hit(request, hub_ids)
-        if cache_hit and page_number == 1:
-            return Response(cache_hit)
-
-        contributions = self._get_latest_activity_queryset(hub_ids, ordering)
-
-        page = self.paginate_queryset(contributions)
-        context = self._get_latest_activity_context()
-        serializer = DynamicContributionSerializer(
-            page,
-            _include_fields=[
-                "contribution_type",
-                "created_date",
-                "id",
-                "source",
-                "unified_document",
-                "user",
-            ],
-            context=context,
-            many=True,
-        )
-        response = self.get_paginated_response(serializer.data)
-
-        if not cache_hit and page_number == 1:
-            reset_latest_acitvity_cache(hub_ids, ordering)
-        return response
-
-    def _get_latest_activity_cache_hit(self, request, hub_ids):
-        hub_ids_list = hub_ids.split(",")
-        if len(hub_ids_list) > 1:
-            results = {}
-            count = 0
-            previous = ""
-            next_url = request.build_absolute_uri()
-            for hub_id in hub_ids_list:
-                cache_key = get_cache_key("contributions", hub_id)
-                cache_hit = cache.get(cache_key)
-                if not cache_hit:
-                    return None
-
-                for hit in cache_hit["results"]:
-                    hit_id = hit["id"]
-                    if hit_id not in results:
-                        results[hit_id] = hit
-                count += cache_hit.get("count", 1)
-
-            results = list(results.values())
-            results = sorted(
-                results, key=lambda contrib: contrib["created_date"], reverse=True
-            )[:10]
-            next_url = replace_query_param(next_url, "page", 2)
-
-            data = {
-                "count": count,
-                "next": next_url,
-                "previous": previous,
-                "results": results,
-            }
-            return data
-        else:
-            cache_key = get_cache_key("contributions", hub_ids)
-            cache_hit = cache.get(cache_key)
-            return cache_hit
-
-    def _get_latest_activity_queryset(self, hub_ids, ordering):
-        contribution_type = [
-            Contribution.SUBMITTER,
-            Contribution.COMMENTER,
-            Contribution.SUPPORTER,
-        ]
-
-        rh_comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
-        comment_content_type = ContentType.objects.get_for_model(Comment)
-        reply_content_type = ContentType.objects.get_for_model(Reply)
-        removed_threads = Thread.objects.filter(is_removed=True)
-        removed_comments = Comment.objects.filter(is_removed=True)
-        removed_replies = Reply.objects.filter(is_removed=True)
-
-        contributions = (
-            Contribution.objects.select_related(
-                "content_type",
-                "user",
-                "user__author_profile",
-                "unified_document",
-            )
-            .prefetch_related(
-                "unified_document__hubs",
-            )
-            .filter(
-                unified_document__is_removed=False,
-                contribution_type__in=contribution_type,
-            )
-            .exclude(
-                (
-                    (
-                        Q(content_type=rh_comment_content_type)
-                        & Q(object_id__in=removed_threads)
-                    )
-                    | (
-                        Q(content_type=comment_content_type)
-                        & Q(object_id__in=removed_comments)
-                    )
-                    | (
-                        Q(content_type=reply_content_type)
-                        & Q(object_id__in=removed_replies)
-                    )
-                )
-            )
-        )
-
-        if hub_ids:
-            hub_ids = hub_ids.split(",")
-            hub_ids = [int(i) for i in hub_ids]
-            contributions = contributions.filter(
-                unified_document__hubs__in=hub_ids
-            ).order_by(ordering)
-        else:
-            contributions = contributions.order_by(ordering)
-        contributions = contributions.distinct()
-        return contributions
-
-    def _get_latest_activity_context(self):
-        context = {
-            "doc_duds_get_documents": {
-                "_include_fields": [
-                    "created_date",
-                    "id",
-                    "slug",
-                    "title",
-                ]
-            },
-            "doc_duds_get_hubs": {
-                "_include_fields": [
-                    "name",
-                    "is_locked",
-                    "slug",
-                    "is_removed",
-                    "hub_image",
-                ]
-            },
-            "rep_dcs_get_source": {
-                "_include_fields": [
-                    "abstract",
-                    "amount",
-                    "id",
-                    "paper_title",
-                    "slug",
-                    "text",
-                    "title",
-                ]
-            },
-            "rep_dcs_get_unified_document": {
-                "_include_fields": [
-                    "created_date",
-                    "documents",
-                    "document_type",
-                    "hubs",
-                ]
-            },
-            "rep_dcs_get_user": {
-                "_include_fields": [
-                    "author_profile",
-                ]
-            },
-            "usr_dus_get_author_profile": {
-                "_include_fields": [
-                    "id",
-                    "first_name",
-                    "last_name",
-                    "profile_image",
-                ]
-            },
-        }
-        return context
 
     @action(
         detail=True, methods=[RequestMethods.GET], permission_classes=[IsAuthenticated]
