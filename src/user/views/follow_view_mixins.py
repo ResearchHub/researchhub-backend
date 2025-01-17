@@ -28,12 +28,11 @@ class FollowViewActionMixin:
             with transaction.atomic():
                 follow = create_follow(user, item)
                 serializer = FollowSerializer(follow, context={"request": request})
-                return Response(serializer.data, status=201)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
         except IntegrityError:
-            return Response(
-                {"msg": "Already following"},
-                status=status.HTTP_409_CONFLICT,
-            )
+            follow = retrieve_follow(user, item)
+            serializer = FollowSerializer(follow, context={"request": request})
+            return Response(serializer.data, status=status.HTTP_200_OK)
         except Exception as e:
             return Response(
                 f"Failed to follow: {e}", status=status.HTTP_400_BAD_REQUEST
@@ -53,11 +52,13 @@ class FollowViewActionMixin:
                 follow, context={"request": request}
             ).data
             follow.delete()
-            return Response(serialized_data, status=200)
+            return Response(serialized_data, status=status.HTTP_200_OK)
         except Follow.DoesNotExist:
-            return Response({"msg": "Not following"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"msg": "Not following"}, status=status.HTTP_200_OK)
         except Exception as e:
-            return Response(f"Failed to unfollow: {e}", status=400)
+            return Response(
+                f"Failed to unfollow: {e}", status=status.HTTP_400_BAD_REQUEST
+            )
 
     @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
     def is_following(self, request, *args, pk=None, **kwargs):
@@ -66,9 +67,12 @@ class FollowViewActionMixin:
         try:
             follow = retrieve_follow(user, item)
             serializer = FollowSerializer(follow, context={"request": request})
-            return Response({"following": True, "follow": serializer.data}, status=200)
+            return Response(
+                {"following": True, "follow": serializer.data},
+                status=status.HTTP_200_OK,
+            )
         except Follow.DoesNotExist:
-            return Response({"following": False}, status=200)
+            return Response({"following": False}, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def following(self, request, *args, **kwargs):
@@ -81,7 +85,7 @@ class FollowViewActionMixin:
         ).select_related("content_type")
 
         serializer = FollowSerializer(follows, many=True, context={"request": request})
-        return Response(serializer.data)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 def create_follow(user, item):

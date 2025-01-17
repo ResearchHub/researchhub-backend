@@ -38,15 +38,15 @@ class FollowViewActionMixinTests(APITestCase):
 
     def test_follow_already_following(self):
         # Create follow first
-        Follow.objects.create(
+        follow = Follow.objects.create(
             user=self.user,
             content_type=ContentType.objects.get_for_model(User),
             object_id=self.target_user.id,
         )
 
         response = self.client.post(f"/api/user/{self.target_user.id}/follow/")
-        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
-        self.assertEqual(response.data["msg"], "Already following")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["id"], follow.id)
 
     def test_unfollow_user(self):
         # Create follow first
@@ -69,7 +69,7 @@ class FollowViewActionMixinTests(APITestCase):
 
     def test_unfollow_not_following(self):
         response = self.client.delete(f"/api/user/{self.target_user.id}/unfollow/")
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["msg"], "Not following")
 
     def test_is_following_true(self):
