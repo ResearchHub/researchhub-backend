@@ -9,10 +9,11 @@ from elasticsearch_dsl import Search
 from search.backends.multi_match_filter import MultiMatchSearchFilterBackend
 from search.documents.hub import HubDocument
 from search.serializers.hub import HubDocumentSerializer
+from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.permissions import ReadOnly
 
 
-class HubDocumentView(DocumentViewSet):
+class HubDocumentView(FollowViewActionMixin, DocumentViewSet):
     document = HubDocument
     permission_classes = [ReadOnly]
     serializer_class = HubDocumentSerializer
