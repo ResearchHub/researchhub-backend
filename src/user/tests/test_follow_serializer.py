@@ -57,10 +57,10 @@ class FollowSerializerTests(TestCase):
         serialized_data = FollowSerializer(follow).data
         expected_fields = {
             "id",
-            "content_type",
             "object_id",
             "created_date",
             "updated_date",
+            "type",
         }
         self.assertEqual(set(serialized_data.keys()), expected_fields)
 
@@ -79,4 +79,4 @@ class FollowSerializerTests(TestCase):
         follow = serializer.save()
 
         serialized_data = FollowSerializer(follow).data
-        self.assertEqual(serialized_data["content_type"], "user")
+        self.assertEqual(serialized_data["type"], "USER")

@@ -376,18 +376,28 @@ class FollowSerializer(serializers.ModelSerializer):
     content_type = serializers.SlugRelatedField(
         queryset=ContentType.objects.filter(model__in=Follow.ALLOWED_FOLLOW_MODELS),
         slug_field="model",
+        write_only=True,
     )
+    type = serializers.SerializerMethodField()
 
     class Meta:
         model = Follow
         fields = (
             "id",
             "content_type",
+            "type",
             "object_id",
             "created_date",
             "updated_date",
         )
-        read_only_fields = ("id", "created_date", "updated_date")
+        read_only_fields = ("id", "created_date", "updated_date", "type")
+
+    def get_type(self, obj):
+        """
+        Return simplified content type string
+        """
+        model = obj.content_type.model
+        return model.upper()
 
     def validate(self, data):
         """
