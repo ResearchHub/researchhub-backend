@@ -3,6 +3,8 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 from rest_framework.viewsets import ModelViewSet
 
+from hub.models import Hub
+from paper.models import Paper
 from user.models import User
 from user.related_models.follow_model import Follow
 from user.tests.helpers import create_user
@@ -23,6 +25,9 @@ class FollowViewActionMixinTests(APITestCase):
             email="target@test.com", first_name="Target", last_name="User"
         )
         self.client.force_authenticate(user=self.user)
+        # Add hub and paper setup
+        self.hub = Hub.objects.create(name="Test Hub", description="Test Description")
+        self.paper = Paper.objects.create(title="Test Paper", abstract="Test Abstract")
 
     def test_follow_user(self):
         response = self.client.post(f"/api/user/{self.target_user.id}/follow/")
@@ -109,3 +114,91 @@ class FollowViewActionMixinTests(APITestCase):
         response = self.client.get("/api/user/following/")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data), 2)
+
+    def test_follow_hub(self):
+        response = self.client.post(f"/api/hub/{self.hub.id}/follow/")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verify follow was created
+        follow = Follow.objects.get(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Hub),
+            object_id=self.hub.id,
+        )
+        self.assertIsNotNone(follow)
+
+    def test_unfollow_hub(self):
+        # Create follow first
+        Follow.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Hub),
+            object_id=self.hub.id,
+        )
+
+        response = self.client.delete(f"/api/hub/{self.hub.id}/unfollow/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify follow was deleted
+        with self.assertRaises(Follow.DoesNotExist):
+            Follow.objects.get(
+                user=self.user,
+                content_type=ContentType.objects.get_for_model(Hub),
+                object_id=self.hub.id,
+            )
+
+    def test_is_following_hub(self):
+        # Create follow first
+        Follow.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Hub),
+            object_id=self.hub.id,
+        )
+
+        response = self.client.get(f"/api/hub/{self.hub.id}/is_following/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["following"])
+        self.assertIn("follow", response.data)
+
+    def test_follow_paper(self):
+        response = self.client.post(f"/api/paper/{self.paper.id}/follow/")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verify follow was created
+        follow = Follow.objects.get(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=self.paper.id,
+        )
+        self.assertIsNotNone(follow)
+
+    def test_unfollow_paper(self):
+        # Create follow first
+        Follow.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=self.paper.id,
+        )
+
+        response = self.client.delete(f"/api/paper/{self.paper.id}/unfollow/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify follow was deleted
+        with self.assertRaises(Follow.DoesNotExist):
+            Follow.objects.get(
+                user=self.user,
+                content_type=ContentType.objects.get_for_model(Paper),
+                object_id=self.paper.id,
+            )
+
+    def test_is_following_paper(self):
+        # Create follow first
+        Follow.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=self.paper.id,
+        )
+
+        response = self.client.get(f"/api/paper/{self.paper.id}/is_following/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["following"])
+        self.assertIn("follow", response.data)
