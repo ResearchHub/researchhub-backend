@@ -43,7 +43,6 @@ from researchhub_document.views.custom.unified_document_pagination import (
     UNIFIED_DOC_PAGE_SIZE,
 )
 from user.permissions import IsModerator
-from user.utils import reset_latest_acitvity_cache
 from utils.permissions import ReadOnly
 
 
@@ -162,8 +161,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         hub_ids = list(self.get_object().hubs.values_list("pk", flat=True))
         hub_ids.append(0)
-
-        reset_latest_acitvity_cache(",".join([str(hub_id) for hub_id in hub_ids]))
 
         doc = self.get_object()
         doc_type = get_doc_type_key(doc)
