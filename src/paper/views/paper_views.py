@@ -15,6 +15,7 @@ from django.db.models.functions import Cast, Coalesce
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from elasticsearch.exceptions import ConnectionError
+from elasticsearch_dsl import Search
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -23,6 +24,7 @@ from rest_framework.permissions import (
     IsAuthenticated,
     IsAuthenticatedOrReadOnly,
 )
+from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 
 from analytics.amplitude import track_event
@@ -60,6 +62,7 @@ from reputation.related_models.paper_reward import (
 )
 from researchhub.permissions import IsObjectOwnerOrModerator
 from researchhub_document.permissions import HasDocumentCensorPermission
+from search.documents.paper import PaperDocument
 from user.related_models.author_model import Author
 from utils.doi import DOI
 from utils.http import GET, POST, check_url_contains_pdf
@@ -470,11 +473,14 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
         }
         return context
 
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
+    def _serialize_paper(self, paper, request):
+        """
+        Common serialization method for papers.
+        Used by both retrieve and retrieve_by_doi endpoints.
+        """
         context = self._get_paper_context(request)
         serializer = self.dynamic_serializer_class(
-            instance,
+            paper,
             context=context,
             _include_fields=[
                 "abstract",
@@ -506,17 +512,22 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 "unified_document",
                 "uploaded_by",
                 "uploaded_date",
-                "uploaded_date",
                 "url",
                 "version",
                 "version_list",
             ],
         )
         serializer_data = serializer.data
-        vote = self.dynamic_serializer_class(context=context).get_user_vote(instance)
+        vote = self.dynamic_serializer_class(context=context).get_user_vote(paper)
         serializer_data["user_vote"] = vote
+        return serializer_data
 
-        # cache.set(cache_key, serializer_data, timeout=60 * 60 * 24 * 7)
+    def retrieve(self, request, *args, **kwargs):
+        """
+        Retrieve a paper by ID.
+        """
+        paper = super().get_object()
+        serializer_data = self._serialize_paper(paper, request)
         return Response(serializer_data)
 
     def list(self, request, *args, **kwargs):
@@ -898,16 +909,144 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def doi_search_via_openalex(self, request):
-        doi_string = request.query_params.get("doi", None)
-        if doi_string is None:
-            return Response(status=400)
+        doi = request.query_params.get("doi", None)
+        if not doi:
+            return Response(
+                {"error": "DOI is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
         try:
-            open_alex = OpenAlex()
-            open_alex_json = open_alex.get_data_from_doi(doi_string)
-        except Exception:
-            return Response(status=404)
+            openalex = OpenAlex()
+            work = openalex.get_data_from_doi(doi)
+            return Response(work)
+        except DOINotFoundError:
+            return Response(
+                {"error": "DOI not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
-        return Response(open_alex_json, status=200)
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[AllowAny],
+        renderer_classes=[JSONRenderer],
+    )
+    def suggest(self, request):
+        """
+        Combined autocomplete search using both OpenAlex and local Elasticsearch.
+        Query params:
+        - q: search query (required)
+        """
+        query = request.query_params.get("q", None)
+        if not query:
+            return Response(
+                {"error": "Search query is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+
+            def transform_openalex_result(result):
+                normalized_doi = DOI.normalize_doi(result.get("external_id"))
+                return {
+                    "entity_type": "work",
+                    "doi": (f"{normalized_doi}" if normalized_doi else None),
+                    "normalized_doi": normalized_doi,  # Used for comparison
+                    "display_name": result.get("display_name", ""),
+                    "authors": (
+                        result.get("hint", "").split(", ") if result.get("hint") else []
+                    ),
+                    "_score": result.get("cited_by_count", 0),
+                    "citations": result.get("cited_by_count", 0),
+                    "source": "openalex",
+                    "openalex_id": result.get("id"),  # OpenAlex ID from result
+                }
+
+            def transform_es_result(result):
+                source = result.get("_source", {})
+                normalized_doi = DOI.normalize_doi(source.get("doi"))
+                return {
+                    "entity_type": "work",
+                    "id": source.get("id"),  # ResearchHub paper ID
+                    "doi": (f"{normalized_doi}" if normalized_doi else None),
+                    "normalized_doi": normalized_doi,  # Used for comparison
+                    "display_name": source.get("paper_title", ""),
+                    "authors": [
+                        author.get("full_name", "")
+                        for author in source.get("raw_authors", [])
+                        if author.get("full_name")
+                    ],
+                    "_score": result.get("_score", 0),
+                    "citations": source.get("citations", 0),
+                    "source": "researchhub",
+                    "openalex_id": source.get(
+                        "openalex_id"
+                    ),  # OpenAlex ID if exists in ES
+                }
+
+            # Get OpenAlex results
+            openalex = OpenAlex()
+            openalex_response = openalex.autocomplete_works(query)
+            openalex_results = [
+                transform_openalex_result(result)
+                for result in openalex_response.get("results", [])
+                if result.get(
+                    "external_id"
+                )  # Only include results with external_id (DOI)
+            ]
+
+            # Get local Elasticsearch results
+            search = Search(index=PaperDocument._index._name)
+            suggest = search.suggest(
+                "suggestions", query, completion={"field": "suggestion_phrases"}
+            )
+            es_response = suggest.execute().suggest.to_dict()
+            es_results = []
+            for suggestion in es_response.get("suggestions", []):
+                es_results.extend(
+                    [
+                        transform_es_result(option)
+                        for option in suggestion.get("options", [])[:3]
+                        if option.get("_source", {}).get(
+                            "doi"
+                        )  # Only include results with DOI
+                    ]
+                )
+
+            # Combine results and deduplicate by DOI
+            seen_dois = set()
+            unique_results = []
+
+            # First add ResearchHub results (all should have DOIs at this point)
+            for result in sorted(
+                es_results, key=lambda x: x.get("_score", 0), reverse=True
+            ):
+                doi = result.get("normalized_doi")
+                seen_dois.add(doi)
+                unique_results.append(result)
+
+            # Then add OpenAlex results if DOI not already seen
+            for result in sorted(
+                openalex_results, key=lambda x: x.get("_score", 0), reverse=True
+            ):
+                doi = result.get("normalized_doi")
+                if doi not in seen_dois:
+                    seen_dois.add(doi)
+                    unique_results.append(result)
+
+            # Remove normalized_doi from results before sending response
+            for result in unique_results:
+                del result["normalized_doi"]
+
+            return Response(unique_results, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def fetch_publications_by_doi(self, request):
@@ -1085,6 +1224,90 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
             filename, ContentFile(json.dumps(data).encode("utf8"))
         )
         return Response(status=status.HTTP_200_OK)
+
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[AllowAny],
+    )
+    def retrieve_by_doi(self, request):
+        """
+        Get a paper by DOI or create it if it doesn't exist by importing from OpenAlex.
+        Query params:
+        - doi: string (required) - The DOI to look up
+        """
+        doi = request.query_params.get("doi")
+        if not doi:
+            return Response(
+                {"error": "DOI is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            # Normalize DOI for comparison
+            normalized_doi = DOI.normalize_doi(doi)
+            if not normalized_doi:
+                return Response(
+                    {"error": "Invalid DOI format"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Get bare DOI for database lookup (since we store bare DOIs)
+            bare_doi = DOI.get_bare_doi(doi)
+            if not bare_doi:
+                return Response(
+                    {"error": "Could not extract DOI"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Check if paper exists in our database
+            try:
+                existing_paper = Paper.objects.get(doi=bare_doi)
+                serializer_data = self._serialize_paper(existing_paper, request)
+                return Response(serializer_data)
+            except Paper.DoesNotExist:
+                # Paper doesn't exist, try to import it from OpenAlex
+                return self._create_by_doi(request, doi=bare_doi)
+
+        except Exception as e:
+            log_error(e)
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def _create_by_doi(self, request, doi):
+        """
+        Create a paper by fetching data from OpenAlex using a DOI.
+        Args:
+            doi: Bare DOI (without https://doi.org/ prefix)
+        """
+        try:
+            # Fetch work from OpenAlex
+            openalex = OpenAlex()
+            work = openalex.get_work_by_doi(doi)
+            if not work:
+                return Response(
+                    {"error": "Work not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Process the work
+            from paper.openalex_util import process_openalex_works
+
+            process_openalex_works([work])
+
+            # Get the created paper and serialize it
+            paper = Paper.objects.get(doi=doi)
+            serializer_data = self._serialize_paper(paper, request)
+            return Response(serializer_data, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            log_error(e)
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 class FigureViewSet(viewsets.ModelViewSet):
@@ -1266,18 +1489,3 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
 
         # Duplicate DOI check
         duplicate_papers = Paper.objects.filter(doi_svf=SearchQuery(doi))
-        if duplicate_papers:
-            serializer = DynamicPaperSerializer(
-                duplicate_papers,
-                _include_fields=["doi", "id", "title", "url"],
-                many=True,
-            )
-            duplicate_data = {"data": serializer.data}
-            return Response(duplicate_data, status=status.HTTP_403_FORBIDDEN)
-
-        data["uploaded_by"] = request.user.id
-        response = super().create(request)
-        if response.status_code == 201:
-            data = response.data
-            celery_process_paper(data["id"])
-        return response
