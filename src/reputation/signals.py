@@ -9,13 +9,11 @@ from discussion.lib import check_is_discussion_item
 from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as GrmVote
 from paper.models import Paper
-from purchase.models import Purchase
 from reputation.distributor import Distributor
 from reputation.exceptions import ReputationSignalError
-from reputation.models import Contribution, Distribution
+from reputation.models import Distribution
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost
-from user.utils import reset_latest_acitvity_cache
 from utils import sentry
 
 NEW_USER_BONUS_REPUTATION_LIMIT = 200
@@ -245,22 +243,3 @@ def revoke_reputation(sender, instance, **kwargs):
     current = recipient.reputation
     recipient.reputation = current - amount
     recipient.save(update_fields=["reputation"])
-
-
-@receiver(post_save, sender=Contribution, dispatch_uid="preload_latest_activity")
-def preload_latest_activity(sender, instance, created, **kwargs):
-    if created:
-        # Resetting latest activity on a per hub basis
-        item = instance.item
-        if isinstance(item, Purchase):
-            item = item.item
-
-        if hasattr(item, "hubs"):
-            hub_ids = item.hubs.values_list("id", flat=True)
-        elif hasattr(item, "unified_document"):
-            hub_ids = item.unified_document.hubs.values_list("id", flat=True)
-        else:
-            return
-
-        hub_ids_str = ",".join([str(hub_id) for hub_id in hub_ids])
-        reset_latest_acitvity_cache(hub_ids_str)
