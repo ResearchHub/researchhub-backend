@@ -909,23 +909,16 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def doi_search_via_openalex(self, request):
-        doi = request.query_params.get("doi", None)
-        if not doi:
-            return Response(
-                {"error": "DOI is required"}, status=status.HTTP_400_BAD_REQUEST
-            )
+        doi_string = request.query_params.get("doi", None)
+        if doi_string is None:
+            return Response(status=400)
         try:
-            openalex = OpenAlex()
-            work = openalex.get_data_from_doi(doi)
-            return Response(work)
-        except DOINotFoundError:
-            return Response(
-                {"error": "DOI not found"}, status=status.HTTP_404_NOT_FOUND
-            )
-        except Exception as e:
-            return Response(
-                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            open_alex = OpenAlex()
+            open_alex_json = open_alex.get_data_from_doi(doi_string)
+        except Exception:
+            return Response(status=404)
+
+        return Response(open_alex_json, status=200)
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def fetch_publications_by_doi(self, request):
@@ -1350,7 +1343,6 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
         data = request.data
         # TODO: Sanitize?
         doi = data.get("doi", None)
-
         # DOI validity check
         doi_url = urlparse(doi)
         doi_res = requests.post(
@@ -1368,3 +1360,18 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
 
         # Duplicate DOI check
         duplicate_papers = Paper.objects.filter(doi_svf=SearchQuery(doi))
+        if duplicate_papers:
+            serializer = DynamicPaperSerializer(
+                duplicate_papers,
+                _include_fields=["doi", "id", "title", "url"],
+                many=True,
+            )
+            duplicate_data = {"data": serializer.data}
+            return Response(duplicate_data, status=status.HTTP_403_FORBIDDEN)
+
+        data["uploaded_by"] = request.user.id
+        response = super().create(request)
+        if response.status_code == 201:
+            data = response.data
+            celery_process_paper(data["id"])
+        return response
