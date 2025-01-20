@@ -1,8 +1,6 @@
 from django.apps import apps
 from django.core.cache import cache
-from django.http.request import HttpRequest
 from django_elasticsearch_dsl.registries import registry
-from rest_framework.request import Request
 
 from discussion.lib import (
     check_comment_in_threads,
@@ -13,9 +11,8 @@ from discussion.lib import (
 from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as GrmVote
 from paper.models import Paper
-from paper.utils import get_cache_key
-from researchhub.celery import QUEUE_CACHES, QUEUE_ELASTIC_SEARCH, app
-from researchhub.settings import APP_ENV, PRODUCTION, STAGING
+from researchhub.celery import QUEUE_ELASTIC_SEARCH, app
+from researchhub.settings import APP_ENV
 from user.editor_payout_tasks import editor_daily_payout_task
 from user.rsc_exchange_rate_record_tasks import rsc_exchange_rate_record_tasks
 from utils.sentry import log_info

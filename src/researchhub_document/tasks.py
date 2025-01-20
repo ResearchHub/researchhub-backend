@@ -4,7 +4,6 @@ from django.http.request import HttpRequest, QueryDict
 from django_elasticsearch_dsl.registries import registry
 from rest_framework.request import Request
 
-from hub.models import Hub
 from paper.utils import get_cache_key
 from researchhub.celery import QUEUE_CACHES, QUEUE_ELASTIC_SEARCH, QUEUE_HOT_SCORE, app
 from researchhub.settings import PRODUCTION, STAGING
@@ -18,9 +17,7 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
-    EXPIRING_SOON,
     HOT,
-    MOST_RSC,
     NEW,
     UPVOTED,
 )
