@@ -152,8 +152,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             action.display = True
             action.save()
 
-        doc_type = get_doc_type_key(doc)
-
         return Response(self.get_serializer(instance=doc).data, status=200)
 
     def update(self, request, *args, **kwargs):
