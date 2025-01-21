@@ -26,6 +26,7 @@ from researchhub_access_group.constants import (
 )
 from researchhub_access_group.models import Permission
 from user.models import User
+from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.http import DELETE, GET, PATCH, POST, PUT
 from utils.message import send_email_message
 from utils.permissions import CreateOrUpdateIfAllowed
@@ -50,7 +51,7 @@ class CustomPageLimitPagination(PageNumberPagination):
     page_size = 40
 
 
-class HubViewSet(viewsets.ModelViewSet):
+class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
     queryset = Hub.objects.filter(is_removed=False)
     serializer_class = HubSerializer
     filter_backends = (

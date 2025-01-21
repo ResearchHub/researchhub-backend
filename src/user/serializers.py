@@ -3,6 +3,7 @@ import logging
 import dj_rest_auth.registration.serializers as rest_auth_serializers
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
+from rest_framework import serializers
 from rest_framework.serializers import (
     CharField,
     IntegerField,
@@ -46,6 +47,7 @@ from user.related_models.author_contribution_summary_model import (
 )
 from user.related_models.author_institution import AuthorInstitution
 from user.related_models.coauthor_model import CoAuthor
+from user.related_models.follow_model import Follow
 from user.related_models.gatekeeper_model import Gatekeeper
 from utils import sentry
 
@@ -368,6 +370,52 @@ class EditorContributionSerializer(ModelSerializer):
             return contribution_qs.latest("created_date").created_date
         except Exception:
             return None
+
+
+class FollowSerializer(serializers.ModelSerializer):
+    content_type = serializers.SlugRelatedField(
+        queryset=ContentType.objects.filter(model__in=Follow.ALLOWED_FOLLOW_MODELS),
+        slug_field="model",
+        write_only=True,
+    )
+    type = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Follow
+        fields = (
+            "id",
+            "content_type",
+            "type",
+            "object_id",
+            "created_date",
+            "updated_date",
+        )
+        read_only_fields = ("id", "created_date", "updated_date", "type")
+
+    def get_type(self, obj):
+        """
+        Return simplified content type string
+        """
+        model = obj.content_type.model
+        return model.upper()
+
+    def validate(self, data):
+        """
+        Check that the content_type is allowed for following.
+        """
+        if data["content_type"].model not in Follow.ALLOWED_FOLLOW_MODELS:
+            raise serializers.ValidationError(
+                f"Cannot follow objects of type {data['content_type'].model}"
+            )
+        return data
+
+    def create(self, validated_data):
+        """
+        Create a new follow instance.
+        """
+        user = self.context["request"].user
+        validated_data["user"] = user
+        return super().create(validated_data)
 
 
 class UserSerializer(ModelSerializer):

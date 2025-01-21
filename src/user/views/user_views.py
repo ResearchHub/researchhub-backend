@@ -50,11 +50,12 @@ from user.serializers import (
 )
 from user.tasks import handle_spam_user_task, reinstate_user_task
 from user.utils import calculate_show_referral
+from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.http import POST, RequestMethods
 from utils.sentry import log_info
 
 
-class UserViewSet(viewsets.ModelViewSet):
+class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
     queryset = User.objects.filter(is_suspended=False)
     serializer_class = UserEditableSerializer
     permission_classes = [IsAuthenticatedOrReadOnly, DeleteUserPermission]
@@ -97,6 +98,11 @@ class UserViewSet(viewsets.ModelViewSet):
         user = self.request.user
         qs = self.queryset
         author_profile = self.request.query_params.get("author_profile")
+
+        # Allow access to all users for follow-related actions
+        if self.action in ["follow", "unfollow", "is_following"]:
+            return qs.filter(is_suspended=False)
+
         if self.request.GET.get("referral_code") or self.request.GET.get("invited_by"):
             return qs
         elif author_profile:

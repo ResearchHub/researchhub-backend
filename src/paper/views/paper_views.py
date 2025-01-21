@@ -61,6 +61,7 @@ from reputation.related_models.paper_reward import (
 from researchhub.permissions import IsObjectOwnerOrModerator
 from researchhub_document.permissions import HasDocumentCensorPermission
 from user.related_models.author_model import Author
+from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.doi import DOI
 from utils.http import GET, POST, check_url_contains_pdf
 from utils.openalex import OpenAlex
@@ -70,7 +71,9 @@ from utils.siftscience import SIFT_PAPER, decisions_api, events_api, sift_track
 from utils.throttles import THROTTLE_CLASSES
 
 
-class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
+class PaperViewSet(
+    ReactionViewActionMixin, FollowViewActionMixin, viewsets.ModelViewSet
+):
     queryset = Paper.objects.all()
     serializer_class = PaperSerializer
     dynamic_serializer_class = DynamicPaperSerializer
