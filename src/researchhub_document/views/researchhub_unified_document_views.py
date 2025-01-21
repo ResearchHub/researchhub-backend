@@ -154,17 +154,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         return Response(self.get_serializer(instance=doc).data, status=200)
 
-    def update(self, request, *args, **kwargs):
-        update_response = super().update(request, *args, **kwargs)
-
-        hub_ids = list(self.get_object().hubs.values_list("pk", flat=True))
-        hub_ids.append(0)
-
-        doc = self.get_object()
-        doc_type = get_doc_type_key(doc)
-
-        return update_response
-
     def _get_serializer_context(self):
         context = {
             "doc_duds_get_documents": {
