@@ -48,12 +48,6 @@ from researchhub_document.related_models.constants.document_type import (
     SORT_BOUNTY_TOTAL_AMOUNT,
     SORT_DISCUSSED,
 )
-from researchhub_document.related_models.constants.filters import (
-    DISCUSSED,
-    EXPIRING_SOON,
-    HOT,
-    MOST_RSC,
-)
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 
