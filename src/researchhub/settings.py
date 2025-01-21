@@ -249,6 +249,7 @@ INSTALLED_APPS = [
     "analytics",
     "citation",
     "discussion",
+    "feed",
     "institution",
     "topic",
     "ethereum",
