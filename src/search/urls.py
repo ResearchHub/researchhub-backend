@@ -17,6 +17,7 @@ from search.views.institution_suggester import InstitutionSuggesterDocumentView
 from search.views.journal import JournalDocumentView
 from search.views.journal_suggester import JournalSuggesterDocumentView
 from search.views.person_suggester import PersonSuggesterDocumentView
+from search.views.suggest import SuggestView
 
 router = DefaultRouter()
 person = router.register(r"person", PersonDocumentView, basename="person_document")
@@ -46,4 +47,5 @@ urlpatterns = [
     re_path(r"^", include(router.urls)),
     path("all/", CombinedView.as_view(), name="combined_search"),
     path("combined-suggest/", CombinedSuggestView.as_view(), name="combined_suggester"),
+    path("suggest/", SuggestView.as_view(), name="suggest"),
 ]

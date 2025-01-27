@@ -420,6 +420,28 @@ class OpenAlex:
         cursor = next_cursor if next_cursor != "*" else None
         return filtered_works, cursor
 
+    def autocomplete_works(self, query):
+        """
+        Search for works using OpenAlex's autocomplete endpoint.
+        Returns suggestions for works matching the query.
+        Only returns results that have a DOI.
+        """
+        filters = {
+            "q": query,
+            "filter": "has_doi:true,type:preprint|review|article",
+        }  # Only return works that have a DOI
+        return self._get("autocomplete/works", filters=filters)
+
+    def get_work_by_doi(self, doi):
+        """
+        Fetch a work from OpenAlex using its DOI.
+        Returns None if no work is found.
+        """
+        filters = {"filter": f"doi:{doi}"}
+        response = self._get("works", filters=filters)
+        results = response.get("results", [])
+        return results[0] if results else None
+
     @classmethod
     def normalize_dates(self, generic_openalex_object):
         """Normalize the dates of an OpenAlex object such that
