@@ -1,13 +1,14 @@
 import csv
 from io import StringIO
+from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APITestCase
 
 from purchase.related_models.balance_model import Balance
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from reputation.models import Withdrawal
 from user.tests.helpers import create_random_authenticated_user
-from decimal import Decimal
 
 
 class BalanceViewTests(APITestCase):
@@ -49,7 +50,8 @@ class BalanceViewTests(APITestCase):
             ["date", "rsc_amount", "rsc_to_usd", "usd_value", "description"],
             [
                 self.transaction.created_date.isoformat(
-                    timespec="microseconds", sep=" "
+                    timespec="microseconds",
+                    sep=" "
                 ),
                 str(self.transaction.amount),
                 str(self.rsc_exchange_rate.real_rate),
@@ -91,6 +93,20 @@ class BalanceViewTests(APITestCase):
             user=self.user,
             content_type=fee_type
         )
+        
+        # Create a failed withdrawal that should be excluded
+        from reputation.models import Withdrawal
+        failed_source = Withdrawal.objects.create(
+            amount=-300,
+            paid_status='FAILED',
+            user=self.user
+        )
+        failed_withdrawal = Balance.objects.create(
+            amount=-300,
+            user=self.user,
+            content_type=withdrawal_type,
+            object_id=failed_source.id
+        )
 
         # Act
         response = self.client.get("/api/transactions/turbotax_csv_export/")
@@ -117,14 +133,17 @@ class BalanceViewTests(APITestCase):
         ]
         self.assertEqual(rows[0], expected_header)
 
-        # Verify we have the correct number of transactions (4 total)
-        self.assertEqual(len(rows), 5)  # Header + 4 transactions
+        # Verify transaction count (4 total, minus 1 failed)
+        self.assertEqual(len(rows), 5)  # Header + 4 transactions - 1 failed
 
-        # Verify transaction types
+        # Verify transaction types and ensure failed withdrawal is excluded
         transaction_types = [row[1] for row in rows[1:]]
+        transaction_ids = [row[-1] for row in rows[1:]]
+        
         self.assertIn("Income", transaction_types)  # For positive amounts
         self.assertIn("Withdrawal", transaction_types)  # For withdrawal
         self.assertIn("Expense", transaction_types)  # For fee
+        self.assertNotIn(str(failed_withdrawal.id), transaction_ids)
 
         # Verify amounts and calculations
         for row in rows[1:]:
