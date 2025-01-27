@@ -12,12 +12,18 @@ class FeedEntry(DefaultModel):
         (PUBLISH, "PUBLISH"),
     ]
 
-    content_type = models.ForeignKey(ContentType, on_delete=models.CASCADE)
+    content_type = models.ForeignKey(
+        ContentType, on_delete=models.CASCADE, related_name="feed_entries"
+    )
     object_id = models.PositiveIntegerField()
     item = GenericForeignKey("content_type", "object_id")
 
     parent_content_type = models.ForeignKey(
-        ContentType, on_delete=models.CASCADE, null=True, blank=True
+        ContentType,
+        on_delete=models.CASCADE,
+        related_name="parent_feed_entries",
+        null=True,
+        blank=True,
     )
     parent_object_id = models.PositiveIntegerField(null=True, blank=True)
     parent_item = GenericForeignKey("parent_content_type", "parent_object_id")
