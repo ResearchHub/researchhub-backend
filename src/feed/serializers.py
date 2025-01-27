@@ -11,10 +11,6 @@ from .models import FeedEntry
 class SimpleAuthorSerializer(serializers.ModelSerializer):
     """Minimal author serializer with just essential fields"""
 
-    first_name = serializers.CharField()
-    last_name = serializers.CharField()
-    profile_image = serializers.CharField(default="")
-
     class Meta:
         model = Author
         fields = ["id", "first_name", "last_name", "profile_image"]
@@ -23,11 +19,7 @@ class SimpleAuthorSerializer(serializers.ModelSerializer):
 class SimpleUserSerializer(serializers.ModelSerializer):
     """Minimal user serializer with just essential fields"""
 
-    first_name = serializers.CharField()
-    last_name = serializers.CharField()
-    profile_image = serializers.CharField(
-        source="author_profile.profile_image", default=""
-    )
+    profile_image = serializers.CharField(source="author_profile.profile_image")
 
     class Meta:
         model = User
