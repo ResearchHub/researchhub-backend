@@ -8,14 +8,14 @@ from utils.test_helpers import generate_password
 class TestTestHelpers(TestCase):
     def test_generate_password(self):
         password = generate_password()
-        self.assertGreater(len(password), 16)
-        self.assertIn(any(c.isalpha() for c in password), True)
-        self.assertIn(any(c.isdigit() for c in password), True)
-        self.assertIn(any(c in string.punctuation for c in password), True)
+        self.assertEqual(len(password), 16)
+        self.assertTrue(any(c.isalpha() for c in password))
+        self.assertTrue(any(c.isdigit() for c in password))
+        self.assertTrue(any(c in string.punctuation for c in password))
 
     def test_generate_password_with_custom_length(self):
-        password = generate_password(length=12)
-        self.assertGreater(len(password), 12)
-        self.assertIn(any(c.isalpha() for c in password), True)
-        self.assertIn(any(c.isdigit() for c in password), True)
-        self.assertIn(any(c in string.punctuation for c in password), True)
+        password = generate_password(length=3)
+        self.assertEqual(len(password), 3)
+        self.assertTrue(any(c.isalpha() for c in password))
+        self.assertTrue(any(c.isdigit() for c in password))
+        self.assertTrue(any(c in string.punctuation for c in password))
