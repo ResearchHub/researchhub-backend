@@ -1,15 +1,13 @@
 import uuid
 
-from rest_framework.test import APITestCase
-from allauth.utils import (
-    get_user_model,
-)
-from researchhub_document.models import ResearchhubUnifiedDocument
-from researchhub_access_group.models import Permission
+from allauth.utils import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from note.models import Note
-from user.models import Organization
+from rest_framework.test import APITestCase
 
+from note.models import Note
+from researchhub_access_group.models import Permission
+from researchhub_document.models import ResearchhubUnifiedDocument
+from user.models import Organization
 
 unified_doc_content_type = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
 organization_content_type = ContentType.objects.get_for_model(Organization)
