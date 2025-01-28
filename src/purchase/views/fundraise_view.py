@@ -16,6 +16,7 @@ from purchase.related_models.constants import (
 from purchase.related_models.constants.currency import RSC, USD
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.purchase_serializer import DynamicPurchaseSerializer
+from purchase.utils import create_fundraise_with_escrow
 from reputation.models import BountyFee, Escrow
 from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
@@ -93,18 +94,6 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         # Validate body
         if goal_amount is None:
             return Response({"message": "goal_amount is required"}, status=400)
-        try:
-            goal_amount = decimal.Decimal(goal_amount)
-            if goal_amount <= 0:
-                return Response(
-                    {"message": "goal_amount must be greater than 0"}, status=400
-                )
-        except Exception as e:
-            log_error(e)
-            return Response({"detail": "Invalid goal_amount"}, status=400)
-        # only allow USD for now
-        if goal_currency != USD:
-            return Response({"message": "goal_currency must be USD"}, status=400)
         if unified_document_id is None and post_id is None:
             return Response(
                 {"message": "unified_document_id or post_id is required"}, status=400
@@ -135,19 +124,6 @@ class FundraiseViewSet(viewsets.ModelViewSet):
                 unified_document = post.unified_document
             except ResearchhubPost.DoesNotExist:
                 return Response({"message": "Post does not exist"}, status=400)
-
-        # Check if there is an existing fundraise for this unified_document
-        existing_fundraise = Fundraise.objects.filter(
-            unified_document=unified_document
-        ).first()
-        if existing_fundraise:
-            return Response({"message": "Fundraise already exists"}, status=400)
-        # Must be a preregistration
-        if unified_document.document_type != PREREGISTRATION:
-            return Response(
-                {"message": "Fundraise must be for a preregistration"}, status=400
-            )
-
         # Get recipient user object
         recipient_user = None
         if recipient_user_id:
@@ -160,22 +136,30 @@ class FundraiseViewSet(viewsets.ModelViewSet):
 
         with transaction.atomic():
             # Create fundraise object
-            fundraise = Fundraise.objects.create(
-                created_by=recipient_user,
+            # fundraise = Fundraise.objects.create(
+            #     created_by=recipient_user,
+            #     unified_document=unified_document,
+            #     goal_amount=goal_amount,
+            #     goal_currency=goal_currency,
+            #     status=Fundraise.OPEN,
+            # )
+            # # Create escrow object
+            # escrow = Escrow.objects.create(
+            #     created_by=recipient_user,
+            #     hold_type=Escrow.FUNDRAISE,
+            #     content_type=ContentType.objects.get_for_model(Fundraise),
+            #     object_id=fundraise.id,
+            # )
+            # fundraise.escrow = escrow
+            # fundraise.save()
+            fundraise, error_response = create_fundraise_with_escrow(
+                user=recipient_user,
                 unified_document=unified_document,
                 goal_amount=goal_amount,
                 goal_currency=goal_currency,
-                status=Fundraise.OPEN,
             )
-            # Create escrow object
-            escrow = Escrow.objects.create(
-                created_by=recipient_user,
-                hold_type=Escrow.FUNDRAISE,
-                content_type=ContentType.objects.get_for_model(Fundraise),
-                object_id=fundraise.id,
-            )
-            fundraise.escrow = escrow
-            fundraise.save()
+            if error_response:
+                return error_response
 
         context = self.get_serializer_context()
         serializer = self.get_serializer(fundraise, context=context)

@@ -12,6 +12,9 @@ from discussion.reaction_views import ReactionViewActionMixin
 from hub.models import Hub
 from note.related_models.note_model import Note
 from purchase.models import Balance, Purchase
+from purchase.related_models.constants.currency import USD
+from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
+from purchase.utils import create_fundraise_with_escrow
 from researchhub.settings import CROSSREF_DOI_RSC_FEE, TESTING
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.permissions import HasDocumentEditingPermission
@@ -168,6 +171,17 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 rh_post.authors.set(authors)
                 self.add_upvote(created_by, rh_post)
 
+                fundraise = None
+                if fundraise_data := data.get("fundraise"):
+                    fundraise, error_response = create_fundraise_with_escrow(
+                        user=created_by,
+                        unified_document=unified_document,
+                        goal_amount=fundraise_data.get("goal_amount"),
+                        goal_currency=fundraise_data.get("goal_currency", USD),
+                    )
+                    if error_response:
+                        return error_response
+
                 if not TESTING:
                     if document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
                         rh_post.discussion_src.save(file_name, full_src_file)
@@ -202,7 +216,9 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     )
                 )
 
-            return Response(ResearchhubPostSerializer(rh_post).data, status=200)
+            response_data = ResearchhubPostSerializer(rh_post).data
+            response_data["fundraise"] = DynamicFundraiseSerializer(fundraise).data
+            return Response(response_data, status=200)
 
         except (KeyError, TypeError) as exception:
             log_error(exception)
