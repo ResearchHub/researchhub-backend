@@ -1,12 +1,13 @@
 import uuid
 
 from django.contrib.auth.models import AnonymousUser
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from rest_framework.test import APIRequestFactory
-from researchhub_access_group.permissions import IsOrganizationUser
-from user.models import User, Organization
+
 from researchhub_access_group.models import Permission
-from django.contrib.contenttypes.models import ContentType
+from researchhub_access_group.permissions import IsOrganizationUser
+from user.models import Organization, User
 
 
 class IsOrganizationUserTest(TestCase):
