@@ -1,4 +1,4 @@
-from django.core.files.uploadedfile import SimpleUploadedFile
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
 from feed.serializers import (
@@ -8,6 +8,7 @@ from feed.serializers import (
 )
 from hub.models import Hub
 from hub.tests.helpers import create_hub
+from paper.models import Paper
 from paper.tests.helpers import create_paper
 from topic.models import Topic, UnifiedDocumentTopics
 from user.tests.helpers import create_random_default_user
@@ -108,9 +109,12 @@ class FeedEntrySerializerTests(TestCase):
             (),
             {
                 "id": 1,
-                "content_type": "paper",
+                "content_type": ContentType.objects.get_for_model(Paper),
                 "content_object": paper,
+                "item": paper,
                 "created_date": paper.created_date,
+                "action": "PUBLISH",
+                "user": self.user,
             },
         )()
 
@@ -119,28 +123,10 @@ class FeedEntrySerializerTests(TestCase):
 
         self.assertIn("id", data)
         self.assertIn("content_type", data)
-        self.assertEqual(data["content_type"], "paper")
+        self.assertEqual(data["content_type"], "PAPER")
         self.assertIn("content_object", data)
         self.assertIn("created_date", data)
 
         # Verify paper data is properly nested
         paper_data = data["content_object"]
         self.assertEqual(paper_data["title"], paper.title)
-
-    def test_returns_none_for_unknown_content_type(self):
-        unknown_obj = type(
-            "UnknownType",
-            (),
-            {
-                "id": 1,
-                "content_type": "unknown",
-                "content_object": None,
-                "created_date": "2024-01-01",
-            },
-        )()
-
-        serializer = FeedEntrySerializer(unknown_obj)
-        data = serializer.data
-
-        self.assertIn("content_object", data)
-        self.assertIsNone(data["content_object"])

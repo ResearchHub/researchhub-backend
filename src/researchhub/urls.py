@@ -34,6 +34,7 @@ import researchhub_document.views as researchhub_document_views
 import search.urls
 import user.views
 from citation.views import CitationEntryViewSet, CitationProjectViewSet
+from feed.views import FeedViewSet
 from paper.views import paper_upload_views
 from purchase.views import stripe_webhook_view
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
@@ -181,6 +182,8 @@ router.register(
 )
 
 router.register(r"fundraise", purchase.views.FundraiseViewSet, basename="fundraise")
+
+router.register(r"feed", FeedViewSet, basename="feed")
 
 urlpatterns = [
     # Health check
