@@ -788,7 +788,7 @@ class NoteTests(APITestCase):
         note = response.data
 
         # Change note to workspace
-        perm_response = self.client.patch(
+        self.client.patch(
             f"/api/note/{note['id']}/update_permissions/",
             {
                 "access_type": "ADMIN",
