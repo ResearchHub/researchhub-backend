@@ -26,7 +26,7 @@ class TestData:
     author_linkedin = "linkedin.com/in/regulusblack"
 
     invalid_email = "testuser@gmail"
-    invalid_password = "pass"
+    invalid_password = "pass"  # NOSONAR
     valid_email = "testuser@gmail.com"
     valid_password = generate_password()
 

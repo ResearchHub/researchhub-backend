@@ -1,3 +1,5 @@
+import json
+
 from django.test import Client, TestCase
 
 from user.models import Author, University, User
@@ -11,7 +13,7 @@ class BaseTests(TestCase):
     author_last_name = "Black"
 
     invalid_email = "testuser@gmail"
-    invalid_password = "pass"
+    invalid_password = "pass"  # NOSONAR
     valid_email = "testuser@gmail.com"
     valid_password = generate_password()
 
