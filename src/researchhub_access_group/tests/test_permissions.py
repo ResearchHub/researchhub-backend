@@ -1,10 +1,13 @@
+import uuid
+
 from django.contrib.auth.models import AnonymousUser
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from rest_framework.test import APIRequestFactory
-from researchhub_access_group.permissions import IsOrganizationUser
-from user.models import User, Organization
+
 from researchhub_access_group.models import Permission
-from django.contrib.contenttypes.models import ContentType
+from researchhub_access_group.permissions import IsOrganizationUser
+from user.models import Organization, User
 
 
 class IsOrganizationUserTest(TestCase):
@@ -12,9 +15,13 @@ class IsOrganizationUserTest(TestCase):
         self.factory = APIRequestFactory()
 
         self.anonymous = AnonymousUser()
-        self.user = User.objects.create_user(username="user1", password="pass1")
+        self.user = User.objects.create_user(
+            username="user1", password=uuid.uuid4().hex
+        )
 
-        self.member = User.objects.create_user(username="member1", password="pass1")
+        self.member = User.objects.create_user(
+            username="member1", password=uuid.uuid4().hex
+        )
         self.organization = Organization.objects.create(name="org1")
         Permission.objects.create(
             access_type="MEMBER",
