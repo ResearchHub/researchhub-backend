@@ -1,3 +1,5 @@
+import uuid
+
 from rest_framework.test import APITestCase
 from allauth.utils import (
     get_user_model,
@@ -17,9 +19,9 @@ class NoteTests(APITestCase):
     def setUp(self):
         # Create + auth user
         username = "test@researchhub_test.com"
-        password = "password"
+        password = uuid.uuid4().hex
         self.user = get_user_model().objects.create_user(
-            username=username, password=password, email=username
+            username=username, password=uuid.uuid4().hex, email=username
         )
         self.client.force_authenticate(self.user)
 
@@ -57,7 +59,7 @@ class NoteTests(APITestCase):
         self.assertEqual(response.status_code, 200)
 
         other_user = get_user_model().objects.create_user(
-            username="other1", password="password1", email="other1@researchhub.com"
+            username="other1", password=uuid.uuid4().hex, email="other1@researchhub.com"
         )
 
         # Act
@@ -82,7 +84,7 @@ class NoteTests(APITestCase):
 
         member_user = get_user_model().objects.create_user(
             username="member1",
-            password="password1",
+            password=uuid.uuid4().hex,
             email="email1@researchhub.com",
         )
 
@@ -116,7 +118,7 @@ class NoteTests(APITestCase):
 
         viewer_user = get_user_model().objects.create_user(
             username="viewer1",
-            password="password1",
+            password=uuid.uuid4().hex,
             email="viewer1@researchhub.com",
         )
 
@@ -205,7 +207,7 @@ class NoteTests(APITestCase):
         # Create another user
         editor_user = get_user_model().objects.create_user(
             username="editor@researchhub_test.com",
-            password="password",
+            password=uuid.uuid4().hex,
             email="editor@researchhub_test.com",
         )
 
@@ -246,7 +248,7 @@ class NoteTests(APITestCase):
         # Create another user
         editor_user = get_user_model().objects.create_user(
             username="editor@researchhub_test.com",
-            password="password",
+            password=uuid.uuid4().hex,
             email="editor@researchhub_test.com",
         )
 
@@ -298,7 +300,7 @@ class NoteTests(APITestCase):
         # Create another user
         viewer_user = get_user_model().objects.create_user(
             username="editor@researchhub_test.com",
-            password="password",
+            password=uuid.uuid4().hex,
             email="editor@researchhub_test.com",
         )
 
@@ -355,7 +357,7 @@ class NoteTests(APITestCase):
         # Create another user
         invited_viewer = get_user_model().objects.create_user(
             username="editor@researchhub_test.com",
-            password="password",
+            password=uuid.uuid4().hex,
             email="editor@researchhub_test.com",
         )
 
@@ -396,7 +398,7 @@ class NoteTests(APITestCase):
         # Create another user
         invited_note_admin = get_user_model().objects.create_user(
             username="admin@researchhub_test.com",
-            password="password",
+            password=uuid.uuid4().hex,
             email="admin@researchhub_test.com",
         )
 
@@ -440,7 +442,7 @@ class NoteTests(APITestCase):
         # Create another user
         invited_note_admin = get_user_model().objects.create_user(
             username="admin@researchhub_test.com",
-            password="password",
+            password=uuid.uuid4().hex,
             email="admin@researchhub_test.com",
         )
 
@@ -570,7 +572,7 @@ class NoteTests(APITestCase):
         # Create viewer user
         viewer_user = get_user_model().objects.create_user(
             username="user_b@researchhub_test.com",
-            password="password",
+            password=uuid.uuid4().hex,
             email="user_b@researchhub_test.com",
         )
 
@@ -615,7 +617,7 @@ class NoteTests(APITestCase):
         # Create another user
         admin_user = get_user_model().objects.create_user(
             username="admin@researchhub_test.com",
-            password="password",
+            password=uuid.uuid4().hex,
             email="admin@researchhub_test.com",
         )
 
@@ -654,7 +656,7 @@ class NoteTests(APITestCase):
         # Create another user
         editor_user = get_user_model().objects.create_user(
             username="editor@researchhub_test.com",
-            password="password",
+            password=uuid.uuid4().hex,
             email="editor@researchhub_test.com",
         )
 
@@ -688,7 +690,7 @@ class NoteTests(APITestCase):
         # Create another user
         member_user = get_user_model().objects.create_user(
             username="member@researchhub_test.com",
-            password="password",
+            password=uuid.uuid4().hex,
             email="member@researchhub_test.com",
         )
 
@@ -723,7 +725,7 @@ class NoteTests(APITestCase):
         # Create another user
         member_user = get_user_model().objects.create_user(
             username="member@researchhub_test.com",
-            password="password",
+            password=uuid.uuid4().hex,
             email="member@researchhub_test.com",
         )
 
@@ -756,7 +758,7 @@ class NoteTests(APITestCase):
         # Create a user
         alice = get_user_model().objects.create_user(
             username="alice@researchhub_test.com",
-            password="password",
+            password=uuid.uuid4().hex,
             email="alice@researchhub_test.com",
         )
         alice_org = alice.organization
@@ -765,7 +767,7 @@ class NoteTests(APITestCase):
 
         bob = get_user_model().objects.create_user(
             username="bob@researchhub_test.com",
-            password="password",
+            password=uuid.uuid4().hex,
             email="bob@researchhub_test.com",
         )
         # Add Bob as Admin to Alice Org
@@ -788,7 +790,7 @@ class NoteTests(APITestCase):
         note = response.data
 
         # Change note to workspace
-        perm_response = self.client.patch(
+        self.client.patch(
             f"/api/note/{note['id']}/update_permissions/",
             {
                 "access_type": "ADMIN",

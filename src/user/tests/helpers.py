@@ -1,4 +1,6 @@
 import random
+import secrets
+import string
 
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.authtoken.models import Token
@@ -25,9 +27,9 @@ class TestData:
     author_linkedin = "linkedin.com/in/regulusblack"
 
     invalid_email = "testuser@gmail"
-    invalid_password = "pass"
+    invalid_password = str(random.randint(1000, 9999))
     valid_email = "testuser@gmail.com"
-    valid_password = "ReHub940@"
+    valid_password = secrets.token_urlsafe(16)
 
     university_name = "Hogwarts"
     university_country = "England"

@@ -1,3 +1,5 @@
+import uuid
+
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
@@ -19,7 +21,9 @@ User = get_user_model()
 class TestRhCommentThreadModel(TestCase):
     def setUp(self):
         # Create a test user
-        self.user = User.objects.create_user(username="testuser", password="12345")
+        self.user = User.objects.create_user(
+            username="testuser", password=uuid.uuid4().hex
+        )
 
         # Create a paper to attach threads to
         self.paper = Paper.objects.create(title="Test Paper")

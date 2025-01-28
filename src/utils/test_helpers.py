@@ -1,5 +1,6 @@
 import json
 import random
+import secrets
 import threading
 import time
 
@@ -24,9 +25,9 @@ class TestData:
     author_last_name = "Black"
 
     invalid_email = "testuser@gmail"
-    invalid_password = "pass"
+    invalid_password = str(random.randint(1000, 9999))
     valid_email = "testuser@gmail.com"
-    valid_password = "ReHub940@"
+    valid_password = secrets.token_urlsafe(16)
 
     university_name = "Hogwarts"
     university_country = "England"
