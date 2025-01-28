@@ -32,6 +32,25 @@ class FeedEntry(DefaultModel):
     action = models.TextField(choices=action_choices)
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
 
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=["parent_content_type", "parent_object_id"],
+                name="feed_parent_lookup_idx",
+            )
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "content_type",
+                    "object_id",
+                    "parent_content_type",
+                    "parent_object_id",
+                ],
+                name="unique_parent_child_combination",
+            )
+        ]
+
 
 @app.task
 def create_feed_entry(
