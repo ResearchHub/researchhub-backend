@@ -1,7 +1,6 @@
 from rest_framework import serializers
 
 from hub.models import Hub
-from hub.serializers import HubSerializer
 from paper.models import Paper
 from user.models import Author, User
 
@@ -87,15 +86,32 @@ class PaperSerializer(ContentObjectSerializer):
 class FeedEntrySerializer(serializers.ModelSerializer):
     """Serializer for feed entries that can reference different content types"""
 
-    content_type = serializers.CharField()  # e.g., 'PAPER', 'COMMENT'
+    id = serializers.IntegerField()
+    content_type = serializers.SerializerMethodField()
     content_object = serializers.SerializerMethodField()
+    created_date = serializers.DateTimeField()
+    action = serializers.CharField()
+    user = serializers.SerializerMethodField()
 
     class Meta:
         model = FeedEntry
-        fields = ["id", "content_type", "content_object", "created_date"]
+        fields = [
+            "id",
+            "content_type",
+            "content_object",
+            "created_date",
+            "action",
+            "user",
+        ]
 
     def get_content_object(self, obj):
         """Return the appropriate serialized content object based on type"""
-        if obj.content_type == "paper":
-            return PaperSerializer(obj.content_object).data
+        if obj.content_type.model == "paper":
+            return PaperSerializer(obj.item).data
         return None
+
+    def get_content_type(self, obj):
+        return obj.content_type.model.upper()
+
+    def get_user(self, obj):
+        return SimpleUserSerializer(obj.user).data
