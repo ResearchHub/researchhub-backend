@@ -14,7 +14,7 @@ class BaseTests(TestCase):
     author_last_name = "Black"
 
     invalid_email = "testuser@gmail"
-    invalid_password = str(random.randint(1000, 9999))
+    invalid_password = "pass"  # noqa
     valid_email = "testuser@gmail.com"
     valid_password = secrets.token_urlsafe(16)
 
