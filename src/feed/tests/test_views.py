@@ -1,3 +1,5 @@
+import uuid
+
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
@@ -16,7 +18,7 @@ User = get_user_model()
 class FeedViewSetTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(
-            username="testuser", password="testpass123"
+            username="testuser", password=uuid.uuid4().hex
         )
         self.paper = Paper.objects.create(
             title="Test Paper",
