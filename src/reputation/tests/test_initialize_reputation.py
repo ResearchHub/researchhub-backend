@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 from unittest.mock import PropertyMock, patch
 
 from django.conf import settings
@@ -21,10 +22,14 @@ from utils.openalex import OpenAlex
 class InitializeReputationCommandTestCase(TestCase):
     def setUp(self):
         # Add user, an author is automatically created for this user.
-        self.user_author = User.objects.create_user(username="user1", password="pass1")
-        self.user_basic = User.objects.create_user(username="user2", password="pass2")
+        self.user_author = User.objects.create_user(
+            username="user1", password=uuid.uuid4().hex
+        )
+        self.user_basic = User.objects.create_user(
+            username="user2", password=uuid.uuid4().hex
+        )
         self.user_no_author = User.objects.create_user(
-            username="user3", password="pass3"
+            username="user3", password=uuid.uuid4().hex
         )
 
     def test_initialize_reputation_command(self):
