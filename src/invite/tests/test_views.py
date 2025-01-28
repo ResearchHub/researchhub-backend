@@ -1,11 +1,7 @@
 from allauth.utils import get_user_model
-from django.contrib.contenttypes.models import ContentType
-from rest_framework.test import APITestCase
 
-from invite.related_models.invitation_model import Invitation
 from invite.related_models.note_invitation import NoteInvitation
 from invite.related_models.organization_invitation import OrganizationInvitation
-from researchhub_access_group.models import Permission
 from utils.test_helpers import APITestCaseWithOrg
 
 
