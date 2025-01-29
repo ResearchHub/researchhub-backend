@@ -64,12 +64,15 @@ class FeedViewSetTests(TestCase):
 
     def test_feed_pagination(self):
         """Test feed pagination"""
-        for _ in range(25):
+        for i in range(25):
+            paper = Paper.objects.create(
+                title=f"Test Paper {i}",
+            )
             FeedEntry.objects.create(
                 user=self.user,
                 action="PUBLISH",
                 content_type=self.paper_content_type,
-                object_id=self.paper.id,
+                object_id=paper.id,
                 parent_content_type=self.hub_content_type,
                 parent_object_id=self.hub.id,
             )

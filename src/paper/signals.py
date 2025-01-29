@@ -1,10 +1,11 @@
-from django.db.models.signals import post_delete, post_save
+from django.contrib.contenttypes.models import ContentType
+from django.db.models.signals import m2m_changed, post_save
 from django.dispatch import receiver
 from django.utils.crypto import get_random_string
 from django.utils.text import slugify
 
-from paper.related_models.authorship_model import Authorship
-from paper.related_models.citation_model import Citation
+from feed.models import create_feed_entry, delete_feed_entry
+from hub.models import Hub
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     PAPER as PAPER_DOC_TYPE,
@@ -47,6 +48,47 @@ def add_unified_doc(created, instance, **kwargs):
                 instance.save()
             except Exception as e:
                 log_error("EXCPETION (add_unified_doc): ", e)
+
+
+@receiver(m2m_changed, sender=Paper.hubs.through, dispatch_uid="paper_hubs_changed")
+def handle_paper_hubs_changed(sender, instance, action, pk_set, **kwargs):
+    if action == "post_add":
+        for hub_id in pk_set:
+            if isinstance(instance, Paper):
+                hub = instance.hubs.get(id=hub_id)
+                paper = instance
+            else:  # instance is Hub
+                hub = instance
+                paper = hub.papers.get(id=hub_id)
+
+            create_feed_entry.apply_async(
+                args=(
+                    paper.id,
+                    ContentType.objects.get_for_model(paper).id,
+                    "PUBLISH",
+                    hub.id,
+                    ContentType.objects.get_for_model(hub).id,
+                ),
+                priority=1,
+            )
+    elif action == "post_remove":
+        for hub_id in pk_set:
+            if isinstance(instance, Paper):
+                hub = Hub.objects.get(id=hub_id)
+                paper = instance
+            else:  # instance is Hub
+                hub = instance
+                paper = Paper.objects.get(id=hub_id)
+
+            delete_feed_entry.apply_async(
+                args=(
+                    paper.id,
+                    ContentType.objects.get_for_model(paper).id,
+                    hub.id,
+                    ContentType.objects.get_for_model(hub).id,
+                ),
+                priority=1,
+            )
 
 
 def check_file_updated(update_fields, file):

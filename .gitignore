@@ -44,3 +44,6 @@ src/Dockerfile
 # Coverage
 .coverage
 coverage.xml
+
+# Uploads from some paper tests
+uploads/
