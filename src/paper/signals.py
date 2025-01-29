@@ -54,13 +54,19 @@ def add_unified_doc(created, instance, **kwargs):
 def handle_paper_hubs_changed(sender, instance, action, pk_set, **kwargs):
     if action == "post_add":
         for hub_id in pk_set:
-            hub = instance.hubs.get(id=hub_id)
+            if isinstance(instance, Paper):
+                hub = instance.hubs.get(id=hub_id)
+                paper = instance
+            else:  # instance is Hub
+                hub = instance
+                paper = hub.papers.get(id=hub_id)
+
             create_feed_entry.apply_async(
                 args=(
-                    instance.id,
-                    ContentType.objects.get_for_model(instance).id,
+                    paper.id,
+                    ContentType.objects.get_for_model(paper).id,
                     "PUBLISH",
-                    hub_id,
+                    hub.id,
                     ContentType.objects.get_for_model(hub).id,
                 ),
                 priority=1,
