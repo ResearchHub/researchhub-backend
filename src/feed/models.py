@@ -46,8 +46,10 @@ class FeedEntry(DefaultModel):
                     "object_id",
                     "parent_content_type",
                     "parent_object_id",
+                    "action",
+                    "user",
                 ],
-                name="unique_parent_child_combination",
+                name="unique_feed_entry",
             )
         ]
 
