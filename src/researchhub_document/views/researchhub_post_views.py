@@ -13,6 +13,7 @@ from hub.models import Hub
 from note.related_models.note_model import Note
 from purchase.models import Balance, Purchase
 from purchase.related_models.constants.currency import USD
+from purchase.related_models.fundraise_model import Fundraise
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.utils import create_fundraise_with_escrow
 from researchhub.settings import CROSSREF_DOI_RSC_FEE, TESTING
@@ -178,6 +179,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                         unified_document=unified_document,
                         goal_amount=fundraise_data.get("goal_amount"),
                         goal_currency=fundraise_data.get("goal_currency", USD),
+                        status=Fundraise.CLOSED,  # TODO we should probably cerate a new status for fundraise (INACTIVE)
                     )
                     if error_response:
                         return error_response

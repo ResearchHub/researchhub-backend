@@ -1,8 +1,10 @@
 import decimal
 import time
 
+from django.contrib.contenttypes.models import ContentType
 from rest_framework.response import Response
 
+from purchase.models import Fundraise
 from purchase.related_models.constants.currency import USD
 from reputation.distributions import create_purchase_distribution
 from reputation.distributor import Distributor
@@ -40,7 +42,7 @@ def store_leftover_paper_support(paper, purchase, leftover_amount):
 
 
 def create_fundraise_with_escrow(
-    user, unified_document, goal_amount, goal_currency=USD
+    user, unified_document, goal_amount, goal_currency=USD, status=Fundraise.OPEN
 ):
     """
     Helper function to create a fundraise with its associated escrow.
@@ -48,11 +50,6 @@ def create_fundraise_with_escrow(
 
     Note: This function should be called within a transaction.atomic() block
     """
-    from django.contrib.contenttypes.models import ContentType
-
-    from purchase.models import Fundraise
-    from reputation.models import Escrow
-
     # Validate inputs
     if not unified_document.document_type == PREREGISTRATION:
         return None, Response(
@@ -85,7 +82,7 @@ def create_fundraise_with_escrow(
         unified_document=unified_document,
         goal_amount=goal_amount,
         goal_currency=goal_currency,
-        status=Fundraise.OPEN,
+        status=status,
     )
     # Create escrow object
     escrow = Escrow.objects.create(

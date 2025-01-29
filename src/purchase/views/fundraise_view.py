@@ -135,23 +135,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
                 return Response({"message": "User does not exist"}, status=400)
 
         with transaction.atomic():
-            # Create fundraise object
-            # fundraise = Fundraise.objects.create(
-            #     created_by=recipient_user,
-            #     unified_document=unified_document,
-            #     goal_amount=goal_amount,
-            #     goal_currency=goal_currency,
-            #     status=Fundraise.OPEN,
-            # )
-            # # Create escrow object
-            # escrow = Escrow.objects.create(
-            #     created_by=recipient_user,
-            #     hold_type=Escrow.FUNDRAISE,
-            #     content_type=ContentType.objects.get_for_model(Fundraise),
-            #     object_id=fundraise.id,
-            # )
-            # fundraise.escrow = escrow
-            # fundraise.save()
+            # Create a fundraise with its associated escrow
             fundraise, error_response = create_fundraise_with_escrow(
                 user=recipient_user,
                 unified_document=unified_document,
