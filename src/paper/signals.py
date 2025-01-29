@@ -73,12 +73,18 @@ def handle_paper_hubs_changed(sender, instance, action, pk_set, **kwargs):
             )
     elif action == "post_remove":
         for hub_id in pk_set:
-            hub = Hub.objects.get(id=hub_id)
+            if isinstance(instance, Paper):
+                hub = Hub.objects.get(id=hub_id)
+                paper = instance
+            else:  # instance is Hub
+                hub = instance
+                paper = Paper.objects.get(id=hub_id)
+
             delete_feed_entry.apply_async(
                 args=(
-                    instance.id,
-                    ContentType.objects.get_for_model(instance).id,
-                    hub_id,
+                    paper.id,
+                    ContentType.objects.get_for_model(paper).id,
+                    hub.id,
                     ContentType.objects.get_for_model(hub).id,
                 ),
                 priority=1,
