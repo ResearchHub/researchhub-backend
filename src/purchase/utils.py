@@ -51,7 +51,7 @@ def create_fundraise_with_escrow(
     Note: This function should be called within a transaction.atomic() block
     """
     # Validate inputs
-    if not unified_document.document_type == PREREGISTRATION:
+    if unified_document.document_type != PREREGISTRATION:
         return None, Response(
             {"message": "Fundraise must be for a preregistration"}, status=400
         )

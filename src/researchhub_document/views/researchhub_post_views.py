@@ -173,13 +173,12 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 self.add_upvote(created_by, rh_post)
 
                 fundraise = None
-                if fundraise_data := data.get("fundraise"):
+                if goal_amount := data.get("fundraise_goal_amount"):
                     fundraise, error_response = create_fundraise_with_escrow(
                         user=created_by,
                         unified_document=unified_document,
-                        goal_amount=fundraise_data.get("goal_amount"),
-                        goal_currency=fundraise_data.get("goal_currency", USD),
-                        status=Fundraise.CLOSED,  # TODO we should probably cerate a new status for fundraise (INACTIVE)
+                        goal_amount=goal_amount,
+                        goal_currency=data.get("fundraise_goal_currency", USD),
                     )
                     if error_response:
                         return error_response
