@@ -7,7 +7,7 @@ from utils.models import DefaultModel
 
 
 class Follow(DefaultModel):
-    ALLOWED_FOLLOW_MODELS = ["hub", "paper", "user"]
+    ALLOWED_FOLLOW_MODELS = ["hub", "paper", "user", "author"]
 
     user = models.ForeignKey(
         "user.User",
