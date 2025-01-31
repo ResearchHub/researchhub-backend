@@ -39,7 +39,9 @@ class DOI:
             return None
 
         # Remove any trailing slashes and whitespace
-        doi = doi.strip().rstrip("/")
+        doi = (
+            doi.strip().rstrip("/").lower()
+        )  # Convert to lowercase for case-insensitive comparison
 
         # Handle various URL formats
         if "doi.org" in doi:
@@ -47,7 +49,9 @@ class DOI:
             parts = doi.split("doi.org/")
             if len(parts) < 2:
                 return None
-            return f"https://doi.org/{parts[1]}"
+            # Remove any extra 'doi/' in the path
+            bare_doi = parts[1].replace("doi/", "")
+            return f"https://doi.org/{bare_doi}"
 
         # If it's a bare DOI (no domain), add the prefix
         return f"https://doi.org/{doi}"

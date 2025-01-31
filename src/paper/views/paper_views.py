@@ -1115,34 +1115,32 @@ class PaperViewSet(ReactionViewActionMixin, viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        # Validate DOI format first
+        if not DOI.is_doi(doi):
+            return Response(
+                {"error": "Invalid DOI format"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         try:
-            # Normalize DOI for comparison
-            normalized_doi = DOI.normalize_doi(doi)
-            if not normalized_doi:
+            # Get bare DOI for database lookup
+            bare_doi = DOI.get_bare_doi(doi)
+            if not bare_doi:
                 return Response(
                     {"error": "Invalid DOI format"},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            # Get bare DOI for database lookup (since we store bare DOIs)
-            bare_doi = DOI.get_bare_doi(doi)
-            if not bare_doi:
-                return Response(
-                    {"error": "Could not extract DOI"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
-
-            # Check if paper exists in our database
-            try:
-                existing_paper = Paper.objects.get(doi=bare_doi)
-                serializer_data = self._serialize_paper(existing_paper, request)
+            # Look for existing paper with this DOI
+            paper = Paper.objects.filter(Q(doi=bare_doi)).first()
+            if paper:
+                serializer_data = self._serialize_paper(paper, request)
                 return Response(serializer_data)
-            except Paper.DoesNotExist:
-                # Paper doesn't exist, try to import it from OpenAlex
-                return self._create_by_doi(request, doi=bare_doi)
+
+            # Paper doesn't exist, try to import it from OpenAlex
+            return self._create_by_doi(request, doi=bare_doi)
 
         except Exception as e:
-            log_error(e)
             return Response(
                 {"error": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
