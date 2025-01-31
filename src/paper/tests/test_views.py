@@ -3,7 +3,9 @@ import random
 from unittest.mock import PropertyMock, patch
 
 from django.test import Client, TestCase
-from rest_framework.test import APITestCase
+from django.urls import reverse
+from rest_framework import status
+from rest_framework.test import APIClient, APITestCase
 
 from hub.models import Hub
 from paper.models import Paper, PaperVersion
@@ -14,6 +16,7 @@ from user.models import Author
 from user.tests.helpers import create_random_authenticated_user, create_user
 from utils.openalex import OpenAlex
 from utils.test_helpers import (
+    create_test_user,
     get_authenticated_get_response,
     get_authenticated_post_response,
 )
@@ -555,3 +558,135 @@ class PaperViewsTests(TestCase):
         data = {"url": "org/this-is-a-bad-url"}
         response = get_authenticated_post_response(self.user, url, data)
         self.assertContains(response, "Double check that URL", status_code=400)
+
+
+class PaperDOITests(APITestCase):
+    def setUp(self):
+        self.user = create_test_user()
+        self.client.force_authenticate(user=self.user)
+
+    def test_retrieve_by_doi_invalid_doi(self):
+        """Test that invalid DOIs return a 400 error"""
+        url = reverse("paper-retrieve-by-doi")
+
+        # Test with no DOI
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error"], "DOI is required")
+
+        # Test with invalid DOI format
+        response = self.client.get(url + "?doi=invalid_doi")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error"], "Invalid DOI format")
+
+    def test_retrieve_by_doi_existing_paper(self):
+        """Test retrieving an existing paper by DOI"""
+        test_doi = "10.1234/test.123"
+        paper = create_paper()
+        paper.doi = test_doi
+        paper.save()
+        url = reverse("paper-retrieve-by-doi")
+
+        # Test with bare DOI
+        response = self.client.get(url + f"?doi={test_doi}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["doi"], test_doi)
+        self.assertEqual(response.data["id"], paper.id)
+
+        # Test with normalized DOI
+        normalized_doi = f"https://doi.org/{test_doi}"
+        response = self.client.get(url + f"?doi={normalized_doi}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["doi"], test_doi)
+        self.assertEqual(response.data["id"], paper.id)
+
+    @patch("utils.openalex.OpenAlex.get_work_by_doi")
+    def test_retrieve_by_doi_new_paper_from_openalex(self, mock_get_work):
+        """Test creating a new paper from OpenAlex when DOI not found"""
+        test_doi = "10.1234/new.123"
+        mock_work = {
+            "id": "W123",
+            "doi": test_doi,
+            "title": "Test Paper",
+            "abstract": "Test abstract",
+            "authorships": [
+                {
+                    "author": {
+                        "id": "A123",
+                        "display_name": "Test Author",
+                    },
+                    "author_position": "first",
+                    "is_corresponding": True,
+                    "institutions": [],
+                }
+            ],
+            "publication_year": 2023,
+        }
+        mock_get_work.return_value = mock_work
+
+        url = reverse("paper-retrieve-by-doi")
+        response = self.client.get(url + f"?doi={test_doi}")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["doi"], test_doi)
+        self.assertEqual(response.data["paper_title"], "Test Paper")
+
+        # Verify paper was created in database
+        self.assertTrue(Paper.objects.filter(doi=test_doi).exists())
+
+    @patch("utils.openalex.OpenAlex.get_work_by_doi")
+    def test_retrieve_by_doi_openalex_not_found(self, mock_get_work):
+        """Test handling when paper not found in OpenAlex"""
+        test_doi = "10.1234/notfound.123"
+        mock_get_work.return_value = None
+
+        url = reverse("paper-retrieve-by-doi")
+        response = self.client.get(url + f"?doi={test_doi}")
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(response.data["error"], "Work not found")
+
+    def test_retrieve_by_doi_with_doi_org_prefix(self):
+        """Test that DOIs with doi.org prefix are handled correctly"""
+        test_doi = "10.1234/test.456"
+        paper = create_paper()
+        paper.doi = test_doi  # Set the DOI
+        paper.save()
+        url = reverse("paper-retrieve-by-doi")
+
+        # Test with https://doi.org/ prefix
+        response = self.client.get(url + f"?doi=https://doi.org/{test_doi}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["doi"], test_doi)
+        self.assertEqual(response.data["id"], paper.id)
+
+        # Test with doi.org/ prefix
+        response = self.client.get(url + f"?doi=doi.org/{test_doi}")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["doi"], test_doi)
+        self.assertEqual(response.data["id"], paper.id)
+
+    def test_retrieve_by_doi_with_https_variations(self):
+        """Test that DOIs with various https://doi.org formats are handled correctly"""
+        test_doi = "10.1234/test.789"
+        paper = create_paper()
+        paper.doi = test_doi
+        paper.save()
+        url = reverse("paper-retrieve-by-doi")
+
+        # Test variations of https://doi.org
+        variations = [
+            f"https://doi.org/{test_doi}",
+            f"https://doi.org/{test_doi}/",  # With trailing slash
+            f"https://www.doi.org/{test_doi}",  # With www
+            f"HTTPS://DOI.ORG/{test_doi}",  # Different case
+            f"https://doi.org/doi/{test_doi}",  # With extra doi path
+        ]
+
+        for doi_url in variations:
+            response = self.client.get(url + f"?doi={doi_url}")
+            self.assertEqual(
+                response.status_code, status.HTTP_200_OK, f"Failed for DOI: {doi_url}"
+            )
+            self.assertEqual(response.data["doi"], test_doi)
+            self.assertEqual(response.data["id"], paper.id)

@@ -396,3 +396,41 @@ class APIClientWithOrg(APIClient):
 
 class APITestCaseWithOrg(APITestCase):
     client_class = APIClientWithOrg
+
+
+def create_test_user(
+    first_name="Test",
+    last_name="User",
+    email="test@example.com",
+    password="testpass123",
+):
+    """Create a test user with the given parameters."""
+    return User.objects.create(
+        first_name=first_name,
+        last_name=last_name,
+        email=email,
+        password=password,
+    )
+
+
+def create_test_paper(
+    title="Test Paper",
+    doi=None,
+    paper_title=None,
+    abstract="Test abstract",
+    uploaded_by=None,
+):
+    """Create a test paper with the given parameters."""
+    if uploaded_by is None:
+        uploaded_by = create_test_user()
+    if paper_title is None:
+        paper_title = title
+
+    return Paper.objects.create(
+        title=title,
+        paper_title=paper_title,
+        doi=doi,
+        abstract=abstract,
+        uploaded_by=uploaded_by,
+        paper_publish_date="2023-01-01",
+    )

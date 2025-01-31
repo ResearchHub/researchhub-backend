@@ -189,6 +189,7 @@ CORS_ORIGIN_WHITELIST = [
     "https://www.staging.researchhub.com",
     "http://127.0.0.1:3000",
     "https://word.researchhub.com",
+    "https://web-v2-eight.vercel.app",
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [

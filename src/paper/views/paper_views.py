@@ -15,6 +15,7 @@ from django.db.models.functions import Cast, Coalesce
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from elasticsearch.exceptions import ConnectionError
+from elasticsearch_dsl import Search
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -23,6 +24,7 @@ from rest_framework.permissions import (
     IsAuthenticated,
     IsAuthenticatedOrReadOnly,
 )
+from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 
 from analytics.amplitude import track_event
@@ -60,6 +62,7 @@ from reputation.related_models.paper_reward import (
 )
 from researchhub.permissions import IsObjectOwnerOrModerator
 from researchhub_document.permissions import HasDocumentCensorPermission
+from search.documents.paper import PaperDocument
 from user.related_models.author_model import Author
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.doi import DOI
@@ -473,11 +476,14 @@ class PaperViewSet(
         }
         return context
 
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
+    def _serialize_paper(self, paper, request):
+        """
+        Common serialization method for papers.
+        Used by both retrieve and retrieve_by_doi endpoints.
+        """
         context = self._get_paper_context(request)
         serializer = self.dynamic_serializer_class(
-            instance,
+            paper,
             context=context,
             _include_fields=[
                 "abstract",
@@ -509,17 +515,22 @@ class PaperViewSet(
                 "unified_document",
                 "uploaded_by",
                 "uploaded_date",
-                "uploaded_date",
                 "url",
                 "version",
                 "version_list",
             ],
         )
         serializer_data = serializer.data
-        vote = self.dynamic_serializer_class(context=context).get_user_vote(instance)
+        vote = self.dynamic_serializer_class(context=context).get_user_vote(paper)
         serializer_data["user_vote"] = vote
+        return serializer_data
 
-        # cache.set(cache_key, serializer_data, timeout=60 * 60 * 24 * 7)
+    def retrieve(self, request, *args, **kwargs):
+        """
+        Retrieve a paper by ID.
+        """
+        paper = super().get_object()
+        serializer_data = self._serialize_paper(paper, request)
         return Response(serializer_data)
 
     def list(self, request, *args, **kwargs):
@@ -1089,6 +1100,88 @@ class PaperViewSet(
         )
         return Response(status=status.HTTP_200_OK)
 
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[AllowAny],
+    )
+    def retrieve_by_doi(self, request):
+        """
+        Get a paper by DOI or create it if it doesn't exist by importing from OpenAlex.
+        Query params:
+        - doi: string (required) - The DOI to look up
+        """
+        doi = request.query_params.get("doi")
+        if not doi:
+            return Response(
+                {"error": "DOI is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Validate DOI format first
+        if not DOI.is_doi(doi):
+            return Response(
+                {"error": "Invalid DOI format"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            # Get bare DOI for database lookup
+            bare_doi = DOI.get_bare_doi(doi)
+            if not bare_doi:
+                return Response(
+                    {"error": "Invalid DOI format"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Look for existing paper with this DOI
+            paper = Paper.objects.filter(Q(doi=bare_doi)).first()
+            if paper:
+                serializer_data = self._serialize_paper(paper, request)
+                return Response(serializer_data)
+
+            # Paper doesn't exist, try to import it from OpenAlex
+            return self._create_by_doi(request, doi=bare_doi)
+
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    def _create_by_doi(self, request, doi):
+        """
+        Create a paper by fetching data from OpenAlex using a DOI.
+        Args:
+            doi: Bare DOI (without https://doi.org/ prefix)
+        """
+        try:
+            # Fetch work from OpenAlex
+            openalex = OpenAlex()
+            work = openalex.get_work_by_doi(doi)
+            if not work:
+                return Response(
+                    {"error": "Work not found"},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Process the work
+            from paper.openalex_util import process_openalex_works
+
+            process_openalex_works([work])
+
+            # Get the created paper and serialize it
+            paper = Paper.objects.get(doi=doi)
+            serializer_data = self._serialize_paper(paper, request)
+            return Response(serializer_data, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            log_error(e)
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
 
 class FigureViewSet(viewsets.ModelViewSet):
     queryset = Figure.objects.all()
@@ -1251,7 +1344,6 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
         data = request.data
         # TODO: Sanitize?
         doi = data.get("doi", None)
-
         # DOI validity check
         doi_url = urlparse(doi)
         doi_res = requests.post(
