@@ -24,6 +24,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
             (self.action == "list")
             or (self.action == "partial_update")
             or (self.action == "mark_read")
+            or (self.action == "unread_count")
         ):
             permission_classes = [IsAuthenticated]
         else:
@@ -71,12 +72,21 @@ class NotificationViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=[PATCH], permission_classes=[IsAuthenticated])
     def mark_read(self, request, pk=None):
-        ids = request.data.get("ids", [])
         user = request.user
-        Notification.objects.filter(recipient=user, id__in=ids).update(
+        Notification.objects.filter(recipient=user).update(
             read=True, read_date=timezone.now()
         )
         return Response("Success", status=status.HTTP_200_OK)
+
+    @action(
+        detail=False,
+        methods=["GET"],
+    )
+    def unread_count(self, request):
+        unread_count = (
+            self.get_queryset().filter(read=False, recipient_id=request.user.id).count()
+        )
+        return Response({"count": unread_count}, status=status.HTTP_200_OK)
 
     def _get_context(self):
         context = {
