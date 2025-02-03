@@ -199,6 +199,37 @@ class CommentViewTests(APITestCase):
         self.assertEqual(regular_res.status_code, 200)
         self.assertEqual(regular_res.data["count"], 4)
 
+    def test_html_content_format(self):
+        """Test that HTML format comments store content in html field and not in comment_content_json"""
+        html_content = "<p>This is a test HTML comment</p>"
+        res = self._create_paper_comment(
+            self.paper.id,
+            self.user_1,
+            content_format="HTML",
+            comment_content=html_content,
+        )
+
+        self.assertEqual(res.status_code, 200)
+        comment_data = res.data
+
+        # Verify html field is set and comment_content_json is null
+        self.assertEqual(comment_data["html"], html_content)
+        self.assertIsNone(comment_data["comment_content_json"])
+
+    def test_quill_content_format(self):
+        """Test that QUILL_EDITOR format comments store content in comment_content_json field and not in html"""
+        quill_content = {"ops": [{"insert": "This is a test Quill comment"}]}
+        res = self._create_paper_comment(
+            self.paper.id, self.user_1, comment_content_json=quill_content
+        )
+
+        self.assertEqual(res.status_code, 200)
+        comment_data = res.data
+
+        # Verify comment_content_json is set and html is null
+        self.assertEqual(comment_data["comment_content_json"], quill_content)
+        self.assertIsNone(comment_data["html"])
+
     def test_comment_mentions(self):
         creator = self.user_1
         recipient = self.user_2

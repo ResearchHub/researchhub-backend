@@ -217,24 +217,22 @@ class RhCommentModel(
 
         content_format = data.get("content_format", QUILL_EDITOR)
 
-        if content_format == HTML:
-            # For HTML format, store content in html field and clear json
-            html_content = data.get("comment_content")
-            data["html"] = html_content
-            data["comment_content_json"] = None
-        else:
-            # For QUILL format (default), store in json field
-            data["comment_content_json"] = data.get("comment_content")
+        if content_format == QUILL_EDITOR:
+            # For QUILL format, content is already in comment_content_json
             data["html"] = None
+        else:
+            # For HTML format, use comment_content directly
+            data["html"] = data.get("comment_content")
+            data["comment_content_json"] = None
 
         rh_comment_serializer = RhCommentSerializer(data=data)
         rh_comment_serializer.is_valid(raise_exception=True)
         rh_comment = rh_comment_serializer.save()
 
-        if content_format != HTML:
-            # Only create content source for non-HTML content
+        if content_format == QUILL_EDITOR:
+            # Only create content source for QUILL format
             celery_create_comment_content_src.apply_async(
-                (rh_comment.id, data.get("comment_content_json")), countdown=2
+                (rh_comment.id, rh_comment.comment_content_json), countdown=2
             )
 
         rh_comment.increment_discussion_count()
