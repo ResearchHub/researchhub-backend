@@ -14,6 +14,7 @@ from django.db.models import (
 from discussion.reaction_models import AbstractGenericReactionModel
 from purchase.models import Purchase
 from researchhub_comment.constants.rh_comment_content_types import (
+    HTML,
     QUILL_EDITOR,
     RH_COMMENT_CONTENT_TYPES,
 )
@@ -56,6 +57,11 @@ class RhCommentModel(
         choices=RH_COMMENT_CONTENT_TYPES,
         default=QUILL_EDITOR,
         max_length=144,
+    )
+    html = TextField(
+        blank=True,
+        null=True,
+        help_text="HTML representation of the comment content",
     )
     is_accepted_answer = BooleanField(null=True)
     parent = ForeignKey(
@@ -167,9 +173,11 @@ class RhCommentModel(
         return total_count
 
     def update_comment_content(self):
-        celery_create_comment_content_src.apply_async(
-            (self.id, self.comment_content_json), countdown=2
-        )
+        # Only create content source for QUILL format
+        if self.comment_content_type != HTML:
+            celery_create_comment_content_src.apply_async(
+                (self.id, self.comment_content_json), countdown=2
+            )
 
     def _update_related_discussion_count(self, amount):
         from citation.models import CitationEntry
@@ -207,11 +215,27 @@ class RhCommentModel(
     def create_from_data(cls, data):
         from researchhub_comment.serializers import RhCommentSerializer
 
+        content_format = data.get("content_format", QUILL_EDITOR)
+
+        if content_format == HTML:
+            # For HTML format, store content in html field and clear json
+            html_content = data.get("comment_content")
+            data["html"] = html_content
+            data["comment_content_json"] = None
+        else:
+            # For QUILL format (default), store in json field
+            data["comment_content_json"] = data.get("comment_content")
+            data["html"] = None
+
         rh_comment_serializer = RhCommentSerializer(data=data)
         rh_comment_serializer.is_valid(raise_exception=True)
         rh_comment = rh_comment_serializer.save()
-        celery_create_comment_content_src.apply_async(
-            (rh_comment.id, data.get("comment_content_json")), countdown=2
-        )
+
+        if content_format != HTML:
+            # Only create content source for non-HTML content
+            celery_create_comment_content_src.apply_async(
+                (rh_comment.id, data.get("comment_content_json")), countdown=2
+            )
+
         rh_comment.increment_discussion_count()
         return rh_comment, rh_comment_serializer.data

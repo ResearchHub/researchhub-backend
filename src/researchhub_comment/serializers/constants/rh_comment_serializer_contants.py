@@ -6,6 +6,7 @@ RH_COMMENT_FIELDS = [
     "context_title",
     "created_date",
     "created_by",
+    "html",
     "updated_by",
     "id",
     "is_accepted_answer",

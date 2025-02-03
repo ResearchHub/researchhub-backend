@@ -19,7 +19,12 @@ class Migration(migrations.Migration):
                     ("INNER_CONTENT_COMMENT", "INNER_CONTENT_COMMENT"),
                 ],
                 default="GENERIC_COMMENT",
-                max_length=144,
+                max_length=255,
             ),
+        ),
+        migrations.AddField(
+            model_name="rhcommentmodel",
+            name="html",
+            field=models.TextField(blank=True, null=True),
         ),
     ]
