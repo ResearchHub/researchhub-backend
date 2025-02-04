@@ -18,7 +18,7 @@ class FeedViewSet(viewsets.ModelViewSet):
     pagination_class = FeedPagination
 
     def get_queryset(self):
-        """Filter feed entries to only show items related to what user follows"""
+        """Filter feed entries to show items related to what user follows"""
         action = self.request.query_params.get("action")
         content_type = self.request.query_params.get("content_type")
 
@@ -29,7 +29,16 @@ class FeedViewSet(viewsets.ModelViewSet):
                 parent_content_type_id__in=following.values("content_type"),
                 parent_object_id__in=following.values("object_id"),
             )
-            .select_related("content_type", "parent_content_type", "user")
+            .select_related(
+                "content_type",
+                "parent_content_type",
+                "user",
+                "user__author_profile",
+            )
+            .prefetch_related(
+                "item__authors",
+                "item__hubs",
+            )
             .order_by("-created_date")
         )
         if action:
