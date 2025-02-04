@@ -30,6 +30,7 @@ class FeedEntry(DefaultModel):
     parent_item = GenericForeignKey("parent_content_type", "parent_object_id")
 
     action = models.TextField(choices=action_choices)
+    action_date = models.DateTimeField(db_index=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
 
     class Meta:
@@ -37,7 +38,11 @@ class FeedEntry(DefaultModel):
             models.Index(
                 fields=["parent_content_type", "parent_object_id"],
                 name="feed_parent_lookup_idx",
-            )
+            ),
+            models.Index(
+                fields=["-action_date"],
+                name="feed_action_date_idx",
+            ),
         ]
         constraints = [
             models.UniqueConstraint(
@@ -67,6 +72,12 @@ def create_feed_entry(
     item_content_type = ContentType.objects.get(id=item_content_type_id)
     parent_content_type = ContentType.objects.get(id=parent_content_type_id)
 
+    action_date = None
+    if action == FeedEntry.PUBLISH and item_content_type.model == "paper":
+        action_date = item_content_type.get_object_for_this_type(
+            id=item_id
+        ).paper_publish_date
+
     # Get the actual model instances
     item = item_content_type.get_object_for_this_type(id=item_id)
     parent_item = parent_content_type.get_object_for_this_type(id=parent_item_id)
@@ -81,6 +92,7 @@ def create_feed_entry(
         content_type=item_content_type,
         object_id=item_id,
         action=action,
+        action_date=action_date,
         parent_item=parent_item,
         parent_content_type=parent_content_type,
         parent_object_id=parent_item_id,

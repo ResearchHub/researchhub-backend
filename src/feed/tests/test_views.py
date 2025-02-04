@@ -41,6 +41,7 @@ class FeedViewSetTests(TestCase):
         FeedEntry.objects.create(
             user=self.user,
             action="PUBLISH",
+            action_date=self.paper.paper_publish_date,
             content_type=self.paper_content_type,
             object_id=self.paper.id,
             parent_content_type=self.hub_content_type,
@@ -64,6 +65,7 @@ class FeedViewSetTests(TestCase):
             FeedEntry.objects.create(
                 user=self.user,
                 action="PUBLISH",
+                action_date=paper.paper_publish_date,
                 content_type=self.paper_content_type,
                 object_id=paper.id,
                 parent_content_type=self.hub_content_type,
@@ -87,6 +89,7 @@ class FeedViewSetTests(TestCase):
         FeedEntry.objects.create(
             user=self.user,
             action="PUBLISH",
+            action_date=paper2.paper_publish_date,
             content_type=self.paper_content_type,
             object_id=paper2.id,
             parent_content_type=self.hub_content_type,

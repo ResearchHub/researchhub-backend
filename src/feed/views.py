@@ -34,7 +34,7 @@ class FeedViewSet(viewsets.ModelViewSet):
                 "item__authors",
                 "item__hubs",
             )
-            .order_by("-created_date")
+            .order_by("-action_date")
         )
 
         # Apply following filter only if user is authenticated and has follows
