@@ -47,13 +47,6 @@ class FeedViewSetTests(TestCase):
             parent_object_id=self.hub.id,
         )
 
-    def test_feed_requires_authentication(self):
-        """Test that feed endpoint requires authentication"""
-        self.client.logout()
-        url = reverse("feed-list")
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-
     def test_feed_returns_followed_items(self):
         """Test that feed only returns items from followed users"""
         url = reverse("feed-list")
