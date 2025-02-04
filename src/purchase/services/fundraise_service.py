@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Union
 
 from django.contrib.auth.models import User
@@ -43,7 +43,7 @@ class FundraiseService:
             goal_amount = Decimal(goal_amount)
             if goal_amount <= 0:
                 raise FundraiseValidationError("goal_amount must be greater than 0")
-        except (TypeError, ValueError) as e:
+        except (TypeError, ValueError, InvalidOperation) as e:
             log_error(e)
             raise FundraiseValidationError("Invalid goal_amount")
 
