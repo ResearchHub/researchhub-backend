@@ -7,6 +7,7 @@ from hub.models import Hub
 from hub.tests.helpers import create_hub
 from note.tests.helpers import create_note
 from paper.tests.helpers import create_paper
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import Distribution
 from reputation.distributor import Distributor
 from researchhub_access_group.constants import SENIOR_EDITOR
@@ -37,6 +38,9 @@ class ViewTests(APITestCase):
         )
 
         self.hub = create_hub("hub")
+
+        # Add exchange rate for fundraise tests
+        RscExchangeRate.objects.create(rate=1.0)
 
     def test_author_can_delete_doc(self):
         author = create_random_default_user("author")
@@ -563,3 +567,48 @@ class ViewTests(APITestCase):
         # Assert
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["id"], paper.unified_document.id)
+
+    def test_fundraise_in_response_when_preregistration(self):
+        author = create_random_default_user("author")
+        hub = create_hub()
+
+        self.client.force_authenticate(author)
+
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "PREREGISTRATION",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
+                "hubs": [hub.id],
+                "fundraise_goal_amount": 1000,
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 200)
+        self.assertIsNotNone(doc_response.data["fundraise"])
+
+    def test_fundraise_null_in_response_when_not_preregistration(self):
+        author = create_random_default_user("author")
+        hub = create_hub()
+
+        self.client.force_authenticate(author)
+
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "DISCUSSION",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
+                "hubs": [hub.id],
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 200)
+        self.assertIsNone(doc_response.data["fundraise"])

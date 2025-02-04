@@ -222,7 +222,9 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 )
 
             response_data = ResearchhubPostSerializer(rh_post).data
-            response_data["fundraise"] = DynamicFundraiseSerializer(fundraise).data
+            response_data["fundraise"] = (
+                DynamicFundraiseSerializer(fundraise).data if fundraise else None
+            )
             return Response(response_data, status=200)
 
         except (KeyError, TypeError) as exception:
