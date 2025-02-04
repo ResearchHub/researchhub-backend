@@ -6,6 +6,7 @@ from rest_framework.viewsets import ModelViewSet
 from hub.models import Hub
 from paper.models import Paper
 from user.models import User
+from user.related_models.author_model import Author
 from user.related_models.follow_model import Follow
 from user.tests.helpers import create_user
 from user.views.follow_view_mixins import FollowViewActionMixin
@@ -202,3 +203,111 @@ class FollowViewActionMixinTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertTrue(response.data["following"])
         self.assertIn("follow", response.data)
+
+    def test_follow_author(self):
+        # Create an author
+        self.author = Author.objects.create(
+            first_name="Test",
+            last_name="Author",
+            created_source=Author.SOURCE_RESEARCHHUB,
+        )
+
+        response = self.client.post(f"/api/author/{self.author.id}/follow/")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        # Verify follow was created
+        follow = Follow.objects.get(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Author),
+            object_id=self.author.id,
+        )
+        self.assertIsNotNone(follow)
+
+    def test_follow_author_already_following(self):
+        # Create an author
+        self.author = Author.objects.create(
+            first_name="Test",
+            last_name="Author",
+            created_source=Author.SOURCE_RESEARCHHUB,
+        )
+
+        # Create follow first
+        follow = Follow.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Author),
+            object_id=self.author.id,
+        )
+
+        response = self.client.post(f"/api/author/{self.author.id}/follow/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["id"], follow.id)
+
+    def test_unfollow_author(self):
+        # Create an author
+        self.author = Author.objects.create(
+            first_name="Test",
+            last_name="Author",
+            created_source=Author.SOURCE_RESEARCHHUB,
+        )
+
+        # Create follow first
+        Follow.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Author),
+            object_id=self.author.id,
+        )
+
+        response = self.client.delete(f"/api/author/{self.author.id}/unfollow/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify follow was deleted
+        with self.assertRaises(Follow.DoesNotExist):
+            Follow.objects.get(
+                user=self.user,
+                content_type=ContentType.objects.get_for_model(Author),
+                object_id=self.author.id,
+            )
+
+    def test_unfollow_author_not_following(self):
+        # Create an author
+        self.author = Author.objects.create(
+            first_name="Test",
+            last_name="Author",
+            created_source=Author.SOURCE_RESEARCHHUB,
+        )
+
+        response = self.client.delete(f"/api/author/{self.author.id}/unfollow/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["msg"], "Not following")
+
+    def test_is_following_author_true(self):
+        # Create an author
+        self.author = Author.objects.create(
+            first_name="Test",
+            last_name="Author",
+            created_source=Author.SOURCE_RESEARCHHUB,
+        )
+
+        # Create follow first
+        Follow.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Author),
+            object_id=self.author.id,
+        )
+
+        response = self.client.get(f"/api/author/{self.author.id}/is_following/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["following"])
+        self.assertIn("follow", response.data)
+
+    def test_is_following_author_false(self):
+        # Create an author
+        self.author = Author.objects.create(
+            first_name="Test",
+            last_name="Author",
+            created_source=Author.SOURCE_RESEARCHHUB,
+        )
+
+        response = self.client.get(f"/api/author/{self.author.id}/is_following/")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(response.data["following"])

@@ -45,11 +45,12 @@ from user.serializers import (
 )
 from user.tasks import invalidate_author_profile_caches
 from user.utils import AuthorClaimException, claim_openalex_author_profile
+from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.permissions import CreateOrUpdateIfAllowed
 from utils.throttles import THROTTLE_CLASSES
 
 
-class AuthorViewSet(viewsets.ModelViewSet):
+class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
     queryset = Author.objects.all()
     serializer_class = AuthorSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)

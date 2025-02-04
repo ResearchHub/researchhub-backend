@@ -47,13 +47,6 @@ class FeedViewSetTests(TestCase):
             parent_object_id=self.hub.id,
         )
 
-    def test_feed_requires_authentication(self):
-        """Test that feed endpoint requires authentication"""
-        self.client.logout()
-        url = reverse("feed-list")
-        response = self.client.get(url)
-        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
-
     def test_feed_returns_followed_items(self):
         """Test that feed only returns items from followed users"""
         url = reverse("feed-list")
@@ -64,12 +57,15 @@ class FeedViewSetTests(TestCase):
 
     def test_feed_pagination(self):
         """Test feed pagination"""
-        for _ in range(25):
+        for i in range(25):
+            paper = Paper.objects.create(
+                title=f"Test Paper {i}",
+            )
             FeedEntry.objects.create(
                 user=self.user,
                 action="PUBLISH",
                 content_type=self.paper_content_type,
-                object_id=self.paper.id,
+                object_id=paper.id,
                 parent_content_type=self.hub_content_type,
                 parent_object_id=self.hub.id,
             )

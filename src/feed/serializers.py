@@ -22,7 +22,14 @@ class SimpleUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "first_name", "last_name", "profile_image"]
+        fields = [
+            "id",
+            "first_name",
+            "last_name",
+            "profile_image",
+            "email",
+            "is_verified",
+        ]
 
 
 class ContentObjectSerializer(serializers.Serializer):
@@ -57,19 +64,35 @@ class ContentObjectSerializer(serializers.Serializer):
         abstract = True
 
 
+class PaperMetricsSerializer(serializers.Serializer):
+    """Serializer for paper metrics including votes and comments."""
+
+    votes = serializers.IntegerField(source="score", default=0)
+    comments_count = serializers.IntegerField(source="discussion_count", default=0)
+    reposts = serializers.IntegerField(default=0)  # TODO: Implement reposts
+    saves = serializers.IntegerField(default=0)  # TODO: Implement saves
+
+
 class PaperSerializer(ContentObjectSerializer):
     journal = serializers.SerializerMethodField()
     authors = SimpleAuthorSerializer(many=True)
     title = serializers.CharField()
     abstract = serializers.CharField()
     doi = serializers.CharField()
+    metrics = PaperMetricsSerializer(source="*")
 
     def get_journal(self, obj):
         journal_hub = obj.hubs.filter(
             namespace=Hub.Namespace.JOURNAL,
         ).first()
         if journal_hub:
-            return {"name": journal_hub.name}
+            return {
+                "id": journal_hub.id,
+                "name": journal_hub.name,
+                "slug": journal_hub.slug,
+                "image": journal_hub.hub_image,
+                "description": journal_hub.description,
+            }
         return None
 
     class Meta(ContentObjectSerializer.Meta):
@@ -80,6 +103,7 @@ class PaperSerializer(ContentObjectSerializer):
             "doi",
             "journal",
             "authors",
+            "metrics",
         ]
 
 
