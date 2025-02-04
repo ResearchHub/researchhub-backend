@@ -102,8 +102,9 @@ class FeedEntrySerializer(serializers.ModelSerializer):
     content_type = serializers.SerializerMethodField()
     content_object = serializers.SerializerMethodField()
     created_date = serializers.DateTimeField()
+    action_date = serializers.SerializerMethodField()
     action = serializers.CharField()
-    author = SimpleAuthorSerializer(source="user.author_profile")
+    author = serializers.SerializerMethodField()
 
     class Meta:
         model = FeedEntry
@@ -112,9 +113,22 @@ class FeedEntrySerializer(serializers.ModelSerializer):
             "content_type",
             "content_object",
             "created_date",
+            "action_date",
             "action",
             "author",
         ]
+
+    def get_action_date(self, obj):
+        """Return paper publish date for publish actions, otherwise created_date"""
+        if obj.action == FeedEntry.PUBLISH and obj.content_type.model == "paper":
+            return obj.item.paper_publish_date
+        return obj.created_date
+
+    def get_author(self, obj):
+        """Return author data only if feed entry has an associated user"""
+        if obj.user and hasattr(obj.user, "author_profile"):
+            return SimpleAuthorSerializer(obj.user.author_profile).data
+        return None
 
     def get_content_object(self, obj):
         """Return the appropriate serialized content object based on type"""
