@@ -16,12 +16,13 @@ from purchase.related_models.constants import (
 from purchase.related_models.constants.currency import RSC, USD
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.purchase_serializer import DynamicPurchaseSerializer
-from purchase.utils import create_fundraise_with_escrow
-from reputation.models import BountyFee, Escrow
+from purchase.services.fundraise_service import (
+    FundraiseService,
+    FundraiseValidationError,
+)
+from reputation.models import BountyFee
 from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
-from researchhub_document.related_models.constants.document_type import PREREGISTRATION
-from researchhub_document.related_models.constants.filters import HOT
 from user.models import User
 from user.permissions import IsModerator
 from utils.sentry import log_error
@@ -134,16 +135,17 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             except User.DoesNotExist:
                 return Response({"message": "User does not exist"}, status=400)
 
+        fundraise_service = FundraiseService()
         with transaction.atomic():
-            # Create a fundraise with its associated escrow
-            fundraise, error_response = create_fundraise_with_escrow(
-                user=recipient_user,
-                unified_document=unified_document,
-                goal_amount=goal_amount,
-                goal_currency=goal_currency,
-            )
-            if error_response:
-                return error_response
+            try:
+                fundraise = fundraise_service.create_fundraise_with_escrow(
+                    user=recipient_user,
+                    unified_document=unified_document,
+                    goal_amount=goal_amount,
+                    goal_currency=goal_currency,
+                )
+            except FundraiseValidationError as e:
+                return Response({"message": str(e)}, status=400)
 
         context = self.get_serializer_context()
         serializer = self.get_serializer(fundraise, context=context)

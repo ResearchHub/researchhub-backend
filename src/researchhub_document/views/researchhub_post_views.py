@@ -13,9 +13,11 @@ from hub.models import Hub
 from note.related_models.note_model import Note
 from purchase.models import Balance, Purchase
 from purchase.related_models.constants.currency import USD
-from purchase.related_models.fundraise_model import Fundraise
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
-from purchase.utils import create_fundraise_with_escrow
+from purchase.services.fundraise_service import (
+    FundraiseService,
+    FundraiseValidationError,
+)
 from researchhub.settings import CROSSREF_DOI_RSC_FEE, TESTING
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.permissions import HasDocumentEditingPermission
@@ -174,14 +176,16 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
 
                 fundraise = None
                 if goal_amount := data.get("fundraise_goal_amount"):
-                    fundraise, error_response = create_fundraise_with_escrow(
-                        user=created_by,
-                        unified_document=unified_document,
-                        goal_amount=goal_amount,
-                        goal_currency=data.get("fundraise_goal_currency", USD),
-                    )
-                    if error_response:
-                        return error_response
+                    fundraise_service = FundraiseService()
+                    try:
+                        fundraise = fundraise_service.create_fundraise_with_escrow(
+                            user=created_by,
+                            unified_document=unified_document,
+                            goal_amount=goal_amount,
+                            goal_currency=data.get("fundraise_goal_currency", USD),
+                        )
+                    except FundraiseValidationError as e:
+                        return Response({"message": str(e)}, status=400)
 
                 if not TESTING:
                     if document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
