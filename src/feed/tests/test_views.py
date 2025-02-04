@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -22,6 +23,7 @@ class FeedViewSetTests(TestCase):
         )
         self.paper = Paper.objects.create(
             title="Test Paper",
+            paper_publish_date=timezone.now(),
         )
         self.hub = Hub.objects.create(
             name="Test Hub",
@@ -61,6 +63,7 @@ class FeedViewSetTests(TestCase):
         for i in range(25):
             paper = Paper.objects.create(
                 title=f"Test Paper {i}",
+                paper_publish_date=timezone.now(),
             )
             FeedEntry.objects.create(
                 user=self.user,
@@ -84,6 +87,7 @@ class FeedViewSetTests(TestCase):
         """Test custom page size parameter"""
         paper2 = Paper.objects.create(
             title="Test Paper 2",
+            paper_publish_date=timezone.now(),
         )
         paper2.hubs.add(self.hub)
         FeedEntry.objects.create(

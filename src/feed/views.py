@@ -34,7 +34,9 @@ class FeedViewSet(viewsets.ModelViewSet):
                 "item__authors",
                 "item__hubs",
             )
-            .order_by("-action_date")
+            # Order first by the distinct columns, then by action_date
+            .order_by("content_type", "object_id", "-action_date")
+            .distinct("content_type", "object_id")
         )
 
         # Apply following filter only if user is authenticated and has follows

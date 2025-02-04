@@ -61,6 +61,9 @@ def handle_paper_hubs_changed(sender, instance, action, pk_set, **kwargs):
                 hub = instance
                 paper = hub.papers.get(id=hub_id)
 
+            if paper.paper_publish_date is None:
+                continue
+
             create_feed_entry.apply_async(
                 args=(
                     paper.id,
@@ -79,6 +82,9 @@ def handle_paper_hubs_changed(sender, instance, action, pk_set, **kwargs):
             else:  # instance is Hub
                 hub = instance
                 paper = Paper.objects.get(id=hub_id)
+
+            if paper.paper_publish_date is None:
+                continue
 
             delete_feed_entry.apply_async(
                 args=(
