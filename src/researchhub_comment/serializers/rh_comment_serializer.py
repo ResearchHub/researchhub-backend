@@ -1,5 +1,5 @@
 from django.db.models import Sum
-from rest_framework.serializers import SerializerMethodField
+from rest_framework.serializers import CharField, SerializerMethodField
 
 from discussion.models import Vote
 from discussion.reaction_serializers import (
@@ -25,12 +25,16 @@ class RhCommentSerializer(GenericReactionSerializer):
         fields = [
             *GenericReactionSerializerMixin.EXPOSABLE_FIELDS,
             *RH_COMMENT_FIELDS,
+            "content_format",
+            "comment_content",
         ]
         read_only_fields = [
             *GenericReactionSerializerMixin.READ_ONLY_FIELDS,
             *RH_COMMENT_READ_ONLY_FIELDS,
         ]
 
+    content_format = CharField(required=False, write_only=True)
+    comment_content = CharField(required=False, write_only=True)
     children_count = SerializerMethodField()
     children = SerializerMethodField()
 
