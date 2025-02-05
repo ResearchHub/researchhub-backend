@@ -61,6 +61,11 @@ def handle_paper_hubs_changed(sender, instance, action, pk_set, **kwargs):
                 hub = instance
                 paper = hub.papers.get(id=hub_id)
 
+            # We order feed entries by publish date, so we don't need to
+            # create feed entries for papers that don't have a publish date
+            if paper.paper_publish_date is None:
+                continue
+
             create_feed_entry.apply_async(
                 args=(
                     paper.id,

@@ -1,6 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
+from feed.models import FeedEntry
 from feed.serializers import (
     ContentObjectSerializer,
     FeedEntrySerializer,
@@ -104,19 +105,15 @@ class FeedEntrySerializerTests(TestCase):
         paper = create_paper(uploaded_by=self.user)
         paper.save()
 
-        feed_entry = type(
-            "FeedEntry",
-            (),
-            {
-                "id": 1,
-                "content_type": ContentType.objects.get_for_model(Paper),
-                "content_object": paper,
-                "item": paper,
-                "created_date": paper.created_date,
-                "action": "PUBLISH",
-                "user": self.user,
-            },
-        )()
+        feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=paper.id,
+            item=paper,
+            created_date=paper.created_date,
+            action="PUBLISH",
+            action_date=paper.paper_publish_date,
+            user=self.user,
+        )
 
         serializer = FeedEntrySerializer(feed_entry)
         data = serializer.data

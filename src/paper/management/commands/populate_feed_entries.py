@@ -40,6 +40,7 @@ class Command(BaseCommand):
                             parent_content_type=hub_content_type,
                             parent_object_id=hub.id,
                             action="PUBLISH",
+                            action_date=paper.paper_publish_date,
                             user=paper.uploaded_by,
                         )
                     )
