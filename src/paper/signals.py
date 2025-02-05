@@ -4,7 +4,7 @@ from django.dispatch import receiver
 from django.utils.crypto import get_random_string
 from django.utils.text import slugify
 
-from feed.models import create_feed_entry, delete_feed_entry
+from feed.tasks import create_feed_entry, delete_feed_entry
 from hub.models import Hub
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
