@@ -39,6 +39,10 @@ class FeedEntry(DefaultModel):
                 name="feed_parent_lookup_idx",
             ),
             models.Index(
+                fields=["content_type", "object_id", "-action_date"],
+                name="feed_partition_action_idx",
+            ),
+            models.Index(
                 fields=["-action_date"],
                 name="feed_action_date_idx",
             ),
