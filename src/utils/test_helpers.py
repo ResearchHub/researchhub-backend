@@ -23,12 +23,14 @@ def generate_password(length=16):
     """
     Generates a password with at least one letter, one digit and one special character.
     """
+    special_chars = "!@#$%^&*?"
+
     return "".join(
         secrets.choice(string.ascii_letters)  # 1 letter
         + secrets.choice(string.digits)  # 1 digit
-        + secrets.choice(string.punctuation)  # 1 special char
+        + secrets.choice(special_chars)  # 1 special char
         + "".join(
-            secrets.choice(string.ascii_letters + string.digits + string.punctuation)
+            secrets.choice(string.ascii_letters + string.digits + special_chars)
             for _ in range(length - 3)
         )
     )
