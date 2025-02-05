@@ -29,7 +29,14 @@ class SimpleAuthorSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Author
-        fields = ["id", "first_name", "last_name", "profile_image", "user"]
+        fields = [
+            "id",
+            "first_name",
+            "last_name",
+            "profile_image",
+            "headline",
+            "user",
+        ]
 
 
 class ContentObjectSerializer(serializers.Serializer):

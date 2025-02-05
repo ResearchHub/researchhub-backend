@@ -1,3 +1,5 @@
+from django.db.models import F, Window
+from django.db.models.functions import RowNumber
 from rest_framework import viewsets
 from rest_framework.pagination import PageNumberPagination
 
@@ -17,11 +19,15 @@ class FeedViewSet(viewsets.ModelViewSet):
     pagination_class = FeedPagination
 
     def get_queryset(self):
-        """Filter feed entries to show items related to what user follows, or all items if no follows"""
+        """
+        Filter feed entries to show items related to what user follows,
+        or all items if no follows, and ensure that the result contains
+        only the most recent entry per (content_type, object_id), ordered
+        globally by the most recent action_date.
+        """
         action = self.request.query_params.get("action")
         content_type = self.request.query_params.get("content_type")
 
-        # Base queryset with all necessary joins
         queryset = (
             FeedEntry.objects.all()
             .select_related(
@@ -34,24 +40,37 @@ class FeedViewSet(viewsets.ModelViewSet):
                 "item__authors",
                 "item__hubs",
             )
-            # Order first by the distinct columns, then by action_date
-            .order_by("content_type", "object_id", "-action_date")
-            .distinct("content_type", "object_id")
         )
 
-        # Apply following filter only if user is authenticated and has follows
+        # Apply following filter only if the user is authenticated and has follows.
         if self.request.user.is_authenticated:
             following = self.request.user.following.all()
-            if following.exists():  # Only filter if user is following something
+            if following.exists():
                 queryset = queryset.filter(
                     parent_content_type_id__in=following.values("content_type"),
                     parent_object_id__in=following.values("object_id"),
                 )
 
-        # Apply additional filters
+        # Apply additional filters.
         if action:
             queryset = queryset.filter(action=action)
         if content_type:
             queryset = queryset.filter(content_type__model=content_type)
+
+        # Use a window function to partition by 'content_type' and 'object_id',
+        # ordering each partition by action_date in descending order.
+        # The first row (row_number == 1) in each partition will then
+        # be the latest record.
+        queryset = (
+            queryset.annotate(
+                row_number=Window(
+                    expression=RowNumber(),
+                    partition_by=[F("content_type"), F("object_id")],
+                    order_by=F("action_date").desc(),
+                )
+            )
+            .filter(row_number=1)
+            .order_by("-action_date")
+        )
 
         return queryset
