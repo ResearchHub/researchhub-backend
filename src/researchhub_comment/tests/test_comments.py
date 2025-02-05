@@ -230,6 +230,30 @@ class CommentViewTests(APITestCase):
         self.assertEqual(comment_data["comment_content_json"], quill_content)
         self.assertIsNone(comment_data["html"])
 
+    def test_update_html_content_format(self):
+        """Test that updating a comment with HTML format stores content correctly"""
+        # First create a comment with QUILL format
+        quill_content = {"ops": [{"insert": "Initial Quill comment"}]}
+        res = self._create_paper_comment(
+            self.paper.id, self.user_1, comment_content_json=quill_content
+        )
+        comment_id = res.data["id"]
+
+        # Update the comment with HTML content
+        html_content = "<p>Updated HTML content</p>"
+        self.client.force_authenticate(self.user_1)
+        update_res = self.client.patch(
+            f"/api/paper/{self.paper.id}/comments/{comment_id}/",
+            {"comment_content": html_content, "content_format": "HTML"},
+        )
+
+        self.assertEqual(update_res.status_code, 200)
+        updated_data = update_res.data
+
+        # Verify html field is set and comment_content_json is null
+        self.assertEqual(updated_data["html"], html_content)
+        self.assertIsNone(updated_data["comment_content_json"])
+
     def test_comment_mentions(self):
         creator = self.user_1
         recipient = self.user_2

@@ -118,7 +118,14 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         CITATION_ENTRY: "citationentry",
     }
     _ALLOWED_UPDATE_FIELDS = set(
-        ["comment_content_type", "comment_content_json", "context_title", "mentions"]
+        [
+            "comment_content_type",
+            "comment_content_json",
+            "context_title",
+            "mentions",
+            "content_format",
+            "comment_content",
+        ]
     )
 
     def _get_model_name(self):
@@ -530,6 +537,9 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
 
     @sift_track(SIFT_COMMENT, is_update=True)
     def update(self, request, *args, **kwargs):
+
+        print("*(***************)")
+
         if request.method == "PUT":
             return Response(
                 "PUT is not allowed",
@@ -560,8 +570,14 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             return res
 
     def perform_update(self, serializer):
+        # Get the content format and content from request data
+        content_format = self.request.data.get("content_format")
+        comment_content = self.request.data.get("comment_content")
+
         instance = serializer.save()
-        instance.update_comment_content()
+        instance.update_comment_content(
+            content_format=content_format, comment_content=comment_content
+        )
 
     @action(
         detail=True,

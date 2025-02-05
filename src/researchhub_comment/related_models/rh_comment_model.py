@@ -172,12 +172,23 @@ class RhCommentModel(
 
         return total_count
 
-    def update_comment_content(self):
-        # Only create content source for QUILL format
-        if self.comment_content_type != HTML:
+    def update_comment_content(self, content_format=None, comment_content=None):
+        # Handle HTML format
+        if content_format == HTML:
+            self.html = comment_content
+            self.comment_content_json = None
+            self.comment_content_type = HTML
+            self.save(
+                update_fields=["html", "comment_content_json", "comment_content_type"]
+            )
+        else:
+            # For QUILL format, create content source
             celery_create_comment_content_src.apply_async(
                 (self.id, self.comment_content_json), countdown=2
             )
+            self.html = None
+            self.comment_content_type = QUILL_EDITOR
+            self.save(update_fields=["html", "comment_content_type"])
 
     def _update_related_discussion_count(self, amount):
         from citation.models import CitationEntry
