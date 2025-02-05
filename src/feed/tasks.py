@@ -31,8 +31,9 @@ def create_feed_entry(
         user = User.objects.get(id=user_id)
     else:
         user = None
-    # Create the feed entry
-    FeedEntry.objects.create(
+
+    # Create and return the feed entry
+    return FeedEntry.objects.create(
         user=user,
         item=item,
         content_type=item_content_type,
