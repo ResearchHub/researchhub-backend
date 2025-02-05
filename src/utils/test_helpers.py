@@ -1,5 +1,7 @@
 import json
 import random
+import secrets
+import string
 import threading
 import time
 
@@ -17,6 +19,21 @@ from paper.models import Paper
 from user.models import Author, University, User
 
 
+def generate_password(length=16):
+    """
+    Generates a password with at least one letter, one digit and one special character.
+    """
+    return "".join(
+        secrets.choice(string.ascii_letters)  # 1 letter
+        + secrets.choice(string.digits)  # 1 digit
+        + secrets.choice(string.punctuation)  # 1 special char
+        + "".join(
+            secrets.choice(string.ascii_letters + string.digits + string.punctuation)
+            for _ in range(length - 3)
+        )
+    )
+
+
 class TestData:
     first_name = "Regulus"
     last_name = "Black"
@@ -24,9 +41,9 @@ class TestData:
     author_last_name = "Black"
 
     invalid_email = "testuser@gmail"
-    invalid_password = "pass"
+    invalid_password = "pass"  # NOSONAR
     valid_email = "testuser@gmail.com"
-    valid_password = "ReHub940@"
+    valid_password = generate_password()
 
     university_name = "Hogwarts"
     university_country = "England"

@@ -3,6 +3,7 @@ import json
 from django.test import Client, TestCase
 
 from user.models import Author, University, User
+from utils.test_helpers import generate_password
 
 
 class BaseTests(TestCase):
@@ -12,9 +13,9 @@ class BaseTests(TestCase):
     author_last_name = "Black"
 
     invalid_email = "testuser@gmail"
-    invalid_password = "pass"
+    invalid_password = "pass"  # NOSONAR
     valid_email = "testuser@gmail.com"
-    valid_password = "ReHub940@"
+    valid_password = generate_password()
 
     university_name = "Hogwarts"
     university_country = "England"
