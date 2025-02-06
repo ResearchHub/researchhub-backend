@@ -85,7 +85,7 @@ class PaperSerializer(ContentObjectSerializer):
                 "id": journal_hub.id,
                 "name": journal_hub.name,
                 "slug": journal_hub.slug,
-                "image": journal_hub.hub_image,
+                "image": journal_hub.hub_image.url if journal_hub.hub_image else None,
                 "description": journal_hub.description,
             }
         return None
