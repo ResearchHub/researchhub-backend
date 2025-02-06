@@ -94,6 +94,28 @@ class PaperSerializerTests(TestCase):
             data["authors"][0]["profile_image"], "https://example.com/profile.jpg"
         )
 
+    def test_serializes_paper_with_journal_without_image(self):
+        # Create a new journal hub without an image
+        journal_without_image = create_hub(
+            "Journal No Image", namespace=Hub.Namespace.JOURNAL
+        )
+
+        # Create a new paper associated with this journal
+        paper = create_paper(
+            uploaded_by=self.user,
+            title="Test Paper No Journal Image",
+        )
+        paper.hubs.add(journal_without_image)
+        paper.save()
+
+        serializer = PaperSerializer(paper)
+        data = serializer.data
+
+        # Verify the journal data is serialized correctly
+        self.assertIn("journal", data)
+        self.assertEqual(data["journal"]["name"], journal_without_image.name)
+        self.assertEqual(data["journal"]["image"], None)
+
 
 class FeedEntrySerializerTests(TestCase):
     def setUp(self):
