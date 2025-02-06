@@ -10,10 +10,12 @@ class Command(BaseCommand):
     help = "Populates feed entries with the first 100 papers"
 
     def handle(self, *args, **options):
-        # Get first 100 papers
-        papers = Paper.objects.select_related("uploaded_by").prefetch_related("hubs")[
-            :100
-        ]
+        # Get first 100 papers, ordered by newest first
+        papers = (
+            Paper.objects.select_related("uploaded_by")
+            .prefetch_related("hubs")
+            .order_by("-paper_publish_date")[:100]
+        )
         paper_content_type = ContentType.objects.get_for_model(Paper)
         hub_content_type = ContentType.objects.get_for_model(Hub)
 
@@ -40,6 +42,7 @@ class Command(BaseCommand):
                             parent_content_type=hub_content_type,
                             parent_object_id=hub.id,
                             action="PUBLISH",
+                            action_date=paper.paper_publish_date,
                             user=paper.uploaded_by,
                         )
                     )

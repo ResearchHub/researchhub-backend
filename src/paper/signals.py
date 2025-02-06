@@ -4,7 +4,7 @@ from django.dispatch import receiver
 from django.utils.crypto import get_random_string
 from django.utils.text import slugify
 
-from feed.models import create_feed_entry, delete_feed_entry
+from feed.tasks import create_feed_entry, delete_feed_entry
 from hub.models import Hub
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
@@ -60,6 +60,11 @@ def handle_paper_hubs_changed(sender, instance, action, pk_set, **kwargs):
             else:  # instance is Hub
                 hub = instance
                 paper = hub.papers.get(id=hub_id)
+
+            # We order feed entries by publish date, so we don't need to
+            # create feed entries for papers that don't have a publish date
+            if paper.paper_publish_date is None:
+                continue
 
             create_feed_entry.apply_async(
                 args=(

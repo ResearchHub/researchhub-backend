@@ -1,6 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
+from feed.models import FeedEntry
 from feed.serializers import (
     ContentObjectSerializer,
     FeedEntrySerializer,
@@ -93,6 +94,28 @@ class PaperSerializerTests(TestCase):
             data["authors"][0]["profile_image"], "https://example.com/profile.jpg"
         )
 
+    def test_serializes_paper_with_journal_without_image(self):
+        # Create a new journal hub without an image
+        journal_without_image = create_hub(
+            "Journal No Image", namespace=Hub.Namespace.JOURNAL
+        )
+
+        # Create a new paper associated with this journal
+        paper = create_paper(
+            uploaded_by=self.user,
+            title="Test Paper No Journal Image",
+        )
+        paper.hubs.add(journal_without_image)
+        paper.save()
+
+        serializer = PaperSerializer(paper)
+        data = serializer.data
+
+        # Verify the journal data is serialized correctly
+        self.assertIn("journal", data)
+        self.assertEqual(data["journal"]["name"], journal_without_image.name)
+        self.assertEqual(data["journal"]["image"], None)
+
 
 class FeedEntrySerializerTests(TestCase):
     def setUp(self):
@@ -104,19 +127,15 @@ class FeedEntrySerializerTests(TestCase):
         paper = create_paper(uploaded_by=self.user)
         paper.save()
 
-        feed_entry = type(
-            "FeedEntry",
-            (),
-            {
-                "id": 1,
-                "content_type": ContentType.objects.get_for_model(Paper),
-                "content_object": paper,
-                "item": paper,
-                "created_date": paper.created_date,
-                "action": "PUBLISH",
-                "user": self.user,
-            },
-        )()
+        feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=paper.id,
+            item=paper,
+            created_date=paper.created_date,
+            action="PUBLISH",
+            action_date=paper.paper_publish_date,
+            user=self.user,
+        )
 
         serializer = FeedEntrySerializer(feed_entry)
         data = serializer.data

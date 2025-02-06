@@ -7,18 +7,8 @@ from user.models import Author, User
 from .models import FeedEntry
 
 
-class SimpleAuthorSerializer(serializers.ModelSerializer):
-    """Minimal author serializer with just essential fields"""
-
-    class Meta:
-        model = Author
-        fields = ["id", "first_name", "last_name", "profile_image"]
-
-
 class SimpleUserSerializer(serializers.ModelSerializer):
     """Minimal user serializer with just essential fields"""
-
-    profile_image = serializers.CharField(source="author_profile.profile_image")
 
     class Meta:
         model = User
@@ -26,9 +16,26 @@ class SimpleUserSerializer(serializers.ModelSerializer):
             "id",
             "first_name",
             "last_name",
-            "profile_image",
             "email",
             "is_verified",
+        ]
+
+
+class SimpleAuthorSerializer(serializers.ModelSerializer):
+    """Minimal author serializer with just essential fields"""
+
+    user = SimpleUserSerializer()
+    profile_image = serializers.CharField()
+
+    class Meta:
+        model = Author
+        fields = [
+            "id",
+            "first_name",
+            "last_name",
+            "profile_image",
+            "headline",
+            "user",
         ]
 
 
@@ -38,7 +45,6 @@ class ContentObjectSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     created_date = serializers.DateTimeField()
     hub = serializers.SerializerMethodField()
-    user = serializers.SerializerMethodField()
     slug = serializers.CharField()
 
     def get_hub(self, obj):
@@ -47,17 +53,6 @@ class ContentObjectSerializer(serializers.Serializer):
         if hub:
             return {"name": hub.name}
         return None
-
-    def get_user(self, obj):
-        # Handle different model attributes for user
-        if hasattr(obj, "user"):
-            user = obj.user
-        elif hasattr(obj, "uploaded_by"):
-            user = obj.uploaded_by
-        else:
-            return None
-
-        return SimpleUserSerializer(user).data
 
     class Meta:
         fields = ["id", "created_date", "hub", "slug", "user"]
@@ -90,7 +85,7 @@ class PaperSerializer(ContentObjectSerializer):
                 "id": journal_hub.id,
                 "name": journal_hub.name,
                 "slug": journal_hub.slug,
-                "image": journal_hub.hub_image,
+                "image": journal_hub.hub_image.url if journal_hub.hub_image else None,
                 "description": journal_hub.description,
             }
         return None
@@ -114,8 +109,9 @@ class FeedEntrySerializer(serializers.ModelSerializer):
     content_type = serializers.SerializerMethodField()
     content_object = serializers.SerializerMethodField()
     created_date = serializers.DateTimeField()
+    action_date = serializers.DateTimeField()
     action = serializers.CharField()
-    user = serializers.SerializerMethodField()
+    author = serializers.SerializerMethodField()
 
     class Meta:
         model = FeedEntry
@@ -124,9 +120,16 @@ class FeedEntrySerializer(serializers.ModelSerializer):
             "content_type",
             "content_object",
             "created_date",
+            "action_date",
             "action",
-            "user",
+            "author",
         ]
+
+    def get_author(self, obj):
+        """Return author data only if feed entry has an associated user"""
+        if obj.user and hasattr(obj.user, "author_profile"):
+            return SimpleAuthorSerializer(obj.user.author_profile).data
+        return None
 
     def get_content_object(self, obj):
         """Return the appropriate serialized content object based on type"""
@@ -136,6 +139,3 @@ class FeedEntrySerializer(serializers.ModelSerializer):
 
     def get_content_type(self, obj):
         return obj.content_type.model.upper()
-
-    def get_user(self, obj):
-        return SimpleUserSerializer(obj.user).data

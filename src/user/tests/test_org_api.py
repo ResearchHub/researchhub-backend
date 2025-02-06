@@ -1,3 +1,5 @@
+import uuid
+
 from allauth.utils import get_user_model
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APITestCase
@@ -14,22 +16,22 @@ class OrganizationTests(APITestCase):
         # Create + auth user
         self.org_a_admin = get_user_model().objects.create_user(
             username="admin@researchhub_test.com",
-            password="password",
+            password=uuid.uuid4().hex,
             email="admin@researchhub_test.com",
         )
         self.org_a_member_user = get_user_model().objects.create_user(
             username="test1@researchhub_test.com",
-            password="password",
+            password=uuid.uuid4().hex,
             email="test1@researchhub_test.com",
         )
         self.org_b_admin = get_user_model().objects.create_user(
             username="org_b_admin@researchhub_test.com",
-            password="password",
+            password=uuid.uuid4().hex,
             email="org_b_admin@researchhub_test.com",
         )
         self.note_b_user = get_user_model().objects.create_user(
             username="test2@researchhub_test.com",
-            password="password",
+            password=uuid.uuid4().hex,
             email="test2@researchhub_test.com",
         )
         self.client.force_authenticate(self.org_a_admin)

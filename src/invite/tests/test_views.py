@@ -1,11 +1,9 @@
-from allauth.utils import get_user_model
-from django.contrib.contenttypes.models import ContentType
-from rest_framework.test import APITestCase
+import uuid
 
-from invite.related_models.invitation_model import Invitation
+from allauth.utils import get_user_model
+
 from invite.related_models.note_invitation import NoteInvitation
 from invite.related_models.organization_invitation import OrganizationInvitation
-from researchhub_access_group.models import Permission
 from utils.test_helpers import APITestCaseWithOrg
 
 
@@ -14,12 +12,12 @@ class OrganizationInvitationViewsTest(APITestCaseWithOrg):
         # Create + auth user
         self.sender = get_user_model().objects.create_user(
             username="user1@researchhub_test.com",
-            password="password",
+            password=uuid.uuid4().hex,
             email="user1@researchhub_test.com",
         )
         self.recipient = get_user_model().objects.create_user(
             username="user2@researchhub_test.com",
-            password="password",
+            password=uuid.uuid4().hex,
             email="user2@researchhub_test.com",
         )
 
@@ -63,12 +61,12 @@ class NoteInvitationViewsTest(APITestCaseWithOrg):
         # Create + auth user
         self.sender = get_user_model().objects.create_user(
             username="user1@researchhub_test.com",
-            password="password",
+            password=uuid.uuid4().hex,
             email="user1@researchhub_test.com",
         )
         self.recipient = get_user_model().objects.create_user(
             username="user2@researchhub_test.com",
-            password="password",
+            password=uuid.uuid4().hex,
             email="user2@researchhub_test.com",
         )
 

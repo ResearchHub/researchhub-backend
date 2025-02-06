@@ -11,6 +11,7 @@ from researchhub_access_group.constants import ASSOCIATE_EDITOR
 from researchhub_access_group.models import Permission
 from user.models import Action, Author, University, User
 from user.related_models.organization_model import Organization
+from utils.test_helpers import generate_password
 
 
 class TestData:
@@ -25,9 +26,9 @@ class TestData:
     author_linkedin = "linkedin.com/in/regulusblack"
 
     invalid_email = "testuser@gmail"
-    invalid_password = "pass"
+    invalid_password = "pass"  # NOSONAR
     valid_email = "testuser@gmail.com"
-    valid_password = "ReHub940@"
+    valid_password = generate_password()
 
     university_name = "Hogwarts"
     university_country = "England"
