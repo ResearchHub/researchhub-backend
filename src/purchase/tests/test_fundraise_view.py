@@ -1,16 +1,14 @@
-from rest_framework.test import APITestCase
-from django.contrib.contenttypes.models import ContentType
 from datetime import datetime, timedelta
-import pytz
 
+import pytz
+from django.contrib.contenttypes.models import ContentType
+from rest_framework.test import APITestCase
+
+from purchase.models import Balance, Fundraise, Purchase, RscExchangeRate
+from reputation.models import BountyFee
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
-from user.tests.helpers import (
-    create_random_authenticated_user,
-    create_user
-)
-from purchase.models import Balance, RscExchangeRate, Purchase, Fundraise
-from reputation.models import BountyFee
+from user.tests.helpers import create_random_authenticated_user, create_user
 
 
 class FundraiseViewTests(APITestCase):
@@ -30,12 +28,8 @@ class FundraiseViewTests(APITestCase):
     # Helpers
 
     def _create_fundraise(
-            self,
-            post_id,
-            goal_amount = 100,
-            goal_currency = "USD",
-            user = None
-            ):
+        self, post_id, goal_amount=100, goal_currency="USD", user=None
+    ):
         if user is None:
             user = self.user
 
@@ -51,12 +45,12 @@ class FundraiseViewTests(APITestCase):
         )
 
     def _create_contribution(
-            self,
-            fundraise_id,
-            user,
-            amount = 100,
-            amount_currency = "RSC",
-            ):
+        self,
+        fundraise_id,
+        user,
+        amount=100,
+        amount_currency="RSC",
+    ):
         self.client.force_authenticate(user)
         return self.client.post(
             f"/api/fundraise/{fundraise_id}/create_contribution/",
@@ -65,16 +59,15 @@ class FundraiseViewTests(APITestCase):
                 "amount_currency": amount_currency,
             },
         )
-    
+
     def _get_contributions(self, fundraise_id):
         return self.client.get(f"/api/fundraise/{fundraise_id}/contributions/")
-    
+
     def _give_user_balance(self, user, amount):
         DISTRIBUTION_CONTENT_TYPE = ContentType.objects.get(model="distribution")
         Balance.objects.create(
             amount=amount, user=user, content_type=DISTRIBUTION_CONTENT_TYPE
         )
-
 
     # Fundraise tests
 
@@ -137,10 +130,14 @@ class FundraiseViewTests(APITestCase):
         self.assertEqual(float(updated_fundraise["escrow"]["amount_holding"]), 100.0)
 
         # there should be two balance objects for the user, one for the '100', and one for fees
-        amount_balance = Balance.objects.filter(user=user, content_type=ContentType.objects.get_for_model(Purchase))
+        amount_balance = Balance.objects.filter(
+            user=user, content_type=ContentType.objects.get_for_model(Purchase)
+        )
         self.assertEqual(amount_balance.count(), 1)
         self.assertEqual(float(amount_balance.first().amount), -100.0)
-        fee_balance = Balance.objects.filter(user=user, content_type=ContentType.objects.get_for_model(BountyFee))
+        fee_balance = Balance.objects.filter(
+            user=user, content_type=ContentType.objects.get_for_model(BountyFee)
+        )
         self.assertEqual(fee_balance.count(), 1)
         self.assertEqual(float(fee_balance.first().amount), -9.0)
 
@@ -160,9 +157,13 @@ class FundraiseViewTests(APITestCase):
         self.assertEqual(float(updated_fundraise["escrow"]["amount_holding"]), 100.0)
 
         # there should be 2 balance objects for amount, and 2 for fees
-        amount_balance = Balance.objects.filter(user=user, content_type=ContentType.objects.get_for_model(Purchase))
+        amount_balance = Balance.objects.filter(
+            user=user, content_type=ContentType.objects.get_for_model(Purchase)
+        )
         self.assertEqual(amount_balance.count(), 2)
-        fee_balance = Balance.objects.filter(user=user, content_type=ContentType.objects.get_for_model(BountyFee))
+        fee_balance = Balance.objects.filter(
+            user=user, content_type=ContentType.objects.get_for_model(BountyFee)
+        )
         self.assertEqual(fee_balance.count(), 2)
 
         # fetch contributions and check them
@@ -197,7 +198,9 @@ class FundraiseViewTests(APITestCase):
 
         user = create_random_authenticated_user("fundraise_views")
         self._give_user_balance(user, 1000)
-        response = self._create_contribution(fundraise_id, user, amount=200) # 200 RSC = 100 USD
+        response = self._create_contribution(
+            fundraise_id, user, amount=200
+        )  # 200 RSC = 100 USD
 
         self.assertEqual(response.status_code, 200)
 
@@ -208,10 +211,14 @@ class FundraiseViewTests(APITestCase):
         self.assertEqual(updated_fundraise["status"], "COMPLETED")
 
         # there should be two balance objects for the user, one for the '100', and one for fees
-        amount_balance = Balance.objects.filter(user=user, content_type=ContentType.objects.get_for_model(Purchase))
+        amount_balance = Balance.objects.filter(
+            user=user, content_type=ContentType.objects.get_for_model(Purchase)
+        )
         self.assertEqual(amount_balance.count(), 1)
         self.assertEqual(float(amount_balance.first().amount), -200.0)
-        fee_balance = Balance.objects.filter(user=user, content_type=ContentType.objects.get_for_model(BountyFee))
+        fee_balance = Balance.objects.filter(
+            user=user, content_type=ContentType.objects.get_for_model(BountyFee)
+        )
         self.assertEqual(fee_balance.count(), 1)
         self.assertEqual(float(fee_balance.first().amount), -18.0)
 
@@ -228,7 +235,7 @@ class FundraiseViewTests(APITestCase):
         fundraise = Fundraise.objects.get(id=fundraise_id)
         fundraise.end_date = datetime.now(pytz.UTC) - timedelta(days=1)
         fundraise.save()
-        
+
         user = create_random_authenticated_user("fundraise_views")
         self._give_user_balance(user, 1000)
         response = self._create_contribution(fundraise_id, user, amount=200)

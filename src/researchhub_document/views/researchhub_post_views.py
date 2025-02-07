@@ -13,6 +13,7 @@ from hub.models import Hub
 from note.related_models.note_model import Note
 from purchase.models import Balance, Purchase
 from purchase.related_models.constants.currency import USD
+from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.services.fundraise_service import (
     FundraiseService,
@@ -176,13 +177,23 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
 
                 fundraise = None
                 if goal_amount := data.get("fundraise_goal_amount"):
+                    serializer = FundraiseCreateSerializer(
+                        data={
+                            "goal_amount": goal_amount,
+                            "goal_currency": data.get("fundraise_goal_currency", USD),
+                            "unified_document_id": unified_document.id,
+                            "recipient_user_id": created_by.id,
+                        }
+                    )
+                    serializer.is_valid(raise_exception=True)
+
                     fundraise_service = FundraiseService()
                     try:
                         fundraise = fundraise_service.create_fundraise_with_escrow(
                             user=created_by,
                             unified_document=unified_document,
-                            goal_amount=goal_amount,
-                            goal_currency=data.get("fundraise_goal_currency", USD),
+                            goal_amount=serializer.validated_data["goal_amount"],
+                            goal_currency=serializer.validated_data["goal_currency"],
                         )
                     except FundraiseValidationError as e:
                         return Response({"message": str(e)}, status=400)

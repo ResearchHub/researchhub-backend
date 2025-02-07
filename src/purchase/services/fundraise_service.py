@@ -29,27 +29,15 @@ class FundraiseService:
         self,
         user: User,
         unified_document: ResearchhubUnifiedDocument,
-        goal_amount: Union[Decimal, str, float],
+        goal_amount: Decimal,
         goal_currency: str = USD,
         status: str = Fundraise.OPEN,
     ) -> Fundraise:
         """
         Creates a fundraise with its associated escrow.
+        Note: Input validation should be handled by FundraiseCreateSerializer before calling this.
         """
-        if unified_document.document_type != PREREGISTRATION:
-            raise FundraiseValidationError("Fundraise must be for a preregistration")
-
-        try:
-            goal_amount = Decimal(goal_amount)
-            if goal_amount <= 0:
-                raise FundraiseValidationError("goal_amount must be greater than 0")
-        except (TypeError, ValueError, InvalidOperation) as e:
-            log_error(e)
-            raise FundraiseValidationError("Invalid goal_amount")
-
-        if goal_currency != USD:
-            raise FundraiseValidationError("goal_currency must be USD")
-
+        # Business logic check - this could arguably stay here as it's core business logic
         existing_fundraise = Fundraise.objects.filter(
             unified_document=unified_document
         ).first()
