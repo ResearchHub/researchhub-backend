@@ -1,5 +1,4 @@
-from decimal import Decimal, InvalidOperation
-from typing import Union
+from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
@@ -7,11 +6,9 @@ from django.contrib.contenttypes.models import ContentType
 from purchase.models import Fundraise
 from purchase.related_models.constants.currency import USD
 from reputation.models import Escrow
-from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
-from utils.sentry import log_error
 
 
 class FundraiseValidationError(Exception):
