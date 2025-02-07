@@ -33,6 +33,10 @@ class FundraiseViewSet(viewsets.ModelViewSet):
     serializer_class = DynamicFundraiseSerializer
     permission_classes = [IsAuthenticated]
 
+    def __init__(self, *args, **kwargs):
+        self.fundraise_service = kwargs.pop("fundraise_service", FundraiseService())
+        super().__init__(*args, **kwargs)
+
     def get_permissions(self):
         if self.action == "create":
             return [IsModerator()]
@@ -84,10 +88,9 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         validated_data = serializer.validated_data
 
-        fundraise_service = FundraiseService()
         with transaction.atomic():
             try:
-                fundraise = fundraise_service.create_fundraise_with_escrow(
+                fundraise = self.fundraise_service.create_fundraise_with_escrow(
                     user=validated_data["recipient_user"],
                     unified_document=validated_data["unified_document"],
                     goal_amount=validated_data["goal_amount"],

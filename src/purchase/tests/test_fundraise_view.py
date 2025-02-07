@@ -1,10 +1,13 @@
 from datetime import datetime, timedelta
+from unittest.mock import Mock
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APITestCase
 
 from purchase.models import Balance, Fundraise, Purchase, RscExchangeRate
+from purchase.services.fundraise_service import FundraiseService
+from purchase.views import FundraiseViewSet
 from reputation.models import BountyFee
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
@@ -15,6 +18,10 @@ class FundraiseViewTests(APITestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("fundraise_views", moderator=True)
         self.post = create_post(created_by=self.user, document_type=PREREGISTRATION)
+        self.fundraise_service = FundraiseService()
+
+        # Initialize the view with the service
+        self.view = FundraiseViewSet(fundraise_service=self.fundraise_service)
 
         self.rsc_exchange_rate = RscExchangeRate.objects.create(
             rate=0.5,
@@ -112,6 +119,46 @@ class FundraiseViewTests(APITestCase):
         response = self._create_fundraise(self.post.id, user=user)
 
         self.assertEqual(response.status_code, 403)
+
+    # def test_create_fundraise_with_mock_service(self):
+    #     mock_service = Mock(spec=FundraiseService)
+    #     mock_fundraise = Mock(spec=Fundraise)
+    #     # Set required attributes that the serializer will access
+    #     mock_fundraise.id = 1
+    #     mock_fundraise.goal_amount = "100.00"
+    #     mock_fundraise.goal_currency = "USD"
+    #     mock_fundraise.created_by = self.user
+    #     mock_fundraise.purchases = Mock()
+    #     mock_fundraise.purchases.values.return_value = []  # For contributors query
+
+    #     # Create escrow mock with actual numeric values
+    #     mock_escrow = Mock()
+    #     mock_escrow.id = 1
+    #     mock_escrow.hold_type = "FUNDRAISE"
+    #     mock_escrow.amount_holding = "0"
+    #     mock_escrow.amount_paid = "0"
+    #     mock_escrow.status = "OPEN"
+    #     mock_escrow.bounty_fee = None
+    #     mock_fundraise.escrow = mock_escrow
+
+    #     mock_service.create_fundraise_with_escrow.return_value = mock_fundraise
+
+    #     mock_request = Mock()
+    #     mock_request.data = {
+    #         "post_id": self.post.id,
+    #         "recipient_user_id": self.user.id,
+    #         "goal_amount": "100.00",
+    #         "goal_currency": "USD",
+    #     }
+
+    #     view = FundraiseViewSet(fundraise_service=mock_service)
+    #     view.request = mock_request
+    #     view.format_kwarg = None
+
+    #     response = view.create(request=mock_request)
+
+    #     mock_service.create_fundraise_with_escrow.assert_called_once()
+    #     self.assertIsNotNone(response)
 
     # Contribution tests
 
