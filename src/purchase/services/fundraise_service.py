@@ -32,15 +32,8 @@ class FundraiseService:
     ) -> Fundraise:
         """
         Creates a fundraise with its associated escrow.
-        Note: Input validation should be handled by FundraiseCreateSerializer before calling this.
+        All input validation is handled by FundraiseCreateSerializer.
         """
-        # Business logic check - this could arguably stay here as it's core business logic
-        existing_fundraise = Fundraise.objects.filter(
-            unified_document=unified_document
-        ).first()
-        if existing_fundraise:
-            raise FundraiseValidationError("Fundraise already exists")
-
         fundraise = Fundraise.objects.create(
             created_by=user,
             unified_document=unified_document,

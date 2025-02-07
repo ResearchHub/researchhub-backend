@@ -1,27 +1,26 @@
 from decimal import Decimal
-from unittest import TestCase
 from unittest.mock import Mock, patch
 
-from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
+from rest_framework import serializers
+from rest_framework.test import APITestCase
 
 from purchase.models import Fundraise
 from purchase.related_models.constants.currency import USD
-from purchase.services.fundraise_service import (
-    FundraiseService,
-    FundraiseValidationError,
-)
+from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
+from purchase.services.fundraise_service import FundraiseService
 from reputation.models import Escrow
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from user.tests.helpers import create_random_authenticated_user
 
 
-class FundraiseServiceTest(TestCase):
+class TestFundraiseService(APITestCase):
     def setUp(self):
         self.service = FundraiseService()
-        self.user = Mock(spec=User)
+        self.user = create_random_authenticated_user("fundraise_test")
         self.unified_document = Mock(spec=ResearchhubUnifiedDocument)
         self.unified_document.document_type = PREREGISTRATION
 
@@ -65,56 +64,113 @@ class FundraiseServiceTest(TestCase):
 
     def test_create_fundraise_invalid_document_type(self):
         # Arrange
-        self.unified_document.document_type = "NOT_PREREGISTRATION"
+        unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type="NOT_PREREGISTRATION"
+        )
+        data = {
+            "goal_amount": "100.00",
+            "goal_currency": USD,
+            "unified_document_id": unified_document.id,
+            "recipient_user_id": self.user.id,
+        }
 
-        # Act & Assert
-        with self.assertRaises(FundraiseValidationError) as context:
-            self.service.create_fundraise_with_escrow(
-                self.user, self.unified_document, "100.00"
-            )
+        # Act
+        serializer = FundraiseCreateSerializer(data=data)
+        is_valid = serializer.is_valid()
 
+        # Assert
+        self.assertFalse(is_valid)
         self.assertEqual(
-            str(context.exception), "Fundraise must be for a preregistration"
+            str(serializer.errors["non_field_errors"][0]),
+            "Fundraise must be for a preregistration",
         )
 
     def test_create_fundraise_invalid_goal_amount(self):
-        # Act & Assert
-        with self.assertRaises(FundraiseValidationError) as context:
-            self.service.create_fundraise_with_escrow(
-                self.user,
-                self.unified_document,
-                "100.00abc",
-            )
+        # Arrange
+        data = {
+            "goal_amount": "100.00abc",
+            "goal_currency": USD,
+            "unified_document_id": 1,
+            "recipient_user_id": self.user.id,
+        }
 
-        self.assertEqual(str(context.exception), "Invalid goal_amount")
+        # Act
+        serializer = FundraiseCreateSerializer(data=data)
+        is_valid = serializer.is_valid()
+
+        # Assert
+        self.assertFalse(is_valid)
+        self.assertEqual(
+            str(serializer.errors["goal_amount"][0]), "A valid number is required."
+        )
 
     def test_create_fundraise_negative_goal_amount(self):
-        # Act & Assert
-        with self.assertRaises(FundraiseValidationError) as context:
-            self.service.create_fundraise_with_escrow(
-                self.user, self.unified_document, "-100.00"
-            )
+        # Arrange
+        data = {
+            "goal_amount": "-100.00",
+            "goal_currency": USD,
+            "unified_document_id": 1,
+            "recipient_user_id": self.user.id,
+        }
 
-        self.assertEqual(str(context.exception), "goal_amount must be greater than 0")
+        # Act
+        serializer = FundraiseCreateSerializer(data=data)
+        is_valid = serializer.is_valid()
+
+        # Assert
+        self.assertFalse(is_valid)
+        self.assertEqual(
+            str(serializer.errors["non_field_errors"][0]),
+            "goal_amount must be greater than 0",
+        )
 
     def test_create_fundraise_invalid_currency(self):
-        # Act & Assert
-        with self.assertRaises(FundraiseValidationError) as context:
-            self.service.create_fundraise_with_escrow(
-                self.user, self.unified_document, "100.00", "RSC"
-            )
+        # Arrange
+        data = {
+            "goal_amount": "100.00",
+            "goal_currency": "RSC",
+            "unified_document_id": 1,
+            "recipient_user_id": self.user.id,
+        }
 
-        self.assertEqual(str(context.exception), "goal_currency must be USD")
+        # Act
+        serializer = FundraiseCreateSerializer(data=data)
+        is_valid = serializer.is_valid()
+
+        # Assert
+        self.assertFalse(is_valid)
+        self.assertEqual(
+            str(serializer.errors["non_field_errors"][0]), "goal_currency must be USD"
+        )
 
     def test_create_fundraise_already_exists(self):
         # Arrange
-        with patch.object(Fundraise.objects, "filter") as mock_filter:
-            mock_filter.return_value.first.return_value = Mock(spec=Fundraise)
+        unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
 
-            # Act & Assert
-            with self.assertRaises(FundraiseValidationError) as context:
-                self.service.create_fundraise_with_escrow(
-                    self.user, self.unified_document, "100.00"
-                )
+        # Create initial fundraise
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=unified_document,
+            goal_amount=Decimal("100.00"),
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
 
-            self.assertEqual(str(context.exception), "Fundraise already exists")
+        data = {
+            "goal_amount": "100.00",
+            "goal_currency": USD,
+            "unified_document_id": unified_document.id,
+            "recipient_user_id": self.user.id,
+        }
+
+        # Act
+        serializer = FundraiseCreateSerializer(data=data)
+        is_valid = serializer.is_valid()
+
+        # Assert
+        self.assertFalse(is_valid)
+        self.assertEqual(
+            str(serializer.errors["non_field_errors"][0]), "Fundraise already exists"
+        )
