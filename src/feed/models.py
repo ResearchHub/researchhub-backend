@@ -7,8 +7,10 @@ from utils.models import DefaultModel
 
 
 class FeedEntry(DefaultModel):
+    OPEN = "OPEN"
     PUBLISH = "PUBLISH"
     action_choices = [
+        (OPEN, "OPEN"),
         (PUBLISH, "PUBLISH"),
     ]
 
