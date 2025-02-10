@@ -2,6 +2,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
+from feed.models import FeedEntry
 from feed.tasks import create_feed_entry, delete_feed_entry
 from reputation.related_models.bounty import Bounty
 
@@ -26,7 +27,7 @@ def handle_bounty_create_feed_entry(sender, instance, **kwargs):
                 args=(
                     bounty.id,
                     ContentType.objects.get_for_model(bounty).id,
-                    "PUBLISH",  # FIXME(gz): new action for OPENED?
+                    FeedEntry.OPEN,
                     hub.id,
                     ContentType.objects.get_for_model(hub).id,
                 ),

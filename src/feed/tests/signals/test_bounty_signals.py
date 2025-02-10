@@ -3,6 +3,7 @@ from unittest.mock import call, patch
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
+from feed.models import FeedEntry
 from feed.signals.bounty_signals import (
     handle_boundy_closed_feed_entry,
     handle_bounty_create_feed_entry,
@@ -85,7 +86,7 @@ class TestBountySignals(TestCase):
                     args=(
                         self.bounty.id,
                         ContentType.objects.get_for_model(self.bounty).id,
-                        "PUBLISH",
+                        FeedEntry.OPEN,
                         self.hub1.id,
                         ContentType.objects.get_for_model(self.hub1).id,
                     ),
@@ -96,7 +97,7 @@ class TestBountySignals(TestCase):
                     args=(
                         self.bounty.id,
                         ContentType.objects.get_for_model(self.bounty).id,
-                        "PUBLISH",
+                        FeedEntry.OPEN,
                         self.hub2.id,
                         ContentType.objects.get_for_model(self.hub2).id,
                     ),
