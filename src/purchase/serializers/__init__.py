@@ -1,4 +1,5 @@
 from .balance_serializer import BalanceSerializer, BalanceSourceRelatedField
+from .fundraise_create_serializer import FundraiseCreateSerializer
 from .fundraise_serializer import DynamicFundraiseSerializer, FundraiseSerializer
 from .purchase_serializer import (
     AggregatePurchaseSerializer,

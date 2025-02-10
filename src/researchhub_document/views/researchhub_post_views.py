@@ -2,6 +2,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.db import transaction
 from django.utils.text import slugify
+from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -12,6 +13,10 @@ from discussion.reaction_views import ReactionViewActionMixin
 from hub.models import Hub
 from note.related_models.note_model import Note
 from purchase.models import Balance, Purchase
+from purchase.related_models.constants.currency import USD
+from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
+from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
+from purchase.services.fundraise_service import FundraiseService
 from researchhub.settings import CROSSREF_DOI_RSC_FEE, TESTING
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.permissions import HasDocumentEditingPermission
@@ -168,6 +173,29 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 rh_post.authors.set(authors)
                 self.add_upvote(created_by, rh_post)
 
+                fundraise = None
+                if goal_amount := data.get("fundraise_goal_amount"):
+                    serializer = FundraiseCreateSerializer(
+                        data={
+                            "goal_amount": goal_amount,
+                            "goal_currency": data.get("fundraise_goal_currency", USD),
+                            "unified_document_id": unified_document.id,
+                            "recipient_user_id": created_by.id,
+                        }
+                    )
+                    serializer.is_valid(raise_exception=True)
+
+                    fundraise_service = FundraiseService()
+                    try:
+                        fundraise = fundraise_service.create_fundraise_with_escrow(
+                            user=created_by,
+                            unified_document=unified_document,
+                            goal_amount=serializer.validated_data["goal_amount"],
+                            goal_currency=serializer.validated_data["goal_currency"],
+                        )
+                    except serializers.ValidationError as e:
+                        return Response({"message": str(e)}, status=400)
+
                 if not TESTING:
                     if document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
                         rh_post.discussion_src.save(file_name, full_src_file)
@@ -202,7 +230,11 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     )
                 )
 
-            return Response(ResearchhubPostSerializer(rh_post).data, status=200)
+            response_data = ResearchhubPostSerializer(rh_post).data
+            response_data["fundraise"] = (
+                DynamicFundraiseSerializer(fundraise).data if fundraise else None
+            )
+            return Response(response_data, status=200)
 
         except (KeyError, TypeError) as exception:
             log_error(exception)

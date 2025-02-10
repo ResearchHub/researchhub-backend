@@ -2,7 +2,7 @@ import decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from rest_framework import viewsets
+from rest_framework import serializers, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -13,14 +13,13 @@ from purchase.related_models.constants import (
     MAXIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC,
     MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC,
 )
-from purchase.related_models.constants.currency import RSC, USD
+from purchase.related_models.constants.currency import RSC
+from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.purchase_serializer import DynamicPurchaseSerializer
-from reputation.models import BountyFee, Escrow
+from purchase.services.fundraise_service import FundraiseService
+from reputation.models import BountyFee
 from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
-from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
-from researchhub_document.related_models.constants.document_type import PREREGISTRATION
-from researchhub_document.related_models.constants.filters import HOT
 from user.models import User
 from user.permissions import IsModerator
 from utils.sentry import log_error
@@ -30,6 +29,10 @@ class FundraiseViewSet(viewsets.ModelViewSet):
     queryset = Fundraise.objects.all()
     serializer_class = DynamicFundraiseSerializer
     permission_classes = [IsAuthenticated]
+
+    def __init__(self, *args, **kwargs):
+        self.fundraise_service = kwargs.pop("fundraise_service", FundraiseService())
+        super().__init__(*args, **kwargs)
 
     def get_permissions(self):
         if self.action == "create":
@@ -78,108 +81,24 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         return context
 
     def create(self, request, *args, **kwargs):
-        data = request.data
-
-        goal_amount = data.get("goal_amount", None)
-        goal_currency = data.get("goal_currency", USD)
-        unified_document_id = data.get("unified_document_id", None)
-        # Currently we don't allow users to create their own fundraise.
-        # Admins have to manually create them for now.
-        # So we require a recipient_user_id, which gets set as the created_by user for the fundraise/escrow.
-        # In the future, when users can create their own fundraises, we can remove this.
-        recipient_user_id = data.get("recipient_user_id", None)
-        post_id = data.get("post_id", None)
-
-        # Validate body
-        if goal_amount is None:
-            return Response({"message": "goal_amount is required"}, status=400)
-        try:
-            goal_amount = decimal.Decimal(goal_amount)
-            if goal_amount <= 0:
-                return Response(
-                    {"message": "goal_amount must be greater than 0"}, status=400
-                )
-        except Exception as e:
-            log_error(e)
-            return Response({"detail": "Invalid goal_amount"}, status=400)
-        # only allow USD for now
-        if goal_currency != USD:
-            return Response({"message": "goal_currency must be USD"}, status=400)
-        if unified_document_id is None and post_id is None:
-            return Response(
-                {"message": "unified_document_id or post_id is required"}, status=400
-            )
-        if recipient_user_id is None:
-            return Response({"message": "recipient_user_id is required"}, status=400)
-
-        # Get unified_document object
-        unified_document = None
-        if unified_document_id:
-            try:
-                unified_document = ResearchhubUnifiedDocument.objects.get(
-                    id=unified_document_id
-                )
-                if unified_document is None:
-                    return Response(
-                        {"message": "Unified document does not exist"}, status=400
-                    )
-            except ResearchhubUnifiedDocument.DoesNotExist:
-                return Response(
-                    {"message": "Unified document does not exist"}, status=400
-                )
-        elif post_id:
-            try:
-                post = ResearchhubPost.objects.get(id=post_id)
-                if post is None:
-                    return Response({"message": "Post does not exist"}, status=400)
-                unified_document = post.unified_document
-            except ResearchhubPost.DoesNotExist:
-                return Response({"message": "Post does not exist"}, status=400)
-
-        # Check if there is an existing fundraise for this unified_document
-        existing_fundraise = Fundraise.objects.filter(
-            unified_document=unified_document
-        ).first()
-        if existing_fundraise:
-            return Response({"message": "Fundraise already exists"}, status=400)
-        # Must be a preregistration
-        if unified_document.document_type != PREREGISTRATION:
-            return Response(
-                {"message": "Fundraise must be for a preregistration"}, status=400
-            )
-
-        # Get recipient user object
-        recipient_user = None
-        if recipient_user_id:
-            try:
-                recipient_user = User.objects.get(id=recipient_user_id)
-                if recipient_user is None:
-                    return Response({"message": "User does not exist"}, status=400)
-            except User.DoesNotExist:
-                return Response({"message": "User does not exist"}, status=400)
+        serializer = FundraiseCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        validated_data = serializer.validated_data
 
         with transaction.atomic():
-            # Create fundraise object
-            fundraise = Fundraise.objects.create(
-                created_by=recipient_user,
-                unified_document=unified_document,
-                goal_amount=goal_amount,
-                goal_currency=goal_currency,
-                status=Fundraise.OPEN,
-            )
-            # Create escrow object
-            escrow = Escrow.objects.create(
-                created_by=recipient_user,
-                hold_type=Escrow.FUNDRAISE,
-                content_type=ContentType.objects.get_for_model(Fundraise),
-                object_id=fundraise.id,
-            )
-            fundraise.escrow = escrow
-            fundraise.save()
+            try:
+                fundraise = self.fundraise_service.create_fundraise_with_escrow(
+                    user=validated_data["recipient_user"],
+                    unified_document=validated_data["unified_document"],
+                    goal_amount=validated_data["goal_amount"],
+                    goal_currency=validated_data["goal_currency"],
+                )
+            except serializers.ValidationError as e:
+                return Response({"message": str(e)}, status=400)
 
         context = self.get_serializer_context()
-        serializer = self.get_serializer(fundraise, context=context)
-        return Response(serializer.data)
+        response_serializer = self.get_serializer(fundraise, context=context)
+        return Response(response_serializer.data)
 
     def _purchase_serializer_context(self):
         context = self.get_serializer_context()
