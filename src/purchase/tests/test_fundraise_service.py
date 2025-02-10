@@ -1,15 +1,12 @@
 from decimal import Decimal
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
-from django.contrib.contenttypes.models import ContentType
-from rest_framework import serializers
 from rest_framework.test import APITestCase
 
 from purchase.models import Fundraise
 from purchase.related_models.constants.currency import USD
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
 from purchase.services.fundraise_service import FundraiseService
-from reputation.models import Escrow
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -27,40 +24,30 @@ class TestFundraiseService(APITestCase):
     def test_create_fundraise_with_escrow_success(self):
         # Arrange
         goal_amount = Decimal("100.00")
+        unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
 
-        with patch.object(Fundraise.objects, "filter") as mock_filter, patch.object(
-            Fundraise.objects, "create"
-        ) as mock_create_fundraise, patch.object(
-            Escrow.objects, "create"
-        ) as mock_create_escrow, patch.object(
-            ContentType.objects, "get_for_model"
-        ) as mock_get_content_type:
+        # Act
+        fundraise = self.service.create_fundraise_with_escrow(
+            self.user, unified_document, goal_amount, USD, Fundraise.OPEN
+        )
 
-            # Setup mocks
-            mock_filter.return_value.first.return_value = None
-            mock_fundraise = Mock(spec=Fundraise)
-            mock_fundraise.id = 1
-            mock_create_fundraise.return_value = mock_fundraise
-            mock_escrow = Mock(spec=Escrow)
-            mock_create_escrow.return_value = mock_escrow
-            mock_get_content_type.return_value = Mock(spec=ContentType)
+        # Assert
+        db_fundraise = Fundraise.objects.filter(id=fundraise.id).first()
+        self.assertIsNotNone(db_fundraise)
+        self.assertEqual(db_fundraise.created_by, self.user)
+        self.assertEqual(db_fundraise.unified_document, unified_document)
+        self.assertEqual(db_fundraise.goal_amount, goal_amount)
+        self.assertEqual(db_fundraise.goal_currency, USD)
+        self.assertEqual(db_fundraise.status, Fundraise.OPEN)
 
-            # Act
-            result = self.service.create_fundraise_with_escrow(
-                self.user, self.unified_document, goal_amount, USD, Fundraise.OPEN
-            )
-
-            # Assert
-            mock_create_fundraise.assert_called_once_with(
-                created_by=self.user,
-                unified_document=self.unified_document,
-                goal_amount=goal_amount,
-                goal_currency=USD,
-                status=Fundraise.OPEN,
-            )
-
-            mock_create_escrow.assert_called_once()
-            self.assertEqual(result, mock_fundraise)
+        # Verify escrow was created
+        self.assertIsNotNone(db_fundraise.escrow)
+        self.assertEqual(db_fundraise.escrow.created_by, self.user)
+        self.assertEqual(db_fundraise.escrow.hold_type, "FUNDRAISE")
+        self.assertEqual(db_fundraise.escrow.content_type.model, "fundraise")
+        self.assertEqual(db_fundraise.escrow.object_id, db_fundraise.id)
 
     def test_create_fundraise_invalid_document_type(self):
         # Arrange
@@ -148,18 +135,19 @@ class TestFundraiseService(APITestCase):
         unified_document = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
         )
+        goal_amount = Decimal("100.00")
 
-        # Create initial fundraise
-        Fundraise.objects.create(
-            created_by=self.user,
+        # Create initial fundraise using the service
+        self.service.create_fundraise_with_escrow(
+            user=self.user,
             unified_document=unified_document,
-            goal_amount=Decimal("100.00"),
+            goal_amount=goal_amount,
             goal_currency=USD,
             status=Fundraise.OPEN,
         )
 
         data = {
-            "goal_amount": "100.00",
+            "goal_amount": str(goal_amount),
             "goal_currency": USD,
             "unified_document_id": unified_document.id,
             "recipient_user_id": self.user.id,

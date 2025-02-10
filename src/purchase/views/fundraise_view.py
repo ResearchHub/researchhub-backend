@@ -2,7 +2,7 @@ import decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from rest_framework import viewsets
+from rest_framework import serializers, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -17,10 +17,7 @@ from purchase.related_models.constants.currency import RSC
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.purchase_serializer import DynamicPurchaseSerializer
-from purchase.services.fundraise_service import (
-    FundraiseService,
-    FundraiseValidationError,
-)
+from purchase.services.fundraise_service import FundraiseService
 from reputation.models import BountyFee
 from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
 from user.models import User
@@ -96,7 +93,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
                     goal_amount=validated_data["goal_amount"],
                     goal_currency=validated_data["goal_currency"],
                 )
-            except FundraiseValidationError as e:
+            except serializers.ValidationError as e:
                 return Response({"message": str(e)}, status=400)
 
         context = self.get_serializer_context()

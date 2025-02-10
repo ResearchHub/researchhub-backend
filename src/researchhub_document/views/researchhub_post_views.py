@@ -2,6 +2,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.db import transaction
 from django.utils.text import slugify
+from rest_framework import serializers
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -15,10 +16,7 @@ from purchase.models import Balance, Purchase
 from purchase.related_models.constants.currency import USD
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
-from purchase.services.fundraise_service import (
-    FundraiseService,
-    FundraiseValidationError,
-)
+from purchase.services.fundraise_service import FundraiseService
 from researchhub.settings import CROSSREF_DOI_RSC_FEE, TESTING
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.permissions import HasDocumentEditingPermission
@@ -195,7 +193,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                             goal_amount=serializer.validated_data["goal_amount"],
                             goal_currency=serializer.validated_data["goal_currency"],
                         )
-                    except FundraiseValidationError as e:
+                    except serializers.ValidationError as e:
                         return Response({"message": str(e)}, status=400)
 
                 if not TESTING:

@@ -11,12 +11,6 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 )
 
 
-class FundraiseValidationError(Exception):
-    """Custom exception for fundraise validation errors"""
-
-    pass
-
-
 class FundraiseService:
     """
     Service for managing fundraise-related operations.
