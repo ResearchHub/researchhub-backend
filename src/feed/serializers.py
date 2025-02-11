@@ -40,6 +40,14 @@ class SimpleAuthorSerializer(serializers.ModelSerializer):
         ]
 
 
+class SimpleHubSerializer(serializers.ModelSerializer):
+    """Minimal hub serializer with just essential fields"""
+
+    class Meta:
+        model = Hub
+        fields = ["name", "slug"]
+
+
 class ContentObjectSerializer(serializers.Serializer):
     """Base serializer for content objects (papers, posts, etc.)"""
 
@@ -52,7 +60,7 @@ class ContentObjectSerializer(serializers.Serializer):
         # FIXME: get primary hub
         hub = obj.hubs.first()
         if hub:
-            return {"name": hub.name}
+            return SimpleHubSerializer(hub).data
         return None
 
     class Meta:
@@ -120,7 +128,7 @@ class BountySerializer(serializers.Serializer):
         if obj.unified_document and obj.unified_document.hubs:
             # FIXME: get primary hub
             hub = obj.unified_document.hubs.first()
-            return {"name": hub.name}
+            return SimpleHubSerializer(hub).data
         return None
 
     def get_paper(self, obj):

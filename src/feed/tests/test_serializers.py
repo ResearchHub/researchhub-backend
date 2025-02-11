@@ -9,6 +9,7 @@ from feed.serializers import (
     PaperSerializer,
 )
 from hub.models import Hub
+from hub.serializers import SimpleHubSerializer
 from hub.tests.helpers import create_hub
 from paper.models import Paper
 from paper.tests.helpers import create_paper
@@ -177,7 +178,26 @@ class BountySerializerTests(TestCase):
         # Assert
         self.assertEqual(data["id"], self.bounty.id)
         self.assertEqual(data["amount"], self.bounty.amount)
+        self.assertEqual(data["bounty_type"], self.bounty.bounty_type)
+        self.assertEqual(data["status"], self.bounty.status)
+
+        self.assertIn("hub", data)
+        self.assertEqual(data["hub"]["name"], self.hub1.name)
+
         self.assertIn("paper", data)
+        self.assertEqual(data["paper"]["title"], self.paper.title)
+
+
+class SimpleHubSerializerTests(TestCase):
+    def setUp(self):
+        self.hub = create_hub("Test Hub")
+
+    def test_serializes_hub(self):
+        serializer = SimpleHubSerializer(self.hub)
+        data = serializer.data
+
+        self.assertEqual(data["name"], self.hub.name)
+        self.assertEqual(data["slug"], self.hub.slug)
 
 
 class FeedEntrySerializerTests(TestCase):
