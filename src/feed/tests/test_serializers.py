@@ -3,14 +3,26 @@ from django.test import TestCase
 
 from feed.models import FeedEntry
 from feed.serializers import (
+    BountySerializer,
     ContentObjectSerializer,
     FeedEntrySerializer,
     PaperSerializer,
 )
 from hub.models import Hub
+from hub.serializers import SimpleHubSerializer
 from hub.tests.helpers import create_hub
 from paper.models import Paper
 from paper.tests.helpers import create_paper
+from reputation.related_models.bounty import Bounty
+from reputation.related_models.escrow import Escrow
+from researchhub_comment.constants import rh_comment_thread_types
+from researchhub_comment.related_models.rh_comment_model import RhCommentModel
+from researchhub_comment.related_models.rh_comment_thread_model import (
+    RhCommentThreadModel,
+)
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from topic.models import Topic, UnifiedDocumentTopics
 from user.tests.helpers import create_random_default_user
 
@@ -115,6 +127,77 @@ class PaperSerializerTests(TestCase):
         self.assertIn("journal", data)
         self.assertEqual(data["journal"]["name"], journal_without_image.name)
         self.assertEqual(data["journal"]["image"], None)
+
+
+class BountySerializerTests(TestCase):
+    def setUp(self):
+        self.user = create_random_default_user("bountyCreator1")
+        self.paper = Paper.objects.create(title="testPaper1")
+        content_type = ContentType.objects.get_for_model(self.paper)
+
+        self.review_thread = RhCommentThreadModel.objects.create(
+            thread_type=rh_comment_thread_types.PEER_REVIEW,
+            content_type=content_type,
+            object_id=self.paper.id,
+            created_by=self.user,
+        )
+
+        self.comment = RhCommentModel.objects.create(
+            thread=self.review_thread,
+            created_by=self.user,
+        )
+
+        self.researchhub_document = ResearchhubUnifiedDocument.objects.create()
+        self.researchhub_document.paper = self.paper
+        self.hub1 = Hub.objects.create(name="testHub1")
+        self.hub2 = Hub.objects.create(name="testHub2")
+        self.researchhub_document.hubs.add(self.hub1)
+        self.researchhub_document.hubs.add(self.hub2)
+
+        self.escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.BOUNTY,
+            item=self.researchhub_document,
+        )
+
+        self.bounty = Bounty.objects.create(
+            amount=300,
+            status=Bounty.OPEN,
+            bounty_type=Bounty.Type.REVIEW,
+            unified_document=self.researchhub_document,
+            item=self.comment,
+            escrow=self.escrow,
+            created_by=self.user,
+        )
+
+    def test_serializes_bounty(self):
+        # Act
+        serializer = BountySerializer(self.bounty)
+        data = serializer.data
+
+        # Assert
+        self.assertEqual(data["id"], self.bounty.id)
+        self.assertEqual(data["amount"], self.bounty.amount)
+        self.assertEqual(data["bounty_type"], self.bounty.bounty_type)
+        self.assertEqual(data["status"], self.bounty.status)
+
+        self.assertIn("hub", data)
+        self.assertEqual(data["hub"]["name"], self.hub1.name)
+
+        self.assertIn("paper", data)
+        self.assertEqual(data["paper"]["title"], self.paper.title)
+
+
+class SimpleHubSerializerTests(TestCase):
+    def setUp(self):
+        self.hub = create_hub("Test Hub")
+
+    def test_serializes_hub(self):
+        serializer = SimpleHubSerializer(self.hub)
+        data = serializer.data
+
+        self.assertEqual(data["name"], self.hub.name)
+        self.assertEqual(data["slug"], self.hub.slug)
 
 
 class FeedEntrySerializerTests(TestCase):
