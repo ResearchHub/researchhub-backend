@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from hub.models import Hub
 from paper.models import Paper
+from researchhub_document.related_models.constants import document_type
 from user.models import Author, User
 
 from .models import FeedEntry
@@ -102,6 +103,48 @@ class PaperSerializer(ContentObjectSerializer):
         ]
 
 
+class BountySerializer(serializers.Serializer):
+    amount = serializers.FloatField()
+    bounty_type = serializers.CharField()
+    document_type = serializers.SerializerMethodField()
+    expiration_date = serializers.DateTimeField()
+    hub = serializers.SerializerMethodField()
+    id = serializers.IntegerField()
+    paper = serializers.SerializerMethodField()
+    status = serializers.CharField()
+
+    def get_document_type(self, obj):
+        return obj.unified_document.document_type
+
+    def get_hub(self, obj):
+        if obj.unified_document and obj.unified_document.hubs:
+            # FIXME: get primary hub
+            hub = obj.unified_document.hubs.first()
+            return {"name": hub.name}
+        return None
+
+    def get_paper(self, obj):
+        if (
+            obj.unified_document
+            and obj.unified_document.document_type == document_type.PAPER
+        ):
+            paper = obj.unified_document.paper
+            return PaperSerializer(paper).data
+        return None
+
+    class Meta:
+        fields = [
+            "amount",
+            "bounty_type",
+            "document_type",
+            "expiration_date",
+            "hub",
+            "id",
+            "paper",
+            "status",
+        ]
+
+
 class FeedEntrySerializer(serializers.ModelSerializer):
     """Serializer for feed entries that can reference different content types"""
 
@@ -133,8 +176,11 @@ class FeedEntrySerializer(serializers.ModelSerializer):
 
     def get_content_object(self, obj):
         """Return the appropriate serialized content object based on type"""
-        if obj.content_type.model == "paper":
-            return PaperSerializer(obj.item).data
+        match obj.content_type.model:
+            case "bounty":
+                return BountySerializer(obj.item).data
+            case "paper":
+                return PaperSerializer(obj.item).data
         return None
 
     def get_content_type(self, obj):
