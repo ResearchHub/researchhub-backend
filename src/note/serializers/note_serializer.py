@@ -24,18 +24,25 @@ from user.serializers import (
 
 class NoteContentSerializer(ModelSerializer):
     src = SerializerMethodField()
+    full_json = SerializerMethodField()
 
     class Meta:
         model = NoteContent
         fields = "__all__"
 
     def get_src(self, note_content):
+        if note_content.json:  # If JSON exists, don't return src
+            return None
+
         src = note_content.src
         if src:
             byte_string = note_content.src.read()
             data = byte_string.decode("utf-8")
             return data
         return None
+
+    def get_full_json(self, note_content):
+        return note_content.json
 
 
 class DynamicNoteContentSerializer(DynamicModelFieldSerializer):

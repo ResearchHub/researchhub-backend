@@ -117,3 +117,4 @@ class NoteContent(models.Model):
         null=True,
         blank=True,
     )
+    json = models.JSONField(null=True, blank=True)

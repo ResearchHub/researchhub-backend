@@ -2,8 +2,8 @@ from datetime import datetime
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import Q
 from django.core.files.base import ContentFile
+from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from jwt import encode
@@ -455,18 +455,23 @@ class NoteContentViewSet(ModelViewSet):
         user = request.user
         data = request.data
         full_src = data.get("full_src", "")
+        full_json = data.get("full_json", None)
         note_id = data.get("note", None)
         plain_text = data.get("plain_text", None)
         self.kwargs["pk"] = note_id
 
         note = self.get_object()
-        note_content = NoteContent.objects.create(note=note, plain_text=plain_text)
-        file_name, full_src_file = self._create_src_content_file(
-            note_content, full_src, user
+        note_content = NoteContent.objects.create(
+            note=note, plain_text=plain_text, json=full_json
         )
 
-        if not TESTING:
-            note_content.src.save(file_name, full_src_file)
+        # Only save src if full_json is not provided
+        if not full_json and full_src:
+            file_name, full_src_file = self._create_src_content_file(
+                note_content, full_src, user
+            )
+            if not TESTING:
+                note_content.src.save(file_name, full_src_file)
 
         serializer = self.serializer_class(note_content)
         data = serializer.data
