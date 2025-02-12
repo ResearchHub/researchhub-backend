@@ -865,3 +865,87 @@ class NoteTests(APITestCase):
 
         self.assertEqual(delete_response.status_code, 403)
         self.assertEqual(delete_response.data["is_removed"], False)
+
+    def test_note_content_json_functionality(self):
+        # Create workspace note
+        response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "TEST",
+            },
+        )
+        note = response.data
+
+        # Test creating content with full_json
+        test_json = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "Test JSON Content"}],
+                }
+            ],
+        }
+
+        response = self.client.post(
+            "/api/note_content/",
+            {
+                "full_json": test_json,
+                "note": note["id"],
+                "plain_text": "Test JSON Content",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["json"], test_json)
+        self.assertIsNone(response.data["src"])
+
+        # Re-fetch note to verify json is saved
+        response = self.client.get(f"/api/note/{note['id']}/")
+        note = response.data
+        self.assertEqual(note["latest_version"]["json"], test_json)
+        self.assertIsNone(note["latest_version"]["src"])
+
+    def test_note_content_json_priority_over_src(self):
+        # Create workspace note
+        response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "TEST",
+            },
+        )
+        note = response.data
+
+        test_json = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": "Test JSON Content"}],
+                }
+            ],
+        }
+
+        # Update content with both full_json and full_src
+        response = self.client.post(
+            "/api/note_content/",
+            {
+                "full_json": test_json,
+                "full_src": "This src content should be ignored",
+                "note": note["id"],
+                "plain_text": "Test JSON Content",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["json"], test_json)
+        self.assertIsNone(response.data["src"])  # src should be None when json exists
+
+        # Re-fetch note to verify only json was saved
+        response = self.client.get(f"/api/note/{note['id']}/")
+        note = response.data
+        self.assertEqual(note["latest_version"]["json"], test_json)
+        self.assertIsNone(note["latest_version"]["src"])
