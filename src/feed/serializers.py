@@ -72,7 +72,7 @@ class PaperMetricsSerializer(serializers.Serializer):
     """Serializer for paper metrics including votes and comments."""
 
     votes = serializers.IntegerField(source="score", default=0)
-    comments_count = serializers.IntegerField(source="discussion_count", default=0)
+    comments = serializers.IntegerField(source="discussion_count", default=0)
     reposts = serializers.IntegerField(default=0)  # TODO: Implement reposts
     saves = serializers.IntegerField(default=0)  # TODO: Implement saves
 
