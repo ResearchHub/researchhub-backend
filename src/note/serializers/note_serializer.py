@@ -24,7 +24,6 @@ from user.serializers import (
 
 class NoteContentSerializer(ModelSerializer):
     src = SerializerMethodField()
-    full_json = SerializerMethodField()
 
     class Meta:
         model = NoteContent
@@ -40,9 +39,6 @@ class NoteContentSerializer(ModelSerializer):
             data = byte_string.decode("utf-8")
             return data
         return None
-
-    def get_full_json(self, note_content):
-        return note_content.json
 
 
 class DynamicNoteContentSerializer(DynamicModelFieldSerializer):
