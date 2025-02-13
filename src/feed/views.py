@@ -38,6 +38,7 @@ class FeedViewSet(viewsets.ModelViewSet):
             )
             .prefetch_related(
                 "item__authors",
+                "item__authors__user",
                 "item__hubs",
             )
         )
