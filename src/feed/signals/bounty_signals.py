@@ -44,14 +44,15 @@ def handle_bounty_create_feed_entry(sender, instance, **kwargs):
 
 
 @receiver(post_save, sender=Bounty, dispatch_uid="bounty_delete_feed_entry")
-def handle_boundy_closed_feed_entry(sender, instance, **kwargs):
+def handle_boundy_delete_feed_entry(sender, instance, **kwargs):
     """
     When a bounty is closed, delete all feed entries associated with the bounty.
     """
     bounty = instance
     if bounty.status in [Bounty.CANCELLED, Bounty.CLOSED, Bounty.EXPIRED]:
-        for hub in bounty.unified_document.hubs.all():
-            delete_feed_entry.apply_async(
+        tasks = [
+            partial(
+                delete_feed_entry.apply_async,
                 args=(
                     bounty.id,
                     ContentType.objects.get_for_model(bounty).id,
@@ -60,3 +61,6 @@ def handle_boundy_closed_feed_entry(sender, instance, **kwargs):
                 ),
                 priority=1,
             )
+            for hub in bounty.unified_document.hubs.all()
+        ]
+        transaction.on_commit(lambda: [task() for task in tasks])
