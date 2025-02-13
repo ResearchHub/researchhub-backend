@@ -1,7 +1,9 @@
-from django.db.models import F, Window
+from django.db.models import F, Prefetch, Window
 from django.db.models.functions import RowNumber
 from rest_framework import viewsets
 from rest_framework.pagination import PageNumberPagination
+
+from paper.related_models.paper_model import Paper
 
 from .models import FeedEntry
 from .serializers import FeedEntrySerializer
@@ -28,6 +30,20 @@ class FeedViewSet(viewsets.ModelViewSet):
         action = self.request.query_params.get("action")
         content_type = self.request.query_params.get("content_type")
 
+        # Prefetch authors only for papers
+        authors_prefetch = Prefetch(
+            "item",
+            queryset=Paper.objects.prefetch_related("authors"),
+            to_attr="authors",
+        )
+
+        # Prefetch hubs only for papers
+        hubs_prefetch = Prefetch(
+            "item",
+            queryset=Paper.objects.prefetch_related("hubs"),
+            to_attr="hubs",
+        )
+
         queryset = (
             FeedEntry.objects.all()
             .select_related(
@@ -37,8 +53,8 @@ class FeedViewSet(viewsets.ModelViewSet):
                 "user__author_profile",
             )
             .prefetch_related(
-                "item__authors",
-                "item__hubs",
+                authors_prefetch,
+                hubs_prefetch,
             )
         )
 
