@@ -58,7 +58,7 @@ class ContentObjectSerializer(serializers.Serializer):
 
     def get_hub(self, obj):
         # FIXME: get primary hub
-        hub = obj.hubs.first()
+        hub = next(iter(obj.hubs.all()), None)
         if hub:
             return SimpleHubSerializer(hub).data
         return None
@@ -86,9 +86,11 @@ class PaperSerializer(ContentObjectSerializer):
     metrics = PaperMetricsSerializer(source="*")
 
     def get_journal(self, obj):
-        journal_hub = obj.hubs.filter(
-            namespace=Hub.Namespace.JOURNAL,
-        ).first()
+        journal_hub = next(
+            (hub for hub in obj.hubs.all() if hub.namespace == Hub.Namespace.JOURNAL),
+            None,
+        )
+
         if journal_hub:
             return {
                 "id": journal_hub.id,
