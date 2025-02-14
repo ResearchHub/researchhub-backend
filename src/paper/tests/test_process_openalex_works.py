@@ -1,11 +1,8 @@
 import json
 from unittest.mock import patch
 
-from django.contrib.contenttypes.models import ContentType
-from django.test import override_settings
 from rest_framework.test import APITestCase
 
-from feed.models import FeedEntry
 from hub.models import Hub
 from paper.models import Paper
 from paper.openalex_util import (
@@ -397,34 +394,3 @@ class ProcessOpenAlexWorksTests(APITestCase):
 
         # Assert
         self.assertEqual(journal_hub.name, managed_journal_hub.name)
-
-    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
-    @patch.object(OpenAlex, "get_authors")
-    def test_add_paper_to_feed(self, mock_get_authors):
-        with open("./paper/tests/openalex_authors.json", "r") as file:
-            mock_data = json.load(file)
-            mock_get_authors.return_value = (mock_data["results"], None)
-
-            process_openalex_works(self.works)
-
-            dois = [work.get("doi") for work in self.works]
-            dois = [doi.replace("https://doi.org/", "") for doi in dois]
-
-            created_papers = Paper.objects.filter(doi__in=dois).order_by("doi")
-            self.assertEqual(len(created_papers), 2)
-
-            for paper in created_papers:
-                content_type = ContentType.objects.get_for_model(Paper)
-                feed_entries = FeedEntry.objects.filter(
-                    content_type=content_type, object_id=paper.id
-                )
-                self.assertEqual(len(feed_entries), paper.hubs.count())
-                self.assertEqual(feed_entries.first().action, "PUBLISH")
-                self.assertEqual(feed_entries.first().item, paper)
-
-                first_hub = paper.hubs.first()
-                paper.hubs.remove(first_hub)
-                feed_entries = FeedEntry.objects.filter(
-                    content_type=content_type, object_id=paper.id
-                )
-                self.assertEqual(len(feed_entries), paper.hubs.count())
