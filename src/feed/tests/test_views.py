@@ -50,8 +50,8 @@ class FeedViewSetTests(TestCase):
             parent_object_id=self.hub.id,
         )
 
-    def test_feed_returns_followed_items(self):
-        """Test that feed only returns items from followed users"""
+    def test_default_feed_view(self):
+        """Test that default feed view (latest) returns all items"""
         url = reverse("feed-list")
         response = self.client.get(url)
 
@@ -104,4 +104,132 @@ class FeedViewSetTests(TestCase):
         response = self.client.get(url, {"page_size": 2})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 2)
+
+    def test_latest_feed_view(self):
+        """Test that latest feed view shows all items regardless of following status"""
+        # Create another user and their content
+        other_user = User.objects.create_user(
+            username="otheruser", password=uuid.uuid4().hex
+        )
+        other_hub = Hub.objects.create(name="Other Hub")
+        other_paper = Paper.objects.create(
+            title="Other Paper",
+            paper_publish_date=timezone.now(),
+        )
+        other_paper.hubs.add(other_hub)
+
+        # Create feed entry for content user doesn't follow
+        FeedEntry.objects.create(
+            user=other_user,
+            action="PUBLISH",
+            action_date=other_paper.paper_publish_date,
+            content_type=self.paper_content_type,
+            object_id=other_paper.id,
+            parent_content_type=self.hub_content_type,
+            parent_object_id=other_hub.id,
+        )
+
+        url = reverse("feed-list")
+        response = self.client.get(url, {"feed_view": "latest"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should see both followed and unfollowed content
+        self.assertEqual(len(response.data["results"]), 2)
+
+    def test_following_feed_view(self):
+        """Test that following feed view only shows items from followed entities"""
+        # Create another user and their content
+        other_user = User.objects.create_user(
+            username="otheruser", password=uuid.uuid4().hex
+        )
+        other_hub = Hub.objects.create(name="Other Hub")
+        other_paper = Paper.objects.create(
+            title="Other Paper",
+            paper_publish_date=timezone.now(),
+        )
+        other_paper.hubs.add(other_hub)
+
+        # Create feed entry for content user doesn't follow
+        FeedEntry.objects.create(
+            user=other_user,
+            action="PUBLISH",
+            action_date=other_paper.paper_publish_date,
+            content_type=self.paper_content_type,
+            object_id=other_paper.id,
+            parent_content_type=self.hub_content_type,
+            parent_object_id=other_hub.id,
+        )
+
+        url = reverse("feed-list")
+        response = self.client.get(url, {"feed_view": "following"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should only see followed content
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(
+            response.data["results"][0]["content_object"]["id"], self.paper.id
+        )
+
+    def test_hub_filter(self):
+        """Test filtering feed by hub"""
+        # Create content in another hub
+        other_hub = Hub.objects.create(name="Other Hub")
+        other_paper = Paper.objects.create(
+            title="Other Paper",
+            paper_publish_date=timezone.now(),
+        )
+        other_paper.hubs.add(other_hub)
+
+        FeedEntry.objects.create(
+            user=self.user,
+            action="PUBLISH",
+            action_date=other_paper.paper_publish_date,
+            content_type=self.paper_content_type,
+            object_id=other_paper.id,
+            parent_content_type=self.hub_content_type,
+            parent_object_id=other_hub.id,
+        )
+
+        url = reverse("feed-list")
+        response = self.client.get(url, {"hub_id": self.hub.id})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should only see content from specified hub
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(
+            response.data["results"][0]["content_object"]["id"], self.paper.id
+        )
+
+    def test_following_feed_with_no_follows(self):
+        """Test that following feed shows latest content when user has no follows"""
+        # Remove all follows
+        self.user.following.all().delete()
+
+        # Create content from another user
+        other_user = User.objects.create_user(
+            username="otheruser", password=uuid.uuid4().hex
+        )
+        other_hub = Hub.objects.create(name="Other Hub")
+        other_paper = Paper.objects.create(
+            title="Other Paper",
+            paper_publish_date=timezone.now(),
+        )
+        other_paper.hubs.add(other_hub)
+
+        FeedEntry.objects.create(
+            user=other_user,
+            action="PUBLISH",
+            action_date=other_paper.paper_publish_date,
+            content_type=self.paper_content_type,
+            object_id=other_paper.id,
+            parent_content_type=self.hub_content_type,
+            parent_object_id=other_hub.id,
+        )
+
+        url = reverse("feed-list")
+        response = self.client.get(url, {"feed_view": "following"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should see all content since user has no follows
         self.assertEqual(len(response.data["results"]), 2)
