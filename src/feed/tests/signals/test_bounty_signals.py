@@ -1,11 +1,11 @@
-from unittest.mock import call, patch
+from unittest.mock import MagicMock, call, patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
 from feed.models import FeedEntry
 from feed.signals.bounty_signals import (
-    handle_boundy_closed_feed_entry,
+    handle_boundy_delete_feed_entry,
     handle_bounty_create_feed_entry,
 )
 from hub.models import Hub
@@ -65,55 +65,19 @@ class TestBountySignals(TestCase):
         )
 
     @patch("feed.signals.bounty_signals.create_feed_entry")
-    def test_handle_bounty_create_feed_entry_when_open(self, mock_create_feed_entry):
+    @patch("feed.signals.bounty_signals.transaction")
+    def test_create_feed_entries_for_open_bounty(
+        self, mock_transaction, mock_create_feed_entry
+    ):
         """
-        Test direct call to signal handler when bounty is open
+        Test that feed entries are created for an open bounty.
         """
+        # Arrange
+        mock_transaction.on_commit = lambda func: func()
+        mock_create_feed_entry.apply_async = MagicMock()
 
         # Act
-        handle_bounty_create_feed_entry(
-            sender=Bounty,
-            instance=self.bounty,
-            signal=None,
-        )
-
-        # Assert
-        assert mock_create_feed_entry.apply_async.call_count == 2
-        mock_create_feed_entry.apply_async.assert_has_calls(
-            [
-                # first hub
-                call(
-                    args=(
-                        self.bounty.id,
-                        ContentType.objects.get_for_model(self.bounty).id,
-                        FeedEntry.OPEN,
-                        self.hub1.id,
-                        ContentType.objects.get_for_model(self.hub1).id,
-                    ),
-                    priority=1,
-                ),
-                # second hub
-                call(
-                    args=(
-                        self.bounty.id,
-                        ContentType.objects.get_for_model(self.bounty).id,
-                        FeedEntry.OPEN,
-                        self.hub2.id,
-                        ContentType.objects.get_for_model(self.hub2).id,
-                    ),
-                    priority=1,
-                ),
-            ]
-        )
-
-    @patch("feed.signals.bounty_signals.create_feed_entry")
-    def test_signal_fires_on_bounty_create(self, mock_create_feed_entry):
-        """
-        Test that signal fires and feed entries are created when bounty is opened.
-        """
-
-        # Act
-        Bounty.objects.create(
+        bounty = Bounty.objects.create(
             status=Bounty.OPEN,
             bounty_type=Bounty.Type.REVIEW,
             unified_document=self.researchhub_document,
@@ -123,25 +87,93 @@ class TestBountySignals(TestCase):
         )
 
         # Assert
-        assert mock_create_feed_entry.apply_async.call_count == 2
-
-    @patch("feed.signals.bounty_signals.delete_feed_entry")
-    def test_handle_bounty_closed_feed_entry_when_closed(self, mock_delete_feed_entry):
-        """
-        Test direct call to signal handler when bounty is closed.
-        """
-        # Arrage
-        self.bounty.status = Bounty.CLOSED
-
-        # Act
-        handle_boundy_closed_feed_entry(
-            sender=Bounty,
-            instance=self.bounty,
-            signal=None,
+        mock_create_feed_entry.apply_async.assert_has_calls(
+            [
+                call(
+                    args=(
+                        bounty.id,
+                        ContentType.objects.get_for_model(Bounty).id,
+                        FeedEntry.OPEN,
+                        self.hub1.id,
+                        ContentType.objects.get_for_model(Hub).id,
+                        bounty.created_by.id,
+                    ),
+                    priority=1,
+                ),
+                call(
+                    args=(
+                        bounty.id,
+                        ContentType.objects.get_for_model(Bounty).id,
+                        FeedEntry.OPEN,
+                        self.hub2.id,
+                        ContentType.objects.get_for_model(Hub).id,
+                        bounty.created_by.id,
+                    ),
+                    priority=1,
+                ),
+            ]
         )
 
+    @patch("feed.signals.bounty_signals.create_feed_entry")
+    @patch("feed.signals.bounty_signals.transaction")
+    def test_handle_bounty_create_feed_entry(
+        self, mock_transaction, mock_create_feed_entry
+    ):
+        """
+        Test direct call to handle_bounty_create_feed_entry signal handler.
+        """
+        # Arrange
+        mock_transaction.on_commit = lambda func: func()
+        mock_create_feed_entry.apply_async = MagicMock()
+
+        # Act
+        handle_bounty_create_feed_entry(sender=Bounty, instance=self.bounty)
+
         # Assert
-        assert mock_delete_feed_entry.apply_async.call_count == 2
+        mock_create_feed_entry.apply_async.assert_has_calls(
+            [
+                call(
+                    args=(
+                        self.bounty.id,
+                        ContentType.objects.get_for_model(Bounty).id,
+                        FeedEntry.OPEN,
+                        self.hub1.id,
+                        ContentType.objects.get_for_model(Hub).id,
+                        self.bounty.created_by.id,
+                    ),
+                    priority=1,
+                ),
+                call(
+                    args=(
+                        self.bounty.id,
+                        ContentType.objects.get_for_model(Bounty).id,
+                        FeedEntry.OPEN,
+                        self.hub2.id,
+                        ContentType.objects.get_for_model(Hub).id,
+                        self.bounty.created_by.id,
+                    ),
+                    priority=1,
+                ),
+            ]
+        )
+
+    @patch("feed.signals.bounty_signals.delete_feed_entry")
+    @patch("feed.signals.bounty_signals.transaction")
+    def test_delete_feed_entries_for_closed_bounty(
+        self, mock_transaction, mock_delete_feed_entry
+    ):
+        """
+        Test that feed entries are deleted for a closed bounty.
+        """
+        # Arrage
+        mock_transaction.on_commit = lambda func: func()
+        mock_delete_feed_entry.apply_async = MagicMock()
+
+        # Act
+        self.bounty.status = Bounty.CLOSED
+        self.bounty.save()
+
+        # Assert
         mock_delete_feed_entry.apply_async.assert_has_calls(
             [
                 call(
@@ -166,15 +198,41 @@ class TestBountySignals(TestCase):
         )
 
     @patch("feed.signals.bounty_signals.delete_feed_entry")
-    def test_signal_fires_on_bounty_closed(self, mock_delete_feed_entry):
+    @patch("feed.signals.bounty_signals.transaction")
+    def test_handle_boundy_delete_feed_entry(
+        self, mock_transaction, mock_delete_feed_entry
+    ):
         """
-        Test that signal fires and feed entries are deleted when bounty is closed.
+        Test direct call to handle_boundy_delete_feed_entry signal handler.
         """
         # Arrange
+        mock_transaction.on_commit = lambda func: func()
+        mock_delete_feed_entry.apply_async = MagicMock()
         self.bounty.status = Bounty.CLOSED
 
         # Act
-        self.bounty.save()
+        handle_boundy_delete_feed_entry(sender=Bounty, instance=self.bounty)
 
         # Assert
-        assert mock_delete_feed_entry.apply_async.call_count == 2
+        mock_delete_feed_entry.apply_async.assert_has_calls(
+            [
+                call(
+                    args=(
+                        self.bounty.id,
+                        ContentType.objects.get_for_model(Bounty).id,
+                        self.hub1.id,
+                        ContentType.objects.get_for_model(Hub).id,
+                    ),
+                    priority=1,
+                ),
+                call(
+                    args=(
+                        self.bounty.id,
+                        ContentType.objects.get_for_model(Bounty).id,
+                        self.hub2.id,
+                        ContentType.objects.get_for_model(Hub).id,
+                    ),
+                    priority=1,
+                ),
+            ]
+        )
