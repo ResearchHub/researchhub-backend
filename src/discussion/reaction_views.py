@@ -398,14 +398,14 @@ def create_automated_bounty(item):
             json_content = {
                 "ops": [
                     {
-                        "insert": "ResearchHub Foundation is assigning a peer review bounty of "
+                        "insert": "ResearchHub Foundation is assigning a peer review grant of "
                     },
                     {
                         "attributes": {"bold": True},
                         "insert": "$150 in ResearchCoin (RSC)",
                     },
                     {
-                        "insert": " to incentivize the peer review of this preprint. Anyone can perform a peer review and receive rewards from upvotes/tips, but only those who provide a high-quality, thorough peer review are eligible for the grant. We strongly encourage you to read the "
+                        "insert": " to incentivize the peer review of this preprint. Anyone can perform a peer review and receive rewards from upvotes/tips, but only those who provide a high-quality, thorough peer review are eligible for the grant. We strongly encourage you to read the "
                     },
                     {
                         "attributes": {
@@ -414,11 +414,11 @@ def create_automated_bounty(item):
                         "insert": "Peer Reviewing on ResearchHub",
                     },
                     {
-                        "insert": " guide with examples of acceptable peer reviews and additional information.\n\n"
+                        "insert": " guide with examples of acceptable peer reviews and additional information.\n\n"
                     },
                     {"attributes": {"bold": True}, "insert": "Requirements:"},
                     {
-                        "insert": "\nYour review must be submitted during the 14-day submission window starting on the day this grant was initiated."
+                        "insert": "\nYour review must be submitted during the 14-day submission window from the day this grant was initiated."
                     },
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
                     {
@@ -430,27 +430,43 @@ def create_automated_bounty(item):
                     },
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
                     {
-                        "insert": 'Use the rating system in the "Peer Reviews" tab for all 5 criteria (overall assessment, introduction, methods, results, discussion) but the content within each is flexible (in-line comments can be used here instead of a block of text in each section).'
+                        "insert": 'Use the rating system in the "Peer Reviews" tab for all 5 criteria (overall assessment, introduction, methods, results, discussion) but the content within each is flexible (in-line comments can be used instead of a block of text in each section).'
                     },
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
-                    {"insert": "For "},
+                    {"insert": "For "},
                     {"attributes": {"bold": True}, "insert": "each"},
                     {
-                        "insert": " figure, including supplementary material, you must provide a detailed assessment (pros or cons)"
+                        "insert": " figure, including supplementary material, you must provide a detailed assessment (pros or cons)."
                     },
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
+                    {"insert": "Plagiarism will not be tolerated. You "},
+                    {"attributes": {"bold": True}, "insert": "must"},
                     {
-                        "insert": "Plagiarism and the use of artificial intelligence (AI) generation for any purpose will not be tolerated."
+                        "insert": " comprehensively disclose any use of artificial intelligence (AI) platforms used in the review process. Please refer to our "
                     },
+                    {
+                        "attributes": {
+                            "link": "https://drive.google.com/file/d/1KihDvQze5rzi8xwleWfMNsdPbc6EF0t_/view"
+                        },
+                        "insert": "AI Policy",
+                    },
+                    {"insert": " for additional details."},
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
                     {"insert": "\nEditors will review and award "},
                     {
                         "attributes": {"bold": True},
-                        "insert": "up to 3 high-quality peer reviews",
+                        "insert": "up to 2 high-quality peer reviews",
                     },
                     {
-                        "insert": " within 1 week following the closure of the submission window. Awardees will be notified. All decisions are final.\n\n"
+                        "insert": " within 1 week following the closure of the submission window. Awardees will be notified. All decisions are final. For questions, please contact "
                     },
+                    {
+                        "attributes": {
+                            "link": "mailto:editorial@researchhub.foundation"
+                        },
+                        "insert": "editorial@researchhub.foundation",
+                    },
+                    {"insert": ".\n"},
                 ]
             }
 
