@@ -1,7 +1,10 @@
-from django.db.models import F, Window
+from django.db.models import F, Prefetch, Window
 from django.db.models.functions import RowNumber
 from rest_framework import viewsets
 from rest_framework.pagination import PageNumberPagination
+
+from paper.related_models.paper_model import Paper
+from reputation.related_models.bounty import Bounty
 
 from .models import FeedEntry
 from .serializers import FeedEntrySerializer
@@ -29,17 +32,35 @@ class FeedViewSet(viewsets.ModelViewSet):
         content_type = self.request.query_params.get("content_type")
 
         queryset = (
-            FeedEntry.objects.all()
-            .select_related(
+            FeedEntry.objects.all().select_related(
                 "content_type",
                 "parent_content_type",
                 "user",
                 "user__author_profile",
             )
+            # Prefetch related models for supported entities (bounty, paper).
+            # Must use `to_attr` to avoid shadowing the `item` field.
+            # The serializer needs to access the `_prefetched_*` fields to
+            # serialize the related models.
             .prefetch_related(
-                "item__authors",
-                "item__authors__user",
-                "item__hubs",
+                Prefetch(
+                    "item",
+                    Bounty.objects.prefetch_related(
+                        "unified_document",
+                        "unified_document__hubs",
+                        "unified_document__paper",
+                    ),
+                    to_attr="_prefetched_bounty",
+                ),
+                Prefetch(
+                    "item",
+                    Paper.objects.prefetch_related(
+                        "authors",
+                        "authors__user",
+                        "hubs",
+                    ),
+                    to_attr="_prefetched_paper",
+                ),
             )
         )
 

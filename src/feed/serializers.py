@@ -188,8 +188,14 @@ class FeedEntrySerializer(serializers.ModelSerializer):
         """Return the appropriate serialized content object based on type"""
         match obj.content_type.model:
             case "bounty":
+                # Use prefetched bounty if available
+                if hasattr(obj, "_prefetched_bounty"):
+                    return BountySerializer(obj._prefetched_bounty).data
                 return BountySerializer(obj.item).data
             case "paper":
+                # Use prefetched paper if available
+                if hasattr(obj, "_prefetched_paper"):
+                    return PaperSerializer(obj._prefetched_paper).data
                 return PaperSerializer(obj.item).data
         return None
 
