@@ -42,6 +42,31 @@ class FeedTasksTest(TestCase):
         self.assertEqual(feed_entry.item, self.paper)
         self.assertEqual(feed_entry.parent_item, self.hub)
 
+    def test_create_feed_entry_twice(self):
+        """Test that attempting to create the same feed entry twice doesn't raise an error"""
+        # Act
+        feed_entry = create_feed_entry(
+            item_id=self.paper.id,
+            item_content_type_id=self.paper_content_type.id,
+            action=FeedEntry.PUBLISH,
+            parent_item_id=self.hub.id,
+            parent_content_type_id=self.hub_content_type.id,
+        )
+        # attempt to create the same feed entry again
+        create_feed_entry(
+            item_id=self.paper.id,
+            item_content_type_id=self.paper_content_type.id,
+            action=FeedEntry.PUBLISH,
+            parent_item_id=self.hub.id,
+            parent_content_type_id=self.hub_content_type.id,
+        )
+
+        # Assert
+        feed_entries = FeedEntry.objects.filter(
+            id=feed_entry.id
+        )
+        self.assertEqual(feed_entries.count(), 1)
+
     def test_delete_feed_entry(self):
         """Test deleting a feed entry for a paper"""
         # Arrange
