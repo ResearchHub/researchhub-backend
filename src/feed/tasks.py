@@ -1,9 +1,12 @@
 from django.contrib.contenttypes.models import ContentType
-
+from django.db import IntegrityError
+import logging
 from feed.models import FeedEntry
 from researchhub.celery import app
 from user.models import User
 
+
+logger = logging.getLogger(__name__)
 
 @app.task
 def create_feed_entry(
@@ -31,7 +34,8 @@ def create_feed_entry(
         action_date = item.paper_publish_date
 
     # Create and return the feed entry
-    return FeedEntry.objects.create(
+    try:
+        return FeedEntry.objects.create(
         user=user,
         item=item,
         content_type=item_content_type,
@@ -40,8 +44,11 @@ def create_feed_entry(
         action_date=action_date,
         parent_item=parent_item,
         parent_content_type=parent_content_type,
-        parent_object_id=parent_item_id,
-    )
+            parent_object_id=parent_item_id,
+        )
+    except IntegrityError:
+        # Ignore error if feed entry already exists
+        logger.warning(f"Feed entry already exists for item_id={item_id} content_type={item_content_type.model} parent_item_id={parent_item_id} parent_content_type={parent_content_type.model}")
 
 
 @app.task
