@@ -322,7 +322,6 @@ class PaperViewSet(
 
                 # Associate hubs
                 if hub_ids:
-                    paper.hubs.add(*hub_ids)
                     paper.unified_document.hubs.add(*hub_ids)
 
                 # Create paper version

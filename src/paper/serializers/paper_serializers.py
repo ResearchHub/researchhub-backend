@@ -481,7 +481,6 @@ class PaperSerializer(BasePaperSerializer):
 
                 # TODO: Do we still need add authors from the request content?
                 paper.authors.add(*authors)
-                paper.hubs.add(*hubs)
                 paper.unified_document.hubs.add(*hubs)
 
                 try:
@@ -565,15 +564,13 @@ class PaperSerializer(BasePaperSerializer):
                 new_hubs = []
                 remove_hubs = []
                 if hubs:
-                    current_hubs = paper.hubs.all()
+                    current_hubs = unified_doc.hubs.all()
                     for current_hub in current_hubs:
                         if current_hub not in hubs:
                             remove_hubs.append(current_hub)
                     for hub in hubs:
                         if hub not in current_hubs:
                             new_hubs.append(hub)
-                    paper.hubs.remove(*remove_hubs)
-                    paper.hubs.add(*hubs)
                     unified_doc.hubs.remove(*remove_hubs)
                     unified_doc.hubs.add(*hubs)
 

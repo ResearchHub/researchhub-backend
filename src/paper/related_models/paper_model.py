@@ -10,7 +10,7 @@ from django.contrib.postgres.indexes import GinIndex, HashIndex
 from django.contrib.postgres.search import SearchVectorField
 from django.core.validators import FileExtensionValidator
 from django.db import models
-from django.db.models import Avg, Count, Func, Index, IntegerField, JSONField, Q, Sum
+from django.db.models import Avg, Func, Index, IntegerField, JSONField, Sum
 from django.db.models.functions import Cast, Extract
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 from manubot.cite.doi import get_doi_csl_item
@@ -19,6 +19,7 @@ from simple_history.models import HistoricalRecords
 
 import utils.sentry as sentry
 from discussion.reaction_models import AbstractGenericReactionModel, Vote
+from hub.models import Hub
 from hub.serializers import DynamicHubSerializer
 from paper.lib import journal_hosts
 from paper.related_models.citation_model import Citation
@@ -108,7 +109,6 @@ class Paper(AbstractGenericReactionModel):
         blank=True,
         help_text="Authors that participated in the research paper",
     )
-    hubs = models.ManyToManyField("hub.Hub", related_name="papers", blank=True)
     file = models.FileField(
         max_length=512,
         upload_to="uploads/papers/%Y/%m/%d",
@@ -911,6 +911,17 @@ class Paper(AbstractGenericReactionModel):
     @property
     def paper_rewards(self):
         return HubCitationValue.calculate_base_claim_rsc_reward(self)
+
+    @property
+    def hubs(self):
+        """
+        Access hubs through the unified document.
+        This property maintains backwards compatibility while enforcing the unified document
+        as the single source of truth for hubs.
+        """
+        if self.unified_document:
+            return self.unified_document.hubs
+        return Hub.objects.none()
 
 
 class PaperVersion(models.Model):

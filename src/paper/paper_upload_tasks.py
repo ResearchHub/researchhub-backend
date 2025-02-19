@@ -715,9 +715,6 @@ def create_paper_related_tags(paper, openalex_concepts=[], openalex_topics=[]):
             if Hub.objects.filter(id=biorxiv_hub_id).exists():
                 paper.unified_document.hubs.add(biorxiv_hub_id)
 
-    # Sync hubs to paper (if needed)
-    paper.hubs.set(paper.unified_document.hubs.all())
-
 
 def _get_or_create_journal_hub(external_source: str) -> Hub:
     """
