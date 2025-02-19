@@ -45,7 +45,7 @@ class TestPostSignals(TestCase):
                     args=(
                         post.id,
                         ContentType.objects.get_for_model(post).id,
-                        FeedEntry.OPEN,
+                        FeedEntry.PUBLISH,
                         self.hub1.id,
                         ContentType.objects.get_for_model(Hub).id,
                         post.created_by.id,
@@ -56,7 +56,7 @@ class TestPostSignals(TestCase):
                     args=(
                         post.id,
                         ContentType.objects.get_for_model(post).id,
-                        FeedEntry.OPEN,
+                        FeedEntry.PUBLISH,
                         self.hub2.id,
                         ContentType.objects.get_for_model(Hub).id,
                         post.created_by.id,
@@ -83,7 +83,7 @@ class TestPostSignals(TestCase):
                     args=(
                         self.post.id,
                         ContentType.objects.get_for_model(self.post).id,
-                        FeedEntry.OPEN,
+                        FeedEntry.PUBLISH,
                         self.hub1.id,
                         ContentType.objects.get_for_model(Hub).id,
                         self.post.created_by.id,
