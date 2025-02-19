@@ -6,6 +6,7 @@ from rest_framework.pagination import PageNumberPagination
 
 from paper.related_models.paper_model import Paper
 from reputation.related_models.bounty import Bounty
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 
 from .models import FeedEntry
 from .serializers import FeedEntrySerializer
@@ -65,6 +66,14 @@ class FeedViewSet(viewsets.ModelViewSet):
                         "authors__user",
                     ),
                     to_attr="_prefetched_paper",
+                ),
+                Prefetch(
+                    "item",
+                    ResearchhubPost.objects.prefetch_related(
+                        "unified_document",
+                        "unified_document__hubs",
+                    ),
+                    to_attr="_prefetched_post",
                 ),
             )
         )
