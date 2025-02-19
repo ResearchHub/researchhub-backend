@@ -3,6 +3,7 @@ from rest_framework import serializers
 from hub.models import Hub
 from paper.models import Paper
 from researchhub_document.related_models.constants import document_type
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.models import Author, User
 
 from .models import FeedEntry
@@ -120,6 +121,15 @@ class PaperSerializer(ContentObjectSerializer):
             "metrics",
         ]
 
+class PostSerializer(ContentObjectSerializer):
+    """Serializer for researchhub posts"""
+    renderable_text = serializers.CharField()
+    title = serializers.CharField()
+
+    class Meta(ContentObjectSerializer.Meta):
+        model = ResearchhubPost
+        fields = ContentObjectSerializer.Meta.fields + ["title", "renderable_text"]
+
 
 class BountySerializer(serializers.Serializer):
     amount = serializers.FloatField()
@@ -205,6 +215,10 @@ class FeedEntrySerializer(serializers.ModelSerializer):
                 if hasattr(obj, "_prefetched_paper"):
                     return PaperSerializer(obj._prefetched_paper).data
                 return PaperSerializer(obj.item).data
+            case "researchhubpost":
+                if hasattr(obj, "_prefetched_post"):
+                    return PostSerializer(obj._prefetched_post).data
+                return PostSerializer(obj.item).data
         return None
 
     def get_content_type(self, obj):

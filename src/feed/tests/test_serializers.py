@@ -8,6 +8,7 @@ from feed.serializers import (
     ContentObjectSerializer,
     FeedEntrySerializer,
     PaperSerializer,
+    PostSerializer,
 )
 from hub.models import Hub
 from hub.serializers import SimpleHubSerializer
@@ -21,6 +22,8 @@ from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
+from researchhub_document.related_models.constants import document_type
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -128,6 +131,33 @@ class PaperSerializerTests(TestCase):
         self.assertIn("journal", data)
         self.assertEqual(data["journal"]["name"], journal_without_image.name)
         self.assertEqual(data["journal"]["image"], None)
+
+
+class PostSerializerTests(TestCase):
+    def setUp(self):
+        self.user = create_random_default_user("post_creator")
+        self.unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.DISCUSSION,
+        )
+
+        self.post = ResearchhubPost.objects.create(
+            title="title1",
+            created_by=self.user,
+            document_type=document_type.DISCUSSION,
+            renderable_text="renderableText1",
+            unified_document=self.unified_document,
+        )
+        self.post.save()
+
+    def test_serializes_post(self):
+        serializer = PostSerializer(self.post)
+        data = serializer.data
+
+        self.assertEqual(data["id"], self.post.id)
+        self.assertEqual(data["hub"], None)
+        self.assertEqual(data["renderable_text"], self.post.renderable_text)
+        self.assertEqual(data["slug"], self.post.slug)
+        self.assertEqual(data["title"], self.post.title)
 
 
 class BountySerializerTests(TestCase):
