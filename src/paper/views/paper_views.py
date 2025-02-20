@@ -42,7 +42,6 @@ from paper.related_models.series_model import PaperSeries, PaperSeriesDeclaratio
 from paper.serializers import (
     DynamicPaperSerializer,
     FigureSerializer,
-    PaperReferenceSerializer,
     PaperSerializer,
     PaperSubmissionSerializer,
 )
@@ -102,8 +101,9 @@ class PaperViewSet(
             "authors",
             "authors__user",
             "moderators",
-            "hubs",
-            "hubs__subscribers",
+            "unified_document",
+            "unified_document__hubs",
+            "unified_document__hubs__subscribers",
             "votes",
             "flags",
             "peer_reviews",
@@ -701,30 +701,6 @@ class PaperViewSet(
         paper.moderators.add(*moderators)
         paper.save()
         return Response(PaperSerializer(paper).data)
-
-    @action(detail=True, methods=[GET])
-    def referenced_by(self, request, pk=None):
-        paper = self.get_object()
-        queryset = paper.referenced_by.all()
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = PaperReferenceSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=[GET])
-    def references(self, request, pk=None):
-        paper = self.get_object()
-        queryset = paper.references.all()
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = PaperReferenceSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["get"])
     def user_vote(self, request, pk=None):

@@ -17,7 +17,6 @@ from discussion.reaction_serializers import GenericReactionSerializerMixin
 from discussion.serializers import DynamicFlagSerializer
 from discussion.serializers import DynamicVoteSerializer as DynamicGrmVoteSerializer
 from discussion.serializers import ThreadSerializer
-from hub.models import Hub
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from paper.exceptions import PaperSerializerError
 from paper.lib import journal_hosts
@@ -68,7 +67,7 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
     pdf_copyright_allows_display = serializers.SerializerMethodField()
     first_figure = serializers.SerializerMethodField()
     first_preview = serializers.SerializerMethodField()
-    hubs = SimpleHubSerializer(many=True, required=False)
+    hubs = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
     score = serializers.ReadOnlyField()  # GRM
     unified_document = serializers.SerializerMethodField()
@@ -114,28 +113,14 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
                 print(f"Author with id {author_id} was not found.")
         data["authors"] = valid_authors
 
-        valid_hubs = []
-        for hub_id in data.get("hubs", []):
-            if isinstance(hub_id, Hub):
-                hub_id = hub_id.id
-
-            try:
-                hub = Hub.objects.filter(is_removed=False).get(pk=hub_id)
-                valid_hubs.append(hub)
-            except Hub.DoesNotExist:
-                print(f"Hub with id {hub_id} was not found.")
-        data["hubs"] = valid_hubs
-
         return data
 
     def _transform_to_dict(self, obj):
         if isinstance(obj, QueryDict):
             authors = obj.getlist("authors", [])
-            hubs = obj.getlist("hubs", [])
             raw_authors = obj.getlist("raw_authors", [])
             obj = obj.dict()
             obj["authors"] = authors
-            obj["hubs"] = hubs
             obj["raw_authors"] = raw_authors
         return obj
 
@@ -373,6 +358,13 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
             for version in paper_versions
         ]
 
+    def get_hubs(self, paper):
+        if paper.unified_document:
+            return SimpleHubSerializer(
+                paper.unified_document.hubs.all(), many=True
+            ).data
+        return []
+
 
 class ContributionPaperSerializer(BasePaperSerializer):
     uploaded_by = None
@@ -438,7 +430,7 @@ class PaperSerializer(BasePaperSerializer):
 
         # Prepare validated_data by removing m2m
         authors = validated_data.pop("authors")
-        hubs = validated_data.pop("hubs")
+        hubs = validated_data.pop("hubs", [])
         file = validated_data.get("file")
         try:
             with transaction.atomic():
@@ -530,7 +522,7 @@ class PaperSerializer(BasePaperSerializer):
 
         validated_data.pop("authors", [None])
         file = validated_data.pop("file", None)
-        hubs = validated_data.pop("hubs", [None])
+        hubs = validated_data.pop("hubs", [])
         pdf_license = validated_data.get("pdf_license", None)
         validated_data.pop("raw_authors", [])
 
@@ -561,9 +553,9 @@ class PaperSerializer(BasePaperSerializer):
                 paper.full_clean(exclude=["paper_type"])
 
                 unified_doc = paper.unified_document
-                new_hubs = []
-                remove_hubs = []
-                if hubs:
+                if hubs is not None:
+                    new_hubs = []
+                    remove_hubs = []
                     current_hubs = unified_doc.hubs.all()
                     for current_hub in current_hubs:
                         if current_hub not in hubs:
@@ -727,38 +719,6 @@ class PaperSerializer(BasePaperSerializer):
         elif file:
             return file.url
         return None
-
-
-class PaperReferenceSerializer(
-    serializers.ModelSerializer, GenericReactionSerializerMixin
-):
-    hubs = SimpleHubSerializer(
-        many=True, required=False, context={"no_subscriber_info": True}
-    )
-    first_figure = serializers.SerializerMethodField()
-    first_preview = serializers.SerializerMethodField()
-
-    class Meta:
-        abstract = True
-        fields = [
-            "id",
-            "title",
-            "hubs",
-            "first_figure",
-            "first_preview",
-        ]
-        model = Paper
-
-    def get_first_figure(self, paper):
-        return None
-
-    def get_first_preview(self, paper):
-        try:
-            figure = paper.figures.filter(figure_type=Figure.PREVIEW).first()
-            if figure:
-                return FigureSerializer(figure).data
-        except AttributeError:
-            return None
 
 
 class PaperCitationSerializer(serializers.ModelSerializer):
