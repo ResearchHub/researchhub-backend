@@ -123,8 +123,14 @@ class PaperSerializer(ContentObjectSerializer):
 
 class PostSerializer(ContentObjectSerializer):
     """Serializer for researchhub posts"""
-    renderable_text = serializers.CharField()
+    renderable_text = serializers.SerializerMethodField()
     title = serializers.CharField()
+
+    def get_renderable_text(self, obj):
+        text = obj.renderable_text[:255]
+        if len(obj.renderable_text) > 255:
+            text += "..."
+        return text
 
     class Meta(ContentObjectSerializer.Meta):
         model = ResearchhubPost
