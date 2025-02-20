@@ -31,9 +31,11 @@ def handle_unified_doc_hubs_changed(sender, instance, action, pk_set, **kwargs):
             ):
                 hub = instance.hubs.get(id=hub_id)
                 paper = instance.paper
-            else:  # instance is Hub
+            elif isinstance(instance, Hub):  # instance is Hub
                 hub = instance
                 paper = hub.related_documents.get(id=hub_id).paper
+            else:
+                continue
 
             # We order feed entries by publish date, so we don't need to
             # create feed entries for papers that don't have a publish date
@@ -58,9 +60,11 @@ def handle_unified_doc_hubs_changed(sender, instance, action, pk_set, **kwargs):
             ):
                 hub = Hub.objects.get(id=hub_id)
                 paper = instance.paper
-            else:  # instance is Hub
+            elif isinstance(instance, Hub):  # instance is Hub
                 hub = instance
-                paper = Paper.objects.get(id=hub_id)
+                paper = hub.related_documents.get(id=hub_id).paper
+            else:
+                continue
 
             delete_feed_entry.apply_async(
                 args=(
