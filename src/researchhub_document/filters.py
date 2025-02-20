@@ -193,7 +193,6 @@ class UnifiedDocumentFilter(filters.FilterSet):
                 ),
                 Prefetch("reviews", queryset=Review.objects.filter(is_removed=False)),
                 "related_bounties",
-                "paper__hubs",
                 "paper__purchases",
             )
         elif value == POSTS:
