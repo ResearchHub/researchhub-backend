@@ -55,9 +55,10 @@ class FeedViewSet(viewsets.ModelViewSet):
                 Prefetch(
                     "item",
                     Paper.objects.prefetch_related(
+                        "unified_document",
+                        "unified_document__hubs",
                         "authors",
                         "authors__user",
-                        "hubs",
                     ),
                     to_attr="_prefetched_paper",
                 ),
