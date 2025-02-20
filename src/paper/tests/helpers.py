@@ -37,7 +37,6 @@ def create_paper(
         hot_score=paper.calculate_hot_score(),
         score=paper.score,
     )
-    unified_doc.hubs.add(*paper.hubs.all())
     paper.unified_document = unified_doc
     paper.save()
     return paper

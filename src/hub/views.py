@@ -25,6 +25,7 @@ from researchhub_access_group.constants import (
     SENIOR_EDITOR,
 )
 from researchhub_access_group.models import Permission
+from researchhub_document.models import ResearchhubUnifiedDocument
 from user.models import User
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.http import DELETE, GET, PATCH, POST, PUT
@@ -110,10 +111,18 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
     def censor(self, request, pk=None):
         hub = self.get_object()
 
-        # Remove Papers with no other hubs
-        Paper.objects.annotate(
-            cnt=Count("hubs", filter=Q(hubs__is_removed=False))
-        ).filter(cnt__lte=1, hubs__id=hub.id).update(is_removed=True)
+        # Find unified documents with no other hubs
+        unified_documents = (
+            ResearchhubUnifiedDocument.objects.annotate(
+                cnt=Count("hubs", filter=Q(hubs__is_removed=False))
+            )
+            .filter(cnt__lte=1, hubs__id=hub.id)
+            .values_list("id", flat=True)
+        )
+
+        # Remove papers of unified documents with no other hubs
+        papers = Paper.objects.filter(unified_document__in=unified_documents)
+        papers.update(is_removed=True)
 
         # Update Hub
         hub.is_removed = True

@@ -434,7 +434,6 @@ class ViewTests(APITestCase):
         user_uploader = create_random_default_user("user_uploader")
         test_paper = create_paper(uploaded_by=user_uploader)
         test_paper.unified_document.hubs.add(hub)
-        test_paper.hubs.add(hub)
         test_paper.save()
 
         self.client.force_authenticate(user_editor)
@@ -457,7 +456,7 @@ class ViewTests(APITestCase):
         )
         user_uploader = create_random_default_user("user_uploader")
         test_paper = create_paper(uploaded_by=user_uploader)
-        test_paper.hubs.add(hub)
+        test_paper.unified_document.hubs.add(hub)
         test_paper.is_removed = True
         test_paper.save()
 
