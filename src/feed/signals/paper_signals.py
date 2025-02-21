@@ -24,16 +24,16 @@ when papers are added to or removed from hubs.
 )
 def handle_unified_doc_hubs_changed(sender, instance, action, pk_set, **kwargs):
     if action == "post_add":
-        for hub_id in pk_set:
+        for entity_id in pk_set:
             if (
                 isinstance(instance, ResearchhubUnifiedDocument)
                 and instance.document_type == "PAPER"
             ):
-                hub = instance.hubs.get(id=hub_id)
+                hub = instance.hubs.get(id=entity_id)
                 paper = instance.paper
             elif isinstance(instance, Hub):  # instance is Hub
                 hub = instance
-                paper = hub.related_documents.get(id=hub_id).paper
+                paper = hub.related_documents.get(id=entity_id).paper
             else:
                 continue
 
@@ -53,16 +53,16 @@ def handle_unified_doc_hubs_changed(sender, instance, action, pk_set, **kwargs):
                 priority=1,
             )
     elif action == "post_remove":
-        for hub_id in pk_set:
+        for entity_id in pk_set:
             if (
                 isinstance(instance, ResearchhubUnifiedDocument)
                 and instance.document_type == "PAPER"
             ):
-                hub = Hub.objects.get(id=hub_id)
+                hub = Hub.objects.get(id=entity_id)
                 paper = instance.paper
             elif isinstance(instance, Hub):  # instance is Hub
                 hub = instance
-                paper = hub.related_documents.get(id=hub_id).paper
+                paper = hub.related_documents.get(id=entity_id).paper
             else:
                 continue
 
