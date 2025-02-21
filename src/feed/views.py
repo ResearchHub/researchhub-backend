@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.models import ContentType
 from django.db.models import F, Prefetch, Window
 from django.db.models.functions import RowNumber
 from rest_framework import viewsets
@@ -23,13 +24,16 @@ class FeedViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """
-        Filter feed entries to show items related to what user follows,
-        or all items if no follows, and ensure that the result contains
-        only the most recent entry per (content_type, object_id), ordered
-        globally by the most recent action_date.
+        Filter feed entries based on the feed view ('following' or 'latest')
+        and additional filters. For 'following' view, show items related to what
+        user follows. For 'latest' view, show all items. Ensure that the result
+        contains only the most recent entry per (content_type, object_id),
+        ordered globally by the most recent action_date.
         """
         action = self.request.query_params.get("action")
         content_type = self.request.query_params.get("content_type")
+        feed_view = self.request.query_params.get("feed_view", "latest")
+        hub_id = self.request.query_params.get("hub_id")
 
         queryset = (
             FeedEntry.objects.all().select_related(
@@ -64,14 +68,23 @@ class FeedViewSet(viewsets.ModelViewSet):
             )
         )
 
-        # Apply following filter only if the user is authenticated and has follows.
-        if self.request.user.is_authenticated:
+        # Apply following filter if feed_view is 'following' and user is authenticated
+        if feed_view == "following" and self.request.user.is_authenticated:
             following = self.request.user.following.all()
             if following.exists():
                 queryset = queryset.filter(
                     parent_content_type_id__in=following.values("content_type"),
                     parent_object_id__in=following.values("object_id"),
                 )
+
+        # Apply hub filter if hub_id is provided
+        if hub_id:
+            from hub.models import Hub
+
+            hub_content_type = ContentType.objects.get_for_model(Hub)
+            queryset = queryset.filter(
+                parent_content_type=hub_content_type, parent_object_id=hub_id
+            )
 
         # Apply additional filters.
         if action:
