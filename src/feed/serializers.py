@@ -58,9 +58,10 @@ class ContentObjectSerializer(serializers.Serializer):
 
     def get_hub(self, obj):
         # FIXME: get primary hub
-        hub = next(iter(obj.hubs.all()), None)
-        if hub:
-            return SimpleHubSerializer(hub).data
+        if hasattr(obj, "unified_document") and obj.unified_document:
+            hub = next(iter(obj.unified_document.hubs.all()), None)
+            if hub:
+                return SimpleHubSerializer(hub).data
         return None
 
     class Meta:
@@ -86,8 +87,15 @@ class PaperSerializer(ContentObjectSerializer):
     metrics = PaperMetricsSerializer(source="*")
 
     def get_journal(self, obj):
+        if not hasattr(obj, "unified_document") or not obj.unified_document:
+            return None
+
         journal_hub = next(
-            (hub for hub in obj.hubs.all() if hub.namespace == Hub.Namespace.JOURNAL),
+            (
+                hub
+                for hub in obj.unified_document.hubs.all()
+                if hub.namespace == Hub.Namespace.JOURNAL
+            ),
             None,
         )
 

@@ -11,6 +11,9 @@ from rest_framework.test import APIClient
 from feed.models import FeedEntry
 from hub.models import Hub
 from paper.models import Paper
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.views.follow_view_mixins import create_follow
 
 User = get_user_model()
@@ -21,14 +24,18 @@ class FeedViewSetTests(TestCase):
         self.user = User.objects.create_user(
             username="testuser", password=uuid.uuid4().hex
         )
+        self.unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER"
+        )
         self.paper = Paper.objects.create(
             title="Test Paper",
             paper_publish_date=timezone.now(),
+            unified_document=self.unified_document,
         )
         self.hub = Hub.objects.create(
             name="Test Hub",
         )
-        self.paper.hubs.add(self.hub)
+        self.unified_document.hubs.add(self.hub)
 
         # Set up API client
         self.client = APIClient()
@@ -84,10 +91,15 @@ class FeedViewSetTests(TestCase):
     def test_feed_pagination(self):
         """Test feed pagination"""
         for i in range(25):
+            unified_doc = ResearchhubUnifiedDocument.objects.create(
+                document_type="PAPER"
+            )
             paper = Paper.objects.create(
                 title=f"Test Paper {i}",
                 paper_publish_date=timezone.now(),
+                unified_document=unified_doc,
             )
+            unified_doc.hubs.add(self.hub)
             FeedEntry.objects.create(
                 user=self.user,
                 action="PUBLISH",
@@ -108,11 +120,13 @@ class FeedViewSetTests(TestCase):
 
     def test_custom_page_size(self):
         """Test custom page size parameter"""
+        unified_doc = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
         paper2 = Paper.objects.create(
             title="Test Paper 2",
             paper_publish_date=timezone.now(),
+            unified_document=unified_doc,
         )
-        paper2.hubs.add(self.hub)
+        unified_doc.hubs.add(self.hub)
         FeedEntry.objects.create(
             user=self.user,
             action="PUBLISH",

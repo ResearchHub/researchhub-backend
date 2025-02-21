@@ -10,6 +10,7 @@ from feed.signals.bounty_signals import (
 )
 from hub.models import Hub
 from paper.related_models.paper_model import Paper
+from paper.tests.helpers import create_paper
 from reputation.related_models.bounty import Bounty
 from reputation.related_models.escrow import Escrow
 from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
@@ -27,8 +28,7 @@ class TestBountySignals(TestCase):
 
     def setUp(self):
         self.user = User.objects.create_user(username="testUser1")
-
-        self.paper = Paper.objects.create(title="testPaper1")
+        self.paper = create_paper(title="testPaper1")
         content_type = ContentType.objects.get_for_model(self.paper)
 
         self.review_thread = RhCommentThreadModel.objects.create(
@@ -43,22 +43,21 @@ class TestBountySignals(TestCase):
             created_by=self.user,
         )
 
-        self.researchhub_document = ResearchhubUnifiedDocument.objects.create()
         self.hub1 = Hub.objects.create(name="testHub1")
         self.hub2 = Hub.objects.create(name="testHub2")
-        self.researchhub_document.hubs.add(self.hub1)
-        self.researchhub_document.hubs.add(self.hub2)
+        self.paper.unified_document.hubs.add(self.hub1)
+        self.paper.unified_document.hubs.add(self.hub2)
 
         self.escrow = Escrow.objects.create(
             created_by=self.user,
             hold_type=Escrow.BOUNTY,
-            item=self.researchhub_document,
+            item=self.paper.unified_document,
         )
 
         self.bounty = Bounty.objects.create(
             status=Bounty.OPEN,
             bounty_type=Bounty.Type.REVIEW,
-            unified_document=self.researchhub_document,
+            unified_document=self.paper.unified_document,
             item=self.comment,
             escrow=self.escrow,
             created_by=self.user,
@@ -80,7 +79,7 @@ class TestBountySignals(TestCase):
         bounty = Bounty.objects.create(
             status=Bounty.OPEN,
             bounty_type=Bounty.Type.REVIEW,
-            unified_document=self.researchhub_document,
+            unified_document=self.paper.unified_document,
             item=self.comment,
             escrow=self.escrow,
             created_by=self.user,

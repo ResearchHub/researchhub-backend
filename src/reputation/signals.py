@@ -13,21 +13,29 @@ from reputation.distributor import Distributor
 from reputation.exceptions import ReputationSignalError
 from reputation.models import Distribution
 from researchhub_comment.models import RhCommentModel
-from researchhub_document.models import ResearchhubPost
+from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from utils import sentry
 
 NEW_USER_BONUS_REPUTATION_LIMIT = 200
 NEW_USER_BONUS_DAYS_LIMIT = 30
 
 
-@receiver(m2m_changed, sender=Paper.hubs.through, dispatch_uid="paper_hubs_changed")
+@receiver(
+    m2m_changed,
+    sender=ResearchhubUnifiedDocument.hubs.through,
+    dispatch_uid="unified_doc_hubs_changed",
+)
 def update_distribution_for_hub_changes(
     sender, instance, action, reverse, model, pk_set, **kwargs
 ):
-    if (action == "post_add") and pk_set is not None:
+    if (
+        (action == "post_add")
+        and pk_set is not None
+        and instance.document_type == "PAPER"
+    ):
         distributions = Distribution.objects.filter(
-            proof_item_object_id=instance.id,
-            proof_item_content_type=get_content_type_for_model(instance),
+            proof_item_object_id=instance.paper.id,
+            proof_item_content_type=get_content_type_for_model(instance.paper),
         )
         for distribution in distributions:
             distribution.hubs.add(*instance.hubs.all())
