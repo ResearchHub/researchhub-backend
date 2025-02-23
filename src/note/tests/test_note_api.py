@@ -5,6 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APITestCase
 
 from note.models import Note
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.models import Organization
@@ -26,6 +27,9 @@ class NoteTests(APITestCase):
         # Create org
         response = self.client.post("/api/organization/", {"name": "some org"})
         self.org = response.data
+
+        # Create exchange rate
+        RscExchangeRate.objects.create(rate=4.99014625)
 
     def test_user_can_list_created_notes(self):
         # Arrange
