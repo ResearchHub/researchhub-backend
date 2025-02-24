@@ -58,40 +58,6 @@ def distribute_for_censor_paper(sender, instance, using, **kwargs):
             record = distributor.distribute()
 
 
-def check_censored(created, update_fields):
-    return not created and (update_fields is not None) and ("censor" in update_fields)
-
-
-def get_discussion_censored_distribution(instance):
-    item_type = type(instance)
-
-    error = TypeError(f"Instance of type {item_type} is not supported")
-
-    if item_type == Comment:
-        return distributions.CommentCensored
-    elif item_type == Reply:
-        return distributions.ReplyCensored
-    elif item_type == Thread:
-        return distributions.ThreadCensored
-    elif item_type == ResearchhubPost:
-        return distributions.ResearchhubPostCensored
-    else:
-        raise error
-
-
-def get_discussion_hubs(instance):
-    hubs = None
-    if isinstance(instance, Comment):
-        hubs = instance.parent.paper.hubs
-    elif isinstance(instance, Reply):
-        try:
-            hubs = instance.parent.parent.paper.hubs
-        except Exception as e:
-            sentry.log_error(e)
-    elif isinstance(instance, Thread):
-        hubs = instance.paper.hubs
-    return hubs
-
 
 @receiver(post_save, sender=GrmVote, dispatch_uid="discussion_vote")
 def distribute_for_discussion_vote(sender, instance, created, update_fields, **kwargs):
