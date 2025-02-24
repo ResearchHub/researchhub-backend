@@ -3,7 +3,6 @@ from decimal import Decimal
 from django.conf import settings
 from web3 import Web3
 
-from ethereum.utils import decimal_to_token_amount
 from utils.aws import create_client
 from utils.web3_utils import web3_provider
 
@@ -101,6 +100,23 @@ def convert_reputation_amount_to_token_amount(
     total = rate * reputation
     denomination = token["denomination"]
     return decimal_to_token_amount(total, denomination), str(total)
+
+
+def decimal_to_token_amount(value, denomination):
+    if type(value) is not Decimal:
+        raise TypeError('`value` must be of type Decimal')
+
+    value_string = str(value)
+
+    integer_string = value_string.split('.')[0]
+    integer_pad_width = len(integer_string) + denomination
+    integer_padded = integer_string.ljust(integer_pad_width, '0')
+    integer_part = int(integer_padded)
+
+    decimal_padded = value_string.split('.')[1].ljust(denomination, '0')
+    decimal_part = int(decimal_padded)
+
+    return integer_part + decimal_part
 
 
 def get_nonce(w3, account):
