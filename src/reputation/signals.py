@@ -5,7 +5,6 @@ from django.db.models.signals import m2m_changed, post_delete, post_save
 from django.dispatch import receiver
 
 import reputation.distributions as distributions
-from discussion.lib import check_is_discussion_item
 from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as GrmVote
 from paper.models import Paper
@@ -57,48 +56,6 @@ def distribute_for_censor_paper(sender, instance, using, **kwargs):
                 instance.hubs.all(),
             )
             record = distributor.distribute()
-
-
-@receiver(post_save, sender=Comment, dispatch_uid="censor_comment")
-@receiver(post_save, sender=Reply, dispatch_uid="censor_reply")
-@receiver(post_save, sender=Thread, dispatch_uid="censor_thread")
-@receiver(post_save, sender=RhCommentModel, dispatch_uid="censor_rh_comment")
-def distribute_for_censor(sender, instance, created, update_fields, **kwargs):
-    timestamp = time()
-    distributor = None
-    hubs = None
-
-    if check_censored(created, update_fields) is True:
-        try:
-            if check_is_discussion_item(instance):
-                distribution = get_discussion_censored_distribution(instance)
-                recipient = instance.created_by
-                hubs = get_discussion_hubs(instance)
-
-            else:
-                raise TypeError
-
-            all_hubs = None
-            if hubs is not None:
-                all_hubs = hubs.all()
-
-            if is_eligible_user(recipient):
-                distributor = Distributor(
-                    distribution,
-                    recipient,
-                    instance,
-                    timestamp,
-                    instance.created_by,
-                    all_hubs,
-                )
-
-        except TypeError as e:
-            error = ReputationSignalError(e, "Failed to distribute")
-            print(error)
-            sentry.log_error(error)
-
-    if distributor is not None:
-        distributor.distribute()
 
 
 def check_censored(created, update_fields):
