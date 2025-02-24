@@ -15,6 +15,7 @@ from django.db.models.functions import Cast, Coalesce
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from elasticsearch.exceptions import ConnectionError
+from elasticsearch_dsl import Search
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -23,12 +24,14 @@ from rest_framework.permissions import (
     IsAuthenticated,
     IsAuthenticatedOrReadOnly,
 )
+from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 
 from analytics.amplitude import track_event
 from discussion.models import Vote as GrmVote
 from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
 from discussion.reaction_views import ReactionViewActionMixin
+from google_analytics.signals import get_event_hit_response
 from paper.exceptions import DOINotFoundError, PaperSerializerError
 from paper.filters import PaperFilter
 from paper.models import Figure, Paper, PaperSubmission, PaperVersion
@@ -58,10 +61,11 @@ from reputation.related_models.paper_reward import (
 )
 from researchhub.permissions import IsObjectOwnerOrModerator
 from researchhub_document.permissions import HasDocumentCensorPermission
+from search.documents.paper import PaperDocument
 from user.related_models.author_model import Author
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.doi import DOI
-from utils.http import POST, check_url_contains_pdf
+from utils.http import GET, POST, check_url_contains_pdf
 from utils.openalex import OpenAlex
 from utils.permissions import CreateOrUpdateIfAllowed, HasAPIKey, PostOnly
 from utils.sentry import log_error
@@ -547,8 +551,31 @@ class PaperViewSet(
         # need to encode before getting passed to serializer
         response = super().update(request, *args, **kwargs)
 
+        if (created_location is not None) and not request.user.is_anonymous:
+            instance = self.get_object()
+            self._send_created_location_ga_event(instance, request.user)
+
         return response
 
+    def _send_created_location_ga_event(self, instance, user):
+        created = True
+        category = "Paper"
+        label = "Pdf from Progress"
+        action = "Upload"
+        user_id = user.id
+        paper_id = instance.id
+        date = instance.updated_date
+
+        return get_event_hit_response(
+            instance,
+            created,
+            category,
+            label,
+            action=action,
+            user_id=user_id,
+            paper_id=paper_id,
+            date=date,
+        )
 
     @action(
         detail=True,
