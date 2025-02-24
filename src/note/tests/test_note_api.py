@@ -5,6 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APITestCase
 
 from note.models import Note
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from researchhub_access_group.models import Permission
 from researchhub_document.models import ResearchhubUnifiedDocument
 from user.models import Organization
@@ -26,6 +27,9 @@ class NoteTests(APITestCase):
         # Create org
         response = self.client.post("/api/organization/", {"name": "some org"})
         self.org = response.data
+
+        # Create exchange rate
+        RscExchangeRate.objects.create(rate=4.99014625)
 
     def test_user_can_list_created_notes(self):
         # Arrange
@@ -949,3 +953,100 @@ class NoteTests(APITestCase):
         note = response.data
         self.assertEqual(note["latest_version"]["json"], test_json)
         self.assertIsNone(note["latest_version"]["src"])
+
+    def test_note_without_post(self):
+        # Create a note without an associated post
+        response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Note without post",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        note = response.data
+
+        # Verify that post is None
+        self.assertIsNone(note["post"])
+
+    def test_note_with_post(self):
+        # Create a note first
+        response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Note with post",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        note = response.data
+
+        # Create a post associated with the note
+        post_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "DISCUSSION",
+                "created_by": self.user.id,
+                "full_src": "Test post content",
+                "is_public": True,
+                "note_id": note["id"],
+                "renderable_text": "Test post content that is sufficiently long for validation",
+                "title": "Test post title that is sufficiently long",
+                "hubs": [],
+            },
+        )
+        self.assertEqual(post_response.status_code, 200)
+
+        # Re-fetch the note to verify post data
+        response = self.client.get(f"/api/note/{note['id']}/")
+        self.assertEqual(response.status_code, 200)
+        note = response.data
+
+        # Verify post data is present and correctly structured
+        self.assertIsNotNone(note["post"])
+        self.assertIn("authors", note["post"])
+        self.assertIn("hubs", note["post"])
+        self.assertIn("unified_document", note["post"])
+
+    def test_note_with_preregistration_post_fundraise(self):
+        # Create a note first
+        response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Note with preregistration post",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        note = response.data
+
+        # Create a preregistration post with fundraise
+        post_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "PREREGISTRATION",
+                "created_by": self.user.id,
+                "full_src": "Test post content",
+                "is_public": True,
+                "note_id": note["id"],
+                "renderable_text": "Test post content that is sufficiently long for validation",
+                "title": "Test post title that is sufficiently long",
+                "hubs": [],
+                "fundraise_goal_amount": 1000,
+            },
+        )
+        self.assertEqual(post_response.status_code, 200)
+
+        # Re-fetch the note to verify post data
+        response = self.client.get(f"/api/note/{note['id']}/")
+        self.assertEqual(response.status_code, 200)
+        note = response.data
+
+        # Verify fundraise data is present
+        self.assertIsNotNone(note["post"]["unified_document"]["fundraise"])
+        self.assertEqual(
+            note["post"]["unified_document"]["fundraise"]["goal_amount"]["usd"], 1000.0
+        )

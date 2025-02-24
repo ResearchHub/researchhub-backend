@@ -105,6 +105,19 @@ class NoteSerializer(ModelSerializer):
                     "name",
                 ]
             },
+            "doc_dps_get_unified_document": {"_include_fields": ["fundraise"]},
+            "doc_duds_get_fundraise": {
+                "_include_fields": [
+                    "id",
+                    "status",
+                    "goal_amount",
+                    "goal_currency",
+                    "start_date",
+                    "end_date",
+                    "amount_raised",
+                    "contributors",
+                ]
+            },
         }
         serializer = DynamicPostSerializer(
             note.post,
@@ -115,6 +128,8 @@ class NoteSerializer(ModelSerializer):
                 "hubs",
                 "id",
                 "slug",
+                "document_type",
+                "unified_document",
             ],
         )
         return serializer.data
@@ -199,10 +214,49 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
     def get_post(self, note):
         from researchhub_document.serializers import DynamicPostSerializer
 
-        context = self.context
-        _context_fields = context.get("nte_dns_get_post", {})
+        if not hasattr(note, "post"):
+            return None
+
+        context = {
+            "doc_dps_get_authors": {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "user",
+                ]
+            },
+            "doc_dps_get_hubs": {
+                "_include_fields": [
+                    "id",
+                    "name",
+                ]
+            },
+            "doc_dps_get_unified_document": {"_include_fields": ["fundraise"]},
+            "doc_duds_get_fundraise": {
+                "_include_fields": [
+                    "id",
+                    "status",
+                    "goal_amount",
+                    "goal_currency",
+                    "start_date",
+                    "end_date",
+                    "amount_raised",
+                ]
+            },
+        }
         serializer = DynamicPostSerializer(
-            note.post, context=context, **_context_fields
+            note.post,
+            context=context,
+            _include_fields=[
+                "authors",
+                "doi",
+                "hubs",
+                "id",
+                "slug",
+                "document_type",
+                "unified_document",
+            ],
         )
         return serializer.data
 
