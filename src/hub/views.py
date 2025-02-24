@@ -68,6 +68,15 @@ class HubViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
     filterset_class = HubFilter
     search_fields = "name"
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        exclude_journals = (
+            self.request.query_params.get("exclude_journals", "").lower() == "true"
+        )
+        if exclude_journals:
+            queryset = queryset.exclude(namespace="journal")
+        return queryset
+
     def get_serializer_context(self):
         return {
             **super().get_serializer_context(),
