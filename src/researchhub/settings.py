@@ -257,7 +257,6 @@ INSTALLED_APPS = [
     "institution",
     "topic",
     "ethereum",
-    "google_analytics",
     "hub",
     "invite",
     "mailing_list",
