@@ -2,13 +2,6 @@ from django.apps import apps
 from django.core.cache import cache
 from django_elasticsearch_dsl.registries import registry
 
-from discussion.lib import (
-    check_comment_in_threads,
-    check_reply_in_comments,
-    check_reply_in_threads,
-    check_thread_in_papers,
-)
-from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as GrmVote
 from paper.models import Paper
 from researchhub.celery import QUEUE_ELASTIC_SEARCH, app
@@ -74,43 +67,6 @@ def get_authored_paper_updates(author, latest_actions):
             if item.paper in papers:
                 updates.append(action)
     return updates
-
-
-def get_my_updates(user, actions):
-    updates = []
-    my_papers = user.author_profile.papers.all()
-    my_threads = Thread.objects.filter(created_by=user)
-    my_comments = Comment.objects.filter(created_by=user)
-
-    # TODO: Change this to a "subscribed to comment" model
-
-    for action in actions:
-        item = action.item
-
-        if isinstance(item, Comment):
-            # is it a comment on my thread?
-            if check_comment_in_threads(item, my_threads):
-                updates.append(action)
-            # is it a comment on my paper?
-            # TODO
-
-        elif isinstance(item, Reply):
-            # is it a reply on my thread?
-            if check_reply_in_threads(item, my_threads):
-                updates.append(action)
-            # is it a reply on my comment?
-            if check_reply_in_comments(item, my_comments):
-                updates.append(action)
-            # is it a reply on my reply?
-
-        elif isinstance(item, Thread):
-            # is it a thread on my paper?
-            if check_thread_in_papers(item, my_papers):
-                updates.append(action)
-
-
-def filter_comments_on_my_threads(comments, threads):
-    return [comment for comment in comments if comment.parent in threads]
 
 
 @app.task(queue=QUEUE_ELASTIC_SEARCH)
