@@ -1,8 +1,9 @@
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import F, Prefetch, Window
 from django.db.models.functions import RowNumber
-from rest_framework import viewsets
+from rest_framework import status, viewsets
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.response import Response
 
 from paper.related_models.paper_model import Paper
 from reputation.related_models.bounty import Bounty
@@ -33,7 +34,7 @@ class FeedViewSet(viewsets.ModelViewSet):
         action = self.request.query_params.get("action")
         content_type = self.request.query_params.get("content_type")
         feed_view = self.request.query_params.get("feed_view", "latest")
-        hub_id = self.request.query_params.get("hub_id")
+        hub_slug = self.request.query_params.get("hub_slug")
 
         queryset = (
             FeedEntry.objects.all().select_related(
@@ -79,12 +80,18 @@ class FeedViewSet(viewsets.ModelViewSet):
                 )
 
         # Apply hub filter if hub_id is provided
-        if hub_id:
+        if hub_slug:
             from hub.models import Hub
+
+            hub = Hub.objects.get(slug=hub_slug)
+            if not hub:
+                return Response(
+                    {"error": "Hub not found"}, status=status.HTTP_404_NOT_FOUND
+                )
 
             hub_content_type = ContentType.objects.get_for_model(Hub)
             queryset = queryset.filter(
-                parent_content_type=hub_content_type, parent_object_id=hub_id
+                parent_content_type=hub_content_type, parent_object_id=hub.id
             )
 
         # Apply additional filters.
