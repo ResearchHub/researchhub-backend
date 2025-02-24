@@ -1,16 +1,9 @@
 from rest_framework.permissions import BasePermission
 
-from discussion.models import Comment, Reply, Thread
-from discussion.utils import (
-    get_comment_id_from_path,
-    get_reply_id_from_path,
-    get_thread_id_from_path,
-)
 from paper.models import Paper
 from researchhub.lib import get_document_id_from_path
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.models import Author
-from utils.http import RequestMethods
 from utils.permissions import (
     AuthorizationBasedPermission,
     PermissionDenied,
@@ -34,54 +27,6 @@ class CensorDiscussion(AuthorizationBasedPermission):
 
     def is_authorized(self, request, view, obj):
         return obj.created_by.id == request.user.id or request.user.moderator
-
-
-class CensorReply(BasePermission):
-    message = "Does not have permission to delete comment"
-
-    def has_permission(self, request, view):
-        id = get_reply_id_from_path(request)
-        instance = Reply.objects.get(id=id)
-
-        if (
-            request.method == RequestMethods.PATCH
-            or request.method == RequestMethods.DELETE
-        ) and instance.created_by_id == request.user.id:
-            return True
-
-        return False
-
-
-class CensorComment(BasePermission):
-    message = "Does not have permission to delete comment"
-
-    def has_permission(self, request, view):
-        id = get_comment_id_from_path(request)
-        instance = Comment.objects.get(id=id)
-
-        if (
-            request.method == RequestMethods.PATCH
-            or request.method == RequestMethods.DELETE
-        ) and instance.created_by_id == request.user.id:
-            return True
-
-        return False
-
-
-class CensorThread(BasePermission):
-    message = "Does not have permission to delete comment"
-
-    def has_permission(self, request, view):
-        id = get_thread_id_from_path(request)
-        instance = Thread.objects.get(id=id)
-
-        if (
-            request.method == RequestMethods.PATCH
-            or request.method == RequestMethods.DELETE
-        ) and instance.created_by_id == request.user.id:
-            return True
-
-        return False
 
 
 class CreateDiscussionComment(RuleBasedPermission):
