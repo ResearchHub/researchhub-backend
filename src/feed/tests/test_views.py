@@ -167,7 +167,7 @@ class FeedViewSetTests(TestCase):
     def test_hub_filter(self):
         """Test filtering feed by hub"""
         url = reverse("feed-list")
-        response = self.client.get(url, {"hub_id": self.hub.id})
+        response = self.client.get(url, {"hub_slug": self.hub.slug})
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # Should only see content from specified hub
