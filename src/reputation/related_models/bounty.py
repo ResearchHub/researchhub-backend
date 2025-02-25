@@ -150,7 +150,21 @@ class Bounty(DefaultModel):
         return proportions
 
     def approve(self, recipient=None, payout_amount=None):
+        """
+        Approve a bounty payout to a recipient
+
+        Args:
+            recipient: User to receive the payout
+            payout_amount: Amount to pay out
+
+        Returns:
+            bool: Whether the payout was successful
+        """
         if not recipient:
+            return False
+
+        # Validate payout amount doesn't exceed remaining escrow
+        if payout_amount > self.escrow.amount_holding:
             return False
 
         escrow_paid = self.escrow.payout(
@@ -259,6 +273,11 @@ class Bounty(DefaultModel):
 
 
 class BountySolution(DefaultModel):
+    class Status(models.TextChoices):
+        SUBMITTED = "SUBMITTED", _("SUBMITTED")
+        AWARDED = "AWARDED", _("AWARDED")
+        REJECTED = "REJECTED", _("REJECTED")
+
     bounty = models.ForeignKey(
         Bounty, on_delete=models.CASCADE, related_name="solutions"
     )
@@ -273,9 +292,29 @@ class BountySolution(DefaultModel):
         "content_type",
         "object_id",
     )
+    status = models.CharField(
+        max_length=16, choices=Status.choices, default=Status.SUBMITTED
+    )
+    awarded_amount = models.DecimalField(
+        default=0,
+        decimal_places=10,
+        max_digits=19,
+        help_text="Amount awarded to this solution",
+    )
     contribution = GenericRelation(
         "reputation.Contribution",
         object_id_field="object_id",
         content_type_field="content_type",
         related_query_name="bounty_solution",
     )
+
+    def award(self, amount):
+        """Award this solution with the specified amount"""
+        self.awarded_amount = amount
+        self.status = self.Status.AWARDED
+        self.save()
+
+    def reject(self):
+        """Mark this solution as rejected"""
+        self.status = self.Status.REJECTED
+        self.save()
