@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from paper.serializers.paper_upload_serializer import PaperUploadSerializer
-from paper.services.storage_service import StorageService
+from researchhub.services.storage_service import S3StorageService
 
 
 class PaperUploadView(APIView):
@@ -15,7 +15,7 @@ class PaperUploadView(APIView):
     permission_classes = [IsAuthenticated]
 
     def dispatch(self, request, *args, **kwargs):
-        self.storage_service = kwargs.pop("storage_service", StorageService())
+        self.storage_service = kwargs.pop("storage_service", S3StorageService())
         return super().dispatch(request, *args, **kwargs)
 
     def post(self, request: Request, *args, **kwargs) -> Response:
@@ -31,7 +31,9 @@ class PaperUploadView(APIView):
 
         filename = data.get("filename")
 
-        presigned_url = self.storage_service.create_presigned_url(filename, user.id)
+        presigned_url = self.storage_service.create_presigned_url(
+            "paper", filename, user.id, "application/pdf"
+        )
 
         return Response(
             {
