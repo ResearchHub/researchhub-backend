@@ -16,7 +16,7 @@ from analytics.amplitude import track_event
 from analytics.tasks import track_revenue_event
 from purchase.models import Balance
 from reputation.constants import MAXIMUM_BOUNTY_AMOUNT_RSC, MINIMUM_BOUNTY_AMOUNT_RSC
-from reputation.models import Bounty, BountyFee, Contribution, Escrow
+from reputation.models import Bounty, BountyFee, BountySolution, Contribution, Escrow
 from reputation.permissions import UserCanApproveBounty, UserCanCancelBounty
 from reputation.serializers import (
     BountySerializer,
@@ -296,12 +296,18 @@ class BountyViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticated, UserCanApproveBounty],
     )
     def approve_bounty(self, request, pk=None):
-
         data = request.data
         with transaction.atomic():
             bounty = self.get_object()
             if bounty.parent:
                 bounty = bounty.parent
+
+            # Validate total payout amount doesn't exceed bounty amount
+            total_payout = sum(
+                decimal.Decimal(str(solution.get("amount", 0))) for solution in data
+            )
+            if total_payout > bounty.amount:
+                raise Exception({"detail": "Total payout amount exceeds bounty amount"})
 
             unified_document = bounty.unified_document
             for solution in data:
@@ -326,6 +332,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                 solution_obj = get_object_or_404(model_class, pk=object_id)
                 solution_created_by = solution_obj.created_by
 
+                # Create or update bounty solution
                 solution_data = {
                     "bounty": bounty.id,
                     "created_by": solution_created_by.id,
@@ -334,7 +341,9 @@ class BountyViewSet(viewsets.ModelViewSet):
                 }
                 solution_serializer = BountySolutionSerializer(data=solution_data)
                 solution_serializer.is_valid(raise_exception=True)
-                solution_obj = solution_serializer.save()
+                bounty_solution = solution_serializer.save()
+
+                # Attempt to pay out the bounty
                 bounty_paid = bounty.approve(
                     recipient=solution_created_by, payout_amount=decimal_amount
                 )
@@ -343,17 +352,25 @@ class BountyViewSet(viewsets.ModelViewSet):
                     # Exception is raised to rollback database transaction
                     raise Exception("Bounty not paid to recipient")
 
+                # Mark solution as awarded and record amount
+                bounty_solution.award(decimal_amount)
+
                 create_contribution.apply_async(
                     (
                         Contribution.BOUNTY_SOLUTION,
                         {"app_label": "reputation", "model": "bountysolution"},
                         solution_created_by.id,
                         unified_document.id,
-                        solution_obj.id,
+                        bounty_solution.id,
                     ),
                     priority=1,
                     countdown=10,
                 )
+
+            # Mark any remaining solutions as rejected
+            bounty.solutions.filter(status=BountySolution.Status.SUBMITTED).update(
+                status=BountySolution.Status.REJECTED
+            )
 
             bounty_closed = bounty.close(Bounty.CLOSED)
             if not bounty_closed:
@@ -369,22 +386,38 @@ class BountyViewSet(viewsets.ModelViewSet):
                 )
             )
 
-            context = self._get_create_context()
-            serializer = DynamicBountySerializer(
-                bounty,
-                context=context,
-                _include_fields=(
-                    "amount",
-                    "created_date",
-                    "created_by",
-                    "expiration_date",
-                    "id",
-                    "parent",
-                    "status",
-                ),
-            )
+            # Return a simplified response instead of using the serializer
+            # This avoids the circular reference issues in the serializers
+            awarded_solutions = []
+            for solution in bounty.solutions.filter(
+                status=BountySolution.Status.AWARDED
+            ):
+                awarded_solutions.append(
+                    {
+                        "id": solution.id,
+                        "content_type": solution.content_type.model,
+                        "object_id": solution.object_id,
+                        "awarded_amount": str(solution.awarded_amount),
+                        "created_by_id": solution.created_by.id,
+                        "created_by_name": f"{solution.created_by.first_name} {solution.created_by.last_name}".strip(),
+                    }
+                )
 
-            return Response(serializer.data, status=200)
+            response_data = {
+                "id": bounty.id,
+                "amount": str(bounty.amount),
+                "status": bounty.status,
+                "created_date": bounty.created_date.isoformat(),
+                "expiration_date": (
+                    bounty.expiration_date.isoformat()
+                    if bounty.expiration_date
+                    else None
+                ),
+                "awarded_solutions": awarded_solutions,
+                "message": "Bounty successfully closed and solutions awarded",
+            }
+
+            return Response(response_data, status=200)
 
     @track_event
     @action(
@@ -393,8 +426,6 @@ class BountyViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticated, UserCanCancelBounty],
     )
     def cancel_bounty(self, request, pk=None):
-        from user.models import User
-
         with transaction.atomic():
             bounty = self.get_object()
             if bounty.status != Bounty.OPEN:
