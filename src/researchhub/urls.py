@@ -37,6 +37,7 @@ from citation.views import CitationEntryViewSet, CitationProjectViewSet
 from feed.views import FeedViewSet
 from paper.views import paper_upload_views
 from purchase.views import stripe_webhook_view
+from researchhub import asset_upload_view
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from review.views.peer_review_view import PeerReviewViewSet
 from review.views.review_view import ReviewViewSet
@@ -261,6 +262,11 @@ urlpatterns = [
     ),
     path("email_notifications/", mailing_list.views.email_notifications),
     path("", researchhub.views.index, name="index"),
+    path(
+        "api/asset/upload/",
+        asset_upload_view.AssetUploadView.as_view(),
+        name="asset_upload",
+    ),
     path(
         "paper/upload/",
         paper_upload_views.PaperUploadView.as_view(),
