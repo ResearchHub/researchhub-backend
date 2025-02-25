@@ -3,7 +3,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from researchhub.asset_upload_serializer import AssetUploadSerializer
+from researchhub.serializers.asset_upload_serializer import AssetUploadSerializer
 from researchhub.services.storage_service import S3StorageService
 
 

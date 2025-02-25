@@ -2,7 +2,7 @@ from unittest.mock import Mock
 
 from rest_framework.test import APIRequestFactory, APITestCase, force_authenticate
 
-from researchhub.asset_upload_view import AssetUploadView
+from researchhub.views.asset_upload_view import AssetUploadView
 from user.related_models.user_model import User
 
 
