@@ -37,6 +37,7 @@ class AssetUploadViewTest(APITestCase):
             {
                 "presigned_url": self.mock_storage_service.create_presigned_url.return_value.url,
                 "object_key": self.mock_storage_service.create_presigned_url.return_value.object_key,
+                "object_url": self.mock_storage_service.create_presigned_url.return_value.object_url,
             },
         )
         self.mock_storage_service.create_presigned_url.assert_called_once_with(
