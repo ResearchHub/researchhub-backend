@@ -5,13 +5,13 @@ from unittest.mock import Mock, patch
 from django.conf import settings
 
 from researchhub.services import storage_service
-from researchhub.services.storage_service import StorageService
+from researchhub.services.storage_service import S3StorageService
 
 
 class StorageServiceTest(TestCase):
 
-    @patch("paper.services.storage_service.aws_utils.create_client")
-    @patch("paper.services.storage_service.uuid.uuid4")
+    @patch("researchhub.services.storage_service.aws_utils.create_client")
+    @patch("researchhub.services.storage_service.uuid.uuid4")
     def test_create_presigned_url(self, mock_uuid, mock_create_client):
         # Arrange
         uuid1 = uuid.uuid4()
@@ -22,7 +22,7 @@ class StorageServiceTest(TestCase):
 
         mock_s3_client.generate_presigned_url.return_value = "https://presignedUrl1"
 
-        service = StorageService()
+        service = S3StorageService()
 
         # Act
         url = service.create_presigned_url(
@@ -54,7 +54,7 @@ class StorageServiceTest(TestCase):
 
     def test_create_presigned_url_unsupported_entity(self):
         with self.assertRaises(ValueError):
-            StorageService().create_presigned_url(
+            S3StorageService().create_presigned_url(
                 "UNSUPPORTED",
                 "file1.pdf",
                 "userId1",
@@ -64,6 +64,6 @@ class StorageServiceTest(TestCase):
 
     def test_create_presigned_url_unsupported_content_type(self):
         with self.assertRaises(ValueError):
-            StorageService().create_presigned_url(
+            S3StorageService().create_presigned_url(
                 "paper", "file1.pdf", "userId1", "UNSUPPORTED", valid_for_min=3
             )
