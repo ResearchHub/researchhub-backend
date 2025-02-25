@@ -1,14 +1,6 @@
 from rest_framework import serializers
 
-from discussion.serializers import (
-    CommentSerializer,
-    DynamicCommentSerializer,
-    DynamicReplySerializer,
-    DynamicThreadSerializer,
-    DynamicVoteSerializer,
-    ReplySerializer,
-    ThreadSerializer,
-)
+from discussion.serializers import DynamicVoteSerializer
 from discussion.serializers import VoteSerializer as DisVoteSerializer
 from reputation.models import Contribution
 from reputation.serializers import (
@@ -64,12 +56,6 @@ class ContributionSerializer(serializers.ModelSerializer):
 
         if model_name == "paper":
             serializer = ContributionPaperSerializer(obj, context=context)
-        elif model_name == "thread":
-            serializer = ThreadSerializer(obj, context=context)
-        elif model_name == "comment":
-            serializer = CommentSerializer(obj, context=context)
-        elif model_name == "reply":
-            serializer = ReplySerializer(obj, context=context)
         elif model_name == "purchase":
             context["exclude_source"] = True
             context["exclude_stats"] = True
@@ -117,16 +103,6 @@ class DynamicContributionSerializer(DynamicModelFieldSerializer):
 
         if model_name == "paper":
             serializer = DynamicPaperSerializer(obj, context=context, **_context_fields)
-        elif model_name == "thread":
-            serializer = DynamicThreadSerializer(
-                obj, context=context, **_context_fields
-            )
-        elif model_name == "comment":
-            serializer = DynamicCommentSerializer(
-                obj, context=context, **_context_fields
-            )
-        elif model_name == "reply":
-            serializer = DynamicReplySerializer(obj, context=context, **_context_fields)
         elif model_name == "rh comment model":
             serializer = DynamicRhCommentSerializer(
                 obj, context=context, **_context_fields

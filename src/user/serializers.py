@@ -12,7 +12,6 @@ from rest_framework.serializers import (
     SerializerMethodField,
 )
 
-from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as GrmVote
 from hub.models import Hub
 from hub.serializers import DynamicHubSerializer, HubSerializer, SimpleHubSerializer
@@ -719,22 +718,11 @@ class UserActions:
                 "created_date": str(action.created_date),
             }
 
-            if (
-                isinstance(item, Comment)
-                or isinstance(item, Thread)
-                or isinstance(item, Reply)
-                or isinstance(item, Paper)
-            ):
+            if isinstance(item, Paper):
                 pass
             elif isinstance(item, GrmVote):
                 item = item.item
-                if isinstance(item, Comment):
-                    data["content_type"] += "_comment"
-                elif isinstance(item, Reply):
-                    data["content_type"] += "_reply"
-                elif isinstance(item, Thread):
-                    data["content_type"] += "_thread"
-                elif isinstance(item, Paper):
+                if isinstance(item, Paper):
                     data["content_type"] += "_paper"
             elif isinstance(item, Purchase):
                 recipient = action.user
@@ -768,12 +756,6 @@ class UserActions:
                             paper = purchase_item
                         elif isinstance(purchase_item, ResearchhubPost):
                             post = purchase_item
-                        elif (
-                            isinstance(purchase_item, Thread)
-                            or isinstance(purchase_item, Comment)
-                            or isinstance(purchase_item, Reply)
-                        ):
-                            discussion = purchase_item
                         else:
                             paper = purchase_item.paper
                     else:
@@ -811,27 +793,6 @@ class UserActions:
                     data["post_title"] = post.title
                     data["slug"] = post.slug
 
-            if isinstance(item, Thread):
-                thread = item
-                data["thread_id"] = thread.id
-                data["thread_title"] = thread.title
-                data["thread_plain_text"] = thread.plain_text
-                data["tip"] = item.plain_text
-                thread_paper = thread.paper
-                thread_post = thread.post
-                if thread_paper:
-                    data["parent_content_type"] = "paper"
-                    data["paper_title"] = thread_paper.title
-                    data["paper_id"] = thread_paper.id
-                elif thread_post:
-                    data["parent_content_type"] = "post"
-                    data["paper_title"] = (
-                        thread_post.title
-                    )  # paper_title instead of post_title for symmetry on the FE
-                    data["paper_id"] = (
-                        thread_post.id
-                    )  # paper_id instead of post_id to temporarily reduce refactoring on FE
-
             elif isinstance(item, Paper):
                 data["tip"] = item.tagline
 
@@ -848,14 +809,6 @@ class UserActions:
                             data["user_flag"] = UserActions.flag_serializer(
                                 user_flag
                             ).data  # noqa: E501
-
-            if isinstance(item, Comment):
-                data["comment_id"] = item.id
-            elif isinstance(item, Reply):
-                comment = item.get_comment_of_reply()
-                if comment is not None:
-                    data["comment_id"] = comment.id
-                data["reply_id"] = item.id
 
             if hasattr(item, "unified_document"):
                 unified_document = item.unified_document
@@ -920,18 +873,6 @@ class DynamicActionSerializer(DynamicModelFieldSerializer):
             from researchhub_comment.serializers import DynamicRhCommentSerializer
 
             serializer = DynamicRhCommentSerializer
-        elif isinstance(item, Thread):
-            from discussion.serializers import DynamicThreadSerializer
-
-            serializer = DynamicThreadSerializer
-        elif isinstance(item, Comment):
-            from discussion.serializers import DynamicCommentSerializer
-
-            serializer = DynamicCommentSerializer
-        elif isinstance(item, Reply):
-            from discussion.serializers import DynamicReplySerializer
-
-            serializer = DynamicReplySerializer
         elif isinstance(item, PaperSubmission):
             from paper.serializers import DynamicPaperSubmissionSerializer
 

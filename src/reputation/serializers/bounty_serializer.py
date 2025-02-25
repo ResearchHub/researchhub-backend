@@ -2,12 +2,6 @@ from django.db.models import DecimalField, Sum
 from django.db.models.functions import Coalesce
 from rest_framework import serializers
 
-from discussion.serializers import (
-    DynamicCommentSerializer,
-    DynamicReplySerializer,
-    DynamicThreadSerializer,
-)
-from hub.serializers import DynamicHubSerializer
 from reputation.models import Bounty, BountySolution
 from reputation.serializers.escrow_serializer import DynamicEscrowSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -88,10 +82,6 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
 
             if model_name == "researchhubunifieddocument":
                 serializer = DynamicUnifiedDocumentSerializer(
-                    obj, context=context, **_context_fields
-                )
-            elif model_name == "thread":
-                serializer = DynamicThreadSerializer(
                     obj, context=context, **_context_fields
                 )
             elif model_name == "rhcommentmodel":
@@ -187,17 +177,7 @@ class DynamicBountySolutionSerializer(DynamicModelFieldSerializer):
         model_class = solution_content_type.model_class()
         obj = model_class.objects.get(id=object_id)
 
-        if model_name == "thread":
-            serializer = DynamicThreadSerializer(
-                obj, context=context, **_context_fields
-            )
-        elif model_name == "comment":
-            serializer = DynamicCommentSerializer(
-                obj, context=context, **_context_fields
-            )
-        elif model_name == "reply":
-            serializer = DynamicReplySerializer(obj, context=context, **_context_fields)
-        elif model_name == "rhcommentmodel":
+        if model_name == "rhcommentmodel":
             from researchhub_comment.serializers import DynamicRhCommentSerializer
 
             serializer = DynamicRhCommentSerializer(
