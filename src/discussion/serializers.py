@@ -14,7 +14,6 @@ from discussion.reaction_serializers import (
     GenericReactionSerializerMixin,
     VoteSerializer,
 )
-from discussion.utils import ORDERING_SCORE_ANNOTATION
 from hub.serializers import DynamicHubSerializer
 from paper.models import Paper
 from reputation.models import Escrow
@@ -32,7 +31,12 @@ from user.serializers import (
     MinimalUserSerializer,
 )
 from utils.http import get_user_from_request
+from django.db.models import Count, Q
+from discussion.reaction_models import Vote
 
+ORDERING_SCORE_ANNOTATION = Count("id", filter=Q(votes__vote_type=Vote.UPVOTE)) - Count(
+    "id", filter=Q(votes__vote_type=Vote.DOWNVOTE)
+)
 
 class CensorMixin:
     def get_plain_text(self, obj):

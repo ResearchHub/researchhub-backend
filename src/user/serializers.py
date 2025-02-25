@@ -12,7 +12,6 @@ from rest_framework.serializers import (
     SerializerMethodField,
 )
 
-from discussion.lib import check_is_discussion_item
 from discussion.models import Comment, Reply, Thread
 from discussion.models import Vote as GrmVote
 from hub.models import Hub
@@ -835,16 +834,6 @@ class UserActions:
 
             elif isinstance(item, Paper):
                 data["tip"] = item.tagline
-            elif check_is_discussion_item(item):
-                try:
-                    thread = item.thread
-                    data["thread_id"] = thread.id
-                    data["thread_title"] = thread.title
-                    data["thread_plain_text"] = thread.plain_text
-                except Exception as e:
-                    print(e)
-                    pass
-                data["tip"] = item.plain_text
 
             if not isinstance(item, Purchase):
                 data["user_flag"] = None
