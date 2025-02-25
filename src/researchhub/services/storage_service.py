@@ -8,6 +8,7 @@ from utils import aws as aws_utils
 
 class PresignedUrl(NamedTuple):
     object_key: str
+    object_url: str
     url: str
 
 
@@ -66,4 +67,8 @@ class S3StorageService(StorageService):
             ExpiresIn=60 * valid_for_min,
         )
 
-        return PresignedUrl(url=url, object_key=s3_filename)
+        return PresignedUrl(
+            url=url,
+            object_key=s3_filename,
+            object_url=f"https://{settings.AWS_S3_CUSTOM_DOMAIN}/{s3_filename}",
+        )

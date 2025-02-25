@@ -1,13 +1,14 @@
 import uuid
-from unittest import TestCase
 from unittest.mock import Mock, patch
 
 from django.conf import settings
+from django.test import TestCase, override_settings
 
 from researchhub.services import storage_service
 from researchhub.services.storage_service import S3StorageService
 
 
+@override_settings(AWS_S3_CUSTOM_DOMAIN="storage.test.researchhub.com")
 class StorageServiceTest(TestCase):
 
     @patch("researchhub.services.storage_service.aws_utils.create_client")
@@ -49,6 +50,7 @@ class StorageServiceTest(TestCase):
             storage_service.PresignedUrl(
                 url="https://presignedUrl1",
                 object_key=f"uploads/papers/users/userId1/{uuid1}/file1.pdf",
+                object_url=f"https://{settings.AWS_S3_CUSTOM_DOMAIN}/uploads/papers/users/userId1/{uuid1}/file1.pdf",
             ),
         )
 
