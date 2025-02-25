@@ -259,8 +259,8 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
 
         created_by = request.user
         created_by_author = created_by.author_profile
-        hubs = data.pop("hubs", None)
-        renderable_text = data.pop("renderable_text", "")
+        hubs = data.get("hubs", None)
+        renderable_text = data.get("renderable_text", "")
         title = data.get("title", "")
         assign_doi = data.get("assign_doi", False)
         doi = DOI() if assign_doi else None
