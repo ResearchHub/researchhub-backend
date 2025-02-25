@@ -42,22 +42,29 @@ jobs:
           - 6379:6379
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out sources
+        uses: actions/checkout@v4
+      
+      - name: Install poetry
+        run: pipx install poetry
+      
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: 'poetry'
+
       - name: Updating pip
         working-directory: ./src
         run: |
-          pip install poetry
           poetry run pip install --upgrade pip
           poetry run pip install -U pip setuptools
+
       - name: Install Dependencies
         working-directory: ./src
         run: |
           poetry install
+
       - name: Run Tests
         working-directory: ./src
         run: |
@@ -66,6 +73,7 @@ jobs:
           poetry run python manage.py collectstatic --noinput
           poetry run coverage run manage.py test --verbosity=2
           poetry run coverage xml -o coverage.xml
+
       - name: Upload Coverage Report to Codecov
         uses: codecov/codecov-action@v4
         with:
