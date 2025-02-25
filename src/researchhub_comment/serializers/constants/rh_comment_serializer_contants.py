@@ -22,6 +22,4 @@ RH_COMMENT_READ_ONLY_FIELDS = [
     "id",
     "is_edited",
     "updated_date",
-    "legacy_model_type",
-    "legacy_id",
 ]

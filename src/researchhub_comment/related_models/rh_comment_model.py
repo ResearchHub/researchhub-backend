@@ -102,15 +102,6 @@ class RhCommentModel(
     )
     reviews = GenericRelation("review.Review")
 
-    # legacy_migration
-    legacy_id = PositiveIntegerField(null=True, blank=True)
-    legacy_model_type = CharField(
-        choices=RH_COMMENT_MIGRATION_LEGACY_TYPES,
-        max_length=144,
-        blank=True,
-        null=True,
-    )
-
     """ --- PROPERTIES --- """
 
     @property
