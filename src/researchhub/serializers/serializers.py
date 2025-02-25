@@ -19,22 +19,8 @@ class DynamicModelFieldSerializer(serializers.ModelSerializer):
 
         super(DynamicModelFieldSerializer, self).__init__(*args, **kwargs)
 
-        # instance_class_name = self.instance.__class__.__name__
-        # is_manager = (
-        #     instance_class_name == "RelatedManager"
-        #     or instance_class_name == "ManyRelatedManager"
-        # )
-        # known_related_objects = getattr(self.instance, "_known_related_objects", [])
-        # if is_manager or len(known_related_objects) > 0:
-        #     if _include_fields == "_all_":
-        #         _include_fields = None
-        #         _exclude_fields = "__all__"
-        # elif _include_fields == "_all_":
-        #     _include_fields = "__all__"
-
         if _include_fields is not None and _include_fields != "__all__":
-            # Drop any fields that are not specified in the
-            # `_include_fields` argument.
+            # Drop any fields that are not specified in the `_include_fields` argument.
             allowed = set(_include_fields)
             existing = set(self.fields)
             for field_name in existing - allowed:
