@@ -59,7 +59,6 @@ class Vote(DefaultModel):
 
     @property
     def unified_document(self):
-        from discussion.models import Comment, Reply, Thread
         from paper.models import Paper
         from researchhub_comment.models import RhCommentModel
         from researchhub_document.models import ResearchhubPost
@@ -71,9 +70,6 @@ class Vote(DefaultModel):
             Paper,
             ResearchhubPost,
             RhCommentModel,
-            Thread,
-            Comment,
-            Reply,
         ]:
             return item.unified_document
 
