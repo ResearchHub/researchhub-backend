@@ -1,8 +1,6 @@
 from rest_framework import serializers
 
-from discussion.models import Thread
 from discussion.reaction_models import Vote as DisVote
-from discussion.serializers import ThreadSerializer
 from discussion.serializers import VoteSerializer as DisVoteSerializer
 from paper.models import Paper
 from purchase.models import Purchase
@@ -22,9 +20,7 @@ class ProofRelatedField(serializers.RelatedField):
         from paper.serializers import DynamicPaperSerializer
         from purchase.serializers import PurchaseSerializer
 
-        if isinstance(value, Thread):
-            return ThreadSerializer(value).data
-        elif isinstance(value, DisVote):
+        if isinstance(value, DisVote):
             return DisVoteSerializer(value).data
         elif isinstance(value, Paper):
             paper_include_fields = ["id", "paper_title", "slug", "score"]

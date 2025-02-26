@@ -1,30 +1,17 @@
 import rest_framework.serializers as serializers
-from django.contrib.contenttypes.models import ContentType
 
 # TODO: Make is_public editable for creator as a delete mechanism
 # TODO: undo
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Q
 
-from discussion.models import Thread
 from discussion.reaction_models import Vote
-from discussion.reaction_serializers import (
-    Flag,
-    GenericReactionSerializerMixin,
-    VoteSerializer,
-)
+from discussion.reaction_serializers import Flag
 from hub.serializers import DynamicHubSerializer
 from paper.models import Paper
-from reputation.models import Escrow
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost
-from review.serializers.review_serializer import ReviewSerializer
-from user.serializers import (
-    DynamicUserSerializer,
-    DynamicVerdictSerializer,
-    MinimalUserSerializer,
-)
-from utils.http import get_user_from_request
+from user.serializers import DynamicUserSerializer, DynamicVerdictSerializer
 
 ORDERING_SCORE_ANNOTATION = Count("id", filter=Q(votes__vote_type=Vote.UPVOTE)) - Count(
     "id", filter=Q(votes__vote_type=Vote.DOWNVOTE)
@@ -58,178 +45,6 @@ class CensorMixin:
             and request.user.is_authenticated
             and request.user.moderator
         )
-
-
-class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
-    awarded_bounty_amount = serializers.SerializerMethodField()
-    bounties = serializers.SerializerMethodField()
-    created_by = MinimalUserSerializer(
-        read_only=False, default=serializers.CurrentUserDefault()
-    )
-    comment_count = serializers.SerializerMethodField()
-    document_meta = serializers.SerializerMethodField()
-    is_created_by_editor = serializers.BooleanField(required=False, read_only=True)
-    paper_slug = serializers.SerializerMethodField()
-    post_slug = serializers.SerializerMethodField()
-    promoted = serializers.SerializerMethodField()
-    review = serializers.SerializerMethodField()
-    score = serializers.SerializerMethodField()  # @property
-    unified_document = serializers.SerializerMethodField()
-    user_flag = serializers.SerializerMethodField()
-
-    class Meta:
-        fields = [
-            "awarded_bounty_amount",
-            "block_key",
-            "bounties",
-            "citation",
-            "comment_count",
-            "context_title",
-            "created_by",
-            "created_date",
-            "created_location",
-            "discussion_post_type",
-            "document_meta",
-            "entity_key",
-            "external_metadata",
-            "id",
-            "is_accepted_answer",
-            "is_created_by_editor",
-            "is_public",
-            "is_removed",
-            "paper_slug",
-            "paper",
-            "plain_text",
-            "post_slug",
-            "post",
-            "promoted",
-            "review",
-            "score",
-            "source",
-            "text",
-            "title",
-            "unified_document",
-            "user_flag",
-            "was_edited",
-        ]
-        read_only_fields = [
-            "awarded_bounty_amount",
-            "document_meta",
-            "document_meta",
-            "is_accepted_answer",
-            "is_created_by_editor",
-            "is_public",
-            "is_removed",
-            "score",
-            "user_flag",
-        ]
-        model = Thread
-
-    def get_user_vote(self, obj):
-        user = get_user_from_request(self.context)
-        if user and not user.is_anonymous:
-            vote = obj.votes.filter(created_by=user)
-            if vote.exists():
-                return VoteSerializer(vote.last()).data
-            return False
-        return False
-
-    def _comments_query(self, obj):
-        return (
-            obj.children.filter(is_removed=False)
-            .annotate(ordering_score=ORDERING_SCORE_ANNOTATION)
-            .order_by("-ordering_score", "created_date")
-        )
-
-    def get_comment_count(self, obj):
-        return self._comments_query(obj).count()
-
-    def get_paper_slug(self, obj):
-        if obj.paper:
-            return obj.paper.slug
-
-    def get_post_slug(self, obj):
-        if obj.post:
-            return obj.post.slug
-
-    def get_review(self, obj):
-        if obj.review:
-            return ReviewSerializer(obj.review).data
-
-        return None
-
-    def get_unified_document(self, obj):
-        from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
-
-        serializer = DynamicUnifiedDocumentSerializer(
-            obj.unified_document,
-            _include_fields=["id", "reviews"],
-            context={},
-            many=False,
-        )
-
-        return serializer.data
-
-    def get_bounties(self, obj):
-        from reputation.serializers import DynamicBountySerializer
-
-        context = {
-            "rep_dbs_get_created_by": {"_include_fields": ("author_profile",)},
-            "rep_dbs_get_solution": {"_include_fields": ("id",)},
-            "usr_dus_get_author_profile": {
-                "_include_fields": (
-                    "id",
-                    "profile_image",
-                    "first_name",
-                    "last_name",
-                )
-            },
-        }
-
-        serializer = DynamicBountySerializer(
-            obj.bounties.all(),
-            many=True,
-            context=context,
-            _include_fields=(
-                "item_object_id",
-                "id",
-                "status",
-                "created_by",
-                "amount",
-                "created_date",
-                "expiration_date",
-            ),
-        )
-        return serializer.data
-
-    def get_awarded_bounty_amount(self, obj):
-        amount_awarded = None
-        bounty_solution = obj.bounty_solution.first()
-
-        if bounty_solution:
-            bounty = bounty_solution.bounty
-            content_type = ContentType.objects.get_for_model(obj.unified_document)
-            amount_awarded = (
-                Escrow.objects.filter(
-                    object_id=obj.unified_document.id,
-                    content_type=content_type,
-                )
-                .aggregate(Sum("amount_paid"))
-                .get("amount_paid__sum", None)
-            )
-
-        return amount_awarded
-
-    def get_score(self, obj):
-        return obj.calculate_score()
-
-
-class SimpleThreadSerializer(ThreadSerializer):
-    class Meta:
-        fields = [
-            "id",
-        ]
-        model = Thread
 
 
 class DynamicFlagSerializer(DynamicModelFieldSerializer):
