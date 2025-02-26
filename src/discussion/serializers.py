@@ -5,7 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 # TODO: undo
 from django.db.models import Count, Q, Sum
 
-from discussion.models import Comment, Reply, Thread
+from discussion.models import Reply, Thread
 from discussion.reaction_models import Vote
 from discussion.reaction_serializers import (
     DynamicVoteSerializer,  # Import is needed for discussion serializer imports
@@ -19,7 +19,6 @@ from hub.serializers import DynamicHubSerializer
 from paper.models import Paper
 from reputation.models import Escrow
 from researchhub.serializers import DynamicModelFieldSerializer
-from researchhub.settings import PAGINATION_PAGE_SIZE
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from review.serializers.review_serializer import (
@@ -222,105 +221,6 @@ class DynamicThreadSerializer(
         return serializer.data
 
 
-class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
-    created_by = MinimalUserSerializer(
-        read_only=False, default=serializers.CurrentUserDefault()
-    )
-    document_meta = serializers.SerializerMethodField()
-    is_created_by_editor = serializers.BooleanField(required=False, read_only=True)
-    paper_id = serializers.SerializerMethodField()
-    promoted = serializers.SerializerMethodField()
-    reply_count = serializers.SerializerMethodField()
-    score = serializers.SerializerMethodField()  # @property
-    thread_id = serializers.SerializerMethodField()
-    user_flag = serializers.SerializerMethodField()
-    awarded_bounty_amount = serializers.SerializerMethodField()
-
-    class Meta:
-        fields = [
-            "created_by",
-            "created_date",
-            "created_location",
-            "discussion_post_type",
-            "document_meta",
-            "external_metadata",
-            "id",
-            "is_created_by_editor",
-            "is_accepted_answer",
-            "is_public",
-            "is_removed",
-            "paper_id",
-            "parent",
-            "plain_text",
-            "promoted",
-            "reply_count",
-            "score",
-            "source",
-            "text",
-            "thread_id",
-            "updated_date",
-            "user_flag",
-            "was_edited",
-            "awarded_bounty_amount",
-        ]
-        read_only_fields = [
-            "document_meta",
-            "is_created_by_editor",
-            "is_public",
-            "is_removed",
-            "paper_id",
-            "reply_count",
-            "score",
-            "user_flag",
-            "is_accepted_answer",
-            "awarded_bounty_amount",
-        ]
-        model = Comment
-
-    def _replies_query(self, obj):
-        return (
-            obj.children.filter(is_removed=False)
-            .annotate(ordering_score=ORDERING_SCORE_ANNOTATION)
-            .order_by("-ordering_score", "created_date")
-        )
-
-    def get_awarded_bounty_amount(self, obj):
-        amount_awarded = None
-        bounty_solution = obj.bounty_solution.first()
-
-        if bounty_solution:
-            bounty = bounty_solution.bounty
-            content_type = ContentType.objects.get_for_model(obj.parent)
-            amount_awarded = (
-                Escrow.objects.filter(
-                    object_id=obj.parent.id,
-                    content_type=content_type,
-                )
-                .aggregate(Sum("amount_paid"))
-                .get("amount_paid__sum", None)
-            )
-
-        return amount_awarded
-
-    def get_reply_count(self, obj):
-        replies = self._replies_query(obj)
-        return replies.count()
-
-    def get_thread_id(self, obj):
-        if isinstance(obj.parent, Thread):
-            return obj.parent.id
-        return None
-
-    def get_paper_id(self, obj):
-        if obj.paper:
-            return obj.paper.id
-        else:
-            return None
-
-    def get_score(self, obj):
-        return obj.calculate_score()
-
-
 class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
     awarded_bounty_amount = serializers.SerializerMethodField()
     bounties = serializers.SerializerMethodField()
@@ -328,7 +228,6 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
         read_only=False, default=serializers.CurrentUserDefault()
     )
     comment_count = serializers.SerializerMethodField()
-    comments = serializers.SerializerMethodField()
     document_meta = serializers.SerializerMethodField()
     is_created_by_editor = serializers.BooleanField(required=False, read_only=True)
     paper_slug = serializers.SerializerMethodField()
@@ -346,7 +245,6 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
             "bounties",
             "citation",
             "comment_count",
-            "comments",
             "context_title",
             "created_by",
             "created_date",
@@ -403,20 +301,6 @@ class ThreadSerializer(serializers.ModelSerializer, GenericReactionSerializerMix
             .annotate(ordering_score=ORDERING_SCORE_ANNOTATION)
             .order_by("-ordering_score", "created_date")
         )
-
-    def get_comments(self, obj):
-        if self.context.get("depth", 3) <= 0:
-            return []
-        comments_queryset = self._comments_query(obj)[:PAGINATION_PAGE_SIZE]
-        comment_serializer = CommentSerializer(
-            comments_queryset,
-            many=True,
-            context={
-                **self.context,
-                "depth": self.context.get("depth", 3) - 1,
-            },
-        )
-        return comment_serializer.data
 
     def get_comment_count(self, obj):
         return self._comments_query(obj).count()
