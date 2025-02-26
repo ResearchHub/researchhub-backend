@@ -38,8 +38,10 @@ class PaperUploadViewTest(APITestCase):
             },
         )
         self.mock_storage_service.create_presigned_url.assert_called_once_with(
+            "paper",
             "test.pdf",
             request.user.id,
+            "application/pdf",
         )
 
     def test_post_fails_with_validation_error(self):
