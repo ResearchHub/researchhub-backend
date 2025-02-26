@@ -17,35 +17,6 @@ ORDERING_SCORE_ANNOTATION = Count("id", filter=Q(votes__vote_type=Vote.UPVOTE)) 
 )
 
 
-class CensorMixin:
-    def get_plain_text(self, obj):
-        return self.censor_unless_moderator(obj, obj.plain_text)
-
-    def get_title(self, obj):
-        return self.censor_unless_moderator(obj, obj.title)
-
-    def get_text(self, obj):
-        return self.censor_unless_moderator(obj, obj.text)
-
-    def censor_unless_moderator(self, obj, value):
-        if not obj.is_removed or self.requester_is_moderator():
-            return value
-        else:
-            if type(value) == str:
-                return "[{} has been removed]".format(obj._meta.model_name)
-            else:
-                return None
-
-    def requester_is_moderator(self):
-        request = self.context.get("request")
-        return (
-            request
-            and request.user
-            and request.user.is_authenticated
-            and request.user.moderator
-        )
-
-
 class DynamicFlagSerializer(DynamicModelFieldSerializer):
     item = serializers.SerializerMethodField()
     flagged_by = serializers.SerializerMethodField()
