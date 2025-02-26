@@ -5,5 +5,4 @@ from .institution import InstitutionDocumentSerializer
 from .paper import CrossrefPaperSerializer, PaperDocumentSerializer
 from .person import PersonDocumentSerializer
 from .post import PostDocumentSerializer
-from .thread import ThreadDocumentSerializer
 from .university import UniversityDocumentSerializer

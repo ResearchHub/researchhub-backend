@@ -5,6 +5,5 @@ from .journal import JournalDocument
 from .paper import PaperDocument
 from .person import PersonDocument
 from .post import PostDocument
-from .thread import ThreadDocument
 from .university import UniversityDocument
 from .user import UserDocument
