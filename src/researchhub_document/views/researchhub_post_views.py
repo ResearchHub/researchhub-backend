@@ -208,7 +208,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     )
                     if crossref_response.status_code != 200:
                         return Response("Crossref API Failure", status=400)
-                    charge_doi_fee(created_by, rh_post)
 
                 reset_unified_document_cache(
                     document_type=[
@@ -323,7 +322,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             )
             if crossref_response.status_code != 200:
                 return Response("Crossref API Failure", status=400)
-            charge_doi_fee(created_by, rh_post)
 
         return Response(serializer.data, status=200)
 
