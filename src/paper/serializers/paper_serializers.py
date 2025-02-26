@@ -16,7 +16,6 @@ from discussion.models import Vote as GrmVote
 from discussion.reaction_serializers import GenericReactionSerializerMixin
 from discussion.serializers import DynamicFlagSerializer
 from discussion.serializers import DynamicVoteSerializer as DynamicGrmVoteSerializer
-from discussion.serializers import ThreadSerializer
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from paper.exceptions import PaperSerializerError
 from paper.lib import journal_hosts
@@ -161,18 +160,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
             return None
 
         return paper.csl_item
-
-    def get_discussion(self, paper):
-        if self.context.get("purchase_minimal_serialization", False):
-            return None
-
-        threads_queryset = paper.threads.all()
-        threads = ThreadSerializer(
-            threads_queryset.order_by("-created_date")[:PAGINATION_PAGE_SIZE],
-            many=True,
-            context=self.context,
-        )
-        return {"count": threads_queryset.count(), "threads": threads.data}
 
     def get_first_figure(self, paper):
         try:
