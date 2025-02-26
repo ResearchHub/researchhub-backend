@@ -4,15 +4,6 @@ import rest_framework.serializers as serializers
 from django.db.models import IntegerField, Sum
 from django.db.models.functions import Cast
 
-from analytics.models import INTERACTIONS
-from discussion.serializers import (
-    CommentSerializer,
-    DynamicCommentSerializer,
-    DynamicReplySerializer,
-    DynamicThreadSerializer,
-    ReplySerializer,
-    ThreadSerializer,
-)
 from paper.serializers import BasePaperSerializer, DynamicPaperSerializer
 from purchase.models import AggregatePurchase, Purchase
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -55,15 +46,6 @@ class PurchaseSerializer(serializers.ModelSerializer):
         elif model_name == "researchhub post":
             post = model_class.objects.get(id=object_id)
             serializer = ResearchhubPostSerializer(post, context=self.context)
-        elif model_name == "thread":
-            thread = model_class.objects.get(id=object_id)
-            serializer = ThreadSerializer(thread, context=self.context)
-        elif model_name == "comment":
-            comment = model_class.objects.get(id=object_id)
-            serializer = CommentSerializer(comment, context=self.context)
-        elif model_name == "reply":
-            reply = model_class.objects.get(id=object_id)
-            serializer = ReplySerializer(reply, context=self.context)
 
         if serializer is not None:
             return serializer.data
@@ -108,15 +90,6 @@ class DynamicPurchaseSerializer(DynamicModelFieldSerializer):
             elif model_name == "researchhub post":
                 item = model_class.objects.get(id=object_id)
                 serializer = DynamicPostSerializer
-            elif model_name == "thread":
-                item = model_class.objects.get(id=object_id)
-                serializer = DynamicThreadSerializer
-            elif model_name == "comment":
-                item = model_class.objects.get(id=object_id)
-                serializer = DynamicCommentSerializer
-            elif model_name == "reply":
-                item = model_class.objects.get(id=object_id)
-                serializer = DynamicReplySerializer
             elif model_name == "rh comment model":
                 from researchhub_comment.serializers import DynamicRhCommentSerializer
 

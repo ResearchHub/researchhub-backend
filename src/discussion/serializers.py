@@ -73,7 +73,6 @@ class DynamicThreadSerializer(
 ):
     bounties = serializers.SerializerMethodField()
     comment_count = serializers.SerializerMethodField()
-    comments = serializers.SerializerMethodField()
     created_by = serializers.SerializerMethodField()
     discussion_type = serializers.SerializerMethodField()
     is_accepted_answer = serializers.ReadOnlyField()
@@ -143,17 +142,6 @@ class DynamicThreadSerializer(
             obj.bounties.all(), many=True, context=context, **_context_fields
         )
         return serializer.data
-
-    def get_comments(self, obj):
-        _context_fields = self.context.get("dis_dts_get_comments", {})
-        comments_queryset = self._comments_query(obj)[:PAGINATION_PAGE_SIZE]
-        comment_serializer = DynamicCommentSerializer(
-            comments_queryset,
-            many=True,
-            context=self.context,
-            **_context_fields,
-        )
-        return comment_serializer.data
 
     def get_user_vote(self, obj):
         user = get_user_from_request(self.context)
@@ -289,107 +277,6 @@ class DynamicReplySerializer(
                 ).data
             return False
         return False
-
-    def get_score(self, obj):
-        return obj.calculate_score()
-
-
-class DynamicCommentSerializer(
-    DynamicModelFieldSerializer,
-    GenericReactionSerializerMixin,
-):
-    created_by = serializers.SerializerMethodField()
-    discussion_type = serializers.SerializerMethodField()
-    paper_id = serializers.SerializerMethodField()
-    promoted = serializers.SerializerMethodField()
-    replies = serializers.SerializerMethodField()
-    reply_count = serializers.SerializerMethodField()
-    score = serializers.SerializerMethodField()  # @property
-    thread_id = serializers.SerializerMethodField()
-    is_created_by_editor = serializers.BooleanField(
-        required=False,
-    )
-    unified_document = serializers.SerializerMethodField()
-    user_vote = serializers.SerializerMethodField()
-
-    class Meta:
-        model = Comment
-        fields = "__all__"
-
-    def get_discussion_type(self, obj):
-        return Comment.__name__
-
-    def _replies_query(self, obj):
-        filter_by_user_id = self.context.get("_config", {}).get(
-            "filter_by_user_id", None
-        )
-
-        replies = obj.children.filter(is_removed=False)
-
-        if filter_by_user_id:
-            replies = replies.filter(created_by_id=filter_by_user_id)
-        else:
-            replies = obj.children
-
-        return replies.annotate(ordering_score=ORDERING_SCORE_ANNOTATION).order_by(
-            "-ordering_score", "created_date"
-        )
-
-    def get_replies(self, obj):
-        _context_fields = self.context.get("dis_dcs_get_replies", {})
-        reply_queryset = self._replies_query(obj)[:PAGINATION_PAGE_SIZE]
-
-        replies = DynamicReplySerializer(
-            reply_queryset, many=True, context=self.context, **_context_fields
-        )
-        return replies.data
-
-    def get_reply_count(self, obj):
-        replies = self._replies_query(obj)
-        return replies.count()
-
-    def get_thread_id(self, obj):
-        if isinstance(obj.parent, Thread):
-            return obj.parent.id
-        return None
-
-    def get_paper_id(self, obj):
-        if obj.paper:
-            return obj.paper.id
-        else:
-            return None
-
-    def get_created_by(self, comment):
-        context = self.context
-        _context_fields = context.get("dis_dcs_get_created_by", {})
-        serializer = DynamicUserSerializer(
-            comment.created_by, context=context, **_context_fields
-        )
-        return serializer.data
-
-    def get_user_vote(self, obj):
-        user = get_user_from_request(self.context)
-        _context_fields = self.context.get("dis_dcs_get_user_vote", {})
-        if user and not user.is_anonymous:
-            vote = obj.votes.filter(created_by=user)
-            if vote.exists():
-                return DynamicVoteSerializer(
-                    vote.last(),
-                    context=self.context,
-                    **_context_fields,
-                ).data
-            return False
-        return False
-
-    def get_unified_document(self, comment):
-        from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
-
-        context = self.context
-        _context_fields = context.get("dis_dcs_get_unified_document", {})
-        serializer = DynamicUnifiedDocumentSerializer(
-            comment.unified_document, context=context, **_context_fields
-        )
-        return serializer.data
 
     def get_score(self, obj):
         return obj.calculate_score()
@@ -824,18 +711,6 @@ class DynamicFlagSerializer(DynamicModelFieldSerializer):
             from researchhub_document.serializers import DynamicPostSerializer
 
             serializer = DynamicPostSerializer
-        elif isinstance(item, Thread):
-            from discussion.serializers import DynamicThreadSerializer
-
-            serializer = DynamicThreadSerializer
-        elif isinstance(item, Comment):
-            from discussion.serializers import DynamicCommentSerializer
-
-            serializer = DynamicCommentSerializer
-        elif isinstance(item, Reply):
-            from discussion.serializers import DynamicReplySerializer
-
-            serializer = DynamicReplySerializer
         elif isinstance(item, RhCommentModel):
             from researchhub_comment.serializers import DynamicRhCommentSerializer
 
