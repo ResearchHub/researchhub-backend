@@ -3,9 +3,10 @@ from django.contrib.contenttypes.models import ContentType
 
 # TODO: Make is_public editable for creator as a delete mechanism
 # TODO: undo
-from django.db.models import Q, Sum
+from django.db.models import Count, Q, Sum
 
 from discussion.models import Comment, Reply, Thread
+from discussion.reaction_models import Vote
 from discussion.reaction_serializers import (
     DynamicVoteSerializer,  # Import is needed for discussion serializer imports
 )
@@ -31,12 +32,11 @@ from user.serializers import (
     MinimalUserSerializer,
 )
 from utils.http import get_user_from_request
-from django.db.models import Count, Q
-from discussion.reaction_models import Vote
 
 ORDERING_SCORE_ANNOTATION = Count("id", filter=Q(votes__vote_type=Vote.UPVOTE)) - Count(
     "id", filter=Q(votes__vote_type=Vote.DOWNVOTE)
 )
+
 
 class CensorMixin:
     def get_plain_text(self, obj):
@@ -220,66 +220,6 @@ class DynamicThreadSerializer(
             thread.unified_document, context=context, **_context_fields
         )
         return serializer.data
-
-
-class DynamicReplySerializer(
-    DynamicModelFieldSerializer,
-    GenericReactionSerializerMixin,
-):
-    is_created_by_editor = serializers.BooleanField(
-        required=False,
-    )
-    unified_document = serializers.SerializerMethodField()
-    discussion_type = serializers.SerializerMethodField()
-    promoted = serializers.SerializerMethodField()
-    user_vote = serializers.SerializerMethodField()
-    score = serializers.SerializerMethodField()  # @property
-    created_by = serializers.SerializerMethodField()
-    parent = serializers.PrimaryKeyRelatedField(
-        queryset=Comment.objects.all(), many=False, read_only=False
-    )
-
-    class Meta:
-        model = Reply
-        fields = "__all__"
-
-    def get_discussion_type(self, obj):
-        return Reply.__name__
-
-    def get_unified_document(self, reply):
-        from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
-
-        context = self.context
-        _context_fields = context.get("dis_drs_get_unified_document", {})
-        serializer = DynamicUnifiedDocumentSerializer(
-            reply.unified_document, context=context, **_context_fields
-        )
-        return serializer.data
-
-    def get_created_by(self, reply):
-        context = self.context
-        _context_fields = context.get("dis_drs_get_created_by", {})
-        serializer = DynamicUserSerializer(
-            reply.created_by, context=context, **_context_fields
-        )
-        return serializer.data
-
-    def get_user_vote(self, obj):
-        user = get_user_from_request(self.context)
-        _context_fields = self.context.get("dis_drs_get_user_vote", {})
-        if user and not user.is_anonymous:
-            vote = obj.votes.filter(created_by=user)
-            if vote.exists():
-                return DynamicVoteSerializer(
-                    vote.last(),
-                    context=self.context,
-                    **_context_fields,
-                ).data
-            return False
-        return False
-
-    def get_score(self, obj):
-        return obj.calculate_score()
 
 
 class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
