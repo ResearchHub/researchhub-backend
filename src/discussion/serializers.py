@@ -230,7 +230,6 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
     is_created_by_editor = serializers.BooleanField(required=False, read_only=True)
     paper_id = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
-    replies = serializers.SerializerMethodField()
     reply_count = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()  # @property
     thread_id = serializers.SerializerMethodField()
@@ -254,7 +253,6 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
             "parent",
             "plain_text",
             "promoted",
-            "replies",
             "reply_count",
             "score",
             "source",
@@ -271,7 +269,6 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
             "is_public",
             "is_removed",
             "paper_id",
-            "replies",
             "reply_count",
             "score",
             "user_flag",
@@ -304,22 +301,6 @@ class CommentSerializer(serializers.ModelSerializer, GenericReactionSerializerMi
             )
 
         return amount_awarded
-
-    def get_replies(self, obj):
-        if self.context.get("depth", 3) <= 0:
-            return []
-        reply_queryset = self._replies_query(obj)[:PAGINATION_PAGE_SIZE]
-
-        replies = ReplySerializer(
-            reply_queryset,
-            many=True,
-            context={
-                **self.context,
-                "depth": self.context.get("depth", 3) - 1,
-            },
-        )
-
-        return replies.data
 
     def get_reply_count(self, obj):
         replies = self._replies_query(obj)
@@ -526,105 +507,6 @@ class SimpleThreadSerializer(ThreadSerializer):
             "id",
         ]
         model = Thread
-
-
-class ReplySerializer(serializers.ModelSerializer, GenericReactionSerializerMixin):
-    created_by = MinimalUserSerializer(
-        read_only=False, default=serializers.CurrentUserDefault()
-    )
-    parent = serializers.PrimaryKeyRelatedField(
-        queryset=Comment.objects.all(), many=False, read_only=False
-    )
-    document_meta = serializers.SerializerMethodField()
-    is_created_by_editor = serializers.BooleanField(required=False, read_only=True)
-    paper_id = serializers.SerializerMethodField()
-    promoted = serializers.SerializerMethodField()
-    replies = serializers.SerializerMethodField()
-    reply_count = serializers.SerializerMethodField()
-    thread_id = serializers.SerializerMethodField()
-    user_flag = serializers.SerializerMethodField()
-    score = serializers.SerializerMethodField()
-
-    class Meta:
-        fields = [
-            "created_by",
-            "created_location",
-            "discussion_post_type",
-            "document_meta",
-            "id",
-            "is_created_by_editor",
-            "is_public",
-            "is_removed",
-            "paper_id",
-            "parent",
-            "plain_text",
-            "promoted",
-            "replies",
-            "reply_count",
-            "score",
-            "text",
-            "thread_id",
-            "updated_date",
-            "user_flag",
-            "was_edited",
-            "created_date",
-            "updated_date",
-        ]
-        read_only_fields = [
-            "document_meta",
-            "is_created_by_editor",
-            "is_public",
-            "is_removed",
-            "paper_id",
-            "replies",
-            "reply_count",
-            "score",
-            "thread_id",
-            "user_flag",
-        ]
-        model = Reply
-
-    def get_paper_id(self, obj):
-        if obj.paper:
-            return obj.paper.id
-        else:
-            return None
-
-    def get_thread_id(self, obj):
-        comment = obj.get_comment_of_reply()
-        if comment and isinstance(comment.parent, Thread):
-            return comment.parent.id
-        return None
-
-    def _replies_query(self, obj):
-        return (
-            obj.children.filter(is_removed=False)
-            .annotate(ordering_score=ORDERING_SCORE_ANNOTATION)
-            .order_by("-ordering_score", "created_date")
-        )
-
-    def get_replies(self, obj):
-        if self.context.get("depth", 3) <= 0:
-            return []
-        reply_queryset = self._replies_query(obj)[:PAGINATION_PAGE_SIZE]
-
-        replies = ReplySerializer(
-            reply_queryset,
-            many=True,
-            context={
-                **self.context,
-                "depth": self.context.get("depth", 3) - 1,
-            },
-        )
-
-        return replies.data
-
-    def get_reply_count(self, obj):
-        replies = self._replies_query(obj)
-        return replies.count()
-
-    def get_score(self, obj):
-        return obj.calculate_score()
 
 
 class DynamicFlagSerializer(DynamicModelFieldSerializer):
