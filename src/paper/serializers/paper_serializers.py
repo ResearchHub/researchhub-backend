@@ -44,7 +44,7 @@ from purchase.models import Purchase
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from researchhub.serializers import DynamicModelFieldSerializer
-from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
+from researchhub.settings import TESTING
 from researchhub_document.utils import update_unified_document_to_paper
 from review.serializers.peer_review_serializer import PeerReviewSerializer
 from user.models import Author
@@ -62,7 +62,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
     boost_amount = serializers.SerializerMethodField()
     bullet_points = serializers.SerializerMethodField()
     csl_item = serializers.SerializerMethodField()
-    discussion = serializers.SerializerMethodField()
     file = serializers.SerializerMethodField()
     pdf_url = serializers.SerializerMethodField()
     pdf_copyright_allows_display = serializers.SerializerMethodField()
