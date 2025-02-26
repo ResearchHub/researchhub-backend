@@ -6,6 +6,7 @@ from rest_framework.pagination import PageNumberPagination
 
 from paper.related_models.paper_model import Paper
 from reputation.related_models.bounty import Bounty
+from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 
 from .models import FeedEntry
@@ -74,6 +75,16 @@ class FeedViewSet(viewsets.ModelViewSet):
                         "unified_document__hubs",
                     ),
                     to_attr="_prefetched_post",
+                ),
+                Prefetch(
+                    "item",
+                    RhCommentModel.objects.prefetch_related(
+                        "thread",
+                        "thread__content_object",
+                        "thread__content_object__unified_document",
+                        "thread__content_object__unified_document__hubs",
+                    ),
+                    to_attr="_prefetched_comment",
                 ),
             )
         )
