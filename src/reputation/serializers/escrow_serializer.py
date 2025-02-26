@@ -1,6 +1,5 @@
 from rest_framework import serializers
 
-from discussion.serializers import DynamicThreadSerializer
 from reputation.models import Escrow
 from reputation.serializers.bounty_fee_serializer import DynamicBountyFeeSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -55,10 +54,6 @@ class DynamicEscrowSerializer(DynamicModelFieldSerializer):
 
         if model_name == "researchhubunifieddocument":
             serializer = DynamicUnifiedDocumentSerializer(
-                obj, context=context, **_context_fields
-            )
-        elif model_name == "thread":
-            serializer = DynamicThreadSerializer(
                 obj, context=context, **_context_fields
             )
 
