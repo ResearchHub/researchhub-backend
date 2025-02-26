@@ -13,10 +13,11 @@ import utils.sentry as sentry
 from citation.constants import JOURNAL_ARTICLE
 from discussion.models import Flag as GrmFlag
 from discussion.models import Vote as GrmVote
+from discussion.reaction_serializers import (
+    DynamicVoteSerializer as DynamicGrmVoteSerializer,
+)
 from discussion.reaction_serializers import GenericReactionSerializerMixin
 from discussion.serializers import DynamicFlagSerializer
-from discussion.serializers import DynamicVoteSerializer as DynamicGrmVoteSerializer
-from discussion.serializers import ThreadSerializer
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from paper.exceptions import PaperSerializerError
 from paper.lib import journal_hosts
@@ -43,7 +44,7 @@ from purchase.models import Purchase
 from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from researchhub.serializers import DynamicModelFieldSerializer
-from researchhub.settings import PAGINATION_PAGE_SIZE, TESTING
+from researchhub.settings import TESTING
 from researchhub_document.utils import update_unified_document_to_paper
 from review.serializers.peer_review_serializer import PeerReviewSerializer
 from user.models import Author
@@ -61,7 +62,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
     boost_amount = serializers.SerializerMethodField()
     bullet_points = serializers.SerializerMethodField()
     csl_item = serializers.SerializerMethodField()
-    discussion = serializers.SerializerMethodField()
     file = serializers.SerializerMethodField()
     pdf_url = serializers.SerializerMethodField()
     pdf_copyright_allows_display = serializers.SerializerMethodField()
@@ -161,18 +161,6 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
             return None
 
         return paper.csl_item
-
-    def get_discussion(self, paper):
-        if self.context.get("purchase_minimal_serialization", False):
-            return None
-
-        threads_queryset = paper.threads.all()
-        threads = ThreadSerializer(
-            threads_queryset.order_by("-created_date")[:PAGINATION_PAGE_SIZE],
-            many=True,
-            context=self.context,
-        )
-        return {"count": threads_queryset.count(), "threads": threads.data}
 
     def get_first_figure(self, paper):
         try:

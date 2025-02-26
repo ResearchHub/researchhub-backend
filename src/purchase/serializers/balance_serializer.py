@@ -1,21 +1,17 @@
-
 import rest_framework.serializers as serializers
 from django.contrib.contenttypes.models import ContentType
 
-from discussion.models import Thread
-from purchase.models import (
-    Balance,
-    Purchase,
-)
+from purchase.models import Balance, Purchase
 from reputation.models import Bounty, Distribution, Withdrawal
 from reputation.serializers import (
     BountySerializer,
     DistributionSerializer,
     WithdrawalSerializer,
 )
-from .purchase_serializer import PurchaseSerializer
 from researchhub_document.models import ResearchhubUnifiedDocument
 from utils import sentry
+
+from .purchase_serializer import PurchaseSerializer
 
 
 class BalanceSourceRelatedField(serializers.RelatedField):
@@ -52,8 +48,6 @@ class BalanceSerializer(serializers.ModelSerializer):
             source_item = balance.source.item
             if isinstance(source_item, ResearchhubUnifiedDocument):
                 return source_item.get_document().title
-            elif isinstance(source_item, Thread):
-                return source_item.unified_document.get_document().title
             return None
 
     def get_content_id(self, balance):
@@ -61,8 +55,6 @@ class BalanceSerializer(serializers.ModelSerializer):
             source_item = balance.source.item
             if isinstance(source_item, ResearchhubUnifiedDocument):
                 return source_item.get_document().id
-            elif isinstance(source_item, Thread):
-                return source_item.unified_document.get_document().id
             return None
 
     def get_content_slug(self, balance):
@@ -70,8 +62,6 @@ class BalanceSerializer(serializers.ModelSerializer):
             source_item = balance.source.item
             if isinstance(source_item, ResearchhubUnifiedDocument):
                 return source_item.get_document().slug
-            elif isinstance(source_item, Thread):
-                return source_item.unified_document.get_document().slug
             return None
 
     def get_readable_content_type(self, balance):
