@@ -26,8 +26,14 @@ class SimpleUserSerializer(serializers.ModelSerializer):
 class SimpleAuthorSerializer(serializers.ModelSerializer):
     """Minimal author serializer with just essential fields"""
 
-    user = SimpleUserSerializer()
+    headline = serializers.SerializerMethodField()
     profile_image = serializers.CharField()
+    user = SimpleUserSerializer()
+
+    def get_headline(self, obj):
+        if obj.headline and isinstance(obj.headline, dict) and "title" in obj.headline:
+            return obj.headline.get("title")
+        return None
 
     class Meta:
         model = Author
