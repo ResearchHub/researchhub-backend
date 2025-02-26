@@ -54,12 +54,6 @@ jobs:
           python-version: "3.12"
           cache: 'poetry'
 
-      - name: Updating pip
-        working-directory: ./src
-        run: |
-          poetry run pip install --upgrade pip
-          poetry run pip install -U pip setuptools
-
       - name: Install Dependencies
         working-directory: ./src
         run: |
