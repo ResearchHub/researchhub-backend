@@ -1,9 +1,6 @@
-from unittest import skip
-
 from django.core.cache import cache
 from rest_framework.test import APITestCase
 
-from discussion.tests.helpers import create_thread
 from hub.models import Hub
 from hub.tests.helpers import create_hub
 from paper.tests.helpers import create_paper
@@ -188,28 +185,6 @@ class HubViewsTests(APITestCase):
 
         response = self.get_invite_to_hub_response(self.user, hub, [subscriber.email])
         self.assertNotContains(response, subscriber.email, status_code=200)
-
-    @skip
-    def test_hub_actions_is_paginated(self):
-        hub = create_hub(name="Calpurnia")
-        paper = create_paper()
-        hub.related_documents.add(paper.unified_document)
-
-        for x in range(11):
-            create_thread(paper=paper, created_by=self.user)
-        page = 1
-        url = self.base_url + f"{hub.id}/latest_actions/?page={page}"
-        response = get_get_response(url)
-        self.assertContains(response, 'count":11', status_code=200)
-        result_count = len(response.data["results"])
-        self.assertEqual(result_count, 10)
-
-        page = 2
-        url = self.base_url + f"{hub.id}/latest_actions/?page={page}"
-        response = get_get_response(url)
-        self.assertContains(response, 'count":11', status_code=200)
-        result_count = len(response.data["results"])
-        self.assertEqual(result_count, 1)
 
     def is_subscribed(self, user, hub):
         return user in hub.subscribers.all()
