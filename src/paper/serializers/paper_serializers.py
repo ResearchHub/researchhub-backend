@@ -13,9 +13,11 @@ import utils.sentry as sentry
 from citation.constants import JOURNAL_ARTICLE
 from discussion.models import Flag as GrmFlag
 from discussion.models import Vote as GrmVote
+from discussion.reaction_serializers import (
+    DynamicVoteSerializer as DynamicGrmVoteSerializer,
+)
 from discussion.reaction_serializers import GenericReactionSerializerMixin
 from discussion.serializers import DynamicFlagSerializer
-from discussion.serializers import DynamicVoteSerializer as DynamicGrmVoteSerializer
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from paper.exceptions import PaperSerializerError
 from paper.lib import journal_hosts
