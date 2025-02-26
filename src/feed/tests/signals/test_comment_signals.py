@@ -1,4 +1,6 @@
 from unittest.mock import MagicMock, call, patch
+
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
 from feed.models import FeedEntry
@@ -7,13 +9,17 @@ from hub.models import Hub
 from paper.related_models.paper_model import Paper
 from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
-from researchhub_comment.related_models.rh_comment_thread_model import RhCommentThreadModel
+from researchhub_comment.related_models.rh_comment_thread_model import (
+    RhCommentThreadModel,
+)
 from researchhub_document.related_models.constants import document_type
-from researchhub_document.related_models.researchhub_unified_document_model import ResearchhubUnifiedDocument
-from django.contrib.contenttypes.models import ContentType
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
+
 
 class CommentSignalsTests(TestCase):
-    
+
     def setUp(self):
         self.user = User.objects.create_user(username="user1")
         self.hub1 = Hub.objects.create(name="hub1")
@@ -23,8 +29,10 @@ class CommentSignalsTests(TestCase):
         )
         self.unified_document.hubs.add(self.hub1)
         self.unified_document.hubs.add(self.hub2)
-        self.paper = Paper.objects.create(title="paper1", unified_document=self.unified_document)
-        
+        self.paper = Paper.objects.create(
+            title="paper1", unified_document=self.unified_document
+        )
+
         self.content_type = ContentType.objects.get_for_model(Paper)
         self.thread = RhCommentThreadModel.objects.create(
             thread_type=GENERIC_COMMENT,
@@ -40,7 +48,9 @@ class CommentSignalsTests(TestCase):
 
     @patch("feed.signals.comment_signals.create_feed_entry")
     @patch("feed.signals.comment_signals.transaction")
-    def test_handle_comment_created_signal(self, mock_transaction, mock_create_feed_entry):
+    def test_handle_comment_created_signal(
+        self, mock_transaction, mock_create_feed_entry
+    ):
         """
         Test that a feed entry is created when a comment is created.
         """
@@ -49,7 +59,7 @@ class CommentSignalsTests(TestCase):
         mock_create_feed_entry.apply_async = MagicMock()
 
         # Act
-        comment =  RhCommentModel.objects.create(
+        comment = RhCommentModel.objects.create(
             comment_content_json={"ops": [{"insert": "comment1"}]},
             created_by=self.user,
             thread=self.thread,
@@ -82,10 +92,12 @@ class CommentSignalsTests(TestCase):
                 ),
             ]
         )
-    
+
     @patch("feed.signals.comment_signals.delete_feed_entry")
     @patch("feed.signals.comment_signals.transaction")
-    def test_handle_comment_removed_signal(self, mock_transaction, mock_delete_feed_entry):
+    def test_handle_comment_removed_signal(
+        self, mock_transaction, mock_delete_feed_entry
+    ):
         """
         Test that a feed entry is deleted when a comment is removed.
         """
