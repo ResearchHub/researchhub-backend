@@ -239,6 +239,9 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "bounties__created_by",
                     "bounties__created_by__author_profile",
                     "bounty_solution",
+                    "bounty_solution__bounty",
+                    "bounty_solution__created_by",
+                    "bounty_solution__created_by__author_profile",
                     "reviews",
                     "thread__permissions",
                     "thread__content_type",
@@ -263,6 +266,34 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "id",
                     "parent",
                     "expiration_date",
+                ]
+            },
+            "rhc_dcs_get_bounty_solutions": {
+                "_include_fields": [
+                    "id",
+                    "status",
+                    "awarded_amount",
+                    "created_by",
+                    "content_type",
+                ]
+            },
+            "rep_dbss_get_bounty": {
+                "_include_fields": [
+                    "id",
+                    "bounty_type",
+                    "amount",
+                    "status",
+                    "expiration_date",
+                    "created_by",
+                ]
+            },
+            "rep_dbss_get_created_by": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
+                    "first_name",
+                    "last_name",
+                    "is_verified",
                 ]
             },
             "rhc_dcs_get_review": {
@@ -467,6 +498,9 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             "bounties__created_by",
             "bounties__created_by__author_profile",
             "bounty_solution",
+            "bounty_solution__bounty",
+            "bounty_solution__created_by",
+            "bounty_solution__created_by__author_profile",
             "reviews",
             "thread__permissions",
             "thread__content_type",
@@ -527,6 +561,39 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             ),
         )
         return Response(serializer.data)
+
+    def get_object(self):
+        queryset = self.filter_queryset(self.get_queryset())
+        queryset = queryset.select_related(
+            "created_by",
+            "created_by__author_profile",
+            "thread",
+        )
+        queryset = queryset.prefetch_related(
+            "children",
+            "purchases",
+            "bounties",
+            "bounties__parent",
+            "bounties__created_by",
+            "bounties__created_by__author_profile",
+            "bounty_solution",
+            "bounty_solution__bounty",
+            "bounty_solution__created_by",
+            "bounty_solution__created_by__author_profile",
+            "reviews",
+            "thread__permissions",
+            "thread__content_type",
+        )
+
+        # Lookup the object
+        lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
+        filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
+        obj = get_object_or_404(queryset, **filter_kwargs)
+
+        # May raise a permission denied
+        self.check_object_permissions(self.request, obj)
+
+        return obj
 
     @sift_track(SIFT_COMMENT, is_update=True)
     def update(self, request, *args, **kwargs):

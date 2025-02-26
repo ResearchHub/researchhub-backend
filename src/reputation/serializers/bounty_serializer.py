@@ -177,19 +177,19 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
 
 
 class DynamicBountySolutionSerializer(DynamicModelFieldSerializer):
-    bounty = serializers.SerializerMethodField()
     content_type = serializers.SerializerMethodField()
     item = serializers.SerializerMethodField()
+    created_by = serializers.SerializerMethodField()
 
     class Meta:
         model = BountySolution
         fields = "__all__"
 
-    def get_bounty(self, solution):
+    def get_created_by(self, solution):
         context = self.context
-        _context_fields = context.get("rep_dbss_get_bounty", {})
-        serializer = DynamicBountySerializer(
-            solution.bounty, context=context, **_context_fields
+        _context_fields = context.get("rep_dbss_get_created_by", {})
+        serializer = DynamicUserSerializer(
+            solution.created_by, context=context, **_context_fields
         )
         return serializer.data
 
