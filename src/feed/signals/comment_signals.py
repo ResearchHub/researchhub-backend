@@ -29,6 +29,12 @@ def handle_comment_created_or_removed(sender, instance, created, **kwargs):
 
 
 def _handle_comment_created(comment):
+    # Validate that the comment is associated with a unified document with hubs
+    if not getattr(comment, "unified_document", None) or not hasattr(
+        comment.unified_document, "hubs"
+    ):
+        return
+
     tasks = [
         create_feed_entry.apply_async(
             args=(
@@ -47,6 +53,12 @@ def _handle_comment_created(comment):
 
 
 def _handle_comment_removed(comment):
+    # Validate that the comment is associated with a unified document with hubs
+    if not getattr(comment, "unified_document", None) or not hasattr(
+        comment.unified_document, "hubs"
+    ):
+        return
+
     tasks = [
         delete_feed_entry.apply_async(
             args=(
