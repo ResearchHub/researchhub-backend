@@ -1,8 +1,8 @@
 from rest_framework import serializers
 
-from discussion.models import Comment, Reply, Thread
+from discussion.models import Comment, Thread
 from discussion.reaction_models import Vote as DisVote
-from discussion.serializers import CommentSerializer, ReplySerializer, ThreadSerializer
+from discussion.serializers import CommentSerializer, ThreadSerializer
 from discussion.serializers import VoteSerializer as DisVoteSerializer
 from paper.models import Paper
 from purchase.models import Purchase
@@ -19,7 +19,6 @@ class ProofRelatedField(serializers.RelatedField):
         """
         Serialize tagged objects to a simple textual representation.
         """
-        from discussion.serializers import DynamicVoteSerializer
         from paper.serializers import DynamicPaperSerializer
         from purchase.serializers import PurchaseSerializer
 
@@ -27,8 +26,6 @@ class ProofRelatedField(serializers.RelatedField):
             return CommentSerializer(value).data
         elif isinstance(value, Thread):
             return ThreadSerializer(value).data
-        elif isinstance(value, Reply):
-            return ReplySerializer(value).data
         elif isinstance(value, DisVote):
             return DisVoteSerializer(value).data
         elif isinstance(value, Paper):
