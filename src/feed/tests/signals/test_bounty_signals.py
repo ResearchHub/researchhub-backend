@@ -9,7 +9,6 @@ from feed.signals.bounty_signals import (
     handle_bounty_create_feed_entry,
 )
 from hub.models import Hub
-from paper.related_models.paper_model import Paper
 from paper.tests.helpers import create_paper
 from reputation.related_models.bounty import Bounty
 from reputation.related_models.escrow import Escrow
