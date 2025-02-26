@@ -13,7 +13,6 @@ from rest_framework.permissions import (
 )
 from rest_framework.response import Response
 
-from discussion.serializers import DynamicThreadSerializer
 from paper.models import Paper
 from paper.openalex_tasks import pull_openalex_author_works_batch
 from paper.related_models.authorship_model import Authorship
@@ -980,64 +979,6 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
         )
 
         return qs
-
-    @action(
-        detail=True,
-        methods=["get"],
-    )
-    def get_user_discussions(self, request, pk=None):
-        author = self.get_object()
-        user = author.user
-
-        if user:
-            user_discussions = user.thread_set.filter(is_removed=False).order_by("-id")
-        else:
-            user_discussions = self.queryset.none()
-
-        page = self.paginate_queryset(user_discussions)
-        context = self._get_user_discussion_context()
-        serializer = DynamicThreadSerializer(
-            page,
-            _include_fields=[
-                "id",
-                "comment_count",
-                "created_by",
-                "created_date",
-                "paper",
-                "post",
-                "score",
-                "text",
-            ],
-            many=True,
-            context=context,
-        )
-        return self.get_paginated_response(serializer.data)
-
-    def _get_user_discussion_context(self):
-        context = {
-            "dis_dts_get_created_by": {
-                "_include_fields": [
-                    "id",
-                    "author_profile",
-                ]
-            },
-            "dis_dts_get_paper": {
-                "_include_fields": [
-                    "id",
-                    "slug",
-                ]
-            },
-            "dis_dts_get_post": {
-                "_include_fields": [
-                    "id",
-                    "slug",
-                ]
-            },
-            "usr_dus_get_author_profile": {
-                "_include_fields": ["id", "first_name", "last_name", "profile_image"]
-            },
-        }
-        return context
 
     @action(
         detail=True,
