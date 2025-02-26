@@ -3,7 +3,6 @@ import random
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.authtoken.models import Token
 
-from discussion.models import Thread
 from hub.models import Hub
 from hub.tests.helpers import create_hub
 from reputation.related_models.score import Score
@@ -139,11 +138,6 @@ def create_author(
         twitter=twitter,
         linkedin=linkedin,
     )
-
-
-def create_thread(text="Thread text"):
-    thread = Thread.objects.create(plain_text=text)
-    return thread
 
 
 def create_university(
