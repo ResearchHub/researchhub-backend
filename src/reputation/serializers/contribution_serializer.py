@@ -1,7 +1,7 @@
 from rest_framework import serializers
 
-from discussion.serializers import DynamicVoteSerializer
-from discussion.serializers import VoteSerializer as DisVoteSerializer
+from discussion.reaction_serializers import DynamicVoteSerializer
+from discussion.reaction_serializers import VoteSerializer as DisVoteSerializer
 from reputation.models import Contribution
 from reputation.serializers import (
     DynamicBountySerializer,
