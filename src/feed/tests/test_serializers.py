@@ -1,10 +1,10 @@
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
-from django.utils import timezone
 
 from feed.models import FeedEntry
 from feed.serializers import (
     BountySerializer,
+    CommentSerializer,
     ContentObjectSerializer,
     FeedEntrySerializer,
     PaperSerializer,
@@ -18,6 +18,7 @@ from paper.tests.helpers import create_paper
 from reputation.related_models.bounty import Bounty
 from reputation.related_models.escrow import Escrow
 from researchhub_comment.constants import rh_comment_thread_types
+from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
@@ -158,6 +159,46 @@ class PostSerializerTests(TestCase):
         self.assertEqual(data["renderable_text"], self.post.renderable_text)
         self.assertEqual(data["slug"], self.post.slug)
         self.assertEqual(data["title"], self.post.title)
+
+
+class CommentSerializerTests(TestCase):
+    def setUp(self):
+        self.user = create_random_default_user("user1")
+        self.unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.DISCUSSION,
+        )
+        self.paper = Paper.objects.create(
+            title="paper1", unified_document=self.unified_document
+        )
+        self.hub = create_hub("Test Hub")
+        self.unified_document.hubs.add(self.hub)
+
+        self.thread = RhCommentThreadModel.objects.create(
+            thread_type=rh_comment_thread_types.GENERIC_COMMENT,
+            object_id=self.paper.id,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(Paper),
+        )
+
+        self.comment = RhCommentModel.objects.create(
+            thread=self.thread,
+            created_by=self.user,
+            comment_content_type=QUILL_EDITOR,
+        )
+
+    def test_serializes_comment(self):
+        serializer = CommentSerializer(self.comment)
+        data = serializer.data
+
+        self.assertEqual(data["id"], self.comment.id)
+        self.assertEqual(data["thread_id"], self.thread.id)
+        self.assertEqual(data["parent_id"], None)
+        self.assertEqual(
+            data["comment_content_type"], self.comment.comment_content_type
+        )
+        self.assertEqual(
+            data["comment_content_json"], self.comment.comment_content_json
+        )
 
 
 class BountySerializerTests(TestCase):
