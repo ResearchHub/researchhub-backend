@@ -6,7 +6,6 @@ from django.db.models import DecimalField, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
-from discussion.models import Comment, Reply, Thread
 from hub.models import Hub
 from paper.models import Paper, PaperSubmission
 from reputation.models import Bounty, Withdrawal
@@ -170,17 +169,14 @@ class Action(DefaultModel):
         summary = ""
         try:
             item = self.item
-            if isinstance(item, (Thread, Comment, Reply)):
-                summary = item.plain_text
-            else:
-                doc_type = item.unified_document.document_type
-                if doc_type == "DISCUSSION":
-                    summary = item.renderable_text
-                elif doc_type == "PAPER":
-                    summary = item.abstract
-                elif doc_type == "QUESTION":
-                    summary = item.renderable_text
-        except Exception as e:
+            doc_type = item.unified_document.document_type
+            if doc_type == "DISCUSSION":
+                summary = item.renderable_text
+            elif doc_type == "PAPER":
+                summary = item.abstract
+            elif doc_type == "QUESTION":
+                summary = item.renderable_text
+        except Exception:
             return ""
 
         # Checks if summary exists and if it's longer than 256 chars
@@ -218,12 +214,7 @@ class Action(DefaultModel):
                 link += "/post/{}/{}#comments".format(doc.id, doc.slug)
             else:
                 link += "/paper/{}/{}#comments".format(doc.id, doc.slug)
-        elif (
-            isinstance(item, Thread)
-            or isinstance(item, Comment)
-            or isinstance(item, Reply)
-            or isinstance(item, RhCommentModel)
-        ):
+        elif isinstance(item, RhCommentModel):
             doc_type = self.item.unified_document.document_type
             if (
                 doc_type == "DISCUSSION"
