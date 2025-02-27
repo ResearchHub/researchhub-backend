@@ -468,14 +468,18 @@ class ViewTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["is_removed"], False)
 
-    def test_register_doi_with_sufficient_funds(self):
+    def test_register_doi_no_charge(self):
         author = create_random_default_user("author")
         hub = create_hub()
 
         self.client.force_authenticate(author)
 
+        initial_balance = 5
         distributor = Distributor(
-            Distribution("TEST_REWARD", 5, False), author, None, time.time()
+            Distribution("TEST_REWARD", initial_balance, False),
+            author,
+            None,
+            time.time(),
         )
         distributor.distribute()
 
@@ -494,63 +498,9 @@ class ViewTests(APITestCase):
         )
 
         self.assertEqual(doc_response.status_code, 200)
-        self.assertEqual(int(author.get_balance()), 0)
-
-    def test_register_doi_with_insufficient_funds(self):
-        author = create_random_default_user("author")
-        hub = create_hub()
-
-        self.client.force_authenticate(author)
-
-        distributor = Distributor(
-            Distribution("TEST_REWARD", 4, False), author, None, time.time()
-        )
-        distributor.distribute()
-
-        doc_response = self.client.post(
-            "/api/researchhubpost/",
-            {
-                "assign_doi": True,
-                "document_type": "DISCUSSION",
-                "created_by": author.id,
-                "full_src": "body",
-                "is_public": True,
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
-            },
-        )
-
-        self.assertEqual(doc_response.status_code, 402)
-        self.assertEqual(int(author.get_balance()), 4)
-
-    def test_no_doi_with_sufficient_funds(self):
-        author = create_random_default_user("author")
-        hub = create_hub()
-
-        self.client.force_authenticate(author)
-
-        distributor = Distributor(
-            Distribution("TEST_REWARD", 5, False), author, None, time.time()
-        )
-        distributor.distribute()
-
-        doc_response = self.client.post(
-            "/api/researchhubpost/",
-            {
-                "assign_doi": False,
-                "document_type": "DISCUSSION",
-                "created_by": author.id,
-                "full_src": "body",
-                "is_public": True,
-                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
-                "title": "sufficiently long title. sufficiently long title.",
-                "hubs": [hub.id],
-            },
-        )
-
-        self.assertEqual(doc_response.status_code, 200)
-        self.assertEqual(int(author.get_balance()), 5)
+        self.assertIsNotNone(doc_response.data["doi"])
+        # Balance should remain unchanged for all post types
+        self.assertEqual(int(author.get_balance()), initial_balance)
 
     def test_get_document_metadata(self):
         # Arrange
@@ -611,3 +561,38 @@ class ViewTests(APITestCase):
 
         self.assertEqual(doc_response.status_code, 200)
         self.assertIsNone(doc_response.data["fundraise"])
+
+    def test_preregistration_doi_not_charged(self):
+        author = create_random_default_user("author")
+        hub = create_hub()
+
+        self.client.force_authenticate(author)
+
+        # Give the user some balance
+        initial_balance = 5
+        distributor = Distributor(
+            Distribution("TEST_REWARD", initial_balance, False),
+            author,
+            None,
+            time.time(),
+        )
+        distributor.distribute()
+
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "assign_doi": True,
+                "document_type": "PREREGISTRATION",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
+                "title": "sufficiently long title. sufficiently long title.",
+                "hubs": [hub.id],
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 200)
+        self.assertIsNotNone(doc_response.data["doi"])
+        # Balance should remain unchanged for preregistrations
+        self.assertEqual(int(author.get_balance()), initial_balance)
