@@ -208,6 +208,8 @@ class CommentSerializer(serializers.Serializer):
             "comment_content_type",
             "comment_content_json",
             "comment_type",
+            "document_type",
+            "hub",
             "id",
             "parent_id",
             "thread_id",
