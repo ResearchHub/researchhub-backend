@@ -21,6 +21,10 @@ on:
         required: false
         default: master
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.inputs.deploy_env }}
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
