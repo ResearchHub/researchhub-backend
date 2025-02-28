@@ -127,8 +127,10 @@ class PaperSerializer(ContentObjectSerializer):
             "metrics",
         ]
 
+
 class PostSerializer(ContentObjectSerializer):
     """Serializer for researchhub posts"""
+
     renderable_text = serializers.SerializerMethodField()
     title = serializers.CharField()
 
@@ -185,6 +187,41 @@ class BountySerializer(serializers.Serializer):
         ]
 
 
+class CommentSerializer(serializers.Serializer):
+    comment_content_json = serializers.JSONField()
+    comment_content_type = serializers.CharField()
+    comment_type = serializers.CharField()
+    document_type = serializers.SerializerMethodField()
+    hub = serializers.SerializerMethodField()
+    id = serializers.IntegerField()
+    parent_id = serializers.IntegerField()
+    thread_id = serializers.IntegerField()
+
+    def get_document_type(self, obj):
+        if obj.unified_document:
+            return obj.unified_document.document_type
+        return None
+
+    def get_hub(self, obj):
+        if obj.unified_document and obj.unified_document.hubs:
+            # FIXMEL get primary hub
+            hub = obj.unified_document.hubs.first()
+            return SimpleHubSerializer(hub).data
+        return None
+
+    class Meta:
+        fields = [
+            "comment_content_type",
+            "comment_content_json",
+            "comment_type",
+            "document_type",
+            "hub",
+            "id",
+            "parent_id",
+            "thread_id",
+        ]
+
+
 class FeedEntrySerializer(serializers.ModelSerializer):
     """Serializer for feed entries that can reference different content types"""
 
@@ -222,12 +259,18 @@ class FeedEntrySerializer(serializers.ModelSerializer):
                 if hasattr(obj, "_prefetched_bounty"):
                     return BountySerializer(obj._prefetched_bounty).data
                 return BountySerializer(obj.item).data
+            case "rhcommentmodel":
+                # Use prefetched comment if available
+                if hasattr(obj, "_prefetched_comment"):
+                    return CommentSerializer(obj._prefetched_comment).data
+                return CommentSerializer(obj.item).data
             case "paper":
                 # Use prefetched paper if available
                 if hasattr(obj, "_prefetched_paper"):
                     return PaperSerializer(obj._prefetched_paper).data
                 return PaperSerializer(obj.item).data
             case "researchhubpost":
+                # Use prefetched post if available
                 if hasattr(obj, "_prefetched_post"):
                     return PostSerializer(obj._prefetched_post).data
                 return PostSerializer(obj.item).data
