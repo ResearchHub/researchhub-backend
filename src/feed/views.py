@@ -44,8 +44,10 @@ class FeedViewSet(viewsets.ModelViewSet):
                 "parent_content_type",
                 "user",
                 "user__author_profile",
+                "unified_document",
+                "unified_document__paper",
             )
-            # Prefetch related models for supported entities (bounty, paper).
+            # Prefetch related models for supported entities.
             # Must use `to_attr` to avoid shadowing the `item` field.
             # The serializer needs to access the `_prefetched_*` fields to
             # serialize the related models.
@@ -53,16 +55,13 @@ class FeedViewSet(viewsets.ModelViewSet):
                 Prefetch(
                     "item",
                     Bounty.objects.prefetch_related(
-                        "unified_document",
                         "unified_document__hubs",
-                        "unified_document__paper",
                     ),
                     to_attr="_prefetched_bounty",
                 ),
                 Prefetch(
                     "item",
                     Paper.objects.prefetch_related(
-                        "unified_document",
                         "unified_document__hubs",
                         "authors",
                         "authors__user",
@@ -72,7 +71,6 @@ class FeedViewSet(viewsets.ModelViewSet):
                 Prefetch(
                     "item",
                     ResearchhubPost.objects.prefetch_related(
-                        "unified_document",
                         "unified_document__hubs",
                     ),
                     to_attr="_prefetched_post",
@@ -80,10 +78,7 @@ class FeedViewSet(viewsets.ModelViewSet):
                 Prefetch(
                     "item",
                     RhCommentModel.objects.prefetch_related(
-                        "thread",
-                        "thread__content_object",
-                        "thread__content_object__unified_document",
-                        "thread__content_object__unified_document__hubs",
+                        "unified_document__hubs",
                     ),
                     to_attr="_prefetched_comment",
                 ),
