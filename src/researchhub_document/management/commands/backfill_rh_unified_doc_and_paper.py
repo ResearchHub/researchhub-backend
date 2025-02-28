@@ -25,7 +25,7 @@ class Command(BaseCommand):
             try:
                 unified_doc = UnifiedDocument.objects.filter(paper=paper)
                 if not unified_doc.exists():
-                    hot_score = paper.hot_score
+                    hot_score = paper.hot_score_v2
                     score = paper.score
                     is_removed = paper.is_removed
                     published_date = paper.paper_publish_date

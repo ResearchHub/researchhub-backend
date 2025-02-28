@@ -513,12 +513,6 @@ class Paper(AbstractGenericReactionModel):
         return self.doi or ""
 
     @property
-    def hot_score(self):
-        if self.unified_document is None:
-            return self.score
-        return self.unified_document.hot_score
-
-    @property
     def hot_score_v2(self):
         if self.unified_document is None:
             return self.score
@@ -551,112 +545,6 @@ class Paper(AbstractGenericReactionModel):
         return self.threads.filter(
             is_accepted_answer=True, discussion_post_type="ANSWER"
         ).first()
-
-    def calculate_hot_score(paper):
-        ALGO_START_UNIX = 1546329600
-        TIME_DIV = 3600000
-        HOUR_SECONDS = 86400
-        DATE_BOOST = 10
-
-        boosts = paper.purchases.filter(
-            paid_status=Purchase.PAID,
-            amount__gt=0,
-            user__moderator=True,
-            boost_time__gte=0,
-        )
-        today = datetime.datetime.now(tz=pytz.utc).replace(hour=0, minute=0, second=0)
-        score = paper.score
-        if score is None:
-            return 0
-
-        unified_doc = paper.unified_document
-        if unified_doc is None:
-            return score
-
-        original_uploaded_date = paper.created_date
-        uploaded_date = original_uploaded_date
-        day_delta = datetime.timedelta(days=2)
-        timeframe = today - day_delta
-
-        if original_uploaded_date > timeframe:
-            uploaded_date = timeframe.replace(
-                hour=original_uploaded_date.hour,
-                minute=original_uploaded_date.minute,
-                second=original_uploaded_date.second,
-            )
-
-        votes = paper.votes
-        if votes.exists():
-            vote_avg_epoch = (
-                paper.votes.aggregate(
-                    avg=Avg(
-                        Extract("created_date", "epoch"),
-                        output_field=models.IntegerField(),
-                    )
-                )["avg"]
-                or 0
-            )
-            num_votes = votes.count()
-        else:
-            num_votes = 0
-            vote_avg_epoch = timeframe.timestamp()
-
-        vote_avg = (max(0, vote_avg_epoch - ALGO_START_UNIX)) / TIME_DIV
-
-        base_score = paper_piecewise_log(score + 1)
-        uploaded_date_score = uploaded_date.timestamp() / TIME_DIV
-        vote_score = paper_piecewise_log(num_votes + 1)
-        discussion_score = paper_piecewise_log(paper.discussion_count + 1)
-
-        # Why we log delta days
-        # Ex: If paper 1 was uploaded 3 days ago with a low score and paper
-        # 2 was uploaded 4 days ago with a very high score, paper 2 will
-        # appear higher in the feed than paper 1. If we remove the delta
-        # days log, paper 1 will appear higher just because time is linear,
-        # and it gives a it better score
-
-        if original_uploaded_date > timeframe:
-            uploaded_date_delta = original_uploaded_date - timeframe
-            delta_days = (
-                paper_piecewise_log(uploaded_date_delta.total_seconds() / HOUR_SECONDS)
-                * DATE_BOOST
-            )
-            uploaded_date_score += delta_days
-        else:
-            uploaded_date_delta = timeframe - original_uploaded_date
-            delta_days = (
-                -paper_piecewise_log(
-                    (uploaded_date_delta.total_seconds() / HOUR_SECONDS) + 1
-                )
-                * DATE_BOOST
-            )
-            uploaded_date_score += delta_days
-
-        boost_score = 0
-        if boosts.exists():
-            boost_amount = sum(map(int, boosts.values_list("amount", flat=True)))
-            boost_score = paper_piecewise_log(boost_amount + 1)
-
-        hot_score = (
-            base_score
-            + uploaded_date_score
-            + vote_avg
-            + vote_score
-            + discussion_score
-            + boost_score
-        ) * 1000
-
-        completeness = paper.completeness
-        if completeness == paper.COMPLETE:
-            hot_score *= 1
-        elif completeness == paper.PARTIAL:
-            hot_score *= 0.95
-        else:
-            hot_score *= 0.90
-
-        unified_doc.hot_score = hot_score
-        paper.save()
-        return hot_score
 
     def get_promoted_score(paper):
         purchases = paper.purchases.filter(

@@ -112,7 +112,7 @@ def update_unified_document_to_paper(paper):
             rh_unified_doc.score = curr_score
             hubs = paper.hubs.all()
             rh_unified_doc.hubs.add(*hubs)
-            paper.calculate_hot_score()
+            rh_unified_doc.calculate_hot_score_v2()
             rh_unified_doc.save()
         except Exception as e:
             print(e)

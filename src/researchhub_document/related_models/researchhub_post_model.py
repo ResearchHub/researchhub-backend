@@ -155,7 +155,7 @@ class ResearchhubPost(AbstractGenericReactionModel):
 
     @property
     def hot_score(self):
-        return self.unified_document.hot_score
+        return self.unified_document.hot_score_v2
 
     @property
     def hubs_indexing(self):
@@ -178,7 +178,7 @@ class ResearchhubPost(AbstractGenericReactionModel):
 
     @property
     def hot_score_indexing(self):
-        return self.unified_document.hot_score
+        return self.unified_document.hot_score_v2
 
     @property
     def authors_indexing(self):
@@ -251,84 +251,3 @@ class ResearchhubPost(AbstractGenericReactionModel):
 
     def get_discussion_count(self):
         return self.rh_threads.get_discussion_count()
-
-    def calculate_hot_score(self):
-        ALGO_START_UNIX = 1546329600
-        TIME_DIV = 3600000
-        HOUR_SECONDS = 86400
-        DATE_BOOST = 11
-
-        boosts = self.purchases.filter(
-            paid_status=Purchase.PAID,
-            amount__gt=0,
-            user__moderator=True,
-            boost_time__gte=0,
-        )
-
-        today = datetime.datetime.now(tz=pytz.utc).replace(hour=0, minute=0, second=0)
-        score = self.score
-        original_created_date = self.created_date
-        created_date = original_created_date
-        day_delta = datetime.timedelta(days=2)
-        timeframe = today - day_delta
-
-        if original_created_date > timeframe:
-            created_date = timeframe.replace(
-                hour=original_created_date.hour,
-                minute=original_created_date.minute,
-                second=original_created_date.second,
-            )
-
-        votes = self.votes
-        if votes.exists():
-            vote_avg_epoch = (
-                self.votes.aggregate(
-                    avg=Avg(
-                        Extract("created_date", "epoch"),
-                        output_field=models.IntegerField(),
-                    )
-                )["avg"]
-                or 0
-            )
-            num_votes = votes.count()
-        else:
-            num_votes = 0
-            vote_avg_epoch = timeframe.timestamp()
-
-        vote_avg = (max(0, vote_avg_epoch - ALGO_START_UNIX)) / TIME_DIV
-
-        base_score = paper_piecewise_log(score + 1)
-        created_date_score = created_date.timestamp() / TIME_DIV
-        vote_score = paper_piecewise_log(num_votes + 1)
-        discussion_score = paper_piecewise_log(self.discussion_count + 1)
-
-        if original_created_date > timeframe:
-            created_date_delta = original_created_date - timeframe
-            delta_days = paper_piecewise_log(
-                created_date_delta.total_seconds() / HOUR_SECONDS
-            )
-            delta_days *= DATE_BOOST
-            created_date_score += delta_days
-        else:
-            created_date_delta = timeframe - original_created_date
-            delta_days = -paper_piecewise_log(
-                (created_date_delta.total_seconds() / HOUR_SECONDS) + 1
-            )
-            delta_days *= DATE_BOOST
-            created_date_score += delta_days
-
-        boost_score = 0
-        if boosts.exists():
-            boost_amount = sum(map(int, boosts.values_list("amount", flat=True)))
-            boost_score = paper_piecewise_log(boost_amount + 1)
-
-        hot_score = (
-            base_score
-            + created_date_score
-            + vote_avg
-            + vote_score
-            + discussion_score
-            + boost_score
-        ) * 1000
-
-        return hot_score

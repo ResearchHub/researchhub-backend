@@ -136,7 +136,7 @@ class BaseComment(AbstractGenericReactionModel):
         paper = self.paper
         if paper:
             new_dis_count = paper.get_discussion_count()
-            paper.calculate_hot_score()
+            paper.unified_document.calculate_hot_score_v2()
 
             paper.discussion_count = new_dis_count
             paper.save(update_fields=["discussion_count"])

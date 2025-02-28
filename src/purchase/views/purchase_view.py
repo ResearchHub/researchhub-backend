@@ -177,7 +177,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             if content_type_str == "paper":
                 paper = Paper.objects.get(id=object_id)
                 unified_doc = paper.unified_document
-                paper.calculate_hot_score()
+                unified_doc.calculate_hot_score_v2()
                 recipient = paper.uploaded_by
                 cache_key = get_cache_key("paper", object_id)
                 cache.delete(cache_key)

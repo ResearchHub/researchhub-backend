@@ -37,10 +37,6 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
         db_index=True,
         help_text="Another feed ranking score.",
     )
-    hot_score = models.IntegerField(
-        default=0,
-        help_text="Feed ranking score.",
-    )
     hot_score_v2 = models.IntegerField(
         default=0, help_text="Feed ranking score.", db_index=True
     )

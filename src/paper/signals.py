@@ -37,7 +37,6 @@ def add_unified_doc(created, instance, **kwargs):
             try:
                 unified_doc = ResearchhubUnifiedDocument.objects.create(
                     document_type=PAPER_DOC_TYPE,
-                    hot_score=instance.calculate_hot_score(),
                     score=instance.score,
                 )
                 unified_doc.hubs.add(*instance.hubs.all())
