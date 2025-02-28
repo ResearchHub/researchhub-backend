@@ -421,7 +421,7 @@ def create_test_user(
     first_name="Test",
     last_name="User",
     email="test@example.com",
-    password="testpass123",
+    password=generate_password(),
 ):
     """Create a test user with the given parameters."""
     return User.objects.create(
