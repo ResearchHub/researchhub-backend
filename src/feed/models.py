@@ -2,6 +2,9 @@ from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
 
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.models import User
 from utils.models import DefaultModel
 
@@ -33,6 +36,15 @@ class FeedEntry(DefaultModel):
     action = models.TextField(choices=action_choices)
     action_date = models.DateTimeField(db_index=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+
+    unified_document = models.ForeignKey(
+        ResearchhubUnifiedDocument,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="feed_entries",
+        db_comment="The unified document associated with the feed entry. Directly added to the feed entry for performance reasons.",
+    )
 
     class Meta:
         indexes = [
