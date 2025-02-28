@@ -20,7 +20,7 @@ def update_purchases():
         if purchase.content_type == PAPER_CONTENT_TYPE:
             paper = PAPER_CONTENT_TYPE.get_object_for_this_type(id=purchase.object_id)
             unified_doc = paper.unified_document
-            unified_doc.calculate_hot_score_v2()
+            unified_doc.calculate_hot_score()
 
 
 @app.task(queue=QUEUE_NOTIFICATION)

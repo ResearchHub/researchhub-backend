@@ -155,7 +155,9 @@ class ResearchhubPost(AbstractGenericReactionModel):
 
     @property
     def hot_score(self):
-        return self.unified_document.hot_score_v2
+        if not hasattr(self, "unified_document") or self.unified_document is None:
+            return 0
+        return self.unified_document.hot_score
 
     @property
     def hubs_indexing(self):
@@ -178,7 +180,7 @@ class ResearchhubPost(AbstractGenericReactionModel):
 
     @property
     def hot_score_indexing(self):
-        return self.unified_document.hot_score_v2
+        return self.unified_document.hot_score
 
     @property
     def authors_indexing(self):

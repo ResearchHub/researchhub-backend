@@ -78,7 +78,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def recommendations(self, request, *args, **kwargs):
-        qs = self.get_queryset().order_by("-hot_score_v2")[:20]
+        qs = self.get_queryset().order_by("-hot_score")[:20]
         page = self.paginate_queryset(qs)
         context = self._get_serializer_context()
         serializer = self.dynamic_serializer_class(
@@ -89,7 +89,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "documents",
                 "document_filter",
                 "document_type",
-                "hot_score_v2",
+                "hot_score",
                 "hubs",
                 "reviews",
                 "score",
@@ -164,7 +164,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "discussion_count",
                     "file",
                     "first_preview",
-                    "hot_score_v2",
+                    "hot_score",
                     "id",
                     "external_source",
                     "paper_publish_date",
@@ -284,7 +284,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "documents",
             "document_filter",
             "document_type",
-            "hot_score_v2",
+            "hot_score",
             "hubs",
             "reviews",
             "score",
@@ -371,7 +371,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "documents",
                 "document_filter",
                 "document_type",
-                "hot_score_v2",
+                "hot_score",
                 "hubs",
                 "reviews",
                 "score",
@@ -401,7 +401,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "created_date",
                 "documents",
                 "document_type",
-                "hot_score_v2",
+                "hot_score",
                 "hubs",
                 "reviews",
                 "score",

@@ -55,7 +55,7 @@ def recalc_hot_score_task(instance_content_type_id, instance_id):
             uni_doc = model_class.objects.get(id=instance_id).source
 
         if uni_doc:
-            uni_doc.calculate_hot_score_v2(should_save=True)
+            uni_doc.calculate_hot_score(should_save=True)
     except Exception as error:
         sentry.log_error(error)
 
@@ -130,7 +130,7 @@ def preload_trending_documents(
             "documents",
             "document_filter",
             "document_type",
-            "hot_score_v2",
+            "hot_score",
             "hubs",
             "reviews",
             "score",

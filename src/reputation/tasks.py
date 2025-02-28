@@ -434,4 +434,4 @@ def recalc_hot_score_for_open_bounties():
     open_bounties = Bounty.objects.filter(status=Bounty.OPEN)
 
     for bounty in open_bounties:
-        bounty.unified_document.calculate_hot_score_v2(should_save=True)
+        bounty.unified_document.calculate_hot_score(should_save=True)

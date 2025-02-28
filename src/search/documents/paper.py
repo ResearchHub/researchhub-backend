@@ -142,10 +142,10 @@ class PaperDocument(BaseDocument):
 
         # Assign weight based on how "hot" the paper is
         weight = 1
-        if instance.unified_document.hot_score_v2 > 0:
+        if instance.unified_document.hot_score > 0:
             # Scale down the hot score from 1 - 100 to avoid a huge range
             # of values that could result in bad suggestions
-            weight = int(math.log(instance.unified_document.hot_score_v2, 10) * 10)
+            weight = int(math.log(instance.unified_document.hot_score, 10) * 10)
 
         deduped = list(set(phrases))
         strings_only = [phrase for phrase in deduped if isinstance(phrase, str)]
@@ -176,7 +176,7 @@ class PaperDocument(BaseDocument):
 
     def prepare_hot_score(self, instance):
         if instance.unified_document:
-            return instance.unified_document.hot_score_v2
+            return instance.unified_document.hot_score
         return 0
 
     def prepare_authors(self, instance):

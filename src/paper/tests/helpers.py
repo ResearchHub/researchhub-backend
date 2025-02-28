@@ -39,7 +39,7 @@ def create_paper(
     paper.unified_document = unified_doc
     paper.save()
 
-    unified_doc.calculate_hot_score_v2(should_save=True)
+    unified_doc.calculate_hot_score(should_save=True)
     return paper
 
 

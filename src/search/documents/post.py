@@ -90,12 +90,12 @@ class PostDocument(BaseDocument):
         except Exception:
             pass
 
-        # Assign weight based on how "hot" the paper is
+        # Assign weight based on how "hot" the post is
         weight = 1
-        if instance.unified_document.hot_score_v2 > 0:
+        if instance.unified_document.hot_score > 0:
             # Scale down the hot score from 1 - 100 to avoid a huge range
             # of values that could result in bad suggestions
-            weight = int(math.log(instance.unified_document.hot_score_v2, 10) * 10)
+            weight = int(math.log(instance.unified_document.hot_score, 10) * 10)
 
         return {
             "input": list(set(phrases)),  # Dedupe using set
