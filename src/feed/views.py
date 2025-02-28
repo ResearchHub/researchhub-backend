@@ -52,16 +52,17 @@ class FeedViewSet(viewsets.ModelViewSet):
             # The serializer needs to access the `_prefetched_*` fields to
             # serialize the related models.
             .prefetch_related(
+                "unified_document__hubs",
                 Prefetch(
                     "item",
-                    Bounty.objects.prefetch_related(
+                    Bounty.objects.select_related("unified_document").prefetch_related(
                         "unified_document__hubs",
                     ),
                     to_attr="_prefetched_bounty",
                 ),
                 Prefetch(
                     "item",
-                    Paper.objects.prefetch_related(
+                    Paper.objects.select_related("unified_document").prefetch_related(
                         "unified_document__hubs",
                         "authors",
                         "authors__user",
@@ -70,7 +71,9 @@ class FeedViewSet(viewsets.ModelViewSet):
                 ),
                 Prefetch(
                     "item",
-                    ResearchhubPost.objects.prefetch_related(
+                    ResearchhubPost.objects.select_related(
+                        "unified_document"
+                    ).prefetch_related(
                         "unified_document__hubs",
                     ),
                     to_attr="_prefetched_post",
