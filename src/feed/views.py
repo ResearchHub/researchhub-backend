@@ -99,6 +99,13 @@ class FeedViewSet(viewsets.ModelViewSet):
                     parent_object_id__in=following.values("object_id"),
                 )
 
+        # Set ordering based on feed_view
+        order_by_hot_score = False
+        if feed_view == "popular":
+            # Filter out entries without a unified_document
+            queryset = queryset.filter(unified_document__isnull=False)
+            order_by_hot_score = True
+
         # Apply hub filter if hub_id is provided
         if hub_slug:
             from hub.models import Hub
@@ -133,7 +140,11 @@ class FeedViewSet(viewsets.ModelViewSet):
                 )
             )
             .filter(row_number=1)
-            .order_by("-action_date")
+            .order_by(
+                "-unified_document__hot_score_v2"
+                if order_by_hot_score
+                else "-action_date"
+            )
         )
 
         return queryset
