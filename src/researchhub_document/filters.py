@@ -256,7 +256,7 @@ class UnifiedDocumentFilter(filters.FilterSet):
             qs = qs.filter(created_date__range=(start_date, end_date))
             ordering.append("-created_date")
         elif value == HOT:
-            ordering.append("-hot_score_v2")
+            ordering.append("-hot_score")
         elif value == DISCUSSED:
             key = f"document_filter__discussed_{time_scope}"
             if time_scope != "all":

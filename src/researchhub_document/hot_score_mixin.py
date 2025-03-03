@@ -4,7 +4,6 @@ import math
 from django.db.models import Q
 
 from reputation.related_models.bounty import Bounty
-from researchhub_document.related_models.constants.document_type import PAPER
 
 
 class HotScoreMixin:
@@ -27,7 +26,6 @@ class HotScoreMixin:
 
     def _get_time_score(self, date):
         num_seconds_in_half_day = 43000
-        num_seconds_in_one_day = 86000
 
         input_date = date.replace(tzinfo=None)
         epoch_date = datetime.datetime(2020, 1, 1)
@@ -58,7 +56,7 @@ class HotScoreMixin:
         total_bounty_score = 0
 
         try:
-            bounty_promo_period = three_days_in_seconds = 259200
+            bounty_promo_period = 259200
             open_bounties = Bounty.objects.filter(
                 unified_document_id=self.id, status=Bounty.OPEN
             )
@@ -114,7 +112,7 @@ class HotScoreMixin:
     # add them to some time score elapsed since the epoch. The signals should be
     # somewhat comparable to the time score. To do that, we pass these signals through
     # log functions so that scores don't grow out of control.
-    def calculate_hot_score_v2(self, should_save=False):
+    def calculate_hot_score(self, should_save=False):
         MIN_REQ_DISCUSSIONS = 1
         hot_score = 0
         doc = self.get_document()
@@ -168,7 +166,7 @@ class HotScoreMixin:
         }
 
         if should_save:
-            self.hot_score_v2 = hot_score
+            self.hot_score = hot_score
             self.save()
 
         return (hot_score, debug_obj)

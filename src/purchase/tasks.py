@@ -11,15 +11,10 @@ from utils.message import send_email_message
 
 @app.task
 def update_purchases():
-    PAPER_CONTENT_TYPE = ContentType.objects.get(app_label="paper", model="paper")
     purchases = Purchase.objects.filter(boost_time__gt=0)
     for purchase in purchases:
         purchase.boost_time = purchase.get_boost_time()
         purchase.save()
-
-        if purchase.content_type == PAPER_CONTENT_TYPE:
-            paper = PAPER_CONTENT_TYPE.get_object_for_this_type(id=purchase.object_id)
-            paper.calculate_hot_score()
 
 
 @app.task(queue=QUEUE_NOTIFICATION)

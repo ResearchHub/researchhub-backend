@@ -38,10 +38,6 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
         help_text="Another feed ranking score.",
     )
     hot_score = models.IntegerField(
-        default=0,
-        help_text="Feed ranking score.",
-    )
-    hot_score_v2 = models.IntegerField(
         default=0, help_text="Feed ranking score.", db_index=True
     )
     permissions = GenericRelation(
@@ -86,7 +82,7 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
                 condition=~Q(document_type=NOTE),
             ),
             models.Index(
-                fields=["document_type", "-hot_score_v2"], name="doc_type_hot_score_idx"
+                fields=["document_type", "-hot_score"], name="doc_type_hot_score_idx"
             ),
             models.Index(
                 fields=("document_type",),
@@ -99,18 +95,18 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
                 fields=[
                     "is_removed",
                     "document_type",
-                    "hot_score_v2",
+                    "hot_score",
                     "document_filter",
                 ],
                 name="idx_paper_filter_sort",
                 condition=Q(document_type="PAPER"),
             ),
             models.Index(
-                fields=["hot_score_v2"],
-                name="idx_unified_doc_hot_score_v2",
+                fields=["hot_score"],
+                name="idx_unified_doc_hot_score",
             ),
             models.Index(
-                fields=["is_removed", "document_type", "hot_score_v2"],
+                fields=["is_removed", "document_type", "hot_score"],
                 name="idx_document_type_hot_score",
             ),
             models.Index(fields=["document_type"], name="idx_document_type"),
@@ -242,7 +238,7 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
         try:
             for post in self.posts.all():
                 update_elastic_registry.apply_async(post)
-        except:
+        except Exception:
             pass
 
 

@@ -34,11 +34,11 @@ def create_paper(
     )
     unified_doc = ResearchhubUnifiedDocument.objects.create(
         document_type=PAPER_DOC_TYPE,
-        hot_score=paper.calculate_hot_score(),
         score=paper.score,
     )
     paper.unified_document = unified_doc
     paper.save()
+
     return paper
 
 
