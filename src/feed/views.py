@@ -1,5 +1,5 @@
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import F, Prefetch, Window
+from django.db.models import F, OuterRef, Prefetch, Subquery, Window
 from django.db.models.functions import RowNumber
 from rest_framework import status, viewsets
 from rest_framework.pagination import PageNumberPagination
@@ -9,6 +9,9 @@ from paper.related_models.paper_model import Paper
 from reputation.related_models.bounty import Bounty
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.related_models.researchhub_unified_document import (
+    ResearchhubUnifiedDocument,
+)
 
 from .models import FeedEntry
 from .serializers import FeedEntrySerializer
@@ -99,13 +102,53 @@ class FeedViewSet(viewsets.ModelViewSet):
                     parent_object_id__in=following.values("object_id"),
                 )
 
-        # Set ordering based on feed_view
-        order_by_hot_score = False
+        # Handle different feed view types
         if feed_view == "popular":
-            # Filter out entries without a unified_document
-            queryset = queryset.filter(unified_document__isnull=False)
-            order_by_hot_score = True
+            # For popular feed, we can optimize by:
+            # 1. First getting the top unified documents by hot_score (using the index)
+            # 2. Then joining with feed entries
+            # This approach leverages the hot_score index and reduces join complexity
+            # Get top unified documents ordered by hot_score
+            top_unified_docs = ResearchhubUnifiedDocument.objects.filter(
+                is_removed=False
+            ).order_by("-hot_score")
 
+            # Apply any additional filters to the unified documents if needed
+            if hub_slug:
+                from hub.models import Hub
+
+                hub = Hub.objects.get(slug=hub_slug)
+                if not hub:
+                    return Response(
+                        {"error": "Hub not found"}, status=status.HTTP_404_NOT_FOUND
+                    )
+                top_unified_docs = top_unified_docs.filter(hubs=hub)
+
+            # For each unified document, get the latest feed entry
+            latest_entries = FeedEntry.objects.filter(
+                unified_document=OuterRef("pk")
+            ).order_by("-action_date")
+
+            # Annotate with the latest feed entry ID
+            top_unified_docs = top_unified_docs.annotate(
+                latest_feed_entry_id=Subquery(latest_entries.values("id")[:1])
+            ).filter(latest_feed_entry_id__isnull=False)
+
+            # Now get the feed entries for these top documents
+            queryset = queryset.filter(
+                id__in=Subquery(top_unified_docs.values("latest_feed_entry_id")),
+                unified_document__isnull=False,
+            ).order_by("-unified_document__hot_score")
+
+            # Apply additional filters if needed
+            if action:
+                queryset = queryset.filter(action=action)
+            if content_type:
+                queryset = queryset.filter(content_type__model=content_type)
+
+            return queryset
+
+        # For other feed views (latest, following with hub filter)
         # Apply hub filter if hub_id is provided
         if hub_slug:
             from hub.models import Hub
@@ -140,11 +183,7 @@ class FeedViewSet(viewsets.ModelViewSet):
                 )
             )
             .filter(row_number=1)
-            .order_by(
-                "-unified_document__hot_score_v2"
-                if order_by_hot_score
-                else "-action_date"
-            )
+            .order_by("-action_date")
         )
 
         return queryset
