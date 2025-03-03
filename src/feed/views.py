@@ -8,10 +8,7 @@ from rest_framework.response import Response
 from paper.related_models.paper_model import Paper
 from reputation.related_models.bounty import Bounty
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
-from researchhub_document.related_models.researchhub_unified_document import (
-    ResearchhubUnifiedDocument,
-)
+from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 
 from .models import FeedEntry
 from .serializers import FeedEntrySerializer
