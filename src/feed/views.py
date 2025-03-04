@@ -98,12 +98,7 @@ class FeedViewSet(viewsets.ModelViewSet):
                     parent_object_id__in=following.values("object_id"),
                 )
 
-        # Handle different feed view types
         if feed_view == "popular":
-            # For popular feed, we can optimize by directly querying unified documents
-            # ordered by hot_score and then joining with feed entries
-            # This approach leverages the hot_score index
-
             top_unified_docs = ResearchhubUnifiedDocument.objects.filter(
                 is_removed=False
             ).order_by("-hot_score")
@@ -131,7 +126,6 @@ class FeedViewSet(viewsets.ModelViewSet):
                 .values_list("latest_id", flat=True)
             )
 
-            # Filter the queryset to include only these latest entries
             queryset = queryset.filter(
                 id__in=Subquery(latest_entries_subquery), unified_document__isnull=False
             ).order_by("-unified_document__hot_score")
