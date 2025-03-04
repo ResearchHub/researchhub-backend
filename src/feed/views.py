@@ -1,14 +1,16 @@
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import F, Prefetch, Window
+from django.db import models
+from django.db.models import F, Prefetch, Subquery, Window
 from django.db.models.functions import RowNumber
 from rest_framework import status, viewsets
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
+from hub.models import Hub
 from paper.related_models.paper_model import Paper
 from reputation.related_models.bounty import Bounty
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 
 from .models import FeedEntry
 from .serializers import FeedEntrySerializer
@@ -33,8 +35,6 @@ class FeedViewSet(viewsets.ModelViewSet):
         contains only the most recent entry per (content_type, object_id),
         ordered globally by the most recent action_date.
         """
-        action = self.request.query_params.get("action")
-        content_type = self.request.query_params.get("content_type")
         feed_view = self.request.query_params.get("feed_view", "latest")
         hub_slug = self.request.query_params.get("hub_slug")
 
@@ -99,12 +99,46 @@ class FeedViewSet(viewsets.ModelViewSet):
                     parent_object_id__in=following.values("object_id"),
                 )
 
+        if feed_view == "popular":
+            top_unified_docs = ResearchhubUnifiedDocument.objects.filter(
+                is_removed=False
+            ).order_by("-hot_score")
+
+            # Apply any additional filters
+            if hub_slug:
+                try:
+                    hub = Hub.objects.get(slug=hub_slug)
+                except Hub.DoesNotExist:
+                    return Response(
+                        {"error": "Hub not found"}, status=status.HTTP_404_NOT_FOUND
+                    )
+
+                top_unified_docs = top_unified_docs.filter(hubs=hub)
+
+            # Since there can be multiple feed entries per unified document,
+            # we need to select the most recent entry for each document
+            # Get the IDs of the most recent feed entry for each unified document
+            latest_entries_subquery = (
+                FeedEntry.objects.filter(unified_document__in=top_unified_docs)
+                .values("unified_document")
+                .annotate(
+                    latest_id=models.Max("id"), latest_date=models.Max("action_date")
+                )
+                .values_list("latest_id", flat=True)
+            )
+
+            queryset = queryset.filter(
+                id__in=Subquery(latest_entries_subquery), unified_document__isnull=False
+            ).order_by("-unified_document__hot_score")
+
+            return queryset
+
+        # For other feed views (latest, following with hub filter)
         # Apply hub filter if hub_id is provided
         if hub_slug:
-            from hub.models import Hub
-
-            hub = Hub.objects.get(slug=hub_slug)
-            if not hub:
+            try:
+                hub = Hub.objects.get(slug=hub_slug)
+            except Hub.DoesNotExist:
                 return Response(
                     {"error": "Hub not found"}, status=status.HTTP_404_NOT_FOUND
                 )
@@ -113,12 +147,6 @@ class FeedViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(
                 parent_content_type=hub_content_type, parent_object_id=hub.id
             )
-
-        # Apply additional filters.
-        if action:
-            queryset = queryset.filter(action=action)
-        if content_type:
-            queryset = queryset.filter(content_type__model=content_type)
 
         # Use a window function to partition by 'content_type' and 'object_id',
         # ordering each partition by action_date in descending order.

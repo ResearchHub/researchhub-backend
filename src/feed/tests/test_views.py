@@ -191,3 +191,208 @@ class FeedViewSetTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # Should see all content since user has no follows
         self.assertEqual(len(response.data["results"]), 2)
+
+    def test_popular_feed_view(self):
+        """Test that popular feed view sorts by unified_document.hot_score"""
+        high_score_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER", hot_score=100
+        )
+        medium_score_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER", hot_score=50
+        )
+        low_score_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER", hot_score=10
+        )
+
+        high_score_paper = Paper.objects.create(
+            title="High Score Paper",
+            paper_publish_date=timezone.now(),
+            unified_document=high_score_doc,
+        )
+        medium_score_paper = Paper.objects.create(
+            title="Medium Score Paper",
+            paper_publish_date=timezone.now(),
+            unified_document=medium_score_doc,
+        )
+        low_score_paper = Paper.objects.create(
+            title="Low Score Paper",
+            paper_publish_date=timezone.now(),
+            unified_document=low_score_doc,
+        )
+
+        high_score_doc.hubs.add(self.hub)
+        medium_score_doc.hubs.add(self.hub)
+        low_score_doc.hubs.add(self.hub)
+
+        # Create feed entries for each paper
+        FeedEntry.objects.create(
+            user=self.user,
+            action="PUBLISH",
+            action_date=timezone.now(),
+            content_type=self.paper_content_type,
+            object_id=high_score_paper.id,
+            parent_content_type=self.hub_content_type,
+            parent_object_id=self.hub.id,
+            unified_document=high_score_doc,
+        )
+        FeedEntry.objects.create(
+            user=self.user,
+            action="PUBLISH",
+            action_date=timezone.now(),
+            content_type=self.paper_content_type,
+            object_id=medium_score_paper.id,
+            parent_content_type=self.hub_content_type,
+            parent_object_id=self.hub.id,
+            unified_document=medium_score_doc,
+        )
+        FeedEntry.objects.create(
+            user=self.user,
+            action="PUBLISH",
+            action_date=timezone.now(),
+            content_type=self.paper_content_type,
+            object_id=low_score_paper.id,
+            parent_content_type=self.hub_content_type,
+            parent_object_id=self.hub.id,
+            unified_document=low_score_doc,
+        )
+
+        url = reverse("feed-list")
+        response = self.client.get(url, {"feed_view": "popular"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        results = response.data["results"]
+        self.assertEqual(len(results), 5)
+
+        content_object_ids = [result["content_object"]["id"] for result in results]
+
+        self.assertEqual(content_object_ids[0], high_score_paper.id)
+        self.assertEqual(content_object_ids[1], medium_score_paper.id)
+        self.assertEqual(content_object_ids[2], low_score_paper.id)
+
+    def test_popular_feed_view_with_multiple_entries(self):
+        """Test that popular feed view handles multiple entries per document correctly"""
+        # Create a paper with high hot score
+        high_score_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER", hot_score=100
+        )
+        high_score_paper = Paper.objects.create(
+            title="High Score Paper",
+            paper_publish_date=timezone.now(),
+            unified_document=high_score_doc,
+        )
+
+        high_score_doc.hubs.add(self.hub)
+
+        user2 = User.objects.create_user(
+            username="testuser2", email="test2@example.com", password="password123"
+        )
+        user3 = User.objects.create_user(
+            username="testuser3", email="test3@example.com", password="password123"
+        )
+
+        FeedEntry.objects.create(
+            user=user2,
+            action="PUBLISH",
+            action_date=timezone.now() - timezone.timedelta(days=10),
+            content_type=self.paper_content_type,
+            object_id=high_score_paper.id,
+            parent_content_type=self.hub_content_type,
+            parent_object_id=self.hub.id,
+            unified_document=high_score_doc,
+        )
+
+        FeedEntry.objects.create(
+            user=user3,
+            action="PUBLISH",
+            action_date=timezone.now() - timezone.timedelta(days=5),
+            content_type=self.paper_content_type,
+            object_id=high_score_paper.id,
+            parent_content_type=self.hub_content_type,
+            parent_object_id=self.hub.id,
+            unified_document=high_score_doc,
+        )
+
+        # Create the most recent entry
+        FeedEntry.objects.create(
+            user=self.user,
+            action="PUBLISH",
+            action_date=timezone.now(),
+            content_type=self.paper_content_type,
+            object_id=high_score_paper.id,
+            parent_content_type=self.hub_content_type,
+            parent_object_id=self.hub.id,
+            unified_document=high_score_doc,
+        )
+
+        url = reverse("feed-list")
+        response = self.client.get(url, {"feed_view": "popular"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        results = response.data["results"]
+        content_object_ids = [result["content_object"]["id"] for result in results]
+
+        high_score_paper_count = content_object_ids.count(high_score_paper.id)
+        self.assertEqual(
+            high_score_paper_count,
+            1,
+            f"Expected 1 entry for high score paper, got {high_score_paper_count}",
+        )
+
+        self.assertIn(
+            high_score_paper.id,
+            content_object_ids,
+            f"High score paper not found in results: {content_object_ids}",
+        )
+
+    def test_popular_feed_view_with_hub_filter(self):
+        """Test that popular feed view works with hub filter"""
+        high_score_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER", hot_score=100
+        )
+
+        another_hub = Hub.objects.create(name="Another Hub")
+
+        high_score_paper = Paper.objects.create(
+            title="High Score Paper",
+            paper_publish_date=timezone.now(),
+            unified_document=high_score_doc,
+        )
+
+        high_score_doc.hubs.add(another_hub)
+
+        FeedEntry.objects.create(
+            user=self.user,
+            action="PUBLISH",
+            action_date=timezone.now(),
+            content_type=self.paper_content_type,
+            object_id=high_score_paper.id,
+            parent_content_type=self.hub_content_type,
+            parent_object_id=another_hub.id,
+            unified_document=high_score_doc,
+        )
+
+        url = reverse("feed-list")
+        response = self.client.get(
+            url, {"feed_view": "popular", "hub_slug": self.hub.slug}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should not include the high_score_paper since it's not in self.hub
+        results = response.data["results"]
+        content_object_ids = [result["content_object"]["id"] for result in results]
+        self.assertNotIn(high_score_paper.id, content_object_ids)
+
+        # Test with the new hub filter
+        response = self.client.get(
+            url, {"feed_view": "popular", "hub_slug": another_hub.slug}
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should include the high_score_paper since it's in another_hub
+        results = response.data["results"]
+        content_object_ids = [result["content_object"]["id"] for result in results]
+        self.assertIn(high_score_paper.id, content_object_ids)
