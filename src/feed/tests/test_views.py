@@ -262,7 +262,7 @@ class FeedViewSetTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         results = response.data["results"]
-        self.assertEqual(len(results), 3)
+        self.assertEqual(len(results), 5)
 
         content_object_ids = [result["content_object"]["id"] for result in results]
 
