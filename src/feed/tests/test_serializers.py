@@ -290,6 +290,7 @@ class FeedEntrySerializerTests(TestCase):
             action="PUBLISH",
             action_date=paper.paper_publish_date,
             user=self.user,
+            unified_document=paper.unified_document,
         )
 
         serializer = FeedEntrySerializer(feed_entry)

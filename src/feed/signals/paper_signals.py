@@ -4,7 +4,6 @@ from django.dispatch import receiver
 
 from feed.tasks import create_feed_entry, delete_feed_entry
 from hub.models import Hub
-from paper.models import Paper
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )

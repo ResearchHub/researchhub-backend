@@ -56,6 +56,7 @@ class FeedViewSetTests(TestCase):
             object_id=self.paper.id,
             parent_content_type=self.hub_content_type,
             parent_object_id=self.hub.id,
+            unified_document=self.paper.unified_document,
         )
 
         # Create another user and their content for testing
@@ -78,6 +79,7 @@ class FeedViewSetTests(TestCase):
             object_id=self.other_paper.id,
             parent_content_type=self.hub_content_type,
             parent_object_id=self.other_hub.id,
+            unified_document=self.other_paper.unified_document,
         )
 
     def test_default_feed_view(self):
@@ -108,6 +110,7 @@ class FeedViewSetTests(TestCase):
                 object_id=paper.id,
                 parent_content_type=self.hub_content_type,
                 parent_object_id=self.hub.id,
+                unified_document=paper.unified_document,
             )
 
         url = reverse("feed-list")
@@ -135,6 +138,7 @@ class FeedViewSetTests(TestCase):
             object_id=paper2.id,
             parent_content_type=self.hub_content_type,
             parent_object_id=self.hub.id,
+            unified_document=paper2.unified_document,
         )
 
         url = reverse("feed-list")

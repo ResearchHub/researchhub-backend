@@ -1,10 +1,14 @@
 import logging
+from typing import Any, Optional
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError
 
 from feed.models import FeedEntry
 from researchhub.celery import app
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
 from user.models import User
 
 logger = logging.getLogger(__name__)
@@ -31,6 +35,8 @@ def create_feed_entry(
     else:
         user = None
 
+    unified_document = _get_unified_document(item, item_content_type)
+
     action_date = item.created_date
     if action == FeedEntry.PUBLISH and item_content_type.model == "paper":
         action_date = item.paper_publish_date
@@ -47,12 +53,33 @@ def create_feed_entry(
             parent_item=parent_item,
             parent_content_type=parent_content_type,
             parent_object_id=parent_item_id,
+            unified_document=unified_document,
         )
     except IntegrityError:
         # Ignore error if feed entry already exists
         logger.warning(
             f"Feed entry already exists for item_id={item_id} content_type={item_content_type.model} parent_item_id={parent_item_id} parent_content_type={parent_content_type.model}"
         )
+
+
+def _get_unified_document(
+    item: Any, item_content_type: ContentType
+) -> Optional[ResearchhubUnifiedDocument]:
+    """
+    Extract unified document from different content types.
+
+    Returns:
+        ResearchhubUnifiedDocument or None if item type isnot supported.
+    """
+    match item_content_type.model:
+        case "bounty" | "paper" | "researchhubpost":
+            doc = item.unified_document
+        case "rhcommentmodel":
+            doc = item.thread.unified_document
+        case _:
+            doc = None
+
+    return doc
 
 
 @app.task
