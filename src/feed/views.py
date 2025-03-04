@@ -6,6 +6,7 @@ from rest_framework import status, viewsets
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
+from hub.models import Hub
 from paper.related_models.paper_model import Paper
 from reputation.related_models.bounty import Bounty
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
@@ -105,13 +106,13 @@ class FeedViewSet(viewsets.ModelViewSet):
 
             # Apply any additional filters
             if hub_slug:
-                from hub.models import Hub
-
-                hub = Hub.objects.get(slug=hub_slug)
-                if not hub:
+                try:
+                    hub = Hub.objects.get(slug=hub_slug)
+                except Hub.DoesNotExist:
                     return Response(
                         {"error": "Hub not found"}, status=status.HTTP_404_NOT_FOUND
                     )
+
                 top_unified_docs = top_unified_docs.filter(hubs=hub)
 
             # Since there can be multiple feed entries per unified document,
@@ -135,10 +136,9 @@ class FeedViewSet(viewsets.ModelViewSet):
         # For other feed views (latest, following with hub filter)
         # Apply hub filter if hub_id is provided
         if hub_slug:
-            from hub.models import Hub
-
-            hub = Hub.objects.get(slug=hub_slug)
-            if not hub:
+            try:
+                hub = Hub.objects.get(slug=hub_slug)
+            except Hub.DoesNotExist:
                 return Response(
                     {"error": "Hub not found"}, status=status.HTTP_404_NOT_FOUND
                 )
