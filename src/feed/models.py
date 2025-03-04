@@ -40,8 +40,9 @@ class FeedEntry(DefaultModel):
     unified_document = models.ForeignKey(
         ResearchhubUnifiedDocument,
         on_delete=models.CASCADE,
-        null=True,
-        blank=True,
+        null=False,
+        blank=False,
+        default=1,  # FIXME(gz): Remove default value once data is migrated!
         related_name="feed_entries",
         db_comment="The unified document associated with the feed entry. Directly added to the feed entry for performance reasons.",
     )
