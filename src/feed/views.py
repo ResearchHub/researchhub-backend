@@ -1,5 +1,6 @@
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import F, OuterRef, Prefetch, Subquery, Window
+from django.db import models
+from django.db.models import F, Prefetch, Subquery, Window
 from django.db.models.functions import RowNumber
 from rest_framework import status, viewsets
 from rest_framework.pagination import PageNumberPagination
@@ -33,8 +34,6 @@ class FeedViewSet(viewsets.ModelViewSet):
         contains only the most recent entry per (content_type, object_id),
         ordered globally by the most recent action_date.
         """
-        action = self.request.query_params.get("action")
-        content_type = self.request.query_params.get("content_type")
         feed_view = self.request.query_params.get("feed_view", "latest")
         hub_slug = self.request.query_params.get("hub_slug")
 
@@ -101,16 +100,15 @@ class FeedViewSet(viewsets.ModelViewSet):
 
         # Handle different feed view types
         if feed_view == "popular":
-            # For popular feed, we can optimize by:
-            # 1. First getting the top unified documents by hot_score (using the index)
-            # 2. Then joining with feed entries
-            # This approach leverages the hot_score index and reduces join complexity
-            # Get top unified documents ordered by hot_score
+            # For popular feed, we can optimize by directly querying unified documents
+            # ordered by hot_score and then joining with feed entries
+            # This approach leverages the hot_score index
+
             top_unified_docs = ResearchhubUnifiedDocument.objects.filter(
                 is_removed=False
             ).order_by("-hot_score")
 
-            # Apply any additional filters to the unified documents if needed
+            # Apply any additional filters
             if hub_slug:
                 from hub.models import Hub
 
@@ -121,27 +119,22 @@ class FeedViewSet(viewsets.ModelViewSet):
                     )
                 top_unified_docs = top_unified_docs.filter(hubs=hub)
 
-            # For each unified document, get the latest feed entry
-            latest_entries = FeedEntry.objects.filter(
-                unified_document=OuterRef("pk")
-            ).order_by("-action_date")
+            # Since there can be multiple feed entries per unified document,
+            # we need to select the most recent entry for each document
+            # Get the IDs of the most recent feed entry for each unified document
+            latest_entries_subquery = (
+                FeedEntry.objects.filter(unified_document__in=top_unified_docs)
+                .values("unified_document")
+                .annotate(
+                    latest_id=models.Max("id"), latest_date=models.Max("action_date")
+                )
+                .values_list("latest_id", flat=True)
+            )
 
-            # Annotate with the latest feed entry ID
-            top_unified_docs = top_unified_docs.annotate(
-                latest_feed_entry_id=Subquery(latest_entries.values("id")[:1])
-            ).filter(latest_feed_entry_id__isnull=False)
-
-            # Now get the feed entries for these top documents
+            # Filter the queryset to include only these latest entries
             queryset = queryset.filter(
-                id__in=Subquery(top_unified_docs.values("latest_feed_entry_id")),
-                unified_document__isnull=False,
+                id__in=Subquery(latest_entries_subquery), unified_document__isnull=False
             ).order_by("-unified_document__hot_score")
-
-            # Apply additional filters if needed
-            if action:
-                queryset = queryset.filter(action=action)
-            if content_type:
-                queryset = queryset.filter(content_type__model=content_type)
 
             return queryset
 
@@ -160,12 +153,6 @@ class FeedViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(
                 parent_content_type=hub_content_type, parent_object_id=hub.id
             )
-
-        # Apply additional filters.
-        if action:
-            queryset = queryset.filter(action=action)
-        if content_type:
-            queryset = queryset.filter(content_type__model=content_type)
 
         # Use a window function to partition by 'content_type' and 'object_id',
         # ordering each partition by action_date in descending order.
