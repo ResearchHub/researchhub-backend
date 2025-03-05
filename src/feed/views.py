@@ -1,7 +1,6 @@
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.db.models import F, Prefetch, Subquery, Window
-from django.db.models.functions import RowNumber
+from django.db.models import Prefetch, Subquery
 from rest_framework import status, viewsets
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
@@ -146,20 +145,10 @@ class FeedViewSet(viewsets.ModelViewSet):
                 parent_content_type=hub_content_type, parent_object_id=hub.id
             )
 
-        # Use a window function to partition by 'content_type' and 'object_id',
-        # ordering each partition by action_date in descending order.
-        # The first row (row_number == 1) in each partition will then
-        # be the latest record.
-        queryset = (
-            queryset.annotate(
-                row_number=Window(
-                    expression=RowNumber(),
-                    partition_by=[F("content_type"), F("object_id")],
-                    order_by=F("action_date").desc(),
-                )
-            )
-            .filter(row_number=1)
-            .order_by("-action_date")
-        )
+        sub_qs = queryset.order_by(
+            "content_type_id", "object_id", "-action_date"
+        ).distinct("content_type_id", "object_id")
 
-        return queryset
+        final_qs = queryset.filter(pk__in=sub_qs.values("pk")).order_by("-action_date")
+
+        return final_qs
