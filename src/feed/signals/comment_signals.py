@@ -1,3 +1,5 @@
+from functools import partial
+
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models.signals import post_save
@@ -36,7 +38,8 @@ def _handle_comment_created(comment):
         return
 
     tasks = [
-        create_feed_entry.apply_async(
+        partial(
+            create_feed_entry.apply_async,
             args=(
                 comment.id,
                 ContentType.objects.get_for_model(comment).id,
