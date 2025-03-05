@@ -43,14 +43,14 @@ class FeedViewSet(viewsets.ModelViewSet):
                 "parent_content_type",
                 "user",
                 "user__author_profile",
-                "unified_document",
-                "unified_document__paper",
             )
             # Prefetch related models for supported entities.
             # Must use `to_attr` to avoid shadowing the `item` field.
             # The serializer needs to access the `_prefetched_*` fields to
             # serialize the related models.
             .prefetch_related(
+                "unified_document",
+                "unified_document__paper",
                 "unified_document__hubs",
                 Prefetch(
                     "item",
