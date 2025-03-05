@@ -3,7 +3,7 @@ import json
 import requests
 from django.core.management.base import BaseCommand
 
-from discussion.models import Comment, Thread, Vote
+from discussion.models import Comment, Vote
 from paper.models import Paper
 from purchase.models import Purchase
 from reputation.models import Bounty
@@ -83,36 +83,6 @@ class Command(BaseCommand):
                     "time": int(comment.created_date.timestamp()),
                     "user_properties": user_properties,
                     "insert_id": f"{event_type}_{comment.id}",
-                }
-                events.append(hit)
-        self.forward_amp_event(events)
-
-    def handle_threads(self, threads):
-        print("Threads")
-        count = threads.count()
-        events = []
-        for i, thread in enumerate(threads.iterator()):
-            if (i % 1000 == 0 and i != 0) or (count - 1) == i:
-                self.forward_amp_event(events)
-                events = []
-            else:
-                print(f"{i}/{count}")
-                user = thread.created_by
-                user_id, user_properties = self.get_user_props(user)
-                uni_doc = getattr(thread, "unified_document", None)
-                if not uni_doc:
-                    continue
-
-                if uni_doc.document_type == "PAPER":
-                    event_type = "paper_threads_create"
-                else:
-                    event_type = "post_threads_create"
-                hit = {
-                    "user_id": user_id,
-                    "event_type": event_type,
-                    "time": int(thread.created_date.timestamp()),
-                    "user_properties": user_properties,
-                    "insert_id": f"{event_type}_{thread.id}",
                 }
                 events.append(hit)
         self.forward_amp_event(events)
@@ -205,19 +175,6 @@ class Command(BaseCommand):
                         event_type = f"hypothesis_{vote_type}"
                     elif vote_content_type.model == "researchhubpost":
                         event_type = f"researchhub_post_{vote_type}"
-                    elif vote_content_type.model == "thread":
-                        vote_item = vote.item
-                        if not vote.item:
-                            continue
-                        else:
-                            parent_doc_type = vote_item.unified_document.document_type
-                            if parent_doc_type == "PAPER":
-                                parent_class = "paper"
-                            elif parent_doc_type == "HYPOTHESIS":
-                                parent_class = "hypothesis"
-                            else:
-                                parent_class = "researchhubpost"
-                            event_type = f"{parent_class}_threads_{vote_type}"
                     elif vote_content_type.model == "comment":
                         vote_item = vote.item
                         if not vote.item:
@@ -365,11 +322,9 @@ class Command(BaseCommand):
             created_by__isnull=False, status="CLOSED"
         )
         user = User.objects.all()
-        threads = Thread.objects.filter(created_by__isnull=False)
         comments = Comment.objects.filter(created_by__isnull=False)
         votes = Vote.objects.filter(created_by__isnull=False)
 
-        self.handle_threads(threads)
         self.handle_comments(comments)
         self.handle_papers(papers)
         self.handle_new_flow_papers(new_flow_papers)
