@@ -1,7 +1,7 @@
 from django.db.models import Sum
 from rest_framework.serializers import SerializerMethodField
 
-from discussion.models import Vote
+from discussion.reaction_models import Vote
 from discussion.reaction_serializers import (
     GenericReactionSerializer,
     GenericReactionSerializerMixin,

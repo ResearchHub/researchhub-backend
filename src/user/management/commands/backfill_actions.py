@@ -1,8 +1,8 @@
 from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 
-from discussion.models import Vote as DisVote
-from discussion.models import Vote as GrmVote
+from discussion.reaction_models import Vote as DisVote
+from discussion.reaction_models import Vote as GrmVote
 from user.models import Action
 
 

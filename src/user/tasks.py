@@ -2,7 +2,7 @@ from django.apps import apps
 from django.core.cache import cache
 from django_elasticsearch_dsl.registries import registry
 
-from discussion.models import Vote as GrmVote
+from discussion.reaction_models import Vote as GrmVote
 from paper.models import Paper
 from researchhub.celery import QUEUE_ELASTIC_SEARCH, app
 from researchhub.settings import APP_ENV

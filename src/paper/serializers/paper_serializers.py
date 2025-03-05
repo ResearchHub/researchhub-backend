@@ -12,7 +12,7 @@ from django.http import QueryDict
 import utils.sentry as sentry
 from citation.constants import JOURNAL_ARTICLE
 from discussion.models import Flag as GrmFlag
-from discussion.models import Vote as GrmVote
+from discussion.reaction_models import Vote as GrmVote
 from discussion.reaction_serializers import (
     DynamicVoteSerializer as DynamicGrmVoteSerializer,
 )
