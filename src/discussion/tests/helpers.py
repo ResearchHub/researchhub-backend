@@ -1,6 +1,6 @@
 import json
 
-from discussion.models import Comment, Reply, Thread
+from discussion.models import Comment, Thread
 from discussion.reaction_models import Endorsement, Flag, Vote
 from paper.tests.helpers import create_paper
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
@@ -13,7 +13,6 @@ class TestData:
     thread_title = "Thread Title"
     thread_text = "This is a thread."
     comment_text = "This is a comment."
-    reply_text = "This is a reply."
 
 
 def build_discussion_detail_url(self, discussion_type):
@@ -27,10 +26,6 @@ def build_discussion_detail_url(self, discussion_type):
 
     url += f"comment/{self.comment.id}/"
     if discussion_type == "comment":
-        return url
-
-    url += f"reply/{self.reply.id}/"
-    if discussion_type == "reply":
         return url
 
     return None
@@ -49,21 +44,10 @@ def build_discussion_default_url(self, discussion_type):
     if discussion_type == "comment":
         return url
 
-    url += f"{self.comment.id}/reply/"
-    if discussion_type == "reply":
-        return url
-
     return None
 
 
 def build_comment_data(parent, text):
-    return {
-        "parent": parent,
-        "text": text,
-    }
-
-
-def build_reply_data(parent, text):
     return {
         "parent": parent,
         "text": text,
@@ -85,20 +69,9 @@ def endorse_discussion(item, endorser):
 def create_endorsement(created_by=None, item=None):
     if created_by is None:
         created_by = create_random_default_user("endorser")
-    if item is None:
-        item = create_reply()
     endorsement = Endorsement(created_by=created_by, item=item)
     endorsement.save()
     return endorsement
-
-
-def create_reply(parent=None, created_by=None, text=TestData.reply_text):
-    if parent is None:
-        parent = create_comment()
-    if created_by is None:
-        created_by = create_random_default_user("reply")
-    reply = Reply.objects.create(parent=parent, created_by=created_by, text=text)
-    return reply
 
 
 def create_comment(thread=None, created_by=None, text=TestData.comment_text):
@@ -176,7 +149,7 @@ def flag_discussion(item, flagger):
 def upvote_discussion(item, voter):
     """
     creates a new vote with vote_type upvote for the discussion item (one of
-    comment, reply, thread)
+    comment, thread)
     """
     return create_vote(voter, item, Vote.UPVOTE)
 
@@ -184,7 +157,7 @@ def upvote_discussion(item, voter):
 def downvote_discussion(item, voter):
     """
     creates a new vote with vote_type downvote for the discussion item (one of
-    comment, reply, thread)
+    comment, thread)
     """
     return create_vote(voter, item, Vote.DOWNVOTE)
 

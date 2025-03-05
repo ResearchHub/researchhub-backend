@@ -7,7 +7,7 @@ from django.http.request import HttpRequest, QueryDict
 from django.utils import timezone
 from rest_framework.request import Request
 
-from discussion.models import Comment, Reply, Thread
+from discussion.models import Comment, Thread
 from hub.models import Hub
 from mailing_list.lib import base_email_context
 from mailing_list.models import EmailRecipient, EmailTaskLog, NotificationFrequencies
@@ -241,8 +241,6 @@ def actions_notifications(action_ids, notif_interval=NotificationFrequencies.IMM
                         subscription = r.paper_subscription
                     elif isinstance(item, Comment):
                         subscription = r.comment_subscription
-                    elif isinstance(item, Reply):
-                        subscription = r.reply_subscription
                     else:
                         subscription = r
 

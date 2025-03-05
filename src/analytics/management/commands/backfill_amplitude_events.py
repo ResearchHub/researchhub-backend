@@ -3,7 +3,7 @@ import json
 import requests
 from django.core.management.base import BaseCommand
 
-from discussion.models import Comment, Reply, Thread, Vote
+from discussion.models import Comment, Thread, Vote
 from paper.models import Paper
 from purchase.models import Purchase
 from reputation.models import Bounty
@@ -83,36 +83,6 @@ class Command(BaseCommand):
                     "time": int(comment.created_date.timestamp()),
                     "user_properties": user_properties,
                     "insert_id": f"{event_type}_{comment.id}",
-                }
-                events.append(hit)
-        self.forward_amp_event(events)
-
-    def handle_replies(self, replies):
-        print("Replies")
-        count = replies.count()
-        events = []
-        for i, reply in enumerate(replies.iterator()):
-            if (i % 1000 == 0 and i != 0) or (count - 1) == i:
-                self.forward_amp_event(events)
-                events = []
-            else:
-                print(f"{i}/{count}")
-                user = reply.created_by
-                user_id, user_properties = self.get_user_props(user)
-                uni_doc = getattr(reply, "unified_document", None)
-                if not uni_doc:
-                    continue
-
-                if uni_doc.document_type == "PAPER":
-                    event_type = "paper_thread_comment_replies_create"
-                else:
-                    event_type = "post_thread_comment_replies_create"
-                hit = {
-                    "user_id": user_id,
-                    "event_type": event_type,
-                    "time": int(reply.created_date.timestamp()),
-                    "user_properties": user_properties,
-                    "insert_id": f"{event_type}_{reply.id}",
                 }
                 events.append(hit)
         self.forward_amp_event(events)
@@ -261,21 +231,6 @@ class Command(BaseCommand):
                             else:
                                 parent_class = "researchhubpost"
                             event_type = f"{parent_class}_thread_comments_{vote_type}"
-                    elif vote_content_type.model == "reply":
-                        vote_item = vote.item
-                        if not vote.item:
-                            continue
-                        else:
-                            parent_doc_type = vote_item.unified_document.document_type
-                            if parent_doc_type == "PAPER":
-                                parent_class = "paper"
-                            elif parent_doc_type == "HYPOTHESIS":
-                                parent_class = "hypothesis"
-                            else:
-                                parent_class = "researchhubpost"
-                            event_type = (
-                                f"{parent_class}_thread_comment_replies_{vote_type}"
-                            )
                     else:
                         continue
                 except Exception as e:
@@ -412,12 +367,10 @@ class Command(BaseCommand):
         user = User.objects.all()
         threads = Thread.objects.filter(created_by__isnull=False)
         comments = Comment.objects.filter(created_by__isnull=False)
-        replies = Reply.objects.filter(created_by__isnull=False)
         votes = Vote.objects.filter(created_by__isnull=False)
 
         self.handle_threads(threads)
         self.handle_comments(comments)
-        self.handle_replies(replies)
         self.handle_papers(papers)
         self.handle_new_flow_papers(new_flow_papers)
         self.handle_posts(posts)
