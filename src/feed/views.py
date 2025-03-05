@@ -1,9 +1,6 @@
-from re import I
-
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
-from django.db.models import F, Prefetch, Subquery, Window
-from django.db.models.functions import RowNumber
+from django.db.models import Prefetch, Subquery
 from rest_framework import status, viewsets
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
