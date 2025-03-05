@@ -42,7 +42,6 @@ class FeedEntry(DefaultModel):
         on_delete=models.CASCADE,
         null=False,
         blank=False,
-        default=1,  # FIXME(gz): Remove default value once data is migrated!
         related_name="feed_entries",
         db_comment="The unified document associated with the feed entry. Directly added to the feed entry for performance reasons.",
     )
