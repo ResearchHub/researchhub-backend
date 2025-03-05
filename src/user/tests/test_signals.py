@@ -1,8 +1,8 @@
 from django.test import TestCase
 
-from discussion.tests.helpers import create_rh_comment
 from hub.tests.helpers import create_hub
 from paper.tests.helpers import create_paper
+from researchhub_comment.tests.helpers import create_rh_comment
 from user.tests.helpers import create_random_default_user
 
 

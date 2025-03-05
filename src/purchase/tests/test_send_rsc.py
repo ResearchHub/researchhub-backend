@@ -2,10 +2,10 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from rest_framework.test import APITestCase
 
-from discussion.tests.helpers import create_rh_comment
 from paper.tests.helpers import create_paper
 from purchase.models import Balance
 from reputation.models import BountyFee, Escrow, SupportFee
+from researchhub_comment.tests.helpers import create_rh_comment
 from researchhub_document.helpers import create_post
 from user.related_models.gatekeeper_model import Gatekeeper
 from user.tests.helpers import (

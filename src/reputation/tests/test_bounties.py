@@ -4,13 +4,13 @@ from datetime import datetime
 
 from rest_framework.test import APITestCase
 
-from discussion.tests.helpers import create_rh_comment
 from hub.models import Hub
 from hub.tests.helpers import create_hub
 from paper.tests.helpers import create_paper
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.models import Bounty, BountyFee
+from researchhub_comment.tests.helpers import create_rh_comment
 from user.models import User
 from user.tests.helpers import create_moderator, create_random_default_user, create_user
 
