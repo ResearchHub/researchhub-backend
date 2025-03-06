@@ -455,10 +455,6 @@ class Paper(AbstractGenericReactionModel):
         return users
 
     @property
-    def children(self):
-        return self.threads.all()
-
-    @property
     def raw_authors_indexing(self):
         authors = []
         if isinstance(self.raw_authors, list) is False:
@@ -540,11 +536,6 @@ class Paper(AbstractGenericReactionModel):
 
     def get_hub_names(self):
         return ",".join(self.hubs.values_list("name", flat=True))
-
-    def get_accepted_answer(self):
-        return self.threads.filter(
-            is_accepted_answer=True, discussion_post_type="ANSWER"
-        ).first()
 
     def get_promoted_score(paper):
         purchases = paper.purchases.filter(
