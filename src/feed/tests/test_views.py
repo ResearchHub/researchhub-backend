@@ -9,6 +9,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from feed.models import FeedEntry
+from feed.views import FeedViewSet
 from hub.models import Hub
 from paper.models import Paper
 from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -396,3 +397,24 @@ class FeedViewSetTests(TestCase):
         results = response.data["results"]
         content_object_ids = [result["content_object"]["id"] for result in results]
         self.assertIn(high_score_paper.id, content_object_ids)
+
+    def test_get_cache_key_popular(self):
+        # Act
+        cache_key = FeedViewSet._get_cache_key("popular", self.hub.slug, self.user.id)
+
+        # Assert
+        self.assertEqual(cache_key, f"feed:popular:{self.hub.slug}")
+
+    def test_get_cache_key_following(self):
+        # Act
+        cache_key = FeedViewSet._get_cache_key("following", self.hub.slug, self.user.id)
+
+        # Assert
+        self.assertEqual(cache_key, f"feed:following:{self.hub.slug}:{self.user.id}")
+
+    def test_get_cache_key_anonymous(self):
+        # Act
+        cache_key = FeedViewSet._get_cache_key("following", self.hub.slug, None)
+
+        # Assert
+        self.assertEqual(cache_key, f"feed:following:{self.hub.slug}:anonymous")

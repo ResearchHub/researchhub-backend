@@ -1,3 +1,5 @@
+from typing import Optional
+
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db import models
@@ -39,7 +41,7 @@ class FeedViewSet(viewsets.ModelViewSet):
         hub_slug = self.request.query_params.get("hub_slug")
         user_id = self.request.user.id
 
-        cache_key = f"feed:{feed_view}:{hub_slug or 'all'}:{user_id or 'anonymous'}"
+        cache_key = self._get_cache_key(feed_view, hub_slug, user_id)
         cached_queryset = cache.get(cache_key)
         if cached_queryset:
             return cached_queryset
@@ -161,3 +163,13 @@ class FeedViewSet(viewsets.ModelViewSet):
         cache.set(cache_key, final_qs, timeout=60 * 5)
 
         return final_qs
+
+    @staticmethod
+    def _get_cache_key(
+        feed_view: str,
+        hub_slug: Optional[str],
+        user_id: Optional[str],
+    ) -> str:
+        hub_part = hub_slug or "all"
+        user_part = "" if feed_view == "popular" else f":{user_id or 'anonymous'}"
+        return f"feed:{feed_view}:{hub_part}{user_part}"
