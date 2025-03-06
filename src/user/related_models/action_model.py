@@ -6,7 +6,6 @@ from django.db.models import DecimalField, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
-from discussion.models import Comment
 from hub.models import Hub
 from paper.models import Paper, PaperSubmission
 from reputation.models import Bounty, Withdrawal
@@ -77,8 +76,6 @@ class Action(DefaultModel):
                 verb = "replied to"
             else:
                 verb = "commented on"
-        elif act.content_type_name == "comment":
-            verb = "commented on"
         elif act.content_type_name == "summary":
             verb = "edited"
         elif act.content_type_name == "researchhub post":
@@ -166,16 +163,13 @@ class Action(DefaultModel):
         summary = ""
         try:
             item = self.item
-            if isinstance(item, (Comment)):
-                summary = item.plain_text
-            else:
-                doc_type = item.unified_document.document_type
-                if doc_type == "DISCUSSION":
-                    summary = item.renderable_text
-                elif doc_type == "PAPER":
-                    summary = item.abstract
-                elif doc_type == "QUESTION":
-                    summary = item.renderable_text
+            doc_type = item.unified_document.document_type
+            if doc_type == "DISCUSSION":
+                summary = item.renderable_text
+            elif doc_type == "PAPER":
+                summary = item.abstract
+            elif doc_type == "QUESTION":
+                summary = item.renderable_text
         except Exception as e:
             return ""
 
@@ -214,17 +208,6 @@ class Action(DefaultModel):
                 link += "/post/{}/{}#comments".format(doc.id, doc.slug)
             else:
                 link += "/paper/{}/{}#comments".format(doc.id, doc.slug)
-        elif isinstance(item, Comment) or isinstance(item, RhCommentModel):
-            doc_type = self.item.unified_document.document_type
-            if (
-                doc_type == "DISCUSSION"
-                or doc_type == "QUESTION"
-                or doc_type == "BOUNTY"
-            ):
-                link += "/post/{}/{}#comments".format(item.post.id, item.post.slug)
-            else:
-                link += "/paper/{}/{}#comments".format(item.paper.id, item.paper.slug)
-
         elif isinstance(item, ResearchhubPost):
             link += "/post/{}/{}".format(item.id, item.title)
         elif isinstance(item, Withdrawal):

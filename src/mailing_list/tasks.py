@@ -7,7 +7,6 @@ from django.http.request import HttpRequest, QueryDict
 from django.utils import timezone
 from rest_framework.request import Request
 
-from discussion.models import Comment
 from hub.models import Hub
 from mailing_list.lib import base_email_context
 from mailing_list.models import EmailRecipient, EmailTaskLog, NotificationFrequencies
@@ -235,10 +234,7 @@ def actions_notifications(action_ids, notif_interval=NotificationFrequencies.IMM
             for user in set(item.users_to_notify):
                 try:
                     r = user.emailrecipient
-                    if isinstance(item, Comment):
-                        subscription = r.comment_subscription
-                    else:
-                        subscription = r
+                    subscription = r
 
                     if r.receives_notifications and not subscription.none:
                         if user_to_action.get(r):
