@@ -56,7 +56,6 @@ class DynamicRhCommentSerializer(
     children = SerializerMethodField()
     purchases = SerializerMethodField()
     bounties = SerializerMethodField()
-    bounty_solutions = SerializerMethodField()
     user_vote = SerializerMethodField()
     review = SerializerMethodField()
     parent = SerializerMethodField()
@@ -158,16 +157,6 @@ class DynamicRhCommentSerializer(
         _context_fields = context.get("rhc_dcs_get_bounties", {})
         serializer = DynamicBountySerializer(
             comment.bounties.all(), many=True, context=context, **_context_fields
-        )
-        return serializer.data
-
-    def get_bounty_solutions(self, comment):
-        from reputation.serializers import DynamicBountySolutionSerializer
-
-        context = self.context
-        _context_fields = context.get("rhc_dcs_get_bounty_solutions", {})
-        serializer = DynamicBountySolutionSerializer(
-            comment.bounty_solution.all(), many=True, context=context, **_context_fields
         )
         return serializer.data
 
