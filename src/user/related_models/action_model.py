@@ -6,7 +6,7 @@ from django.db.models import DecimalField, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
-from discussion.models import Comment, Reply, Thread
+from discussion.models import Comment, Thread
 from hub.models import Hub
 from paper.models import Paper, PaperSubmission
 from reputation.models import Bounty, Withdrawal
@@ -77,8 +77,6 @@ class Action(DefaultModel):
                 verb = "replied to"
             else:
                 verb = "commented on"
-        elif act.content_type_name == "reply":
-            verb = "replied to"
         elif act.content_type_name == "comment":
             verb = "commented on"
         elif act.content_type_name == "summary":
@@ -170,7 +168,7 @@ class Action(DefaultModel):
         summary = ""
         try:
             item = self.item
-            if isinstance(item, (Thread, Comment, Reply)):
+            if isinstance(item, (Thread, Comment)):
                 summary = item.plain_text
             else:
                 doc_type = item.unified_document.document_type
@@ -221,7 +219,6 @@ class Action(DefaultModel):
         elif (
             isinstance(item, Thread)
             or isinstance(item, Comment)
-            or isinstance(item, Reply)
             or isinstance(item, RhCommentModel)
         ):
             doc_type = self.item.unified_document.document_type

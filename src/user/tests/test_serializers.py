@@ -4,7 +4,7 @@ import time
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-from discussion.models import Vote as GrmVote
+from discussion.reaction_models import Vote as GrmVote
 from hub.models import Hub
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper

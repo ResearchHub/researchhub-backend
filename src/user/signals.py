@@ -8,7 +8,7 @@ from django.utils.crypto import get_random_string
 from django.utils.text import slugify
 
 from citation.models import CitationProject
-from discussion.models import Vote as GrmVote
+from discussion.reaction_models import Vote as GrmVote
 from mailing_list.tasks import build_notification_context
 from paper.models import Paper, PaperSubmission
 from purchase.models import Wallet

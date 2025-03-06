@@ -26,7 +26,7 @@ from rest_framework.permissions import (
 from rest_framework.response import Response
 
 from analytics.amplitude import track_event
-from discussion.models import Vote as GrmVote
+from discussion.reaction_models import Vote as GrmVote
 from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
 from discussion.reaction_views import ReactionViewActionMixin
 from paper.exceptions import DOINotFoundError, PaperSerializerError
@@ -548,7 +548,6 @@ class PaperViewSet(
         response = super().update(request, *args, **kwargs)
 
         return response
-
 
     @action(
         detail=True,

@@ -2,7 +2,7 @@ from django.contrib.admin.options import get_content_type_for_model
 from django.test import TestCase
 
 import reputation.distributions as distributions
-from discussion.models import Vote as GrmVote
+from discussion.reaction_models import Vote as GrmVote
 from discussion.tests.helpers import create_rh_comment
 from reputation.models import Distribution, Escrow
 from user.models import Author

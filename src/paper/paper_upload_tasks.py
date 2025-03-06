@@ -596,7 +596,7 @@ def celery_create_paper(self, celery_data):
         uploaded_by = paper_submission.uploaded_by
 
         if uploaded_by:
-            from discussion.models import Vote as GrmVote
+            from discussion.reaction_models import Vote as GrmVote
 
             GrmVote.objects.create(
                 content_type=get_content_type_for_model(paper),

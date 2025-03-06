@@ -5,8 +5,7 @@ from django.db.models.signals import m2m_changed, post_delete, post_save
 from django.dispatch import receiver
 
 import reputation.distributions as distributions
-from discussion.models import Comment, Reply, Thread
-from discussion.models import Vote as GrmVote
+from discussion.reaction_models import Vote as GrmVote
 from paper.models import Paper
 from reputation.distributor import Distributor
 from reputation.exceptions import ReputationSignalError
@@ -56,7 +55,6 @@ def distribute_for_censor_paper(sender, instance, using, **kwargs):
                 instance.hubs.all(),
             )
             record = distributor.distribute()
-
 
 
 @receiver(post_save, sender=GrmVote, dispatch_uid="discussion_vote")

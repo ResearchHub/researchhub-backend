@@ -4,7 +4,7 @@ Removes all unpaid distributions so they will not be eligible for withdrawal.
 
 from django.core.management.base import BaseCommand
 
-from discussion.models import Vote as ReactionVote
+from discussion.reaction_models import Vote as ReactionVote
 from reputation.models import Distribution
 
 

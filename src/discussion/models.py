@@ -17,7 +17,7 @@ from researchhub_access_group.constants import (
 )
 from researchhub_access_group.models import Permission
 
-from .reaction_models import AbstractGenericReactionModel, Flag, Vote
+from .reaction_models import AbstractGenericReactionModel
 
 HELP_TEXT_WAS_EDITED = "True if the comment text was edited after first being created."
 HELP_TEXT_IS_PUBLIC = "Hides the comment from the public."
