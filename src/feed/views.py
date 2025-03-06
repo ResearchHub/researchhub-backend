@@ -32,15 +32,22 @@ class FeedViewSet(viewsets.ModelViewSet):
     pagination_class = FeedPagination
 
     def list(self, request, *args, **kwargs):
+        page = request.query_params.get("page", "1")
+        page_num = int(page)
         cache_key = self._get_cache_key(request)
+        use_cache = page_num < 4
 
-        cached_response = cache.get(cache_key)
-        if cached_response:
-            return Response(cached_response)
+        if use_cache:
+            # try to get cached response
+            cached_response = cache.get(cache_key)
+            if cached_response:
+                return Response(cached_response)
 
         response = super().list(request, *args, **kwargs)
 
-        cache.set(cache_key, response.data, timeout=DEFAULT_CACHE_TIMEOUT)
+        if use_cache:
+            # cache response
+            cache.set(cache_key, response.data, timeout=DEFAULT_CACHE_TIMEOUT)
 
         return response
 
