@@ -1,4 +1,5 @@
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from django.db import models
 from django.db.models import Prefetch, Subquery
 from rest_framework import status, viewsets
@@ -36,6 +37,12 @@ class FeedViewSet(viewsets.ModelViewSet):
         """
         feed_view = self.request.query_params.get("feed_view", "latest")
         hub_slug = self.request.query_params.get("hub_slug")
+        user_id = self.request.user.id
+
+        cache_key = f"feed:{feed_view}:{hub_slug or 'all'}:{user_id or 'anonymous'}"
+        cached_queryset = cache.get(cache_key)
+        if cached_queryset:
+            return cached_queryset
 
         queryset = (
             FeedEntry.objects.all().select_related(
@@ -150,5 +157,7 @@ class FeedViewSet(viewsets.ModelViewSet):
         ).distinct("content_type_id", "object_id")
 
         final_qs = queryset.filter(pk__in=sub_qs.values("pk")).order_by("-action_date")
+
+        cache.set(cache_key, final_qs, timeout=60 * 5)
 
         return final_qs
