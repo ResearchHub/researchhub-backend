@@ -6,7 +6,7 @@ from django.db.models import DecimalField, Sum
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 
-from discussion.models import Comment, Thread
+from discussion.models import Comment
 from hub.models import Hub
 from paper.models import Paper, PaperSubmission
 from reputation.models import Bounty, Withdrawal
@@ -81,8 +81,6 @@ class Action(DefaultModel):
             verb = "commented on"
         elif act.content_type_name == "summary":
             verb = "edited"
-        elif act.content_type_name == "thread":
-            verb = "created a new discussion on"
         elif act.content_type_name == "researchhub post":
             verb = "created a new post on"
             doc_type_icon = f"{ASSETS_BASE_URL}/icons/post-512.png"
@@ -168,7 +166,7 @@ class Action(DefaultModel):
         summary = ""
         try:
             item = self.item
-            if isinstance(item, (Thread, Comment)):
+            if isinstance(item, (Comment)):
                 summary = item.plain_text
             else:
                 doc_type = item.unified_document.document_type
@@ -216,11 +214,7 @@ class Action(DefaultModel):
                 link += "/post/{}/{}#comments".format(doc.id, doc.slug)
             else:
                 link += "/paper/{}/{}#comments".format(doc.id, doc.slug)
-        elif (
-            isinstance(item, Thread)
-            or isinstance(item, Comment)
-            or isinstance(item, RhCommentModel)
-        ):
+        elif isinstance(item, Comment) or isinstance(item, RhCommentModel):
             doc_type = self.item.unified_document.document_type
             if (
                 doc_type == "DISCUSSION"

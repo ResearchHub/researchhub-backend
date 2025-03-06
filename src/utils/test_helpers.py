@@ -12,7 +12,6 @@ from django.test import Client
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient, APITestCase, ForceAuthClientHandler
 
-from discussion.models import Thread
 from discussion.reaction_models import Vote as GrmVote
 from hub.models import Hub
 from paper.models import Paper
@@ -166,11 +165,6 @@ class TestHelper:
             created_by=user,
             object_id=paper.id,
             vote_type=GrmVote.DOWNVOTE,
-        )
-
-    def create_thread(self, user, paper, text="thread"):
-        return Thread.objects.create(
-            created_by=user, paper=paper, text={"text": text}, plain_text=text
         )
 
 

@@ -3,8 +3,8 @@ from django.test import TestCase
 
 import reputation.distributions as distributions
 from discussion.reaction_models import Vote as GrmVote
-from discussion.tests.helpers import create_rh_comment
 from reputation.models import Distribution, Escrow
+from researchhub_comment.tests.helpers import create_rh_comment
 from user.models import Author
 from utils.test_helpers import TestHelper
 

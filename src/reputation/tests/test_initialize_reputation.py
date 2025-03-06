@@ -9,12 +9,13 @@ from django.core.management import call_command
 from django.test import TestCase
 
 from discussion.reaction_models import Vote
-from discussion.tests.helpers import create_rh_comment, create_vote
+from discussion.tests.helpers import create_vote
 from paper.models import Paper
 from paper.openalex_util import process_openalex_works
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.citation_model import Citation
 from reputation.models import AlgorithmVariables, Score, ScoreChange
+from researchhub_comment.tests.helpers import create_rh_comment
 from user.models import User
 from utils.openalex import OpenAlex
 

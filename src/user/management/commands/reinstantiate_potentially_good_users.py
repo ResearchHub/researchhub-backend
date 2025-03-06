@@ -2,7 +2,7 @@ from datetime import datetime
 
 from django.core.management.base import BaseCommand
 
-from discussion.models import Comment, Thread
+from discussion.models import Comment
 from user.models import User
 
 
@@ -25,6 +25,5 @@ class Command(BaseCommand):
             user.is_suspended = False
             user.paper_votes.update(is_removed=False)
             user.papers.update(is_removed=False)
-            Thread.objects.filter(created_by=user).update(is_removed=False)
             Comment.objects.filter(created_by=user).update(is_removed=False)
             user.save()
