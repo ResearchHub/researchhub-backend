@@ -1,6 +1,8 @@
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from django.db import models
 from django.db.models import Prefetch, Subquery
+from requests import Request
 from rest_framework import status, viewsets
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
@@ -21,10 +23,50 @@ class FeedPagination(PageNumberPagination):
     max_page_size = 100
 
 
+DEFAULT_CACHE_TIMEOUT = 60 * 30  # 30 minutes
+
+
 class FeedViewSet(viewsets.ModelViewSet):
     serializer_class = FeedEntrySerializer
     permission_classes = []
     pagination_class = FeedPagination
+
+    def list(self, request, *args, **kwargs):
+        page = request.query_params.get("page", "1")
+        page_num = int(page)
+        cache_key = self._get_cache_key(request)
+        use_cache = page_num < 4
+
+        if use_cache:
+            # try to get cached response
+            cached_response = cache.get(cache_key)
+            if cached_response:
+                return Response(cached_response)
+
+        response = super().list(request, *args, **kwargs)
+
+        if use_cache:
+            # cache response
+            cache.set(cache_key, response.data, timeout=DEFAULT_CACHE_TIMEOUT)
+
+        return response
+
+    def _get_cache_key(self, request: Request) -> str:
+        feed_view = request.query_params.get("feed_view", "latest")
+        hub_slug = request.query_params.get("hub_slug")
+        user_id = request.user.id if request.user.is_authenticated else None
+
+        page = request.query_params.get("page", "1")
+        page_size = request.query_params.get(
+            self.pagination_class.page_size_query_param,
+            str(self.pagination_class.page_size),
+        )
+
+        hub_part = hub_slug or "all"
+        user_part = "none" if feed_view == "popular" else f"{user_id or 'anonymous'}"
+        pagination_part = f"{page}-{page_size}"
+
+        return f"feed:{feed_view}:{hub_part}:{user_part}:{pagination_part}"
 
     def get_queryset(self):
         """
