@@ -1,5 +1,5 @@
 import uuid
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -94,6 +94,34 @@ class FeedViewSetTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 2)
+
+    @patch("feed.views.cache.get")
+    @patch("feed.views.cache.set")
+    def test_default_feed_view_cache(self, mock_cache_set, mock_cache_get):
+        # No cache on first request
+        mock_cache_get.return_value = None
+
+        url = reverse("feed-list")
+        response = self.client.get(url)
+
+        self.assertTrue(mock_cache_get.called)
+        self.assertTrue(mock_cache_set.called)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 2)
+
+        # Return a "cached" response on second request
+        mock_cache_get.return_value = mock_cache_set.call_args[0][1]
+        mock_cache_set.reset_mock()
+
+        response2 = self.client.get(url)
+
+        self.assertTrue(mock_cache_get.called)
+        self.assertFalse(mock_cache_set.called)
+
+        self.assertEqual(response2.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response2.data["results"]), 2)
+        self.assertEqual(response.data["results"], response2.data["results"])
 
     def test_feed_pagination(self):
         """Test feed pagination"""
