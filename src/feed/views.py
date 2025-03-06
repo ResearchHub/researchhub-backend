@@ -23,7 +23,7 @@ class FeedPagination(PageNumberPagination):
     max_page_size = 100
 
 
-DEFAULT_CACHE_TIMEOUT = 60 * 5
+DEFAULT_CACHE_TIMEOUT = 60 * 30  # 30 minutes
 
 
 class FeedViewSet(viewsets.ModelViewSet):
