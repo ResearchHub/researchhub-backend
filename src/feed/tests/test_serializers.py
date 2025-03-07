@@ -159,6 +159,7 @@ class PostSerializerTests(TestCase):
         self.assertEqual(data["renderable_text"], self.post.renderable_text)
         self.assertEqual(data["slug"], self.post.slug)
         self.assertEqual(data["title"], self.post.title)
+        self.assertEqual(data["type"], self.post.document_type)
 
 
 class CommentSerializerTests(TestCase):
