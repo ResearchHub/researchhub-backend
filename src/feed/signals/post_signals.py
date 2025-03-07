@@ -103,6 +103,8 @@ def handle_post_hubs_changed(sender, instance, action, pk_set, **kwargs):
 
             if hasattr(unified_document, "post"):
                 post_id = unified_document.post.id
+            else:
+                continue
 
             create_feed_entry.apply_async(
                 args=(
