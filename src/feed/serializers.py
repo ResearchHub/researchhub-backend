@@ -133,6 +133,7 @@ class PostSerializer(ContentObjectSerializer):
 
     renderable_text = serializers.SerializerMethodField()
     title = serializers.CharField()
+    type = serializers.CharField(source="document_type")
 
     def get_renderable_text(self, obj):
         text = obj.renderable_text[:255]
