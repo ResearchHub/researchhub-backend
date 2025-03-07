@@ -36,7 +36,7 @@ class CheckoutView(APIView):
                             "product_data": {
                                 "name": "Paper APC Fee",
                             },
-                            "unit_amount": 10000,
+                            "unit_amount": 0,
                         },
                         "quantity": 1,
                     },
