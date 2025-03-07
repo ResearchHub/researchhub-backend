@@ -57,10 +57,10 @@ def rh_unified_doc_sync_score_on_related_docs(instance, sender, **kwargs):
     if isinstance(document_obj, (Comment, Reply, Thread, RhCommentModel)):
         return
 
-    _sync_score(unified_document, document_obj)
+    sync_score(unified_document, document_obj)
 
 
-def _sync_score(unified_doc, document_obj):
+def sync_score(unified_doc, document_obj):
     should_save = False
     score = document_obj.calculate_score()  # refer to AbstractGenericReactionModel
 
