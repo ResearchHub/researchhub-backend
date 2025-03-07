@@ -74,7 +74,7 @@ class CitationEntry(DefaultAuthenticatedModel):
                 "id": self.related_unified_doc.id,
                 "documents": [
                     {
-                        "id": self.related_unified_doc.posts.last().id,
+                        "id": self.related_unified_doc.post.id,
                     }
                 ],
             }

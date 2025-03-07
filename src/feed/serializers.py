@@ -154,6 +154,7 @@ class BountySerializer(serializers.Serializer):
     hub = serializers.SerializerMethodField()
     id = serializers.IntegerField()
     paper = serializers.SerializerMethodField()
+    post = serializers.SerializerMethodField()
     status = serializers.CharField()
 
     def get_document_type(self, obj):
@@ -173,6 +174,11 @@ class BountySerializer(serializers.Serializer):
         ):
             paper = obj.unified_document.paper
             return PaperSerializer(paper).data
+        return None
+
+    def get_post(self, obj):
+        if obj.unified_document and hasattr(obj.unified_document, "post"):
+            return PostSerializer(obj.unified_document.post).data
         return None
 
     class Meta:

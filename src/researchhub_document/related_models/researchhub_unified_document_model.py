@@ -128,9 +128,8 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
         if hasattr(self, "paper"):
             return self.paper.authorships.all()
 
-        posts = self.posts
-        if posts.exists():
-            post = posts.last()
+        post = self.post
+        if post:
             author = Author.objects.filter(user=post.created_by)
             return author
         return Author.objects.none()
@@ -185,15 +184,15 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
         if self.document_type == PAPER:
             return self.paper
         elif self.document_type == DISCUSSION:
-            return self.posts.first()
+            return self.post
         elif self.document_type == NOTE:
             return self.note
         elif self.document_type == QUESTION:
-            return self.posts.first()
+            return self.post
         elif self.document_type == BOUNTY:
-            return self.posts.first()
+            return self.post
         elif self.document_type == PREREGISTRATION:
-            return self.posts.first()
+            return self.post
         else:
             raise Exception(f"Unrecognized document_type: {self.document_type}")
 
@@ -209,7 +208,7 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
         if self.document_type == PAPER:
             return self.paper.uploaded_by
         else:
-            first_post = self.posts.first()
+            first_post = self.post
             if first_post is not None:
                 return first_post.created_by
             return None
@@ -236,8 +235,7 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
 
         # Update the Elastic Search index for post records.
         try:
-            for post in self.posts.all():
-                update_elastic_registry.apply_async(post)
+            update_elastic_registry.apply_async(self.post)
         except Exception:
             pass
 
