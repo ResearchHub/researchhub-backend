@@ -61,7 +61,7 @@ def handle_post_delete_feed_entry(sender, instance, **kwargs):
         unified_document.document_type == document_type.DISCUSSION
         and unified_document.is_removed == True
     ):
-        posts = unified_document.posts.all()
+        post = unified_document.post
         hubs = unified_document.hubs.all()
 
         tasks = [
@@ -75,7 +75,6 @@ def handle_post_delete_feed_entry(sender, instance, **kwargs):
                 ),
                 priority=1,
             )
-            for post in posts
             for hub in hubs
         ]
         transaction.on_commit(lambda: [task() for task in tasks])
@@ -102,18 +101,21 @@ def handle_post_hubs_changed(sender, instance, action, pk_set, **kwargs):
             else:
                 continue
 
-            # Create feed entries for all posts associated with this unified document
-            for post in unified_document.posts.all():
-                create_feed_entry.apply_async(
-                    args=(
-                        post.id,
-                        ContentType.objects.get_for_model(post).id,
-                        "PUBLISH",
-                        hub.id,
-                        ContentType.objects.get_for_model(hub).id,
-                    ),
-                    priority=1,
-                )
+            if hasattr(unified_document, "post"):
+                post_id = unified_document.post.id
+            else:
+                continue
+
+            create_feed_entry.apply_async(
+                args=(
+                    post_id,
+                    ContentType.objects.get_for_model(unified_document.post).id,
+                    "PUBLISH",
+                    hub.id,
+                    ContentType.objects.get_for_model(hub).id,
+                ),
+                priority=1,
+            )
     elif action == "pre_remove":
         for entity_id in pk_set:
             if isinstance(instance, ResearchhubUnifiedDocument):
@@ -125,14 +127,17 @@ def handle_post_hubs_changed(sender, instance, action, pk_set, **kwargs):
             else:
                 continue
 
-            # Delete feed entries for all posts associated with this unified document
-            for post in unified_document.posts.all():
-                delete_feed_entry.apply_async(
-                    args=(
-                        post.id,
-                        ContentType.objects.get_for_model(post).id,
-                        hub.id,
-                        ContentType.objects.get_for_model(hub).id,
-                    ),
-                    priority=1,
-                )
+            if hasattr(unified_document, "post"):
+                post_id = unified_document.post.id
+            else:
+                continue
+
+            delete_feed_entry.apply_async(
+                args=(
+                    post_id,
+                    ContentType.objects.get_for_model(unified_document.post).id,
+                    hub.id,
+                    ContentType.objects.get_for_model(hub).id,
+                ),
+                priority=1,
+            )

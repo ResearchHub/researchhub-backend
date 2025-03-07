@@ -67,9 +67,7 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
         context = self.context
         doc_type = instance.document_type
         if doc_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
-            return ResearchhubPostSerializer(
-                instance.posts, many=True, context=context
-            ).data
+            return ResearchhubPostSerializer(instance.post, context=context).data
         else:
             return PaperSerializer(instance.paper, context=context).data
 
@@ -128,7 +126,7 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
         try:
             if doc_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
                 return DynamicPostSerializer(
-                    unified_doc.posts, many=True, context=context, **_context_fields
+                    unified_doc.post, context=context, **_context_fields
                 ).data
             elif doc_type == PAPER:
                 return DynamicPaperSerializer(
