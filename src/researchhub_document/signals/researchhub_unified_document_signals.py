@@ -1,8 +1,10 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
+from discussion.models import Comment, Reply, Thread
 from discussion.reaction_models import Vote as GrmVote
 from paper.models import Paper
+from researchhub_comment.models import RhCommentModel
 from researchhub_document.tasks import recalc_hot_score_task
 from utils import sentry
 
@@ -36,3 +38,39 @@ def sync_is_removed_from_paper(instance, **kwargs):
             uni_doc.save()
     except Exception:
         return None
+
+
+@receiver(
+    post_save,
+    sender=GrmVote,
+    dispatch_uid="rh_unified_doc_sync_score_vote",
+)
+def rh_unified_doc_sync_score_on_related_docs(instance, sender, **kwargs):
+    if not isinstance(instance, (GrmVote)):
+        return
+
+    unified_document = instance.unified_document
+    if unified_document is None:
+        return
+
+    document_obj = instance.item
+    if isinstance(document_obj, (Comment, Reply, Thread, RhCommentModel)):
+        return
+
+    _sync_score(unified_document, document_obj)
+
+
+def _sync_score(unified_doc, document_obj):
+    should_save = False
+    score = document_obj.calculate_score()  # refer to AbstractGenericReactionModel
+
+    if unified_doc.score != score:
+        unified_doc.score = score
+        should_save = True
+
+    if should_save:
+        unified_doc.save(
+            update_fields=[
+                "score",
+            ]
+        )
