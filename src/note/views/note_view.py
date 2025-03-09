@@ -465,13 +465,13 @@ class NoteContentViewSet(ModelViewSet):
             note=note, plain_text=plain_text, json=full_json
         )
 
-        # Only save src if full_json is not provided
-        if not full_json and full_src:
-            file_name, full_src_file = self._create_src_content_file(
-                note_content, full_src, user
-            )
-            if not TESTING:
-                note_content.src.save(file_name, full_src_file)
+        # # Only save src if full_json is not provided
+        # if not full_json and full_src:
+        file_name, full_src_file = self._create_src_content_file(
+            note_content, full_src, user
+        )
+        if not TESTING:
+            note_content.src.save(file_name, full_src_file)
 
         serializer = self.serializer_class(note_content)
         data = serializer.data
