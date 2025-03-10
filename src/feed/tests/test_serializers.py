@@ -245,6 +245,14 @@ class BountySerializerTests(TestCase):
         )
 
     def test_serializes_bounty(self):
+        # Arrange
+        post = ResearchhubPost.objects.create(
+            title="Test Post",
+            document_type=document_type.POSTS,
+            created_by=self.user,
+            unified_document=self.researchhub_document,
+        )
+
         # Act
         serializer = BountySerializer(self.bounty)
         data = serializer.data
@@ -263,6 +271,10 @@ class BountySerializerTests(TestCase):
 
         self.assertIn("comment", data)
         self.assertEqual(data["comment"]["comment_content_json"], {"test": "test"})
+
+        self.assertIn("post", data)
+        self.assertEqual(data["post"]["title"], post.title)
+        self.assertEqual(data["post"]["type"], document_type.POSTS)
 
 
 class SimpleHubSerializerTests(TestCase):
