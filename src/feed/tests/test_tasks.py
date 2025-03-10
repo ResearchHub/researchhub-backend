@@ -102,6 +102,18 @@ class FeedTasksTest(TestCase):
         # Assert
         self.assertFalse(FeedEntry.objects.filter(id=feed_entry.id).exists())
 
+    def test_delete_feed_entry_which_does_not_exist(self):
+        """Test attempting to delete a feed entry that doesn't exist"""
+        try:
+            delete_feed_entry(
+                item_id=self.paper.id,
+                item_content_type_id=self.paper_content_type.id,
+                parent_item_id=self.hub.id,
+                parent_item_content_type_id=self.hub_content_type.id,
+            )
+        except Exception as e:
+            self.fail(f"delete_feed_entry raised an exception: {e}")
+
     def test_get_unified_document_for_paper(self):
         """
         Test getting a unified document from a paper.
