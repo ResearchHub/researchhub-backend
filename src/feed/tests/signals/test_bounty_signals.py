@@ -5,8 +5,8 @@ from django.test import TestCase
 
 from feed.models import FeedEntry
 from feed.signals.bounty_signals import (
-    handle_boundy_delete_feed_entry,
     handle_bounty_create_feed_entry,
+    handle_bounty_delete_feed_entry,
 )
 from hub.models import Hub
 from paper.tests.helpers import create_paper
@@ -221,11 +221,11 @@ class TestBountySignals(TestCase):
 
     @patch("feed.signals.bounty_signals.delete_feed_entry")
     @patch("feed.signals.bounty_signals.transaction")
-    def test_handle_boundy_delete_feed_entry(
+    def test_handle_bounty_delete_feed_entry(
         self, mock_transaction, mock_delete_feed_entry
     ):
         """
-        Test direct call to handle_boundy_delete_feed_entry signal handler.
+        Test direct call to handle_bounty_delete_feed_entry signal handler.
         """
         # Arrange
         mock_transaction.on_commit = lambda func: func()
@@ -233,7 +233,7 @@ class TestBountySignals(TestCase):
         self.bounty.status = Bounty.CLOSED
 
         # Act
-        handle_boundy_delete_feed_entry(sender=Bounty, instance=self.bounty)
+        handle_bounty_delete_feed_entry(sender=Bounty, instance=self.bounty)
 
         # Assert
         mock_delete_feed_entry.apply_async.assert_has_calls(
