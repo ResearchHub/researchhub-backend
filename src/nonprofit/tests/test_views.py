@@ -153,7 +153,7 @@ class NonprofitOrgViewSetTests(APITestCase):
         self._verify_response_structure(response.data)
 
         # Verify query parameters
-        args, kwargs = mock_get.call_args
+        args, _ = mock_get.call_args
         query_url = args[0]
         self.assertIn("searchTerm=Endaoment", query_url)
 
@@ -180,7 +180,7 @@ class NonprofitOrgViewSetTests(APITestCase):
         self._verify_response_structure(response.data)
 
         # Verify the default parameters were applied
-        args, kwargs = mock_get.call_args
+        args, _ = mock_get.call_args
         query_url = args[0]
         self.assertIn("count=15", query_url)
         self.assertIn("offset=0", query_url)
