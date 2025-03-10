@@ -91,10 +91,9 @@ def delete_feed_entry(
 ):
     item_content_type = ContentType.objects.get(id=item_content_type_id)
     parent_item_content_type = ContentType.objects.get(id=parent_item_content_type_id)
-    feed_entry = FeedEntry.objects.get(
+    FeedEntry.objects.filter(
         object_id=item_id,
         content_type=item_content_type,
         parent_object_id=parent_item_id,
         parent_content_type=parent_item_content_type,
-    )
-    feed_entry.delete()
+    ).delete()
