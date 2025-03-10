@@ -24,7 +24,10 @@ def handle_bounty_create_feed_entry(sender, instance, **kwargs):
     researchhub document that the bounty is associated with.
     """
     bounty = instance
-    if bounty.status == Bounty.OPEN:
+    if (
+        bounty.status == Bounty.OPEN
+        and bounty.parent is None  # only original bounties, no contributions
+    ):
         tasks = [
             partial(
                 create_feed_entry.apply_async,
