@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
@@ -41,10 +43,17 @@ class ContentObjectSerializerTests(TestCase):
         self.user.refresh_from_db()
         self.hub = create_hub("Test Hub")
 
-    def test_serializes_basic_content_fields(self):
+    @patch(
+        "researchhub_document.related_models.researchhub_unified_document_model"
+        ".ResearchhubUnifiedDocument.get_primary_hub"
+    )
+    def test_serializes_basic_content_fields(self, mock_get_primary_hub):
         paper = create_paper(uploaded_by=self.user)
         paper.hubs.add(self.hub)
         paper.save()
+
+        # Configure the mock to return the hub
+        mock_get_primary_hub.return_value = self.hub
 
         serializer = ContentObjectSerializer(paper)
         data = serializer.data
@@ -54,6 +63,9 @@ class ContentObjectSerializerTests(TestCase):
         self.assertIn("hub", data)
         self.assertIn("slug", data)
         self.assertEqual(data["hub"]["name"], self.hub.name)
+
+        # Verify that get_primary_hub was called
+        mock_get_primary_hub.assert_called()
 
 
 class PaperSerializerTests(TestCase):
@@ -244,7 +256,11 @@ class BountySerializerTests(TestCase):
             created_by=self.user,
         )
 
-    def test_serializes_bounty(self):
+    @patch(
+        "researchhub_document.related_models.researchhub_unified_document_model"
+        ".ResearchhubUnifiedDocument.get_primary_hub"
+    )
+    def test_serializes_bounty(self, mock_get_primary_hub):
         # Arrange
         post = ResearchhubPost.objects.create(
             title="Test Post",
@@ -252,6 +268,9 @@ class BountySerializerTests(TestCase):
             created_by=self.user,
             unified_document=self.researchhub_document,
         )
+
+        # Configure the mock to return the first hub
+        mock_get_primary_hub.return_value = self.hub1
 
         # Act
         serializer = BountySerializer(self.bounty)
@@ -276,6 +295,9 @@ class BountySerializerTests(TestCase):
         self.assertEqual(data["post"]["title"], post.title)
         self.assertEqual(data["post"]["type"], document_type.POSTS)
 
+        # Verify that get_primary_hub was called
+        mock_get_primary_hub.assert_called()
+
 
 class SimpleHubSerializerTests(TestCase):
     def setUp(self):
@@ -295,9 +317,17 @@ class FeedEntrySerializerTests(TestCase):
 
         return None
 
-    def test_serializes_paper_feed_entry(self):
+    @patch(
+        "researchhub_document.related_models.researchhub_unified_document_model"
+        ".ResearchhubUnifiedDocument.get_primary_hub"
+    )
+    def test_serializes_paper_feed_entry(self, mock_get_primary_hub):
         paper = create_paper(uploaded_by=self.user)
         paper.save()
+
+        # Create a hub and configure the mock to return it
+        hub = create_hub("Test Hub")
+        mock_get_primary_hub.return_value = hub
 
         feed_entry = FeedEntry.objects.create(
             content_type=ContentType.objects.get_for_model(Paper),
@@ -322,3 +352,6 @@ class FeedEntrySerializerTests(TestCase):
         # Verify paper data is properly nested
         paper_data = data["content_object"]
         self.assertEqual(paper_data["title"], paper.title)
+
+        # Verify that get_primary_hub was called
+        mock_get_primary_hub.assert_called()

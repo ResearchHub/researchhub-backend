@@ -66,9 +66,8 @@ class ContentObjectSerializer(serializers.Serializer):
     slug = serializers.CharField()
 
     def get_hub(self, obj):
-        # FIXME: get primary hub
         if hasattr(obj, "unified_document") and obj.unified_document:
-            hub = next(iter(obj.unified_document.hubs.all()), None)
+            hub = obj.unified_document.get_primary_hub()
             if hub:
                 return SimpleHubSerializer(hub).data
         return None
@@ -171,9 +170,8 @@ class BountySerializer(serializers.Serializer):
 
     def get_hub(self, obj):
         if obj.unified_document and obj.unified_document.hubs:
-            # FIXME: get primary hub
-            hub = obj.unified_document.hubs.first()
-            return SimpleHubSerializer(hub).data
+            hub = obj.unified_document.get_primary_hub()
+            return SimpleHubSerializer(hub).data if hub else None
         return None
 
     def get_paper(self, obj):
