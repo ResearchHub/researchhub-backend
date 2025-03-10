@@ -1,3 +1,4 @@
+import logging
 from functools import partial
 
 from django.contrib.contenttypes.models import ContentType
@@ -16,6 +17,8 @@ The signal handlers are responsbile for creating and deleting feed entries
 when comments are created and removed, respectively.
 """
 
+logger = logging.getLogger(__name__)
+
 
 @receiver(post_save, sender=RhCommentModel)
 def handle_comment_created_or_removed(sender, instance, created, **kwargs):
@@ -24,10 +27,14 @@ def handle_comment_created_or_removed(sender, instance, created, **kwargs):
     """
     comment = instance
 
-    if created:
-        _handle_comment_created(comment)
-    elif comment.is_removed:
-        _handle_comment_removed(comment)
+    try:
+        if created:
+            _handle_comment_created(comment)
+        elif comment.is_removed:
+            _handle_comment_removed(comment)
+    except Exception as e:
+        action = "create" if created else "delete"
+        logger.error(f"Failed to {action} feed entry for comment {comment.id}: {e}")
 
 
 def _handle_comment_created(comment):
