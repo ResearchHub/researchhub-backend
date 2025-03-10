@@ -218,6 +218,7 @@ class BountySerializerTests(TestCase):
         self.comment = RhCommentModel.objects.create(
             thread=self.review_thread,
             created_by=self.user,
+            comment_content_json={"test": "test"},
         )
 
         self.researchhub_document = ResearchhubUnifiedDocument.objects.create()
@@ -259,6 +260,9 @@ class BountySerializerTests(TestCase):
 
         self.assertIn("paper", data)
         self.assertEqual(data["paper"]["title"], self.paper.title)
+
+        self.assertIn("comment", data)
+        self.assertEqual(data["comment"]["comment_content_json"], {"test": "test"})
 
 
 class SimpleHubSerializerTests(TestCase):

@@ -1,7 +1,9 @@
+from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers
 
 from hub.models import Hub
 from paper.models import Paper
+from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.related_models.constants import document_type
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.models import Author, User
@@ -149,12 +151,19 @@ class PostSerializer(ContentObjectSerializer):
 class BountySerializer(serializers.Serializer):
     amount = serializers.FloatField()
     bounty_type = serializers.CharField()
+    comment = serializers.SerializerMethodField()
     document_type = serializers.SerializerMethodField()
     expiration_date = serializers.DateTimeField()
     hub = serializers.SerializerMethodField()
     id = serializers.IntegerField()
     paper = serializers.SerializerMethodField()
     status = serializers.CharField()
+
+    def get_comment(self, obj):
+        comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
+        if obj.item_content_type == comment_content_type:
+            return CommentSerializer(obj.item).data
+        return None
 
     def get_document_type(self, obj):
         return obj.unified_document.document_type
@@ -179,6 +188,7 @@ class BountySerializer(serializers.Serializer):
         fields = [
             "amount",
             "bounty_type",
+            "comment",
             "document_type",
             "expiration_date",
             "hub",
