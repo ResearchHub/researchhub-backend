@@ -7,7 +7,6 @@ from django.db.models import (
     FileField,
     ForeignKey,
     JSONField,
-    PositiveIntegerField,
     TextField,
 )
 
@@ -16,9 +15,6 @@ from purchase.models import Purchase
 from researchhub_comment.constants.rh_comment_content_types import (
     QUILL_EDITOR,
     RH_COMMENT_CONTENT_TYPES,
-)
-from researchhub_comment.constants.rh_comment_migration_legacy_types import (
-    RH_COMMENT_MIGRATION_LEGACY_TYPES,
 )
 from researchhub_comment.constants.rh_comment_thread_types import (
     GENERIC_COMMENT,

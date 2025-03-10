@@ -7,6 +7,7 @@ from django.dispatch import receiver
 
 from feed.models import FeedEntry
 from feed.tasks import create_feed_entry, delete_feed_entry
+from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 
 """
@@ -35,6 +36,10 @@ def _handle_comment_created(comment):
     if not getattr(comment, "unified_document", None) or not hasattr(
         comment.unified_document, "hubs"
     ):
+        return
+
+    if comment.comment_type != PEER_REVIEW:
+        # Ignore non-peer review comments
         return
 
     tasks = [
