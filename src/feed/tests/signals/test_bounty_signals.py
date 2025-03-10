@@ -17,9 +17,6 @@ from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
-from researchhub_document.related_models.researchhub_unified_document_model import (
-    ResearchhubUnifiedDocument,
-)
 from user.related_models.user_model import User
 
 
@@ -111,6 +108,33 @@ class TestBountySignals(TestCase):
                 ),
             ]
         )
+
+    @patch("feed.signals.bounty_signals.create_feed_entry")
+    @patch("feed.signals.bounty_signals.transaction")
+    def test_create_feed_entries_ignores_contributions(
+        self, mock_transaction, mock_create_feed_entry
+    ):
+        """
+        Test that feed entries are not created for contributions.
+        Contributions are bounties with parents.
+        """
+        # Arrange
+        mock_transaction.on_commit = lambda func: func()
+        mock_create_feed_entry.apply_async = MagicMock()
+
+        # Act
+        Bounty.objects.create(
+            status=Bounty.OPEN,
+            bounty_type=Bounty.Type.REVIEW,
+            unified_document=self.paper.unified_document,
+            item=self.comment,
+            escrow=self.escrow,
+            created_by=self.user,
+            parent=self.bounty,  # make this bounty a contribution
+        )
+
+        # Assert
+        mock_create_feed_entry.apply_async.assert_not_called()
 
     @patch("feed.signals.bounty_signals.create_feed_entry")
     @patch("feed.signals.bounty_signals.transaction")
