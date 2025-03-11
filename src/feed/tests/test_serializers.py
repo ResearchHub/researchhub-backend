@@ -52,7 +52,6 @@ class ContentObjectSerializerTests(TestCase):
         paper.hubs.add(self.hub)
         paper.save()
 
-        # Configure the mock to return the hub
         mock_get_primary_hub.return_value = self.hub
 
         serializer = ContentObjectSerializer(paper)
@@ -64,7 +63,6 @@ class ContentObjectSerializerTests(TestCase):
         self.assertIn("slug", data)
         self.assertEqual(data["hub"]["name"], self.hub.name)
 
-        # Verify that get_primary_hub was called
         mock_get_primary_hub.assert_called()
 
 
@@ -129,7 +127,6 @@ class PaperSerializerTests(TestCase):
             "Journal No Image", namespace=Hub.Namespace.JOURNAL
         )
 
-        # Create a new paper associated with this journal
         paper = create_paper(
             uploaded_by=self.user,
             title="Test Paper No Journal Image",
@@ -140,7 +137,6 @@ class PaperSerializerTests(TestCase):
         serializer = PaperSerializer(paper)
         data = serializer.data
 
-        # Verify the journal data is serialized correctly
         self.assertIn("journal", data)
         self.assertEqual(data["journal"]["name"], journal_without_image.name)
         self.assertEqual(data["journal"]["image"], None)
@@ -269,7 +265,6 @@ class BountySerializerTests(TestCase):
             unified_document=self.researchhub_document,
         )
 
-        # Configure the mock to return the first hub
         mock_get_primary_hub.return_value = self.hub1
 
         # Act
@@ -295,7 +290,6 @@ class BountySerializerTests(TestCase):
         self.assertEqual(data["post"]["title"], post.title)
         self.assertEqual(data["post"]["type"], document_type.POSTS)
 
-        # Verify that get_primary_hub was called
         mock_get_primary_hub.assert_called()
 
 
@@ -325,7 +319,6 @@ class FeedEntrySerializerTests(TestCase):
         paper = create_paper(uploaded_by=self.user)
         paper.save()
 
-        # Create a hub and configure the mock to return it
         hub = create_hub("Test Hub")
         mock_get_primary_hub.return_value = hub
 
@@ -349,9 +342,7 @@ class FeedEntrySerializerTests(TestCase):
         self.assertIn("content_object", data)
         self.assertIn("created_date", data)
 
-        # Verify paper data is properly nested
         paper_data = data["content_object"]
         self.assertEqual(paper_data["title"], paper.title)
 
-        # Verify that get_primary_hub was called
         mock_get_primary_hub.assert_called()
