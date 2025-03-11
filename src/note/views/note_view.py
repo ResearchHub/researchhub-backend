@@ -466,7 +466,8 @@ class NoteContentViewSet(ModelViewSet):
         )
 
         # Only save src if full_json is not provided
-        if not full_json and full_src:
+        # if not full_json and full_src:
+        if full_src:
             file_name, full_src_file = self._create_src_content_file(
                 note_content, full_src, user
             )
