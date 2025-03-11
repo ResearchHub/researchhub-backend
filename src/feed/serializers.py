@@ -3,8 +3,10 @@ from rest_framework import serializers
 
 from hub.models import Hub
 from paper.models import Paper
+from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.related_models.constants import document_type
+from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from review.serializers.review_serializer import ReviewSerializer
 from user.models import Author, User
@@ -136,6 +138,7 @@ class PostSerializer(ContentObjectSerializer):
     renderable_text = serializers.SerializerMethodField()
     title = serializers.CharField()
     type = serializers.CharField(source="document_type")
+    fundraise = serializers.SerializerMethodField()
 
     def get_renderable_text(self, obj):
         text = obj.renderable_text[:255]
@@ -143,9 +146,44 @@ class PostSerializer(ContentObjectSerializer):
             text += "..."
         return text
 
+    def get_fundraise(self, obj):
+        """Return fundraise data if this is a preregistration post with fundraising"""
+        if (
+            hasattr(obj, "document_type")
+            and obj.document_type == PREREGISTRATION
+            and hasattr(obj, "unified_document")
+            and obj.unified_document
+            and hasattr(obj.unified_document, "fundraises")
+            and obj.unified_document.fundraises.exists()
+        ):
+            fundraise = obj.unified_document.fundraises.first()
+            context = getattr(self, "context", {})
+            serializer = DynamicFundraiseSerializer(
+                fundraise,
+                context=context,
+                _include_fields=[
+                    "id",
+                    "status",
+                    "goal_amount",
+                    "goal_currency",
+                    "start_date",
+                    "end_date",
+                    "amount_raised",
+                    "contributors",
+                    "created_by",
+                ],
+            )
+            return serializer.data
+        return None
+
     class Meta(ContentObjectSerializer.Meta):
         model = ResearchhubPost
-        fields = ContentObjectSerializer.Meta.fields + ["title", "renderable_text"]
+        fields = ContentObjectSerializer.Meta.fields + [
+            "title",
+            "renderable_text",
+            "fundraise",
+            "type",
+        ]
 
 
 class BountySerializer(serializers.Serializer):
