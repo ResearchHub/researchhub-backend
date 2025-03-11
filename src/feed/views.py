@@ -1,7 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db import models
-from django.db.models import Prefetch, Subquery
+from django.db.models import Subquery
 from requests import Request
 from rest_framework import status, viewsets
 from rest_framework.pagination import PageNumberPagination
@@ -12,7 +12,8 @@ from hub.models import Hub
 from paper.related_models.paper_model import Paper
 from reputation.related_models.bounty import Bounty
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
-from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
+from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.views.researchhub_unified_document_views import get_user_votes
 
 from .models import FeedEntry
@@ -199,54 +200,17 @@ class FeedViewSet(viewsets.ModelViewSet):
         hub_slug = self.request.query_params.get("hub_slug")
 
         queryset = (
-            FeedEntry.objects.all().select_related(
+            FeedEntry.objects.all()
+            .select_related(
                 "content_type",
                 "parent_content_type",
                 "user",
                 "user__author_profile",
             )
-            # Prefetch related models for supported entities.
-            # Must use `to_attr` to avoid shadowing the `item` field.
-            # The serializer needs to access the `_prefetched_*` fields to
-            # serialize the related models.
             .prefetch_related(
                 "unified_document",
-                "unified_document__paper",
                 "unified_document__hubs",
                 "unified_document__fundraises",
-                Prefetch(
-                    "item",
-                    Bounty.objects.select_related("unified_document").prefetch_related(
-                        "unified_document__hubs",
-                    ),
-                    to_attr="_prefetched_bounty",
-                ),
-                Prefetch(
-                    "item",
-                    Paper.objects.select_related("unified_document").prefetch_related(
-                        "unified_document__hubs",
-                        "authors",
-                        "authors__user",
-                    ),
-                    to_attr="_prefetched_paper",
-                ),
-                Prefetch(
-                    "item",
-                    ResearchhubPost.objects.select_related(
-                        "unified_document"
-                    ).prefetch_related(
-                        "unified_document__hubs",
-                        "unified_document__fundraises",
-                    ),
-                    to_attr="_prefetched_post",
-                ),
-                Prefetch(
-                    "item",
-                    RhCommentModel.objects.prefetch_related(
-                        "unified_document__hubs",
-                    ),
-                    to_attr="_prefetched_comment",
-                ),
             )
         )
 
