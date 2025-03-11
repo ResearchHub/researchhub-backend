@@ -211,7 +211,9 @@ class CommentSerializer(serializers.Serializer):
     document_type = serializers.SerializerMethodField()
     hub = serializers.SerializerMethodField()
     id = serializers.IntegerField()
+    paper = serializers.SerializerMethodField()
     parent_id = serializers.IntegerField()
+    post = serializers.SerializerMethodField()
     thread_id = serializers.IntegerField()
     review = serializers.SerializerMethodField()
 
@@ -225,6 +227,23 @@ class CommentSerializer(serializers.Serializer):
             # FIXMEL get primary hub
             hub = obj.unified_document.hubs.first()
             return SimpleHubSerializer(hub).data
+        return None
+
+    def get_paper(self, obj):
+        """Return the paper associated with this comment if it exists"""
+        if (
+            obj.unified_document
+            and obj.unified_document.document_type == document_type.PAPER
+        ):
+            paper = obj.unified_document.paper
+            return PaperSerializer(paper).data
+        return None
+
+    def get_post(self, obj):
+        """Return the post associated with this comment if it exists"""
+        if obj.unified_document and hasattr(obj.unified_document, "posts"):
+            post = obj.unified_document.posts.first()
+            return PostSerializer(post).data
         return None
 
     def get_review(self, obj):
@@ -242,7 +261,9 @@ class CommentSerializer(serializers.Serializer):
             "document_type",
             "hub",
             "id",
+            "paper",
             "parent_id",
+            "post",
             "thread_id",
             "review",
         ]

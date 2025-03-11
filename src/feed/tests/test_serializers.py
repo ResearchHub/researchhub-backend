@@ -175,7 +175,7 @@ class CommentSerializerTests(TestCase):
     def setUp(self):
         self.user = create_random_default_user("user1")
         self.unified_document = ResearchhubUnifiedDocument.objects.create(
-            document_type=document_type.DISCUSSION,
+            document_type=document_type.PAPER,
         )
         self.paper = Paper.objects.create(
             title="paper1", unified_document=self.unified_document
@@ -194,6 +194,14 @@ class CommentSerializerTests(TestCase):
             thread=self.thread,
             created_by=self.user,
             comment_content_type=QUILL_EDITOR,
+        )
+
+        # Create a post for testing post serialization
+        self.post = ResearchhubPost.objects.create(
+            title="Test Post",
+            document_type=document_type.DISCUSSION,
+            created_by=self.user,
+            unified_document=self.unified_document,
         )
 
     def test_serializes_comment(self):
@@ -228,6 +236,35 @@ class CommentSerializerTests(TestCase):
         self.assertEqual(data["review"]["score"], 8.5)
         self.assertEqual(data["review"]["created_by"], self.user.id)
         self.assertEqual(data["review"]["unified_document"], self.unified_document.id)
+
+    def test_serializes_comment_with_paper(self):
+        serializer = CommentSerializer(self.comment)
+        data = serializer.data
+
+        self.assertIsNotNone(data["paper"])
+        self.assertEqual(data["paper"]["title"], self.paper.title)
+
+    def test_serializes_comment_with_post(self):
+        # Create a thread for the existing post
+        post_thread = RhCommentThreadModel.objects.create(
+            thread_type=rh_comment_thread_types.GENERIC_COMMENT,
+            object_id=self.post.id,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+        )
+
+        # Create a comment for the post
+        post_comment = RhCommentModel.objects.create(
+            thread=post_thread,
+            created_by=self.user,
+            comment_content_type=QUILL_EDITOR,
+        )
+
+        serializer = CommentSerializer(post_comment)
+        data = serializer.data
+
+        self.assertIsNotNone(data["post"])
+        self.assertEqual(data["post"]["title"], self.post.title)
 
 
 class BountySerializerTests(TestCase):
