@@ -28,6 +28,7 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from review.models import Review
 from topic.models import Topic, UnifiedDocumentTopics
 from user.tests.helpers import create_random_default_user
 
@@ -200,6 +201,25 @@ class CommentSerializerTests(TestCase):
         self.assertEqual(
             data["comment_content_json"], self.comment.comment_content_json
         )
+        self.assertIsNone(data["review"])
+
+    def test_serializes_comment_with_review(self):
+        review = Review.objects.create(
+            score=8.5,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=self.comment.id,
+            unified_document=self.unified_document,
+        )
+
+        serializer = CommentSerializer(self.comment)
+        data = serializer.data
+
+        self.assertIsNotNone(data["review"])
+        self.assertEqual(data["review"]["id"], review.id)
+        self.assertEqual(data["review"]["score"], 8.5)
+        self.assertEqual(data["review"]["created_by"], self.user.id)
+        self.assertEqual(data["review"]["unified_document"], self.unified_document.id)
 
 
 class BountySerializerTests(TestCase):
