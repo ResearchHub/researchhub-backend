@@ -353,6 +353,9 @@ class CommentSerializerTests(TestCase):
 class BountySerializerTests(TestCase):
     def setUp(self):
         self.user = create_random_default_user("bountyCreator1")
+        self.contributor1 = create_random_default_user("contributor1")
+        self.contributor2 = create_random_default_user("contributor2")
+
         self.paper = Paper.objects.create(title="testPaper1")
         content_type = ContentType.objects.get_for_model(self.paper)
 
@@ -392,6 +395,29 @@ class BountySerializerTests(TestCase):
             created_by=self.user,
         )
 
+        # Create child bounties with different creators (contributors)
+        self.child_bounty1 = Bounty.objects.create(
+            amount=100,
+            status=Bounty.OPEN,
+            bounty_type=Bounty.Type.REVIEW,
+            unified_document=self.researchhub_document,
+            item=self.comment,
+            escrow=self.escrow,
+            created_by=self.contributor1,  # First contributor
+            parent=self.bounty,
+        )
+
+        self.child_bounty2 = Bounty.objects.create(
+            amount=200,
+            status=Bounty.OPEN,
+            bounty_type=Bounty.Type.REVIEW,
+            unified_document=self.researchhub_document,
+            item=self.comment,
+            escrow=self.escrow,
+            created_by=self.contributor2,  # Second contributor
+            parent=self.bounty,
+        )
+
     @patch(
         "researchhub_document.related_models.researchhub_unified_document_model"
         ".ResearchhubUnifiedDocument.get_primary_hub"
@@ -429,6 +455,34 @@ class BountySerializerTests(TestCase):
         self.assertIn("post", data)
         self.assertEqual(data["post"]["title"], post.title)
         self.assertEqual(data["post"]["type"], document_type.POSTS)
+
+        mock_get_primary_hub.assert_called()
+
+    @patch(
+        "researchhub_document.related_models.researchhub_unified_document_model"
+        ".ResearchhubUnifiedDocument.get_primary_hub"
+    )
+    def test_serializes_bounty_with_contributors(self, mock_get_primary_hub):
+        # Arrange
+        mock_get_primary_hub.return_value = self.hub1
+
+        # Act
+        serializer = BountySerializer(self.bounty)
+        data = serializer.data
+
+        # Assert
+        self.assertIn("contributors", data)
+        self.assertEqual(len(data["contributors"]), 2)
+
+        # Get contributor data
+        contributor_first_names = [c["first_name"] for c in data["contributors"]]
+        contributor_last_names = [c["last_name"] for c in data["contributors"]]
+
+        # Verify both contributors are included
+        self.assertIn(self.contributor1.first_name, contributor_first_names)
+        self.assertIn(self.contributor1.last_name, contributor_last_names)
+        self.assertIn(self.contributor2.first_name, contributor_first_names)
+        self.assertIn(self.contributor2.last_name, contributor_last_names)
 
         mock_get_primary_hub.assert_called()
 

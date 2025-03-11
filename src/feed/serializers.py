@@ -190,6 +190,7 @@ class BountySerializer(serializers.Serializer):
     amount = serializers.FloatField()
     bounty_type = serializers.CharField()
     comment = serializers.SerializerMethodField()
+    contributors = serializers.SerializerMethodField()
     document_type = serializers.SerializerMethodField()
     expiration_date = serializers.DateTimeField()
     hub = serializers.SerializerMethodField()
@@ -197,6 +198,23 @@ class BountySerializer(serializers.Serializer):
     paper = serializers.SerializerMethodField()
     post = serializers.SerializerMethodField()
     status = serializers.CharField()
+
+    def get_contributors(self, obj):
+        """Return all contributors from child bounties"""
+        contributors = set()
+
+        # Get all child bounties
+        if hasattr(obj, "children"):
+            for child_bounty in obj.children.all():
+                # Get contributor from child bounty
+                user = child_bounty.created_by
+                if user and hasattr(user, "author_profile") and user.author_profile:
+                    contributors.add(user.author_profile)
+
+        # Serialize contributors using SimpleAuthorSerializer
+        if contributors:
+            return SimpleAuthorSerializer(list(contributors), many=True).data
+        return []
 
     def get_comment(self, obj):
         comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
@@ -233,11 +251,13 @@ class BountySerializer(serializers.Serializer):
             "amount",
             "bounty_type",
             "comment",
+            "contributors",
             "document_type",
             "expiration_date",
             "hub",
             "id",
             "paper",
+            "post",
             "status",
         ]
 
