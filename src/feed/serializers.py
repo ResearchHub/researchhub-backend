@@ -294,3 +294,24 @@ class FeedEntrySerializer(serializers.ModelSerializer):
 
     def get_content_type(self, obj):
         return obj.content_type.model.upper()
+
+
+def serialize_feed_item(feed_item, item_content_type):
+    """
+    Serialize an item to JSON based on its content type.
+
+    Returns:
+        The serialized JSON for the item or None if no serializer is found
+    """
+
+    match item_content_type.model:
+        case "bounty":
+            return BountySerializer(feed_item).data
+        case "paper":
+            return PaperSerializer(feed_item).data
+        case "researchhubpost":
+            return PostSerializer(feed_item).data
+        case "rhcommentmodel":
+            return CommentSerializer(feed_item).data
+        case _:
+            return None

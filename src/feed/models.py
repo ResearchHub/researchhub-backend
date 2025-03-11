@@ -23,6 +23,13 @@ class FeedEntry(DefaultModel):
     object_id = models.PositiveIntegerField()
     item = GenericForeignKey("content_type", "object_id")
 
+    content = models.JSONField(
+        default=dict,
+        db_comment="A serialized JSON representation of the item.",
+        blank=False,
+        null=False,
+    )
+
     parent_content_type = models.ForeignKey(
         ContentType,
         on_delete=models.CASCADE,
