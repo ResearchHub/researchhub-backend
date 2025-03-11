@@ -1,3 +1,4 @@
+import logging
 from functools import partial
 
 from django.contrib.contenttypes.models import ContentType
@@ -16,6 +17,8 @@ The signal handlers are responsbile for creating and deleting feed entries
 when bounties are opened and closed, respectively.
 """
 
+logger = logging.getLogger(__name__)
+
 
 @receiver(post_save, sender=Bounty, dispatch_uid="bounty_create_feed_entry")
 def handle_bounty_create_feed_entry(sender, instance, **kwargs):
@@ -23,7 +26,27 @@ def handle_bounty_create_feed_entry(sender, instance, **kwargs):
     When a bounty is opened, create feed entries for all hubs associated with the
     researchhub document that the bounty is associated with.
     """
-    bounty = instance
+    try:
+        _create_bounty_feed_entries(instance)
+    except Exception as e:
+        logger.error(f"Failed to create feed entry for bounty {instance.id}: {e}")
+
+
+@receiver(post_save, sender=Bounty, dispatch_uid="bounty_delete_feed_entry")
+def handle_bounty_delete_feed_entry(sender, instance, **kwargs):
+    """
+    When a bounty is closed, delete all feed entries associated with the bounty.
+    """
+    try:
+        _delete_bounty_feed_entries(instance)
+    except Exception as e:
+        logger.error(f"Failed to delete feed entry for bounty {instance.id}: {e}")
+
+
+def _create_bounty_feed_entries(bounty):
+    """
+    Create feed entries for all hubs associated with the bounty's unified document.
+    """
     if (
         bounty.status == Bounty.OPEN
         and bounty.parent is None  # only original bounties, no contributions
@@ -46,12 +69,10 @@ def handle_bounty_create_feed_entry(sender, instance, **kwargs):
         transaction.on_commit(lambda: [task() for task in tasks])
 
 
-@receiver(post_save, sender=Bounty, dispatch_uid="bounty_delete_feed_entry")
-def handle_boundy_delete_feed_entry(sender, instance, **kwargs):
+def _delete_bounty_feed_entries(bounty):
     """
-    When a bounty is closed, delete all feed entries associated with the bounty.
+    Delete feed entries for all hubs associated with the bounty's unified document.
     """
-    bounty = instance
     if bounty.status in [Bounty.CANCELLED, Bounty.CLOSED, Bounty.EXPIRED]:
         tasks = [
             partial(
