@@ -29,15 +29,15 @@ def handle_comment_created_or_removed(sender, instance, created, **kwargs):
 
     try:
         if created:
-            _handle_comment_created(comment)
+            _create_comment_feed_entries(comment)
         elif comment.is_removed:
-            _handle_comment_removed(comment)
+            _delete_comment_feed_entries(comment)
     except Exception as e:
         action = "create" if created else "delete"
         logger.error(f"Failed to {action} feed entry for comment {comment.id}: {e}")
 
 
-def _handle_comment_created(comment):
+def _create_comment_feed_entries(comment):
     # Validate that the comment is associated with a unified document with hubs
     if not getattr(comment, "unified_document", None) or not hasattr(
         comment.unified_document, "hubs"
@@ -62,7 +62,7 @@ def _handle_comment_created(comment):
     transaction.on_commit(lambda: [task() for task in tasks])
 
 
-def _handle_comment_removed(comment):
+def _delete_comment_feed_entries(comment):
     # Validate that the comment is associated with a unified document with hubs
     if not getattr(comment, "unified_document", None) or not hasattr(
         comment.unified_document, "hubs"

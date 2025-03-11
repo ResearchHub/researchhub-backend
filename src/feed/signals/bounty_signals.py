@@ -27,7 +27,7 @@ def handle_bounty_create_feed_entry(sender, instance, **kwargs):
     researchhub document that the bounty is associated with.
     """
     try:
-        create_bounty_feed_entries(instance)
+        _create_bounty_feed_entries(instance)
     except Exception as e:
         logger.error(f"Failed to create feed entry for bounty {instance.id}: {e}")
 
@@ -38,12 +38,12 @@ def handle_bounty_delete_feed_entry(sender, instance, **kwargs):
     When a bounty is closed, delete all feed entries associated with the bounty.
     """
     try:
-        delete_bounty_feed_entries(instance)
+        _delete_bounty_feed_entries(instance)
     except Exception as e:
         logger.error(f"Failed to delete feed entry for bounty {instance.id}: {e}")
 
 
-def create_bounty_feed_entries(bounty):
+def _create_bounty_feed_entries(bounty):
     """
     Create feed entries for all hubs associated with the bounty's unified document.
     """
@@ -69,7 +69,7 @@ def create_bounty_feed_entries(bounty):
         transaction.on_commit(lambda: [task() for task in tasks])
 
 
-def delete_bounty_feed_entries(bounty):
+def _delete_bounty_feed_entries(bounty):
     """
     Delete feed entries for all hubs associated with the bounty's unified document.
     """

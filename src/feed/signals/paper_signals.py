@@ -28,9 +28,9 @@ logger = logging.getLogger(__name__)
 def handle_unified_doc_hubs_changed(sender, instance, action, pk_set, **kwargs):
     try:
         if action == "post_add":
-            create_paper_feed_entries(instance, pk_set)
+            _create_paper_feed_entries(instance, pk_set)
         elif action == "post_remove":
-            delete_paper_feed_entries(instance, pk_set)
+            _delete_paper_feed_entries(instance, pk_set)
     except Exception as e:
         action = "create" if action == "post_add" else "delete"
         logger.error(
@@ -38,7 +38,7 @@ def handle_unified_doc_hubs_changed(sender, instance, action, pk_set, **kwargs):
         )
 
 
-def create_paper_feed_entries(instance, pk_set):
+def _create_paper_feed_entries(instance, pk_set):
     """
     Create feed entries when papers are added to hubs.
     """
@@ -72,7 +72,7 @@ def create_paper_feed_entries(instance, pk_set):
         )
 
 
-def delete_paper_feed_entries(instance, pk_set):
+def _delete_paper_feed_entries(instance, pk_set):
     """
     Delete feed entries when papers are removed from hubs.
     """
