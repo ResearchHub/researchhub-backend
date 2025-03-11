@@ -7,11 +7,13 @@ from rest_framework import status, viewsets
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
+from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
 from hub.models import Hub
 from paper.related_models.paper_model import Paper
 from reputation.related_models.bounty import Bounty
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
+from researchhub_document.views.researchhub_unified_document_views import get_user_votes
 
 from .models import FeedEntry
 from .serializers import FeedEntrySerializer
@@ -48,6 +50,95 @@ class FeedViewSet(viewsets.ModelViewSet):
         if use_cache:
             # cache response
             cache.set(cache_key, response.data, timeout=DEFAULT_CACHE_TIMEOUT)
+
+        # Get votes for each item in the feed
+        if request.user.is_authenticated:
+            paper_ids = []
+            post_ids = []
+            comment_ids = []
+
+            for item in response.data["results"]:
+                content_type = item.get("content_type")
+                if content_type == "PAPER":
+                    paper_ids.append(int(item["content_object"]["id"]))
+                elif content_type == "RESEARCHHUBPOST":
+                    post_ids.append(int(item["content_object"]["id"]))
+                elif content_type == "RHCOMMENTMODEL":
+                    comment_ids.append(int(item["content_object"]["id"]))
+                elif content_type == "BOUNTY":
+                    # For bounties, we need to get the comment ID if it exists
+                    if item["content_object"].get("comment") and item["content_object"][
+                        "comment"
+                    ].get("id"):
+                        comment_ids.append(int(item["content_object"]["comment"]["id"]))
+
+            if paper_ids:
+                paper_votes = get_user_votes(
+                    request.user,
+                    paper_ids,
+                    ContentType.objects.get_for_model(Paper),
+                )
+
+                paper_votes_map = {}
+                for vote in paper_votes:
+                    paper_votes_map[int(vote.object_id)] = GrmVoteSerializer(vote).data
+
+                for item in response.data["results"]:
+                    if item.get("content_type") == "PAPER":
+                        paper_id = int(item["content_object"]["id"])
+                        if paper_id in paper_votes_map:
+                            item["content_object"]["user_vote"] = paper_votes_map[
+                                paper_id
+                            ]
+
+            if post_ids:
+                post_votes = get_user_votes(
+                    request.user,
+                    post_ids,
+                    ContentType.objects.get_for_model(ResearchhubPost),
+                )
+
+                post_votes_map = {}
+                for vote in post_votes:
+                    post_votes_map[int(vote.object_id)] = GrmVoteSerializer(vote).data
+
+                for item in response.data["results"]:
+                    if item.get("content_type") == "RESEARCHHUBPOST":
+                        post_id = int(item["content_object"]["id"])
+                        if post_id in post_votes_map:
+                            item["content_object"]["user_vote"] = post_votes_map[
+                                post_id
+                            ]
+
+            if comment_ids:
+                comment_votes = get_user_votes(
+                    request.user,
+                    comment_ids,
+                    ContentType.objects.get_for_model(RhCommentModel),
+                )
+
+                comment_votes_map = {}
+                for vote in comment_votes:
+                    comment_votes_map[int(vote.object_id)] = GrmVoteSerializer(
+                        vote
+                    ).data
+
+                for item in response.data["results"]:
+                    if item.get("content_type") == "RHCOMMENTMODEL":
+                        comment_id = int(item["content_object"]["id"])
+                        if comment_id in comment_votes_map:
+                            item["content_object"]["user_vote"] = comment_votes_map[
+                                comment_id
+                            ]
+                    # Handle bounties with comments
+                    elif item.get("content_type") == "BOUNTY" and item[
+                        "content_object"
+                    ].get("comment"):
+                        comment_id = int(item["content_object"]["comment"]["id"])
+                        if comment_id in comment_votes_map:
+                            item["content_object"]["comment"]["user_vote"] = (
+                                comment_votes_map[comment_id]
+                            )
 
         return response
 
