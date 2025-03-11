@@ -94,6 +94,7 @@ class FeedViewSet(viewsets.ModelViewSet):
                 "unified_document",
                 "unified_document__paper",
                 "unified_document__hubs",
+                "unified_document__fundraises",
                 Prefetch(
                     "item",
                     Bounty.objects.select_related("unified_document").prefetch_related(
@@ -116,6 +117,7 @@ class FeedViewSet(viewsets.ModelViewSet):
                         "unified_document"
                     ).prefetch_related(
                         "unified_document__hubs",
+                        "unified_document__fundraises",
                     ),
                     to_attr="_prefetched_post",
                 ),

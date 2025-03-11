@@ -17,6 +17,8 @@ from hub.serializers import SimpleHubSerializer
 from hub.tests.helpers import create_hub
 from paper.models import Paper
 from paper.tests.helpers import create_paper
+from purchase.related_models.constants.currency import USD
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.related_models.bounty import Bounty
 from reputation.related_models.escrow import Escrow
 from researchhub_comment.constants import rh_comment_thread_types
@@ -169,6 +171,87 @@ class PostSerializerTests(TestCase):
         self.assertEqual(data["slug"], self.post.slug)
         self.assertEqual(data["title"], self.post.title)
         self.assertEqual(data["type"], self.post.document_type)
+        self.assertIsNone(data["fundraise"])
+
+    def test_serializes_preregistration_post_with_fundraise(self):
+        from decimal import Decimal
+
+        from purchase.models import Fundraise
+        from purchase.services.fundraise_service import FundraiseService
+
+        # Create a preregistration post
+        preregistration_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.PREREGISTRATION,
+        )
+
+        preregistration_post = ResearchhubPost.objects.create(
+            title="Preregistration Title",
+            created_by=self.user,
+            document_type=document_type.PREREGISTRATION,
+            renderable_text="This is a preregistration post with fundraising",
+            unified_document=preregistration_doc,
+        )
+
+        # Create a fundraise for the preregistration
+        fundraise_service = FundraiseService()
+        goal_amount = Decimal("100.00")
+        fundraise = fundraise_service.create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=preregistration_doc,
+            goal_amount=goal_amount,
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+
+        # Mock the RscExchangeRate.usd_to_rsc method to avoid database dependency
+        with patch.object(
+            RscExchangeRate, "usd_to_rsc", return_value=200.0
+        ), patch.object(
+            Fundraise,
+            "get_amount_raised",
+            side_effect=lambda currency: 50.0 if currency == USD else 100.0,
+        ):
+            # Serialize the post
+            serializer = PostSerializer(preregistration_post)
+            data = serializer.data
+
+            # Assert basic post fields
+            self.assertEqual(data["id"], preregistration_post.id)
+            self.assertEqual(data["title"], preregistration_post.title)
+            self.assertEqual(data["type"], preregistration_post.document_type)
+
+            # Assert fundraise data
+            self.assertIsNotNone(data["fundraise"])
+            self.assertEqual(data["fundraise"]["id"], fundraise.id)
+            self.assertEqual(data["fundraise"]["status"], fundraise.status)
+
+            # Check goal_amount which is now a dictionary with usd and rsc values
+            self.assertIn("goal_amount", data["fundraise"])
+            self.assertIn("usd", data["fundraise"]["goal_amount"])
+            self.assertIn("rsc", data["fundraise"]["goal_amount"])
+            self.assertEqual(
+                data["fundraise"]["goal_amount"]["usd"], float(fundraise.goal_amount)
+            )
+            # Check that the mocked RSC value is used
+            self.assertEqual(data["fundraise"]["goal_amount"]["rsc"], 200.0)
+
+            self.assertEqual(
+                data["fundraise"]["goal_currency"], fundraise.goal_currency
+            )
+
+            # Check amount_raised which is now a dictionary with usd and rsc values
+            self.assertIn("amount_raised", data["fundraise"])
+            self.assertIn("usd", data["fundraise"]["amount_raised"])
+            self.assertIn("rsc", data["fundraise"]["amount_raised"])
+            # Check that the mocked amount_raised values are used
+            self.assertEqual(data["fundraise"]["amount_raised"]["usd"], 50.0)
+            self.assertEqual(data["fundraise"]["amount_raised"]["rsc"], 100.0)
+
+            # Check contributors which is now a dictionary with total and top values
+            self.assertIn("contributors", data["fundraise"])
+            self.assertIn("total", data["fundraise"]["contributors"])
+            self.assertEqual(data["fundraise"]["contributors"]["total"], 0)
+            self.assertIn("top", data["fundraise"]["contributors"])
 
 
 class CommentSerializerTests(TestCase):
