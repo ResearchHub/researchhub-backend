@@ -21,7 +21,6 @@ import hub.views
 import invite.views as invite_views
 import mailing_list.views
 import new_feature_release.views
-import nonprofit.views as nonprofit_views
 import note.views as note_views
 import notification.views
 import oauth.urls
@@ -187,10 +186,6 @@ router.register(r"fundraise", purchase.views.FundraiseViewSet, basename="fundrai
 
 router.register(r"feed", FeedViewSet, basename="feed")
 
-router.register(
-    r"nonprofit_orgs", nonprofit_views.NonprofitOrgViewSet, basename="nonprofit_orgs"
-)
-
 urlpatterns = [
     # Health check
     path(
@@ -211,7 +206,7 @@ urlpatterns = [
     ),
     path("api/permissions/", researchhub.views.permissions, name="permissions"),
     path("api/search/", include(search.urls)),
-    path("api/nonprofit_orgs/", include("nonprofit.urls")),
+    path("api/note/", include("note.urls")),
     path(
         "auth/google/yolo/callback/",
         oauth.views.google_yolo_callback,
