@@ -6,6 +6,7 @@ from paper.models import Paper
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.related_models.constants import document_type
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from review.serializers.review_serializer import ReviewSerializer
 from user.models import Author, User
 
 from .models import FeedEntry
@@ -214,6 +215,7 @@ class CommentSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     parent_id = serializers.IntegerField()
     thread_id = serializers.IntegerField()
+    review = serializers.SerializerMethodField()
 
     def get_document_type(self, obj):
         if obj.unified_document:
@@ -227,6 +229,13 @@ class CommentSerializer(serializers.Serializer):
             return SimpleHubSerializer(hub).data
         return None
 
+    def get_review(self, obj):
+        """Return the review associated with this comment if it exists"""
+        if hasattr(obj, "reviews") and obj.reviews.exists():
+            review = obj.reviews.first()
+            return ReviewSerializer(review).data
+        return None
+
     class Meta:
         fields = [
             "comment_content_type",
@@ -237,6 +246,7 @@ class CommentSerializer(serializers.Serializer):
             "id",
             "parent_id",
             "thread_id",
+            "review",
         ]
 
 
