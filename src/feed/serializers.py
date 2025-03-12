@@ -85,8 +85,13 @@ class PaperMetricsSerializer(serializers.Serializer):
 
     votes = serializers.IntegerField(source="score", default=0)
     comments = serializers.IntegerField(source="discussion_count", default=0)
-    reposts = serializers.IntegerField(default=0)  # TODO: Implement reposts
-    saves = serializers.IntegerField(default=0)  # TODO: Implement saves
+
+
+class PostMetricsSerializer(serializers.Serializer):
+    """Serializer for post metrics including votes and comments."""
+
+    votes = serializers.IntegerField(source="score", default=0)
+    comments = serializers.IntegerField(source="discussion_count", default=0)
 
 
 class PaperSerializer(ContentObjectSerializer):
@@ -139,6 +144,7 @@ class PostSerializer(ContentObjectSerializer):
     title = serializers.CharField()
     type = serializers.CharField(source="document_type")
     fundraise = serializers.SerializerMethodField()
+    metrics = PostMetricsSerializer(source="*")
 
     def get_renderable_text(self, obj):
         text = obj.renderable_text[:255]
@@ -183,6 +189,7 @@ class PostSerializer(ContentObjectSerializer):
             "renderable_text",
             "fundraise",
             "type",
+            "metrics",
         ]
 
 
@@ -262,6 +269,12 @@ class BountySerializer(serializers.Serializer):
         ]
 
 
+class CommentMetricsSerializer(serializers.Serializer):
+    """Serializer for comment metrics including votes."""
+
+    votes = serializers.IntegerField(source="score", default=0)
+
+
 class CommentSerializer(serializers.Serializer):
     comment_content_json = serializers.JSONField()
     comment_content_type = serializers.CharField()
@@ -274,6 +287,7 @@ class CommentSerializer(serializers.Serializer):
     post = serializers.SerializerMethodField()
     thread_id = serializers.IntegerField()
     review = serializers.SerializerMethodField()
+    metrics = CommentMetricsSerializer(source="*")
 
     def get_document_type(self, obj):
         if obj.unified_document:
@@ -319,6 +333,7 @@ class CommentSerializer(serializers.Serializer):
             "document_type",
             "hub",
             "id",
+            "metrics",
             "paper",
             "parent_id",
             "post",
