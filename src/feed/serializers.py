@@ -372,6 +372,9 @@ class FeedEntrySerializer(serializers.ModelSerializer):
         return None
 
     def get_content_object(self, obj):
+        if obj.content == {}:
+            # Serialize if serialized content is not already present
+            return serialize_feed_item(obj.item, obj.content_type)
         return obj.content
 
     def get_content_type(self, obj):
