@@ -5,9 +5,11 @@ from purchase.models import Fundraise
 
 class NonprofitOrg(models.Model):
     """
-    Model representing nonprofit organizations that can be attached to preregistrations.
+    Model representing nonprofit organizations that can be attached to
+    preregistrations.
 
-    These organizations are integrated with the Endaoment service for donation processing.
+    These organizations are integrated with the Endaoment service for donation
+    processing.
     """
 
     # Primary identifiers
@@ -15,22 +17,25 @@ class NonprofitOrg(models.Model):
         max_length=255, help_text="Name of the nonprofit organization"
     )
     ein = models.CharField(
-        max_length=20, help_text="Employer Identification Number", null=True, blank=True
+        max_length=20,
+        help_text="Employer Identification Number",
+        blank=True,
+        default="",
     )
     endaoment_org_id = models.CharField(
         max_length=100,
         help_text="Unique identifier for the organization in the Endaoment system",
         unique=True,
-        null=True,
         blank=True,
+        default="",
     )
 
     # Financial information
     base_wallet_address = models.CharField(
         max_length=42,  # Ethereum addresses are 42 characters including '0x'
         help_text="Blockchain wallet address for the organization",
-        null=True,
         blank=True,
+        default="",
     )
 
     # Standard timestamps
@@ -78,8 +83,8 @@ class NonprofitFundraiseLink(models.Model):
 
     note = models.TextField(
         help_text="Specific notes about this nonprofit for this fundraise",
-        null=True,
         blank=True,
+        default="",
     )
 
     # Standard timestamps
