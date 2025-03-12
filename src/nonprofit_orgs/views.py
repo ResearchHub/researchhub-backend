@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
-from note.services.endaoment_service import EndaomentService
+from nonprofit_orgs.services.endaoment_service import EndaomentService
 
 
 class NonprofitOrgViewSet(viewsets.ViewSet):

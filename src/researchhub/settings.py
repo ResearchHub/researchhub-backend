@@ -277,6 +277,7 @@ INSTALLED_APPS = [
     "new_feature_release",
     "review",
     "simple_history",
+    "nonprofit_orgs",
     # Health checks
     "health_check",
     "health_check.db",

@@ -4,8 +4,8 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from note.services.endaoment_service import EndaomentService
-from note.views.nonprofit_view import NonprofitOrgViewSet
+from nonprofit_orgs.services.endaoment_service import EndaomentService
+from nonprofit_orgs.views import NonprofitOrgViewSet
 
 
 class NonprofitOrgViewSetTests(APITestCase):
@@ -13,7 +13,7 @@ class NonprofitOrgViewSetTests(APITestCase):
 
     def setUp(self):
         """Set up test data and common variables."""
-        self.search_url = reverse("note-nonprofit-orgs-search")
+        self.search_url = reverse("nonprofit-orgs-search")
         self.mock_response = [
             {
                 "id": "75f9643f-3927-49a2-8f3f-19f232d654c8",
