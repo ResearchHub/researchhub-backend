@@ -5,6 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError
 
 from feed.models import FeedEntry
+from feed.serializers import serialize_feed_item
 from researchhub.celery import app
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -37,6 +38,8 @@ def create_feed_entry(
 
     unified_document = _get_unified_document(item, item_content_type)
 
+    content = serialize_feed_item(item, item_content_type)
+
     action_date = item.created_date
     if action == FeedEntry.PUBLISH and item_content_type.model == "paper":
         action_date = item.paper_publish_date
@@ -46,6 +49,7 @@ def create_feed_entry(
         return FeedEntry.objects.create(
             user=user,
             item=item,
+            content=content,
             content_type=item_content_type,
             object_id=item_id,
             action=action,
@@ -91,10 +95,9 @@ def delete_feed_entry(
 ):
     item_content_type = ContentType.objects.get(id=item_content_type_id)
     parent_item_content_type = ContentType.objects.get(id=parent_item_content_type_id)
-    feed_entry = FeedEntry.objects.get(
+    FeedEntry.objects.filter(
         object_id=item_id,
         content_type=item_content_type,
         parent_object_id=parent_item_id,
         parent_content_type=parent_item_content_type,
-    )
-    feed_entry.delete()
+    ).delete()

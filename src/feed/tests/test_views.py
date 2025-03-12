@@ -10,10 +10,19 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
+from discussion.reaction_models import Vote as GrmVote
 from feed.models import FeedEntry
 from feed.views import FeedViewSet
 from hub.models import Hub
 from paper.models import Paper
+from reputation.related_models.bounty import Bounty
+from reputation.related_models.escrow import Escrow
+from researchhub_comment.constants import rh_comment_thread_types
+from researchhub_comment.related_models.rh_comment_model import RhCommentModel
+from researchhub_comment.related_models.rh_comment_thread_model import (
+    RhCommentThreadModel,
+)
+from researchhub_document.models import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -304,7 +313,7 @@ class FeedViewSetTests(TestCase):
         self.assertEqual(content_object_ids[2], low_score_paper.id)
 
     def test_popular_feed_view_with_multiple_entries(self):
-        """Test that popular feed view handles multiple entries per document correctly"""
+        """Test popular feed view handles multiple entries per document correctly"""
         # Create a paper with high hot score
         high_score_doc = ResearchhubUnifiedDocument.objects.create(
             document_type="PAPER", hot_score=100
@@ -484,5 +493,166 @@ class FeedViewSetTests(TestCase):
             self.assertEqual(
                 cache_key,
                 expected_key,
-                f"Failed with params: {query_params}, auth: {is_authenticated}, user_id: {user_id}",
+                f"Failed with params: {query_params}, auth: {is_authenticated}, "
+                f"user_id: {user_id}",
             )
+
+    def test_feed_includes_user_votes(self):
+        """Test that feed response includes user votes"""
+        # Arrange
+        post = ResearchhubPost.objects.create(
+            title="Test Post",
+            document_type="POST",
+            created_by=self.user,
+            unified_document=self.unified_document,
+            score=5,  # Add score for metrics testing
+            discussion_count=3,  # Add discussion_count for metrics testing
+        )
+
+        paper_thread = RhCommentThreadModel.objects.create(
+            thread_type=rh_comment_thread_types.GENERIC_COMMENT,
+            content_type=self.paper_content_type,
+            object_id=self.paper.id,
+            created_by=self.user,
+        )
+
+        comment = RhCommentModel.objects.create(
+            thread=paper_thread,
+            created_by=self.user,
+            comment_content_json={"ops": [{"insert": "Test comment"}]},
+        )
+
+        escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.BOUNTY,
+            item=self.unified_document,
+        )
+
+        bounty_comment = RhCommentModel.objects.create(
+            thread=paper_thread,
+            created_by=self.user,
+            comment_content_json={"ops": [{"insert": "Bounty comment"}]},
+        )
+
+        bounty = Bounty.objects.create(
+            amount=100,
+            status=Bounty.OPEN,
+            bounty_type=Bounty.Type.REVIEW,
+            unified_document=self.unified_document,
+            item=bounty_comment,
+            escrow=escrow,
+            created_by=self.user,
+        )
+
+        FeedEntry.objects.create(
+            content_type=self.paper_content_type,
+            object_id=self.paper.id,
+            item=self.paper,
+            created_date=timezone.now(),
+            action="PUBLISH",
+            action_date=timezone.now(),
+            user=self.user,
+            unified_document=self.unified_document,
+        )
+
+        FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=post.id,
+            item=post,
+            created_date=timezone.now(),
+            action="PUBLISH",
+            action_date=timezone.now(),
+            user=self.user,
+            unified_document=self.unified_document,
+        )
+
+        FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=comment.id,
+            item=comment,
+            created_date=timezone.now(),
+            action="PUBLISH",
+            action_date=timezone.now(),
+            user=self.user,
+            unified_document=self.unified_document,
+        )
+
+        FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(Bounty),
+            object_id=bounty.id,
+            item=bounty,
+            created_date=timezone.now(),
+            action="PUBLISH",
+            action_date=timezone.now(),
+            user=self.user,
+            unified_document=self.unified_document,
+        )
+
+        GrmVote.objects.create(
+            content_type=self.paper_content_type,
+            object_id=self.paper.id,
+            created_by=self.user,
+            vote_type=GrmVote.UPVOTE,
+        )
+
+        GrmVote.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=post.id,
+            created_by=self.user,
+            vote_type=GrmVote.UPVOTE,
+        )
+
+        GrmVote.objects.create(
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=comment.id,
+            created_by=self.user,
+            vote_type=GrmVote.UPVOTE,
+        )
+
+        GrmVote.objects.create(
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=bounty_comment.id,
+            created_by=self.user,
+            vote_type=GrmVote.UPVOTE,
+        )
+        feed_entries = FeedEntry.objects.all()
+        self.assertEqual(feed_entries.count(), 6)
+
+        # Act
+        url = reverse("feed-list")
+        response = self.client.get(url)
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        for item in response.data.get("results", []):
+            content_type = item.get("content_type")
+            content_object = item.get("content_object", {})
+
+            if content_type == "PAPER" and str(content_object.get("id")) == str(
+                self.paper.id
+            ):
+                self.assertIn("user_vote", content_object)
+                self.assertIn("metrics", content_object)
+                self.assertIn("votes", content_object["metrics"])
+                self.assertIn("comments", content_object["metrics"])
+
+            elif content_type == "RESEARCHHUBPOST" and str(
+                content_object.get("id")
+            ) == str(post.id):
+                self.assertIn("user_vote", content_object)
+                self.assertIn("metrics", content_object)
+                self.assertEqual(content_object["metrics"]["votes"], 5)
+                self.assertEqual(content_object["metrics"]["comments"], 3)
+
+            elif content_type == "RHCOMMENTMODEL" and str(
+                content_object.get("id")
+            ) == str(comment.id):
+                self.assertIn("user_vote", content_object)
+                self.assertIn("metrics", content_object)
+                self.assertIn("votes", content_object["metrics"])
+
+            elif content_type == "BOUNTY" and str(content_object.get("id")) == str(
+                bounty.id
+            ):
+                self.assertIn("user_vote", content_object.get("comment"))

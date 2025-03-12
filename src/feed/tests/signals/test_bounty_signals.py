@@ -5,8 +5,8 @@ from django.test import TestCase
 
 from feed.models import FeedEntry
 from feed.signals.bounty_signals import (
-    handle_boundy_delete_feed_entry,
     handle_bounty_create_feed_entry,
+    handle_bounty_delete_feed_entry,
 )
 from hub.models import Hub
 from paper.tests.helpers import create_paper
@@ -16,9 +16,6 @@ from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
-)
-from researchhub_document.related_models.researchhub_unified_document_model import (
-    ResearchhubUnifiedDocument,
 )
 from user.related_models.user_model import User
 
@@ -114,6 +111,33 @@ class TestBountySignals(TestCase):
 
     @patch("feed.signals.bounty_signals.create_feed_entry")
     @patch("feed.signals.bounty_signals.transaction")
+    def test_create_feed_entries_ignores_contributions(
+        self, mock_transaction, mock_create_feed_entry
+    ):
+        """
+        Test that feed entries are not created for contributions.
+        Contributions are bounties with parents.
+        """
+        # Arrange
+        mock_transaction.on_commit = lambda func: func()
+        mock_create_feed_entry.apply_async = MagicMock()
+
+        # Act
+        Bounty.objects.create(
+            status=Bounty.OPEN,
+            bounty_type=Bounty.Type.REVIEW,
+            unified_document=self.paper.unified_document,
+            item=self.comment,
+            escrow=self.escrow,
+            created_by=self.user,
+            parent=self.bounty,  # make this bounty a contribution
+        )
+
+        # Assert
+        mock_create_feed_entry.apply_async.assert_not_called()
+
+    @patch("feed.signals.bounty_signals.create_feed_entry")
+    @patch("feed.signals.bounty_signals.transaction")
     def test_handle_bounty_create_feed_entry(
         self, mock_transaction, mock_create_feed_entry
     ):
@@ -197,11 +221,11 @@ class TestBountySignals(TestCase):
 
     @patch("feed.signals.bounty_signals.delete_feed_entry")
     @patch("feed.signals.bounty_signals.transaction")
-    def test_handle_boundy_delete_feed_entry(
+    def test_handle_bounty_delete_feed_entry(
         self, mock_transaction, mock_delete_feed_entry
     ):
         """
-        Test direct call to handle_boundy_delete_feed_entry signal handler.
+        Test direct call to handle_bounty_delete_feed_entry signal handler.
         """
         # Arrange
         mock_transaction.on_commit = lambda func: func()
@@ -209,7 +233,7 @@ class TestBountySignals(TestCase):
         self.bounty.status = Bounty.CLOSED
 
         # Act
-        handle_boundy_delete_feed_entry(sender=Bounty, instance=self.bounty)
+        handle_bounty_delete_feed_entry(sender=Bounty, instance=self.bounty)
 
         # Assert
         mock_delete_feed_entry.apply_async.assert_has_calls(

@@ -1,9 +1,14 @@
+from django.contrib.contenttypes.models import ContentType
 from rest_framework import serializers
 
 from hub.models import Hub
 from paper.models import Paper
+from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
+from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.related_models.constants import document_type
+from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from review.serializers.review_serializer import ReviewSerializer
 from user.models import Author, User
 
 from .models import FeedEntry
@@ -64,9 +69,8 @@ class ContentObjectSerializer(serializers.Serializer):
     slug = serializers.CharField()
 
     def get_hub(self, obj):
-        # FIXME: get primary hub
         if hasattr(obj, "unified_document") and obj.unified_document:
-            hub = next(iter(obj.unified_document.hubs.all()), None)
+            hub = obj.unified_document.get_primary_hub()
             if hub:
                 return SimpleHubSerializer(hub).data
         return None
@@ -81,8 +85,13 @@ class PaperMetricsSerializer(serializers.Serializer):
 
     votes = serializers.IntegerField(source="score", default=0)
     comments = serializers.IntegerField(source="discussion_count", default=0)
-    reposts = serializers.IntegerField(default=0)  # TODO: Implement reposts
-    saves = serializers.IntegerField(default=0)  # TODO: Implement saves
+
+
+class PostMetricsSerializer(serializers.Serializer):
+    """Serializer for post metrics including votes and comments."""
+
+    votes = serializers.IntegerField(source="score", default=0)
+    comments = serializers.IntegerField(source="discussion_count", default=0)
 
 
 class PaperSerializer(ContentObjectSerializer):
@@ -134,6 +143,8 @@ class PostSerializer(ContentObjectSerializer):
     renderable_text = serializers.SerializerMethodField()
     title = serializers.CharField()
     type = serializers.CharField(source="document_type")
+    fundraise = serializers.SerializerMethodField()
+    metrics = PostMetricsSerializer(source="*")
 
     def get_renderable_text(self, obj):
         text = obj.renderable_text[:255]
@@ -141,29 +152,90 @@ class PostSerializer(ContentObjectSerializer):
             text += "..."
         return text
 
+    def get_fundraise(self, obj):
+        """Return fundraise data if this is a preregistration post with fundraising"""
+        if (
+            hasattr(obj, "document_type")
+            and obj.document_type == PREREGISTRATION
+            and hasattr(obj, "unified_document")
+            and obj.unified_document
+            and hasattr(obj.unified_document, "fundraises")
+            and obj.unified_document.fundraises.exists()
+        ):
+            fundraise = obj.unified_document.fundraises.first()
+            context = getattr(self, "context", {})
+            serializer = DynamicFundraiseSerializer(
+                fundraise,
+                context=context,
+                _include_fields=[
+                    "id",
+                    "status",
+                    "goal_amount",
+                    "goal_currency",
+                    "start_date",
+                    "end_date",
+                    "amount_raised",
+                    "contributors",
+                    "created_by",
+                ],
+            )
+            return serializer.data
+        return None
+
     class Meta(ContentObjectSerializer.Meta):
         model = ResearchhubPost
-        fields = ContentObjectSerializer.Meta.fields + ["title", "renderable_text"]
+        fields = ContentObjectSerializer.Meta.fields + [
+            "title",
+            "renderable_text",
+            "fundraise",
+            "type",
+            "metrics",
+        ]
 
 
 class BountySerializer(serializers.Serializer):
     amount = serializers.FloatField()
     bounty_type = serializers.CharField()
+    comment = serializers.SerializerMethodField()
+    contributors = serializers.SerializerMethodField()
     document_type = serializers.SerializerMethodField()
     expiration_date = serializers.DateTimeField()
     hub = serializers.SerializerMethodField()
     id = serializers.IntegerField()
     paper = serializers.SerializerMethodField()
+    post = serializers.SerializerMethodField()
     status = serializers.CharField()
+
+    def get_contributors(self, obj):
+        """Return all contributors from child bounties"""
+        contributors = set()
+
+        # Get all child bounties
+        if hasattr(obj, "children"):
+            for child_bounty in obj.children.all():
+                # Get contributor from child bounty
+                user = child_bounty.created_by
+                if user and hasattr(user, "author_profile") and user.author_profile:
+                    contributors.add(user.author_profile)
+
+        # Serialize contributors using SimpleAuthorSerializer
+        if contributors:
+            return SimpleAuthorSerializer(list(contributors), many=True).data
+        return []
+
+    def get_comment(self, obj):
+        comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
+        if obj.item_content_type == comment_content_type:
+            return CommentSerializer(obj.item).data
+        return None
 
     def get_document_type(self, obj):
         return obj.unified_document.document_type
 
     def get_hub(self, obj):
         if obj.unified_document and obj.unified_document.hubs:
-            # FIXME: get primary hub
-            hub = obj.unified_document.hubs.first()
-            return SimpleHubSerializer(hub).data
+            hub = obj.unified_document.get_primary_hub()
+            return SimpleHubSerializer(hub).data if hub else None
         return None
 
     def get_paper(self, obj):
@@ -175,17 +247,32 @@ class BountySerializer(serializers.Serializer):
             return PaperSerializer(paper).data
         return None
 
+    def get_post(self, obj):
+        if obj.unified_document and hasattr(obj.unified_document, "posts"):
+            post = obj.unified_document.posts.first()
+            return PostSerializer(post).data
+        return None
+
     class Meta:
         fields = [
             "amount",
             "bounty_type",
+            "comment",
+            "contributors",
             "document_type",
             "expiration_date",
             "hub",
             "id",
             "paper",
+            "post",
             "status",
         ]
+
+
+class CommentMetricsSerializer(serializers.Serializer):
+    """Serializer for comment metrics including votes."""
+
+    votes = serializers.IntegerField(source="score", default=0)
 
 
 class CommentSerializer(serializers.Serializer):
@@ -195,8 +282,12 @@ class CommentSerializer(serializers.Serializer):
     document_type = serializers.SerializerMethodField()
     hub = serializers.SerializerMethodField()
     id = serializers.IntegerField()
+    paper = serializers.SerializerMethodField()
     parent_id = serializers.IntegerField()
+    post = serializers.SerializerMethodField()
     thread_id = serializers.IntegerField()
+    review = serializers.SerializerMethodField()
+    metrics = CommentMetricsSerializer(source="*")
 
     def get_document_type(self, obj):
         if obj.unified_document:
@@ -210,6 +301,30 @@ class CommentSerializer(serializers.Serializer):
             return SimpleHubSerializer(hub).data
         return None
 
+    def get_paper(self, obj):
+        """Return the paper associated with this comment if it exists"""
+        if (
+            obj.unified_document
+            and obj.unified_document.document_type == document_type.PAPER
+        ):
+            paper = obj.unified_document.paper
+            return PaperSerializer(paper).data
+        return None
+
+    def get_post(self, obj):
+        """Return the post associated with this comment if it exists"""
+        if obj.unified_document and hasattr(obj.unified_document, "posts"):
+            post = obj.unified_document.posts.first()
+            return PostSerializer(post).data
+        return None
+
+    def get_review(self, obj):
+        """Return the review associated with this comment if it exists"""
+        if hasattr(obj, "reviews") and obj.reviews.exists():
+            review = obj.reviews.first()
+            return ReviewSerializer(review).data
+        return None
+
     class Meta:
         fields = [
             "comment_content_type",
@@ -218,8 +333,12 @@ class CommentSerializer(serializers.Serializer):
             "document_type",
             "hub",
             "id",
+            "metrics",
+            "paper",
             "parent_id",
+            "post",
             "thread_id",
+            "review",
         ]
 
 
@@ -279,3 +398,24 @@ class FeedEntrySerializer(serializers.ModelSerializer):
 
     def get_content_type(self, obj):
         return obj.content_type.model.upper()
+
+
+def serialize_feed_item(feed_item, item_content_type):
+    """
+    Serialize an item to JSON based on its content type.
+
+    Returns:
+        The serialized JSON for the item or None if no serializer is found
+    """
+
+    match item_content_type.model:
+        case "bounty":
+            return BountySerializer(feed_item).data
+        case "paper":
+            return PaperSerializer(feed_item).data
+        case "researchhubpost":
+            return PostSerializer(feed_item).data
+        case "rhcommentmodel":
+            return CommentSerializer(feed_item).data
+        case _:
+            return None

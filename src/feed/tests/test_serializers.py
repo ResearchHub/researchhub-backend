@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
@@ -15,6 +17,8 @@ from hub.serializers import SimpleHubSerializer
 from hub.tests.helpers import create_hub
 from paper.models import Paper
 from paper.tests.helpers import create_paper
+from purchase.related_models.constants.currency import USD
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.related_models.bounty import Bounty
 from reputation.related_models.escrow import Escrow
 from researchhub_comment.constants import rh_comment_thread_types
@@ -28,6 +32,7 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from review.models import Review
 from topic.models import Topic, UnifiedDocumentTopics
 from user.tests.helpers import create_random_default_user
 
@@ -41,10 +46,16 @@ class ContentObjectSerializerTests(TestCase):
         self.user.refresh_from_db()
         self.hub = create_hub("Test Hub")
 
-    def test_serializes_basic_content_fields(self):
+    @patch(
+        "researchhub_document.related_models.researchhub_unified_document_model"
+        ".ResearchhubUnifiedDocument.get_primary_hub"
+    )
+    def test_serializes_basic_content_fields(self, mock_get_primary_hub):
         paper = create_paper(uploaded_by=self.user)
         paper.hubs.add(self.hub)
         paper.save()
+
+        mock_get_primary_hub.return_value = self.hub
 
         serializer = ContentObjectSerializer(paper)
         data = serializer.data
@@ -54,6 +65,8 @@ class ContentObjectSerializerTests(TestCase):
         self.assertIn("hub", data)
         self.assertIn("slug", data)
         self.assertEqual(data["hub"]["name"], self.hub.name)
+
+        mock_get_primary_hub.assert_called()
 
 
 class PaperSerializerTests(TestCase):
@@ -117,7 +130,6 @@ class PaperSerializerTests(TestCase):
             "Journal No Image", namespace=Hub.Namespace.JOURNAL
         )
 
-        # Create a new paper associated with this journal
         paper = create_paper(
             uploaded_by=self.user,
             title="Test Paper No Journal Image",
@@ -128,7 +140,6 @@ class PaperSerializerTests(TestCase):
         serializer = PaperSerializer(paper)
         data = serializer.data
 
-        # Verify the journal data is serialized correctly
         self.assertIn("journal", data)
         self.assertEqual(data["journal"]["name"], journal_without_image.name)
         self.assertEqual(data["journal"]["image"], None)
@@ -160,13 +171,119 @@ class PostSerializerTests(TestCase):
         self.assertEqual(data["slug"], self.post.slug)
         self.assertEqual(data["title"], self.post.title)
         self.assertEqual(data["type"], self.post.document_type)
+        self.assertIsNone(data["fundraise"])
+        self.assertIn("metrics", data)
+        self.assertIn("votes", data["metrics"])
+        self.assertIn("comments", data["metrics"])
+        # Default values should be 0
+        self.assertEqual(data["metrics"]["votes"], 0)
+        self.assertEqual(data["metrics"]["comments"], 0)
+
+    def test_serializes_post_metrics(self):
+        """Test that post metrics are properly serialized"""
+        # Set up post with specific metrics values
+        self.post.score = 42
+        self.post.discussion_count = 15
+        self.post.save()
+
+        # Serialize the post
+        serializer = PostSerializer(self.post)
+        data = serializer.data
+
+        # Verify metrics field exists and contains expected values
+        self.assertIn("metrics", data)
+        self.assertIsInstance(data["metrics"], dict)
+        self.assertIn("votes", data["metrics"])
+        self.assertIn("comments", data["metrics"])
+        self.assertEqual(data["metrics"]["votes"], 42)
+        self.assertEqual(data["metrics"]["comments"], 15)
+
+    def test_serializes_preregistration_post_with_fundraise(self):
+        from decimal import Decimal
+
+        from purchase.models import Fundraise
+        from purchase.services.fundraise_service import FundraiseService
+
+        # Create a preregistration post
+        preregistration_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.PREREGISTRATION,
+        )
+
+        preregistration_post = ResearchhubPost.objects.create(
+            title="Preregistration Title",
+            created_by=self.user,
+            document_type=document_type.PREREGISTRATION,
+            renderable_text="This is a preregistration post with fundraising",
+            unified_document=preregistration_doc,
+        )
+
+        # Create a fundraise for the preregistration
+        fundraise_service = FundraiseService()
+        goal_amount = Decimal("100.00")
+        fundraise = fundraise_service.create_fundraise_with_escrow(
+            user=self.user,
+            unified_document=preregistration_doc,
+            goal_amount=goal_amount,
+            goal_currency=USD,
+            status=Fundraise.OPEN,
+        )
+
+        # Mock the RscExchangeRate.usd_to_rsc method to avoid database dependency
+        with patch.object(
+            RscExchangeRate, "usd_to_rsc", return_value=200.0
+        ), patch.object(
+            Fundraise,
+            "get_amount_raised",
+            side_effect=lambda currency: 50.0 if currency == USD else 100.0,
+        ):
+            # Serialize the post
+            serializer = PostSerializer(preregistration_post)
+            data = serializer.data
+
+            # Assert basic post fields
+            self.assertEqual(data["id"], preregistration_post.id)
+            self.assertEqual(data["title"], preregistration_post.title)
+            self.assertEqual(data["type"], preregistration_post.document_type)
+
+            # Assert fundraise data
+            self.assertIsNotNone(data["fundraise"])
+            self.assertEqual(data["fundraise"]["id"], fundraise.id)
+            self.assertEqual(data["fundraise"]["status"], fundraise.status)
+
+            # Check goal_amount which is now a dictionary with usd and rsc values
+            self.assertIn("goal_amount", data["fundraise"])
+            self.assertIn("usd", data["fundraise"]["goal_amount"])
+            self.assertIn("rsc", data["fundraise"]["goal_amount"])
+            self.assertEqual(
+                data["fundraise"]["goal_amount"]["usd"], float(fundraise.goal_amount)
+            )
+            # Check that the mocked RSC value is used
+            self.assertEqual(data["fundraise"]["goal_amount"]["rsc"], 200.0)
+
+            self.assertEqual(
+                data["fundraise"]["goal_currency"], fundraise.goal_currency
+            )
+
+            # Check amount_raised which is now a dictionary with usd and rsc values
+            self.assertIn("amount_raised", data["fundraise"])
+            self.assertIn("usd", data["fundraise"]["amount_raised"])
+            self.assertIn("rsc", data["fundraise"]["amount_raised"])
+            # Check that the mocked amount_raised values are used
+            self.assertEqual(data["fundraise"]["amount_raised"]["usd"], 50.0)
+            self.assertEqual(data["fundraise"]["amount_raised"]["rsc"], 100.0)
+
+            # Check contributors which is now a dictionary with total and top values
+            self.assertIn("contributors", data["fundraise"])
+            self.assertIn("total", data["fundraise"]["contributors"])
+            self.assertEqual(data["fundraise"]["contributors"]["total"], 0)
+            self.assertIn("top", data["fundraise"]["contributors"])
 
 
 class CommentSerializerTests(TestCase):
     def setUp(self):
         self.user = create_random_default_user("user1")
         self.unified_document = ResearchhubUnifiedDocument.objects.create(
-            document_type=document_type.DISCUSSION,
+            document_type=document_type.PAPER,
         )
         self.paper = Paper.objects.create(
             title="paper1", unified_document=self.unified_document
@@ -187,6 +304,14 @@ class CommentSerializerTests(TestCase):
             comment_content_type=QUILL_EDITOR,
         )
 
+        # Create a post for testing post serialization
+        self.post = ResearchhubPost.objects.create(
+            title="Test Post",
+            document_type=document_type.DISCUSSION,
+            created_by=self.user,
+            unified_document=self.unified_document,
+        )
+
     def test_serializes_comment(self):
         serializer = CommentSerializer(self.comment)
         data = serializer.data
@@ -200,11 +325,82 @@ class CommentSerializerTests(TestCase):
         self.assertEqual(
             data["comment_content_json"], self.comment.comment_content_json
         )
+        self.assertIsNone(data["review"])
+        self.assertIn("metrics", data)
+        self.assertIn("votes", data["metrics"])
+        # Default value should be 0
+        self.assertEqual(data["metrics"]["votes"], 0)
+
+    def test_serializes_comment_metrics(self):
+        """Test that comment metrics are properly serialized"""
+        # Set up comment with specific metrics values
+        self.comment.score = 25
+        self.comment.save()
+
+        # Serialize the comment
+        serializer = CommentSerializer(self.comment)
+        data = serializer.data
+
+        # Verify metrics field exists and contains expected values
+        self.assertIn("metrics", data)
+        self.assertIsInstance(data["metrics"], dict)
+        self.assertIn("votes", data["metrics"])
+        self.assertEqual(data["metrics"]["votes"], 25)
+
+    def test_serializes_comment_with_review(self):
+        review = Review.objects.create(
+            score=8.5,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=self.comment.id,
+            unified_document=self.unified_document,
+        )
+
+        serializer = CommentSerializer(self.comment)
+        data = serializer.data
+
+        self.assertIsNotNone(data["review"])
+        self.assertEqual(data["review"]["id"], review.id)
+        self.assertEqual(data["review"]["score"], 8.5)
+        self.assertEqual(data["review"]["created_by"], self.user.id)
+        self.assertEqual(data["review"]["unified_document"], self.unified_document.id)
+
+    def test_serializes_comment_with_paper(self):
+        serializer = CommentSerializer(self.comment)
+        data = serializer.data
+
+        self.assertIsNotNone(data["paper"])
+        self.assertEqual(data["paper"]["title"], self.paper.title)
+
+    def test_serializes_comment_with_post(self):
+        # Create a thread for the existing post
+        post_thread = RhCommentThreadModel.objects.create(
+            thread_type=rh_comment_thread_types.GENERIC_COMMENT,
+            object_id=self.post.id,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+        )
+
+        # Create a comment for the post
+        post_comment = RhCommentModel.objects.create(
+            thread=post_thread,
+            created_by=self.user,
+            comment_content_type=QUILL_EDITOR,
+        )
+
+        serializer = CommentSerializer(post_comment)
+        data = serializer.data
+
+        self.assertIsNotNone(data["post"])
+        self.assertEqual(data["post"]["title"], self.post.title)
 
 
 class BountySerializerTests(TestCase):
     def setUp(self):
         self.user = create_random_default_user("bountyCreator1")
+        self.contributor1 = create_random_default_user("contributor1")
+        self.contributor2 = create_random_default_user("contributor2")
+
         self.paper = Paper.objects.create(title="testPaper1")
         content_type = ContentType.objects.get_for_model(self.paper)
 
@@ -218,6 +414,7 @@ class BountySerializerTests(TestCase):
         self.comment = RhCommentModel.objects.create(
             thread=self.review_thread,
             created_by=self.user,
+            comment_content_json={"test": "test"},
         )
 
         self.researchhub_document = ResearchhubUnifiedDocument.objects.create()
@@ -243,7 +440,47 @@ class BountySerializerTests(TestCase):
             created_by=self.user,
         )
 
-    def test_serializes_bounty(self):
+        # Create child bounties with different creators (contributors)
+        self.child_bounty1 = Bounty.objects.create(
+            amount=100,
+            status=Bounty.OPEN,
+            bounty_type=Bounty.Type.REVIEW,
+            unified_document=self.researchhub_document,
+            item=self.comment,
+            escrow=self.escrow,
+            created_by=self.contributor1,  # First contributor
+            parent=self.bounty,
+        )
+
+        self.child_bounty2 = Bounty.objects.create(
+            amount=200,
+            status=Bounty.OPEN,
+            bounty_type=Bounty.Type.REVIEW,
+            unified_document=self.researchhub_document,
+            item=self.comment,
+            escrow=self.escrow,
+            created_by=self.contributor2,  # Second contributor
+            parent=self.bounty,
+        )
+
+    @patch(
+        "researchhub_document.related_models.researchhub_unified_document_model"
+        ".ResearchhubUnifiedDocument.get_primary_hub"
+    )
+    def test_serializes_bounty(self, mock_get_primary_hub):
+        # Arrange
+        post = ResearchhubPost.objects.create(
+            title="Test Post",
+            document_type=document_type.POSTS,
+            created_by=self.user,
+            unified_document=self.researchhub_document,
+        )
+
+        self.comment.score = 10
+        self.comment.save()
+
+        mock_get_primary_hub.return_value = self.hub1
+
         # Act
         serializer = BountySerializer(self.bounty)
         data = serializer.data
@@ -259,6 +496,46 @@ class BountySerializerTests(TestCase):
 
         self.assertIn("paper", data)
         self.assertEqual(data["paper"]["title"], self.paper.title)
+
+        self.assertIn("comment", data)
+        self.assertEqual(data["comment"]["comment_content_json"], {"test": "test"})
+        self.assertIn("metrics", data["comment"])
+        self.assertIn("votes", data["comment"]["metrics"])
+        self.assertEqual(data["comment"]["metrics"]["votes"], 10)
+
+        self.assertIn("post", data)
+        self.assertEqual(data["post"]["title"], post.title)
+        self.assertEqual(data["post"]["type"], document_type.POSTS)
+
+        mock_get_primary_hub.assert_called()
+
+    @patch(
+        "researchhub_document.related_models.researchhub_unified_document_model"
+        ".ResearchhubUnifiedDocument.get_primary_hub"
+    )
+    def test_serializes_bounty_with_contributors(self, mock_get_primary_hub):
+        # Arrange
+        mock_get_primary_hub.return_value = self.hub1
+
+        # Act
+        serializer = BountySerializer(self.bounty)
+        data = serializer.data
+
+        # Assert
+        self.assertIn("contributors", data)
+        self.assertEqual(len(data["contributors"]), 2)
+
+        # Get contributor data
+        contributor_first_names = [c["first_name"] for c in data["contributors"]]
+        contributor_last_names = [c["last_name"] for c in data["contributors"]]
+
+        # Verify both contributors are included
+        self.assertIn(self.contributor1.first_name, contributor_first_names)
+        self.assertIn(self.contributor1.last_name, contributor_last_names)
+        self.assertIn(self.contributor2.first_name, contributor_first_names)
+        self.assertIn(self.contributor2.last_name, contributor_last_names)
+
+        mock_get_primary_hub.assert_called()
 
 
 class SimpleHubSerializerTests(TestCase):
@@ -279,9 +556,16 @@ class FeedEntrySerializerTests(TestCase):
 
         return None
 
-    def test_serializes_paper_feed_entry(self):
+    @patch(
+        "researchhub_document.related_models.researchhub_unified_document_model"
+        ".ResearchhubUnifiedDocument.get_primary_hub"
+    )
+    def test_serializes_paper_feed_entry(self, mock_get_primary_hub):
         paper = create_paper(uploaded_by=self.user)
         paper.save()
+
+        hub = create_hub("Test Hub")
+        mock_get_primary_hub.return_value = hub
 
         feed_entry = FeedEntry.objects.create(
             content_type=ContentType.objects.get_for_model(Paper),
@@ -303,6 +587,7 @@ class FeedEntrySerializerTests(TestCase):
         self.assertIn("content_object", data)
         self.assertIn("created_date", data)
 
-        # Verify paper data is properly nested
         paper_data = data["content_object"]
         self.assertEqual(paper_data["title"], paper.title)
+
+        mock_get_primary_hub.assert_called()

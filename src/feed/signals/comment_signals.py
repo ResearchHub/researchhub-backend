@@ -1,3 +1,4 @@
+import logging
 from functools import partial
 
 from django.contrib.contenttypes.models import ContentType
@@ -7,6 +8,7 @@ from django.dispatch import receiver
 
 from feed.models import FeedEntry
 from feed.tasks import create_feed_entry, delete_feed_entry
+from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 
 """
@@ -16,6 +18,8 @@ The signal handlers are responsbile for creating and deleting feed entries
 when comments are created and removed, respectively.
 """
 
+logger = logging.getLogger(__name__)
+
 
 @receiver(post_save, sender=RhCommentModel)
 def handle_comment_created_or_removed(sender, instance, created, **kwargs):
@@ -24,17 +28,25 @@ def handle_comment_created_or_removed(sender, instance, created, **kwargs):
     """
     comment = instance
 
-    if created:
-        _handle_comment_created(comment)
-    elif comment.is_removed:
-        _handle_comment_removed(comment)
+    try:
+        if created:
+            _create_comment_feed_entries(comment)
+        elif comment.is_removed:
+            _delete_comment_feed_entries(comment)
+    except Exception as e:
+        action = "create" if created else "delete"
+        logger.error(f"Failed to {action} feed entry for comment {comment.id}: {e}")
 
 
-def _handle_comment_created(comment):
+def _create_comment_feed_entries(comment):
     # Validate that the comment is associated with a unified document with hubs
     if not getattr(comment, "unified_document", None) or not hasattr(
         comment.unified_document, "hubs"
     ):
+        return
+
+    if comment.comment_type != PEER_REVIEW:
+        # Ignore non-peer review comments
         return
 
     tasks = [
@@ -55,7 +67,7 @@ def _handle_comment_created(comment):
     transaction.on_commit(lambda: [task() for task in tasks])
 
 
-def _handle_comment_removed(comment):
+def _delete_comment_feed_entries(comment):
     # Validate that the comment is associated with a unified document with hubs
     if not getattr(comment, "unified_document", None) or not hasattr(
         comment.unified_document, "hubs"

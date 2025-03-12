@@ -7,7 +7,10 @@ from feed.models import FeedEntry
 from feed.tests.test_views import User
 from hub.models import Hub
 from paper.related_models.paper_model import Paper
-from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT
+from researchhub_comment.constants.rh_comment_thread_types import (
+    GENERIC_COMMENT,
+    PEER_REVIEW,
+)
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
@@ -35,13 +38,14 @@ class CommentSignalsTests(TestCase):
 
         self.content_type = ContentType.objects.get_for_model(Paper)
         self.thread = RhCommentThreadModel.objects.create(
-            thread_type=GENERIC_COMMENT,
+            thread_type=PEER_REVIEW,
             content_type=self.content_type,
             object_id=self.paper.id,
             created_by=self.user,
         )
         self.comment = RhCommentModel.objects.create(
             comment_content_json={"ops": [{"insert": "comment1"}]},
+            comment_type=PEER_REVIEW,
             created_by=self.user,
             thread=self.thread,
         )
@@ -61,6 +65,7 @@ class CommentSignalsTests(TestCase):
         # Act
         comment = RhCommentModel.objects.create(
             comment_content_json={"ops": [{"insert": "comment1"}]},
+            comment_type=PEER_REVIEW,
             created_by=self.user,
             thread=self.thread,
         )
@@ -92,6 +97,29 @@ class CommentSignalsTests(TestCase):
                 ),
             ]
         )
+
+    @patch("feed.signals.comment_signals.create_feed_entry")
+    @patch("feed.signals.comment_signals.transaction")
+    def test_handle_comment_created_signal_ignores_non_peer_review_comments(
+        self, mock_transaction, mock_create_feed_entry
+    ):
+        """
+        Test that a feed entry is not created when a non-peer review comment is created.
+        """
+        # Arrange
+        mock_transaction.on_commit = lambda func: func()
+        mock_create_feed_entry.apply_async = MagicMock()
+
+        # Act
+        RhCommentModel.objects.create(
+            comment_content_json={"ops": [{"insert": "comment1"}]},
+            comment_type=GENERIC_COMMENT,
+            created_by=self.user,
+            thread=self.thread,
+        )
+
+        # Assert
+        mock_create_feed_entry.apply_async.assert_not_called()
 
     @patch("feed.signals.comment_signals.delete_feed_entry")
     @patch("feed.signals.comment_signals.transaction")
