@@ -210,7 +210,6 @@ class FeedViewSet(viewsets.ModelViewSet):
             .prefetch_related(
                 "unified_document",
                 "unified_document__hubs",
-                "unified_document__fundraises",
             )
         )
 
