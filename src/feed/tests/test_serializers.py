@@ -173,6 +173,36 @@ class PostSerializerTests(TestCase):
         self.assertEqual(data["type"], self.post.document_type)
         self.assertIsNone(data["fundraise"])
 
+    def test_serializes_post_metrics(self):
+        """Test that post metrics are properly serialized"""
+        # Set up post with specific metrics values
+        self.post.score = 42
+        self.post.discussion_count = 15
+        self.post.save()
+
+        # Serialize the post
+        serializer = PostSerializer(self.post)
+        data = serializer.data
+
+        # Verify metrics field exists and contains expected values
+        self.assertIn("metrics", data)
+        self.assertIsInstance(data["metrics"], dict)
+        self.assertIn("votes", data["metrics"])
+        self.assertIn("comments", data["metrics"])
+        self.assertEqual(data["metrics"]["votes"], 42)
+        self.assertEqual(data["metrics"]["comments"], 15)
+
+        # Test with different values
+        self.post.score = 0
+        self.post.discussion_count = 0
+        self.post.save()
+
+        serializer = PostSerializer(self.post)
+        data = serializer.data
+
+        self.assertEqual(data["metrics"]["votes"], 0)
+        self.assertEqual(data["metrics"]["comments"], 0)
+
     def test_serializes_preregistration_post_with_fundraise(self):
         from decimal import Decimal
 

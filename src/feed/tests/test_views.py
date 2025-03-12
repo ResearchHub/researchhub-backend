@@ -493,7 +493,8 @@ class FeedViewSetTests(TestCase):
             self.assertEqual(
                 cache_key,
                 expected_key,
-                f"Failed with params: {query_params}, auth: {is_authenticated}, user_id: {user_id}",
+                f"Failed with params: {query_params}, auth: {is_authenticated}, "
+                f"user_id: {user_id}",
             )
 
     def test_feed_includes_user_votes(self):
@@ -504,6 +505,8 @@ class FeedViewSetTests(TestCase):
             document_type="POST",
             created_by=self.user,
             unified_document=self.unified_document,
+            score=5,  # Add score for metrics testing
+            discussion_count=3,  # Add discussion_count for metrics testing
         )
 
         paper_thread = RhCommentThreadModel.objects.create(
@@ -630,11 +633,17 @@ class FeedViewSetTests(TestCase):
                 self.paper.id
             ):
                 self.assertIn("user_vote", content_object)
+                self.assertIn("metrics", content_object)
+                self.assertIn("votes", content_object["metrics"])
+                self.assertIn("comments", content_object["metrics"])
 
             elif content_type == "RESEARCHHUBPOST" and str(
                 content_object.get("id")
             ) == str(post.id):
                 self.assertIn("user_vote", content_object)
+                self.assertIn("metrics", content_object)
+                self.assertEqual(content_object["metrics"]["votes"], 5)
+                self.assertEqual(content_object["metrics"]["comments"], 3)
 
             elif content_type == "RHCOMMENTMODEL" and str(
                 content_object.get("id")
