@@ -184,7 +184,8 @@ class PaperViewSet(
         - title: string
         - declarations: list[dict] - Each dict contains:
             - declaration_type: string
-                - options: ACCEPT_TERMS_AND_CONDITIONS, AUTHORIZE_CC_BY_4_0, CONFIRM_AUTHORS_RIGHTS, CONFIRM_ORIGINALITY_AND_COMPLIANCE
+                - options: ACCEPT_TERMS_AND_CONDITIONS, AUTHORIZE_CC_BY_4_0,
+                  CONFIRM_AUTHORS_RIGHTS, CONFIRM_ORIGINALITY_AND_COMPLIANCE
             - accepted: boolean
         """
         try:
@@ -203,32 +204,40 @@ class PaperViewSet(
                 if previous_paper_id:
                     try:
                         previous_paper = Paper.objects.get(id=previous_paper_id)
-                    except Paper.DoesNotExist:
+                    except Paper.DoesNotExist as e:
+                        log_error(
+                            e, message=f"Previous paper not found: {previous_paper_id}"
+                        )
                         return Response(
-                            {"error": "Previous paper not found"},
+                            {
+                                "error": "Previous paper not found. Please check the paper ID and try again."
+                            },
                             status=status.HTTP_400_BAD_REQUEST,
                         )
 
                 if not title or not abstract:
+                    error_msg = "Title and abstract are required"
+                    log_error(ValueError(error_msg))
                     return Response(
-                        {"error": "Title and abstract are required"},
-                        status=status.HTTP_400_BAD_REQUEST,
+                        {"error": error_msg}, status=status.HTTP_400_BAD_REQUEST
                     )
 
                 # Validate author data
                 if not authors_data:
+                    error_msg = "At least one author is required"
+                    log_error(ValueError(error_msg))
                     return Response(
-                        {"error": "At least one author is required"},
-                        status=status.HTTP_400_BAD_REQUEST,
+                        {"error": error_msg}, status=status.HTTP_400_BAD_REQUEST
                     )
 
                 # Check for at least one corresponding author
                 if not any(
                     author.get("is_corresponding", False) for author in authors_data
                 ):
+                    error_msg = "At least one corresponding author is required"
+                    log_error(ValueError(error_msg))
                     return Response(
-                        {"error": "At least one corresponding author is required"},
-                        status=status.HTTP_400_BAD_REQUEST,
+                        {"error": error_msg}, status=status.HTTP_400_BAD_REQUEST
                     )
 
                 # Create paper
@@ -245,10 +254,22 @@ class PaperViewSet(
                 if pdf_url:
                     paper_data["pdf_url"] = pdf_url
 
-                paper = Paper.objects.create(**paper_data)
+                try:
+                    paper = Paper.objects.create(**paper_data)
+                except Exception as e:
+                    log_error(
+                        e,
+                        message="Failed to create paper",
+                        json_data={"paper_data": paper_data},
+                    )
+                    raise
 
                 # Create paper series
-                paper_series = PaperSeries.objects.create()
+                try:
+                    paper_series = PaperSeries.objects.create()
+                except Exception as e:
+                    log_error(e, message="Failed to create paper series")
+                    raise
 
                 # Get valid declaration types
                 valid_declaration_types = dict(
@@ -262,9 +283,13 @@ class PaperViewSet(
                     if not any(d["declaration_type"] == d_type for d in declarations)
                 ]
                 if missing_declarations:
+                    error_msg = f"Missing required declarations: {', '.join(missing_declarations)}"
+                    log_error(
+                        ValueError(error_msg), json_data={"declarations": declarations}
+                    )
                     return Response(
                         {
-                            "error": f"Missing required declarations: {', '.join(missing_declarations)}"
+                            "error": "Please accept all required declarations to continue."
                         },
                         status=status.HTTP_400_BAD_REQUEST,
                     )
@@ -277,10 +302,12 @@ class PaperViewSet(
                     and not d.get("accepted", False)
                 ]
                 if unaccepted_declarations:
+                    error_msg = f"All declarations must be accepted. Unaccepted: {', '.join(unaccepted_declarations)}"
+                    log_error(
+                        ValueError(error_msg), json_data={"declarations": declarations}
+                    )
                     return Response(
-                        {
-                            "error": f"All declarations must be accepted. Unaccepted declarations: {', '.join(unaccepted_declarations)}"
-                        },
+                        {"error": "All declarations must be accepted to continue."},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
 
@@ -288,106 +315,177 @@ class PaperViewSet(
                 paper.save()
 
                 # Associate authors
-                author_ids = [author_data["id"] for author_data in authors_data]
-                authors = Author.objects.filter(id__in=author_ids)
-                author_map = {author.id: author for author in authors}
+                try:
+                    author_ids = [author_data["id"] for author_data in authors_data]
+                    authors = Author.objects.filter(id__in=author_ids)
+                    author_map = {author.id: author for author in authors}
 
-                for author_data in authors_data:
-                    author_id = author_data.get("id")
-                    institution_id = author_data.get("institution_id")
-                    if author_id not in author_map:
-                        continue
+                    # Log if any authors weren't found
+                    missing_author_ids = set(author_ids) - set(author_map.keys())
+                    if missing_author_ids:
+                        log_error(
+                            ValueError("Some authors not found"),
+                            message=f"Authors not found: {missing_author_ids}",
+                            json_data={
+                                "author_ids": author_ids,
+                                "found_authors": list(author_map.keys()),
+                            },
+                        )
 
-                    author_position = author_data.get("author_position", "middle")
-                    if author_position not in ["first", "middle", "last"]:
-                        author_position = "middle"
+                    for author_data in authors_data:
+                        author_id = author_data.get("id")
+                        institution_id = author_data.get("institution_id")
+                        if author_id not in author_map:
+                            continue
 
-                    authorship = Authorship.objects.create(
-                        paper=paper,
-                        author=author_map[author_id],
-                        department=author_data.get("department"),
-                        email=author_data.get("email"),
-                        source="RESEARCHHUB",
-                        author_position=author_position,
-                        raw_author_name=f"{author_map[author_id].first_name} {author_map[author_id].last_name}",
-                        is_corresponding=author_data.get("is_corresponding", False),
+                        author_position = author_data.get("author_position", "middle")
+                        if author_position not in ["first", "middle", "last"]:
+                            author_position = "middle"
+
+                        authorship = Authorship.objects.create(
+                            paper=paper,
+                            author=author_map[author_id],
+                            department=author_data.get("department"),
+                            email=author_data.get("email"),
+                            source="RESEARCHHUB",
+                            author_position=author_position,
+                            raw_author_name=f"{author_map[author_id].first_name} {author_map[author_id].last_name}",
+                            is_corresponding=author_data.get("is_corresponding", False),
+                        )
+
+                        if institution_id:
+                            authorship.institutions.add(institution_id)
+                except Exception as e:
+                    log_error(
+                        e,
+                        message="Failed to associate authors with paper",
+                        json_data={"paper_id": paper.id, "author_data": authors_data},
                     )
-
-                    if institution_id:
-                        authorship.institutions.add(institution_id)
+                    raise
 
                 # Associate hubs
-                if hub_ids:
-                    paper.unified_document.hubs.add(*hub_ids)
+                try:
+                    if hub_ids:
+                        paper.unified_document.hubs.add(*hub_ids)
+                except Exception as e:
+                    log_error(
+                        e,
+                        message="Failed to associate hubs with paper",
+                        json_data={"paper_id": paper.id, "hub_ids": hub_ids},
+                    )
+                    raise
 
                 # Create paper version
-                paper_version_number = 1
-                base_doi = None
-                original_paper_id = paper.id
-                if previous_paper:
-                    try:
-                        paper_version = previous_paper.version
-                        original_paper_id = paper_version.paper_id
-                        paper_version_number = paper_version.version + 1
-                        if previous_paper.version.base_doi:
-                            base_doi = previous_paper.version.base_doi
-                    except PaperVersion.DoesNotExist:
-                        # If the previous paper version does not exist, create the initial version
-                        # and set the current version to 2.
-                        original_paper_id = (
-                            previous_paper.id
-                        )  # The original paper was created outside of ResearchHub
-                        PaperVersion.objects.create(
-                            paper=previous_paper,
-                            version=1,
-                            original_paper_id=original_paper_id,
+                try:
+                    paper_version_number = 1
+                    base_doi = None
+                    original_paper_id = paper.id
+                    if previous_paper:
+                        try:
+                            paper_version = previous_paper.version
+                            original_paper_id = paper_version.paper_id
+                            paper_version_number = paper_version.version + 1
+                            if previous_paper.version.base_doi:
+                                base_doi = previous_paper.version.base_doi
+                        except PaperVersion.DoesNotExist as e:
+                            log_error(
+                                e,
+                                message=f"Previous paper version not found for paper {previous_paper.id}",
+                            )
+                            # If the previous paper version does not exist, create the initial version
+                            # and set the current version to 2.
+                            original_paper_id = (
+                                previous_paper.id
+                            )  # The original paper was created outside of ResearchHub
+                            PaperVersion.objects.create(
+                                paper=previous_paper,
+                                version=1,
+                                original_paper_id=original_paper_id,
+                            )
+                            paper_version_number = 2
+
+                    doi = DOI(base_doi=base_doi, version=paper_version_number)
+
+                    crossref_response = doi.register_doi_for_paper(
+                        authors=authors,
+                        title=title,
+                        rh_paper=paper,
+                    )
+
+                    if crossref_response.status_code != 200:
+                        error_msg = "Crossref API Failure"
+                        log_error(
+                            ValueError(error_msg),
+                            message=f"Crossref API returned status {crossref_response.status_code}",
+                            json_data={"response_text": crossref_response.text},
                         )
-                        paper_version_number = 2
+                        return Response(
+                            {
+                                "error": "Unable to register DOI for this paper. Please try again later."
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
 
-                doi = DOI(base_doi=base_doi, version=paper_version_number)
+                    paper.doi = doi.doi
+                    paper.save()
 
-                crossref_response = doi.register_doi_for_paper(
-                    authors=authors,
-                    title=title,
-                    rh_paper=paper,
-                )
-
-                if crossref_response.status_code != 200:
-                    return Response("Crossref API Failure", status=400)
-
-                paper.doi = doi.doi
-                paper.save()
-
-                PaperVersion.objects.create(
-                    paper=paper,
-                    version=paper_version_number,
-                    message=change_description,
-                    base_doi=doi.base_doi,
-                    original_paper_id=original_paper_id,
-                )
+                    PaperVersion.objects.create(
+                        paper=paper,
+                        version=paper_version_number,
+                        message=change_description,
+                        base_doi=doi.base_doi,
+                        original_paper_id=original_paper_id,
+                    )
+                except Exception as e:
+                    log_error(
+                        e,
+                        message="Failed to create paper version",
+                        json_data={
+                            "paper_id": paper.id,
+                            "previous_paper_id": (
+                                previous_paper_id if previous_paper else None
+                            ),
+                        },
+                    )
+                    raise
 
             # Return serialized paper
-            context = self._get_paper_context(request)
-            serializer = self.dynamic_serializer_class(
-                paper,
-                context=context,
-                _include_fields=[
-                    "id",
-                    "title",
-                    "abstract",
-                    "authors",
-                    "hubs",
-                    "version",
-                    "version_list",
-                ],
-            )
+            try:
+                context = self._get_paper_context(request)
+                serializer = self.dynamic_serializer_class(
+                    paper,
+                    context=context,
+                    _include_fields=[
+                        "id",
+                        "title",
+                        "abstract",
+                        "authors",
+                        "hubs",
+                        "version",
+                        "version_list",
+                    ],
+                )
 
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+                return Response(serializer.data, status=status.HTTP_201_CREATED)
+            except Exception as e:
+                log_error(
+                    e,
+                    message="Failed to serialize paper response",
+                    json_data={"paper_id": paper.id},
+                )
+                raise
 
         except Exception as e:
-            log_error(e)
+            log_error(
+                e,
+                message="Unhandled exception in create_researchhub_paper",
+                json_data={"request_data": request.data},
+            )
             return Response(
-                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {
+                    "error": "An error occurred while creating the paper. Please try again later."
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     def _get_integrity_error_response(self, error):
@@ -1308,6 +1406,7 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
 
         # Duplicate DOI check
         duplicate_papers = Paper.objects.filter(doi_svf=SearchQuery(doi))
+
         if duplicate_papers:
             serializer = DynamicPaperSerializer(
                 duplicate_papers,
