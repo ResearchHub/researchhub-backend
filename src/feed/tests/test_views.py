@@ -649,6 +649,8 @@ class FeedViewSetTests(TestCase):
                 content_object.get("id")
             ) == str(comment.id):
                 self.assertIn("user_vote", content_object)
+                self.assertIn("metrics", content_object)
+                self.assertIn("votes", content_object["metrics"])
 
             elif content_type == "BOUNTY" and str(content_object.get("id")) == str(
                 bounty.id

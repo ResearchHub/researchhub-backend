@@ -269,6 +269,12 @@ class BountySerializer(serializers.Serializer):
         ]
 
 
+class CommentMetricsSerializer(serializers.Serializer):
+    """Serializer for comment metrics including votes."""
+
+    votes = serializers.IntegerField(source="score", default=0)
+
+
 class CommentSerializer(serializers.Serializer):
     comment_content_json = serializers.JSONField()
     comment_content_type = serializers.CharField()
@@ -281,6 +287,7 @@ class CommentSerializer(serializers.Serializer):
     post = serializers.SerializerMethodField()
     thread_id = serializers.IntegerField()
     review = serializers.SerializerMethodField()
+    metrics = CommentMetricsSerializer(source="*")
 
     def get_document_type(self, obj):
         if obj.unified_document:
@@ -326,6 +333,7 @@ class CommentSerializer(serializers.Serializer):
             "document_type",
             "hub",
             "id",
+            "metrics",
             "paper",
             "parent_id",
             "post",
