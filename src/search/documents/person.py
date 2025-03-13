@@ -1,9 +1,8 @@
-from django_elasticsearch_dsl import Completion, Document
 from django_elasticsearch_dsl import fields as es_fields
 from django_elasticsearch_dsl.registries import registry
 
 from search.analyzers import content_analyzer
-from user.models import Author, User
+from user.models import Author
 
 from .base import BaseDocument
 
