@@ -30,8 +30,8 @@ class NoteContentSerializer(ModelSerializer):
         fields = "__all__"
 
     def get_src(self, note_content):
-        if note_content.json:  # If JSON exists, don't return src
-            return None
+        # if note_content.json:  # If JSON exists, don't return src
+        #     return None
 
         src = note_content.src
         if src:
