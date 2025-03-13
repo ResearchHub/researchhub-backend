@@ -102,10 +102,17 @@ class PersonDocument(BaseDocument):
         return suggestions
 
     def prepare(self, instance):
-        data = super().prepare(instance)
+        try:
+            data = super().prepare(instance)
+        except Exception as e:
+            logger.warn(f"Failed to prepare data for person {instance.id}: {e}")
+            return None
+
         try:
             data["suggestion_phrases"] = self.prepare_suggestion_phrases(instance)
         except Exception as e:
-            logger.error(f"Error preparing data for {instance.id}: {e}")
+            logger.warn(
+                f"Failed to prepare suggestion phrases for person {instance.id}: {e}"
+            )
             data["suggestion_phrases"] = []
         return data
