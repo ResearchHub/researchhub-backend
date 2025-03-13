@@ -4,6 +4,7 @@ from django.db import models
 from django.db.models import Subquery
 from requests import Request
 from rest_framework import status, viewsets
+from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
@@ -18,6 +19,7 @@ from researchhub_document.views.researchhub_unified_document_views import get_us
 
 from .models import FeedEntry
 from .serializers import FeedEntrySerializer
+from .services import AmazonPersonalizeService
 
 
 class FeedPagination(PageNumberPagination):
@@ -33,6 +35,10 @@ class FeedViewSet(viewsets.ModelViewSet):
     serializer_class = FeedEntrySerializer
     permission_classes = []
     pagination_class = FeedPagination
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.personalize_service = AmazonPersonalizeService()
 
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
@@ -278,3 +284,84 @@ class FeedViewSet(viewsets.ModelViewSet):
         final_qs = queryset.filter(pk__in=sub_qs.values("pk")).order_by("-action_date")
 
         return final_qs
+
+    @action(detail=False, methods=["get"])
+    def personalized(self, request, *args, **kwargs):
+        """
+        Get personalized feed recommendations using Amazon Personalize.
+
+        This endpoint returns feed entries recommended by Amazon Personalize
+        based on the user's past interactions and preferences.
+        """
+        # Get recommendations from Amazon Personalize
+        limit = int(request.query_params.get("limit", 20))
+        recommendations = self.personalize_service.get_recommendations(
+            user=request.user, limit=limit
+        )
+
+        if not recommendations:
+            # Fall back to popular feed if no recommendations
+            return self.list(request, *args, **kwargs)
+
+        # Get the unified document IDs from recommendations
+        unified_doc_ids = [rec["item_id"] for rec in recommendations]
+
+        # Get the feed entries for these unified documents
+        queryset = (
+            FeedEntry.objects.filter(unified_document_id__in=unified_doc_ids)
+            .select_related(
+                "content_type",
+                "parent_content_type",
+                "user",
+                "user__author_profile",
+            )
+            .prefetch_related(
+                "unified_document",
+                "unified_document__hubs",
+            )
+        )
+
+        # Get the most recent feed entry for each unified document
+        sub_qs = queryset.order_by("unified_document_id", "-action_date").distinct(
+            "unified_document_id"
+        )
+
+        final_qs = queryset.filter(pk__in=sub_qs.values("pk"))
+
+        # Sort the feed entries according to the recommendation order
+        # This is a bit tricky since we need to preserve the order from recommendations
+        # We'll use a dictionary to map unified_document_id to its position in recommendations
+        rec_order = {}
+        for i, rec in enumerate(recommendations):
+            rec_order[rec["item_id"]] = i
+
+        # Convert queryset to list and sort by recommendation order
+        feed_entries = list(final_qs)
+        feed_entries.sort(
+            key=lambda entry: rec_order.get(entry.unified_document_id, 999999)
+        )
+
+        # Paginate the results
+        page = self.paginate_queryset(feed_entries)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            response_data = self.get_paginated_response(serializer.data)
+        else:
+            serializer = self.get_serializer(feed_entries, many=True)
+            response_data = Response(serializer.data)
+
+        # Add user votes to the response
+        if request.user.is_authenticated:
+            self._add_user_votes_to_response(request.user, response_data.data)
+
+        # Record view events for the items shown to the user
+        if request.user.is_authenticated:
+            for entry in page:
+                self.personalize_service.record_event(
+                    user=request.user,
+                    item_id=entry.unified_document_id,
+                    event_type="view",
+                    session_id=request.session.session_key,
+                )
+
+        return response_data

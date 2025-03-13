@@ -532,7 +532,7 @@ STATICFILES_DIRS = ["stylesheets"]
 AWS_REGION_NAME = os.environ.get("AWS_REGION_NAME", keys.AWS_REGION_NAME)
 
 if not (CLOUD or TESTING) and os.environ.get("AWS_PROFILE") is None:
-    # Set AWS profile for local development
+    # Use local AWS profile for development
     os.environ["AWS_PROFILE"] = keys.AWS_PROFILE
 
 # AWS Lambda
@@ -864,3 +864,12 @@ COIN_GECKO_API_KEY = os.environ.get("COIN_GECKO_API_KEY", keys.COIN_GECKO_API_KE
 
 # Segment analytics
 analytics.write_key = os.environ.get("SEGMENT_WRITE_KEY", keys.SEGMENT_WRITE_KEY)
+
+# Amazon Personalize Settings
+AWS_PERSONALIZE_ENABLED = os.environ.get("AWS_PERSONALIZE_ENABLED", False)
+AWS_PERSONALIZE_CAMPAIGN_ARN = os.environ.get(
+    "AWS_PERSONALIZE_CAMPAIGN_ARN", getattr(keys, "AWS_PERSONALIZE_CAMPAIGN_ARN", None)
+)
+AWS_PERSONALIZE_TRACKING_ID = os.environ.get(
+    "AWS_PERSONALIZE_TRACKING_ID", getattr(keys, "AWS_PERSONALIZE_TRACKING_ID", None)
+)
