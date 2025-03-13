@@ -1,3 +1,5 @@
+import logging
+
 from django_elasticsearch_dsl import fields as es_fields
 from django_elasticsearch_dsl.registries import registry
 
@@ -5,6 +7,8 @@ from search.analyzers import content_analyzer
 from user.models import Author
 
 from .base import BaseDocument
+
+logger = logging.getLogger(__name__)
 
 
 @registry.register_document
@@ -101,7 +105,7 @@ class PersonDocument(BaseDocument):
         data = super().prepare(instance)
         try:
             data["suggestion_phrases"] = self.prepare_suggestion_phrases(instance)
-        except Exception as error:
-            print(f"Error preparing suggestions for {instance.id}: {error}")
+        except Exception as e:
+            logger.error(f"Error preparing data for {instance.id}: {e}")
             data["suggestion_phrases"] = []
         return data
