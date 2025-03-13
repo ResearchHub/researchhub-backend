@@ -5,7 +5,7 @@ from unittest.mock import PropertyMock, patch
 from django.test import Client, TestCase
 from django.urls import reverse
 from rest_framework import status
-from rest_framework.test import APIClient, APITestCase
+from rest_framework.test import APITestCase
 
 from hub.models import Hub
 from paper.models import Paper, PaperVersion
@@ -471,7 +471,10 @@ class PaperApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("ACCEPT_TERMS_AND_CONDITIONS", str(response.data["error"]))
+        self.assertEqual(
+            "All declarations must be accepted to continue.",
+            response.data["error"],
+        )
 
     def test_create_researchhub_paper_with_missing_declarations(self):
         """Test that paper creation fails if valid declarations are not accepted"""
@@ -496,7 +499,10 @@ class PaperApiTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("Missing required declarations", str(response.data["error"]))
+        self.assertEqual(
+            "Please accept all required declarations to continue.",
+            str(response.data["error"]),
+        )
 
 
 class PaperViewsTests(TestCase):
