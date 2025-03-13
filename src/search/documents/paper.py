@@ -142,7 +142,7 @@ class PaperDocument(BaseDocument):
 
         # Assign weight based on how "hot" the paper is
         weight = 1
-        if instance.unified_document.hot_score > 0:
+        if instance.unified_document and instance.unified_document.hot_score > 0:
             # Scale down the hot score from 1 - 100 to avoid a huge range
             # of values that could result in bad suggestions
             weight = int(math.log(instance.unified_document.hot_score, 10) * 10)
