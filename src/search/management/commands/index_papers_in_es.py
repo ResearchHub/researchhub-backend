@@ -46,6 +46,7 @@ def index_papers_in_bulk(es, from_id, to_id, max_attempts=5):
                 doc.meta.id = paper.id
                 doc_data = {
                     "abstract": paper.abstract or "",
+                    "authors": paper.authors or [],
                     "can_display_pdf_license": doc.prepare_can_display_pdf_license(
                         paper
                     )
@@ -61,6 +62,7 @@ def index_papers_in_bulk(es, from_id, to_id, max_attempts=5):
                     "hubs": paper.hubs_indexing or [],
                     "id": paper.id,
                     "oa_status": paper.oa_status,
+                    "openalex_id": paper.openalex_id,
                     "paper_publish_date": paper.paper_publish_date or None,
                     "paper_publish_year": doc.prepare_paper_publish_year(paper),
                     "paper_title": paper.paper_title or "",
