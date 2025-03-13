@@ -45,31 +45,31 @@ def index_papers_in_bulk(es, from_id, to_id, max_attempts=5):
                 doc = PaperDocument()
                 doc.meta.id = paper.id
                 doc_data = {
-                    "id": paper.id,
-                    "hubs_flat": paper.hubs_indexing_flat or None,
-                    "paper_title": paper.paper_title or "",
-                    "paper_publish_date": paper.paper_publish_date or None,
-                    "paper_publish_year": doc.prepare_paper_publish_year(paper),
                     "abstract": paper.abstract or "",
-                    "doi": paper.doi or None,
-                    "raw_authors": paper.raw_authors_indexing or [],
-                    "hubs": paper.hubs_indexing or [],
-                    "slug": paper.slug or None,
-                    "title": paper.title or None,
-                    "discussion_count": paper.discussion_count or 0,
-                    "hot_score": doc.prepare_hot_score(paper),
-                    "suggestion_phrases": doc.prepare_suggestion_phrases(paper),
-                    "updated_date": paper.updated_date or None,
-                    "oa_status": paper.oa_status,
-                    "pdf_license": paper.pdf_license,
-                    "external_source": paper.external_source,
-                    "citations": paper.citations or 0,
-                    "citation_percentile": paper.citation_percentile or 0,
                     "can_display_pdf_license": doc.prepare_can_display_pdf_license(
                         paper
                     )
                     or False,
+                    "citation_percentile": paper.citation_percentile or 0,
+                    "citations": paper.citations or 0,
                     "completeness_status": paper.get_paper_completeness(),
+                    "discussion_count": paper.discussion_count or 0,
+                    "doi": paper.doi or None,
+                    "external_source": paper.external_source,
+                    "hot_score": doc.prepare_hot_score(paper),
+                    "hubs_flat": paper.hubs_indexing_flat or None,
+                    "hubs": paper.hubs_indexing or [],
+                    "id": paper.id,
+                    "oa_status": paper.oa_status,
+                    "paper_publish_date": paper.paper_publish_date or None,
+                    "paper_publish_year": doc.prepare_paper_publish_year(paper),
+                    "paper_title": paper.paper_title or "",
+                    "pdf_license": paper.pdf_license,
+                    "raw_authors": paper.raw_authors_indexing or [],
+                    "slug": paper.slug or None,
+                    "suggestion_phrases": doc.prepare_suggestion_phrases(paper),
+                    "title": paper.title or None,
+                    "updated_date": paper.updated_date or None,
                 }
 
                 action = {
