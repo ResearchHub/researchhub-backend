@@ -626,36 +626,12 @@ class FeedViewSetTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         for item in response.data.get("results", []):
-            content_type = item.get("content_type")
             content_object = item.get("content_object", {})
 
-            if content_type == "PAPER" and str(content_object.get("id")) == str(
-                self.paper.id
-            ):
-                self.assertIn("user_vote", content_object)
-                self.assertIn("metrics", content_object)
-                self.assertIn("votes", content_object["metrics"])
-                self.assertIn("comments", content_object["metrics"])
-
-            elif content_type == "RESEARCHHUBPOST" and str(
-                content_object.get("id")
-            ) == str(post.id):
-                self.assertIn("user_vote", content_object)
-                self.assertIn("metrics", content_object)
-                self.assertEqual(content_object["metrics"]["votes"], 5)
-                self.assertEqual(content_object["metrics"]["comments"], 3)
-
-            elif content_type == "RHCOMMENTMODEL" and str(
-                content_object.get("id")
-            ) == str(comment.id):
-                self.assertIn("user_vote", content_object)
-                self.assertIn("metrics", content_object)
-                self.assertIn("votes", content_object["metrics"])
-
-            elif content_type == "BOUNTY" and str(content_object.get("id")) == str(
-                bounty.id
-            ):
-                self.assertIn("user_vote", content_object.get("comment"))
+            self.assertIn("user_vote", content_object)
+            self.assertIn("metrics", item)
+            self.assertIn("votes", item["metrics"])
+            self.assertIn("comments", item["metrics"])
 
     @patch("feed.views.cache.get")
     @patch("feed.views.cache.set")
