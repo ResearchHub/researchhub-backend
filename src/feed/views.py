@@ -44,6 +44,8 @@ class FeedViewSet(viewsets.ModelViewSet):
             # try to get cached response
             cached_response = cache.get(cache_key)
             if cached_response:
+                if request.user.is_authenticated:
+                    self._add_user_votes_to_response(request.user, cached_response)
                 return Response(cached_response)
 
         response = super().list(request, *args, **kwargs)
@@ -52,7 +54,6 @@ class FeedViewSet(viewsets.ModelViewSet):
             # cache response
             cache.set(cache_key, response.data, timeout=DEFAULT_CACHE_TIMEOUT)
 
-        # Get votes for each item in the feed
         if request.user.is_authenticated:
             self._add_user_votes_to_response(request.user, response.data)
 
