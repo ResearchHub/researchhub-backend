@@ -352,6 +352,7 @@ class FeedEntrySerializer(serializers.ModelSerializer):
     action_date = serializers.DateTimeField()
     action = serializers.CharField()
     author = serializers.SerializerMethodField()
+    metrics = serializers.SerializerMethodField()
 
     class Meta:
         model = FeedEntry
@@ -363,6 +364,7 @@ class FeedEntrySerializer(serializers.ModelSerializer):
             "action_date",
             "action",
             "author",
+            "metrics",
         ]
 
     def get_author(self, obj):
@@ -379,6 +381,30 @@ class FeedEntrySerializer(serializers.ModelSerializer):
 
     def get_content_type(self, obj):
         return obj.content_type.model.upper()
+
+    def get_metrics(self, obj):
+        """Return metrics for the content object"""
+        metrics = {}
+        if obj.content_type.model == "bounty":
+            comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
+            if (
+                hasattr(obj.item, "item_content_type")
+                and obj.item.item_content_type == comment_content_type
+            ):
+                comment = obj.item.item
+                if comment:
+                    metrics["votes"] = getattr(comment, "score", 0)
+                    return metrics
+            return None
+
+        if hasattr(obj.item, "score"):
+            metrics["votes"] = getattr(obj.item, "score", 0)
+
+            if hasattr(obj.item, "discussion_count"):
+                metrics["comments"] = getattr(obj.item, "discussion_count", 0)
+
+            return metrics
+        return None
 
 
 def serialize_feed_item(feed_item, item_content_type):

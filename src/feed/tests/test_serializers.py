@@ -2,6 +2,7 @@ from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
+from django.utils import timezone
 
 from feed.models import FeedEntry
 from feed.serializers import (
@@ -562,6 +563,8 @@ class FeedEntrySerializerTests(TestCase):
     )
     def test_serializes_paper_feed_entry(self, mock_get_primary_hub):
         paper = create_paper(uploaded_by=self.user)
+        paper.score = 42
+        paper.discussion_count = 15
         paper.save()
 
         hub = create_hub("Test Hub")
@@ -589,5 +592,214 @@ class FeedEntrySerializerTests(TestCase):
 
         paper_data = data["content_object"]
         self.assertEqual(paper_data["title"], paper.title)
+
+        # Verify metrics field exists and contains expected values
+        self.assertIn("metrics", data)
+        self.assertIsInstance(data["metrics"], dict)
+        self.assertIn("votes", data["metrics"])
+        self.assertIn("comments", data["metrics"])
+        self.assertEqual(data["metrics"]["votes"], 42)
+        self.assertEqual(data["metrics"]["comments"], 15)
+
+        mock_get_primary_hub.assert_called()
+
+    @patch(
+        "researchhub_document.related_models.researchhub_unified_document_model."
+        "ResearchhubUnifiedDocument.get_primary_hub"
+    )
+    def test_serializes_post_feed_entry(self, mock_get_primary_hub):
+        """Test serialization of post feed entries with metrics"""
+        # Create a hub
+        hub = create_hub("Test Hub")
+        mock_get_primary_hub.return_value = hub
+
+        # Create a post with metrics
+        unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.POSTS,
+        )
+
+        post = ResearchhubPost.objects.create(
+            title="Test Post",
+            created_by=self.user,
+            document_type=document_type.POSTS,
+            renderable_text="This is a test post",
+            unified_document=unified_document,
+            score=25,
+            discussion_count=8,
+        )
+
+        # Create a feed entry for the post
+        post_feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=post.id,
+            item=post,
+            created_date=post.created_date,
+            action="PUBLISH",
+            action_date=post.created_date,
+            user=self.user,
+            unified_document=post.unified_document,
+        )
+
+        # Serialize the feed entry
+        serializer = FeedEntrySerializer(post_feed_entry)
+        data = serializer.data
+
+        # Verify basic feed entry fields
+        self.assertIn("id", data)
+        self.assertIn("content_type", data)
+        self.assertEqual(data["content_type"], "RESEARCHHUBPOST")
+        self.assertIn("content_object", data)
+        self.assertIn("created_date", data)
+
+        # Verify post data
+        post_data = data["content_object"]
+        self.assertEqual(post_data["title"], post.title)
+
+        # Verify metrics field exists and contains expected values
+        self.assertIn("metrics", data)
+        self.assertIsInstance(data["metrics"], dict)
+        self.assertIn("votes", data["metrics"])
+        self.assertIn("comments", data["metrics"])
+        self.assertEqual(data["metrics"]["votes"], 25)
+        self.assertEqual(data["metrics"]["comments"], 8)
+
+        mock_get_primary_hub.assert_called()
+
+    @patch(
+        "researchhub_document.related_models.researchhub_unified_document_model."
+        "ResearchhubUnifiedDocument.get_primary_hub"
+    )
+    def test_serializes_comment_feed_entry(self, mock_get_primary_hub):
+        """Test serialization of comment feed entries with metrics"""
+        # Create a hub
+        hub = create_hub("Test Hub")
+        mock_get_primary_hub.return_value = hub
+
+        # Create a paper for the comment
+        paper = create_paper(uploaded_by=self.user)
+
+        # Create a comment thread and comment with metrics
+        thread = RhCommentThreadModel.objects.create(
+            thread_type=rh_comment_thread_types.GENERIC_COMMENT,
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=paper.id,
+            created_by=self.user,
+        )
+
+        comment = RhCommentModel.objects.create(
+            thread=thread,
+            created_by=self.user,
+            comment_content_json={"ops": [{"insert": "Test comment"}]},
+            score=15,
+        )
+
+        # Create a feed entry for the comment
+        comment_feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=comment.id,
+            item=comment,
+            created_date=comment.created_date,
+            action="PUBLISH",
+            action_date=comment.created_date,
+            user=self.user,
+            unified_document=paper.unified_document,
+        )
+
+        # Serialize the feed entry
+        serializer = FeedEntrySerializer(comment_feed_entry)
+        data = serializer.data
+
+        # Verify basic feed entry fields
+        self.assertIn("id", data)
+        self.assertIn("content_type", data)
+        self.assertEqual(data["content_type"], "RHCOMMENTMODEL")
+        self.assertIn("content_object", data)
+        self.assertIn("created_date", data)
+
+        # Verify metrics field exists and contains expected values
+        self.assertIn("metrics", data)
+        self.assertIsInstance(data["metrics"], dict)
+        self.assertIn("votes", data["metrics"])
+        self.assertEqual(data["metrics"]["votes"], 15)
+
+        mock_get_primary_hub.assert_called()
+
+    @patch(
+        "researchhub_document.related_models.researchhub_unified_document_model."
+        "ResearchhubUnifiedDocument.get_primary_hub"
+    )
+    def test_serializes_bounty_feed_entry(self, mock_get_primary_hub):
+        """Test serialization of bounty feed entries with metrics"""
+        # Create a hub
+        hub = create_hub("Test Hub")
+        mock_get_primary_hub.return_value = hub
+
+        # Create a paper for the comment
+        paper = create_paper(uploaded_by=self.user)
+
+        # Create a comment thread and comment with metrics
+        thread = RhCommentThreadModel.objects.create(
+            thread_type=rh_comment_thread_types.GENERIC_COMMENT,
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=paper.id,
+            created_by=self.user,
+        )
+
+        comment = RhCommentModel.objects.create(
+            thread=thread,
+            created_by=self.user,
+            comment_content_json={"ops": [{"insert": "Test comment"}]},
+            score=15,
+        )
+
+        # Create escrow for the bounty
+        escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.BOUNTY,
+            item=paper.unified_document,
+        )
+
+        # Create a bounty that references the comment
+        bounty = Bounty.objects.create(
+            amount=100.0,
+            bounty_type=Bounty.Type.OTHER,
+            created_by=self.user,
+            expiration_date=timezone.now() + timezone.timedelta(days=30),
+            item_content_type=ContentType.objects.get_for_model(RhCommentModel),
+            item_object_id=comment.id,
+            item=comment,
+            status=Bounty.OPEN,
+            unified_document=paper.unified_document,
+            escrow=escrow,
+        )
+
+        # Create a feed entry for the bounty
+        bounty_feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(Bounty),
+            object_id=bounty.id,
+            item=bounty,
+            created_date=bounty.created_date,
+            action="PUBLISH",
+            action_date=bounty.created_date,
+            user=self.user,
+            unified_document=paper.unified_document,
+        )
+
+        # Serialize the feed entry
+        serializer = FeedEntrySerializer(bounty_feed_entry)
+        data = serializer.data
+
+        # Verify basic feed entry fields
+        self.assertIn("id", data)
+        self.assertIn("content_type", data)
+        self.assertEqual(data["content_type"], "BOUNTY")
+        self.assertIn("content_object", data)
+        self.assertIn("created_date", data)
+
+        # Verify metrics field exists and contains expected values
+        self.assertIn("metrics", data)
+        self.assertIsInstance(data["metrics"], dict)
+        self.assertIn("votes", data["metrics"])
+        self.assertEqual(data["metrics"]["votes"], 15)
 
         mock_get_primary_hub.assert_called()
