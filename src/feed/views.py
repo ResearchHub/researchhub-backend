@@ -123,7 +123,7 @@ class FeedViewSet(viewsets.ModelViewSet):
                 if item.get("content_type") == paper_type_str:
                     paper_id = int(item["content_object"]["id"])
                     if paper_id in paper_votes_map:
-                        item["content_object"]["user_vote"] = paper_votes_map[paper_id]
+                        item["user_vote"] = paper_votes_map[paper_id]
 
         # Process post votes
         if post_ids:
@@ -141,7 +141,7 @@ class FeedViewSet(viewsets.ModelViewSet):
                 if item.get("content_type") == post_type_str:
                     post_id = int(item["content_object"]["id"])
                     if post_id in post_votes_map:
-                        item["content_object"]["user_vote"] = post_votes_map[post_id]
+                        item["user_vote"] = post_votes_map[post_id]
 
         # Process comment votes
         if comment_ids:
@@ -159,18 +159,14 @@ class FeedViewSet(viewsets.ModelViewSet):
                 if item.get("content_type") == comment_type_str:
                     comment_id = int(item["content_object"]["id"])
                     if comment_id in comment_votes_map:
-                        item["content_object"]["user_vote"] = comment_votes_map[
-                            comment_id
-                        ]
+                        item["user_vote"] = comment_votes_map[comment_id]
                 # Handle bounties with comments
                 elif item.get("content_type") == bounty_type_str and item[
                     "content_object"
                 ].get("comment"):
                     comment_id = int(item["content_object"]["comment"]["id"])
                     if comment_id in comment_votes_map:
-                        item["content_object"]["comment"]["user_vote"] = (
-                            comment_votes_map[comment_id]
-                        )
+                        item["user_vote"] = comment_votes_map[comment_id]
 
     def _get_cache_key(self, request: Request) -> str:
         feed_view = request.query_params.get("feed_view", "latest")
