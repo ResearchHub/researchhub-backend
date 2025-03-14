@@ -1,5 +1,4 @@
 from django_elasticsearch_dsl import Document
-from django.db import models
 
 import utils.sentry as sentry
 

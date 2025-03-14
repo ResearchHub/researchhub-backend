@@ -1,4 +1,3 @@
-from django_elasticsearch_dsl import Completion, Document
 from django_elasticsearch_dsl import fields as es_fields
 from django_elasticsearch_dsl.registries import registry
 

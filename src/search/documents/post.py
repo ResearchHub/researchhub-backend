@@ -2,7 +2,6 @@ import math
 
 from django_elasticsearch_dsl import fields as es_fields
 from django_elasticsearch_dsl.registries import registry
-from elasticsearch_dsl import analyzer, token_filter, tokenizer
 
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from search.analyzers import content_analyzer, title_analyzer
