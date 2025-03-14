@@ -4,8 +4,8 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from nonprofit_orgs.services.endaoment_service import EndaomentService
-from nonprofit_orgs.views import NonprofitOrgViewSet
+from organizations.services.endaoment_service import EndaomentService
+from organizations.views import NonprofitOrgViewSet
 
 
 class NonprofitOrgViewSetTests(APITestCase):

@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
-from nonprofit_orgs.services.endaoment_service import EndaomentService
+from organizations.services.endaoment_service import EndaomentService
 
 
 class EndaomentServiceTests(TestCase):

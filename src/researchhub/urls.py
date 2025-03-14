@@ -206,7 +206,7 @@ urlpatterns = [
     ),
     path("api/permissions/", researchhub.views.permissions, name="permissions"),
     path("api/search/", include(search.urls)),
-    path("api/nonprofit/", include("nonprofit_orgs.urls")),
+    path("api/nonprofit/", include("organizations.urls")),
     path(
         "auth/google/yolo/callback/",
         oauth.views.google_yolo_callback,
