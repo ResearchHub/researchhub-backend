@@ -1,11 +1,13 @@
-from django.urls import include, path
-from rest_framework.routers import DefaultRouter
+from django.urls import path
 
 from organizations.views import NonprofitOrgViewSet
 
-router = DefaultRouter()
-router.register(r"orgs", NonprofitOrgViewSet, basename="nonprofit-orgs")
-
+# Create a direct URL pattern for the viewset's search action
 urlpatterns = [
-    path("", include(router.urls)),
+    # Direct path to the search endpoint
+    path(
+        "non-profit/search/",
+        NonprofitOrgViewSet.as_view({"get": "search"}),
+        name="nonprofit-orgs-search",
+    ),
 ]
