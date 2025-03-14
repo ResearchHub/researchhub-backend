@@ -13,16 +13,16 @@ import utils.sentry as sentry
 class UniversityDocument(Document):
 
     class Index:
-        name = 'university'
+        name = "university"
 
     class Django:
         model = University
         fields = [
-            'id',
-            'name',
-            'country',
-            'state',
-            'city',
+            "id",
+            "name",
+            "country",
+            "state",
+            "city",
         ]
 
         # Ignore auto updating of Elasticsearch when a model is saved
