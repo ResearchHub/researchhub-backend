@@ -1,3 +1,4 @@
+import logging
 import math
 
 from django_elasticsearch_dsl import fields as es_fields
@@ -10,6 +11,8 @@ from utils import sentry
 from utils.doi import DOI
 
 from .base import BaseDocument
+
+logger = logging.getLogger(__name__)
 
 
 @registry.register_document
@@ -117,12 +120,14 @@ class PaperDocument(BaseDocument):
             phrases.extend(keywords)
 
         except Exception:
+            logger.warn(f"Failed to prepare OpenAlex keywords for paper {instance.id}")
             pass
 
         try:
             hubs_indexing_flat = instance.hubs_indexing_flat
             phrases.extend(hubs_indexing_flat)
         except Exception:
+            logger.warn(f"Failed to prepare hubs for paper {instance.id}")
             pass
 
         # Variation of author names which may be searched by users
@@ -138,6 +143,7 @@ class PaperDocument(BaseDocument):
             phrases.append(all_authors_as_str)
             phrases.extend(author_names_only)
         except Exception:
+            logger.warn(f"Failed to prepare author names for paper {instance.id}")
             pass
 
         # Assign weight based on how "hot" the paper is
@@ -159,6 +165,9 @@ class PaperDocument(BaseDocument):
         try:
             return instance.get_paper_completeness()
         except Exception:
+            logger.warn(
+                f"Failed to prepare completeness status for paper {instance.id}"
+            )
             return Paper.PARTIAL
 
     def prepare_paper_publish_year(self, instance):
@@ -170,6 +179,7 @@ class PaperDocument(BaseDocument):
         try:
             return pdf_copyright_allows_display(instance)
         except Exception:
+            logger.warn(f"Failed to prepare pdf license for paper {instance.id}")
             pass
 
         return False
