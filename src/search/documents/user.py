@@ -65,12 +65,13 @@ class UserDocument(BaseDocument):
                 "headline": instance.author_profile.headline,
             }
         except Exception as e:
-            return False
+            logger.warn(f"Failed to prepare author profile for user {instance.id}: {e}")
+            return None
 
         try:
             profile["profile_image"] = instance.author_profile.profile_image.url
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warn(f"Failed to prepare profile image for user {instance.id}: {e}")
 
         return profile
 
