@@ -79,7 +79,7 @@ class UserDocument(BaseDocument):
         full_name_suggest = ""
         try:
             full_name_suggest = f"{instance.author_profile.first_name} {instance.author_profile.last_name}"
-        except Exception as e:
+        except Exception:
             # Some legacy users don't have an author profile
             full_name_suggest = f"{instance.first_name} {instance.last_name}"
 
@@ -91,7 +91,7 @@ class UserDocument(BaseDocument):
     def prepare_full_name(self, instance):
         try:
             return f"{instance.author_profile.first_name} {instance.author_profile.last_name}"
-        except Exception as e:
+        except Exception:
             # Some legacy users don't have an author profile
             return f"{instance.first_name} {instance.last_name}"
 
