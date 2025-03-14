@@ -119,16 +119,16 @@ class PaperDocument(BaseDocument):
             phrases.append(joined_kewords)
             phrases.extend(keywords)
 
-        except Exception:
-            logger.warn(f"Failed to prepare OpenAlex keywords for paper {instance.id}")
-            pass
+        except Exception as e:
+            logger.warn(
+                f"Failed to prepare OpenAlex keywords for paper {instance.id}: {e}"
+            )
 
         try:
             hubs_indexing_flat = instance.hubs_indexing_flat
             phrases.extend(hubs_indexing_flat)
-        except Exception:
-            logger.warn(f"Failed to prepare hubs for paper {instance.id}")
-            pass
+        except Exception as e:
+            logger.warn(f"Failed to prepare hubs for paper {instance.id}: {e}")
 
         # Variation of author names which may be searched by users
         try:
@@ -142,9 +142,8 @@ class PaperDocument(BaseDocument):
 
             phrases.append(all_authors_as_str)
             phrases.extend(author_names_only)
-        except Exception:
-            logger.warn(f"Failed to prepare author names for paper {instance.id}")
-            pass
+        except Exception as e:
+            logger.warn(f"Failed to prepare author names for paper {instance.id}: {e}")
 
         # Assign weight based on how "hot" the paper is
         weight = 1
@@ -178,9 +177,8 @@ class PaperDocument(BaseDocument):
     def prepare_can_display_pdf_license(self, instance):
         try:
             return pdf_copyright_allows_display(instance)
-        except Exception:
-            logger.warn(f"Failed to prepare pdf license for paper {instance.id}")
-            pass
+        except Exception as e:
+            logger.warn(f"Failed to prepare pdf license for paper {instance.id}: {e}")
 
         return False
 
@@ -208,8 +206,14 @@ class PaperDocument(BaseDocument):
     def prepare(self, instance):
         try:
             data = super().prepare(instance)
+        except Exception:
+            logger.error(f"Failed to prepare data for paper {instance.id}")
+            return None
+
+        try:
             data["suggestion_phrases"] = self.prepare_suggestion_phrases(instance)
-            return data
         except Exception as error:
+            logger.warn(f"Failed to prepare suggestion phrases for paper {instance.id}")
             sentry.log_error(error)
-            return False
+            data["suggestion_phrases"] = []
+        return data
