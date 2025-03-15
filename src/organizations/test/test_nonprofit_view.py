@@ -34,6 +34,29 @@ class NonprofitOrgViewSetTests(APITestCase):
         self.addCleanup(patcher.stop)
         patcher.start()
 
+    def test_endaoment_service_property(self):
+        """Test the endaoment_service property."""
+        viewset = NonprofitOrgViewSet()
+
+        # First access should initialize the service
+        service = viewset.endaoment_service
+        self.assertEqual(service, self.mock_service)
+
+        # Second access should return the same instance
+        service_again = viewset.endaoment_service
+        self.assertEqual(service, service_again)
+
+    def test_endaoment_service_setter(self):
+        """Test the endaoment_service setter."""
+        viewset = NonprofitOrgViewSet()
+        custom_service = MagicMock()
+
+        # Set a custom service
+        viewset.endaoment_service = custom_service
+
+        # Verify the service was set
+        self.assertEqual(viewset.endaoment_service, custom_service)
+
     def test_search_with_parameters(self):
         """Test searching for nonprofit organizations with parameters."""
         # Configure mock service
@@ -113,3 +136,16 @@ class NonprofitOrgViewSetTests(APITestCase):
             count=15,
             offset=0,
         )
+
+    def test_search_with_error_response(self):
+        """Test handling of error responses from the service."""
+        # Configure mock service to return an error
+        error_response = {"error": "API Error", "status": 500}
+        self.mock_service.search_nonprofit_orgs.return_value = error_response
+
+        # Make request
+        response = self.client.get(self.search_url, {"searchTerm": "Error"})
+
+        # Verify response passes through the error
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, error_response)
