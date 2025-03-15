@@ -100,7 +100,6 @@ class PaperSerializer(ContentObjectSerializer):
     title = serializers.CharField()
     abstract = serializers.CharField()
     doi = serializers.CharField()
-    metrics = PaperMetricsSerializer(source="*")
 
     def get_journal(self, obj):
         if not hasattr(obj, "unified_document") or not obj.unified_document:
@@ -133,7 +132,6 @@ class PaperSerializer(ContentObjectSerializer):
             "doi",
             "journal",
             "authors",
-            "metrics",
         ]
 
 
@@ -144,7 +142,6 @@ class PostSerializer(ContentObjectSerializer):
     title = serializers.CharField()
     type = serializers.CharField(source="document_type")
     fundraise = serializers.SerializerMethodField()
-    metrics = PostMetricsSerializer(source="*")
 
     def get_renderable_text(self, obj):
         text = obj.renderable_text[:255]
@@ -189,7 +186,6 @@ class PostSerializer(ContentObjectSerializer):
             "renderable_text",
             "fundraise",
             "type",
-            "metrics",
         ]
 
 
@@ -287,7 +283,6 @@ class CommentSerializer(serializers.Serializer):
     post = serializers.SerializerMethodField()
     thread_id = serializers.IntegerField()
     review = serializers.SerializerMethodField()
-    metrics = CommentMetricsSerializer(source="*")
 
     def get_document_type(self, obj):
         if obj.unified_document:
@@ -333,7 +328,6 @@ class CommentSerializer(serializers.Serializer):
             "document_type",
             "hub",
             "id",
-            "metrics",
             "paper",
             "parent_id",
             "post",
@@ -352,6 +346,7 @@ class FeedEntrySerializer(serializers.ModelSerializer):
     action_date = serializers.DateTimeField()
     action = serializers.CharField()
     author = serializers.SerializerMethodField()
+    metrics = serializers.SerializerMethodField()
 
     class Meta:
         model = FeedEntry
@@ -363,6 +358,7 @@ class FeedEntrySerializer(serializers.ModelSerializer):
             "action_date",
             "action",
             "author",
+            "metrics",
         ]
 
     def get_author(self, obj):
@@ -379,6 +375,30 @@ class FeedEntrySerializer(serializers.ModelSerializer):
 
     def get_content_type(self, obj):
         return obj.content_type.model.upper()
+
+    def get_metrics(self, obj):
+        """Return metrics for the content object"""
+        metrics = {}
+        if obj.content_type.model == "bounty":
+            comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
+            if (
+                hasattr(obj.item, "item_content_type")
+                and obj.item.item_content_type == comment_content_type
+            ):
+                comment = obj.item.item
+                if comment:
+                    metrics["votes"] = getattr(comment, "score", 0)
+                    return metrics
+            return None
+
+        if hasattr(obj.item, "score"):
+            metrics["votes"] = getattr(obj.item, "score", 0)
+
+            if hasattr(obj.item, "discussion_count"):
+                metrics["comments"] = getattr(obj.item, "discussion_count", 0)
+
+            return metrics
+        return None
 
 
 def serialize_feed_item(feed_item, item_content_type):

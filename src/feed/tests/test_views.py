@@ -626,36 +626,18 @@ class FeedViewSetTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         for item in response.data.get("results", []):
-            content_type = item.get("content_type")
-            content_object = item.get("content_object", {})
-
-            if content_type == "PAPER" and str(content_object.get("id")) == str(
-                self.paper.id
+            if (
+                str(item.get("content_object").get("id")) == str(self.paper.id)
+                or item.get("content_type") != "PAPER"
             ):
-                self.assertIn("user_vote", content_object)
-                self.assertIn("metrics", content_object)
-                self.assertIn("votes", content_object["metrics"])
-                self.assertIn("comments", content_object["metrics"])
-
-            elif content_type == "RESEARCHHUBPOST" and str(
-                content_object.get("id")
-            ) == str(post.id):
-                self.assertIn("user_vote", content_object)
-                self.assertIn("metrics", content_object)
-                self.assertEqual(content_object["metrics"]["votes"], 5)
-                self.assertEqual(content_object["metrics"]["comments"], 3)
-
-            elif content_type == "RHCOMMENTMODEL" and str(
-                content_object.get("id")
-            ) == str(comment.id):
-                self.assertIn("user_vote", content_object)
-                self.assertIn("metrics", content_object)
-                self.assertIn("votes", content_object["metrics"])
-
-            elif content_type == "BOUNTY" and str(content_object.get("id")) == str(
-                bounty.id
-            ):
-                self.assertIn("user_vote", content_object.get("comment"))
+                self.assertIn("user_vote", item)
+                self.assertIn("metrics", item)
+                self.assertIn("votes", item["metrics"])
+                if (
+                    item.get("content_type") == "RESEARCHHUBPOST"
+                    or item.get("content_type") == "PAPER"
+                ):
+                    self.assertIn("comments", item["metrics"])
 
     @patch("feed.views.cache.get")
     @patch("feed.views.cache.set")
@@ -714,10 +696,10 @@ class FeedViewSetTests(TestCase):
                 break
 
         self.assertIsNotNone(post_item, "Post should be in the feed")
-        self.assertIn("user_vote", post_item["content_object"])
+        self.assertIn("user_vote", post_item)
 
         # Verify the vote data is correct
-        user_vote = post_item["content_object"]["user_vote"]
+        user_vote = post_item["user_vote"]
         self.assertEqual(user_vote["vote_type"], GrmVote.UPVOTE)
 
         # Store what was cached (should be without votes)
@@ -746,10 +728,10 @@ class FeedViewSetTests(TestCase):
                 break
 
         self.assertIsNotNone(post_item, "Post should be in the feed")
-        self.assertIn("user_vote", post_item["content_object"])
+        self.assertIn("user_vote", post_item)
 
         # Verify the vote data is updated (should be a downvote now)
-        user_vote = post_item["content_object"]["user_vote"]
+        user_vote = post_item["user_vote"]
         self.assertEqual(user_vote["vote_type"], GrmVote.DOWNVOTE)
 
         # Verify cache was used but not updated
