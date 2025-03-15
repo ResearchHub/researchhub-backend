@@ -159,7 +159,7 @@ def _send_response(original_request, default_response):
 
 def _respond_with_token(user):
     token = get_or_create_user_token(user)
-    response = JsonResponse({"key": token})
+    response = JsonResponse({"key": token, "user_id": user.id})
     return response
 
 
