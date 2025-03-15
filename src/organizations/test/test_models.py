@@ -49,8 +49,8 @@ class NonprofitFundraiseLinkModelTests(TestCase):
     def setUp(self):
         """Set up test data."""
         # Create a user for the fundraise
-        User = get_user_model()
-        self.user = User.objects.create_user(
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(
             username="testuser",
             email="test@example.com",
             password="testpassword",
