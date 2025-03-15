@@ -1,10 +1,13 @@
-from django_elasticsearch_dsl import Completion, Document
+import logging
+
 from django_elasticsearch_dsl import fields as es_fields
 from django_elasticsearch_dsl.registries import registry
 
 from institution.models import Institution
 
 from .base import BaseDocument
+
+logger = logging.getLogger(__name__)
 
 
 @registry.register_document
@@ -62,10 +65,18 @@ class InstitutionDocument(BaseDocument):
         return suggestions
 
     def prepare(self, instance):
-        data = super().prepare(instance)
+        try:
+            data = super().prepare(instance)
+        except Exception:
+            logger.error(f"Failed to prepare data for institution {instance.id}")
+            return None
+
         try:
             data["suggestion_phrases"] = self.prepare_suggestion_phrases(instance)
-        except Exception as error:
-            print(f"Error preparing suggestions for {instance.id}: {error}")
+        except Exception as e:
+            logger.warn(
+                f"Failed to prepare suggestion phrases for institution {instance.id}: {e}"
+            )
             data["suggestion_phrases"] = []
+
         return data
