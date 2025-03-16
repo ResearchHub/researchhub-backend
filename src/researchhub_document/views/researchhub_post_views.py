@@ -143,8 +143,8 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 created_by_author = created_by.author_profile
                 doi = DOI() if assign_doi else None
 
-                if assign_doi and created_by.get_balance() - CROSSREF_DOI_RSC_FEE < 0:
-                    return Response("Insufficient Funds", status=402)
+                # if assign_doi and created_by.get_balance() - CROSSREF_DOI_RSC_FEE < 0:
+                #     return Response("Insufficient Funds", status=402)
 
                 # logical ordering & not using signals to avoid race-conditions
                 access_group = self.create_access_group(request)
@@ -281,9 +281,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 },
                 400,
             )
-
-        if assign_doi and created_by.get_balance() - CROSSREF_DOI_RSC_FEE < 0:
-            return Response("Insufficient Funds", status=402)
 
         rh_post.doi = doi.doi if doi else rh_post.doi
         rh_post.save(update_fields=["doi"])
