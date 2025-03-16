@@ -171,6 +171,7 @@ class FeedViewSet(viewsets.ModelViewSet):
     def _get_cache_key(self, request: Request) -> str:
         feed_view = request.query_params.get("feed_view", "latest")
         hub_slug = request.query_params.get("hub_slug")
+        content_type = request.query_params.get("content_type", "all")
         user_id = request.user.id if request.user.is_authenticated else None
 
         page = request.query_params.get("page", "1")
@@ -183,7 +184,9 @@ class FeedViewSet(viewsets.ModelViewSet):
         user_part = "none" if feed_view == "popular" else f"{user_id or 'anonymous'}"
         pagination_part = f"{page}-{page_size}"
 
-        return f"feed:{feed_view}:{hub_part}:{user_part}:{pagination_part}"
+        return (
+            f"feed:{feed_view}:{hub_part}:{user_part}:{content_type}:{pagination_part}"
+        )
 
     def get_queryset(self):
         """
@@ -209,6 +212,24 @@ class FeedViewSet(viewsets.ModelViewSet):
                 "unified_document__hubs",
             )
         )
+
+        # Check if content_type parameter is provided and set to PREREGISTRATION
+        content_type_param = self.request.query_params.get("content_type")
+        if content_type_param == "PREREGISTRATION":
+            # Filter for RESEARCHHUBPOST with type PREREGISTRATION
+            post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+            queryset = queryset.filter(
+                content_type=post_content_type,
+            )
+
+            # Get all ResearchhubPost IDs that are PREREGISTRATION type
+            preregistration_post_ids = ResearchhubPost.objects.filter(
+                document_type="PREREGISTRATION"
+            ).values_list("id", flat=True)
+
+            # Filter feed entries to only include those with object_id
+            # in the preregistration_post_ids
+            queryset = queryset.filter(object_id__in=preregistration_post_ids)
 
         # Apply following filter if feed_view is 'following' and user is authenticated
         if feed_view == "following" and self.request.user.is_authenticated:
