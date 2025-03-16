@@ -197,6 +197,8 @@ class BountyViewSet(viewsets.ModelViewSet):
             "_include_fields": (
                 "id",
                 "comment_content_json",
+                "comment_content_type",
+                "comment_type",
             )
         }
         context["rep_dbs_get_unified_document"] = {
