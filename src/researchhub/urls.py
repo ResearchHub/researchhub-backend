@@ -35,6 +35,7 @@ import search.urls
 import user.views
 from citation.views import CitationEntryViewSet, CitationProjectViewSet
 from feed.views import FeedViewSet
+from organizations.views import NonprofitFundraiseLinkViewSet, NonprofitOrgViewSet
 from paper.views import paper_upload_views
 from purchase.views import stripe_webhook_view
 from researchhub.views import asset_upload_view
@@ -206,6 +207,22 @@ urlpatterns = [
     ),
     path("api/permissions/", researchhub.views.permissions, name="permissions"),
     path("api/search/", include(search.urls)),
+    # Organization endpoints
+    path(
+        "api/organizations/non-profit/search/",
+        NonprofitOrgViewSet.as_view({"get": "search"}),
+        name="nonprofit-orgs-search",
+    ),
+    path(
+        "api/organizations/non-profit/create/",
+        NonprofitFundraiseLinkViewSet.as_view({"post": "create_nonprofit"}),
+        name="nonprofit-create",
+    ),
+    path(
+        "api/organizations/non-profit/link-to-fundraise/",
+        NonprofitFundraiseLinkViewSet.as_view({"post": "link_to_fundraise"}),
+        name="nonprofit-link-to-fundraise",
+    ),
     path(
         "auth/google/yolo/callback/",
         oauth.views.google_yolo_callback,
