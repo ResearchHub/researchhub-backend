@@ -24,8 +24,7 @@ class NonprofitOrg(models.Model):
     )
     endaoment_org_id = models.CharField(
         max_length=100,
-        help_text="Unique identifier for the organization in the Endaoment system",
-        unique=True,
+        help_text="Unique ID in the Endaoment system",
         blank=True,
         default="",
     )
@@ -82,7 +81,7 @@ class NonprofitFundraiseLink(models.Model):
     )
 
     note = models.TextField(
-        help_text="Specific notes about this nonprofit for this fundraise",
+        help_text="Notes about this nonprofit for this fundraise",
         blank=True,
         default="",
     )
@@ -99,7 +98,6 @@ class NonprofitFundraiseLink(models.Model):
         db_table = "nonprofit_fundraise_link"
         verbose_name = "Nonprofit-Fundraise Link"
         verbose_name_plural = "Nonprofit-Fundraise Links"
-        unique_together = ("nonprofit", "fundraise")
         indexes = [
             models.Index(fields=["nonprofit"]),
             models.Index(fields=["fundraise"]),
