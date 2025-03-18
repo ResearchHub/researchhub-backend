@@ -397,6 +397,9 @@ class FeedEntrySerializer(serializers.ModelSerializer):
             if hasattr(obj.item, "discussion_count"):
                 metrics["comments"] = getattr(obj.item, "discussion_count", 0)
 
+            if hasattr(obj.item, "children_count"):
+                metrics["replies"] = getattr(obj.item, "children_count", 0)
+
             return metrics
         return None
 
