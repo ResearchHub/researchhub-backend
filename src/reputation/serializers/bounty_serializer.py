@@ -2,12 +2,15 @@ from django.db.models import DecimalField, Sum
 from django.db.models.functions import Coalesce
 from rest_framework import serializers
 
+from discussion.reaction_models import Vote
+from discussion.reaction_serializers import VoteSerializer
 from reputation.models import Bounty, BountySolution
 from reputation.serializers.escrow_serializer import DynamicEscrowSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.serializers import DynamicUnifiedDocumentSerializer
 from user.serializers import DynamicUserSerializer
 from utils import sentry
+from utils.http import get_user_from_request
 
 
 class BountySerializer(serializers.ModelSerializer):
@@ -40,8 +43,10 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
     total_amount = serializers.SerializerMethodField()
     unified_document = serializers.SerializerMethodField()
     hubs = serializers.SerializerMethodField()
-    # Kobe: This is not great. This alias is used to disambiguate "parent" used in contribution_views because simply
-    # using parent, may lead to infinite recursive loop -_-
+    user_vote = serializers.SerializerMethodField()
+    # Kobe: This is not great. This alias is used to disambiguate "parent" used in
+    # contribution_views because simply using parent, may lead to infinite
+    # recursive loop -_-
     bounty_parent = serializers.SerializerMethodField(method_name="get_parent")
 
     class Meta:
@@ -143,6 +148,19 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
             )
         )["children_sum"]
         return bounty.amount + children_sum
+
+    def get_user_vote(self, bounty):
+        vote = None
+        user = get_user_from_request(self.context)
+        try:
+            if bounty.item_content_type.model == "rhcommentmodel":
+                comment = bounty.item
+                if user and not user.is_anonymous and comment:
+                    vote = comment.votes.get(created_by=user)
+                    vote = VoteSerializer(vote).data
+                return vote
+        except Exception:
+            return None
 
 
 class DynamicBountySolutionSerializer(DynamicModelFieldSerializer):

@@ -1,9 +1,12 @@
 import decimal
 import time
 from datetime import datetime
+from re import I
 
+from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APITestCase
 
+from discussion.reaction_models import Vote
 from hub.models import Hub
 from hub.tests.helpers import create_hub
 from paper.tests.helpers import create_paper
@@ -41,6 +44,12 @@ class BountyViewTests(APITestCase):
         )
         self.hub = create_hub()
         self.bountyFee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
+
+        # Create votes for the threads
+        self._create_vote(self.user, self.thread, Vote.UPVOTE)
+        self._create_vote(self.user_2, self.thread, Vote.UPVOTE)
+        self._create_vote(self.user_3, self.thread, Vote.DOWNVOTE)
+
         self.client.force_authenticate(self.user)
 
         distribution = Dist("REWARD", 1000000000, give_rep=False)
@@ -73,6 +82,17 @@ class BountyViewTests(APITestCase):
             distribution, self.user_4, self.user_4, time.time(), self.user_4
         )
         distributor.distribute()
+
+    def _create_vote(self, user, item, vote_type):
+        """Helper method to create votes"""
+        content_type = ContentType.objects.get_for_model(item)
+        vote = Vote.objects.create(
+            content_type=content_type,
+            object_id=item.id,
+            created_by=user,
+            vote_type=vote_type,
+        )
+        return vote
 
     def test_user_can_create_bounty(self, amount=100):
         self.client.force_authenticate(self.user)
@@ -934,3 +954,32 @@ class BountyViewTests(APITestCase):
 
         # Assert
         self.assertEqual(res.data["results"][0]["id"], larger_amount_id)
+
+    def test_user_vote_included_in_bounty_response(self):
+        """Test that user's vote is correctly included in bounty serialization"""
+        # Arrange - create a bounty for the thread (which already has votes in setup)
+        self.client.force_authenticate(self.user)
+
+        # Create a bounty
+        self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 100,
+                "item_content_type": self.thread._meta.model_name,
+                "item_object_id": self.thread.id,
+                "bounty_type": Bounty.Type.OTHER,
+                "expiration_date": "2040-01-01T00:00:00Z",
+            },
+        )
+
+        for user in [self.user, self.moderator]:
+            # Act - Retrieve the bounty detail
+            bounty_res = self.client.get(
+                "/api/bounty/",
+            )
+
+            # Assert - Verify the user_vote field reflects the correct vote
+            self.assertIsNotNone(bounty_res.data["results"][0]["user_vote"])
+            self.assertEqual(
+                bounty_res.data["results"][0]["user_vote"]["vote_type"], Vote.UPVOTE
+            )
