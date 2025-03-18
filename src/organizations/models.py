@@ -1,9 +1,10 @@
 from django.db import models
 
 from purchase.models import Fundraise
+from utils.models import DefaultModel
 
 
-class NonprofitOrg(models.Model):
+class NonprofitOrg(DefaultModel):
     """
     Model representing nonprofit organizations that can be attached to
     preregistrations.
@@ -13,17 +14,14 @@ class NonprofitOrg(models.Model):
     """
 
     # Primary identifiers
-    name = models.CharField(
-        max_length=255, help_text="Name of the nonprofit organization"
-    )
+    name = models.TextField(help_text="Name of the nonprofit organization")
     ein = models.CharField(
-        max_length=20,
-        help_text="Employer Identification Number",
+        max_length=10,
+        help_text="Employer Identification Number (9 digits, may include hyphen)",
         blank=True,
         default="",
     )
-    endaoment_org_id = models.CharField(
-        max_length=100,
+    endaoment_org_id = models.TextField(
         help_text="Unique ID in the Endaoment system",
         blank=True,
         default="",
@@ -36,10 +34,6 @@ class NonprofitOrg(models.Model):
         blank=True,
         default="",
     )
-
-    # Standard timestamps
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         """String representation of the nonprofit organization."""
@@ -55,7 +49,7 @@ class NonprofitOrg(models.Model):
         ]
 
 
-class NonprofitFundraiseLink(models.Model):
+class NonprofitFundraiseLink(DefaultModel):
     """
     Join model representing the many-to-many relationship between nonprofit
     organizations and fundraising campaigns.
@@ -86,10 +80,6 @@ class NonprofitFundraiseLink(models.Model):
         default="",
     )
 
-    # Standard timestamps
-    created_date = models.DateTimeField(auto_now_add=True)
-    updated_date = models.DateTimeField(auto_now=True)
-
     def __str__(self):
         """String representation of the nonprofit-fundraise link."""
         return f"{self.nonprofit.name} - {self.fundraise.id}"
@@ -98,6 +88,7 @@ class NonprofitFundraiseLink(models.Model):
         db_table = "nonprofit_fundraise_link"
         verbose_name = "Nonprofit-Fundraise Link"
         verbose_name_plural = "Nonprofit-Fundraise Links"
+        unique_together = ["nonprofit", "fundraise"]
         indexes = [
             models.Index(fields=["nonprofit"]),
             models.Index(fields=["fundraise"]),
