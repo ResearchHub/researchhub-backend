@@ -1,3 +1,5 @@
+import logging
+
 from django_elasticsearch_dsl import fields as es_fields
 from django_elasticsearch_dsl.registries import registry
 from elasticsearch_dsl import analyzer, token_filter
@@ -5,6 +7,8 @@ from elasticsearch_dsl import analyzer, token_filter
 from user.models import User
 
 from .base import BaseDocument
+
+logger = logging.getLogger(__name__)
 
 edge_ngram_filter = token_filter(
     "edge_ngram_filter",
@@ -61,12 +65,13 @@ class UserDocument(BaseDocument):
                 "headline": instance.author_profile.headline,
             }
         except Exception as e:
-            return False
+            logger.warn(f"Failed to prepare author profile for user {instance.id}: {e}")
+            return None
 
         try:
             profile["profile_image"] = instance.author_profile.profile_image.url
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warn(f"Failed to prepare profile image for user {instance.id}: {e}")
 
         return profile
 
@@ -75,7 +80,7 @@ class UserDocument(BaseDocument):
         full_name_suggest = ""
         try:
             full_name_suggest = f"{instance.author_profile.first_name} {instance.author_profile.last_name}"
-        except Exception as e:
+        except Exception:
             # Some legacy users don't have an author profile
             full_name_suggest = f"{instance.first_name} {instance.last_name}"
 
@@ -87,12 +92,23 @@ class UserDocument(BaseDocument):
     def prepare_full_name(self, instance):
         try:
             return f"{instance.author_profile.first_name} {instance.author_profile.last_name}"
-        except Exception as e:
+        except Exception:
             # Some legacy users don't have an author profile
             return f"{instance.first_name} {instance.last_name}"
 
     def prepare(self, instance):
-        data = super().prepare(instance)
-        data["full_name_suggest"] = self.prepare_full_name_suggest(instance)
+        try:
+            data = super().prepare(instance)
+        except Exception as e:
+            logger.error(f"Failed to prepare data for user {instance.id}: {e}")
+            return None
+
+        try:
+            data["full_name_suggest"] = self.prepare_full_name_suggest(instance)
+        except Exception as e:
+            logger.warn(
+                f"Failed to prepare full name suggest for user {instance.id}: {e}"
+            )
+            data["full_name_suggest"] = []
 
         return data

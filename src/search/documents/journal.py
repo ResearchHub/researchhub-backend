@@ -1,14 +1,16 @@
-import itertools
+import logging
 import re
 
 from django_elasticsearch_dsl import fields as es_fields
 from django_elasticsearch_dsl.registries import registry
-from elasticsearch_dsl import analyzer, token_filter, tokenizer
+from elasticsearch_dsl import analyzer, token_filter
 
 from hub.models import Hub
-from search.analyzers import content_analyzer, title_analyzer
+from search.analyzers import content_analyzer
 
 from .base import BaseDocument
+
+logger = logging.getLogger(__name__)
 
 edge_ngram_filter = token_filter(
     "edge_ngram_filter",
@@ -63,8 +65,17 @@ class JournalDocument(BaseDocument):
         }
 
     def prepare(self, instance):
-        data = super().prepare(instance)
-        data["name_suggest"] = self.prepare_name_suggest(instance)
+        try:
+            data = super().prepare(instance)
+        except Exception:
+            logger.error(f"Failed to prepare data for journal {instance.id}")
+            return None
+
+        try:
+            data["name_suggest"] = self.prepare_name_suggest(instance)
+        except Exception:
+            logger.warn(f"Failed to prepare name suggest for journal {instance.id}")
+            data["name_suggest"] = []
 
         return data
 
