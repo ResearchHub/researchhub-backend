@@ -1,7 +1,6 @@
 import decimal
 import time
 from datetime import datetime
-from re import I
 
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APITestCase
