@@ -1005,3 +1005,34 @@ class BountyViewTests(APITestCase):
 
         # Assert
         self.assertIsNone(bounty_res.data["results"][0]["user_vote"])
+
+
+def test_metrics_included_in_bounty_response(self):
+    """Test that metrics are correctly included in bounty response"""
+    # Setup: Create comment bounty
+    self.client.force_authenticate(self.user)
+    comment_bounty_response = self.client.post(
+        "/api/bounty/",
+        {
+            "amount": 100,
+            "item_content_type": self.thread._meta.model_name,
+            "item_object_id": self.thread.id,
+            "bounty_type": Bounty.Type.OTHER,
+            "expiration_date": "2040-01-01T00:00:00Z",
+        },
+    )
+    print("comment_bounty_response: ", comment_bounty_response.data)
+    print("comment_bounty_response: ", comment_bounty_response.status_code)
+    self.assertEqual(comment_bounty_response.status_code, 201)
+    comment_bounty_id = comment_bounty_response.data["id"]
+
+    # Test: Verify comment bounty metrics
+    comment_bounty_response = self.client.get(f"/api/bounty/{comment_bounty_id}/")
+    self.assertEqual(comment_bounty_response.status_code, 200)
+    self.assertIn("metrics", comment_bounty_response.data)
+
+    # The metrics should contain votes count
+    # (the thread has 2 upvotes, 1 downvote = score of 1)
+    self.assertEqual(comment_bounty_response.data["metrics"]["votes"], 1)
+    # The metrics should contain replies count (the thread has 3 replies)
+    self.assertEqual(comment_bounty_response.data["metrics"]["replies"], 3)
