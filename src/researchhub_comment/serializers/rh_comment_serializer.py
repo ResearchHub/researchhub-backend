@@ -35,7 +35,7 @@ class RhCommentSerializer(GenericReactionSerializer):
     children = SerializerMethodField()
 
     def get_children_count(self, comment):
-        return comment.children.count()
+        return comment.children_count
 
     def get_children(self, rh_comment):
         return RhCommentSerializer(
@@ -95,7 +95,7 @@ class DynamicRhCommentSerializer(
         return serializer.data
 
     def get_children_count(self, comment):
-        return comment.children.count()
+        return comment.children_count
 
     def get_children(self, comment):
         context = self.context

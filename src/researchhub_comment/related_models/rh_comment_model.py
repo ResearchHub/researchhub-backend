@@ -140,6 +140,10 @@ class RhCommentModel(
             return [users_to_notify]
         return []
 
+    @property
+    def children_count(self):
+        return self.children.count()
+
     """ --- METHODS --- """
 
     # Recursively counts all direct and indirect children of a comment.

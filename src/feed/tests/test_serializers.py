@@ -174,17 +174,6 @@ class PostSerializerTests(TestCase):
         self.assertEqual(data["type"], self.post.document_type)
         self.assertIsNone(data["fundraise"])
 
-    def test_serializes_post_metrics(self):
-        """Test that post metrics are properly serialized"""
-        # Set up post with specific metrics values
-        self.post.score = 42
-        self.post.discussion_count = 15
-        self.post.save()
-
-        # Serialize the post
-        serializer = PostSerializer(self.post)
-        data = serializer.data
-
     def test_serializes_preregistration_post_with_fundraise(self):
         from decimal import Decimal
 
@@ -656,6 +645,15 @@ class FeedEntrySerializerTests(TestCase):
             score=15,
         )
 
+        # Create actual child comments instead of mocking children_count
+        for i in range(3):
+            RhCommentModel.objects.create(
+                thread=thread,
+                created_by=self.user,
+                comment_content_json={"ops": [{"insert": f"Reply {i+1}"}]},
+                parent=comment,
+            )
+
         # Create a feed entry for the comment
         comment_feed_entry = FeedEntry.objects.create(
             content_type=ContentType.objects.get_for_model(RhCommentModel),
@@ -684,6 +682,10 @@ class FeedEntrySerializerTests(TestCase):
         self.assertIsInstance(data["metrics"], dict)
         self.assertIn("votes", data["metrics"])
         self.assertEqual(data["metrics"]["votes"], 15)
+
+        # Verify children_count is in metrics using actual count
+        self.assertIn("replies", data["metrics"])
+        self.assertEqual(data["metrics"]["replies"], 3)
 
         mock_get_primary_hub.assert_called()
 
