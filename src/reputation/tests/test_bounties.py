@@ -956,10 +956,9 @@ class BountyViewTests(APITestCase):
 
     def test_user_vote_included_in_bounty_response(self):
         """Test that user's vote is correctly included in bounty serialization"""
-        # Arrange - create a bounty for the thread (which already has votes in setup)
+        # Arrange
         self.client.force_authenticate(self.user)
 
-        # Create a bounty
         self.client.post(
             "/api/bounty/",
             {
@@ -971,14 +970,38 @@ class BountyViewTests(APITestCase):
             },
         )
 
-        for user in [self.user, self.moderator]:
-            # Act - Retrieve the bounty detail
-            bounty_res = self.client.get(
-                "/api/bounty/",
-            )
+        # Act
+        bounty_res = self.client.get(
+            "/api/bounty/",
+        )
 
-            # Assert - Verify the user_vote field reflects the correct vote
-            self.assertIsNotNone(bounty_res.data["results"][0]["user_vote"])
-            self.assertEqual(
-                bounty_res.data["results"][0]["user_vote"]["vote_type"], Vote.UPVOTE
-            )
+        # Assert
+        self.assertIsNotNone(bounty_res.data["results"][0]["user_vote"])
+        self.assertEqual(
+            bounty_res.data["results"][0]["user_vote"]["vote_type"], Vote.UPVOTE
+        )
+
+    def test_moderator_user_vote_not_included_in_bounty_response(self):
+        """Test that moderator's user_vote is not included in bounty response"""
+        # Arrange
+        self.client.force_authenticate(self.user)
+
+        self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 100,
+                "item_content_type": self.thread._meta.model_name,
+                "item_object_id": self.thread.id,
+                "bounty_type": Bounty.Type.OTHER,
+                "expiration_date": "2040-01-01T00:00:00Z",
+            },
+        )
+
+        # Act
+        self.client.force_authenticate(self.moderator)
+        bounty_res = self.client.get(
+            "/api/bounty/",
+        )
+
+        # Assert
+        self.assertIsNone(bounty_res.data["results"][0]["user_vote"])
