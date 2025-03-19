@@ -389,14 +389,14 @@ class FeedEntrySerializer(serializers.ModelSerializer):
                 item.item
             )  # Metrics correspond to the comment associated with the bounty
 
-        if hasattr(obj.item, "score"):
-            metrics["votes"] = getattr(obj.item, "score", 0)
+        if hasattr(item, "score"):
+            metrics["votes"] = getattr(item, "score", 0)
 
-            if hasattr(obj.item, "discussion_count"):
-                metrics["comments"] = getattr(obj.item, "discussion_count", 0)
+            if hasattr(item, "discussion_count"):
+                metrics["comments"] = getattr(item, "discussion_count", 0)
 
-            if hasattr(obj.item, "children_count"):
-                metrics["replies"] = getattr(obj.item, "children_count", 0)
+            if hasattr(item, "children_count"):
+                metrics["replies"] = getattr(item, "children_count", 0)
 
             return metrics
         return None
