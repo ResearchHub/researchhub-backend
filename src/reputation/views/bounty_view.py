@@ -557,6 +557,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                 "total_amount",
                 "unified_document",
                 "user_vote",
+                "metrics",
             ),
         )
 

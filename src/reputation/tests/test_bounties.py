@@ -31,23 +31,25 @@ class BountyViewTests(APITestCase):
         self.rh_official.is_official_account = True
         self.rh_official.save()
 
-        self.thread = create_rh_comment(created_by=self.recipient)
-        self.thread_response_1 = create_rh_comment(
-            created_by=self.user_2, parent=self.thread
+        self.comment = create_rh_comment(created_by=self.recipient)
+        self.child_comment_1 = create_rh_comment(
+            created_by=self.user_2, parent=self.comment
         )
-        self.thread_response_2 = create_rh_comment(
-            created_by=self.user_3, parent=self.thread
+        self.child_comment_2 = create_rh_comment(
+            created_by=self.user_3, parent=self.comment
         )
-        self.thread_response_3 = create_rh_comment(
-            created_by=self.user_4, parent=self.thread
+        self.child_comment_3 = create_rh_comment(
+            created_by=self.user_4, parent=self.comment
         )
+        self.comment.score = 1
+        self.comment.save()
         self.hub = create_hub()
         self.bountyFee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
 
         # Create votes for the threads
-        self._create_vote(self.user, self.thread, Vote.UPVOTE)
-        self._create_vote(self.user_2, self.thread, Vote.UPVOTE)
-        self._create_vote(self.user_3, self.thread, Vote.DOWNVOTE)
+        self._create_vote(self.user, self.comment, Vote.UPVOTE)
+        self._create_vote(self.user_2, self.comment, Vote.UPVOTE)
+        self._create_vote(self.user_3, self.comment, Vote.DOWNVOTE)
 
         self.client.force_authenticate(self.user)
 
@@ -100,8 +102,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": amount,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
             },
         )
 
@@ -115,8 +117,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": amount_1,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
             },
         )
 
@@ -127,8 +129,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": amount_2,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
             },
         )
 
@@ -142,8 +144,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 20000,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
             },
         )
 
@@ -157,8 +159,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 123.456,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
             },
         )
 
@@ -171,8 +173,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 123.45679001,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
             },
         )
 
@@ -185,8 +187,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": -1234.123,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
             },
         )
 
@@ -200,8 +202,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 100,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
                 "expiration_date": expiration_time,
             },
         )
@@ -216,24 +218,24 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": "-100",
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
             },
         )
         create_bounty_res_2 = self.client.post(
             "/api/bounty/",
             {
                 "amount": "--100",
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
             },
         )
         create_bounty_res_3 = self.client.post(
             "/api/bounty/",
             {
                 "amount": "0xFFA",
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
             },
         )
         self.assertEqual(create_bounty_res_1.status_code, 402)
@@ -247,8 +249,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 5,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
             },
         )
 
@@ -261,8 +263,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 10000000,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
             },
         )
 
@@ -277,8 +279,8 @@ class BountyViewTests(APITestCase):
             [
                 {
                     "amount": bounty.data["amount"],
-                    "object_id": self.thread.id,
-                    "content_type": self.thread._meta.model_name,
+                    "object_id": self.comment.id,
+                    "content_type": self.comment._meta.model_name,
                 }
             ],
         )
@@ -297,8 +299,8 @@ class BountyViewTests(APITestCase):
             [
                 {
                     "amount": decimal.Decimal(bounty_1.data["amount"]) / 2,
-                    "object_id": self.thread.id,
-                    "content_type": self.thread._meta.model_name,
+                    "object_id": self.comment.id,
+                    "content_type": self.comment._meta.model_name,
                 }
             ],
         )
@@ -312,8 +314,8 @@ class BountyViewTests(APITestCase):
             [
                 {
                     "amount": decimal.Decimal(bounty_2.data["amount"]) / 2,
-                    "object_id": self.thread.id,
-                    "content_type": self.thread._meta.model_name,
+                    "object_id": self.comment.id,
+                    "content_type": self.comment._meta.model_name,
                 }
             ],
         )
@@ -329,34 +331,34 @@ class BountyViewTests(APITestCase):
         amount = 600
         bounty = self.test_user_can_create_bounty(amount=amount)
         initial_user_balance = self.user.get_balance()
-        initial_recipient_1_balance = self.thread_response_1.created_by.get_balance()
-        initial_recipient_2_balance = self.thread_response_2.created_by.get_balance()
-        initial_recipient_3_balance = self.thread_response_3.created_by.get_balance()
+        initial_recipient_1_balance = self.child_comment_1.created_by.get_balance()
+        initial_recipient_2_balance = self.child_comment_2.created_by.get_balance()
+        initial_recipient_3_balance = self.child_comment_3.created_by.get_balance()
         approve_bounty_res = self.client.post(
             f"/api/bounty/{bounty.data['id']}/approve_bounty/",
             [
                 {
                     "amount": amount / 3,
-                    "object_id": self.thread_response_1.id,
-                    "content_type": self.thread_response_1._meta.model_name,
+                    "object_id": self.child_comment_1.id,
+                    "content_type": self.child_comment_1._meta.model_name,
                 },
                 {
                     "amount": amount / 3,
-                    "object_id": self.thread_response_2.id,
-                    "content_type": self.thread_response_2._meta.model_name,
+                    "object_id": self.child_comment_2.id,
+                    "content_type": self.child_comment_2._meta.model_name,
                 },
                 {
                     "amount": amount / 3,
-                    "object_id": self.thread_response_3.id,
-                    "content_type": self.thread_response_3._meta.model_name,
+                    "object_id": self.child_comment_3.id,
+                    "content_type": self.child_comment_3._meta.model_name,
                 },
             ],
         )
 
         user_balance = self.user.get_balance()
-        recipient_1_balance = self.thread_response_1.created_by.get_balance()
-        recipient_2_balance = self.thread_response_2.created_by.get_balance()
-        recipient_3_balance = self.thread_response_3.created_by.get_balance()
+        recipient_1_balance = self.child_comment_1.created_by.get_balance()
+        recipient_2_balance = self.child_comment_2.created_by.get_balance()
+        recipient_3_balance = self.child_comment_3.created_by.get_balance()
 
         self.assertEqual(approve_bounty_res.status_code, 200)
         # This is because of the transaction fee
@@ -379,34 +381,34 @@ class BountyViewTests(APITestCase):
         amount = 600
         bounty = self.test_user_can_create_bounty(amount=amount)
         initial_user_balance = self.user.get_balance()
-        initial_recipient_1_balance = self.thread_response_1.created_by.get_balance()
-        initial_recipient_2_balance = self.thread_response_2.created_by.get_balance()
-        initial_recipient_3_balance = self.thread_response_3.created_by.get_balance()
+        initial_recipient_1_balance = self.child_comment_1.created_by.get_balance()
+        initial_recipient_2_balance = self.child_comment_2.created_by.get_balance()
+        initial_recipient_3_balance = self.child_comment_3.created_by.get_balance()
 
         approve_bounty_res = self.client.post(
             f"/api/bounty/{bounty.data['id']}/approve_bounty/",
             [
                 {
                     "amount": 100,
-                    "object_id": self.thread_response_1.id,
-                    "content_type": self.thread_response_1._meta.model_name,
+                    "object_id": self.child_comment_1.id,
+                    "content_type": self.child_comment_1._meta.model_name,
                 },
                 {
                     "amount": 100,
-                    "object_id": self.thread_response_2.id,
-                    "content_type": self.thread_response_2._meta.model_name,
+                    "object_id": self.child_comment_2.id,
+                    "content_type": self.child_comment_2._meta.model_name,
                 },
                 {
                     "amount": 100,
-                    "object_id": self.thread_response_3.id,
-                    "content_type": self.thread_response_3._meta.model_name,
+                    "object_id": self.child_comment_3.id,
+                    "content_type": self.child_comment_3._meta.model_name,
                 },
             ],
         )
         user_balance = self.user.get_balance()
-        recipient_1_balance = self.thread_response_1.created_by.get_balance()
-        recipient_2_balance = self.thread_response_2.created_by.get_balance()
-        recipient_3_balance = self.thread_response_3.created_by.get_balance()
+        recipient_1_balance = self.child_comment_1.created_by.get_balance()
+        recipient_2_balance = self.child_comment_2.created_by.get_balance()
+        recipient_3_balance = self.child_comment_3.created_by.get_balance()
 
         self.assertEqual(approve_bounty_res.status_code, 200)
         self.assertEqual(user_balance, initial_user_balance + 300)
@@ -429,9 +431,9 @@ class BountyViewTests(APITestCase):
 
         initial_bounty_1_created_by_balance = bounty_1_created_by.get_balance()
         initial_bounty_2_created_by_balance = bounty_2_created_by.get_balance()
-        initial_recipient_1_balance = self.thread_response_1.created_by.get_balance()
-        initial_recipient_2_balance = self.thread_response_2.created_by.get_balance()
-        initial_recipient_3_balance = self.thread_response_3.created_by.get_balance()
+        initial_recipient_1_balance = self.child_comment_1.created_by.get_balance()
+        initial_recipient_2_balance = self.child_comment_2.created_by.get_balance()
+        initial_recipient_3_balance = self.child_comment_3.created_by.get_balance()
 
         self.client.force_authenticate(self.user)
         approve_bounty_res = self.client.post(
@@ -439,26 +441,26 @@ class BountyViewTests(APITestCase):
             [
                 {
                     "amount": amount_paid,
-                    "object_id": self.thread_response_1.id,
-                    "content_type": self.thread_response_1._meta.model_name,
+                    "object_id": self.child_comment_1.id,
+                    "content_type": self.child_comment_1._meta.model_name,
                 },
                 {
                     "amount": amount_paid,
-                    "object_id": self.thread_response_2.id,
-                    "content_type": self.thread_response_2._meta.model_name,
+                    "object_id": self.child_comment_2.id,
+                    "content_type": self.child_comment_2._meta.model_name,
                 },
                 {
                     "amount": amount_paid,
-                    "object_id": self.thread_response_3.id,
-                    "content_type": self.thread_response_3._meta.model_name,
+                    "object_id": self.child_comment_3.id,
+                    "content_type": self.child_comment_3._meta.model_name,
                 },
             ],
         )
         bounty_1_created_by_balance = bounty_1_created_by.get_balance()
         bounty_2_created_by_balance = bounty_2_created_by.get_balance()
-        recipient_1_balance = self.thread_response_1.created_by.get_balance()
-        recipient_2_balance = self.thread_response_2.created_by.get_balance()
-        recipient_3_balance = self.thread_response_3.created_by.get_balance()
+        recipient_1_balance = self.child_comment_1.created_by.get_balance()
+        recipient_2_balance = self.child_comment_2.created_by.get_balance()
+        recipient_3_balance = self.child_comment_3.created_by.get_balance()
         self.assertEqual(approve_bounty_res.status_code, 200)
         self.assertEqual(initial_recipient_2_balance + amount_paid, recipient_2_balance)
         self.assertEqual(initial_recipient_3_balance + amount_paid, recipient_3_balance)
@@ -499,8 +501,8 @@ class BountyViewTests(APITestCase):
             [
                 {
                     "amount": bounty.data["amount"],
-                    "object_id": self.thread.id,
-                    "content_type": self.thread._meta.model_name,
+                    "object_id": self.comment.id,
+                    "content_type": self.comment._meta.model_name,
                 }
             ],
         )
@@ -513,8 +515,8 @@ class BountyViewTests(APITestCase):
             [
                 {
                     "amount": bounty.data["amount"],
-                    "object_id": self.thread.id,
-                    "content_type": self.thread._meta.model_name,
+                    "object_id": self.comment.id,
+                    "content_type": self.comment._meta.model_name,
                 }
             ],
         )
@@ -531,8 +533,8 @@ class BountyViewTests(APITestCase):
             [
                 {
                     "amount": bounty.data["amount"],
-                    "object_id": self.thread.id,
-                    "content_type": self.thread._meta.model_name,
+                    "object_id": self.comment.id,
+                    "content_type": self.comment._meta.model_name,
                 }
             ],
         )
@@ -565,8 +567,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 200,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
             },
         )
         initial_user_1_balance = self.user.get_balance()
@@ -577,8 +579,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 245,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
             },
         )
         initial_user_2_balance = self.user_2.get_balance()
@@ -589,8 +591,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 255,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
             },
         )
         initial_user_3_balance = self.user_3.get_balance()
@@ -663,8 +665,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 1000,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
             },
         )
 
@@ -698,8 +700,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 1000,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
             },
         )
 
@@ -732,8 +734,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 2000,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
             },
         )
 
@@ -757,8 +759,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 2000,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
                 "bounty_type": Bounty.Type.REVIEW,
             },
         )
@@ -783,8 +785,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 2000,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
                 "bounty_type": Bounty.Type.ANSWER,
             },
         )
@@ -809,8 +811,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 2000,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
                 "bounty_type": Bounty.Type.OTHER,
             },
         )
@@ -828,7 +830,6 @@ class BountyViewTests(APITestCase):
         self.assertEqual(created_bounty_id, res.data["results"][0]["id"])
 
     def test_filter_hub_specific_bounties_type(self):
-
         # Arrange: Create hub and add it to the paper
         paper = create_paper()
         hub = Hub.objects.create(
@@ -836,7 +837,7 @@ class BountyViewTests(APITestCase):
         )
 
         paper.unified_document.hubs.add(hub)
-        self.thread = create_rh_comment(created_by=self.rh_official, paper=paper)
+        self.comment = create_rh_comment(created_by=self.rh_official, paper=paper)
         self.client.force_authenticate(self.rh_official)
 
         # Create bounty
@@ -844,8 +845,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 2000,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
                 "bounty_type": Bounty.Type.OTHER,
             },
         )
@@ -870,7 +871,7 @@ class BountyViewTests(APITestCase):
         )
 
         paper.unified_document.hubs.add(hub)
-        self.thread = create_rh_comment(created_by=self.rh_official, paper=paper)
+        self.comment = create_rh_comment(created_by=self.rh_official, paper=paper)
         self.thread2 = create_rh_comment(created_by=self.rh_official, paper=paper)
         self.client.force_authenticate(self.rh_official)
 
@@ -879,8 +880,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 101,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
                 "bounty_type": Bounty.Type.OTHER,
                 "expiration_date": "2040-01-01T00:00:00Z",
             },
@@ -891,7 +892,7 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 102,
-                "item_content_type": self.thread._meta.model_name,
+                "item_content_type": self.comment._meta.model_name,
                 "item_object_id": self.thread2.id,
                 "bounty_type": Bounty.Type.OTHER,
                 "expiration_date": "2030-01-01T00:00:00Z",
@@ -916,7 +917,7 @@ class BountyViewTests(APITestCase):
         )
 
         paper.unified_document.hubs.add(hub)
-        self.thread = create_rh_comment(created_by=self.rh_official, paper=paper)
+        self.comment = create_rh_comment(created_by=self.rh_official, paper=paper)
         self.thread2 = create_rh_comment(created_by=self.rh_official, paper=paper)
         self.client.force_authenticate(self.rh_official)
 
@@ -925,8 +926,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 1000,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
                 "bounty_type": Bounty.Type.OTHER,
                 "expiration_date": "2040-01-01T00:00:00Z",
             },
@@ -939,7 +940,7 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 100,
-                "item_content_type": self.thread._meta.model_name,
+                "item_content_type": self.comment._meta.model_name,
                 "item_object_id": self.thread2.id,
                 "bounty_type": Bounty.Type.OTHER,
                 "expiration_date": "2030-01-01T00:00:00Z",
@@ -963,8 +964,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 100,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
                 "bounty_type": Bounty.Type.OTHER,
                 "expiration_date": "2040-01-01T00:00:00Z",
             },
@@ -990,8 +991,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 100,
-                "item_content_type": self.thread._meta.model_name,
-                "item_object_id": self.thread.id,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
                 "bounty_type": Bounty.Type.OTHER,
                 "expiration_date": "2040-01-01T00:00:00Z",
             },
@@ -1006,33 +1007,38 @@ class BountyViewTests(APITestCase):
         # Assert
         self.assertIsNone(bounty_res.data["results"][0]["user_vote"])
 
+    def test_metrics_included_in_bounty_response(self):
+        """Test that metrics are correctly included in bounty response"""
+        # Arrange
+        self.client.force_authenticate(self.user)
 
-def test_metrics_included_in_bounty_response(self):
-    """Test that metrics are correctly included in bounty response"""
-    # Setup: Create comment bounty
-    self.client.force_authenticate(self.user)
-    comment_bounty_response = self.client.post(
-        "/api/bounty/",
-        {
-            "amount": 100,
-            "item_content_type": self.thread._meta.model_name,
-            "item_object_id": self.thread.id,
-            "bounty_type": Bounty.Type.OTHER,
-            "expiration_date": "2040-01-01T00:00:00Z",
-        },
-    )
-    print("comment_bounty_response: ", comment_bounty_response.data)
-    print("comment_bounty_response: ", comment_bounty_response.status_code)
-    self.assertEqual(comment_bounty_response.status_code, 201)
-    comment_bounty_id = comment_bounty_response.data["id"]
+        comment_bounty_response = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 100,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
+                "bounty_type": Bounty.Type.OTHER,
+                "expiration_date": "2040-01-01T00:00:00Z",
+            },
+        )
 
-    # Test: Verify comment bounty metrics
-    comment_bounty_response = self.client.get(f"/api/bounty/{comment_bounty_id}/")
-    self.assertEqual(comment_bounty_response.status_code, 200)
-    self.assertIn("metrics", comment_bounty_response.data)
+        self.assertEqual(comment_bounty_response.status_code, 201)
 
-    # The metrics should contain votes count
-    # (the thread has 2 upvotes, 1 downvote = score of 1)
-    self.assertEqual(comment_bounty_response.data["metrics"]["votes"], 1)
-    # The metrics should contain replies count (the thread has 3 replies)
-    self.assertEqual(comment_bounty_response.data["metrics"]["replies"], 3)
+        # Test: Verify comment bounty metrics
+        comment_bounty_response = self.client.get(
+            "/api/bounty/",
+        )
+        print("comment_bounty_response: ", comment_bounty_response.data)
+        self.assertEqual(comment_bounty_response.status_code, 200)
+        self.assertIn("metrics", comment_bounty_response.data["results"][0])
+
+        # The metrics should contain votes count
+        # (the thread has 2 upvotes, 1 downvote = score of 1)
+        self.assertEqual(
+            comment_bounty_response.data["results"][0]["metrics"]["votes"], 1
+        )
+        # The metrics should contain replies count (the thread has 3 replies)
+        self.assertEqual(
+            comment_bounty_response.data["results"][0]["metrics"]["replies"], 3
+        )

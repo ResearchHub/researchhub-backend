@@ -43,6 +43,7 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
     unified_document = serializers.SerializerMethodField()
     hubs = serializers.SerializerMethodField()
     user_vote = serializers.SerializerMethodField()
+    metrics = serializers.SerializerMethodField()
     # Kobe: This is not great. This alias is used to disambiguate "parent" used in
     # contribution_views because simply using parent, may lead to infinite
     # recursive loop -_-
@@ -160,6 +161,22 @@ class DynamicBountySerializer(DynamicModelFieldSerializer):
                 return vote
         except Exception:
             return None
+
+    def get_metrics(self, bounty):
+        """Return metrics for the bounty's comment"""
+        metrics = {}
+        print("bounty.item_content_type.model: ", bounty.item_content_type.model)
+        if bounty.item_content_type.model == "rhcommentmodel":
+            print("bounty.item: ", bounty.item)
+            comment = bounty.item
+            if comment:
+                print("comment: ", comment.score)
+                metrics["votes"] = getattr(comment, "score", 0)
+                if hasattr(comment, "children_count"):
+                    metrics["replies"] = getattr(comment, "children_count", 0)
+                return metrics
+
+        return None
 
 
 class DynamicBountySolutionSerializer(DynamicModelFieldSerializer):
