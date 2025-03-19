@@ -1028,7 +1028,6 @@ class BountyViewTests(APITestCase):
         comment_bounty_response = self.client.get(
             "/api/bounty/",
         )
-        print("comment_bounty_response: ", comment_bounty_response.data)
         self.assertEqual(comment_bounty_response.status_code, 200)
         self.assertIn("metrics", comment_bounty_response.data["results"][0])
 
