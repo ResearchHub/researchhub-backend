@@ -379,26 +379,24 @@ class FeedEntrySerializer(serializers.ModelSerializer):
     def get_metrics(self, obj):
         """Return metrics for the content object"""
         metrics = {}
-        if obj.content_type.model == "bounty":
-            comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
-            if (
-                hasattr(obj.item, "item_content_type")
-                and obj.item.item_content_type == comment_content_type
-            ):
-                comment = obj.item.item
-                if comment:
-                    metrics["votes"] = getattr(comment, "score", 0)
-                    return metrics
-            return None
+        item = obj.item
+        if (
+            obj.content_type.model == "bounty"
+            and obj.item.item_content_type
+            == ContentType.objects.get_for_model(RhCommentModel)
+        ):
+            item = (
+                item.item
+            )  # Metrics correspond to the comment associated with the bounty
 
-        if hasattr(obj.item, "score"):
-            metrics["votes"] = getattr(obj.item, "score", 0)
+        if hasattr(item, "score"):
+            metrics["votes"] = getattr(item, "score", 0)
 
-            if hasattr(obj.item, "discussion_count"):
-                metrics["comments"] = getattr(obj.item, "discussion_count", 0)
+            if hasattr(item, "discussion_count"):
+                metrics["comments"] = getattr(item, "discussion_count", 0)
 
-            if hasattr(obj.item, "children_count"):
-                metrics["replies"] = getattr(obj.item, "children_count", 0)
+            if hasattr(item, "children_count"):
+                metrics["replies"] = getattr(item, "children_count", 0)
 
             return metrics
         return None
