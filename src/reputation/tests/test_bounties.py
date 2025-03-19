@@ -46,7 +46,6 @@ class BountyViewTests(APITestCase):
         self.hub = create_hub()
         self.bountyFee = BountyFee.objects.create(rh_pct=0.07, dao_pct=0.02)
 
-        # Create votes for the threads
         self._create_vote(self.user, self.comment, Vote.UPVOTE)
         self._create_vote(self.user_2, self.comment, Vote.UPVOTE)
         self._create_vote(self.user_3, self.comment, Vote.DOWNVOTE)
@@ -492,7 +491,7 @@ class BountyViewTests(APITestCase):
 
     def test_user_cant_approve_approved_bounty(self):
         self.client.force_authenticate(self.user)
-        self.thread2 = create_rh_comment(created_by=self.user)
+        self.comment2 = create_rh_comment(created_by=self.user)
 
         bounty = self.test_user_can_create_bounty()
 
@@ -659,7 +658,7 @@ class BountyViewTests(APITestCase):
     def test_get_bounties(self):
         # Arrange
         self.client.force_authenticate(self.user)
-        self.thread2 = create_rh_comment(created_by=self.user)
+        self.comment2 = create_rh_comment(created_by=self.user)
 
         res = self.client.post(
             "/api/bounty/",
@@ -677,8 +676,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 2000,
-                "item_content_type": self.thread2._meta.model_name,
-                "item_object_id": self.thread2.id,
+                "item_content_type": self.comment2._meta.model_name,
+                "item_object_id": self.comment2.id,
             },
         )
 
@@ -694,7 +693,7 @@ class BountyViewTests(APITestCase):
     def test_get_bounties_personalized(self):
         # Arrange
         self.client.force_authenticate(self.user)
-        self.thread2 = create_rh_comment(created_by=self.user)
+        self.comment2 = create_rh_comment(created_by=self.user)
 
         res = self.client.post(
             "/api/bounty/",
@@ -712,8 +711,8 @@ class BountyViewTests(APITestCase):
             "/api/bounty/",
             {
                 "amount": 2000,
-                "item_content_type": self.thread2._meta.model_name,
-                "item_object_id": self.thread2.id,
+                "item_content_type": self.comment2._meta.model_name,
+                "item_object_id": self.comment2.id,
             },
         )
 
@@ -872,7 +871,7 @@ class BountyViewTests(APITestCase):
 
         paper.unified_document.hubs.add(hub)
         self.comment = create_rh_comment(created_by=self.rh_official, paper=paper)
-        self.thread2 = create_rh_comment(created_by=self.rh_official, paper=paper)
+        self.comment2 = create_rh_comment(created_by=self.rh_official, paper=paper)
         self.client.force_authenticate(self.rh_official)
 
         # Create bounty 1
@@ -893,7 +892,7 @@ class BountyViewTests(APITestCase):
             {
                 "amount": 102,
                 "item_content_type": self.comment._meta.model_name,
-                "item_object_id": self.thread2.id,
+                "item_object_id": self.comment2.id,
                 "bounty_type": Bounty.Type.OTHER,
                 "expiration_date": "2030-01-01T00:00:00Z",
             },
@@ -918,7 +917,7 @@ class BountyViewTests(APITestCase):
 
         paper.unified_document.hubs.add(hub)
         self.comment = create_rh_comment(created_by=self.rh_official, paper=paper)
-        self.thread2 = create_rh_comment(created_by=self.rh_official, paper=paper)
+        self.comment2 = create_rh_comment(created_by=self.rh_official, paper=paper)
         self.client.force_authenticate(self.rh_official)
 
         # Create bounty 1 (larger amount)
@@ -941,7 +940,7 @@ class BountyViewTests(APITestCase):
             {
                 "amount": 100,
                 "item_content_type": self.comment._meta.model_name,
-                "item_object_id": self.thread2.id,
+                "item_object_id": self.comment2.id,
                 "bounty_type": Bounty.Type.OTHER,
                 "expiration_date": "2030-01-01T00:00:00Z",
             },
@@ -1034,11 +1033,11 @@ class BountyViewTests(APITestCase):
         self.assertIn("metrics", comment_bounty_response.data["results"][0])
 
         # The metrics should contain votes count
-        # (the thread has 2 upvotes, 1 downvote = score of 1)
+        # (the comment has 2 upvotes, 1 downvote = score of 1)
         self.assertEqual(
             comment_bounty_response.data["results"][0]["metrics"]["votes"], 1
         )
-        # The metrics should contain replies count (the thread has 3 replies)
+        # The metrics should contain replies count (the comment has 3 replies)
         self.assertEqual(
             comment_bounty_response.data["results"][0]["metrics"]["replies"], 3
         )
