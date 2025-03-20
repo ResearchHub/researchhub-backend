@@ -32,6 +32,13 @@ class FeedEntry(DefaultModel):
         null=False,
     )
 
+    metrics = models.JSONField(
+        default=dict,
+        db_comment="A serialized JSON representation of the metrics for the item.",
+        blank=False,
+        null=False,
+    )
+
     parent_content_type = models.ForeignKey(
         ContentType,
         on_delete=models.CASCADE,
