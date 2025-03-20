@@ -514,6 +514,7 @@ class FeedViewSetTests(TestCase):
             created_date=timezone.now(),
             action="PUBLISH",
             action_date=timezone.now(),
+            metrics={"votes": 100, "comments": 10},
             user=self.user,
             unified_document=self.unified_document,
         )
@@ -525,6 +526,7 @@ class FeedViewSetTests(TestCase):
             created_date=timezone.now(),
             action="PUBLISH",
             action_date=timezone.now(),
+            metrics={"votes": 100, "comments": 10},
             user=self.user,
             unified_document=self.unified_document,
         )
@@ -536,6 +538,7 @@ class FeedViewSetTests(TestCase):
             created_date=timezone.now(),
             action="PUBLISH",
             action_date=timezone.now(),
+            metrics={"votes": 100, "comments": 10},
             user=self.user,
             unified_document=self.unified_document,
         )
@@ -547,6 +550,7 @@ class FeedViewSetTests(TestCase):
             created_date=timezone.now(),
             action="PUBLISH",
             action_date=timezone.now(),
+            metrics={"votes": 100, "comments": 10},
             user=self.user,
             unified_document=self.unified_document,
         )

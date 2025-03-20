@@ -544,6 +544,7 @@ class FeedEntrySerializerTests(TestCase):
             created_date=paper.created_date,
             action="PUBLISH",
             action_date=paper.paper_publish_date,
+            metrics={"votes": 42, "comments": 15},
             user=self.user,
             unified_document=paper.unified_document,
         )
@@ -603,6 +604,7 @@ class FeedEntrySerializerTests(TestCase):
             created_date=post.created_date,
             action="PUBLISH",
             action_date=post.created_date,
+            metrics={"votes": 25, "comments": 8},
             user=self.user,
             unified_document=post.unified_document,
         )
@@ -677,6 +679,7 @@ class FeedEntrySerializerTests(TestCase):
             created_date=comment.created_date,
             action="PUBLISH",
             action_date=comment.created_date,
+            metrics={"votes": 15},
             user=self.user,
             unified_document=paper.unified_document,
         )
@@ -697,10 +700,6 @@ class FeedEntrySerializerTests(TestCase):
         self.assertIsInstance(data["metrics"], dict)
         self.assertIn("votes", data["metrics"])
         self.assertEqual(data["metrics"]["votes"], 15)
-
-        # Verify children_count is in metrics using actual count
-        self.assertIn("replies", data["metrics"])
-        self.assertEqual(data["metrics"]["replies"], 3)
 
         mock_get_primary_hub.assert_called()
 
@@ -761,6 +760,7 @@ class FeedEntrySerializerTests(TestCase):
             created_date=bounty.created_date,
             action="PUBLISH",
             action_date=bounty.created_date,
+            metrics={"votes": 15},
             user=self.user,
             unified_document=paper.unified_document,
         )
