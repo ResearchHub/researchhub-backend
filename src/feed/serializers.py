@@ -382,7 +382,6 @@ class FeedEntrySerializer(serializers.ModelSerializer):
     action_date = serializers.DateTimeField()
     action = serializers.CharField()
     author = serializers.SerializerMethodField()
-    metrics = serializers.SerializerMethodField()
 
     class Meta:
         model = FeedEntry
@@ -412,30 +411,30 @@ class FeedEntrySerializer(serializers.ModelSerializer):
     def get_content_type(self, obj):
         return obj.content_type.model.upper()
 
-    def get_metrics(self, obj):
-        """Return metrics for the content object"""
-        metrics = {}
-        item = obj.item
-        if (
-            obj.content_type.model == "bounty"
-            and obj.item.item_content_type
-            == ContentType.objects.get_for_model(RhCommentModel)
-        ):
-            item = (
-                item.item
-            )  # Metrics correspond to the comment associated with the bounty
 
-        if hasattr(item, "score"):
-            metrics["votes"] = getattr(item, "score", 0)
+def serialize_feed_metrics(item, item_content_type):
+    """
+    Serialize metrics for a feed item based on its content type.
+    """
+    metrics = {}
+    if (
+        item_content_type.model == "bounty"
+        and item.item_content_type == ContentType.objects.get_for_model(RhCommentModel)
+    ):
+        # Metrics correspond to the comment associated with the bounty
+        item = item.item
 
-            if hasattr(item, "discussion_count"):
-                metrics["comments"] = getattr(item, "discussion_count", 0)
+    if hasattr(item, "score"):
+        metrics["votes"] = getattr(item, "score", 0)
 
-            if hasattr(item, "children_count"):
-                metrics["replies"] = getattr(item, "children_count", 0)
+        if hasattr(item, "discussion_count"):
+            metrics["comments"] = getattr(item, "discussion_count", 0)
 
-            return metrics
-        return None
+        if hasattr(item, "children_count"):
+            metrics["replies"] = getattr(item, "children_count", 0)
+
+        return metrics
+    return None
 
 
 def serialize_feed_item(feed_item, item_content_type):

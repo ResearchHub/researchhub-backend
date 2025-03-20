@@ -4,7 +4,7 @@ from typing import Any, Optional
 from django.contrib.contenttypes.models import ContentType
 
 from feed.models import FeedEntry
-from feed.serializers import serialize_feed_item
+from feed.serializers import serialize_feed_item, serialize_feed_metrics
 from researchhub.celery import app
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -38,6 +38,8 @@ def create_feed_entry(
 
     content = serialize_feed_item(item, item_content_type)
 
+    metrics = serialize_feed_metrics(item, item_content_type)
+
     action_date = item.created_date
     if action == FeedEntry.PUBLISH and item_content_type.model == "paper":
         action_date = item.paper_publish_date
@@ -51,6 +53,7 @@ def create_feed_entry(
             object_id=item_id,
             action=action,
             action_date=action_date,
+            metrics=metrics,
             parent_content_type=parent_content_type,
             parent_object_id=parent_item_id,
             unified_document=unified_document,
@@ -61,6 +64,16 @@ def create_feed_entry(
         logger.warning(
             f"Failed to save feed entry for item_id={item_id} content_type={item_content_type.model} parent_item_id={parent_item_id} parent_content_type={parent_content_type.model}: {e}"
         )
+
+
+@app.task
+def update_feed_metrics(item_id, item_content_type_id, metrics):
+    item_content_type = ContentType.objects.get(id=item_content_type_id)
+
+    FeedEntry.objects.filter(
+        object_id=item_id,
+        content_type=item_content_type,
+    ).update(metrics=metrics)
 
 
 def _get_unified_document(
