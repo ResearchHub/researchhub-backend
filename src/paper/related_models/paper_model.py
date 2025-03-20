@@ -1,6 +1,3 @@
-import datetime
-
-import pytz
 import regex as re
 import requests
 from bs4 import BeautifulSoup
@@ -10,8 +7,8 @@ from django.contrib.postgres.indexes import GinIndex, HashIndex
 from django.contrib.postgres.search import SearchVectorField
 from django.core.validators import FileExtensionValidator
 from django.db import models
-from django.db.models import Avg, Func, Index, IntegerField, JSONField, Sum
-from django.db.models.functions import Cast, Extract
+from django.db.models import Func, Index, IntegerField, JSONField, Sum
+from django.db.models.functions import Cast
 from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 from manubot.cite.doi import get_doi_csl_item
 from manubot.cite.unpaywall import Unpaywall
@@ -26,7 +23,6 @@ from paper.related_models.citation_model import Citation
 from paper.tasks import celery_extract_meta_data, celery_extract_pdf_preview
 from paper.utils import (
     get_csl_item,
-    paper_piecewise_log,
     parse_author_name,
     populate_pdf_url_from_journal_url,
 )

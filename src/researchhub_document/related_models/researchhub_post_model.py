@@ -1,14 +1,10 @@
-import datetime
-
-import pytz
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
-from django.db.models import Avg, Count, IntegerField, Q, Sum
-from django.db.models.functions import Cast, Extract
+from django.db.models import IntegerField, Sum
+from django.db.models.functions import Cast
 
 from discussion.reaction_models import AbstractGenericReactionModel, Vote
 from hub.serializers import DynamicHubSerializer
-from paper.utils import paper_piecewise_log
 from purchase.models import Purchase
 from researchhub_comment.models import RhCommentThreadModel
 from researchhub_document.related_models.constants.document_type import (
