@@ -189,6 +189,12 @@ class PostSerializer(ContentObjectSerializer):
         ]
 
 
+class BountyContributionSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    amount = serializers.FloatField()
+    author = SimpleAuthorSerializer(source="created_by.author_profile")
+
+
 class BountySerializer(serializers.Serializer):
     amount = serializers.FloatField()
     bounty_type = serializers.CharField()
@@ -201,6 +207,17 @@ class BountySerializer(serializers.Serializer):
     paper = serializers.SerializerMethodField()
     post = serializers.SerializerMethodField()
     status = serializers.CharField()
+    contributions = serializers.SerializerMethodField()
+
+    def get_contributions(self, obj):
+        """Return contributions from the bounty's comment"""
+        if hasattr(obj, "item") and hasattr(obj.item, "bounties"):
+            bounties = obj.item.bounties.all()
+            if bounties:
+                return [
+                    BountyContributionSerializer(bounty).data for bounty in bounties
+                ]
+        return []
 
     def get_contributors(self, obj):
         """Return all contributors from child bounties"""
@@ -262,6 +279,7 @@ class BountySerializer(serializers.Serializer):
             "paper",
             "post",
             "status",
+            "contributions",
         ]
 
 
