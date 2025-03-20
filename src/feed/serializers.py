@@ -196,7 +196,7 @@ class BountyContributionSerializer(serializers.Serializer):
 
 
 class BountySerializer(serializers.Serializer):
-    amount = serializers.FloatField()
+    amount = serializers.SerializerMethodField()
     bounty_type = serializers.CharField()
     comment = serializers.SerializerMethodField()
     contributors = serializers.SerializerMethodField()
@@ -208,6 +208,13 @@ class BountySerializer(serializers.Serializer):
     post = serializers.SerializerMethodField()
     status = serializers.CharField()
     contributions = serializers.SerializerMethodField()
+
+    def get_amount(self, obj):
+        """Return the amount from the bounty's comment"""
+        if hasattr(obj, "item") and hasattr(obj.item, "bounties"):
+            bounties = obj.item.bounties.all()
+            return sum(bounty.amount for bounty in bounties)
+        return 0
 
     def get_contributions(self, obj):
         """Return contributions from the bounty's comment"""

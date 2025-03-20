@@ -443,7 +443,7 @@ class BountySerializerTests(TestCase):
 
         # Assert
         self.assertEqual(data["id"], self.bounty.id)
-        self.assertEqual(data["amount"], self.bounty.amount)
+        self.assertEqual(data["amount"], 600)
         self.assertEqual(data["bounty_type"], self.bounty.bounty_type)
         self.assertEqual(data["status"], self.bounty.status)
 
