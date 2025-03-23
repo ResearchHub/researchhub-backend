@@ -5,6 +5,7 @@ from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from search.documents.hub import HubDocument
 from search.documents.paper import PaperDocument
 from search.documents.person import PersonDocument
 from search.documents.post import PostDocument
@@ -16,6 +17,15 @@ from utils.openalex import OpenAlex
 class SuggestView(APIView):
     permission_classes = [AllowAny]
     renderer_classes = [JSONRenderer]
+
+    # Default entity type weights to ensure fair representation
+    DEFAULT_WEIGHTS = {
+        "hub": 3.0,  # Prioritize hubs (communities)
+        "paper": 2.0,  # Then papers
+        "user": 2.5,  # Increased weight for users
+        "person": 2.5,  # Authors same as users
+        "post": 1.0,  # Regular posts
+    }
 
     # Map of index names to their document classes and transform functions
     INDEX_MAP = {
@@ -33,6 +43,7 @@ class SuggestView(APIView):
                 "profile_image": result.get("_source", {}).get("profile_image"),
                 "headline": result.get("_source", {}).get("headline", {}),
                 "source": "researchhub",
+                "_score": result.get("_score", 1.0),  # Ensure _score is always set
             },
         },
         "user": {
@@ -43,6 +54,7 @@ class SuggestView(APIView):
                 "display_name": result.get("_source", {}).get("full_name", ""),
                 "source": "researchhub",
                 "author_profile": result.get("_source", {}).get("author_profile", {}),
+                "_score": result.get("_score", 1.0),  # Ensure _score is always set
             },
         },
         "post": {
@@ -54,6 +66,23 @@ class SuggestView(APIView):
                 "document_type": result.get("_source", {}).get("document_type"),
                 "authors": result.get("_source", {}).get("authors", []),
                 "source": "researchhub",
+                "_score": result.get("_score", 1.0),  # Ensure _score is always set
+            },
+        },
+        "hub": {
+            "document": HubDocument,
+            "transform": lambda self, result: {
+                "entity_type": "hub",
+                "id": result.get("_source", {}).get("id"),
+                "display_name": result.get("_source", {}).get("name", ""),
+                "slug": result.get("_source", {}).get("slug"),
+                "description": result.get("_source", {}).get("description", ""),
+                "paper_count": result.get("_source", {}).get("paper_count", 0),
+                "discussion_count": result.get("_source", {}).get(
+                    "discussion_count", 0
+                ),
+                "source": "researchhub",
+                "_score": result.get("_score", 1.0),  # Ensure _score is always set
             },
         },
     }
@@ -91,7 +120,7 @@ class SuggestView(APIView):
             "date_published": source.get("paper_publish_date"),
             "source": "researchhub",
             "openalex_id": source.get("openalex_id"),  # OpenAlex ID if exists in ES
-            "_score": result.get("_score"),  # Add _score property to each result
+            "_score": result.get("_score", 1.0),  # Ensure score is never zero/None
         }
 
     def get(self, request):
@@ -102,6 +131,7 @@ class SuggestView(APIView):
         - index: index(es) to search in (optional, defaults to 'paper')
                 Can be a single index or comma-separated list (e.g. 'user,person')
         - limit: maximum number of results to return (optional, defaults to 10)
+        - balanced: whether to return balanced results across entity types (optional, defaults to false)
         """
         query = request.query_params.get("q", None)
         if not query:
@@ -122,6 +152,9 @@ class SuggestView(APIView):
         except ValueError:
             limit = 10  # Default if invalid value
 
+        # Check if balanced results are requested
+        balanced = request.query_params.get("balanced", "false").lower() == "true"
+
         # Validate all indexes
         invalid_indexes = [idx for idx in indexes if idx not in self.INDEX_MAP]
         if invalid_indexes:
@@ -137,7 +170,8 @@ class SuggestView(APIView):
             )
 
         try:
-            all_results = []
+            # Results by entity type
+            results_by_type = {}
             seen_dois = set()  # For deduplicating paper results
 
             # Process each index
@@ -176,11 +210,9 @@ class SuggestView(APIView):
                     es_response = suggest.execute().suggest.to_dict()
                     es_results = []
                     for suggestion in es_response.get("suggestions", []):
+                        options = suggestion.get("options", [])
                         es_results.extend(
-                            [
-                                transform_func(self, option)
-                                for option in suggestion.get("options", [])[:3]
-                            ]
+                            [transform_func(self, option) for option in options[:3]]
                         )
                     results.extend(es_results)
 
@@ -212,14 +244,112 @@ class SuggestView(APIView):
                             del result["normalized_doi"]
                             unique_results.append(result)
 
-                    all_results.extend(unique_results)
+                    # Store sorted paper results
+                    entity_type = "paper"
+                    results_by_type[entity_type] = sorted(
+                        unique_results, key=lambda x: x.get("_score", 0), reverse=True
+                    )
                 else:
-                    # For other indexes, just sort by score and add all results
-                    all_results.extend(
-                        sorted(results, key=lambda x: x.get("_score", 0), reverse=True)
+                    # For other indexes, sort by score and add to corresponding type
+                    sorted_results = sorted(
+                        results, key=lambda x: x.get("_score", 0), reverse=True
                     )
 
-            # Limit the number of results returned
+                    # Determine entity type based on the first result (if any)
+                    if sorted_results:
+                        entity_type = sorted_results[0].get("entity_type", index)
+                        # Add to results by type
+                        results_by_type[entity_type] = sorted_results
+
+            # Apply entity type weights to scores
+            for entity_type, results in results_by_type.items():
+                # Apply default weight based on entity type
+                weight = self.DEFAULT_WEIGHTS.get(entity_type, 1.0)
+
+                # Special handling for users/persons - boost exact matches
+                if entity_type in ["user", "person"] and query:
+                    for result in results:
+                        # Get user's display name
+                        display_name = result.get("display_name", "")
+
+                        # Apply exact match boosting - give extra weight for exact matches
+                        original_score = result.get("_score", 1.0)
+
+                        # Check for exact match (ignoring case) and boost substantially
+                        if display_name.lower() == query.lower():
+                            # Apply exact match multiplier (5x)
+                            exact_match_bonus = 5.0
+                            result["_score"] = (
+                                original_score * weight * exact_match_bonus
+                            )
+                            result["_boost"] = "exact_name_match"
+                        # Check for name contains query or query contains name
+                        elif (
+                            query.lower() in display_name.lower()
+                            or display_name.lower() in query.lower()
+                        ):
+                            # Apply partial match multiplier (2x)
+                            partial_match_bonus = 2.0
+                            result["_score"] = (
+                                original_score * weight * partial_match_bonus
+                            )
+                            result["_boost"] = "partial_name_match"
+                        else:
+                            # Standard weight
+                            result["_score"] = original_score * weight
+                            result["_original_score"] = original_score
+                else:
+                    # Standard entity weighting for non-user types
+                    for result in results:
+                        original_score = result.get("_score", 1.0)
+                        result["_original_score"] = original_score
+                        result["_score"] = original_score * weight
+
+            # Combine results based on strategy (balanced or not)
+            all_results = []
+
+            if balanced and len(results_by_type) > 1:
+                # Calculate quota for each type
+                entity_types = list(results_by_type.keys())
+                min_per_type = 2  # Minimum results per type if available
+                remaining_slots = limit - (min_per_type * len(entity_types))
+
+                # First, add minimum quota for each type
+                for entity_type in entity_types:
+                    type_results = results_by_type[entity_type]
+                    quota = min(min_per_type, len(type_results))
+                    all_results.extend(type_results[:quota])
+                    # Remove used results
+                    results_by_type[entity_type] = type_results[quota:]
+
+                # Distribute remaining slots based on weighted scores
+                if remaining_slots > 0 and any(
+                    len(results) > 0 for results in results_by_type.values()
+                ):
+                    # Create merged list of remaining results
+                    remaining_results = []
+                    for entity_type, results in results_by_type.items():
+                        for result in results:
+                            remaining_results.append(result)
+
+                    # Sort by weighted score and add top results
+                    sorted_remaining = sorted(
+                        remaining_results,
+                        key=lambda x: x.get("_score", 0),
+                        reverse=True,
+                    )
+                    all_results.extend(sorted_remaining[:remaining_slots])
+            else:
+                # Just combine all results and sort by weighted score
+                for results in results_by_type.values():
+                    all_results.extend(results)
+
+            # Sort combined results by weighted score
+            all_results = sorted(
+                all_results, key=lambda x: x.get("_score", 0), reverse=True
+            )
+
+            # Apply limit
             all_results = all_results[:limit]
 
             return Response(all_results, status=status.HTTP_200_OK)
