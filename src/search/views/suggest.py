@@ -52,7 +52,6 @@ class SuggestView(APIView):
                 "id": result.get("_source", {}).get("id"),
                 "display_name": result.get("_source", {}).get("title", ""),
                 "document_type": result.get("_source", {}).get("document_type"),
-                "created_date": result.get("_source", {}).get("created_date"),
                 "authors": result.get("_source", {}).get("authors", []),
                 "source": "researchhub",
             },
@@ -89,8 +88,10 @@ class SuggestView(APIView):
                 if author.get("full_name")
             ],
             "citations": source.get("citations", 0),
+            "date_published": source.get("paper_publish_date"),
             "source": "researchhub",
             "openalex_id": source.get("openalex_id"),  # OpenAlex ID if exists in ES
+            "_score": result.get("_score"),  # Add _score property to each result
         }
 
     def get(self, request):
@@ -100,6 +101,7 @@ class SuggestView(APIView):
         - q: search query (required)
         - index: index(es) to search in (optional, defaults to 'paper')
                 Can be a single index or comma-separated list (e.g. 'user,person')
+        - limit: maximum number of results to return (optional, defaults to 10)
         """
         query = request.query_params.get("q", None)
         if not query:
@@ -111,6 +113,14 @@ class SuggestView(APIView):
         # Parse indexes from the query parameter
         index_param = request.query_params.get("index", "paper")
         indexes = [idx.strip() for idx in index_param.split(",")]
+
+        # Get limit parameter (default to 10)
+        try:
+            limit = int(request.query_params.get("limit", 10))
+            if limit < 1:
+                limit = 10  # Minimum of 1 result
+        except ValueError:
+            limit = 10  # Default if invalid value
 
         # Validate all indexes
         invalid_indexes = [idx for idx in indexes if idx not in self.INDEX_MAP]
@@ -208,6 +218,9 @@ class SuggestView(APIView):
                     all_results.extend(
                         sorted(results, key=lambda x: x.get("_score", 0), reverse=True)
                     )
+
+            # Limit the number of results returned
+            all_results = all_results[:limit]
 
             return Response(all_results, status=status.HTTP_200_OK)
 
