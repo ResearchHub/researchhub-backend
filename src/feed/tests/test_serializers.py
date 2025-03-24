@@ -443,7 +443,7 @@ class BountySerializerTests(TestCase):
 
         # Assert
         self.assertEqual(data["id"], self.bounty.id)
-        self.assertEqual(data["amount"], self.bounty.amount)
+        self.assertEqual(data["amount"], 600)
         self.assertEqual(data["bounty_type"], self.bounty.bounty_type)
         self.assertEqual(data["status"], self.bounty.status)
 
@@ -460,33 +460,12 @@ class BountySerializerTests(TestCase):
         self.assertEqual(data["post"]["title"], post.title)
         self.assertEqual(data["post"]["type"], document_type.POSTS)
 
-        mock_get_primary_hub.assert_called()
-
-    @patch(
-        "researchhub_document.related_models.researchhub_unified_document_model"
-        ".ResearchhubUnifiedDocument.get_primary_hub"
-    )
-    def test_serializes_bounty_with_contributors(self, mock_get_primary_hub):
-        # Arrange
-        mock_get_primary_hub.return_value = self.hub1
-
-        # Act
-        serializer = BountySerializer(self.bounty)
-        data = serializer.data
-
-        # Assert
-        self.assertIn("contributors", data)
-        self.assertEqual(len(data["contributors"]), 2)
-
-        # Get contributor data
-        contributor_first_names = [c["first_name"] for c in data["contributors"]]
-        contributor_last_names = [c["last_name"] for c in data["contributors"]]
-
-        # Verify both contributors are included
-        self.assertIn(self.contributor1.first_name, contributor_first_names)
-        self.assertIn(self.contributor1.last_name, contributor_last_names)
-        self.assertIn(self.contributor2.first_name, contributor_first_names)
-        self.assertIn(self.contributor2.last_name, contributor_last_names)
+        self.assertIn("contributions", data)
+        contributions = sorted(data["contributions"], key=lambda x: x["amount"])
+        self.assertEqual(len(contributions), 3)
+        self.assertEqual(contributions[0]["amount"], 100)
+        self.assertEqual(contributions[1]["amount"], 200)
+        self.assertEqual(contributions[2]["amount"], 300)
 
         mock_get_primary_hub.assert_called()
 
