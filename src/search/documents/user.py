@@ -35,12 +35,7 @@ class UserDocument(BaseDocument):
     )
     created_date = es_fields.DateField()
 
-    author_profile = es_fields.ObjectField(
-        properties={
-            "profile_img": es_fields.TextField(),
-            "id": es_fields.IntegerField(),
-        },
-    )
+    author_profile = es_fields.ObjectField()
 
     class Index:
         name = "user"
