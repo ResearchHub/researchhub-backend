@@ -191,6 +191,8 @@ class BountyViewSet(viewsets.ModelViewSet):
 
     def _get_retrieve_context(self):
         context = self._get_create_context()
+        if hasattr(self, "request"):
+            context["request"] = self.request
         context["rep_dbs_get_item"] = {
             "_include_fields": (
                 "id",
@@ -554,6 +556,8 @@ class BountyViewSet(viewsets.ModelViewSet):
                 "hubs",
                 "total_amount",
                 "unified_document",
+                "user_vote",
+                "metrics",
             ),
         )
 

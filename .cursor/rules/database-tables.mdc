@@ -1,0 +1,527 @@
+---
+description: This document provides a comprehensive reference of table compositions in the ResearchHub database.
+globs: 
+alwaysApply: false
+---
+# ResearchHub Database Tables (Cursor Rule)
+
+This document provides a comprehensive reference of table compositions in the ResearchHub database.
+
+## User Management
+
+### user_user
+
+**Description**: Core user account table.
+
+| Column         | Type                       | Description                          |
+| -------------- | -------------------------- | ------------------------------------ |
+| id             | integer                    | Primary key                          |
+| username       | character varying          | Unique username                      |
+| email          | character varying          | User's email address                 |
+| password       | character varying          | Hashed password                      |
+| first_name     | character varying          | User's first name                    |
+| last_name      | character varying          | User's last name                     |
+| is_active      | boolean                    | Whether the account is active        |
+| date_joined    | timestamp with time zone   | When the user joined                 |
+| reputation     | integer                    | User's reputation score              |
+| is_staff       | boolean                    | Whether user has staff privileges    |
+| is_superuser   | boolean                    | Whether user has superuser privileges|
+
+### user_author
+
+**Description**: Author profile information linked to users.
+
+| Column             | Type                   | Description                         |
+| ------------------ | ---------------------- | ----------------------------------- |
+| id                 | integer                | Primary key                         |
+| first_name         | character varying      | Author's first name                 |
+| last_name          | character varying      | Author's last name                  |
+| user_id            | integer                | Foreign key to user_user            |
+| orcid              | character varying      | ORCID identifier                    |
+| scopus_author_id   | character varying      | Scopus author identifier            |
+| google_scholar_id  | character varying      | Google Scholar identifier           |
+| twitter            | character varying      | Twitter handle                      |
+| linkedin           | character varying      | LinkedIn profile URL                |
+| website            | character varying      | Personal website URL                |
+
+### user_userverification
+
+**Description**: User verification information.
+
+| Column         | Type                       | Description                          |
+| -------------- | -------------------------- | ------------------------------------ |
+| id             | integer                    | Primary key                          |
+| first_name     | text                       | User's first name                    |
+| last_name      | text                       | User's last name                     |
+| status         | text                       | Verification status                  |
+| verified_by    | text                       | Verification method                  |
+| external_id    | text                       | External identifier                  |
+| created_date   | timestamp with time zone   | Creation timestamp                   |
+| updated_date   | timestamp with time zone   | Last update timestamp                |
+| user_id        | integer                    | Foreign key to user_user             |
+
+### user_follow
+
+**Description**: User following relationships.
+
+| Column         | Type                       | Description                          |
+| -------------- | -------------------------- | ------------------------------------ |
+| id             | integer                    | Primary key                          |
+| created_date   | timestamp with time zone   | Creation timestamp                   |
+| updated_date   | timestamp with time zone   | Last update timestamp                |
+| object_id      | integer                    | ID of followed object                |
+| content_type_id| integer                    | Type of followed content             |
+| user_id        | integer                    | User who follows                     |
+
+### user_action
+
+**Description**: User actions on the platform.
+
+| Column         | Type                       | Description                          |
+| -------------- | -------------------------- | ------------------------------------ |
+| id             | integer                    | Primary key                          |
+| created_date   | timestamp with time zone   | Creation timestamp                   |
+| updated_date   | timestamp with time zone   | Last update timestamp                |
+| object_id      | integer                    | ID of action object                  |
+| content_type_id| integer                    | Type of content                      |
+| user_id        | integer                    | User who performed action            |
+| read_date      | timestamp with time zone   | When action was read                 |
+| display        | boolean                    | Whether to display action            |
+| is_removed     | boolean                    | Whether action is removed            |
+
+## Paper Resources
+
+### paper_paper
+
+**Description**: Research paper metadata.
+
+| Column               | Type                     | Description                        |
+| -------------------- | ------------------------ | ---------------------------------- |
+| id                   | integer                  | Primary key                        |
+| title                | character varying(1024)  | Paper title                        |
+| created_date         | timestamp with time zone | Creation timestamp                 |
+| updated_date         | timestamp with time zone | Last update timestamp              |
+| paper_publish_date   | date                     | Publication date                   |
+| doi                  | character varying(255)   | Digital Object Identifier          |
+| url                  | character varying(1024)  | URL to paper                       |
+| uploaded_by_id       | integer                  | User who uploaded the paper        |
+| file                 | character varying(512)   | File path                          |
+| abstract             | text                     | Paper abstract                     |
+| is_public            | boolean                  | Whether paper is public            |
+| is_removed           | boolean                  | Whether paper has been removed     |
+| slug                 | character varying(1024)  | URL-friendly slug                  |
+| paper_type           | character varying(32)    | Type of paper                      |
+| score                | integer                  | Aggregated score                   |
+| citations            | integer                  | Citation count                     |
+| downloads            | integer                  | Download count                     |
+| views                | integer                  | View count                         |
+| unified_document_id  | integer                  | Related unified document           |
+| is_open_access       | boolean                  | Whether paper is open access       |
+
+### paper_authorship
+
+**Description**: Paper author relationships.
+
+| Column           | Type                     | Description                        |
+| ---------------- | ------------------------ | ---------------------------------- |
+| id               | integer                  | Primary key                        |
+| created_date     | timestamp with time zone | Creation timestamp                 |
+| updated_date     | timestamp with time zone | Last update timestamp              |
+| author_position  | character varying(10)    | Position in author list            |
+| is_corresponding | boolean                  | Whether author is corresponding    |
+| raw_author_name  | character varying(255)   | Raw author name from source        |
+| author_id        | integer                  | Foreign key to user_author         |
+| paper_id         | integer                  | Foreign key to paper_paper         |
+| email            | character varying(255)   | Author's email                     |
+| department       | character varying(255)   | Author's department                |
+
+## Discussion Resources
+
+### discussion_thread
+
+**Description**: Discussion threads associated with papers.
+
+| Column               | Type                     | Description                        |
+| -------------------- | ------------------------ | ---------------------------------- |
+| id                   | integer                  | Primary key                        |
+| created_date         | timestamp with time zone | Creation timestamp                 |
+| updated_date         | timestamp with time zone | Last update timestamp              |
+| is_public            | boolean                  | Whether thread is public           |
+| is_removed           | boolean                  | Whether thread has been removed    |
+| text                 | jsonb                    | Text content (rich format)         |
+| title                | character varying(255)   | Thread title                       |
+| created_by_id        | integer                  | User who created the thread        |
+| paper_id             | integer                  | Related paper                      |
+| was_edited           | boolean                  | Whether thread was edited          |
+| plain_text           | text                     | Plain text version                 |
+| source               | character varying(32)    | Source of the thread               |
+| score                | integer                  | Thread score                       |
+| discussion_post_type | character varying(16)    | Type of discussion post            |
+| is_accepted_answer   | boolean                  | Whether marked as accepted answer  |
+
+## Content Types
+
+### django_content_type
+
+**Description**: Maps content types to their IDs.
+
+| Column      | Type                  | Description                         |
+| ----------- | --------------------- | ----------------------------------- |
+| id          | integer               | Primary key                         |
+| app_label   | character varying(100)| Application label                   |
+| model       | character varying(100)| Model name                          |
+
+## Feed System
+
+### feed_feedentry
+
+**Description**: Feed entries for user activity.
+
+| Column               | Type                     | Description                        |
+| -------------------- | ------------------------ | ---------------------------------- |
+| id                   | bigint                   | Primary key                        |
+| created_date         | timestamp with time zone | Creation timestamp                 |
+| updated_date         | timestamp with time zone | Last update timestamp              |
+| object_id            | integer                  | ID of feed object                  |
+| parent_object_id     | integer                  | ID of parent object                |
+| action               | text                     | Action performed                   |
+| action_date          | timestamp with time zone | When action was performed          |
+| content_type_id      | integer                  | Type of content                    |
+| parent_content_type_id| integer                 | Type of parent content             |
+| user_id              | integer                  | User associated with feed entry    |
+
+## Notes System
+
+### note_note
+
+**Description**: Notes created by users.
+
+| Column               | Type                     | Description                        |
+| -------------------- | ------------------------ | ---------------------------------- |
+| id                   | integer                  | Primary key                        |
+| created_date         | timestamp with time zone | Creation timestamp                 |
+| updated_date         | timestamp with time zone | Last update timestamp              |
+| created_by_id        | integer                  | User who created the note          |
+| latest_version_id    | integer                  | Latest version of note content     |
+| organization_id      | integer                  | Associated organization            |
+| unified_document_id  | integer                  | Related unified document           |
+| title                | text                     | Note title                         |
+
+### note_notecontent
+
+**Description**: Content of notes.
+
+| Column      | Type                   | Description                         |
+| ----------- | ---------------------- | ----------------------------------- |
+| id          | integer                | Primary key                         |
+| created_date| timestamp with time zone| Creation timestamp                 |
+| src         | character varying(512) | Source of content                   |
+| plain_text  | text                   | Plain text version                  |
+| note_id     | integer                | Related note                        |
+| json        | jsonb                  | JSON content                        |
+
+## Purchase System
+
+### purchase_balance
+
+**Description**: User balances.
+
+| Column         | Type                       | Description                          |
+| -------------- | -------------------------- | ------------------------------------ |
+| id             | integer                    | Primary key                          |
+| object_id      | integer                    | Associated object ID                 |
+| amount         | character varying(255)     | Balance amount                       |
+| created_date   | timestamp with time zone   | Creation timestamp                   |
+| updated_date   | timestamp with time zone   | Last update timestamp                |
+| content_type_id| integer                    | Type of content                      |
+| user_id        | integer                    | Associated user                      |
+| testnet_amount | character varying(255)     | Testnet balance amount               |
+
+### purchase_fundraise
+
+**Description**: Fundraising campaigns.
+
+| Column         | Type                       | Description                          |
+| -------------- | -------------------------- | ------------------------------------ |
+| id             | integer                    | Primary key                          |
+| created_date   | timestamp with time zone   | Creation timestamp                   |
+| updated_date   | timestamp with time zone   | Last update timestamp                |
+| status         | character varying(32)      | Fundraise status                     |
+| goal_amount    | numeric                    | Goal amount                          |
+| goal_currency  | character varying(16)      | Currency of goal                     |
+| start_date     | timestamp with time zone   | Start date                           |
+| end_date       | timestamp with time zone   | End date                             |
+| created_by_id  | integer                    | User who created fundraise           |
+| escrow_id      | integer                    | Associated escrow                    |
+| unified_document_id | integer               | Related unified document             |
+
+### purchase_purchase
+
+**Description**: User purchases.
+
+| Column         | Type                       | Description                          |
+| -------------- | -------------------------- | ------------------------------------ |
+| id             | integer                    | Primary key                          |
+| object_id      | integer                    | Associated object ID                 |
+| purchase_type  | character varying(32)      | Type of purchase                     |
+| amount         | character varying(255)     | Purchase amount                      |
+| created_date   | timestamp with time zone   | Creation timestamp                   |
+| updated_date   | timestamp with time zone   | Last update timestamp                |
+| content_type_id| integer                    | Type of content                      |
+| user_id        | integer                    | User who made purchase               |
+| purchase_hash  | character varying(32)      | Purchase hash                        |
+| purchase_method| character varying(16)      | Purchase method                      |
+| transaction_hash| character varying(255)    | Blockchain transaction hash          |
+| boost_time     | double precision           | Boost time                           |
+| paid_date      | timestamp with time zone   | Payment date                         |
+| paid_status    | character varying(255)     | Payment status                       |
+| group_id       | integer                    | Group ID for batch purchases         |
+
+## Reputation System
+
+### reputation_score
+
+**Description**: User reputation scores.
+
+| Column         | Type                       | Description                          |
+| -------------- | -------------------------- | ------------------------------------ |
+| id             | integer                    | Primary key                          |
+| score          | integer                    | Reputation score value               |
+| author_id      | integer                    | Related author                       |
+| created_date   | timestamp with time zone   | Creation timestamp                   |
+| updated_date   | timestamp with time zone   | Last update timestamp                |
+| hub_id         | integer                    | Related hub                          |
+
+### reputation_scorechange
+
+**Description**: Changes to reputation scores.
+
+| Column               | Type                     | Description                        |
+| -------------------- | ------------------------ | ---------------------------------- |
+| id                   | integer                  | Primary key                        |
+| updated_date         | timestamp with time zone | Last update timestamp              |
+| algorithm_version    | integer                  | Algorithm version                  |
+| score_after_change   | integer                  | Score after change                 |
+| score_change         | integer                  | Amount of change                   |
+| raw_value_change     | integer                  | Raw value change                   |
+| changed_object_id    | integer                  | Changed object ID                  |
+| changed_object_field | character varying(100)   | Field that changed                 |
+| variable_counts      | jsonb                    | Variable counts                    |
+| created_date         | timestamp with time zone | Creation timestamp                 |
+| algorithm_variables_id| integer                 | Algorithm variables                |
+| changed_content_type_id| integer               | Changed content type               |
+| score_id             | integer                  | Related score                      |
+
+### reputation_distribution
+
+**Description**: Reputation distribution transactions.
+
+| Column           | Type                     | Description                           |
+| ---------------- | ------------------------ | ------------------------------------- |
+| id               | integer                  | Primary key                           |
+| amount           | integer                  | Amount distributed                    |
+| created_date     | timestamp with time zone | Creation timestamp                    |
+| updated_date     | timestamp with time zone | Last update timestamp                 |
+| sender_id        | integer                  | User sending reputation               |
+| recipient_id     | integer                  | User receiving reputation             |
+| content_type_id  | integer                  | Type of content                       |
+| object_id        | integer                  | ID of related object                  |
+| distribution_type| character varying        | Type of distribution                  |
+
+### reputation_bounty
+
+**Description**: Bounties for content contributions.
+
+| Column         | Type                       | Description                          |
+| -------------- | -------------------------- | ------------------------------------ |
+| id             | integer                    | Primary key                          |
+| amount         | integer                    | Bounty amount                        |
+| created_date   | timestamp with time zone   | Creation timestamp                   |
+| updated_date   | timestamp with time zone   | Last update timestamp                |
+| creator_id     | integer                    | User who created bounty              |
+| content_type_id| integer                    | Type of content                      |
+| object_id      | integer                    | ID of related object                 |
+| expires_date   | timestamp with time zone   | Expiration date                      |
+| status         | character varying          | Bounty status                        |
+
+### reputation_escrow
+
+**Description**: Escrow for reputation transactions.
+
+| Column         | Type                       | Description                          |
+| -------------- | -------------------------- | ------------------------------------ |
+| id             | integer                    | Primary key                          |
+| created_date   | timestamp with time zone   | Creation timestamp                   |
+| updated_date   | timestamp with time zone   | Last update timestamp                |
+| hold_type      | character varying(16)      | Type of hold                         |
+| amount_holding | numeric                    | Amount in escrow                     |
+| object_id      | integer                    | Associated object ID                 |
+| status         | character varying(16)      | Escrow status                        |
+| content_type_id| integer                    | Type of content                      |
+| created_by_id  | integer                    | User who created escrow              |
+| bounty_fee_id  | integer                    | Associated bounty fee                |
+| amount_paid    | numeric                    | Amount paid out                      |
+
+### reputation_escrowrecipients
+
+**Description**: Recipients of escrow payouts.
+
+| Column         | Type                       | Description                          |
+| -------------- | -------------------------- | ------------------------------------ |
+| id             | integer                    | Primary key                          |
+| created_date   | timestamp with time zone   | Creation timestamp                   |
+| updated_date   | timestamp with time zone   | Last update timestamp                |
+| amount         | numeric                    | Amount to receive                    |
+| escrow_id      | integer                    | Associated escrow                    |
+| user_id        | integer                    | User receiving payout                |
+
+### reputation_withdrawal
+
+**Description**: Withdrawal of reputation tokens.
+
+| Column           | Type                     | Description                           |
+| ---------------- | ------------------------ | ------------------------------------- |
+| id               | integer                  | Primary key                           |
+| from_address     | character varying(255)   | From address                          |
+| to_address       | character varying(255)   | To address                            |
+| created_date     | timestamp with time zone | Creation timestamp                    |
+| updated_date     | timestamp with time zone | Last update timestamp                 |
+| paid_date        | timestamp with time zone | Payment date                          |
+| transaction_hash | character varying(255)   | Transaction hash                      |
+| user_id          | integer                  | Associated user                       |
+| is_removed       | boolean                  | Whether withdrawal is removed         |
+| is_removed_date  | timestamp with time zone | When withdrawal was removed           |
+| paid_status      | character varying(255)   | Payment status                        |
+| token_address    | character varying(255)   | Token address                         |
+| amount           | character varying(255)   | Withdrawal amount                     |
+| fee              | character varying(255)   | Withdrawal fee                        |
+| is_public        | boolean                  | Whether withdrawal is public          |
+| network          | character varying(10)    | Blockchain network                    |
+
+## Document System
+
+### researchhub_document_researchhubunifieddocument
+
+**Description**: Unified document model combining different content types.
+
+| Column             | Type                     | Description                          |
+| ------------------ | ------------------------ | ------------------------------------ |
+| id                 | integer                  | Primary key                          |
+| created_date       | timestamp with time zone | Creation timestamp                   |
+| updated_date       | timestamp with time zone | Last update timestamp                |
+| document_type      | character varying(32)    | Type of document                     |
+| score              | integer                  | Document score                       |
+| is_removed         | boolean                  | Whether document is removed          |
+| published_date     | timestamp with time zone | Publication date                     |
+| is_public          | boolean                  | Whether document is public           |
+| hot_score          | integer                  | Hot score for trending               |
+| document_filter_id | integer                  | Associated document filter           |
+| is_removed_date    | timestamp with time zone | When document was removed            |
+
+### researchhub_document_researchhubpost
+
+**Description**: Posts in ResearchHub.
+
+| Column             | Type                     | Description                          |
+| ------------------ | ------------------------ | ------------------------------------ |
+| id                 | integer                  | Primary key                          |
+| version_number     | integer                  | Version number                       |
+| prev_version_id    | integer                  | Previous version ID                  |
+| unified_document_id| integer                  | Related unified document             |
+| created_date       | timestamp with time zone | Creation timestamp                   |
+| discussion_src     | character varying(512)   | Discussion source                    |
+| editor_type        | character varying(32)    | Type of editor                       |
+| eln_src            | character varying(512)   | ELN source                           |
+| renderable_text    | text                     | Renderable text content              |
+| updated_date       | timestamp with time zone | Last update timestamp                |
+| title              | text                     | Post title                           |
+| document_type      | character varying(32)    | Type of document                     |
+| created_by_id      | integer                  | User who created post                |
+| preview_img        | character varying(200)   | Preview image                        |
+| discussion_count   | integer                  | Count of discussions                 |
+| slug               | character varying(1024)  | URL-friendly slug                    |
+| note_id            | integer                  | Associated note                      |
+| doi                | character varying(255)   | Digital Object Identifier            |
+| bounty_type        | character varying(64)    | Type of bounty                       |
+| score              | integer                  | Post score                           |
+
+### researchhub_document_unifieddocumentconcepts
+
+**Description**: Concepts associated with unified documents.
+
+| Column             | Type                     | Description                          |
+| ------------------ | ------------------------ | ------------------------------------ |
+| id                 | integer                  | Primary key                          |
+| created_date       | timestamp with time zone | Creation timestamp                   |
+| updated_date       | timestamp with time zone | Last update timestamp                |
+| relevancy_score    | double precision         | Relevancy score                      |
+| level              | integer                  | Concept level                        |
+| concept_id         | integer                  | Associated concept                   |
+| unified_document_id| integer                  | Related unified document             |
+
+## Reviews
+
+### review_review
+
+**Description**: Reviews of content.
+
+| Column             | Type                     | Description                          |
+| ------------------ | ------------------------ | ------------------------------------ |
+| id                 | integer                  | Primary key                          |
+| created_date       | timestamp with time zone | Creation timestamp                   |
+| updated_date       | timestamp with time zone | Last update timestamp                |
+| score              | double precision         | Review score                         |
+| created_by_id      | integer                  | User who created review              |
+| unified_document_id| integer                  | Related unified document             |
+| is_removed         | boolean                  | Whether review is removed            |
+| is_public          | boolean                  | Whether review is public             |
+| is_removed_date    | timestamp with time zone | When review was removed              |
+| content_type_id    | integer                  | Type of content                      |
+| object_id          | integer                  | ID of reviewed object                |
+
+## Topics
+
+### topic_topic
+
+**Description**: Research topics.
+
+| Column                | Type                     | Description                          |
+| --------------------- | ------------------------ | ------------------------------------ |
+| id                    | bigint                   | Primary key                          |
+| created_date          | timestamp with time zone | Creation timestamp                   |
+| updated_date          | timestamp with time zone | Last update timestamp                |
+| openalex_id           | character varying(255)   | OpenAlex ID                          |
+| display_name          | text                     | Display name                         |
+| works_count           | integer                  | Count of works                       |
+| cited_by_count        | integer                  | Count of citations                   |
+| keywords              | ARRAY                    | Keywords array                       |
+| openalex_updated_date | timestamp with time zone | OpenAlex update timestamp            |
+| subfield_id           | bigint                   | Associated subfield                  |
+| openalex_created_date | timestamp with time zone | OpenAlex creation timestamp          |
+
+### topic_subfield
+
+**Description**: Research subfields.
+
+| Column                | Type                     | Description                          |
+| --------------------- | ------------------------ | ------------------------------------ |
+| id                    | bigint                   | Primary key                          |
+| created_date          | timestamp with time zone | Creation timestamp                   |
+| updated_date          | timestamp with time zone | Last update timestamp                |
+| openalex_id           | character varying(255)   | OpenAlex ID                          |
+| display_name          | text                     | Display name                         |
+| field_id              | bigint                   | Associated field                     |
+
+### topic_unifieddocumenttopics
+
+**Description**: Association between documents and topics.
+
+| Column             | Type                     | Description                          |
+| ------------------ | ------------------------ | ------------------------------------ |
+| id                 | bigint                   | Primary key                          |
+| created_date       | timestamp with time zone | Creation timestamp                   |
+| updated_date       | timestamp with time zone | Last update timestamp                |
+| relevancy_score    | double precision         | Relevancy score                      |
+| topic_id           | bigint                   | Associated topic                     |
+| unified_document_id| integer                  | Related unified document             |
+| is_primary         | boolean                  | Whether topic is primary             |

@@ -1,7 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db import models
-from django.db.models import Prefetch, Subquery
+from django.db.models import Subquery
 from requests import Request
 from rest_framework import status, viewsets
 from rest_framework.pagination import PageNumberPagination
@@ -12,7 +12,8 @@ from hub.models import Hub
 from paper.related_models.paper_model import Paper
 from reputation.related_models.bounty import Bounty
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
-from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
+from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.views.researchhub_unified_document_views import get_user_votes
 
 from .models import FeedEntry
@@ -43,6 +44,8 @@ class FeedViewSet(viewsets.ModelViewSet):
             # try to get cached response
             cached_response = cache.get(cache_key)
             if cached_response:
+                if request.user.is_authenticated:
+                    self._add_user_votes_to_response(request.user, cached_response)
                 return Response(cached_response)
 
         response = super().list(request, *args, **kwargs)
@@ -51,7 +54,6 @@ class FeedViewSet(viewsets.ModelViewSet):
             # cache response
             cache.set(cache_key, response.data, timeout=DEFAULT_CACHE_TIMEOUT)
 
-        # Get votes for each item in the feed
         if request.user.is_authenticated:
             self._add_user_votes_to_response(request.user, response.data)
 
@@ -121,7 +123,7 @@ class FeedViewSet(viewsets.ModelViewSet):
                 if item.get("content_type") == paper_type_str:
                     paper_id = int(item["content_object"]["id"])
                     if paper_id in paper_votes_map:
-                        item["content_object"]["user_vote"] = paper_votes_map[paper_id]
+                        item["user_vote"] = paper_votes_map[paper_id]
 
         # Process post votes
         if post_ids:
@@ -139,7 +141,7 @@ class FeedViewSet(viewsets.ModelViewSet):
                 if item.get("content_type") == post_type_str:
                     post_id = int(item["content_object"]["id"])
                     if post_id in post_votes_map:
-                        item["content_object"]["user_vote"] = post_votes_map[post_id]
+                        item["user_vote"] = post_votes_map[post_id]
 
         # Process comment votes
         if comment_ids:
@@ -157,18 +159,14 @@ class FeedViewSet(viewsets.ModelViewSet):
                 if item.get("content_type") == comment_type_str:
                     comment_id = int(item["content_object"]["id"])
                     if comment_id in comment_votes_map:
-                        item["content_object"]["user_vote"] = comment_votes_map[
-                            comment_id
-                        ]
+                        item["user_vote"] = comment_votes_map[comment_id]
                 # Handle bounties with comments
                 elif item.get("content_type") == bounty_type_str and item[
                     "content_object"
                 ].get("comment"):
                     comment_id = int(item["content_object"]["comment"]["id"])
                     if comment_id in comment_votes_map:
-                        item["content_object"]["comment"]["user_vote"] = (
-                            comment_votes_map[comment_id]
-                        )
+                        item["user_vote"] = comment_votes_map[comment_id]
 
     def _get_cache_key(self, request: Request) -> str:
         feed_view = request.query_params.get("feed_view", "latest")
@@ -199,54 +197,16 @@ class FeedViewSet(viewsets.ModelViewSet):
         hub_slug = self.request.query_params.get("hub_slug")
 
         queryset = (
-            FeedEntry.objects.all().select_related(
+            FeedEntry.objects.all()
+            .select_related(
                 "content_type",
                 "parent_content_type",
                 "user",
                 "user__author_profile",
             )
-            # Prefetch related models for supported entities.
-            # Must use `to_attr` to avoid shadowing the `item` field.
-            # The serializer needs to access the `_prefetched_*` fields to
-            # serialize the related models.
             .prefetch_related(
                 "unified_document",
-                "unified_document__paper",
                 "unified_document__hubs",
-                "unified_document__fundraises",
-                Prefetch(
-                    "item",
-                    Bounty.objects.select_related("unified_document").prefetch_related(
-                        "unified_document__hubs",
-                    ),
-                    to_attr="_prefetched_bounty",
-                ),
-                Prefetch(
-                    "item",
-                    Paper.objects.select_related("unified_document").prefetch_related(
-                        "unified_document__hubs",
-                        "authors",
-                        "authors__user",
-                    ),
-                    to_attr="_prefetched_paper",
-                ),
-                Prefetch(
-                    "item",
-                    ResearchhubPost.objects.select_related(
-                        "unified_document"
-                    ).prefetch_related(
-                        "unified_document__hubs",
-                        "unified_document__fundraises",
-                    ),
-                    to_attr="_prefetched_post",
-                ),
-                Prefetch(
-                    "item",
-                    RhCommentModel.objects.prefetch_related(
-                        "unified_document__hubs",
-                    ),
-                    to_attr="_prefetched_comment",
-                ),
             )
         )
 

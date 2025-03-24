@@ -1,11 +1,14 @@
-from django_elasticsearch_dsl import Completion, Document
+import logging
+
 from django_elasticsearch_dsl import fields as es_fields
 from django_elasticsearch_dsl.registries import registry
 
 from search.analyzers import content_analyzer
-from user.models import Author, User
+from user.models import Author
 
 from .base import BaseDocument
+
+logger = logging.getLogger(__name__)
 
 
 @registry.register_document
@@ -99,10 +102,17 @@ class PersonDocument(BaseDocument):
         return suggestions
 
     def prepare(self, instance):
-        data = super().prepare(instance)
+        try:
+            data = super().prepare(instance)
+        except Exception as e:
+            logger.warn(f"Failed to prepare data for person {instance.id}: {e}")
+            return None
+
         try:
             data["suggestion_phrases"] = self.prepare_suggestion_phrases(instance)
-        except Exception as error:
-            print(f"Error preparing suggestions for {instance.id}: {error}")
+        except Exception as e:
+            logger.warn(
+                f"Failed to prepare suggestion phrases for person {instance.id}: {e}"
+            )
             data["suggestion_phrases"] = []
         return data

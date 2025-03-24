@@ -1,14 +1,16 @@
+import logging
 import math
 
 from django_elasticsearch_dsl import fields as es_fields
 from django_elasticsearch_dsl.registries import registry
-from elasticsearch_dsl import analyzer, token_filter, tokenizer
 
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from search.analyzers import content_analyzer, title_analyzer
 from utils import sentry
 
 from .base import BaseDocument
+
+logger = logging.getLogger(__name__)
 
 
 @registry.register_document
@@ -105,12 +107,20 @@ class PostDocument(BaseDocument):
     def prepare(self, instance):
         try:
             data = super().prepare(instance)
+        except Exception as e:
+            logger.error(f"Failed to prepare data for post {instance.id}: {e}")
+            return None
+
+        try:
             data["suggestion_phrases"] = self.prepare_suggestion_phrases(instance)
-            return data
-        except Exception as error:
-            print("Post Indexing error: ", error, "Instance: ", instance.id)
-            sentry.log_error(error)
-            return False
+        except Exception as e:
+            logger.warn(
+                f"Failed to prepare suggestion phrases for post {instance.id}: {e}"
+            )
+            sentry.log_error(e)
+            data["suggestion_phrases"] = []
+
+        return data
 
     def should_remove_from_index(self, obj):
         if obj.is_removed:

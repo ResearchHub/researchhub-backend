@@ -2,7 +2,6 @@ import logging
 from typing import Any, Optional
 
 from django.contrib.contenttypes.models import ContentType
-from django.db import IntegrityError
 
 from feed.models import FeedEntry
 from feed.serializers import serialize_feed_item
@@ -30,7 +29,6 @@ def create_feed_entry(
 
     # Get the actual model instances
     item = item_content_type.get_object_for_this_type(id=item_id)
-    parent_item = parent_content_type.get_object_for_this_type(id=parent_item_id)
     if user_id:
         user = User.objects.get(id=user_id)
     else:
@@ -46,23 +44,22 @@ def create_feed_entry(
 
     # Create and return the feed entry
     try:
-        return FeedEntry.objects.create(
+        feed_entry, _ = FeedEntry.objects.update_or_create(
             user=user,
-            item=item,
             content=content,
             content_type=item_content_type,
             object_id=item_id,
             action=action,
             action_date=action_date,
-            parent_item=parent_item,
             parent_content_type=parent_content_type,
             parent_object_id=parent_item_id,
             unified_document=unified_document,
         )
-    except IntegrityError:
+        return feed_entry
+    except Exception as e:
         # Ignore error if feed entry already exists
         logger.warning(
-            f"Feed entry already exists for item_id={item_id} content_type={item_content_type.model} parent_item_id={parent_item_id} parent_content_type={parent_content_type.model}"
+            f"Failed to save feed entry for item_id={item_id} content_type={item_content_type.model} parent_item_id={parent_item_id} parent_content_type={parent_content_type.model}: {e}"
         )
 
 

@@ -100,7 +100,6 @@ class PaperSerializer(ContentObjectSerializer):
     title = serializers.CharField()
     abstract = serializers.CharField()
     doi = serializers.CharField()
-    metrics = PaperMetricsSerializer(source="*")
 
     def get_journal(self, obj):
         if not hasattr(obj, "unified_document") or not obj.unified_document:
@@ -133,7 +132,6 @@ class PaperSerializer(ContentObjectSerializer):
             "doi",
             "journal",
             "authors",
-            "metrics",
         ]
 
 
@@ -144,7 +142,6 @@ class PostSerializer(ContentObjectSerializer):
     title = serializers.CharField()
     type = serializers.CharField(source="document_type")
     fundraise = serializers.SerializerMethodField()
-    metrics = PostMetricsSerializer(source="*")
 
     def get_renderable_text(self, obj):
         text = obj.renderable_text[:255]
@@ -189,12 +186,17 @@ class PostSerializer(ContentObjectSerializer):
             "renderable_text",
             "fundraise",
             "type",
-            "metrics",
         ]
 
 
-class BountySerializer(serializers.Serializer):
+class BountyContributionSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
     amount = serializers.FloatField()
+    author = SimpleAuthorSerializer(source="created_by.author_profile")
+
+
+class BountySerializer(serializers.Serializer):
+    amount = serializers.SerializerMethodField()
     bounty_type = serializers.CharField()
     comment = serializers.SerializerMethodField()
     contributors = serializers.SerializerMethodField()
@@ -205,6 +207,24 @@ class BountySerializer(serializers.Serializer):
     paper = serializers.SerializerMethodField()
     post = serializers.SerializerMethodField()
     status = serializers.CharField()
+    contributions = serializers.SerializerMethodField()
+
+    def get_amount(self, obj):
+        """Return the amount from the bounty's comment"""
+        if hasattr(obj, "item") and hasattr(obj.item, "bounties"):
+            bounties = obj.item.bounties.all()
+            return sum(bounty.amount for bounty in bounties)
+        return 0
+
+    def get_contributions(self, obj):
+        """Return contributions from the bounty's comment"""
+        if hasattr(obj, "item") and hasattr(obj.item, "bounties"):
+            bounties = obj.item.bounties.all()
+            if bounties:
+                return [
+                    BountyContributionSerializer(bounty).data for bounty in bounties
+                ]
+        return []
 
     def get_contributors(self, obj):
         """Return all contributors from child bounties"""
@@ -266,6 +286,7 @@ class BountySerializer(serializers.Serializer):
             "paper",
             "post",
             "status",
+            "contributions",
         ]
 
 
@@ -287,7 +308,6 @@ class CommentSerializer(serializers.Serializer):
     post = serializers.SerializerMethodField()
     thread_id = serializers.IntegerField()
     review = serializers.SerializerMethodField()
-    metrics = CommentMetricsSerializer(source="*")
 
     def get_document_type(self, obj):
         if obj.unified_document:
@@ -333,7 +353,6 @@ class CommentSerializer(serializers.Serializer):
             "document_type",
             "hub",
             "id",
-            "metrics",
             "paper",
             "parent_id",
             "post",
@@ -352,6 +371,7 @@ class FeedEntrySerializer(serializers.ModelSerializer):
     action_date = serializers.DateTimeField()
     action = serializers.CharField()
     author = serializers.SerializerMethodField()
+    metrics = serializers.SerializerMethodField()
 
     class Meta:
         model = FeedEntry
@@ -363,6 +383,7 @@ class FeedEntrySerializer(serializers.ModelSerializer):
             "action_date",
             "action",
             "author",
+            "metrics",
         ]
 
     def get_author(self, obj):
@@ -372,32 +393,38 @@ class FeedEntrySerializer(serializers.ModelSerializer):
         return None
 
     def get_content_object(self, obj):
-        """Return the appropriate serialized content object based on type"""
-        match obj.content_type.model:
-            case "bounty":
-                # Use prefetched bounty if available
-                if hasattr(obj, "_prefetched_bounty"):
-                    return BountySerializer(obj._prefetched_bounty).data
-                return BountySerializer(obj.item).data
-            case "rhcommentmodel":
-                # Use prefetched comment if available
-                if hasattr(obj, "_prefetched_comment"):
-                    return CommentSerializer(obj._prefetched_comment).data
-                return CommentSerializer(obj.item).data
-            case "paper":
-                # Use prefetched paper if available
-                if hasattr(obj, "_prefetched_paper"):
-                    return PaperSerializer(obj._prefetched_paper).data
-                return PaperSerializer(obj.item).data
-            case "researchhubpost":
-                # Use prefetched post if available
-                if hasattr(obj, "_prefetched_post"):
-                    return PostSerializer(obj._prefetched_post).data
-                return PostSerializer(obj.item).data
-        return None
+        if obj.content == {}:
+            # Serialize if serialized content is not already present
+            return serialize_feed_item(obj.item, obj.content_type)
+        return obj.content
 
     def get_content_type(self, obj):
         return obj.content_type.model.upper()
+
+    def get_metrics(self, obj):
+        """Return metrics for the content object"""
+        metrics = {}
+        item = obj.item
+        if (
+            obj.content_type.model == "bounty"
+            and obj.item.item_content_type
+            == ContentType.objects.get_for_model(RhCommentModel)
+        ):
+            item = (
+                item.item
+            )  # Metrics correspond to the comment associated with the bounty
+
+        if hasattr(item, "score"):
+            metrics["votes"] = getattr(item, "score", 0)
+
+            if hasattr(item, "discussion_count"):
+                metrics["comments"] = getattr(item, "discussion_count", 0)
+
+            if hasattr(item, "children_count"):
+                metrics["replies"] = getattr(item, "children_count", 0)
+
+            return metrics
+        return None
 
 
 def serialize_feed_item(feed_item, item_content_type):

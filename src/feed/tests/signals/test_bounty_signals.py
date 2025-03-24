@@ -111,7 +111,7 @@ class TestBountySignals(TestCase):
 
     @patch("feed.signals.bounty_signals.create_feed_entry")
     @patch("feed.signals.bounty_signals.transaction")
-    def test_create_feed_entries_ignores_contributions(
+    def test_create_feed_entries_updates_amount_for_contributions(
         self, mock_transaction, mock_create_feed_entry
     ):
         """
@@ -134,7 +134,32 @@ class TestBountySignals(TestCase):
         )
 
         # Assert
-        mock_create_feed_entry.apply_async.assert_not_called()
+        mock_create_feed_entry.apply_async.assert_has_calls(
+            [
+                call(
+                    args=(
+                        self.bounty.id,
+                        ContentType.objects.get_for_model(Bounty).id,
+                        FeedEntry.OPEN,
+                        self.hub1.id,
+                        ContentType.objects.get_for_model(Hub).id,
+                        self.bounty.created_by.id,
+                    ),
+                    priority=1,
+                ),
+                call(
+                    args=(
+                        self.bounty.id,
+                        ContentType.objects.get_for_model(Bounty).id,
+                        FeedEntry.OPEN,
+                        self.hub2.id,
+                        ContentType.objects.get_for_model(Hub).id,
+                        self.bounty.created_by.id,
+                    ),
+                    priority=1,
+                ),
+            ]
+        )
 
     @patch("feed.signals.bounty_signals.create_feed_entry")
     @patch("feed.signals.bounty_signals.transaction")

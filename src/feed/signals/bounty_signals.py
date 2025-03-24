@@ -47,24 +47,27 @@ def _create_bounty_feed_entries(bounty):
     """
     Create feed entries for all hubs associated with the bounty's unified document.
     """
-    if (
-        bounty.status == Bounty.OPEN
-        and bounty.parent is None  # only original bounties, no contributions
-    ):
+    parent_bounty = bounty
+    if bounty.parent:
+        parent_bounty = (
+            bounty.parent
+        )  # only original bounties create feed entries, contributions just update the amount
+
+    if parent_bounty.status == Bounty.OPEN:
         tasks = [
             partial(
                 create_feed_entry.apply_async,
                 args=(
-                    bounty.id,
-                    ContentType.objects.get_for_model(bounty).id,
+                    parent_bounty.id,
+                    ContentType.objects.get_for_model(parent_bounty).id,
                     FeedEntry.OPEN,
                     hub.id,
                     ContentType.objects.get_for_model(hub).id,
-                    bounty.created_by.id,
+                    parent_bounty.created_by.id,
                 ),
                 priority=1,
             )
-            for hub in bounty.unified_document.hubs.all()
+            for hub in parent_bounty.unified_document.hubs.all()
         ]
         transaction.on_commit(lambda: [task() for task in tasks])
 

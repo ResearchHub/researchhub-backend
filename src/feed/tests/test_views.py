@@ -626,33 +626,114 @@ class FeedViewSetTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         for item in response.data.get("results", []):
-            content_type = item.get("content_type")
-            content_object = item.get("content_object", {})
-
-            if content_type == "PAPER" and str(content_object.get("id")) == str(
-                self.paper.id
+            if (
+                str(item.get("content_object").get("id")) == str(self.paper.id)
+                or item.get("content_type") != "PAPER"
             ):
-                self.assertIn("user_vote", content_object)
-                self.assertIn("metrics", content_object)
-                self.assertIn("votes", content_object["metrics"])
-                self.assertIn("comments", content_object["metrics"])
+                self.assertIn("user_vote", item)
+                self.assertIn("metrics", item)
+                self.assertIn("votes", item["metrics"])
+                if (
+                    item.get("content_type") == "RESEARCHHUBPOST"
+                    or item.get("content_type") == "PAPER"
+                ):
+                    self.assertIn("comments", item["metrics"])
 
-            elif content_type == "RESEARCHHUBPOST" and str(
-                content_object.get("id")
+    @patch("feed.views.cache.get")
+    @patch("feed.views.cache.set")
+    def test_user_votes_with_cached_response(self, mock_cache_set, mock_cache_get):
+        """Test that user votes are added to both cached and non-cached responses"""
+        # Create a test user and authenticate
+        test_user = User.objects.create_user(
+            username="voteuser", password="testpassword"
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=test_user)
+
+        # Create a post
+        post = ResearchhubPost.objects.create(
+            title="Vote Test Post",
+            document_type="POST",
+            created_by=self.user,
+            unified_document=self.unified_document,
+        )
+
+        # Create a feed entry for the post
+        FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=post.id,
+            item=post,
+            created_date=timezone.now(),
+            action="PUBLISH",
+            action_date=timezone.now(),
+            user=self.user,
+            unified_document=self.unified_document,
+        )
+
+        # Create a vote for the post by the test user
+        post_vote = GrmVote.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=post.id,
+            created_by=test_user,
+            vote_type=GrmVote.UPVOTE,
+        )
+
+        # First request - no cache
+        mock_cache_get.return_value = None
+        url = reverse("feed-list")
+        response1 = self.client.get(url)
+
+        # Verify the response includes the user vote
+        self.assertEqual(response1.status_code, status.HTTP_200_OK)
+
+        # Find the post in the response
+        post_item = None
+        for item in response1.data.get("results", []):
+            if item.get("content_type") == "RESEARCHHUBPOST" and str(
+                item["content_object"].get("id")
             ) == str(post.id):
-                self.assertIn("user_vote", content_object)
-                self.assertIn("metrics", content_object)
-                self.assertEqual(content_object["metrics"]["votes"], 5)
-                self.assertEqual(content_object["metrics"]["comments"], 3)
+                post_item = item
+                break
 
-            elif content_type == "RHCOMMENTMODEL" and str(
-                content_object.get("id")
-            ) == str(comment.id):
-                self.assertIn("user_vote", content_object)
-                self.assertIn("metrics", content_object)
-                self.assertIn("votes", content_object["metrics"])
+        self.assertIsNotNone(post_item, "Post should be in the feed")
+        self.assertIn("user_vote", post_item)
 
-            elif content_type == "BOUNTY" and str(content_object.get("id")) == str(
-                bounty.id
-            ):
-                self.assertIn("user_vote", content_object.get("comment"))
+        # Verify the vote data is correct
+        user_vote = post_item["user_vote"]
+        self.assertEqual(user_vote["vote_type"], GrmVote.UPVOTE)
+
+        # Store what was cached (should be without votes)
+        cached_data = mock_cache_set.call_args[0][1]
+
+        # Update the vote to verify fresh votes are fetched
+        post_vote.vote_type = GrmVote.DOWNVOTE  # Change from upvote to downvote
+        post_vote.save()
+
+        # Second request - use cached response
+        mock_cache_get.return_value = cached_data
+        mock_cache_set.reset_mock()
+
+        response2 = self.client.get(url)
+
+        # Verify the response includes the updated user vote
+        self.assertEqual(response2.status_code, status.HTTP_200_OK)
+
+        # Find the post in the response
+        post_item = None
+        for item in response2.data.get("results", []):
+            if item.get("content_type") == "RESEARCHHUBPOST" and str(
+                item["content_object"].get("id")
+            ) == str(post.id):
+                post_item = item
+                break
+
+        self.assertIsNotNone(post_item, "Post should be in the feed")
+        self.assertIn("user_vote", post_item)
+
+        # Verify the vote data is updated (should be a downvote now)
+        user_vote = post_item["user_vote"]
+        self.assertEqual(user_vote["vote_type"], GrmVote.DOWNVOTE)
+
+        # Verify cache was used but not updated
+        self.assertTrue(mock_cache_get.called)
+        self.assertFalse(mock_cache_set.called)

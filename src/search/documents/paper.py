@@ -1,3 +1,4 @@
+import logging
 import math
 
 from django_elasticsearch_dsl import fields as es_fields
@@ -10,6 +11,8 @@ from utils import sentry
 from utils.doi import DOI
 
 from .base import BaseDocument
+
+logger = logging.getLogger(__name__)
 
 
 @registry.register_document
@@ -116,14 +119,16 @@ class PaperDocument(BaseDocument):
             phrases.append(joined_kewords)
             phrases.extend(keywords)
 
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warn(
+                f"Failed to prepare OpenAlex keywords for paper {instance.id}: {e}"
+            )
 
         try:
             hubs_indexing_flat = instance.hubs_indexing_flat
             phrases.extend(hubs_indexing_flat)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warn(f"Failed to prepare hubs for paper {instance.id}: {e}")
 
         # Variation of author names which may be searched by users
         try:
@@ -137,12 +142,12 @@ class PaperDocument(BaseDocument):
 
             phrases.append(all_authors_as_str)
             phrases.extend(author_names_only)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warn(f"Failed to prepare author names for paper {instance.id}: {e}")
 
         # Assign weight based on how "hot" the paper is
         weight = 1
-        if instance.unified_document.hot_score > 0:
+        if instance.unified_document and instance.unified_document.hot_score > 0:
             # Scale down the hot score from 1 - 100 to avoid a huge range
             # of values that could result in bad suggestions
             weight = int(math.log(instance.unified_document.hot_score, 10) * 10)
@@ -159,6 +164,9 @@ class PaperDocument(BaseDocument):
         try:
             return instance.get_paper_completeness()
         except Exception:
+            logger.warn(
+                f"Failed to prepare completeness status for paper {instance.id}"
+            )
             return Paper.PARTIAL
 
     def prepare_paper_publish_year(self, instance):
@@ -169,8 +177,8 @@ class PaperDocument(BaseDocument):
     def prepare_can_display_pdf_license(self, instance):
         try:
             return pdf_copyright_allows_display(instance)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warn(f"Failed to prepare pdf license for paper {instance.id}: {e}")
 
         return False
 
@@ -198,8 +206,14 @@ class PaperDocument(BaseDocument):
     def prepare(self, instance):
         try:
             data = super().prepare(instance)
+        except Exception:
+            logger.error(f"Failed to prepare data for paper {instance.id}")
+            return None
+
+        try:
             data["suggestion_phrases"] = self.prepare_suggestion_phrases(instance)
-            return data
         except Exception as error:
+            logger.warn(f"Failed to prepare suggestion phrases for paper {instance.id}")
             sentry.log_error(error)
-            return False
+            data["suggestion_phrases"] = []
+        return data
