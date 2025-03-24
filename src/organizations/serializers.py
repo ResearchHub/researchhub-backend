@@ -23,11 +23,15 @@ class NonprofitOrgSerializer(serializers.ModelSerializer):
 class NonprofitFundraiseLinkSerializer(serializers.ModelSerializer):
     """Serializer for the NonprofitFundraiseLink model."""
 
+    # Include detailed nonprofit information
+    nonprofit_details = NonprofitOrgSerializer(source="nonprofit", read_only=True)
+
     class Meta:
         model = NonprofitFundraiseLink
         fields = [
             "id",
             "nonprofit",
+            "nonprofit_details",
             "fundraise",
             "note",
             "created_date",

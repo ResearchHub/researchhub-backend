@@ -224,6 +224,11 @@ urlpatterns = [
         name="nonprofit-link-to-fundraise",
     ),
     path(
+        "api/organizations/non-profit/get-by-fundraise/",
+        NonprofitFundraiseLinkViewSet.as_view({"get": "get_by_fundraise"}),
+        name="nonprofit-get-by-fundraise",
+    ),
+    path(
         "auth/google/yolo/callback/",
         oauth.views.google_yolo_callback,
         name="google_yolo_callback",

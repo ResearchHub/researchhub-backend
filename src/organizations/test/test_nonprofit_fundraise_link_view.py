@@ -43,6 +43,7 @@ class NonprofitFundraiseLinkViewSetTests(APITestCase):
         # URLs for the API endpoints
         self.create_nonprofit_url = reverse("nonprofit-create")
         self.link_to_fundraise_url = reverse("nonprofit-link-to-fundraise")
+        self.get_by_fundraise_url = reverse("nonprofit-get-by-fundraise")
 
     def test_create_nonprofit_new(self):
         """Test creating a new nonprofit organization."""
@@ -178,6 +179,62 @@ class NonprofitFundraiseLinkViewSetTests(APITestCase):
         response = self.client.post(self.link_to_fundraise_url, data)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
+    def test_get_by_fundraise_success(self):
+        """Test retrieving nonprofits linked to a fundraise."""
+        # Create a link first
+        NonprofitFundraiseLink.objects.create(
+            nonprofit=self.nonprofit,
+            fundraise=self.fundraise,
+            note="Test note",
+        )
+
+        # Get nonprofits by fundraise
+        response = self.client.get(
+            f"{self.get_by_fundraise_url}?fundraise_id={self.fundraise.id}"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]["nonprofit"], self.nonprofit.id)
+        self.assertEqual(response.data[0]["fundraise"], self.fundraise.id)
+        self.assertEqual(response.data[0]["note"], "Test note")
+
+        # Verify nonprofit details are included
+        self.assertEqual(response.data[0]["nonprofit_details"]["id"], self.nonprofit.id)
+        self.assertEqual(
+            response.data[0]["nonprofit_details"]["name"], "Test Nonprofit"
+        )
+        self.assertEqual(response.data[0]["nonprofit_details"]["ein"], "123456789")
+
+    def test_get_by_fundraise_empty(self):
+        """Test retrieving nonprofits when none are linked to the fundraise."""
+        # Create a new fundraise with no links
+        new_fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=self.document,
+            goal_amount=2000.00,
+        )
+
+        # Get nonprofits by fundraise
+        response = self.client.get(
+            f"{self.get_by_fundraise_url}?fundraise_id={new_fundraise.id}"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 0)
+
+    def test_get_by_fundraise_missing_id(self):
+        """Test that fundraise_id is required."""
+        # Missing fundraise_id
+        response = self.client.get(self.get_by_fundraise_url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_get_by_fundraise_nonexistent(self):
+        """Test retrieving nonprofits for a nonexistent fundraise."""
+        # Nonexistent fundraise_id
+        response = self.client.get(f"{self.get_by_fundraise_url}?fundraise_id=9999")
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
     def test_authentication_required(self):
         """Test that authentication is required for the endpoints."""
         # Log out
@@ -198,3 +255,51 @@ class NonprofitFundraiseLinkViewSetTests(APITestCase):
         }
         response = self.client.post(self.link_to_fundraise_url, data)
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_link_to_fundraise_different_nonprofit(self):
+        """Test linking a different nonprofit to a fundraise that already has a link."""
+        # Create first nonprofit
+        nonprofit1 = NonprofitOrg.objects.create(
+            name="First Nonprofit",
+            ein="111111111",
+            endaoment_org_id="first-org-id",
+        )
+
+        # Create second nonprofit
+        nonprofit2 = NonprofitOrg.objects.create(
+            name="Second Nonprofit",
+            ein="222222222",
+            endaoment_org_id="second-org-id",
+        )
+
+        # Create a link with the first nonprofit
+        first_link = NonprofitFundraiseLink.objects.create(
+            nonprofit=nonprofit1,
+            fundraise=self.fundraise,
+            note="First nonprofit note",
+        )
+
+        # Try to link the second nonprofit to the same fundraise
+        data = {
+            "nonprofit_id": nonprofit2.id,
+            "fundraise_id": self.fundraise.id,
+            "note": "Second nonprofit note",
+        }
+
+        response = self.client.post(self.link_to_fundraise_url, data)
+
+        # Verify the response
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["nonprofit"], nonprofit2.id)
+        self.assertEqual(response.data["fundraise"], self.fundraise.id)
+        self.assertEqual(response.data["note"], "Second nonprofit note")
+
+        # Verify only one link exists for this fundraise
+        links = NonprofitFundraiseLink.objects.filter(fundraise=self.fundraise)
+        self.assertEqual(links.count(), 1)
+
+        # Verify it's the same link (same ID) but with updated content
+        updated_link = links.first()
+        self.assertEqual(updated_link.id, first_link.id)
+        self.assertEqual(updated_link.nonprofit.id, nonprofit2.id)
+        self.assertEqual(updated_link.note, "Second nonprofit note")
