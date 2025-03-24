@@ -4,6 +4,9 @@ globs:
 alwaysApply: false
 ---
 health/
+^api/ ^non-profit/search/$ [name='nonprofit-orgs-search']
+^api/ ^non-profit/create/$ [name='nonprofit-create']
+^api/ ^non-profit/link-to-fundraise/$ [name='nonprofit-link-to-fundraise']
 ^api/ ^paper/discussion/file/$ [name='discussion_file_upload-list']
 ^api/ ^paper/discussion/file\.(?P<format>[a-z0-9]+)/?$ [name='discussion_file_upload-list']
 ^api/ ^new_feature_release/$ [name='new_feature_release-list']
