@@ -1,7 +1,5 @@
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
-from django.db import models
-from django.db.models import Subquery
 from requests import Request
 from rest_framework import status, viewsets
 from rest_framework.pagination import PageNumberPagination
@@ -235,23 +233,17 @@ class FeedViewSet(viewsets.ModelViewSet):
 
                 top_unified_docs = top_unified_docs.filter(hubs=hub)
 
-            # Since there can be multiple feed entries per unified document,
-            # we need to select the most recent entry for each document
-            # Get the IDs of the most recent feed entry for each unified document
-            latest_entries_subquery = (
-                FeedEntry.objects.filter(unified_document__in=top_unified_docs)
-                .values("unified_document")
-                .annotate(
-                    latest_id=models.Max("id"), latest_date=models.Max("action_date")
-                )
-                .values_list("latest_id", flat=True)
+            queryset = queryset.filter(unified_document__in=top_unified_docs)
+
+            sub_qs = queryset.order_by(
+                "content_type_id", "object_id", "-action_date"
+            ).distinct("content_type_id", "object_id")
+
+            final_qs = queryset.filter(pk__in=sub_qs.values("pk")).order_by(
+                "-unified_document__hot_score"
             )
 
-            queryset = queryset.filter(
-                id__in=Subquery(latest_entries_subquery), unified_document__isnull=False
-            ).order_by("-unified_document__hot_score")
-
-            return queryset
+            return final_qs
 
         # For other feed views (latest, following with hub filter)
         # Apply hub filter if hub_id is provided
