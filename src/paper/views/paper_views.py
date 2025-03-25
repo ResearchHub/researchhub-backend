@@ -104,8 +104,6 @@ class PaperViewSet(
             "flags",
             "peer_reviews",
             "purchases",
-            "threads",
-            "threads__comments",
             "figures",
         )
 
