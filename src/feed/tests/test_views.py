@@ -737,3 +737,114 @@ class FeedViewSetTests(TestCase):
         # Verify cache was used but not updated
         self.assertTrue(mock_cache_get.called)
         self.assertFalse(mock_cache_set.called)
+
+    def test_distinct_entries_in_latest_feed(self):
+        """Test that latest feed view returns only the most recent entry for each content type and object ID."""
+        # Create multiple feed entries for the same paper
+        newer_entry = FeedEntry.objects.create(
+            user=self.user,
+            action="COMMENT",
+            action_date=timezone.now(),
+            content_type=self.paper_content_type,
+            object_id=self.paper.id,
+            parent_content_type=self.hub_content_type,
+            parent_object_id=self.hub.id,
+            unified_document=self.unified_document,
+        )
+
+        # Create another entry for the same paper but with an older date and different action
+        # Using OPEN action to avoid unique constraint violation
+        _ = FeedEntry.objects.create(
+            user=self.user,
+            action="OPEN",
+            action_date=timezone.now() - timezone.timedelta(days=5),
+            content_type=self.paper_content_type,
+            object_id=self.paper.id,
+            parent_content_type=self.hub_content_type,
+            parent_object_id=self.hub.id,
+            unified_document=self.unified_document,
+        )
+
+        url = reverse("feed-list")
+        response = self.client.get(url, {"feed_view": "latest"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Extract the IDs of the content objects in the results
+        results = response.data["results"]
+        result_pairs = [(r["content_type"], r["content_object"]["id"]) for r in results]
+
+        # Count occurrences of the paper's content type and ID
+        paper_pair = (self.paper_content_type.model.upper(), self.paper.id)
+        paper_occurrences = result_pairs.count(paper_pair)
+
+        # There should be only one occurrence of the paper (the newest entry)
+        error_msg = f"Expected 1 occurrence of paper, got {paper_occurrences}"
+        self.assertEqual(paper_occurrences, 1, error_msg)
+
+        # Find the paper result and verify it's the newer entry
+        paper_result = next(
+            r for r in results if r["content_object"]["id"] == self.paper.id
+        )
+        self.assertEqual(
+            paper_result["action"],
+            newer_entry.action,
+            "The entry in the results should be the newest one",
+        )
+
+    def test_distinct_entries_in_popular_feed(self):
+        """Test that popular feed view returns only the most recent entry for each content type and object ID."""
+        # Set hot score for the unified document
+        self.unified_document.hot_score = 100
+        self.unified_document.save()
+
+        # Create multiple feed entries for the same paper with different dates and actions
+        newer_entry = FeedEntry.objects.create(
+            user=self.user,
+            action="COMMENT",
+            action_date=timezone.now(),
+            content_type=self.paper_content_type,
+            object_id=self.paper.id,
+            parent_content_type=self.hub_content_type,
+            parent_object_id=self.hub.id,
+            unified_document=self.unified_document,
+        )
+
+        # Using OPEN action to avoid unique constraint violation
+        _ = FeedEntry.objects.create(  # noqa: F841
+            user=self.user,
+            action="OPEN",
+            action_date=timezone.now() - timezone.timedelta(days=5),
+            content_type=self.paper_content_type,
+            object_id=self.paper.id,
+            parent_content_type=self.hub_content_type,
+            parent_object_id=self.hub.id,
+            unified_document=self.unified_document,
+        )
+
+        url = reverse("feed-list")
+        response = self.client.get(url, {"feed_view": "popular"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Extract the IDs of the content objects in the results
+        results = response.data["results"]
+        result_pairs = [(r["content_type"], r["content_object"]["id"]) for r in results]
+
+        # Count occurrences of the paper's content type and ID
+        paper_pair = (self.paper_content_type.model.upper(), self.paper.id)
+        paper_occurrences = result_pairs.count(paper_pair)
+
+        # There should be only one occurrence of the paper (the newest entry)
+        error_msg = f"Expected 1 occurrence of paper, got {paper_occurrences}"
+        self.assertEqual(paper_occurrences, 1, error_msg)
+
+        # Find the paper result and verify it's the newer entry
+        paper_result = next(
+            r for r in results if r["content_object"]["id"] == self.paper.id
+        )
+        self.assertEqual(
+            paper_result["action"],
+            newer_entry.action,
+            "The entry in the results should be the newest one",
+        )
