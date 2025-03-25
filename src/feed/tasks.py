@@ -5,6 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 
 from feed.models import FeedEntry
 from feed.serializers import serialize_feed_item, serialize_feed_metrics
+from reputation.related_models.bounty import Bounty
 from researchhub.celery import app
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -69,6 +70,18 @@ def create_feed_entry(
 @app.task
 def update_feed_metrics(item_id, item_content_type_id, metrics):
     item_content_type = ContentType.objects.get(id=item_content_type_id)
+
+    # Also update the metrics for the bounty feed entry if one exists for the given comment
+    if item_content_type.model == "rhcommentmodel":
+        bounty_content_type = ContentType.objects.get_for_model(Bounty)
+        comment = item_content_type.get_object_for_this_type(id=item_id)
+        parent_bounty = comment.bounties.filter(parent_id__isnull=True).first()
+
+        if parent_bounty:
+            FeedEntry.objects.filter(
+                object_id=parent_bounty.id,
+                content_type=bounty_content_type,
+            ).update(metrics=metrics)
 
     FeedEntry.objects.filter(
         object_id=item_id,
