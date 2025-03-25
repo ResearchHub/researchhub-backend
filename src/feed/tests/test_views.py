@@ -13,7 +13,7 @@ from rest_framework.test import APIClient
 
 from discussion.reaction_models import Vote as GrmVote
 from feed.models import FeedEntry
-from feed.views import FeedViewSet
+from feed.views.feed_view import FeedViewSet
 from hub.models import Hub
 from paper.models import Paper
 from reputation.related_models.bounty import Bounty
@@ -128,29 +128,28 @@ class FeedViewSetTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 3)
 
-    @patch("feed.views.cache.get")
-    @patch("feed.views.cache.set")
-    def test_default_feed_view_cache(self, mock_cache_set, mock_cache_get):
+    @patch("feed.views.feed_view.cache")
+    def test_default_feed_view_cache(self, mock_cache):
         # No cache on first request
-        mock_cache_get.return_value = None
+        mock_cache.get.return_value = None
 
         url = reverse("feed-list")
         response = self.client.get(url)
 
-        self.assertTrue(mock_cache_get.called)
-        self.assertTrue(mock_cache_set.called)
+        self.assertTrue(mock_cache.get.called)
+        self.assertTrue(mock_cache.set.called)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 3)
 
         # Return a "cached" response on second request
-        mock_cache_get.return_value = mock_cache_set.call_args[0][1]
-        mock_cache_set.reset_mock()
+        mock_cache.get.return_value = mock_cache.set.call_args[0][1]
+        mock_cache.set.reset_mock()
 
         response2 = self.client.get(url)
 
-        self.assertTrue(mock_cache_get.called)
-        self.assertFalse(mock_cache_set.called)
+        self.assertTrue(mock_cache.get.called)
+        self.assertFalse(mock_cache.set.called)
 
         self.assertEqual(response2.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response2.data["results"]), 3)
@@ -671,9 +670,8 @@ class FeedViewSetTests(TestCase):
                 ):
                     self.assertIn("comments", item["metrics"])
 
-    @patch("feed.views.cache.get")
-    @patch("feed.views.cache.set")
-    def test_user_votes_with_cached_response(self, mock_cache_set, mock_cache_get):
+    @patch("feed.views.feed_view.cache")
+    def test_user_votes_with_cached_response(self, mock_cache):
         """Test that user votes are added to both cached and non-cached responses"""
         # Create a test user and authenticate
         test_user = User.objects.create_user(
@@ -711,7 +709,7 @@ class FeedViewSetTests(TestCase):
         )
 
         # First request - no cache
-        mock_cache_get.return_value = None
+        mock_cache.get.return_value = None
         url = reverse("feed-list")
         response1 = self.client.get(url)
 
@@ -735,15 +733,15 @@ class FeedViewSetTests(TestCase):
         self.assertEqual(user_vote["vote_type"], GrmVote.UPVOTE)
 
         # Store what was cached (should be without votes)
-        cached_data = mock_cache_set.call_args[0][1]
+        cached_data = mock_cache.set.call_args[0][1]
 
         # Update the vote to verify fresh votes are fetched
         post_vote.vote_type = GrmVote.DOWNVOTE  # Change from upvote to downvote
         post_vote.save()
 
         # Second request - use cached response
-        mock_cache_get.return_value = cached_data
-        mock_cache_set.reset_mock()
+        mock_cache.get.return_value = cached_data
+        mock_cache.set.reset_mock()
 
         response2 = self.client.get(url)
 
@@ -767,11 +765,12 @@ class FeedViewSetTests(TestCase):
         self.assertEqual(user_vote["vote_type"], GrmVote.DOWNVOTE)
 
         # Verify cache was used but not updated
-        self.assertTrue(mock_cache_get.called)
-        self.assertFalse(mock_cache_set.called)
+        self.assertTrue(mock_cache.get.called)
+        self.assertFalse(mock_cache.set.called)
 
     def test_distinct_entries_in_latest_feed(self):
-        """Test that latest feed view returns only the most recent entry for each content type and object ID."""
+        """Test that latest feed view returns only the most recent entry for each
+        content type and object ID."""
         # Create multiple feed entries for the same paper
         newer_entry = FeedEntry.objects.create(
             user=self.user,
@@ -784,7 +783,8 @@ class FeedViewSetTests(TestCase):
             unified_document=self.unified_document,
         )
 
-        # Create another entry for the same paper but with an older date and different action
+        # Create another entry for the same paper but with an older date and
+        # different action
         # Using OPEN action to avoid unique constraint violation
         _ = FeedEntry.objects.create(
             user=self.user,
@@ -825,12 +825,14 @@ class FeedViewSetTests(TestCase):
         )
 
     def test_distinct_entries_in_popular_feed(self):
-        """Test that popular feed view returns only the most recent entry for each content type and object ID."""
+        """Test that popular feed view returns only the most recent entry for each
+        content type and object ID."""
         # Set hot score for the unified document
         self.unified_document.hot_score = 100
         self.unified_document.save()
 
-        # Create multiple feed entries for the same paper with different dates and actions
+        # Create multiple feed entries for the same paper with different dates
+        # and actions
         newer_entry = FeedEntry.objects.create(
             user=self.user,
             action="COMMENT",

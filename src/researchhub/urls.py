@@ -34,7 +34,7 @@ import researchhub_document.views as researchhub_document_views
 import search.urls
 import user.views
 from citation.views import CitationEntryViewSet, CitationProjectViewSet
-from feed.views import FeedViewSet
+from feed.views import FeedViewSet, FundingFeedViewSet
 from organizations.views import NonprofitFundraiseLinkViewSet, NonprofitOrgViewSet
 from paper.views import paper_upload_views
 from purchase.views import stripe_webhook_view
@@ -187,6 +187,8 @@ router.register(r"fundraise", purchase.views.FundraiseViewSet, basename="fundrai
 
 router.register(r"feed", FeedViewSet, basename="feed")
 
+router.register(r"funding_feed", FundingFeedViewSet, basename="funding_feed")
+
 urlpatterns = [
     # Health check
     path(
@@ -261,7 +263,9 @@ urlpatterns = [
         name="password-change",
     ),
     re_path(
-        r"^password-reset/confirm/(?P<uidb64>[0-9A-Za-z_\-]+)/(?P<token>[0-9A-Za-z]{1,13}-[0-9A-Za-z]{1,32})/$",
+        r"^password-reset/confirm/"
+        r"(?P<uidb64>[0-9A-Za-z_\-]+)/"
+        r"(?P<token>[0-9A-Za-z]{1,13}-[0-9A-Za-z]{1,32})/$",
         PasswordResetConfirmView.as_view(),
         name="password_reset_confirm",
     ),
