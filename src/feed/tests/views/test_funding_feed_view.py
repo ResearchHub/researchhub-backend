@@ -12,6 +12,7 @@ from rest_framework.request import Request
 from rest_framework.test import APIClient, APIRequestFactory
 
 from discussion.reaction_models import Vote as GrmVote
+from feed.views.common import get_cache_key
 from hub.models import Hub
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.constants.rsc_exchange_currency import MORALIS
@@ -293,8 +294,8 @@ class FundingFeedViewSetTests(TestCase):
         anon_user.id = None
         request.user = anon_user
 
-        cache_key = viewset._get_cache_key(request)
-        self.assertEqual(cache_key, "funding_feed:anonymous:1-20")
+        cache_key = get_cache_key(request, "funding")
+        self.assertEqual(cache_key, "funding_feed:latest:all:none:1-20")
 
         # Authenticated user
         request = request_factory.get("/api/funding_feed/")
@@ -306,16 +307,16 @@ class FundingFeedViewSetTests(TestCase):
         mock_user.id = self.user.id
         request.user = mock_user
 
-        cache_key = viewset._get_cache_key(request)
-        self.assertEqual(cache_key, f"funding_feed:{self.user.id}:1-20")
+        cache_key = get_cache_key(request, "funding")
+        self.assertEqual(cache_key, "funding_feed:latest:all:none:1-20")
 
         # Custom page and page size
         request = request_factory.get("/api/funding_feed/?page=3&page_size=10")
         request = Request(request)
         request.user = mock_user
 
-        cache_key = viewset._get_cache_key(request)
-        self.assertEqual(cache_key, f"funding_feed:{self.user.id}:3-10")
+        cache_key = get_cache_key(request, "funding")
+        self.assertEqual(cache_key, "funding_feed:latest:all:none:3-10")
 
     def test_preregistration_post_only(self):
         """Test that funding feed only returns preregistration posts"""

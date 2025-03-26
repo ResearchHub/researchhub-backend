@@ -11,20 +11,22 @@ This is done for three reasons:
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db.models import Q
-from requests import Request
 from rest_framework import viewsets
 from rest_framework.response import Response
 
-from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
 from feed.models import FeedEntry
 from feed.serializers import FeedEntrySerializer
 from purchase.related_models.fundraise_model import Fundraise
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
-from researchhub_document.views.researchhub_unified_document_views import get_user_votes
 
 from ..serializers import PostSerializer
-from .common import DEFAULT_CACHE_TIMEOUT, FeedPagination
+from .common import (
+    DEFAULT_CACHE_TIMEOUT,
+    FeedPagination,
+    add_user_votes_to_response,
+    get_cache_key,
+)
 
 
 class FundingFeedViewSet(viewsets.ModelViewSet):
@@ -47,7 +49,7 @@ class FundingFeedViewSet(viewsets.ModelViewSet):
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
         page_num = int(page)
-        cache_key = self._get_cache_key(request)
+        cache_key = get_cache_key(request, "funding")
         use_cache = page_num < 4
 
         if use_cache:
@@ -55,7 +57,7 @@ class FundingFeedViewSet(viewsets.ModelViewSet):
             cached_response = cache.get(cache_key)
             if cached_response:
                 if request.user.is_authenticated:
-                    self._add_user_votes_to_response(request.user, cached_response)
+                    add_user_votes_to_response(request.user, cached_response)
                 return Response(cached_response)
 
         # Get paginated posts
@@ -84,61 +86,12 @@ class FundingFeedViewSet(viewsets.ModelViewSet):
         response_data = self.get_paginated_response(serializer.data).data
 
         if request.user.is_authenticated:
-            self._add_user_votes_to_response(request.user, response_data)
+            add_user_votes_to_response(request.user, response_data)
 
         if use_cache:
             cache.set(cache_key, response_data, timeout=DEFAULT_CACHE_TIMEOUT)
 
         return Response(response_data)
-
-    def _add_user_votes_to_response(self, user, response_data):
-        """
-        Add user votes to preregistration items in the response data.
-        """
-        post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
-
-        post_ids = []
-        for item in response_data["results"]:
-            if item.get("content_type") == "RESEARCHHUBPOST":
-                post_ids.append(int(item["content_object"]["id"]))
-
-        if not post_ids:
-            return
-
-        post_votes = get_user_votes(
-            user,
-            post_ids,
-            post_content_type,
-        )
-
-        post_votes_map = {}
-        for vote in post_votes:
-            post_votes_map[int(vote.object_id)] = GrmVoteSerializer(vote).data
-
-        for item in response_data["results"]:
-            if item.get("content_type") == "RESEARCHHUBPOST":
-                post_id = int(item["content_object"]["id"])
-                if post_id in post_votes_map:
-                    item["user_vote"] = post_votes_map[post_id]
-
-    def _get_cache_key(self, request: Request) -> str:
-        """
-        Generate a cache key for the preregistration feed response.
-        """
-        user_id = request.user.id if request.user.is_authenticated else None
-
-        page = request.query_params.get("page", "1")
-        page_size = request.query_params.get(
-            self.pagination_class.page_size_query_param,
-            str(self.pagination_class.page_size),
-        )
-        fundraise_status = request.query_params.get("fundraise_status", None)
-
-        user_part = f"{user_id or 'anonymous'}"
-        pagination_part = f"{page}-{page_size}"
-        status_part = f"-{fundraise_status}" if fundraise_status else ""
-
-        return f"funding_feed:{user_part}:{pagination_part}{status_part}"
 
     def get_queryset(self):
         """

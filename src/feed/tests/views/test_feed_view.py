@@ -13,6 +13,7 @@ from rest_framework.test import APIClient
 
 from discussion.reaction_models import Vote as GrmVote
 from feed.models import FeedEntry
+from feed.views.common import get_cache_key
 from feed.views.feed_view import FeedViewSet
 from hub.models import Hub
 from paper.models import Paper
@@ -474,20 +475,20 @@ class FeedViewSetTests(TestCase):
 
         test_cases = [
             # (query_params, is_authenticated, user_id, expected_key)
-            ({}, False, None, "feed:latest:all:anonymous:1-20"),
+            ({}, False, None, "feed:latest:all:none:1-20"),
             ({"feed_view": "following"}, True, 123, "feed:following:all:123:1-20"),
             (
                 {"hub_slug": "science"},
                 False,
                 None,
-                "feed:latest:science:anonymous:1-20",
+                "feed:latest:science:none:1-20",
             ),
             ({"feed_view": "popular"}, True, 123, "feed:popular:all:none:1-20"),
             (
                 {"page": "3", "page_size": "50"},
                 False,
                 None,
-                "feed:latest:all:anonymous:3-50",
+                "feed:latest:all:none:3-50",
             ),
             (
                 {
@@ -510,7 +511,9 @@ class FeedViewSetTests(TestCase):
             mock_request.user.id = user_id
 
             # Act
-            cache_key = viewset._get_cache_key(mock_request)
+            cache_key = get_cache_key(
+                mock_request,
+            )
 
             # Assert
             self.assertEqual(
