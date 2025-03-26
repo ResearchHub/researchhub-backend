@@ -1,5 +1,11 @@
 """
 Specialized feed view focused on funding-related content for ResearchHub.
+This view uses the Feed serializer on preregistration posts, instantiating
+feed entries for each post instead of querying the feed table.
+This is done for three reasons:
+1. To provide a consistent endpoint for feed content.
+2. Avoid filtering on feed entries which can be expensive since it is a large table.
+3. Older feed entries are not in the feed table.
 """
 
 from django.contrib.contenttypes.models import ContentType
