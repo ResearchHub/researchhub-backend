@@ -65,7 +65,6 @@ class FundingFeedViewSet(viewsets.ModelViewSet):
         # Create content type for posts
         post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
 
-        # Create fake feed entries
         feed_entries = []
         for post in page:
             # Create an unsaved FeedEntry instance
@@ -81,15 +80,12 @@ class FundingFeedViewSet(viewsets.ModelViewSet):
             feed_entry.item = post
             feed_entries.append(feed_entry)
 
-        # Serialize using FeedEntrySerializer
         serializer = FeedEntrySerializer(feed_entries, many=True)
         response_data = self.get_paginated_response(serializer.data).data
 
-        # Add user votes if authenticated
         if request.user.is_authenticated:
             self._add_user_votes_to_response(request.user, response_data)
 
-        # Cache if needed
         if use_cache:
             cache.set(cache_key, response_data, timeout=DEFAULT_CACHE_TIMEOUT)
 
@@ -166,21 +162,15 @@ class FundingFeedViewSet(viewsets.ModelViewSet):
         )
 
         if fundraise_status:
-            # Filter posts that have fundraises with the specified status
-            try:
-                if fundraise_status.upper() == "OPEN":
-                    queryset = queryset.filter(
-                        unified_document__fundraises__status=Fundraise.OPEN
-                    )
-                elif fundraise_status.upper() == "CLOSED":
-                    queryset = queryset.filter(
-                        Q(unified_document__fundraises__status=Fundraise.CLOSED)
-                        | Q(unified_document__fundraises__status=Fundraise.COMPLETED)
-                    )
-            except Exception as e:
-                # Log the exception but continue - useful for tests
-                print(f"Error filtering by fundraise_status: {e}")
-                pass
+            if fundraise_status.upper() == "OPEN":
+                queryset = queryset.filter(
+                    unified_document__fundraises__status=Fundraise.OPEN
+                )
+            elif fundraise_status.upper() == "CLOSED":
+                queryset = queryset.filter(
+                    Q(unified_document__fundraises__status=Fundraise.CLOSED)
+                    | Q(unified_document__fundraises__status=Fundraise.COMPLETED)
+                )
 
         queryset = queryset.order_by("-created_date")
 
