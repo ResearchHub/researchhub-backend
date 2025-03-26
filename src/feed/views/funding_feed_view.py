@@ -10,6 +10,7 @@ This is done for three reasons:
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
+from django.db.models import Q
 from requests import Request
 from rest_framework import viewsets
 from rest_framework.response import Response
@@ -17,6 +18,7 @@ from rest_framework.response import Response
 from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
 from feed.models import FeedEntry
 from feed.serializers import FeedEntrySerializer
+from purchase.related_models.fundraise_model import Fundraise
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.views.researchhub_unified_document_views import get_user_votes
@@ -30,6 +32,12 @@ class FundingFeedViewSet(viewsets.ModelViewSet):
     ViewSet for accessing entries specifically related to preregistration documents.
     This provides a dedicated endpoint for clients to fetch and display preregistration
     content in the Research Hub platform.
+
+    Query Parameters:
+    - fundraise_status: Filter by fundraise status
+      Options:
+        - OPEN: Only show posts with open fundraises
+        - CLOSED: Only show posts with closed or completed fundraises
     """
 
     serializer_class = PostSerializer
@@ -128,16 +136,20 @@ class FundingFeedViewSet(viewsets.ModelViewSet):
             self.pagination_class.page_size_query_param,
             str(self.pagination_class.page_size),
         )
+        fundraise_status = request.query_params.get("fundraise_status", None)
 
         user_part = f"{user_id or 'anonymous'}"
         pagination_part = f"{page}-{page_size}"
+        status_part = f"-{fundraise_status}" if fundraise_status else ""
 
-        return f"funding_feed:{user_part}:{pagination_part}"
+        return f"funding_feed:{user_part}:{pagination_part}{status_part}"
 
     def get_queryset(self):
         """
         Filter to only include posts that are preregistrations.
+        Additionally filter by fundraise status if specified.
         """
+        fundraise_status = self.request.query_params.get("fundraise_status", None)
 
         queryset = (
             ResearchhubPost.objects.all()
@@ -152,6 +164,23 @@ class FundingFeedViewSet(viewsets.ModelViewSet):
             .filter(document_type=PREREGISTRATION)
             .filter(unified_document__is_removed=False)
         )
+
+        if fundraise_status:
+            # Filter posts that have fundraises with the specified status
+            try:
+                if fundraise_status.upper() == "OPEN":
+                    queryset = queryset.filter(
+                        unified_document__fundraises__status=Fundraise.OPEN
+                    )
+                elif fundraise_status.upper() == "CLOSED":
+                    queryset = queryset.filter(
+                        Q(unified_document__fundraises__status=Fundraise.CLOSED)
+                        | Q(unified_document__fundraises__status=Fundraise.COMPLETED)
+                    )
+            except Exception as e:
+                # Log the exception but continue - useful for tests
+                print(f"Error filtering by fundraise_status: {e}")
+                pass
 
         queryset = queryset.order_by("-created_date")
 

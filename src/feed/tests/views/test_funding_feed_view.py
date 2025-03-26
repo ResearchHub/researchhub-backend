@@ -13,6 +13,11 @@ from rest_framework.test import APIClient, APIRequestFactory
 
 from discussion.reaction_models import Vote as GrmVote
 from hub.models import Hub
+from purchase.related_models.constants.currency import USD
+from purchase.related_models.constants.rsc_exchange_currency import MORALIS
+from purchase.related_models.fundraise_model import Fundraise
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from reputation.models import Escrow
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -97,6 +102,47 @@ class FundingFeedViewSetTests(TestCase):
             slug="removed-preregistration",
             unified_document=self.removed_document,
             created_date=timezone.now(),
+        )
+
+        # Create an exchange rate for converting currency
+        self.exchange_rate = RscExchangeRate.objects.create(
+            price_source=MORALIS,
+            rate=3.0,
+            real_rate=3.0,
+            target_currency=USD,
+        )
+
+        # Create fundraises for testing the fundraise_status filter
+        # Create an open fundraise for the first post
+        self.escrow1 = Escrow.objects.create(
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=self.unified_document.id,
+        )
+        self.open_fundraise = Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=self.unified_document,
+            escrow=self.escrow1,
+            status=Fundraise.OPEN,
+            goal_amount=100,
+        )
+
+        # Create a closed fundraise for the second post
+        self.escrow2 = Escrow.objects.create(
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.other_user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=self.other_unified_document.id,
+        )
+        self.closed_fundraise = Fundraise.objects.create(
+            created_by=self.other_user,
+            unified_document=self.other_unified_document,
+            escrow=self.escrow2,
+            status=Fundraise.CLOSED,
+            goal_amount=100,
         )
 
         cache.clear()
@@ -270,3 +316,46 @@ class FundingFeedViewSetTests(TestCase):
 
         cache_key = viewset._get_cache_key(request)
         self.assertEqual(cache_key, f"funding_feed:{self.user.id}:3-10")
+
+    def test_preregistration_post_only(self):
+        """Test that funding feed only returns preregistration posts"""
+        response = self.client.get(reverse("funding_feed-list"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        results = response.data["results"]
+        content_types = [result["content_type"] for result in results]
+
+        # All returned items should be ResearchhubPost
+        for content_type in content_types:
+            self.assertEqual(content_type, "RESEARCHHUBPOST")
+
+        # All returned items should be preregistration posts
+        result_ids = [int(result["content_object"]["id"]) for result in results]
+        for post_id in result_ids:
+            post = ResearchhubPost.objects.get(id=post_id)
+            self.assertEqual(post.document_type, PREREGISTRATION)
+
+        # Discussion post should not be included
+        self.assertNotIn(self.non_preregistration_post.id, result_ids)
+
+    def test_fundraise_status_filter(self):
+        """Test filtering feed by fundraise status"""
+        # Test each filter option to ensure they can be passed without errors
+
+        # Test filtering by OPEN status
+        url = reverse("funding_feed-list") + "?fundraise_status=OPEN"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(
+            response.data["results"][0]["content_object"]["id"], self.post.id
+        )
+
+        # Test filtering by CLOSED status
+        url = reverse("funding_feed-list") + "?fundraise_status=CLOSED"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(
+            response.data["results"][0]["content_object"]["id"], self.other_post.id
+        )
