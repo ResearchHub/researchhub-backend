@@ -377,6 +377,7 @@ class FollowSerializer(serializers.ModelSerializer):
         write_only=True,
     )
     type = serializers.SerializerMethodField()
+    followed_object = serializers.SerializerMethodField()
 
     class Meta:
         model = Follow
@@ -385,6 +386,7 @@ class FollowSerializer(serializers.ModelSerializer):
             "content_type",
             "type",
             "object_id",
+            "followed_object",
             "created_date",
             "updated_date",
         )
@@ -396,6 +398,11 @@ class FollowSerializer(serializers.ModelSerializer):
         """
         model = obj.content_type.model
         return model.upper()
+
+    def get_followed_object(self, obj):
+        if obj.content_type.model == "hub":
+            return HubSerializer(obj.followed_object).data
+        return None
 
     def validate(self, data):
         """
