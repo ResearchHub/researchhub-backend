@@ -216,7 +216,7 @@ class FundingFeedViewSetTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Find the post in the response
-        post_data = None  # NOSONAR
+        post_data = None
         for item in response.data["results"]:
             if item["content_object"]["id"] == self.post.id:
                 post_data = item
@@ -224,7 +224,7 @@ class FundingFeedViewSetTests(TestCase):
 
         self.assertIsNotNone(post_data)
         self.assertIn("user_vote", post_data)
-        self.assertEqual(post_data["user_vote"]["id"], vote.id)
+        self.assertEqual(post_data["user_vote"]["id"], vote.id)  # NOSONAR
 
         # Use the integer value for the vote type, as that's what gets serialized
         vote_type = post_data["user_vote"]["vote_type"]
