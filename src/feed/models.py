@@ -1,5 +1,6 @@
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 
 from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -24,6 +25,7 @@ class FeedEntry(DefaultModel):
     item = GenericForeignKey("content_type", "object_id")
 
     content = models.JSONField(
+        encoder=DjangoJSONEncoder,
         default=dict,
         db_comment="A serialized JSON representation of the item.",
         blank=False,
