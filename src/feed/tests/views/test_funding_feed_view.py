@@ -216,7 +216,7 @@ class FundingFeedViewSetTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         # Find the post in the response
-        post_data = None
+        post_data = None  # NOSONAR
         for item in response.data["results"]:
             if item["content_object"]["id"] == self.post.id:
                 post_data = item
