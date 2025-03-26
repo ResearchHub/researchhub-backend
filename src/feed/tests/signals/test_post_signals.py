@@ -1,13 +1,20 @@
-from django.test import TestCase
-from django.contrib.contenttypes.models import ContentType
 from unittest.mock import MagicMock, call, patch
+
+from django.contrib.contenttypes.models import ContentType
+from django.test import TestCase
+
 from feed.models import FeedEntry
-from feed.signals.post_signals import handle_post_create_feed_entry, handle_post_delete_feed_entry, handle_post_hubs_changed
-from feed.tests.test_views import User
+from feed.signals.post_signals import (
+    handle_post_create_feed_entry,
+    handle_post_delete_feed_entry,
+)
 from hub.models import Hub
 from researchhub_document.related_models.constants import document_type
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
-from researchhub_document.related_models.researchhub_unified_document_model import ResearchhubUnifiedDocument
+from researchhub_document.related_models.researchhub_unified_document_model import (
+    ResearchhubUnifiedDocument,
+)
+from user.models import User
 
 
 class TestPostSignals(TestCase):
@@ -68,7 +75,9 @@ class TestPostSignals(TestCase):
 
     @patch("feed.signals.post_signals.create_feed_entry")
     @patch("feed.signals.post_signals.transaction")
-    def test_handle_post_create_feed_entry(self, mock_transaction, mock_create_feed_entry):
+    def test_handle_post_create_feed_entry(
+        self, mock_transaction, mock_create_feed_entry
+    ):
         # Arrange
         mock_transaction.on_commit = lambda func: func()
         mock_create_feed_entry.apply_async = MagicMock()
@@ -104,7 +113,9 @@ class TestPostSignals(TestCase):
         self.unified_document.save()
 
         # Act
-        handle_post_delete_feed_entry(sender=ResearchhubPost, instance=self.unified_document)
+        handle_post_delete_feed_entry(
+            sender=ResearchhubPost, instance=self.unified_document
+        )
 
         # Assert
         mock_delete_feed_entry.apply_async.assert_has_calls(
@@ -169,8 +180,10 @@ class TestPostSignals(TestCase):
         )
 
     @patch("feed.signals.post_signals.delete_feed_entry")
-    @patch("feed.signals.post_signals.transaction") 
-    def test_handle_post_hubs_changed_when_hubs_removed(self, mock_transaction, mock_delete_feed_entry):
+    @patch("feed.signals.post_signals.transaction")
+    def test_handle_post_hubs_changed_when_hubs_removed(
+        self, mock_transaction, mock_delete_feed_entry
+    ):
         # Arrange
         mock_transaction.on_commit = lambda func: func()
         mock_delete_feed_entry.apply_async = MagicMock()
