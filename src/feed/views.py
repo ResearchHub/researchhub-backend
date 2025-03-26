@@ -193,6 +193,7 @@ class FeedViewSet(viewsets.ModelViewSet):
         """
         feed_view = self.request.query_params.get("feed_view", "latest")
         hub_slug = self.request.query_params.get("hub_slug")
+        source = self.request.query_params.get("source", "all")
 
         queryset = (
             FeedEntry.objects.all()
@@ -207,6 +208,15 @@ class FeedViewSet(viewsets.ModelViewSet):
                 "unified_document__hubs",
             )
         )
+
+        # Apply source filter
+        # If source is 'researchhub', then only show items that are related to
+        # ResearchHub content. Since we don't have a dedicated field for this,
+        # a simplified heuristic is to filter out papers (papers are ingested via
+        # OpenAlex and do not originate on ResearchHub).
+        if source == "researchhub":
+            paper_content_type = ContentType.objects.get_for_model(Paper)
+            queryset = queryset.exclude(content_type_id=paper_content_type.id)
 
         # Apply following filter if feed_view is 'following' and user is authenticated
         if feed_view == "following" and self.request.user.is_authenticated:

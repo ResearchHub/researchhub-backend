@@ -1,4 +1,5 @@
 import uuid
+from unittest import mock
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
@@ -44,6 +45,17 @@ class FeedViewSetTests(TestCase):
             paper_publish_date=timezone.now(),
             unified_document=self.unified_document,
         )
+        self.post_unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type="POST"
+        )
+        self.post = ResearchhubPost.objects.create(
+            title="Test Post",
+            document_type="POST",
+            created_by=self.user,
+            unified_document=self.post_unified_document,
+            score=5,
+            discussion_count=3,
+        )
         self.hub = Hub.objects.create(
             name="Test Hub",
         )
@@ -55,6 +67,7 @@ class FeedViewSetTests(TestCase):
 
         self.user_content_type = ContentType.objects.get_for_model(User)
         self.paper_content_type = ContentType.objects.get_for_model(Paper)
+        self.post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
         self.hub_content_type = ContentType.objects.get_for_model(Hub)
 
         create_follow(self.user, self.hub)
@@ -94,6 +107,17 @@ class FeedViewSetTests(TestCase):
             unified_document=self.other_paper.unified_document,
         )
 
+        self.post_feed_entry = FeedEntry.objects.create(
+            user=self.other_user,
+            action="PUBLISH",
+            action_date=self.post.created_date,
+            content_type=self.post_content_type,
+            object_id=self.post.id,
+            parent_content_type=self.hub_content_type,
+            parent_object_id=self.other_hub.id,
+            unified_document=self.post.unified_document,
+        )
+
         cache.clear()
 
     def test_default_feed_view(self):
@@ -102,7 +126,7 @@ class FeedViewSetTests(TestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 2)
+        self.assertEqual(len(response.data["results"]), 3)
 
     @patch("feed.views.cache.get")
     @patch("feed.views.cache.set")
@@ -117,7 +141,7 @@ class FeedViewSetTests(TestCase):
         self.assertTrue(mock_cache_set.called)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 2)
+        self.assertEqual(len(response.data["results"]), 3)
 
         # Return a "cached" response on second request
         mock_cache_get.return_value = mock_cache_set.call_args[0][1]
@@ -129,7 +153,7 @@ class FeedViewSetTests(TestCase):
         self.assertFalse(mock_cache_set.called)
 
         self.assertEqual(response2.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response2.data["results"]), 2)
+        self.assertEqual(len(response2.data["results"]), 3)
         self.assertEqual(response.data["results"], response2.data["results"])
 
     def test_feed_pagination(self):
@@ -196,7 +220,7 @@ class FeedViewSetTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # Should see both followed and unfollowed content
-        self.assertEqual(len(response.data["results"]), 2)
+        self.assertEqual(len(response.data["results"]), 3)
 
     def test_following_feed_view(self):
         """Test that following feed view only shows items from followed entities"""
@@ -232,7 +256,7 @@ class FeedViewSetTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # Should see all content since user has no follows
-        self.assertEqual(len(response.data["results"]), 2)
+        self.assertEqual(len(response.data["results"]), 3)
 
     def test_popular_feed_view(self):
         """Test that popular feed view sorts by unified_document.hot_score"""
@@ -304,7 +328,7 @@ class FeedViewSetTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         results = response.data["results"]
-        self.assertEqual(len(results), 5)
+        self.assertEqual(len(results), 6)
 
         content_object_ids = [result["content_object"]["id"] for result in results]
 
@@ -615,8 +639,16 @@ class FeedViewSetTests(TestCase):
             created_by=self.user,
             vote_type=GrmVote.UPVOTE,
         )
+
+        GrmVote.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=self.post.id,
+            created_by=self.user,
+            vote_type=GrmVote.UPVOTE,
+        )
+
         feed_entries = FeedEntry.objects.all()
-        self.assertEqual(feed_entries.count(), 6)
+        self.assertEqual(feed_entries.count(), 7)
 
         # Act
         url = reverse("feed-list")
@@ -848,3 +880,33 @@ class FeedViewSetTests(TestCase):
             newer_entry.action,
             "The entry in the results should be the newest one",
         )
+
+    def test_source_researchhub(self):
+        """
+        Test that the source filter only returns items from ResearchHub.
+        These are currently all items that are not papers.
+        """
+        # Arrange
+        url = reverse("feed-list")
+
+        # Act
+        response = self.client.get(url, {"source": "researchhub"})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 1)
+
+        for item in response.data["results"]:
+            self.assertNotEqual(item["content_type"], "PAPER")
+
+    def test_source_all(self):
+        """Test that the source filter returns all items."""
+        # Arrange
+        url = reverse("feed-list")
+
+        # Act
+        response = self.client.get(url, {"source": "all"})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 3)
