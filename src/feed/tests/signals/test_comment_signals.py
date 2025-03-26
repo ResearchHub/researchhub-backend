@@ -4,7 +4,6 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
 from feed.models import FeedEntry
-from feed.tests.test_views import User
 from hub.models import Hub
 from paper.related_models.paper_model import Paper
 from researchhub_comment.constants.rh_comment_thread_types import (
@@ -19,6 +18,7 @@ from researchhub_document.related_models.constants import document_type
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
+from user.models import User
 
 
 class CommentSignalsTests(TestCase):
