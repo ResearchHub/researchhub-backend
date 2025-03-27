@@ -427,14 +427,13 @@ def serialize_feed_metrics(item, item_content_type):
     if hasattr(item, "score"):
         metrics["votes"] = getattr(item, "score", 0)
 
-        if hasattr(item, "discussion_count"):
-            metrics["comments"] = getattr(item, "discussion_count", 0)
+    if hasattr(item, "get_discussion_count"):
+        metrics["replies"] = item.get_discussion_count()
 
-        if hasattr(item, "children_count"):
-            metrics["replies"] = getattr(item, "children_count", 0)
+    if hasattr(item, "children_count"):
+        metrics["replies"] = getattr(item, "children_count", 0)
 
-        return metrics
-    return None
+    return metrics
 
 
 def serialize_feed_item(feed_item, item_content_type):
