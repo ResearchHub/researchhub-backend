@@ -41,11 +41,9 @@ class SimpleAuthorSerializer(serializers.ModelSerializer):
         return None
 
     def get_profile_image(self, obj):
-        if isinstance(obj.profile_image, str):
-            return obj.profile_image
-
-        if hasattr(obj, "profile_image") and hasattr(obj.profile_image, "url"):
-            return obj.profile_image.url
+        if hasattr(obj, "profile_image"):
+            if obj.profile_image.name and obj.profile_image.url:
+                return obj.profile_image.url
 
         return None
 

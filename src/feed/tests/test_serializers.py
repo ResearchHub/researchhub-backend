@@ -42,8 +42,11 @@ class ContentObjectSerializerTests(TestCase):
     def setUp(self):
         self.user = create_random_default_user("content_creator")
         self.author = self.user.author_profile
+
+        # Directly set profile_image to a string - our serializer now handles this case
         self.author.profile_image = "https://example.com/profile.jpg"
         self.author.save()
+
         self.user.refresh_from_db()
         self.hub = create_hub("Test Hub")
 
@@ -74,8 +77,14 @@ class PaperSerializerTests(TestCase):
     def setUp(self):
         self.user = create_random_default_user("paper_creator")
         self.author = self.user.author_profile
+
+        # Directly set profile_image to a string - our serializer now handles this case
         self.author.profile_image = "https://example.com/profile.jpg"
         self.author.save()
+
+        self.user.refresh_from_db()
+        self.hub = create_hub("Test Hub")
+
         self.journal = create_hub("Test Journal", namespace=Hub.Namespace.JOURNAL)
 
         self.paper = create_paper(
@@ -97,7 +106,6 @@ class PaperSerializerTests(TestCase):
             topic=topic, unified_document=self.paper.unified_document, is_primary=True
         )
 
-        self.hub = create_hub("Test Hub")
         self.hub.subfield_id = primary_topic.topic.subfield_id
         self.hub.save()
         self.paper.hubs.add(self.hub)
