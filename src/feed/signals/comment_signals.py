@@ -45,9 +45,10 @@ def _update_metrics(comment):
     if not getattr(comment, "unified_document", None):
         return
 
-    # Update the metrics for the associated documents (paper or post)
-    document = comment.unified_document.get_document()
-    metrics = serialize_feed_metrics(comment, comment.content_type)
+    # Update the metrics (number of replies) for the associated documents
+    document = comment.unified_document.get_document()  # can be paper or post
+    content_type = ContentType.objects.get_for_model(comment)
+    metrics = serialize_feed_metrics(comment, content_type)
 
     update_feed_metrics.apply_async(
         args=(
@@ -63,7 +64,10 @@ def _update_metrics(comment):
         # Update the metrics for the bounty feed entry associated with the comment
         parent_bounty = parent_comment.bounties.filter(parent_id__isnull=True).first()
         if parent_bounty:
-            metrics = serialize_feed_metrics(parent_bounty, parent_bounty.content_type)
+            parent_bounty_content_type = ContentType.objects.get_for_model(
+                parent_bounty
+            )
+            metrics = serialize_feed_metrics(parent_bounty, parent_bounty_content_type)
             update_feed_metrics.apply_async(
                 args=(
                     parent_bounty.id,
@@ -74,13 +78,15 @@ def _update_metrics(comment):
             )
 
         # Update the metrics for the parent comment feed entry
-        metrics = serialize_feed_metrics(parent_comment, parent_comment.content_type)
+        parent_comment_content_type = ContentType.objects.get_for_model(parent_comment)
+        metrics = serialize_feed_metrics(parent_comment, parent_comment_content_type)
         update_feed_metrics.apply_async(
             args=(
                 parent_comment.id,
                 ContentType.objects.get_for_model(parent_comment).id,
                 metrics,
             ),
+            priority=1,
         )
 
 
