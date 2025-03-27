@@ -47,8 +47,8 @@ def _update_metrics(comment):
 
     # Update the metrics (number of replies) for the associated documents
     document = comment.unified_document.get_document()  # can be paper or post
-    content_type = ContentType.objects.get_for_model(comment)
-    metrics = serialize_feed_metrics(comment, content_type)
+    content_type = ContentType.objects.get_for_model(document)
+    metrics = serialize_feed_metrics(document, content_type)
 
     update_feed_metrics.apply_async(
         args=(
