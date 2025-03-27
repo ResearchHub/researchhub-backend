@@ -58,6 +58,7 @@ class FollowSerializerTests(TestCase):
         expected_fields = {
             "id",
             "object_id",
+            "followed_object",
             "created_date",
             "updated_date",
             "type",

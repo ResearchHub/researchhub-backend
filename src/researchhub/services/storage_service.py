@@ -13,7 +13,7 @@ class PresignedUrl(NamedTuple):
 
 
 SUPPORTED_CONTENT_TYPES = ["application/pdf", "image/png", "image/jpeg"]
-SUPPORTED_ENTITIES = ["comment", "note", "paper"]
+SUPPORTED_ENTITIES = ["comment", "note", "paper", "post"]
 
 
 class StorageService:

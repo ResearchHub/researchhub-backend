@@ -1,4 +1,5 @@
 import uuid
+from unittest import mock
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
@@ -12,7 +13,8 @@ from rest_framework.test import APIClient
 
 from discussion.reaction_models import Vote as GrmVote
 from feed.models import FeedEntry
-from feed.views import FeedViewSet
+from feed.views.common import get_cache_key
+from feed.views.feed_view import FeedViewSet
 from hub.models import Hub
 from paper.models import Paper
 from reputation.related_models.bounty import Bounty
@@ -44,6 +46,17 @@ class FeedViewSetTests(TestCase):
             paper_publish_date=timezone.now(),
             unified_document=self.unified_document,
         )
+        self.post_unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type="POST"
+        )
+        self.post = ResearchhubPost.objects.create(
+            title="Test Post",
+            document_type="POST",
+            created_by=self.user,
+            unified_document=self.post_unified_document,
+            score=5,
+            discussion_count=3,
+        )
         self.hub = Hub.objects.create(
             name="Test Hub",
         )
@@ -55,6 +68,7 @@ class FeedViewSetTests(TestCase):
 
         self.user_content_type = ContentType.objects.get_for_model(User)
         self.paper_content_type = ContentType.objects.get_for_model(Paper)
+        self.post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
         self.hub_content_type = ContentType.objects.get_for_model(Hub)
 
         create_follow(self.user, self.hub)
@@ -94,6 +108,17 @@ class FeedViewSetTests(TestCase):
             unified_document=self.other_paper.unified_document,
         )
 
+        self.post_feed_entry = FeedEntry.objects.create(
+            user=self.other_user,
+            action="PUBLISH",
+            action_date=self.post.created_date,
+            content_type=self.post_content_type,
+            object_id=self.post.id,
+            parent_content_type=self.hub_content_type,
+            parent_object_id=self.other_hub.id,
+            unified_document=self.post.unified_document,
+        )
+
         cache.clear()
 
     def test_default_feed_view(self):
@@ -102,34 +127,33 @@ class FeedViewSetTests(TestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 2)
+        self.assertEqual(len(response.data["results"]), 3)
 
-    @patch("feed.views.cache.get")
-    @patch("feed.views.cache.set")
-    def test_default_feed_view_cache(self, mock_cache_set, mock_cache_get):
+    @patch("feed.views.feed_view.cache")
+    def test_default_feed_view_cache(self, mock_cache):
         # No cache on first request
-        mock_cache_get.return_value = None
+        mock_cache.get.return_value = None
 
         url = reverse("feed-list")
         response = self.client.get(url)
 
-        self.assertTrue(mock_cache_get.called)
-        self.assertTrue(mock_cache_set.called)
+        self.assertTrue(mock_cache.get.called)
+        self.assertTrue(mock_cache.set.called)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data["results"]), 2)
+        self.assertEqual(len(response.data["results"]), 3)
 
         # Return a "cached" response on second request
-        mock_cache_get.return_value = mock_cache_set.call_args[0][1]
-        mock_cache_set.reset_mock()
+        mock_cache.get.return_value = mock_cache.set.call_args[0][1]
+        mock_cache.set.reset_mock()
 
         response2 = self.client.get(url)
 
-        self.assertTrue(mock_cache_get.called)
-        self.assertFalse(mock_cache_set.called)
+        self.assertTrue(mock_cache.get.called)
+        self.assertFalse(mock_cache.set.called)
 
         self.assertEqual(response2.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response2.data["results"]), 2)
+        self.assertEqual(len(response2.data["results"]), 3)
         self.assertEqual(response.data["results"], response2.data["results"])
 
     def test_feed_pagination(self):
@@ -196,7 +220,7 @@ class FeedViewSetTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # Should see both followed and unfollowed content
-        self.assertEqual(len(response.data["results"]), 2)
+        self.assertEqual(len(response.data["results"]), 3)
 
     def test_following_feed_view(self):
         """Test that following feed view only shows items from followed entities"""
@@ -232,7 +256,7 @@ class FeedViewSetTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         # Should see all content since user has no follows
-        self.assertEqual(len(response.data["results"]), 2)
+        self.assertEqual(len(response.data["results"]), 3)
 
     def test_popular_feed_view(self):
         """Test that popular feed view sorts by unified_document.hot_score"""
@@ -304,7 +328,7 @@ class FeedViewSetTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         results = response.data["results"]
-        self.assertEqual(len(results), 5)
+        self.assertEqual(len(results), 6)
 
         content_object_ids = [result["content_object"]["id"] for result in results]
 
@@ -451,20 +475,20 @@ class FeedViewSetTests(TestCase):
 
         test_cases = [
             # (query_params, is_authenticated, user_id, expected_key)
-            ({}, False, None, "feed:latest:all:anonymous:1-20"),
+            ({}, False, None, "feed:latest:all:none:1-20"),
             ({"feed_view": "following"}, True, 123, "feed:following:all:123:1-20"),
             (
                 {"hub_slug": "science"},
                 False,
                 None,
-                "feed:latest:science:anonymous:1-20",
+                "feed:latest:science:none:1-20",
             ),
             ({"feed_view": "popular"}, True, 123, "feed:popular:all:none:1-20"),
             (
                 {"page": "3", "page_size": "50"},
                 False,
                 None,
-                "feed:latest:all:anonymous:3-50",
+                "feed:latest:all:none:3-50",
             ),
             (
                 {
@@ -487,7 +511,9 @@ class FeedViewSetTests(TestCase):
             mock_request.user.id = user_id
 
             # Act
-            cache_key = viewset._get_cache_key(mock_request)
+            cache_key = get_cache_key(
+                mock_request,
+            )
 
             # Assert
             self.assertEqual(
@@ -615,8 +641,16 @@ class FeedViewSetTests(TestCase):
             created_by=self.user,
             vote_type=GrmVote.UPVOTE,
         )
+
+        GrmVote.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=self.post.id,
+            created_by=self.user,
+            vote_type=GrmVote.UPVOTE,
+        )
+
         feed_entries = FeedEntry.objects.all()
-        self.assertEqual(feed_entries.count(), 6)
+        self.assertEqual(feed_entries.count(), 7)
 
         # Act
         url = reverse("feed-list")
@@ -639,9 +673,8 @@ class FeedViewSetTests(TestCase):
                 ):
                     self.assertIn("comments", item["metrics"])
 
-    @patch("feed.views.cache.get")
-    @patch("feed.views.cache.set")
-    def test_user_votes_with_cached_response(self, mock_cache_set, mock_cache_get):
+    @patch("feed.views.feed_view.cache")
+    def test_user_votes_with_cached_response(self, mock_cache):
         """Test that user votes are added to both cached and non-cached responses"""
         # Create a test user and authenticate
         test_user = User.objects.create_user(
@@ -679,7 +712,7 @@ class FeedViewSetTests(TestCase):
         )
 
         # First request - no cache
-        mock_cache_get.return_value = None
+        mock_cache.get.return_value = None
         url = reverse("feed-list")
         response1 = self.client.get(url)
 
@@ -703,15 +736,15 @@ class FeedViewSetTests(TestCase):
         self.assertEqual(user_vote["vote_type"], GrmVote.UPVOTE)
 
         # Store what was cached (should be without votes)
-        cached_data = mock_cache_set.call_args[0][1]
+        cached_data = mock_cache.set.call_args[0][1]
 
         # Update the vote to verify fresh votes are fetched
         post_vote.vote_type = GrmVote.DOWNVOTE  # Change from upvote to downvote
         post_vote.save()
 
         # Second request - use cached response
-        mock_cache_get.return_value = cached_data
-        mock_cache_set.reset_mock()
+        mock_cache.get.return_value = cached_data
+        mock_cache.set.reset_mock()
 
         response2 = self.client.get(url)
 
@@ -735,5 +768,150 @@ class FeedViewSetTests(TestCase):
         self.assertEqual(user_vote["vote_type"], GrmVote.DOWNVOTE)
 
         # Verify cache was used but not updated
-        self.assertTrue(mock_cache_get.called)
-        self.assertFalse(mock_cache_set.called)
+        self.assertTrue(mock_cache.get.called)
+        self.assertFalse(mock_cache.set.called)
+
+    def test_distinct_entries_in_latest_feed(self):
+        """Test that latest feed view returns only the most recent entry for each
+        content type and object ID."""
+        # Create multiple feed entries for the same paper
+        newer_entry = FeedEntry.objects.create(
+            user=self.user,
+            action="COMMENT",
+            action_date=timezone.now(),
+            content_type=self.paper_content_type,
+            object_id=self.paper.id,
+            parent_content_type=self.hub_content_type,
+            parent_object_id=self.hub.id,
+            unified_document=self.unified_document,
+        )
+
+        # Create another entry for the same paper but with an older date and
+        # different action
+        # Using OPEN action to avoid unique constraint violation
+        _ = FeedEntry.objects.create(
+            user=self.user,
+            action="OPEN",
+            action_date=timezone.now() - timezone.timedelta(days=5),
+            content_type=self.paper_content_type,
+            object_id=self.paper.id,
+            parent_content_type=self.hub_content_type,
+            parent_object_id=self.hub.id,
+            unified_document=self.unified_document,
+        )
+
+        url = reverse("feed-list")
+        response = self.client.get(url, {"feed_view": "latest"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Extract the IDs of the content objects in the results
+        results = response.data["results"]
+        result_pairs = [(r["content_type"], r["content_object"]["id"]) for r in results]
+
+        # Count occurrences of the paper's content type and ID
+        paper_pair = (self.paper_content_type.model.upper(), self.paper.id)
+        paper_occurrences = result_pairs.count(paper_pair)
+
+        # There should be only one occurrence of the paper (the newest entry)
+        error_msg = f"Expected 1 occurrence of paper, got {paper_occurrences}"
+        self.assertEqual(paper_occurrences, 1, error_msg)
+
+        # Find the paper result and verify it's the newer entry
+        paper_result = next(
+            r for r in results if r["content_object"]["id"] == self.paper.id
+        )
+        self.assertEqual(
+            paper_result["action"],
+            newer_entry.action,
+            "The entry in the results should be the newest one",
+        )
+
+    def test_distinct_entries_in_popular_feed(self):
+        """Test that popular feed view returns only the most recent entry for each
+        content type and object ID."""
+        # Set hot score for the unified document
+        self.unified_document.hot_score = 100
+        self.unified_document.save()
+
+        # Create multiple feed entries for the same paper with different dates
+        # and actions
+        newer_entry = FeedEntry.objects.create(
+            user=self.user,
+            action="COMMENT",
+            action_date=timezone.now(),
+            content_type=self.paper_content_type,
+            object_id=self.paper.id,
+            parent_content_type=self.hub_content_type,
+            parent_object_id=self.hub.id,
+            unified_document=self.unified_document,
+        )
+
+        # Using OPEN action to avoid unique constraint violation
+        _ = FeedEntry.objects.create(  # noqa: F841
+            user=self.user,
+            action="OPEN",
+            action_date=timezone.now() - timezone.timedelta(days=5),
+            content_type=self.paper_content_type,
+            object_id=self.paper.id,
+            parent_content_type=self.hub_content_type,
+            parent_object_id=self.hub.id,
+            unified_document=self.unified_document,
+        )
+
+        url = reverse("feed-list")
+        response = self.client.get(url, {"feed_view": "popular"})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Extract the IDs of the content objects in the results
+        results = response.data["results"]
+        result_pairs = [(r["content_type"], r["content_object"]["id"]) for r in results]
+
+        # Count occurrences of the paper's content type and ID
+        paper_pair = (self.paper_content_type.model.upper(), self.paper.id)
+        paper_occurrences = result_pairs.count(paper_pair)
+
+        # There should be only one occurrence of the paper (the newest entry)
+        error_msg = f"Expected 1 occurrence of paper, got {paper_occurrences}"
+        self.assertEqual(paper_occurrences, 1, error_msg)
+
+        # Find the paper result and verify it's the newer entry
+        paper_result = next(
+            r for r in results if r["content_object"]["id"] == self.paper.id
+        )
+        self.assertEqual(
+            paper_result["action"],
+            newer_entry.action,
+            "The entry in the results should be the newest one",
+        )
+
+    def test_source_researchhub(self):
+        """
+        Test that the source filter only returns items from ResearchHub.
+        These are currently all items that are not papers.
+        """
+        # Arrange
+        url = reverse("feed-list")
+
+        # Act
+        response = self.client.get(url, {"source": "researchhub"})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 1)
+
+        for item in response.data["results"]:
+            self.assertNotEqual(item["content_type"], "PAPER")
+
+    def test_source_all(self):
+        """Test that the source filter returns all items."""
+        # Arrange
+        url = reverse("feed-list")
+
+        # Act
+        response = self.client.get(url, {"source": "all"})
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 3)
