@@ -81,6 +81,7 @@ class PaperSerializerTests(TestCase):
         self.paper = create_paper(
             uploaded_by=self.user,
             title="Test Paper",
+            raw_authors=["Test Author", "Test Author 2"],
         )
         self.paper.abstract = "Test Abstract"
         self.paper.doi = "10.1234/test"
@@ -124,6 +125,8 @@ class PaperSerializerTests(TestCase):
         self.assertEqual(
             data["authors"][0]["profile_image"], "https://example.com/profile.jpg"
         )
+        self.assertIn("raw_authors", data)
+        self.assertEqual(data["raw_authors"], ["Test Author", "Test Author 2"])
 
     def test_serializes_paper_with_journal_without_image(self):
         # Create a new journal hub without an image
