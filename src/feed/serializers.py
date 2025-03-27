@@ -97,6 +97,7 @@ class PostMetricsSerializer(serializers.Serializer):
 class PaperSerializer(ContentObjectSerializer):
     journal = serializers.SerializerMethodField()
     authors = SimpleAuthorSerializer(many=True)
+    raw_authors = serializers.ListField()
     title = serializers.CharField()
     abstract = serializers.CharField()
     doi = serializers.CharField()
