@@ -1,2 +1,2 @@
-from .asset_upload_serializer import AssetUploadSerializer
+from .asset_upload_serializer import AssetUploadRequestSerializer
 from .serializers import DynamicModelFieldSerializer

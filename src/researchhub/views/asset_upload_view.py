@@ -3,7 +3,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from researchhub.serializers.asset_upload_serializer import AssetUploadSerializer
+from researchhub.serializers.asset_upload_serializer import AssetUploadRequestSerializer
 from researchhub.services.storage_service import S3StorageService
 
 
@@ -26,7 +26,7 @@ class AssetUploadView(APIView):
         data = request.data
 
         # Validate request data
-        serializer = AssetUploadSerializer(data=request.data)
+        serializer = AssetUploadRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         content_type = data.get("content_type")
