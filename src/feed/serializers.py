@@ -32,12 +32,22 @@ class SimpleAuthorSerializer(serializers.ModelSerializer):
     """Minimal author serializer with just essential fields"""
 
     headline = serializers.SerializerMethodField()
-    profile_image = serializers.CharField()
+    profile_image = serializers.SerializerMethodField()
     user = SimpleUserSerializer()
 
     def get_headline(self, obj):
         if obj.headline and isinstance(obj.headline, dict) and "title" in obj.headline:
             return obj.headline.get("title")
+        return None
+
+    def get_profile_image(self, obj):
+        if (
+            hasattr(obj, "profile_image")
+            and obj.profile_image.name
+            and obj.profile_image.url
+        ):
+            return obj.profile_image.url
+
         return None
 
     class Meta:
