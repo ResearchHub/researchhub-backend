@@ -1,5 +1,5 @@
 import uuid
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -76,6 +76,7 @@ class FeedViewSetTests(TestCase):
             action="PUBLISH",
             action_date=self.paper.paper_publish_date,
             content_type=self.paper_content_type,
+            metrics={"votes": 100, "comments": 10},
             object_id=self.paper.id,
             parent_content_type=self.hub_content_type,
             parent_object_id=self.hub.id,
@@ -99,6 +100,7 @@ class FeedViewSetTests(TestCase):
             action="PUBLISH",
             action_date=self.other_paper.paper_publish_date,
             content_type=self.paper_content_type,
+            metrics={"votes": 100, "comments": 10},
             object_id=self.other_paper.id,
             parent_content_type=self.hub_content_type,
             parent_object_id=self.other_hub.id,
@@ -110,6 +112,7 @@ class FeedViewSetTests(TestCase):
             action="PUBLISH",
             action_date=self.post.created_date,
             content_type=self.post_content_type,
+            metrics={"votes": 100, "comments": 10},
             object_id=self.post.id,
             parent_content_type=self.hub_content_type,
             parent_object_id=self.other_hub.id,
