@@ -33,6 +33,7 @@ class FeedEntry(DefaultModel):
     )
 
     metrics = models.JSONField(
+        encoder=DjangoJSONEncoder,
         default=dict,
         db_comment="A serialized JSON representation of the metrics for the item.",
         blank=False,
