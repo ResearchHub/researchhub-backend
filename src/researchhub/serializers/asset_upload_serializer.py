@@ -6,7 +6,7 @@ from researchhub.services.storage_service import (
 )
 
 
-class AssetUploadSerializer(serializers.Serializer):
+class AssetUploadRequestSerializer(serializers.Serializer):
     """
     Serializer for uploading an asset into ResearchHub storage.
     Used to validate request data.
