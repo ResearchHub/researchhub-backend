@@ -549,28 +549,6 @@ def parse_author_name(author):
     return " ".join(full_name)
 
 
-def paper_piecewise_log(k):
-    sign = 1
-    step = math.sqrt(2)
-    if k < 0:
-        k = abs(k)
-        sign = -1
-
-    if k == 0:
-        k = 0
-    elif k <= 10:
-        k = math.log(k, 2)
-    elif k <= 100:
-        k = math.log(k, 3) + step
-    elif k <= 500:
-        k = math.log(k, 5) + (step * 2)
-    else:
-        k = math.log(k, 7) + (step * 3)
-
-    res = k * sign
-    return res
-
-
 def is_blank_str(string):
     if string and isinstance(string, str) and string.strip() != "":
         return False
