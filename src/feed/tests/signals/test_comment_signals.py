@@ -190,7 +190,12 @@ class CommentSignalsTests(TestCase):
                     args=(
                         self.paper.id,
                         ContentType.objects.get_for_model(Paper).id,
-                        {"votes": 0, "replies": 3},
+                        {
+                            "votes": 0,
+                            "replies": 3,
+                            "review_metrics": {"avg": 0, "count": 0},
+                            "citations": 0,
+                        },
                     ),
                     priority=1,
                 ),
@@ -261,7 +266,12 @@ class CommentSignalsTests(TestCase):
                     args=(
                         self.paper.id,
                         ContentType.objects.get_for_model(Paper).id,
-                        {"votes": 0, "replies": 2},
+                        {
+                            "votes": 0,
+                            "replies": 2,
+                            "review_metrics": {"avg": 0, "count": 0},
+                            "citations": 0,
+                        },
                     ),
                     priority=1,
                 ),

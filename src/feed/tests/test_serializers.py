@@ -128,6 +128,28 @@ class PaperSerializerTests(TestCase):
         )
         self.assertIn("raw_authors", data)
         self.assertEqual(data["raw_authors"], ["Test Author", "Test Author 2"])
+        self.assertIn("work_type", data)
+
+    def test_serializes_paper_with_work_type(self):
+        # Test various work_type values
+        work_types = ["article", "preprint", "review", "editorial"]
+
+        for work_type in work_types:
+            # Create a paper with the work type
+            paper = create_paper(
+                uploaded_by=self.user,
+                title=f"Test Paper - {work_type}",
+            )
+            paper.work_type = work_type
+            paper.save()
+
+            # Serialize and check
+            serializer = PaperSerializer(paper)
+            data = serializer.data
+
+            # Verify the work_type is serialized correctly
+            self.assertIn("work_type", data)
+            self.assertEqual(data["work_type"], work_type)
 
     def test_serializes_paper_with_journal_without_image(self):
         # Create a new journal hub without an image
@@ -537,39 +559,49 @@ class FeedEntrySerializerTests(TestCase):
         hub = create_hub("Test Hub")
         mock_get_primary_hub.return_value = hub
 
-        feed_entry = FeedEntry.objects.create(
-            content_type=ContentType.objects.get_for_model(Paper),
-            object_id=paper.id,
-            item=paper,
-            created_date=paper.created_date,
-            action="PUBLISH",
-            action_date=paper.paper_publish_date,
-            metrics={"votes": 42, "comments": 15},
-            user=self.user,
-            unified_document=paper.unified_document,
-        )
+        # Mock the get_review_details method to return test review metrics
+        review_metrics = {"avg": 4.5, "count": 3}
+        with patch.object(
+            paper.unified_document, "get_review_details", return_value=review_metrics
+        ):
+            feed_entry = FeedEntry.objects.create(
+                content_type=ContentType.objects.get_for_model(Paper),
+                object_id=paper.id,
+                item=paper,
+                created_date=paper.created_date,
+                action="PUBLISH",
+                action_date=paper.paper_publish_date,
+                metrics={"votes": 42, "comments": 15, "review_metrics": review_metrics},
+                user=self.user,
+                unified_document=paper.unified_document,
+            )
 
-        serializer = FeedEntrySerializer(feed_entry)
-        data = serializer.data
+            serializer = FeedEntrySerializer(feed_entry)
+            data = serializer.data
 
-        self.assertIn("id", data)
-        self.assertIn("content_type", data)
-        self.assertEqual(data["content_type"], "PAPER")
-        self.assertIn("content_object", data)
-        self.assertIn("created_date", data)
+            self.assertIn("id", data)
+            self.assertIn("content_type", data)
+            self.assertEqual(data["content_type"], "PAPER")
+            self.assertIn("content_object", data)
+            self.assertIn("created_date", data)
 
-        paper_data = data["content_object"]
-        self.assertEqual(paper_data["title"], paper.title)
+            paper_data = data["content_object"]
+            self.assertEqual(paper_data["title"], paper.title)
 
-        # Verify metrics field exists and contains expected values
-        self.assertIn("metrics", data)
-        self.assertIsInstance(data["metrics"], dict)
-        self.assertIn("votes", data["metrics"])
-        self.assertIn("comments", data["metrics"])
-        self.assertEqual(data["metrics"]["votes"], 42)
-        self.assertEqual(data["metrics"]["comments"], 15)
+            # Verify metrics field exists and contains expected values
+            self.assertIn("metrics", data)
+            self.assertIsInstance(data["metrics"], dict)
+            self.assertIn("votes", data["metrics"])
+            self.assertIn("comments", data["metrics"])
+            self.assertEqual(data["metrics"]["votes"], 42)
+            self.assertEqual(data["metrics"]["comments"], 15)
 
-        mock_get_primary_hub.assert_called()
+            # Verify review_metrics are included
+            self.assertIn("review_metrics", data["metrics"])
+            self.assertEqual(data["metrics"]["review_metrics"]["avg"], 4.5)
+            self.assertEqual(data["metrics"]["review_metrics"]["count"], 3)
+
+            mock_get_primary_hub.assert_called()
 
     @patch(
         "researchhub_document.related_models.researchhub_unified_document_model."

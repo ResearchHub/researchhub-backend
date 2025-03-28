@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
@@ -39,7 +41,7 @@ class FeedTasksTest(TestCase):
         self.hub_content_type = ContentType.objects.get_for_model(Hub)
 
     def test_create_feed_entry(self):
-        """Test creating a feed entry for a paper"""
+        """Test creating a feed entry for a paper."""
         # Act
         create_feed_entry(
             item_id=self.paper.id,
@@ -62,7 +64,9 @@ class FeedTasksTest(TestCase):
         self.assertEqual(feed_entry.unified_document, self.paper.unified_document)
 
     def test_create_feed_entry_twice(self):
-        """Test that attempting to create the same feed entry twice doesn't raise an error"""
+        """Test that attempting to create the same feed entry twice
+        doesn't raise an error.
+        """
         # Act
         feed_entry = create_feed_entry(
             item_id=self.paper.id,
@@ -160,9 +164,7 @@ class FeedTasksTest(TestCase):
         self.assertEqual(actual, bounty.unified_document)
 
     def test_get_unified_document_for_comment(self):
-        """
-        Test getting a unified document from a comment.
-        """
+        """Test getting a unified document from a comment."""
         # Arrange
         unified_document = ResearchhubUnifiedDocument.objects.create()
         paper = Paper.objects.create(title="paper1", unified_document=unified_document)
@@ -181,9 +183,7 @@ class FeedTasksTest(TestCase):
         self.assertEqual(actual, comment.thread.unified_document)
 
     def test_get_unified_document_for_post(self):
-        """
-        Test getting a unified document from a post.
-        """
+        """Test getting a unified document from a post."""
         # Arrange
         unified_document = ResearchhubUnifiedDocument.objects.create()
         post = ResearchhubPost.objects.create(
@@ -198,7 +198,7 @@ class FeedTasksTest(TestCase):
         self.assertEqual(actual, post.unified_document)
 
     def test_update_feed_metrics(self):
-        """Test updating feed metrics for a paper"""
+        """Test updating feed metrics for a paper."""
         # Arrange
         feed_entry = create_feed_entry(
             item_id=self.paper.id,
@@ -209,19 +209,29 @@ class FeedTasksTest(TestCase):
             user_id=self.user.id,
         )
 
-        # Act
-        update_feed_metrics(
-            item_id=self.paper.id,
-            item_content_type_id=self.paper_content_type.id,
-            metrics={"votes": 10},
-        )
+        # Create mock review metrics
+        review_metrics = {"avg": 4.7, "count": 5}
 
-        # Assert
-        feed_entry = FeedEntry.objects.get(id=feed_entry.id)
-        self.assertEqual(feed_entry.metrics["votes"], 10)
+        # Act
+        with patch.object(
+            self.paper.unified_document,
+            "get_review_details",
+            return_value=review_metrics,
+        ):
+            update_feed_metrics(
+                item_id=self.paper.id,
+                item_content_type_id=self.paper_content_type.id,
+                metrics={"votes": 10, "review_metrics": review_metrics},
+            )
+
+            # Assert
+            feed_entry = FeedEntry.objects.get(id=feed_entry.id)
+            self.assertEqual(feed_entry.metrics["votes"], 10)
+            self.assertIn("review_metrics", feed_entry.metrics)
+            self.assertEqual(feed_entry.metrics["review_metrics"], review_metrics)
 
     def test_update_feed_metrics_feed_entry_does_not_exist(self):
-        """Test updating feed metrics for a feed entry that doesn't exist"""
+        """Test updating feed metrics for a feed entry that doesn't exist."""
         # Act
         update_feed_metrics(
             item_id=self.paper.id,
