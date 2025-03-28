@@ -49,7 +49,10 @@ def get_cache_key(request: Request, feed_type: str = "") -> str:
     status_part = f"-{fundraise_status}" if fundraise_status else ""
     feed_type_part = f"{feed_type}_" if feed_type else ""
 
-    return f"{feed_type_part}feed:{feed_view}:{hub_part}:{user_part}:{pagination_part}{status_part}"
+    source = request.query_params.get("source")
+    source_part = f"{source}" if source else "all"
+
+    return f"{feed_type_part}feed:{feed_view}:{hub_part}:{source_part}:{user_part}:{pagination_part}{status_part}"
 
 
 def add_user_votes_to_response(user, response_data):
