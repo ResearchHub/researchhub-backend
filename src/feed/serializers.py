@@ -383,6 +383,7 @@ class FeedEntrySerializer(serializers.ModelSerializer):
     action = serializers.CharField()
     author = serializers.SerializerMethodField()
     metrics = serializers.SerializerMethodField()
+    hot_score = serializers.FloatField()
 
     class Meta:
         model = FeedEntry
@@ -395,6 +396,7 @@ class FeedEntrySerializer(serializers.ModelSerializer):
             "action",
             "author",
             "metrics",
+            "hot_score",
         ]
 
     def get_author(self, obj):
