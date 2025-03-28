@@ -4,6 +4,8 @@ from django.dispatch import receiver
 from discussion.models import Comment, Reply, Thread
 from discussion.reaction_models import Vote as GrmVote
 from paper.models import Paper
+from reputation.related_models.bounty import Bounty
+from reputation.related_models.contribution import Contribution
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.tasks import recalc_hot_score_task
 from utils import sentry
@@ -22,6 +24,44 @@ def recalc_hot_score(instance, sender, **kwargs):
         )
     except Exception as error:
         print("recalc_hot_score error", error)
+        sentry.log_error(error)
+
+
+@receiver(post_save, sender=RhCommentModel, dispatch_uid="recalc_hot_score_on_comment")
+def recalc_hot_score_on_comment(instance, **kwargs):
+    try:
+        recalc_hot_score_task.apply_async(
+            (instance.content_type_id, instance.id),
+            priority=2,
+            countdown=5,
+        )
+    except Exception as error:
+        sentry.log_error(error)
+
+
+@receiver(post_save, sender=Bounty, dispatch_uid="recalc_hot_score_on_bounty")
+def recalc_hot_score_on_bounty(instance, **kwargs):
+    try:
+        recalc_hot_score_task.apply_async(
+            (instance.content_type_id, instance.id),
+            priority=2,
+            countdown=5,
+        )
+    except Exception as error:
+        sentry.log_error(error)
+
+
+@receiver(
+    post_save, sender=Contribution, dispatch_uid="recalc_hot_score_on_contribution"
+)
+def recalc_hot_score_on_contribution(instance, **kwargs):
+    try:
+        recalc_hot_score_task.apply_async(
+            (instance.content_type_id, instance.object_id),
+            priority=2,
+            countdown=5,
+        )
+    except Exception as error:
         sentry.log_error(error)
 
 
