@@ -13,6 +13,7 @@ from feed.serializers import (
     PaperSerializer,
     PostSerializer,
 )
+from feed.views.common import get_common_serializer_context
 from hub.models import Hub
 from hub.serializers import SimpleHubSerializer
 from hub.tests.helpers import create_hub
@@ -207,6 +208,9 @@ class PostSerializerTests(TestCase):
             status=Fundraise.OPEN,
         )
 
+        # Get the context with the field specifications
+        context = get_common_serializer_context()
+
         # Mock the RscExchangeRate.usd_to_rsc method to avoid database dependency
         with patch.object(
             RscExchangeRate, "usd_to_rsc", return_value=200.0
@@ -215,8 +219,8 @@ class PostSerializerTests(TestCase):
             "get_amount_raised",
             side_effect=lambda currency: 50.0 if currency == USD else 100.0,
         ):
-            # Serialize the post
-            serializer = PostSerializer(preregistration_post)
+            # Serialize the post with the context
+            serializer = PostSerializer(preregistration_post, context=context)
             data = serializer.data
 
             # Assert basic post fields
@@ -228,6 +232,35 @@ class PostSerializerTests(TestCase):
             self.assertIsNotNone(data["fundraise"])
             self.assertEqual(data["fundraise"]["id"], fundraise.id)
             self.assertEqual(data["fundraise"]["status"], fundraise.status)
+
+            # Check created_by field
+            self.assertIn("created_by", data["fundraise"])
+            created_by = data["fundraise"]["created_by"]
+            self.assertEqual(created_by["id"], self.user.id)
+            self.assertIn("first_name", created_by)
+            self.assertIn("last_name", created_by)
+
+            # Check author_profile field
+            self.assertIn("author_profile", created_by)
+            author_profile = created_by["author_profile"]
+            expected_profile_fields = [
+                "id",
+                "first_name",
+                "last_name",
+                "created_date",
+                "updated_date",
+                "profile_image",
+                "is_verified",
+            ]
+            for field in expected_profile_fields:
+                self.assertIn(field, author_profile)
+
+            # Verify only the expected fields are present in created_by
+            expected_user_fields = ["id", "author_profile", "first_name", "last_name"]
+            self.assertEqual(set(created_by.keys()), set(expected_user_fields))
+
+            # Verify only the expected fields are present in author_profile
+            self.assertEqual(set(author_profile.keys()), set(expected_profile_fields))
 
             # Check goal_amount which is now a dictionary with usd and rsc values
             self.assertIn("goal_amount", data["fundraise"])

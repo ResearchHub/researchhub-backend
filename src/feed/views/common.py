@@ -27,6 +27,33 @@ class FeedPagination(PageNumberPagination):
     max_page_size = 100
 
 
+def get_common_serializer_context():
+    """
+    Returns common serializer context used across feed-related viewsets.
+    """
+    context = {}
+    context["pch_dfs_get_created_by"] = {
+        "_include_fields": (
+            "id",
+            "author_profile",
+            "first_name",
+            "last_name",
+        )
+    }
+    context["usr_dus_get_author_profile"] = {
+        "_include_fields": (
+            "id",
+            "first_name",
+            "last_name",
+            "created_date",
+            "updated_date",
+            "profile_image",
+            "is_verified",
+        )
+    }
+    return context
+
+
 def get_cache_key(request: Request, feed_type: str = "") -> str:
     feed_view = request.query_params.get("feed_view", "latest")
     hub_slug = request.query_params.get("hub_slug")

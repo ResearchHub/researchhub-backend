@@ -26,6 +26,7 @@ from .common import (
     FeedPagination,
     add_user_votes_to_response,
     get_cache_key,
+    get_common_serializer_context,
 )
 
 
@@ -45,6 +46,11 @@ class FundingFeedViewSet(viewsets.ModelViewSet):
     serializer_class = PostSerializer
     permission_classes = []
     pagination_class = FeedPagination
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context.update(get_common_serializer_context())
+        return context
 
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
