@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.models import ContentType
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
@@ -28,36 +29,14 @@ def recalc_hot_score(instance, sender, **kwargs):
 
 
 @receiver(post_save, sender=RhCommentModel, dispatch_uid="recalc_hot_score_on_comment")
-def recalc_hot_score_on_comment(instance, **kwargs):
-    try:
-        recalc_hot_score_task.apply_async(
-            (instance.content_type_id, instance.id),
-            priority=2,
-            countdown=5,
-        )
-    except Exception as error:
-        sentry.log_error(error)
-
-
-@receiver(post_save, sender=Bounty, dispatch_uid="recalc_hot_score_on_bounty")
-def recalc_hot_score_on_bounty(instance, **kwargs):
-    try:
-        recalc_hot_score_task.apply_async(
-            (instance.content_type_id, instance.id),
-            priority=2,
-            countdown=5,
-        )
-    except Exception as error:
-        sentry.log_error(error)
-
-
 @receiver(
     post_save, sender=Contribution, dispatch_uid="recalc_hot_score_on_contribution"
 )
-def recalc_hot_score_on_contribution(instance, **kwargs):
+@receiver(post_save, sender=Bounty, dispatch_uid="recalc_hot_score_on_bounty")
+def recalc_hot_score_on_instance(instance, **kwargs):
     try:
         recalc_hot_score_task.apply_async(
-            (instance.content_type_id, instance.object_id),
+            (ContentType.objects.get_for_model(instance).id, instance.id),
             priority=2,
             countdown=5,
         )
