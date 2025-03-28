@@ -111,6 +111,7 @@ class PaperSerializer(ContentObjectSerializer):
     title = serializers.CharField()
     abstract = serializers.CharField()
     doi = serializers.CharField()
+    work_type = serializers.CharField()
 
     def get_journal(self, obj):
         if not hasattr(obj, "unified_document") or not obj.unified_document:

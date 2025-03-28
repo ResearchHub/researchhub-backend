@@ -128,6 +128,28 @@ class PaperSerializerTests(TestCase):
         )
         self.assertIn("raw_authors", data)
         self.assertEqual(data["raw_authors"], ["Test Author", "Test Author 2"])
+        self.assertIn("work_type", data)
+
+    def test_serializes_paper_with_work_type(self):
+        # Test various work_type values
+        work_types = ["article", "preprint", "review", "editorial"]
+
+        for work_type in work_types:
+            # Create a paper with the work type
+            paper = create_paper(
+                uploaded_by=self.user,
+                title=f"Test Paper - {work_type}",
+            )
+            paper.work_type = work_type
+            paper.save()
+
+            # Serialize and check
+            serializer = PaperSerializer(paper)
+            data = serializer.data
+
+            # Verify the work_type is serialized correctly
+            self.assertIn("work_type", data)
+            self.assertEqual(data["work_type"], work_type)
 
     def test_serializes_paper_with_journal_without_image(self):
         # Create a new journal hub without an image
