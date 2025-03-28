@@ -57,6 +57,9 @@ class Command(BaseCommand):
 
             queryset = queryset.filter(empty_fields_filter)
 
+        # Order by ID in descending order to process the most recent entries first
+        queryset = queryset.order_by("-id")
+
         for feed_entry in queryset.iterator(chunk_size=CHUNK_SIZE):
             feed_item = feed_entry.item
             fields_to_update = []
