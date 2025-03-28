@@ -32,6 +32,8 @@ class SuggestView(APIView):
     }
 
     # Map of index names to their document classes and transform functions
+    # Note: The "author" index is used for searching people profiles, even though
+    # the actual Elasticsearch index is named "person"
     INDEX_MAP = {
         "paper": {
             "document": PaperDocument,
