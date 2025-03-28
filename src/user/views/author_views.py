@@ -1098,3 +1098,30 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
             },
         }
         return context
+
+    @action(detail=True, methods=["get"], permission_classes=[AllowAny])
+    def minimal_overview(self, request, pk=None):
+        author = self.get_object()
+        context = {
+            "usr_dus_get_author_profile": {
+                "_include_fields": (
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "university",
+                    "facebook",
+                    "linkedin",
+                    "twitter",
+                    "google_scholar",
+                    "description",
+                    "education",
+                    "headline",
+                    "profile_image",
+                )
+            }
+        }
+        serializer = AuthorSerializer(
+            author,
+            context=context,
+        )
+        return Response(serializer.data, status=200)

@@ -59,3 +59,13 @@ class AuthorApiTests(APITestCase):
         url = f"/api/author/{self.user_with_published_works.author_profile.id}/profile/"
         response = self.client.get(url, {})
         self.assertIn("id", response.data)
+
+    def test_minimal_overview(self):
+        url = f"/api/author/{self.user_with_published_works.author_profile.id}/minimal_overview/"
+        response = self.client.get(url, {})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("id", response.data)
+        self.assertIn("first_name", response.data)
+        self.assertIn("last_name", response.data)
+        # Check that the editor_of field is not included
+        self.assertNotIn("editor_of", response.data)
