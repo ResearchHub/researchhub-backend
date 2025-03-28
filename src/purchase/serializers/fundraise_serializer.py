@@ -1,4 +1,3 @@
-from django.db import models
 from rest_framework import serializers
 
 from purchase.models import Fundraise
@@ -6,7 +5,6 @@ from purchase.related_models.constants.currency import RSC, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.serializers.escrow_serializer import DynamicEscrowSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
-from user.models import User
 from user.serializers import DynamicUserSerializer
 
 
@@ -63,36 +61,53 @@ class DynamicFundraiseSerializer(DynamicModelFieldSerializer):
         }
 
     def get_contributors(self, fundraise):
-        # Aggregate contributions by user and order by total contribution amount
-        top_contributors = (
-            fundraise.purchases.values("user_id")
-            .annotate(
-                amount_decimal=models.functions.Cast(
-                    "amount", models.DecimalField(max_digits=19, decimal_places=10)
-                )
-            )
-            .annotate(
-                total_amount=models.Sum(
-                    "amount_decimal"
-                )  # Assuming amount_decimal is a field in Purchase
-            )
-            .order_by("-total_amount")[:3]
-        )  # Selecting top 3
-
-        # Fetch user instances for top contributors
-        user_ids = [contributor["user_id"] for contributor in top_contributors]
-        top_3_users = User.objects.filter(id__in=user_ids)
-
-        # Serialize the user data
-        context = self.context
-        _context_fields = context.get("pch_dfs_get_contributors", {})
-        serializer = DynamicUserSerializer(
-            top_3_users, many=True, context=context, **_context_fields
+        # Get all contributions in a single query with prefetched user data
+        contributions = fundraise.purchases.select_related("user").order_by(
+            "-created_date"
         )
 
-        total_contributors = fundraise.purchases.values("user").distinct().count()
+        # Process all contributions to build user data
+        user_data = {}
+        for contribution in contributions:
+            user_id = contribution.user_id
+            amount = float(contribution.amount)
+
+            if user_id not in user_data:
+                user_data[user_id] = {
+                    "user": contribution.user,
+                    "total": 0,
+                    "contributions": [],
+                }
+
+            # Add to running total
+            user_data[user_id]["total"] += amount
+
+            # Add contribution details
+            user_data[user_id]["contributions"].append(
+                {"amount": amount, "date": contribution.created_date}
+            )
+
+        # Serialize users
+        context = self.context
+        _context_fields = context.get("pch_dfs_get_contributors", {})
+
+        result = []
+        for user_id, data in user_data.items():
+            # Serialize the user
+            serializer = DynamicUserSerializer(
+                data["user"], context=context, **_context_fields
+            )
+            user_result = serializer.data
+
+            # Add contribution data
+            user_result["total_contribution"] = data["total"]
+            user_result["contributions"] = data["contributions"]
+            result.append(user_result)
+
+        # Sort by total contribution (descending)
+        result = sorted(result, key=lambda x: x["total_contribution"], reverse=True)
 
         return {
-            "total": total_contributors,
-            "top": serializer.data,
+            "total": len(user_data),
+            "top": result,  # Keep original key for backward compatibility
         }

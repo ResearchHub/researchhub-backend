@@ -248,6 +248,65 @@ class FundraiseViewTests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
 
+    def test_fundraise_contributors_data_structure(self):
+        # Create a fundraise
+        fundraise_response = self._create_fundraise(self.post.id, goal_amount=500)
+        fundraise_id = fundraise_response.data["id"]
+
+        # Create multiple users who will contribute
+        user1 = create_random_authenticated_user("fundraise_contributor1")
+        user2 = create_random_authenticated_user("fundraise_contributor2")
+        user3 = create_random_authenticated_user("fundraise_contributor3")
+
+        # Give users balance
+        self._give_user_balance(user1, 1000)
+        self._give_user_balance(user2, 1000)
+        self._give_user_balance(user3, 1000)
+
+        # Have users make multiple contributions of different amounts
+        self._create_contribution(fundraise_id, user1, amount=100)
+        self._create_contribution(fundraise_id, user1, amount=50)
+        self._create_contribution(fundraise_id, user2, amount=200)
+        self._create_contribution(fundraise_id, user3, amount=75)
+
+        # Get the fundraise data
+        self.client.force_authenticate(self.user)
+        response = self.client.get(f"/api/fundraise/{fundraise_id}/")
+
+        # Check contributors structure
+        contributors = response.data["contributors"]
+
+        # Verify total count
+        self.assertEqual(contributors["total"], 3)
+
+        # Verify contributors are sorted by total contribution (descending)
+        top_contributors = contributors["top"]
+        self.assertEqual(len(top_contributors), 3)
+
+        # User2 should be first (200 RSC)
+        self.assertEqual(top_contributors[0]["id"], user2.id)
+        self.assertEqual(top_contributors[0]["total_contribution"], 200.0)
+        self.assertEqual(len(top_contributors[0]["contributions"]), 1)
+
+        # User1 should be second (150 RSC total)
+        self.assertEqual(top_contributors[1]["id"], user1.id)
+        self.assertEqual(top_contributors[1]["total_contribution"], 150.0)
+        self.assertEqual(len(top_contributors[1]["contributions"]), 2)
+
+        # User3 should be third (75 RSC)
+        self.assertEqual(top_contributors[2]["id"], user3.id)
+        self.assertEqual(top_contributors[2]["total_contribution"], 75.0)
+        self.assertEqual(len(top_contributors[2]["contributions"]), 1)
+
+        # Verify individual contributions for user1 (who made multiple contributions)
+        user1_contributions = top_contributors[1]["contributions"]
+        self.assertEqual(len(user1_contributions), 2)
+
+        # Verify contribution amounts (not checking order since it depends on implementation)
+        contribution_amounts = [c["amount"] for c in user1_contributions]
+        self.assertIn(50.0, contribution_amounts)
+        self.assertIn(100.0, contribution_amounts)
+
     def test_create_contribution_closed_fundraise(self):
         fundraise = self._create_fundraise(self.post.id, goal_amount=100)
         fundraise_id = fundraise.data["id"]
