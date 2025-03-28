@@ -1,6 +1,5 @@
 import uuid
-from unittest import mock
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -13,8 +12,6 @@ from rest_framework.test import APIClient
 
 from discussion.reaction_models import Vote as GrmVote
 from feed.models import FeedEntry
-from feed.views.common import get_cache_key
-from feed.views.feed_view import FeedViewSet
 from hub.models import Hub
 from paper.models import Paper
 from reputation.related_models.bounty import Bounty
