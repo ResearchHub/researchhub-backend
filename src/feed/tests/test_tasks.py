@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
@@ -62,7 +64,8 @@ class FeedTasksTest(TestCase):
         self.assertEqual(feed_entry.unified_document, self.paper.unified_document)
 
     def test_create_feed_entry_twice(self):
-        """Test that attempting to create the same feed entry twice doesn't raise an error"""
+        """Test that attempting to create the same feed entry twice
+        doesn't raise an error"""
         # Act
         feed_entry = create_feed_entry(
             item_id=self.paper.id,
@@ -209,16 +212,26 @@ class FeedTasksTest(TestCase):
             user_id=self.user.id,
         )
 
-        # Act
-        update_feed_metrics(
-            item_id=self.paper.id,
-            item_content_type_id=self.paper_content_type.id,
-            metrics={"votes": 10},
-        )
+        # Create mock review metrics
+        review_metrics = {"avg": 4.7, "count": 5}
 
-        # Assert
-        feed_entry = FeedEntry.objects.get(id=feed_entry.id)
-        self.assertEqual(feed_entry.metrics["votes"], 10)
+        # Act
+        with patch.object(
+            self.paper.unified_document,
+            "get_review_details",
+            return_value=review_metrics,
+        ):
+            update_feed_metrics(
+                item_id=self.paper.id,
+                item_content_type_id=self.paper_content_type.id,
+                metrics={"votes": 10, "review_metrics": review_metrics},
+            )
+
+            # Assert
+            feed_entry = FeedEntry.objects.get(id=feed_entry.id)
+            self.assertEqual(feed_entry.metrics["votes"], 10)
+            self.assertIn("review_metrics", feed_entry.metrics)
+            self.assertEqual(feed_entry.metrics["review_metrics"], review_metrics)
 
     def test_update_feed_metrics_feed_entry_does_not_exist(self):
         """Test updating feed metrics for a feed entry that doesn't exist"""
