@@ -60,6 +60,11 @@ class ResearchhubPost(AbstractGenericReactionModel):
         null=True,
         upload_to="uploads/post_eln/%Y/%m/%d/",
     )
+    image = models.TextField(
+        blank=True,
+        null=True,
+        default=None,
+    )
     note = models.OneToOneField(
         "note.Note",
         null=True,
