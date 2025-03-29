@@ -170,6 +170,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "paper_publish_date",
                     "paper_title",
                     "pdf_url",
+                    "image_url",
                     "is_open_access",
                     "oa_status",
                     "pdf_copyright_allows_display",
