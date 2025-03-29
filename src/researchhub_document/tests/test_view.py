@@ -1,6 +1,7 @@
 import time
 
 from django.contrib.contenttypes.models import ContentType
+from django.test import override_settings
 from rest_framework.test import APITestCase
 
 from hub.models import Hub
@@ -313,6 +314,7 @@ class ViewTests(APITestCase):
                 "document_type": "DISCUSSION",
                 "created_by": self.admin_user.id,
                 "full_src": "body",
+                "image": "/imagePath1",
                 "is_public": True,
                 "note_id": note[0].id,
                 "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
@@ -330,6 +332,7 @@ class ViewTests(APITestCase):
                 "document_type": "DISCUSSION",
                 "created_by": self.admin_user.id,
                 "full_src": "body",
+                "image": "/updatedImagePath1",
                 "is_public": True,
                 "title": "updated title. updated title. updated title.",
                 "renderable_text": "sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body. sufficiently long body",
@@ -341,6 +344,7 @@ class ViewTests(APITestCase):
             updated_response.data["title"],
             "updated title. updated title. updated title.",
         )
+        self.assertEqual(updated_response.data["image_url"], "/updatedImagePath1")
 
     def test_author_cannot_update_post_with_non_members(self):
         note = create_note(self.admin_user, self.organization)

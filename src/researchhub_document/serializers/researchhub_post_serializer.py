@@ -1,4 +1,6 @@
+from django.core.files.storage import default_storage
 from rest_framework.serializers import (
+    CharField,
     ModelSerializer,
     ReadOnlyField,
     SerializerMethodField,
@@ -43,6 +45,8 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             "has_accepted_answer",
             "hubs",
             "id",
+            "image",
+            "image_url",
             "is_latest_version",
             "is_removed",
             "is_root_version",
@@ -65,6 +69,7 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             "created_by",
             "created_date",
             "discussion_count",
+            "image_url",
             "is_latest_version",
             "is_root_version",
             "note",
@@ -88,6 +93,8 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
     full_markdown = SerializerMethodField(method_name="get_full_markdown")
     has_accepted_answer = ReadOnlyField()  # @property
     hubs = SerializerMethodField(method_name="get_hubs")
+    image = CharField(write_only=True, required=False, allow_null=True)
+    image_url = SerializerMethodField()
     is_removed = SerializerMethodField()
     note = SerializerMethodField()
     post_src = SerializerMethodField(method_name="get_post_src")
@@ -120,6 +127,12 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
 
     def get_created_by(self, instance):
         return UserSerializer(instance.created_by, read_only=True).data
+
+    def get_image_url(self, instance):
+        if not instance.image:
+            return None
+
+        return default_storage.url(instance.image)
 
     def get_is_removed(self, instance):
         unified_document = instance.unified_document

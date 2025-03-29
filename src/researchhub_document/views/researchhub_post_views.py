@@ -157,6 +157,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     doi=doi.doi if doi else None,
                     slug=slug,
                     editor_type=CK_EDITOR if editor_type is None else editor_type,
+                    image=data.get("image"),
                     note_id=note_id,
                     prev_version=None,
                     preview_img=data.get("preview_img"),
@@ -243,7 +244,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         authors = data.get("authors", [])
         rh_post_id = data.get("post_id", None)
         rh_post = ResearchhubPost.objects.get(id=rh_post_id)
-
         # Check if all given authors are in the same organization
         if rh_post.note_id:
             note = Note.objects.get(id=rh_post.note_id)
