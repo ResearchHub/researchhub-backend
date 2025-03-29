@@ -221,12 +221,12 @@ urlpatterns = [
         name="nonprofit-create",
     ),
     path(
-        "api/organizations/non-profit/link-to-fundraise/",
+        "api/organizations/non-profit/link_to_fundraise/",
         NonprofitFundraiseLinkViewSet.as_view({"post": "link_to_fundraise"}),
         name="nonprofit-link-to-fundraise",
     ),
     path(
-        "api/organizations/non-profit/get-by-fundraise/",
+        "api/organizations/non-profit/get_by_fundraise/",
         NonprofitFundraiseLinkViewSet.as_view({"get": "get_by_fundraise"}),
         name="nonprofit-get-by-fundraise",
     ),
