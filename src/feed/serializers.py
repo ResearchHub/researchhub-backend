@@ -1,4 +1,5 @@
 from django.contrib.contenttypes.models import ContentType
+from django.core.files.storage import default_storage
 from rest_framework import serializers
 
 from hub.models import Hub
@@ -154,6 +155,13 @@ class PostSerializer(ContentObjectSerializer):
     title = serializers.CharField()
     type = serializers.CharField(source="document_type")
     fundraise = serializers.SerializerMethodField()
+    image_url = serializers.SerializerMethodField()
+
+    def get_image_url(self, obj):
+        if not obj.image:
+            return None
+
+        return default_storage.url(obj.image)
 
     def get_renderable_text(self, obj):
         text = obj.renderable_text[:255]

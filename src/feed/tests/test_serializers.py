@@ -1,6 +1,8 @@
 from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
+from django.core.files.storage import default_storage
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
 from django.utils import timezone
 
@@ -311,6 +313,38 @@ class PostSerializerTests(TestCase):
             self.assertIn("total", data["fundraise"]["contributors"])
             self.assertEqual(data["fundraise"]["contributors"]["total"], 0)
             self.assertIn("top", data["fundraise"]["contributors"])
+
+    def test_serializes_post_image_url(self):
+        """Test that image_url is correctly serialized for posts."""
+        # Post without image (using self.post from setUp)
+        serializer_no_image = PostSerializer(self.post)
+        data_no_image = serializer_no_image.data
+        self.assertIn("image_url", data_no_image)
+        self.assertIsNone(data_no_image["image_url"])
+
+        # Create post WITH image
+        unified_doc_with_image = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.DISCUSSION
+        )
+        dummy_image = SimpleUploadedFile(
+            "test_serializer_image.jpg", b"file_content", content_type="image/jpeg"
+        )
+        post_with_image = ResearchhubPost.objects.create(
+            title="Post With Image Serializer Test",
+            created_by=self.user,
+            document_type=document_type.DISCUSSION,
+            unified_document=unified_doc_with_image,
+            image=dummy_image,
+        )
+
+        serializer_with_image = PostSerializer(post_with_image)
+        data_with_image = serializer_with_image.data
+        self.assertIn("image_url", data_with_image)
+        self.assertIsNotNone(data_with_image["image_url"])
+        self.assertEqual(
+            data_with_image["image_url"],
+            default_storage.url(post_with_image.image.name),
+        )
 
 
 class CommentSerializerTests(TestCase):
