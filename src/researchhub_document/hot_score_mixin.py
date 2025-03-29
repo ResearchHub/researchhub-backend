@@ -3,6 +3,8 @@ import math
 
 from django.db.models import Q
 
+from purchase.related_models.constants.currency import RSC
+from purchase.related_models.fundraise_model import Fundraise
 from reputation.related_models.bounty import Bounty
 
 
@@ -108,6 +110,67 @@ class HotScoreMixin:
 
         return total_bounty_score
 
+    def _calc_fundraise_score(self):
+        """
+        Calculate score for fundraises similar to bounty score:
+        - Higher scores for new fundraises or those close to expiring
+        - Score based on amount raised and proximity to promotion period boundaries
+        """
+        total_fundraise_score = 0
+        try:
+            # Same promotion period as bounties (3 days in seconds)
+            fundraise_promo_period = 259200
+            # Get all open fundraises for this document
+            fundraises = Fundraise.objects.filter(
+                unified_document_id=self.id, status=Fundraise.OPEN
+            )
+
+            for fundraise in fundraises:
+                # Get time since creation
+                now = datetime.datetime.now(datetime.timezone.utc)
+                seconds_since_create = (now - fundraise.start_date).total_seconds()
+
+                # Calculate time to expiration if end_date exists
+                seconds_to_expiration = 0
+                if fundraise.end_date:
+                    seconds_to_expiration = (fundraise.end_date - now).total_seconds()
+
+                # Initialize variables
+                percentage_within_promo_period = 0
+                this_fundraise_score = 0
+
+                # Check if fundraise is new or about to expire
+                is_near_new = 0 < seconds_since_create < fundraise_promo_period
+                is_near_expire = 0 < seconds_to_expiration < fundraise_promo_period
+
+                # Calculate percentage within promotion period
+                if is_near_new:
+                    numerator = fundraise_promo_period - seconds_since_create
+                    percentage_within_promo_period = (
+                        numerator / fundraise_promo_period
+                    ) * 100
+                elif is_near_expire:
+                    numerator = fundraise_promo_period - seconds_to_expiration
+                    percentage_within_promo_period = (
+                        numerator / fundraise_promo_period
+                    ) * 100
+
+                # Get amount raised in USD
+                amount_raised = fundraise.get_amount_raised(currency=RSC)
+
+                # Calculate score if in promotion period
+                if is_near_new or is_near_expire:
+                    # Use log base 100 for amount and log base 7 for percentage
+                    amount_factor = math.log(amount_raised + 1, 100)
+                    percent_factor = math.log(percentage_within_promo_period + 1, 7)
+                    this_fundraise_score = amount_factor + percent_factor
+                    total_fundraise_score += this_fundraise_score
+
+        except Exception as e:
+            print(e)
+
+        return total_fundraise_score
+
     # The basic idea is to take a bunch of signals (e.g discussion count) and
     # add them to some time score elapsed since the epoch. The signals should be
     # somewhat comparable to the time score. To do that, we pass these signals through
@@ -125,6 +188,7 @@ class HotScoreMixin:
         total_comment_vote_score = self._count_doc_comment_votes(doc)
         boost_score = self._calc_boost_score()
         bounty_score = self._calc_bounty_score()
+        fundraise_score = self._calc_fundraise_score()
         time_score = self._get_time_score(self.created_date)
         time_score_with_magnitude = self._c(doc_vote_net_score) * time_score
         doc_vote_score = math.log(abs(doc_vote_net_score) + 1, 2)
@@ -143,7 +207,13 @@ class HotScoreMixin:
         ):
             time_score_with_magnitude *= -1
 
-        agg_score = discussion_vote_score + doc_vote_score + boost_score + bounty_score
+        agg_score = (
+            discussion_vote_score
+            + doc_vote_score
+            + boost_score
+            + bounty_score
+            + fundraise_score
+        )
 
         hot_score = (agg_score + time_score_with_magnitude) * 1000
 
@@ -158,9 +228,10 @@ class HotScoreMixin:
             },
             "votes": {"doc_votes": doc_vote_net_score, "=score": doc_vote_score},
             "boost_score": {"=score": boost_score},
+            "bounty_score": {"=score": bounty_score},
+            "fundraise_score": {"=score": fundraise_score},
             "agg_score": agg_score,
             "time_score": time_score,
-            "bounty_score": {"=score": bounty_score},
             "time_score_with_magnitude": time_score_with_magnitude,
             "=hot_score": hot_score,
         }
