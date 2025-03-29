@@ -26,6 +26,31 @@ class HotScoreMixin:
             )
         ).count()
 
+    def _get_relevant_date(self):
+        """
+        Get the most relevant date for the document.
+        If a fundraise expires in the next 3 days, use that date.
+        Otherwise, use the document creation date.
+        """
+        date = self.created_date
+
+        # Define the 3-day threshold
+        three_days = datetime.timedelta(days=3)
+        now = datetime.datetime.now(datetime.timezone.utc)
+
+        for fundraise in self.fundraises.all():
+            # Only use end_date if it exists, is in the future,
+            # within 3 days, and is greater than current date
+            if (
+                fundraise.end_date
+                and fundraise.end_date > date
+                and fundraise.end_date > now  # Check if end date hasn't passed
+                and (fundraise.end_date - now) <= three_days
+            ):
+                date = fundraise.end_date
+
+        return date
+
     def _get_time_score(self, date):
         num_seconds_in_half_day = 43000
 
@@ -189,7 +214,10 @@ class HotScoreMixin:
         boost_score = self._calc_boost_score()
         bounty_score = self._calc_bounty_score()
         fundraise_score = self._calc_fundraise_score()
-        time_score = self._get_time_score(self.created_date)
+
+        relevant_date = self._get_relevant_date()
+        time_score = self._get_time_score(relevant_date)
+
         time_score_with_magnitude = self._c(doc_vote_net_score) * time_score
         doc_vote_score = math.log(abs(doc_vote_net_score) + 1, 2)
         discussion_vote_score = math.log(doc.discussion_count + 1, 2) + math.log(
