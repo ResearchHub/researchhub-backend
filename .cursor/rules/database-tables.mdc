@@ -9,6 +9,33 @@ This document provides a comprehensive reference of table compositions in the Re
 
 ## User Management
 
+### nonprofit_org
+
+**Description**: Nonprofit organizations that can receive donations.
+
+| Column               | Type                     | Description                        |
+| ----- | --- | ---- |
+| id                   | integer                  | Primary key                        |
+| name                 | character varying(255)   | Name of the nonprofit              |
+| ein                  | character varying(20)    | Employer Identification Number     |
+| endaoment_org_id     | character varying(100)   | Unique ID in Endaoment system      |
+| base_wallet_address  | character varying(42)    | Blockchain wallet address          |
+| created_date         | timestamp with time zone | Creation timestamp                 |
+| updated_date         | timestamp with time zone | Last update timestamp              |
+
+### nonprofit_fundraise_link
+
+**Description**: Join table connecting nonprofits and fundraising campaigns.
+
+| Column         | Type                       | Description                          |
+| ----- | ----- | --- |
+| id             | integer                    | Primary key                          |
+| nonprofit_id   | integer                    | Foreign key to nonprofit_org         |
+| fundraise_id   | integer                    | Foreign key to purchase_fundraise    |
+| note           | text                       | Notes about this specific link       |
+| created_date   | timestamp with time zone   | Creation timestamp                   |
+| updated_date   | timestamp with time zone   | Last update timestamp                |
+
 ### user_user
 
 **Description**: Core user account table.

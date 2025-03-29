@@ -16,6 +16,7 @@ ResearchHub's database design implements a domain-driven approach centered aroun
 3. **Reputation Economy**: A complete transaction system for academic reputation
 4. **Hub-based Organization**: Content categorization through research fields
 5. **User Identity System**: Separates user accounts from author profiles
+6. **Nonprofit Integration**: Supports fundraising for nonprofit organizations through the Endaoment service
 
 ## Entity Relationship Diagram (Conceptual)
 
@@ -34,6 +35,29 @@ ResearchHub's database design implements a domain-driven approach centered aroun
 +-------------+                  +------------------+                      |
 | user_action | <-------------> | reputation_score  | <-------------------+
 +-------------+                  +------------------+
++----+                  +---+                 +----+
+| user_user   | <----> | paper_paper      | <----> | hub_hub     |
++----+                  +---+                 +----+
+       |                                |                                   |
+       v                                v                                   v
++----+                  +---+                 +----+
+| user_author | <----> | discussion_thread | <----> | topic_topic |
++----+                  +---+                 +----+
+       |                                |                                   |
+       v                                v                                   |
++----+                  +---+                      |
+| user_action | <----> | reputation_score  | <----+
++----+                  +---+
+
+[NONPROFIT SYSTEM]
++---------------+                 +---------------+
+| nonprofit_org | <-------------> | purchase_fundraise |
++---------------+                 +---------------+
+       |                                |
+       v                                v
++------------------------+
+| nonprofit_fundraise_link |
++------------------------+
 ```
 
 ## Domain Models
@@ -121,6 +145,23 @@ The system uses Django's ContentType framework for polymorphic relationships:
 
 ## Core Workflows
 
+### Nonprofit Fundraising Workflow
+
+```
+                                             ┌─── Search for Nonprofit
+                                             │
+User → Create Fundraise → Select Nonprofit → Link to Document → Process Donations
+                                             │
+                                             └─── Distribute Funds
+```
+
+Implementation path:
+1. Search for nonprofit via Endaoment API
+2. Create or select a nonprofit entry in `nonprofit_org`
+3. Create a fundraise in `purchase_fundraise`
+4. Link them through `nonprofit_fundraise_link`
+5. Process donations and distribute funds
+
 ### Paper Publication Workflow
 
 ```
@@ -174,6 +215,27 @@ Implementation path:
 5. Update content metrics (score, etc.)
 
 ## Query Optimization Guidelines
+
+### Nonprofit Query Patterns
+
+When performing nonprofit-related queries:
+
+1. **Search via External API**:
+   ```sql
+   -- Avoid directly querying the database for nonprofits not yet in the system
+   -- Instead, use the Endaoment API for initial searches
+   -- Then store results in nonprofit_org for future reference
+   ```
+
+2. **Fundraise Relationships**:
+   ```sql
+   -- Good: Efficient join through the link table
+   SELECT n.name, n.ein, f.goal_amount
+   FROM nonprofit_org n
+   JOIN nonprofit_fundraise_link nfl ON n.id = nfl.nonprofit_id
+   JOIN purchase_fundraise f ON nfl.fundraise_id = f.id
+   WHERE f.unified_document_id = 123
+   ```
 
 ### Indexing Strategy
 

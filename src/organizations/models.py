@@ -54,10 +54,8 @@ class NonprofitFundraiseLink(DefaultModel):
     Join model representing the many-to-many relationship between nonprofit
     organizations and fundraising campaigns.
 
-    This allows:
-    1. A nonprofit to be associated with multiple fundraising campaigns
-    2. A fundraise to support multiple nonprofits
-    3. Each relationship to have a unique note
+    Each fundraise can only be associated with one nonprofit at a time.
+    The note field allows for additional context about the relationship.
     """
 
     nonprofit = models.ForeignKey(
@@ -88,7 +86,9 @@ class NonprofitFundraiseLink(DefaultModel):
         db_table = "nonprofit_fundraise_link"
         verbose_name = "Nonprofit-Fundraise Link"
         verbose_name_plural = "Nonprofit-Fundraise Links"
-        unique_together = ["nonprofit", "fundraise"]
+        constraints = [
+            models.UniqueConstraint(fields=["fundraise"], name="unique_fundraise")
+        ]
         indexes = [
             models.Index(fields=["nonprofit"]),
             models.Index(fields=["fundraise"]),

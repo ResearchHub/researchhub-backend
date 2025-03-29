@@ -86,9 +86,51 @@ class NonprofitFundraiseLinkViewSet(viewsets.ViewSet):
     This viewset provides endpoints to:
     1. Create or retrieve a nonprofit organization
     2. Link a nonprofit to a fundraise
+    3. Get nonprofit organizations linked to a fundraise
     """
 
     permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=["get"])
+    def get_by_fundraise(self, request):
+        """
+        Get nonprofit organizations associated with a fundraise.
+
+        Query Parameters:
+            - fundraise_id: ID of the fundraise
+
+        Returns:
+            List of objects containing:
+            - id: ID of the nonprofit-fundraise link
+            - nonprofit: Nonprofit organization details
+            - fundraise: Fundraise ID
+            - note: Notes about this specific link
+        """
+        fundraise_id = request.query_params.get("fundraise_id")
+        if not fundraise_id:
+            return Response(
+                {"error": "fundraise_id is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            # Validate fundraise exists
+            fundraise = Fundraise.objects.get(id=fundraise_id)
+        except Fundraise.DoesNotExist:
+            return Response(
+                {"error": "Fundraise not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Get all links for this fundraise
+        links = NonprofitFundraiseLink.objects.filter(fundraise=fundraise)
+
+        # If no links found, return empty list
+        if not links.exists():
+            return Response([])
+
+        # Serialize and return the links with nonprofit details
+        serializer = NonprofitFundraiseLinkSerializer(links, many=True)
+        return Response(serializer.data)
 
     @action(detail=False, methods=["post"])
     def create_nonprofit(self, request):
@@ -175,6 +217,10 @@ class NonprofitFundraiseLinkViewSet(viewsets.ViewSet):
         """
         Link a nonprofit organization to a fundraise.
 
+        If the fundraise is already linked to a different nonprofit, the existing link
+        will be updated to use the new nonprofit. This maintains the one-to-one
+        relationship between fundraises and nonprofits.
+
         Request Body:
             - nonprofit_id: ID of the nonprofit organization
             - fundraise_id: ID of the fundraise
@@ -217,22 +263,22 @@ class NonprofitFundraiseLinkViewSet(viewsets.ViewSet):
                 {"error": "Fundraise not found"}, status=status.HTTP_404_NOT_FOUND
             )
 
-        # Check if link already exists
+        # Check if fundraise is already linked to any nonprofit
         existing_link = NonprofitFundraiseLink.objects.filter(
-            nonprofit=nonprofit,
-            fundraise=fundraise,
+            fundraise=fundraise
         ).first()
 
         if existing_link:
-            # Update note if provided
+            # Update the existing link
+            existing_link.nonprofit = nonprofit
             if "note" in request.data:
                 existing_link.note = request.data.get("note", "")
-                existing_link.save()
+            existing_link.save()
 
             serializer = NonprofitFundraiseLinkSerializer(existing_link)
             return Response(serializer.data)
 
-        # Create new link
+        # Create new link if no existing link is found
         serializer = NonprofitFundraiseLinkSerializer(
             data={
                 "nonprofit": nonprofit.id,
