@@ -230,6 +230,7 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
     score = SerializerMethodField()
     unified_document = SerializerMethodField()
     user_vote = SerializerMethodField()
+    image_url = SerializerMethodField()
 
     class Meta:
         model = ResearchhubPost
@@ -368,3 +369,9 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
             return vote
         except Vote.DoesNotExist:
             return None
+
+    def get_image_url(self, post):
+        if not post.image:
+            return None
+
+        return default_storage.url(post.image)
