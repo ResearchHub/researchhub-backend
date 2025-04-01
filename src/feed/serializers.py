@@ -91,20 +91,6 @@ class ContentObjectSerializer(serializers.Serializer):
         abstract = True
 
 
-class PaperMetricsSerializer(serializers.Serializer):
-    """Serializer for paper metrics including votes and comments."""
-
-    votes = serializers.IntegerField(source="score", default=0)
-    comments = serializers.IntegerField(source="discussion_count", default=0)
-
-
-class PostMetricsSerializer(serializers.Serializer):
-    """Serializer for post metrics including votes and comments."""
-
-    votes = serializers.IntegerField(source="score", default=0)
-    comments = serializers.IntegerField(source="discussion_count", default=0)
-
-
 class PaperSerializer(ContentObjectSerializer):
     journal = serializers.SerializerMethodField()
     authors = SimpleAuthorSerializer(many=True)
@@ -310,12 +296,6 @@ class BountySerializer(serializers.Serializer):
         ]
 
 
-class CommentMetricsSerializer(serializers.Serializer):
-    """Serializer for comment metrics including votes."""
-
-    votes = serializers.IntegerField(source="score", default=0)
-
-
 class CommentSerializer(serializers.Serializer):
     comment_content_json = serializers.JSONField()
     comment_content_type = serializers.CharField()
@@ -328,6 +308,7 @@ class CommentSerializer(serializers.Serializer):
     post = serializers.SerializerMethodField()
     thread_id = serializers.IntegerField()
     review = serializers.SerializerMethodField()
+    parent_comment = serializers.SerializerMethodField()
 
     def get_document_type(self, obj):
         if obj.unified_document:
@@ -349,6 +330,12 @@ class CommentSerializer(serializers.Serializer):
         ):
             paper = obj.unified_document.paper
             return PaperSerializer(paper).data
+        return None
+
+    def get_parent_comment(self, obj):
+        """Return the parent comment associated with this comment if it exists"""
+        if obj.parent:
+            return CommentSerializer(obj.parent).data
         return None
 
     def get_post(self, obj):
