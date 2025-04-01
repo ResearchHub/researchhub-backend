@@ -361,11 +361,15 @@ class OpenAlex:
         source=None,
         openalex_author_id=None,
         from_updated_date=None,
+        core_sources_only: bool = False,
     ):
         """
         Fetches works from OpenAlex based on the given criteria.
 
         Works published on ResearchHub are filtered out (by DOI).
+
+        Args:
+            core_sources_only (bool): If True, only fetch works from "core sources".
         """
         # Build the filter
         oa_filters = []
@@ -380,6 +384,11 @@ class OpenAlex:
 
         if source_id:
             oa_filters.append(f"primary_location.source.id:{source_id}")
+
+        if core_sources_only:
+            # Only fetch works that are from "core sources".
+            # See: https://docs.openalex.org/api-entities/sources/source-object#is_core
+            oa_filters.append("primary_location.source.is_core:true")
 
         if since_date:
             # Format the date in YYYY-MM-DD format
