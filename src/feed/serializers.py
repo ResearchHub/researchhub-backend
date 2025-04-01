@@ -242,14 +242,11 @@ class BountyContributionSerializer(serializers.Serializer):
 class BountySerializer(serializers.Serializer):
     amount = serializers.SerializerMethodField()
     bounty_type = serializers.CharField()
-    comment = serializers.SerializerMethodField()
     contributors = serializers.SerializerMethodField()
     document_type = serializers.SerializerMethodField()
     expiration_date = serializers.DateTimeField()
     hub = serializers.SerializerMethodField()
     id = serializers.IntegerField()
-    paper = serializers.SerializerMethodField()
-    post = serializers.SerializerMethodField()
     status = serializers.CharField()
     contributions = serializers.SerializerMethodField()
 
@@ -287,12 +284,6 @@ class BountySerializer(serializers.Serializer):
             return SimpleAuthorSerializer(list(contributors), many=True).data
         return []
 
-    def get_comment(self, obj):
-        comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
-        if obj.item_content_type == comment_content_type:
-            return CommentSerializer(obj.item).data
-        return None
-
     def get_document_type(self, obj):
         return obj.unified_document.document_type
 
@@ -302,33 +293,15 @@ class BountySerializer(serializers.Serializer):
             return SimpleHubSerializer(hub).data if hub else None
         return None
 
-    def get_paper(self, obj):
-        if (
-            obj.unified_document
-            and obj.unified_document.document_type == document_type.PAPER
-        ):
-            paper = obj.unified_document.paper
-            return PaperSerializer(paper).data
-        return None
-
-    def get_post(self, obj):
-        if obj.unified_document and hasattr(obj.unified_document, "posts"):
-            post = obj.unified_document.posts.first()
-            return PostSerializer(post).data
-        return None
-
     class Meta:
         fields = [
             "amount",
             "bounty_type",
-            "comment",
             "contributors",
             "document_type",
             "expiration_date",
             "hub",
             "id",
-            "paper",
-            "post",
             "status",
             "contributions",
         ]
@@ -484,8 +457,6 @@ def serialize_feed_item(feed_item, item_content_type):
     """
 
     match item_content_type.model:
-        case "bounty":
-            return BountySerializer(feed_item).data
         case "paper":
             return PaperSerializer(feed_item).data
         case "researchhubpost":
