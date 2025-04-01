@@ -4,11 +4,9 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase
-from django.utils import timezone
 
 from feed.models import FeedEntry
 from feed.serializers import (
-    BountySerializer,
     CommentSerializer,
     ContentObjectSerializer,
     FeedEntrySerializer,
@@ -23,8 +21,6 @@ from paper.models import Paper
 from paper.tests.helpers import create_paper
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from reputation.related_models.bounty import Bounty
-from reputation.related_models.escrow import Escrow
 from researchhub_comment.constants import rh_comment_thread_types
 from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
@@ -443,125 +439,6 @@ class CommentSerializerTests(TestCase):
         self.assertEqual(data["post"]["title"], self.post.title)
 
 
-class BountySerializerTests(TestCase):
-    def setUp(self):
-        self.user = create_random_default_user("bountyCreator1")
-        self.contributor1 = create_random_default_user("contributor1")
-        self.contributor2 = create_random_default_user("contributor2")
-
-        self.paper = Paper.objects.create(title="testPaper1")
-        content_type = ContentType.objects.get_for_model(self.paper)
-
-        self.review_thread = RhCommentThreadModel.objects.create(
-            thread_type=rh_comment_thread_types.PEER_REVIEW,
-            content_type=content_type,
-            object_id=self.paper.id,
-            created_by=self.user,
-        )
-
-        self.comment = RhCommentModel.objects.create(
-            thread=self.review_thread,
-            created_by=self.user,
-            comment_content_json={"test": "test"},
-        )
-
-        self.researchhub_document = ResearchhubUnifiedDocument.objects.create()
-        self.researchhub_document.paper = self.paper
-        self.hub1 = Hub.objects.create(name="testHub1")
-        self.hub2 = Hub.objects.create(name="testHub2")
-        self.researchhub_document.hubs.add(self.hub1)
-        self.researchhub_document.hubs.add(self.hub2)
-
-        self.escrow = Escrow.objects.create(
-            created_by=self.user,
-            hold_type=Escrow.BOUNTY,
-            item=self.researchhub_document,
-        )
-
-        self.bounty = Bounty.objects.create(
-            amount=300,
-            status=Bounty.OPEN,
-            bounty_type=Bounty.Type.REVIEW,
-            unified_document=self.researchhub_document,
-            item=self.comment,
-            escrow=self.escrow,
-            created_by=self.user,
-        )
-
-        # Create child bounties with different creators (contributors)
-        self.child_bounty1 = Bounty.objects.create(
-            amount=100,
-            status=Bounty.OPEN,
-            bounty_type=Bounty.Type.REVIEW,
-            unified_document=self.researchhub_document,
-            item=self.comment,
-            escrow=self.escrow,
-            created_by=self.contributor1,  # First contributor
-            parent=self.bounty,
-        )
-
-        self.child_bounty2 = Bounty.objects.create(
-            amount=200,
-            status=Bounty.OPEN,
-            bounty_type=Bounty.Type.REVIEW,
-            unified_document=self.researchhub_document,
-            item=self.comment,
-            escrow=self.escrow,
-            created_by=self.contributor2,  # Second contributor
-            parent=self.bounty,
-        )
-
-    @patch(
-        "researchhub_document.related_models.researchhub_unified_document_model"
-        ".ResearchhubUnifiedDocument.get_primary_hub"
-    )
-    def test_serializes_bounty(self, mock_get_primary_hub):
-        # Arrange
-        post = ResearchhubPost.objects.create(
-            title="Test Post",
-            document_type=document_type.POSTS,
-            created_by=self.user,
-            unified_document=self.researchhub_document,
-        )
-
-        self.comment.score = 10
-        self.comment.save()
-
-        mock_get_primary_hub.return_value = self.hub1
-
-        # Act
-        serializer = BountySerializer(self.bounty)
-        data = serializer.data
-
-        # Assert
-        self.assertEqual(data["id"], self.bounty.id)
-        self.assertEqual(data["amount"], 600)
-        self.assertEqual(data["bounty_type"], self.bounty.bounty_type)
-        self.assertEqual(data["status"], self.bounty.status)
-
-        self.assertIn("hub", data)
-        self.assertEqual(data["hub"]["name"], self.hub1.name)
-
-        self.assertIn("paper", data)
-        self.assertEqual(data["paper"]["title"], self.paper.title)
-
-        self.assertIn("comment", data)
-        self.assertEqual(data["comment"]["comment_content_json"], {"test": "test"})
-
-        self.assertIn("post", data)
-        self.assertEqual(data["post"]["title"], post.title)
-        self.assertEqual(data["post"]["type"], document_type.POSTS)
-
-        self.assertIn("contributions", data)
-        contributions = sorted(data["contributions"], key=lambda x: x["amount"])
-        self.assertEqual(len(contributions), 3)
-        self.assertEqual(contributions[0]["amount"], 100)
-        self.assertEqual(contributions[1]["amount"], 200)
-        self.assertEqual(contributions[2]["amount"], 300)
-
-        mock_get_primary_hub.assert_called()
-
-
 class SimpleHubSerializerTests(TestCase):
     def setUp(self):
         self.hub = create_hub("Test Hub")
@@ -758,87 +635,6 @@ class FeedEntrySerializerTests(TestCase):
         self.assertIn("id", data)
         self.assertIn("content_type", data)
         self.assertEqual(data["content_type"], "RHCOMMENTMODEL")
-        self.assertIn("content_object", data)
-        self.assertIn("created_date", data)
-
-        # Verify metrics field exists and contains expected values
-        self.assertIn("metrics", data)
-        self.assertIsInstance(data["metrics"], dict)
-        self.assertIn("votes", data["metrics"])
-        self.assertEqual(data["metrics"]["votes"], 15)
-
-        mock_get_primary_hub.assert_called()
-
-    @patch(
-        "researchhub_document.related_models.researchhub_unified_document_model."
-        "ResearchhubUnifiedDocument.get_primary_hub"
-    )
-    def test_serializes_bounty_feed_entry(self, mock_get_primary_hub):
-        """Test serialization of bounty feed entries with metrics"""
-        # Create a hub
-        hub = create_hub("Test Hub")
-        mock_get_primary_hub.return_value = hub
-
-        # Create a paper for the comment
-        paper = create_paper(uploaded_by=self.user)
-
-        # Create a comment thread and comment with metrics
-        thread = RhCommentThreadModel.objects.create(
-            thread_type=rh_comment_thread_types.GENERIC_COMMENT,
-            content_type=ContentType.objects.get_for_model(Paper),
-            object_id=paper.id,
-            created_by=self.user,
-        )
-
-        comment = RhCommentModel.objects.create(
-            thread=thread,
-            created_by=self.user,
-            comment_content_json={"ops": [{"insert": "Test comment"}]},
-            score=15,
-        )
-
-        # Create escrow for the bounty
-        escrow = Escrow.objects.create(
-            created_by=self.user,
-            hold_type=Escrow.BOUNTY,
-            item=paper.unified_document,
-        )
-
-        # Create a bounty that references the comment
-        bounty = Bounty.objects.create(
-            amount=100.0,
-            bounty_type=Bounty.Type.OTHER,
-            created_by=self.user,
-            expiration_date=timezone.now() + timezone.timedelta(days=30),
-            item_content_type=ContentType.objects.get_for_model(RhCommentModel),
-            item_object_id=comment.id,
-            item=comment,
-            status=Bounty.OPEN,
-            unified_document=paper.unified_document,
-            escrow=escrow,
-        )
-
-        # Create a feed entry for the bounty
-        bounty_feed_entry = FeedEntry.objects.create(
-            content_type=ContentType.objects.get_for_model(Bounty),
-            object_id=bounty.id,
-            item=bounty,
-            created_date=bounty.created_date,
-            action="PUBLISH",
-            action_date=bounty.created_date,
-            metrics={"votes": 15},
-            user=self.user,
-            unified_document=paper.unified_document,
-        )
-
-        # Serialize the feed entry
-        serializer = FeedEntrySerializer(bounty_feed_entry)
-        data = serializer.data
-
-        # Verify basic feed entry fields
-        self.assertIn("id", data)
-        self.assertIn("content_type", data)
-        self.assertEqual(data["content_type"], "BOUNTY")
         self.assertIn("content_object", data)
         self.assertIn("created_date", data)
 

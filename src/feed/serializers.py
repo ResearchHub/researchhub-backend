@@ -423,13 +423,6 @@ def serialize_feed_metrics(item, item_content_type):
     Serialize metrics for a feed item based on its content type.
     """
     metrics = {}
-    if (
-        item_content_type.model == "bounty"
-        and item.item_content_type == ContentType.objects.get_for_model(RhCommentModel)
-    ):
-        # Metrics correspond to the comment associated with the bounty
-        item = item.item
-
     if hasattr(item, "score"):
         metrics["votes"] = getattr(item, "score", 0)
 

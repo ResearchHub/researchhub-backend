@@ -1,5 +1,5 @@
 import uuid
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
@@ -14,8 +14,6 @@ from discussion.reaction_models import Vote as GrmVote
 from feed.models import FeedEntry
 from hub.models import Hub
 from paper.models import Paper
-from reputation.related_models.bounty import Bounty
-from reputation.related_models.escrow import Escrow
 from researchhub_comment.constants import rh_comment_thread_types
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
@@ -488,28 +486,6 @@ class FeedViewSetTests(TestCase):
             comment_content_json={"ops": [{"insert": "Test comment"}]},
         )
 
-        escrow = Escrow.objects.create(
-            created_by=self.user,
-            hold_type=Escrow.BOUNTY,
-            item=self.unified_document,
-        )
-
-        bounty_comment = RhCommentModel.objects.create(
-            thread=paper_thread,
-            created_by=self.user,
-            comment_content_json={"ops": [{"insert": "Bounty comment"}]},
-        )
-
-        bounty = Bounty.objects.create(
-            amount=100,
-            status=Bounty.OPEN,
-            bounty_type=Bounty.Type.REVIEW,
-            unified_document=self.unified_document,
-            item=bounty_comment,
-            escrow=escrow,
-            created_by=self.user,
-        )
-
         FeedEntry.objects.create(
             content_type=self.paper_content_type,
             object_id=self.paper.id,
@@ -546,18 +522,6 @@ class FeedViewSetTests(TestCase):
             unified_document=self.unified_document,
         )
 
-        FeedEntry.objects.create(
-            content_type=ContentType.objects.get_for_model(Bounty),
-            object_id=bounty.id,
-            item=bounty,
-            created_date=timezone.now(),
-            action="PUBLISH",
-            action_date=timezone.now(),
-            metrics={"votes": 100, "comments": 10},
-            user=self.user,
-            unified_document=self.unified_document,
-        )
-
         GrmVote.objects.create(
             content_type=self.paper_content_type,
             object_id=self.paper.id,
@@ -580,13 +544,6 @@ class FeedViewSetTests(TestCase):
         )
 
         GrmVote.objects.create(
-            content_type=ContentType.objects.get_for_model(RhCommentModel),
-            object_id=bounty_comment.id,
-            created_by=self.user,
-            vote_type=GrmVote.UPVOTE,
-        )
-
-        GrmVote.objects.create(
             content_type=ContentType.objects.get_for_model(ResearchhubPost),
             object_id=self.post.id,
             created_by=self.user,
@@ -594,7 +551,7 @@ class FeedViewSetTests(TestCase):
         )
 
         feed_entries = FeedEntry.objects.all()
-        self.assertEqual(feed_entries.count(), 7)
+        self.assertEqual(feed_entries.count(), 6)
 
         # Act
         url = reverse("feed-list")
