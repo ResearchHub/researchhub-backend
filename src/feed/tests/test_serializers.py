@@ -21,6 +21,7 @@ from paper.models import Paper
 from paper.tests.helpers import create_paper
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from reputation.models import Bounty, Escrow
 from researchhub_comment.constants import rh_comment_thread_types
 from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
@@ -168,6 +169,44 @@ class PaperSerializerTests(TestCase):
         self.assertIn("journal", data)
         self.assertEqual(data["journal"]["name"], journal_without_image.name)
         self.assertEqual(data["journal"]["image"], None)
+
+    def test_serializes_paper_with_bounties(self):
+        """Test that paper serializes with bounties field when bounties exist"""
+        # Create an escrow for the bounty
+        escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.BOUNTY,
+            amount_holding=100,
+            content_type=ContentType.objects.get_for_model(self.paper),
+            object_id=self.paper.id,
+        )
+
+        # Create a bounty attached to the paper's unified document
+        bounty = Bounty.objects.create(
+            amount=100,
+            status=Bounty.OPEN,
+            bounty_type=Bounty.Type.REVIEW,
+            unified_document=self.paper.unified_document,
+            item_content_type=ContentType.objects.get_for_model(self.paper),
+            item_object_id=self.paper.id,
+            escrow=escrow,
+            created_by=self.user,
+        )
+
+        # Serialize the paper
+        serializer = PaperSerializer(self.paper)
+        data = serializer.data
+
+        # Verify bounties field exists and contains the bounty
+        self.assertIn("bounties", data)
+        self.assertIsInstance(data["bounties"], list)
+        self.assertEqual(len(data["bounties"]), 1)
+
+        # Verify bounty data
+        bounty_data = data["bounties"][0]
+        self.assertEqual(bounty_data["id"], bounty.id)
+        self.assertEqual(bounty_data["status"], bounty.status)
+        self.assertEqual(bounty_data["bounty_type"], bounty.bounty_type)
 
 
 class PostSerializerTests(TestCase):
@@ -341,6 +380,44 @@ class PostSerializerTests(TestCase):
             data_with_image["image_url"],
             default_storage.url(post_with_image.image.name),
         )
+
+    def test_serializes_post_with_bounties(self):
+        """Test that post serializes with bounties field when bounties exist"""
+        # Create an escrow for the bounty
+        escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.BOUNTY,
+            amount_holding=200,
+            content_type=ContentType.objects.get_for_model(self.post),
+            object_id=self.post.id,
+        )
+
+        # Create a bounty attached to the post's unified document
+        bounty = Bounty.objects.create(
+            amount=200,
+            status=Bounty.OPEN,
+            bounty_type=Bounty.Type.ANSWER,
+            unified_document=self.post.unified_document,
+            item_content_type=ContentType.objects.get_for_model(self.post),
+            item_object_id=self.post.id,
+            escrow=escrow,
+            created_by=self.user,
+        )
+
+        # Serialize the post
+        serializer = PostSerializer(self.post)
+        data = serializer.data
+
+        # Verify bounties field exists and contains the bounty
+        self.assertIn("bounties", data)
+        self.assertIsInstance(data["bounties"], list)
+        self.assertEqual(len(data["bounties"]), 1)
+
+        # Verify bounty data
+        bounty_data = data["bounties"][0]
+        self.assertEqual(bounty_data["id"], bounty.id)
+        self.assertEqual(bounty_data["status"], bounty.status)
+        self.assertEqual(bounty_data["bounty_type"], bounty.bounty_type)
 
 
 class CommentSerializerTests(TestCase):
