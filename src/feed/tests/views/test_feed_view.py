@@ -780,10 +780,10 @@ class FeedViewSetTests(TestCase):
 
         # Create multiple feed entries for the same paper with different dates
         # and actions
-        newer_entry = FeedEntry.objects.create(
+        _ = FeedEntry.objects.create(
             user=self.user,
-            action="COMMENT",
-            action_date=timezone.now(),
+            action="OPEN",
+            action_date=timezone.now() - timezone.timedelta(days=5),
             content_type=self.paper_content_type,
             object_id=self.paper.id,
             parent_content_type=self.hub_content_type,
@@ -791,11 +791,10 @@ class FeedViewSetTests(TestCase):
             unified_document=self.unified_document,
         )
 
-        # Using OPEN action to avoid unique constraint violation
-        _ = FeedEntry.objects.create(  # noqa: F841
+        newer_entry = FeedEntry.objects.create(
             user=self.user,
-            action="OPEN",
-            action_date=timezone.now() - timezone.timedelta(days=5),
+            action="COMMENT",
+            action_date=timezone.now(),
             content_type=self.paper_content_type,
             object_id=self.paper.id,
             parent_content_type=self.hub_content_type,
