@@ -97,10 +97,6 @@ def _create_comment_feed_entries(comment):
     ):
         return
 
-    if comment.comment_type != PEER_REVIEW:
-        # Ignore non-peer review comments
-        return
-
     tasks = [
         partial(
             create_feed_entry.apply_async,
