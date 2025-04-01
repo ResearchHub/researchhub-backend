@@ -8,7 +8,6 @@ from rest_framework.pagination import PageNumberPagination
 
 from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
 from paper.related_models.paper_model import Paper
-from reputation.related_models.bounty import Bounty
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.views.researchhub_unified_document_views import get_user_votes
@@ -94,20 +93,17 @@ def add_user_votes_to_response(user, response_data):
     paper_content_type = ContentType.objects.get_for_model(Paper)
     post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
     comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
-    bounty_content_type = ContentType.objects.get_for_model(Bounty)
 
     # Get uppercase model names from ContentType objects
     paper_type_str = paper_content_type.model.upper()
     post_type_str = post_content_type.model.upper()
     comment_type_str = comment_content_type.model.upper()
-    bounty_type_str = bounty_content_type.model.upper()
 
     # Map content type strings to their ContentType objects
     content_type_map = {
         paper_type_str: paper_content_type,
         post_type_str: post_content_type,
         comment_type_str: comment_content_type,
-        bounty_type_str: bounty_content_type,
     }
 
     paper_ids = []
@@ -123,12 +119,6 @@ def add_user_votes_to_response(user, response_data):
             post_ids.append(int(item["content_object"]["id"]))
         elif content_type_str == comment_type_str:
             comment_ids.append(int(item["content_object"]["id"]))
-        elif content_type_str == bounty_type_str:
-            # For bounties, we need to get the comment ID if it exists
-            if item["content_object"].get("comment") and item["content_object"][
-                "comment"
-            ].get("id"):
-                comment_ids.append(int(item["content_object"]["comment"]["id"]))
 
     # Process paper votes
     if paper_ids:
@@ -181,12 +171,5 @@ def add_user_votes_to_response(user, response_data):
         for item in response_data["results"]:
             if item.get("content_type") == comment_type_str:
                 comment_id = int(item["content_object"]["id"])
-                if comment_id in comment_votes_map:
-                    item["user_vote"] = comment_votes_map[comment_id]
-            # Handle bounties with comments
-            elif item.get("content_type") == bounty_type_str and item[
-                "content_object"
-            ].get("comment"):
-                comment_id = int(item["content_object"]["comment"]["id"])
                 if comment_id in comment_votes_map:
                     item["user_vote"] = comment_votes_map[comment_id]
