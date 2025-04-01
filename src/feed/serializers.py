@@ -86,6 +86,19 @@ class ContentObjectSerializer(serializers.Serializer):
                 return SimpleHubSerializer(hub).data
         return None
 
+    def get_bounty_data(self, obj):
+        """Return bounty data from the unified document if it exists"""
+        if hasattr(obj, "unified_document") and obj.unified_document:
+            # Get all bounties from the unified document
+            bounties = obj.unified_document.related_bounties.all()
+
+            if not bounties.exists():
+                return []
+
+            # Return serialized bounties as a list
+            return BountySerializer(bounties, many=True).data
+        return []
+
     class Meta:
         fields = ["id", "created_date", "hub", "slug", "user"]
         abstract = True
@@ -113,6 +126,10 @@ class PaperSerializer(ContentObjectSerializer):
     abstract = serializers.CharField()
     doi = serializers.CharField()
     work_type = serializers.CharField()
+    bounties = serializers.SerializerMethodField()
+
+    def get_bounties(self, obj):
+        return self.get_bounty_data(obj)
 
     def get_journal(self, obj):
         if not hasattr(obj, "unified_document") or not obj.unified_document:
@@ -145,6 +162,7 @@ class PaperSerializer(ContentObjectSerializer):
             "doi",
             "journal",
             "authors",
+            "bounties",
         ]
 
 
@@ -156,6 +174,10 @@ class PostSerializer(ContentObjectSerializer):
     type = serializers.CharField(source="document_type")
     fundraise = serializers.SerializerMethodField()
     image_url = serializers.SerializerMethodField()
+    bounties = serializers.SerializerMethodField()
+
+    def get_bounties(self, obj):
+        return self.get_bounty_data(obj)
 
     def get_image_url(self, obj):
         if not obj.image:
@@ -206,6 +228,8 @@ class PostSerializer(ContentObjectSerializer):
             "renderable_text",
             "fundraise",
             "type",
+            "image_url",
+            "bounties",
         ]
 
 
