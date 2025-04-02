@@ -1,5 +1,6 @@
 import json
 import re
+from unittest.mock import patch
 
 import responses
 from django.test import TestCase
@@ -71,3 +72,23 @@ class OpenAlexTests(TestCase):
         result = OpenAlex().get_data_from_doi(self.doi)
 
         self.assertEqual("https://openalex.org/W3018513801", result["id"])
+
+    @patch.object(OpenAlex, "_get")
+    def test_get_works_adds_is_core_parameter(self, mock_get):
+        """Test that get_works adds the is_core parameter."""
+        # Arrange
+        mock_response = {"results": [], "meta": {"next_cursor": None}}
+        mock_get.return_value = mock_response
+
+        # Act
+        OpenAlex().get_works(batch_size=10, core_sources_only=True)
+
+        # Assert
+        args, kwargs = mock_get.call_args
+        self.assertEqual(args[0], "works")
+        # Verify filter parameters
+        filter_params = kwargs["filters"]["filter"].split(",")
+        self.assertIn("primary_location.source.is_core:true", filter_params)
+        # Verify other parameters
+        self.assertEqual(kwargs["filters"]["per-page"], 10)
+        self.assertEqual(kwargs["filters"]["cursor"], "*")

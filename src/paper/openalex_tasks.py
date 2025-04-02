@@ -171,12 +171,14 @@ def _pull_openalex_works(self, fetch_type, retry=0, paper_fetch_log_id=None) -> 
                     types=["article"],
                     since_date=date_to_fetch_from,
                     next_cursor=next_cursor,
+                    core_sources_only=True,
                 )
             elif fetch_type == PaperFetchLog.FETCH_UPDATE:
                 works, next_cursor = open_alex.get_works(
                     types=["article"],
                     from_updated_date=date_to_fetch_from,
                     next_cursor=next_cursor,
+                    core_sources_only=True,
                 )
 
             # if we've reached the end of the results, exit the loop
