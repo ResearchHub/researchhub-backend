@@ -95,17 +95,52 @@ class Fundraise(DefaultModel):
 
         raise ValueError("Invalid currency")
 
+    def get_recipient(self):
+        """
+        Get the appropriate recipient for fundraise funds.
+        If the fundraise is linked to a nonprofit, return the Endaoment account.
+        Otherwise, return the original creator.
+
+        Raises:
+            ValueError: If the fundraise is linked to a nonprofit but
+                ENDAOMENT_ACCOUNT_ID is not configured then don't just send the
+                funds to the creator, raise an error.
+        """
+        from django.conf import settings
+        from django.contrib.auth import get_user_model
+
+        from organizations.models import NonprofitFundraiseLink
+
+        # Check if fundraise is linked to a nonprofit
+        nonprofit_link = NonprofitFundraiseLink.objects.filter(fundraise=self).first()
+
+        # If nonprofit link exists, use the Endaoment account
+        if nonprofit_link:
+            if not settings.ENDAOMENT_ACCOUNT_ID:
+                raise ValueError(
+                    "Fundraise is linked to a nonprofit but "
+                    "ENDAOMENT_ACCOUNT_ID is not configured"
+                )
+
+            User = get_user_model()
+            return User.objects.get(id=settings.ENDAOMENT_ACCOUNT_ID)
+
+        # Otherwise return the original creator
+        return self.created_by
+
     def payout_funds(self):
         if not self.created_by:
             return
 
         # escrow.payout() expects a Decimal object
+        recipient = self.get_recipient()
+
         payout_amount = self.get_amount_raised(currency=RSC)
         if isinstance(payout_amount, float):
             payout_amount = Decimal(str(payout_amount))
 
         did_payout = self.escrow.payout(
-            recipient=self.created_by,
+            recipient=recipient,
             payout_amount=payout_amount,
         )
 
