@@ -111,10 +111,8 @@ class Fundraise(DefaultModel):
         # Import inside method to avoid circular imports
         from organizations.models import NonprofitFundraiseLink
 
-        # Check if fundraise is linked to a nonprofit
         nonprofit_link = NonprofitFundraiseLink.objects.filter(fundraise=self).first()
 
-        # If nonprofit link exists, use the Endaoment account
         if nonprofit_link:
             if not settings.ENDAOMENT_ACCOUNT_ID:
                 raise ValueError(
@@ -125,7 +123,6 @@ class Fundraise(DefaultModel):
             user_model = get_user_model()
             return user_model.objects.get(id=settings.ENDAOMENT_ACCOUNT_ID)
 
-        # Otherwise return the original creator
         return self.created_by
 
     def payout_funds(self):
