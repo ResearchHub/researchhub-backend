@@ -37,6 +37,7 @@ class Migration(migrations.Migration):
                 ORDER BY
                     ud.hot_score DESC;
 
+            CREATE UNIQUE INDEX feed_feedentry_mv_unique_idx ON feed_feedentry_mv (id);
             CREATE INDEX feed_feedentry_mv_hotscore_idx ON feed_feedentry_mv (hot_score DESC);
             CREATE INDEX feed_feedentry_mv_action_date_idx ON feed_feedentry_mv (action_date DESC);
             CREATE INDEX feed_feedentry_mv_parent_lookup_idx ON feed_feedentry_mv (parent_content_type_id, parent_object_id);
