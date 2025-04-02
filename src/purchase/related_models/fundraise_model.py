@@ -2,6 +2,8 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 import pytz
+from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 
@@ -95,17 +97,42 @@ class Fundraise(DefaultModel):
 
         raise ValueError("Invalid currency")
 
+    def get_recipient(self):
+        """
+        Get the appropriate recipient for fundraise funds.
+        If the fundraise is linked to a nonprofit, return the Endaoment account.
+        Otherwise, return the original creator.
+        """
+        # Import inside method to avoid circular imports
+        from organizations.models import NonprofitFundraiseLink
+
+        nonprofit_link = NonprofitFundraiseLink.objects.filter(fundraise=self).first()
+
+        if nonprofit_link:
+            if not settings.ENDAOMENT_ACCOUNT_ID:
+                raise ValueError(
+                    "Fundraise is linked to a nonprofit but "
+                    "ENDAOMENT_ACCOUNT_ID is not configured"
+                )
+
+            user_model = get_user_model()
+            return user_model.objects.get(id=settings.ENDAOMENT_ACCOUNT_ID)
+
+        return self.created_by
+
     def payout_funds(self):
         if not self.created_by:
             return
 
         # escrow.payout() expects a Decimal object
+        recipient = self.get_recipient()
+
         payout_amount = self.get_amount_raised(currency=RSC)
         if isinstance(payout_amount, float):
             payout_amount = Decimal(str(payout_amount))
 
         did_payout = self.escrow.payout(
-            recipient=self.created_by,
+            recipient=recipient,
             payout_amount=payout_amount,
         )
 
