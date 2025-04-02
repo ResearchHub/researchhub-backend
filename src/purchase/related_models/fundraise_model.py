@@ -2,6 +2,8 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 import pytz
+from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 
@@ -107,9 +109,6 @@ class Fundraise(DefaultModel):
                 funds to the creator, raise an error.
         """
         # Import inside method to avoid circular imports
-        from django.conf import settings
-        from django.contrib.auth import get_user_model
-
         from organizations.models import NonprofitFundraiseLink
 
         # Check if fundraise is linked to a nonprofit
