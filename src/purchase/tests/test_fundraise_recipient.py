@@ -1,8 +1,9 @@
 from decimal import Decimal
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase, override_settings
+from django.test import TestCase
 
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from purchase.models import Fundraise
@@ -59,7 +60,7 @@ class FundraiseRecipientTest(TestCase):
         recipient = self.fundraise.get_recipient()
         self.assertEqual(recipient, self.creator)
 
-    @override_settings(ENDAOMENT_ACCOUNT_ID=999999999)
+    @patch("researchhub.settings.ENDAOMENT_ACCOUNT_ID", 999999999)
     def test_get_recipient_with_nonprofit(self):
         """Test fundraise with nonprofit link returns Endaoment account"""
         # Create nonprofit link
@@ -71,7 +72,7 @@ class FundraiseRecipientTest(TestCase):
         self.assertEqual(recipient, self.endaoment_user)
         self.assertEqual(recipient.id, self.test_endaoment_id)
 
-    @override_settings(ENDAOMENT_ACCOUNT_ID=None)
+    @patch("researchhub.settings.ENDAOMENT_ACCOUNT_ID", None)
     def test_get_recipient_with_nonprofit_no_endaoment_id(self):
         """Test error when nonprofit link exists without ENDAOMENT_ACCOUNT_ID"""
         NonprofitFundraiseLink.objects.create(
@@ -86,7 +87,7 @@ class FundraiseRecipientTest(TestCase):
         self.assertIn("Fundraise is linked to a nonprofit but", error_msg)
         self.assertIn("ENDAOMENT_ACCOUNT_ID is not configured", error_msg)
 
-    @override_settings(ENDAOMENT_ACCOUNT_ID=999999999)
+    @patch("researchhub.settings.ENDAOMENT_ACCOUNT_ID", 999999999)
     def test_payout_funds_correct_recipient(self):
         """Test that payout is sent to correct recipient based on nonprofit link"""
         # Create a mock version of escrow.payout to capture the recipient
