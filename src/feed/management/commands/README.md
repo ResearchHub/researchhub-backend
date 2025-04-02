@@ -41,6 +41,12 @@ python manage.py populate_feed --batch-size=500
 - By default, the command will skip items that already have feed entries for their hubs
   - Use `--force` to recreate entries even if they already exist
 
+- The command uses Django's `update_or_create()` method, which:
+  - Looks for an existing entry based on the lookup fields (content_type, object_id, parent_content_type, parent_object_id, action)
+  - If found, updates the entry with the values in `defaults`
+  - If not found, creates a new entry with all the provided values
+  - This ensures there are no duplicate entries and that existing entries get updated with the latest content and metrics
+
 - Progress information is displayed every 100 items and at completion
 
 ## populate_feed_entries.py

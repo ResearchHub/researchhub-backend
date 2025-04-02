@@ -154,17 +154,19 @@ class Command(BaseCommand):
                                 comment, comment_content_type
                             )
 
-                            FeedEntry.objects.create(
-                                user=comment.created_by,
-                                content=content,
+                            FeedEntry.objects.update_or_create(
                                 content_type=comment_content_type,
                                 object_id=comment.id,
-                                action=FeedEntry.PUBLISH,
-                                action_date=comment.created_date,
-                                metrics=metrics,
                                 parent_content_type=hub_content_type,
                                 parent_object_id=hub.id,
-                                unified_document=unified_document,
+                                action=FeedEntry.PUBLISH,
+                                defaults={
+                                    "user": comment.created_by,
+                                    "content": content,
+                                    "action_date": comment.created_date,
+                                    "metrics": metrics,
+                                    "unified_document": unified_document,
+                                },
                             )
 
                 created += 1
@@ -257,17 +259,19 @@ class Command(BaseCommand):
                             content = serialize_feed_item(paper, paper_content_type)
                             metrics = serialize_feed_metrics(paper, paper_content_type)
 
-                            FeedEntry.objects.create(
-                                user=paper.uploaded_by,
-                                content=content,
+                            FeedEntry.objects.update_or_create(
                                 content_type=paper_content_type,
                                 object_id=paper.id,
-                                action=FeedEntry.PUBLISH,
-                                action_date=paper.paper_publish_date,
-                                metrics=metrics,
                                 parent_content_type=hub_content_type,
                                 parent_object_id=hub.id,
-                                unified_document=unified_document,
+                                action=FeedEntry.PUBLISH,
+                                defaults={
+                                    "user": paper.uploaded_by,
+                                    "content": content,
+                                    "action_date": paper.paper_publish_date,
+                                    "metrics": metrics,
+                                    "unified_document": unified_document,
+                                },
                             )
 
                 created += 1
@@ -360,17 +364,19 @@ class Command(BaseCommand):
                             content = serialize_feed_item(post, post_content_type)
                             metrics = serialize_feed_metrics(post, post_content_type)
 
-                            FeedEntry.objects.create(
-                                user=post.created_by,
-                                content=content,
+                            FeedEntry.objects.update_or_create(
                                 content_type=post_content_type,
                                 object_id=post.id,
-                                action=FeedEntry.PUBLISH,
-                                action_date=post.created_date,
-                                metrics=metrics,
                                 parent_content_type=hub_content_type,
                                 parent_object_id=hub.id,
-                                unified_document=unified_document,
+                                action=FeedEntry.PUBLISH,
+                                defaults={
+                                    "user": post.created_by,
+                                    "content": content,
+                                    "action_date": post.created_date,
+                                    "metrics": metrics,
+                                    "unified_document": unified_document,
+                                },
                             )
 
                 created += 1
