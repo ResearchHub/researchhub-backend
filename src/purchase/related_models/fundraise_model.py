@@ -2,11 +2,11 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 import pytz
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db import models
 
-import researchhub.settings
 from purchase.related_models.constants.currency import ETHER, RSC, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from utils.models import DefaultModel
@@ -116,14 +116,14 @@ class Fundraise(DefaultModel):
 
         # If nonprofit link exists, use the Endaoment account
         if nonprofit_link:
-            if not researchhub.settings.ENDAOMENT_ACCOUNT_ID:
+            if not settings.ENDAOMENT_ACCOUNT_ID:
                 raise ValueError(
                     "Fundraise is linked to a nonprofit but "
                     "ENDAOMENT_ACCOUNT_ID is not configured"
                 )
 
             user_model = get_user_model()
-            return user_model.objects.get(id=researchhub.settings.ENDAOMENT_ACCOUNT_ID)
+            return user_model.objects.get(id=settings.ENDAOMENT_ACCOUNT_ID)
 
         # Otherwise return the original creator
         return self.created_by
