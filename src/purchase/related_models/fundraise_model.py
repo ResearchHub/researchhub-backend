@@ -106,6 +106,7 @@ class Fundraise(DefaultModel):
                 ENDAOMENT_ACCOUNT_ID is not configured then don't just send the
                 funds to the creator, raise an error.
         """
+        # Import inside method to avoid circular imports
         from django.conf import settings
         from django.contrib.auth import get_user_model
 

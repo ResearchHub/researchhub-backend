@@ -18,23 +18,20 @@ class FundraiseRecipientTest(TestCase):
         """Set up test data"""
         self.User = get_user_model()
 
-        # Create users
         self.creator = self.User.objects.create(
             username="creator", email="creator@example.com"
         )
 
         # Create a fake Endaoment user with fixed ID for testing
-        self.test_endaoment_id = 999999  # Test ID that won't conflict with real users
+        self.test_endaoment_id = 999999999
         self.endaoment_user = self.User.objects.create(
             id=self.test_endaoment_id,
             username="endaoment_test",
             email="endaoment_test@example.com",
         )
 
-        # Create document
         self.document = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
 
-        # Create fundraise
         self.fundraise = Fundraise.objects.create(
             created_by=self.creator,
             unified_document=self.document,
@@ -42,7 +39,6 @@ class FundraiseRecipientTest(TestCase):
             goal_currency="USD",
         )
 
-        # Create escrow
         self.escrow = Escrow.objects.create(
             created_by=self.creator,
             hold_type=Escrow.FUNDRAISE,
@@ -63,7 +59,7 @@ class FundraiseRecipientTest(TestCase):
         recipient = self.fundraise.get_recipient()
         self.assertEqual(recipient, self.creator)
 
-    @override_settings(ENDAOMENT_ACCOUNT_ID="999999")  # Match our test user ID
+    @override_settings(ENDAOMENT_ACCOUNT_ID=999999999)
     def test_get_recipient_with_nonprofit(self):
         """Test fundraise with nonprofit link returns Endaoment account"""
         # Create nonprofit link
@@ -78,7 +74,6 @@ class FundraiseRecipientTest(TestCase):
     @override_settings(ENDAOMENT_ACCOUNT_ID=None)
     def test_get_recipient_with_nonprofit_no_endaoment_id(self):
         """Test error when nonprofit link exists without ENDAOMENT_ACCOUNT_ID"""
-        # Create nonprofit link
         NonprofitFundraiseLink.objects.create(
             nonprofit=self.nonprofit, fundraise=self.fundraise
         )
@@ -87,12 +82,11 @@ class FundraiseRecipientTest(TestCase):
         with self.assertRaises(ValueError) as context:
             self.fundraise.get_recipient()
 
-        # Check the error message
         error_msg = str(context.exception)
         self.assertIn("Fundraise is linked to a nonprofit but", error_msg)
         self.assertIn("ENDAOMENT_ACCOUNT_ID is not configured", error_msg)
 
-    @override_settings(ENDAOMENT_ACCOUNT_ID="999999")  # Match our test user ID
+    @override_settings(ENDAOMENT_ACCOUNT_ID=999999999)
     def test_payout_funds_correct_recipient(self):
         """Test that payout is sent to correct recipient based on nonprofit link"""
         # Create a mock version of escrow.payout to capture the recipient
@@ -107,7 +101,6 @@ class FundraiseRecipientTest(TestCase):
             payout_recipient = recipient
             return True
 
-        # Replace with mock
         self.escrow.payout = mock_payout
 
         try:
