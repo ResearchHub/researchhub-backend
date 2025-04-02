@@ -8,13 +8,14 @@ from feed.models import FeedEntry
 from feed.serializers import serialize_feed_item, serialize_feed_metrics
 from paper.models import Paper
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
+from researchhub_document.models import ResearchhubPost
 
 logger = logging.getLogger(__name__)
 
 
 class Command(BaseCommand):
     help = (
-        "Populates feed entries for all existing comments and papers "
+        "Populates feed entries for all existing comments, papers and posts "
         "with a unified document with hubs"
     )
 
@@ -45,6 +46,11 @@ class Command(BaseCommand):
             action="store_true",
             help="Only process comments",
         )
+        parser.add_argument(
+            "--posts-only",
+            action="store_true",
+            help="Only process posts",
+        )
 
     def handle(self, *args, **options):
         batch_size = options["batch_size"]
@@ -52,16 +58,27 @@ class Command(BaseCommand):
         force = options["force"]
         papers_only = options["papers_only"]
         comments_only = options["comments_only"]
+        posts_only = options["posts_only"]
 
-        # Process both by default if neither flag is set
-        process_papers = not comments_only
-        process_comments = not papers_only
+        # If any specific content type is selected, only process those
+        process_all = not (papers_only or comments_only or posts_only)
 
-        if process_comments:
+        # Process comments
+        if process_all or comments_only:
             self.process_comments(batch_size, dry_run, force)
 
-        if process_papers:
+        # Process papers
+        if process_all or papers_only:
             self.process_papers(batch_size, dry_run, force)
+
+        # Process posts
+        if process_all or posts_only:
+            self.process_posts(batch_size, dry_run, force)
+
+        # Show dry run message at the end if applicable
+        if dry_run:
+            dry_run_msg = "This was a dry run. No feed entries were actually created."
+            self.stdout.write(self.style.WARNING(dry_run_msg))
 
     def process_comments(self, batch_size, dry_run, force):
         self.stdout.write(self.style.NOTICE("Processing comments..."))
@@ -276,6 +293,105 @@ class Command(BaseCommand):
             )
         )
 
-        if dry_run:
-            dry_run_msg = "This was a dry run. No feed entries were actually created."
-            self.stdout.write(self.style.WARNING(dry_run_msg))
+    def process_posts(self, batch_size, dry_run, force):
+        self.stdout.write(self.style.NOTICE("Processing posts..."))
+        post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+
+        # Get all posts
+        posts = ResearchhubPost.objects.filter(
+            unified_document__is_removed=False
+        ).select_related("unified_document", "created_by")
+
+        total_posts = posts.count()
+        self.stdout.write(f"Found {total_posts} posts to process")
+
+        processed = 0
+        created = 0
+        skipped = 0
+        failed = 0
+
+        # Process posts in batches
+        for i, post in enumerate(posts.iterator(chunk_size=batch_size)):
+            processed += 1
+
+            # Check if post has unified document
+            unified_document = getattr(post, "unified_document", None)
+            if not unified_document:
+                skipped += 1
+                continue
+
+            # Get hubs for the unified document
+            hubs = unified_document.hubs.all()
+            if not hubs.exists():
+                skipped += 1
+                continue
+
+            # Check if the feed entry already exists
+            if not force:
+                existing_entries = []
+                for hub in hubs:
+                    hub_content_type = ContentType.objects.get_for_model(hub)
+                    entry_exists = FeedEntry.objects.filter(
+                        content_type=post_content_type,
+                        object_id=post.id,
+                        parent_content_type=hub_content_type,
+                        parent_object_id=hub.id,
+                    ).exists()
+                    if entry_exists:
+                        existing_entries.append(hub.name)
+
+                if existing_entries:
+                    skipped += 1
+                    msg = (
+                        f"Skipping post {post.id} - already has feed entries "
+                        f"for hubs: {', '.join(existing_entries)}"
+                    )
+                    self.stdout.write(msg)
+                    continue
+
+            try:
+                # Create feed entries
+                if not dry_run:
+                    with transaction.atomic():
+                        for hub in hubs:
+                            hub_content_type = ContentType.objects.get_for_model(hub)
+
+                            # Create feed entry
+                            content = serialize_feed_item(post, post_content_type)
+                            metrics = serialize_feed_metrics(post, post_content_type)
+
+                            FeedEntry.objects.create(
+                                user=post.created_by,
+                                content=content,
+                                content_type=post_content_type,
+                                object_id=post.id,
+                                action=FeedEntry.PUBLISH,
+                                action_date=post.created_date,
+                                metrics=metrics,
+                                parent_content_type=hub_content_type,
+                                parent_object_id=hub.id,
+                                unified_document=unified_document,
+                            )
+
+                created += 1
+                if processed % 100 == 0 or processed == total_posts:
+                    status = (
+                        f"Processed {processed}/{total_posts} posts, "
+                        f"created {created} feed entries, skipped {skipped}, "
+                        f"failed {failed}"
+                    )
+                    self.stdout.write(status)
+
+            except Exception as e:
+                failed += 1
+                error_msg = f"Failed to create feed entry for post {post.id}: {e}"
+                logger.error(error_msg)
+                self.stdout.write(self.style.ERROR(error_msg))
+
+        # Final stats
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Posts completed: processed {processed}/{total_posts}, "
+                f"created {created} feed entries, skipped {skipped}, failed {failed}"
+            )
+        )

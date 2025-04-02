@@ -4,11 +4,11 @@ This directory contains management commands for handling feed-related operations
 
 ## populate_feed.py
 
-Populates feed entries for both comments and papers in a single command, with unified document and hubs.
+Populates feed entries for comments, papers, and posts in a single command, with unified document and hubs.
 This is useful for bootstrapping the feed when it's empty or needs repopulation.
 
 ```bash
-# Basic usage - populate feed entries for both comments and papers
+# Basic usage - populate feed entries for comments, papers, and posts
 python manage.py populate_feed
 
 # Process only papers
@@ -16,6 +16,9 @@ python manage.py populate_feed --papers-only
 
 # Process only comments
 python manage.py populate_feed --comments-only
+
+# Process only posts
+python manage.py populate_feed --posts-only
 
 # Dry run - show what would happen without making changes
 python manage.py populate_feed --dry-run
