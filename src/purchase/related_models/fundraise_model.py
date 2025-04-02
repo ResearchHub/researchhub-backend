@@ -122,8 +122,8 @@ class Fundraise(DefaultModel):
                     "ENDAOMENT_ACCOUNT_ID is not configured"
                 )
 
-            User = get_user_model()
-            return User.objects.get(id=settings.ENDAOMENT_ACCOUNT_ID)
+            user_model = get_user_model()
+            return user_model.objects.get(id=settings.ENDAOMENT_ACCOUNT_ID)
 
         # Otherwise return the original creator
         return self.created_by
