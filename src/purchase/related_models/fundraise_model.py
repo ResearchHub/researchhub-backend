@@ -102,11 +102,6 @@ class Fundraise(DefaultModel):
         Get the appropriate recipient for fundraise funds.
         If the fundraise is linked to a nonprofit, return the Endaoment account.
         Otherwise, return the original creator.
-
-        Raises:
-            ValueError: If the fundraise is linked to a nonprofit but
-                ENDAOMENT_ACCOUNT_ID is not configured then don't just send the
-                funds to the creator, raise an error.
         """
         # Import inside method to avoid circular imports
         from organizations.models import NonprofitFundraiseLink
