@@ -2,6 +2,7 @@
 Standard feed view for ResearchHub.
 """
 
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db import models
@@ -34,6 +35,7 @@ class FeedViewSet(viewsets.ModelViewSet):
     serializer_class = FeedEntrySerializer
     permission_classes = []
     pagination_class = FeedPagination
+    cache_enabled = settings.CLOUD or settings.TESTING
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -44,7 +46,7 @@ class FeedViewSet(viewsets.ModelViewSet):
         page = request.query_params.get("page", "1")
         page_num = int(page)
         cache_key = get_cache_key(request)
-        use_cache = page_num < 4
+        use_cache = self.cache_enabled and page_num < 4
 
         if use_cache:
             # try to get cached response
