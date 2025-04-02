@@ -11,7 +11,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from discussion.reaction_models import Vote as GrmVote
-from feed.models import FeedEntry
+from feed.models import FeedEntry, FeedEntryMaterialized
 from hub.models import Hub
 from paper.models import Paper
 from researchhub_comment.constants import rh_comment_thread_types
@@ -117,6 +117,7 @@ class FeedViewSetTests(TestCase):
             unified_document=self.post.unified_document,
         )
 
+        FeedEntryMaterialized.refresh()
         cache.clear()
 
     def test_default_feed_view(self):
@@ -176,6 +177,7 @@ class FeedViewSetTests(TestCase):
                 parent_object_id=self.hub.id,
                 unified_document=paper.unified_document,
             )
+        FeedEntryMaterialized.refresh()
 
         url = reverse("feed-list")
         response = self.client.get(url)
@@ -187,6 +189,7 @@ class FeedViewSetTests(TestCase):
 
     def test_custom_page_size(self):
         """Test custom page size parameter"""
+        # Arrange
         unified_doc = ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
         paper2 = Paper.objects.create(
             title="Test Paper 2",
@@ -205,9 +208,13 @@ class FeedViewSetTests(TestCase):
             unified_document=paper2.unified_document,
         )
 
+        FeedEntryMaterialized.refresh()
         url = reverse("feed-list")
+
+        # Act
         response = self.client.get(url, {"page_size": 2})
 
+        # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 2)
 
@@ -319,17 +326,16 @@ class FeedViewSetTests(TestCase):
             parent_object_id=self.hub.id,
             unified_document=low_score_doc,
         )
+        FeedEntryMaterialized.refresh()
 
         url = reverse("feed-list")
         response = self.client.get(url, {"feed_view": "popular"})
-
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         results = response.data["results"]
         self.assertEqual(len(results), 6)
 
         content_object_ids = [result["content_object"]["id"] for result in results]
-
         self.assertEqual(content_object_ids[0], high_score_paper.id)
         self.assertEqual(content_object_ids[1], medium_score_paper.id)
         self.assertEqual(content_object_ids[2], low_score_paper.id)
@@ -388,6 +394,7 @@ class FeedViewSetTests(TestCase):
             parent_object_id=self.hub.id,
             unified_document=high_score_doc,
         )
+        FeedEntryMaterialized.refresh()
 
         url = reverse("feed-list")
         response = self.client.get(url, {"feed_view": "popular"})
@@ -436,6 +443,7 @@ class FeedViewSetTests(TestCase):
             parent_object_id=another_hub.id,
             unified_document=high_score_doc,
         )
+        FeedEntryMaterialized.refresh()
 
         url = reverse("feed-list")
         response = self.client.get(
@@ -613,6 +621,7 @@ class FeedViewSetTests(TestCase):
         )
 
         # First request - no cache
+        FeedEntryMaterialized.refresh()
         mock_cache.get.return_value = None
         url = reverse("feed-list")
         response1 = self.client.get(url)
@@ -701,6 +710,8 @@ class FeedViewSetTests(TestCase):
             unified_document=self.unified_document,
         )
 
+        FeedEntryMaterialized.refresh()
+
         url = reverse("feed-list")
         response = self.client.get(url, {"feed_view": "latest"})
 
@@ -758,6 +769,8 @@ class FeedViewSetTests(TestCase):
             parent_object_id=self.hub.id,
             unified_document=self.unified_document,
         )
+
+        FeedEntryMaterialized.refresh()
 
         url = reverse("feed-list")
         response = self.client.get(url, {"feed_view": "popular"})
