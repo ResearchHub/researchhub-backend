@@ -87,8 +87,8 @@ class FundraiseRecipientTest(TestCase):
         self.assertIn("ENDAOMENT_ACCOUNT_ID is not configured", error_msg)
 
     @override_settings(ENDAOMENT_ACCOUNT_ID=999999999)
-    def test_payout_funds_correct_recipient(self):
-        """Test that payout is sent to correct recipient based on nonprofit link"""
+    def test_payout_funds_to_creator(self):
+        """Test that payout is sent to creator when no nonprofit link exists"""
         # Create a mock version of escrow.payout to capture the recipient
         original_payout = self.escrow.payout
 
@@ -109,22 +109,38 @@ class FundraiseRecipientTest(TestCase):
             self.assertTrue(result)
             self.assertTrue(payout_called)
             self.assertEqual(payout_recipient, self.creator)
+        finally:
+            # Restore original method
+            self.escrow.payout = original_payout
 
-            # Reset mock
-            payout_called = False
-            payout_recipient = None
+    @override_settings(ENDAOMENT_ACCOUNT_ID=999999999)
+    def test_payout_funds_to_endaoment(self):
+        """Test that payout is sent to endaoment when nonprofit link exists"""
+        # Create a mock version of escrow.payout to capture the recipient
+        original_payout = self.escrow.payout
 
-            # Create nonprofit link and test again
-            NonprofitFundraiseLink.objects.create(
-                nonprofit=self.nonprofit, fundraise=self.fundraise
-            )
+        payout_called = False
+        payout_recipient = None
 
+        def mock_payout(recipient, payout_amount):
+            nonlocal payout_called, payout_recipient
+            payout_called = True
+            payout_recipient = recipient
+            return True
+
+        self.escrow.payout = mock_payout
+
+        # Create nonprofit link
+        NonprofitFundraiseLink.objects.create(
+            nonprofit=self.nonprofit, fundraise=self.fundraise
+        )
+
+        try:
             result = self.fundraise.payout_funds()
             self.assertTrue(result)
             self.assertTrue(payout_called)
             self.assertEqual(payout_recipient, self.endaoment_user)
             self.assertEqual(payout_recipient.id, self.test_endaoment_id)
-
         finally:
             # Restore original method
             self.escrow.payout = original_payout
