@@ -61,22 +61,6 @@ def _update_metrics(comment):
 
     parent_comment = comment.parent
     if parent_comment:
-        # Update the metrics for the bounty feed entry associated with the comment
-        parent_bounty = parent_comment.bounties.filter(parent_id__isnull=True).first()
-        if parent_bounty:
-            parent_bounty_content_type = ContentType.objects.get_for_model(
-                parent_bounty
-            )
-            metrics = serialize_feed_metrics(parent_bounty, parent_bounty_content_type)
-            update_feed_metrics.apply_async(
-                args=(
-                    parent_bounty.id,
-                    ContentType.objects.get_for_model(parent_bounty).id,
-                    metrics,
-                ),
-                priority=1,
-            )
-
         # Update the metrics for the parent comment feed entry
         parent_comment_content_type = ContentType.objects.get_for_model(parent_comment)
         metrics = serialize_feed_metrics(parent_comment, parent_comment_content_type)

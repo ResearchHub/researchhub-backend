@@ -6,7 +6,6 @@ from django.test import TestCase
 from feed.models import FeedEntry
 from hub.models import Hub
 from paper.related_models.paper_model import Paper
-from reputation.related_models.bounty import Bounty
 from reputation.related_models.escrow import Escrow
 from researchhub_comment.constants.rh_comment_thread_types import ANSWER, PEER_REVIEW
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
@@ -180,94 +179,6 @@ class CommentSignalsTests(TestCase):
                     args=(
                         self.comment.id,
                         ContentType.objects.get_for_model(self.comment).id,
-                        {"votes": 0, "replies": 2},
-                    ),
-                    priority=1,
-                ),
-            ]
-        )
-
-    @patch("feed.signals.comment_signals.update_feed_metrics")
-    @patch("feed.signals.comment_signals.transaction")
-    def test_handle_comment_update_metrics_with_bounty(
-        self, mock_transaction, mock_update_feed_metrics
-    ):
-        """
-        Test that feed metrics are updated when a comment is updated.
-        """
-        # Arrange
-        mock_transaction.on_commit = lambda func: func()
-        mock_update_feed_metrics.apply_async = MagicMock()
-
-        # Act
-        escrow = Escrow.objects.create(
-            created_by=self.user,
-            hold_type=Escrow.BOUNTY,
-            item=self.paper.unified_document,
-        )
-
-        bounty = Bounty.objects.create(
-            status=Bounty.OPEN,
-            bounty_type=Bounty.Type.REVIEW,
-            unified_document=self.paper.unified_document,
-            item=self.comment,
-            escrow=escrow,
-            created_by=self.user,
-        )
-
-        RhCommentModel.objects.create(
-            comment_content_json={"ops": [{"insert": "reply1"}]},
-            comment_type=ANSWER,
-            created_by=self.user,
-            thread=self.thread,
-            parent=self.comment,
-        )
-
-        RhCommentModel.objects.create(
-            comment_content_json={"ops": [{"insert": "reply2"}]},
-            comment_type=ANSWER,
-            created_by=self.user,
-            thread=self.thread,
-            parent=self.comment,
-        )
-        self.comment.save()
-
-        # Assert
-        mock_update_feed_metrics.apply_async.assert_has_calls(
-            [
-                call(
-                    args=(
-                        self.paper.id,
-                        ContentType.objects.get_for_model(Paper).id,
-                        {
-                            "votes": 0,
-                            "replies": 2,
-                            "review_metrics": {"avg": 0, "count": 0},
-                            "citations": 0,
-                        },
-                    ),
-                    priority=1,
-                ),
-            ]
-        )
-        mock_update_feed_metrics.apply_async.assert_has_calls(
-            [
-                call(
-                    args=(
-                        self.comment.id,
-                        ContentType.objects.get_for_model(self.comment).id,
-                        {"votes": 0, "replies": 2},
-                    ),
-                    priority=1,
-                ),
-            ]
-        )
-        mock_update_feed_metrics.apply_async.assert_has_calls(
-            [
-                call(
-                    args=(
-                        bounty.id,
-                        ContentType.objects.get_for_model(bounty).id,
                         {"votes": 0, "replies": 2},
                     ),
                     priority=1,
