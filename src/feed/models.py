@@ -93,9 +93,9 @@ class FeedEntry(DefaultModel):
         ]
 
 
-class FeedEntryMaterialized(models.Model):
+class FeedEntryPopular(models.Model):
     """
-    Materialized view for feed entries, based on the `FeedEntry` model.
+    Materialized view for popular feed entries, based on the `FeedEntry` model.
     This view is used to optimize the performance of feed entry queries.
     """
 
@@ -109,7 +109,7 @@ class FeedEntryMaterialized(models.Model):
         ContentType,
         on_delete=models.DO_NOTHING,
         db_column="content_type_id",
-        related_name="materialized_feed_entries",
+        related_name="popular_feed_entries",
     )
     hot_score = models.FloatField()
     item = GenericForeignKey("content_type", "object_id")
@@ -119,7 +119,7 @@ class FeedEntryMaterialized(models.Model):
         ContentType,
         on_delete=models.DO_NOTHING,
         db_column="parent_content_type_id",
-        related_name="materialized_parent_feed_entries",
+        related_name="popular_parent_feed_entries",
     )
     parent_item = GenericForeignKey("parent_content_type", "parent_object_id")
     parent_object_id = models.PositiveIntegerField(null=True)
@@ -127,13 +127,13 @@ class FeedEntryMaterialized(models.Model):
         ResearchhubUnifiedDocument,
         on_delete=models.DO_NOTHING,
         db_column="unified_document_id",
-        related_name="materialized_feed_entries",
+        related_name="popular_feed_entries",
     )
     user = models.ForeignKey(
         User,
         on_delete=models.DO_NOTHING,
         db_column="user_id",
-        related_name="materialized_feed_entries",
+        related_name="popular_feed_entries",
     )
 
     created_date = models.DateTimeField()
@@ -141,9 +141,8 @@ class FeedEntryMaterialized(models.Model):
 
     class Meta:
         managed = False
-        db_table = "feed_feedentry_mv"
-
-        ordering = ["-hot_score", "-action_date"]
+        db_table = "feed_feedentry_popular"
+        ordering = ["-hot_score"]
 
     @classmethod
     def refresh(cls):
@@ -153,4 +152,6 @@ class FeedEntryMaterialized(models.Model):
         from django.db import connection
 
         with connection.cursor() as cursor:
-            cursor.execute("REFRESH MATERIALIZED VIEW CONCURRENTLY feed_feedentry_mv")
+            cursor.execute(
+                "REFRESH MATERIALIZED VIEW CONCURRENTLY feed_feedentry_popular"
+            )

@@ -11,7 +11,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from discussion.reaction_models import Vote as GrmVote
-from feed.models import FeedEntry, FeedEntryMaterialized
+from feed.models import FeedEntry, FeedEntryPopular
 from hub.models import Hub
 from paper.models import Paper
 from researchhub_comment.constants import rh_comment_thread_types
@@ -117,7 +117,7 @@ class FeedViewSetTests(TestCase):
             unified_document=self.post.unified_document,
         )
 
-        FeedEntryMaterialized.refresh()
+        FeedEntryPopular.refresh()
         cache.clear()
 
     def test_default_feed_view(self):
@@ -177,7 +177,7 @@ class FeedViewSetTests(TestCase):
                 parent_object_id=self.hub.id,
                 unified_document=paper.unified_document,
             )
-        FeedEntryMaterialized.refresh()
+        FeedEntryPopular.refresh()
 
         url = reverse("feed-list")
         response = self.client.get(url)
@@ -208,7 +208,7 @@ class FeedViewSetTests(TestCase):
             unified_document=paper2.unified_document,
         )
 
-        FeedEntryMaterialized.refresh()
+        FeedEntryPopular.refresh()
         url = reverse("feed-list")
 
         # Act
@@ -326,7 +326,7 @@ class FeedViewSetTests(TestCase):
             parent_object_id=self.hub.id,
             unified_document=low_score_doc,
         )
-        FeedEntryMaterialized.refresh()
+        FeedEntryPopular.refresh()
 
         url = reverse("feed-list")
         response = self.client.get(url, {"feed_view": "popular"})
@@ -394,7 +394,7 @@ class FeedViewSetTests(TestCase):
             parent_object_id=self.hub.id,
             unified_document=high_score_doc,
         )
-        FeedEntryMaterialized.refresh()
+        FeedEntryPopular.refresh()
 
         url = reverse("feed-list")
         response = self.client.get(url, {"feed_view": "popular"})
@@ -443,7 +443,7 @@ class FeedViewSetTests(TestCase):
             parent_object_id=another_hub.id,
             unified_document=high_score_doc,
         )
-        FeedEntryMaterialized.refresh()
+        FeedEntryPopular.refresh()
 
         url = reverse("feed-list")
         response = self.client.get(
@@ -621,7 +621,7 @@ class FeedViewSetTests(TestCase):
         )
 
         # First request - no cache
-        FeedEntryMaterialized.refresh()
+        FeedEntryPopular.refresh()
         mock_cache.get.return_value = None
         url = reverse("feed-list")
         response1 = self.client.get(url)
@@ -710,7 +710,7 @@ class FeedViewSetTests(TestCase):
             unified_document=self.unified_document,
         )
 
-        FeedEntryMaterialized.refresh()
+        FeedEntryPopular.refresh()
 
         url = reverse("feed-list")
         response = self.client.get(url, {"feed_view": "latest"})
@@ -770,7 +770,7 @@ class FeedViewSetTests(TestCase):
             unified_document=self.unified_document,
         )
 
-        FeedEntryMaterialized.refresh()
+        FeedEntryPopular.refresh()
 
         url = reverse("feed-list")
         response = self.client.get(url, {"feed_view": "popular"})

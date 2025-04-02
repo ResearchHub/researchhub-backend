@@ -14,7 +14,7 @@ from hub.models import Hub
 from paper.related_models.paper_model import Paper
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 
-from ..models import FeedEntry, FeedEntryMaterialized
+from ..models import FeedEntry, FeedEntryPopular
 from ..serializers import FeedEntrySerializer
 from .common import (
     DEFAULT_CACHE_TIMEOUT,
@@ -79,7 +79,7 @@ class FeedViewSet(viewsets.ModelViewSet):
         source = self.request.query_params.get("source", "all")
 
         if feed_view == "popular":
-            queryset = FeedEntryMaterialized.objects.all()
+            queryset = FeedEntryPopular.objects.all()
         else:
             queryset = FeedEntry.objects.all()
 
@@ -88,9 +88,6 @@ class FeedViewSet(viewsets.ModelViewSet):
             "parent_content_type",
             "user",
             "user__author_profile",
-        ).prefetch_related(
-            "unified_document",  # FIXME: Remove
-            "unified_document__hubs",  # FIXME: Remove
         )
 
         # Apply source filter
@@ -117,7 +114,7 @@ class FeedViewSet(viewsets.ModelViewSet):
             post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
             hub_content_type = ContentType.objects.get_for_model(Hub)
 
-            feed_entries = FeedEntryMaterialized.objects.filter(
+            feed_entries = FeedEntryPopular.objects.filter(
                 content_type__in=[paper_content_type, post_content_type],
             )
 

@@ -4,7 +4,7 @@ from typing import Any, Optional
 
 from django.contrib.contenttypes.models import ContentType
 
-from feed.models import FeedEntry, FeedEntryMaterialized
+from feed.models import FeedEntry, FeedEntryPopular
 from feed.serializers import serialize_feed_item, serialize_feed_metrics
 from reputation.related_models.bounty import Bounty
 from researchhub.celery import app
@@ -134,6 +134,6 @@ def refresh_feed():
     view in the database.
     """
     start_time = time.time()
-    FeedEntryMaterialized.refresh()
+    FeedEntryPopular.refresh()
     duration = time.time() - start_time
     logger.info(f"Refreshed materialized feed entries in {duration:.2f}s")
