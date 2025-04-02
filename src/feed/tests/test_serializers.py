@@ -493,6 +493,51 @@ class CommentSerializerTests(TestCase):
         self.assertIsNotNone(data["paper"])
         self.assertEqual(data["paper"]["title"], self.paper.title)
 
+    def test_serializes_comment_with_parent_comment(self):
+        # Create a reply to the existing comment
+        child_comment = RhCommentModel.objects.create(
+            thread=self.thread,
+            created_by=self.user,
+            comment_content_type=QUILL_EDITOR,
+            comment_content_json={"ops": [{"insert": "This is a reply comment"}]},
+            parent=self.comment,
+        )
+
+        child_child_comment = RhCommentModel.objects.create(
+            thread=self.thread,
+            created_by=self.user,
+            comment_content_type=QUILL_EDITOR,
+            comment_content_json={
+                "ops": [{"insert": "This is a reply to the reply comment"}]
+            },
+            parent=child_comment,
+        )
+
+        serializer = CommentSerializer(child_child_comment)
+        data = serializer.data
+
+        # Validate the parent_id and parent_comment fields
+        self.assertIsNotNone(data["parent_comment"])
+        self.assertEqual(data["parent_comment"]["id"], child_comment.id)
+        self.assertEqual(data["parent_comment"]["thread_id"], self.thread.id)
+        self.assertEqual(
+            data["parent_comment"]["comment_content_type"],
+            child_comment.comment_content_type,
+        )
+
+        # Validate the parent of the parent
+        self.assertIsNotNone(data["parent_comment"]["parent_comment"])
+        self.assertEqual(
+            data["parent_comment"]["parent_comment"]["id"], self.comment.id
+        )
+        self.assertEqual(
+            data["parent_comment"]["parent_comment"]["thread_id"], self.thread.id
+        )
+        self.assertEqual(
+            data["parent_comment"]["parent_comment"]["comment_content_type"],
+            self.comment.comment_content_type,
+        )
+
     def test_serializes_comment_with_post(self):
         # Create a thread for the existing post
         post_thread = RhCommentThreadModel.objects.create(
