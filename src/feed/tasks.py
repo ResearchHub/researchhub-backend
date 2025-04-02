@@ -1,9 +1,10 @@
 import logging
+import time
 from typing import Any, Optional
 
 from django.contrib.contenttypes.models import ContentType
 
-from feed.models import FeedEntry
+from feed.models import FeedEntry, FeedEntryMaterialized
 from feed.serializers import serialize_feed_item, serialize_feed_metrics
 from reputation.related_models.bounty import Bounty
 from researchhub.celery import app
@@ -124,3 +125,15 @@ def delete_feed_entry(
         parent_object_id=parent_item_id,
         parent_content_type=parent_item_content_type,
     ).delete()
+
+
+@app.task
+def refresh_feed():
+    """
+    Refreshes the materialized feed entries that are managed in a materialized
+    view in the database.
+    """
+    start_time = time.time()
+    FeedEntryMaterialized.refresh()
+    duration = time.time() - start_time
+    logger.info(f"Refreshed materialized feed entries in {duration:.2f}s")
