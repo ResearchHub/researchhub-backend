@@ -468,6 +468,9 @@ class CommentSerializerTests(TestCase):
         )
         self.assertIsNone(data["review"])
 
+        # Test author field
+        self.assertIn("author", data)
+
     def test_serializes_comment_with_review(self):
         review = Review.objects.create(
             score=8.5,
