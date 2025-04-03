@@ -120,6 +120,8 @@ class FeedEntryPopular(models.Model):
         on_delete=models.DO_NOTHING,
         db_column="parent_content_type_id",
         related_name="popular_parent_feed_entries",
+        null=True,
+        blank=True,
     )
     parent_item = GenericForeignKey("parent_content_type", "parent_object_id")
     parent_object_id = models.PositiveIntegerField(null=True)
@@ -134,6 +136,8 @@ class FeedEntryPopular(models.Model):
         on_delete=models.DO_NOTHING,
         db_column="user_id",
         related_name="popular_feed_entries",
+        null=True,
+        blank=True,
     )
 
     created_date = models.DateTimeField()
