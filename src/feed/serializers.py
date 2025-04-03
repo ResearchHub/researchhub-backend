@@ -294,6 +294,7 @@ class BountySerializer(serializers.Serializer):
 
 
 class CommentSerializer(serializers.Serializer):
+    author = serializers.SerializerMethodField()
     comment_content_json = serializers.JSONField()
     comment_content_type = serializers.CharField()
     comment_type = serializers.CharField()
@@ -301,11 +302,14 @@ class CommentSerializer(serializers.Serializer):
     hub = serializers.SerializerMethodField()
     id = serializers.IntegerField()
     paper = serializers.SerializerMethodField()
+    parent_comment = serializers.SerializerMethodField()
     parent_id = serializers.IntegerField()
     post = serializers.SerializerMethodField()
-    thread_id = serializers.IntegerField()
     review = serializers.SerializerMethodField()
-    parent_comment = serializers.SerializerMethodField()
+    thread_id = serializers.IntegerField()
+
+    def get_author(self, obj):
+        return SimpleAuthorSerializer(obj.created_by.author_profile).data
 
     def get_document_type(self, obj):
         if obj.unified_document:
