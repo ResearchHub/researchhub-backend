@@ -19,9 +19,6 @@ import sentry_sdk
 import stripe
 from corsheaders.defaults import default_headers
 from sentry_sdk.integrations.django import DjangoIntegration
-from web3 import Web3
-
-from utils.sentry import log_error
 
 APP_ENV = os.environ.get("APP_ENV") or "development"
 DEVELOPMENT = "development" in APP_ENV

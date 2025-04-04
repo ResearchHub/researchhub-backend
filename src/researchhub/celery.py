@@ -40,6 +40,15 @@ QUEUE_HUBS = "hubs"
 # Scheduled tasks
 
 app.conf.beat_schedule = {
+    # Feed
+    "feed-refresh": {
+        "task": "feed.tasks.refresh_feed",
+        "schedule": crontab(minute="*/15"),
+        "options": {
+            "priority": 1,
+            "queue": QUEUE_CACHES,
+        },
+    },
     # Unified Documents
     "reset_homepage_cache": {
         "task": "researchhub_document.tasks.reset_homepage_cache",
