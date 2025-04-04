@@ -11,7 +11,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from discussion.reaction_models import Vote as GrmVote
-from feed.models import FeedEntry, FeedEntryPopular
+from feed.models import FeedEntry, FeedEntryLatest, FeedEntryPopular
 from hub.models import Hub
 from paper.models import Paper
 from researchhub_comment.constants import rh_comment_thread_types
@@ -117,6 +117,7 @@ class FeedViewSetTests(TestCase):
             unified_document=self.post.unified_document,
         )
 
+        FeedEntryLatest.refresh()
         FeedEntryPopular.refresh()
         cache.clear()
 
@@ -177,7 +178,7 @@ class FeedViewSetTests(TestCase):
                 parent_object_id=self.hub.id,
                 unified_document=paper.unified_document,
             )
-        FeedEntryPopular.refresh()
+        FeedEntryLatest.refresh()
 
         url = reverse("feed-list")
         response = self.client.get(url)
@@ -621,7 +622,7 @@ class FeedViewSetTests(TestCase):
         )
 
         # First request - no cache
-        FeedEntryPopular.refresh()
+        FeedEntryLatest.refresh()
         mock_cache.get.return_value = None
         url = reverse("feed-list")
         response1 = self.client.get(url)
@@ -710,7 +711,7 @@ class FeedViewSetTests(TestCase):
             unified_document=self.unified_document,
         )
 
-        FeedEntryPopular.refresh()
+        FeedEntryLatest.refresh()
 
         url = reverse("feed-list")
         response = self.client.get(url, {"feed_view": "latest"})

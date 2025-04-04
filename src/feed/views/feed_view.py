@@ -14,7 +14,7 @@ from hub.models import Hub
 from paper.related_models.paper_model import Paper
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 
-from ..models import FeedEntry, FeedEntryPopular
+from ..models import FeedEntryLatest, FeedEntryPopular
 from ..serializers import FeedEntrySerializer
 from .common import (
     DEFAULT_CACHE_TIMEOUT,
@@ -81,7 +81,7 @@ class FeedViewSet(viewsets.ModelViewSet):
         if feed_view == "popular":
             queryset = FeedEntryPopular.objects.all()
         else:
-            queryset = FeedEntry.objects.all()
+            queryset = FeedEntryLatest.objects.all()
 
         queryset = queryset.select_related(
             "content_type",
@@ -162,10 +162,4 @@ class FeedViewSet(viewsets.ModelViewSet):
                 parent_content_type=hub_content_type, parent_object_id=hub.id
             )
 
-        sub_qs = queryset.order_by(
-            "content_type_id", "object_id", "-action_date"
-        ).distinct("content_type_id", "object_id")
-
-        final_qs = queryset.filter(pk__in=sub_qs.values("pk")).order_by("-action_date")
-
-        return final_qs
+        return queryset
