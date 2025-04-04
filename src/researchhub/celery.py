@@ -166,4 +166,12 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PURCHASES,
         },
     },
+    "recalculate-hot-scores-daily": {
+        "task": "feed.tasks.recalculate_hot_scores_task",
+        "schedule": crontab(hour=3, minute=0),  # Run at 3:00 AM every day
+        "options": {
+            "priority": 2,
+            "queue": QUEUE_HOT_SCORE,
+        },
+    },
 }

@@ -3,6 +3,7 @@ from typing import Any, Optional
 
 from django.contrib.contenttypes.models import ContentType
 
+from feed.hot_score import recalculate_all_hot_scores, update_feed_entry_hot_score
 from feed.models import FeedEntry
 from feed.serializers import serialize_feed_item, serialize_feed_metrics
 from reputation.related_models.bounty import Bounty
@@ -63,7 +64,10 @@ def create_feed_entry(
     except Exception as e:
         # Ignore error if feed entry already exists
         logger.warning(
-            f"Failed to save feed entry for item_id={item_id} content_type={item_content_type.model} parent_item_id={parent_item_id} parent_content_type={parent_content_type.model}: {e}"
+            f"Failed to save feed entry for item_id={item_id} "
+            f"content_type={item_content_type.model} "
+            f"parent_item_id={parent_item_id} "
+            f"parent_content_type={parent_content_type.model}: {e}"
         )
 
 
@@ -124,3 +128,38 @@ def delete_feed_entry(
         parent_object_id=parent_item_id,
         parent_content_type=parent_item_content_type,
     ).delete()
+
+
+@app.task
+def recalculate_hot_scores_task():
+    """
+    Task to recalculate hot scores for all feed entries
+    """
+    recalculate_all_hot_scores()
+
+
+@app.task
+def update_feed_entry_hot_score_task(feed_entry_id):
+    """
+    Task to update hot score for a specific feed entry
+    """
+    try:
+        feed_entry = FeedEntry.objects.get(id=feed_entry_id)
+        update_feed_entry_hot_score(feed_entry)
+    except FeedEntry.DoesNotExist:
+        # Entry might have been deleted
+        pass
+
+
+@app.task
+def update_hot_scores_for_content_task(content_type_id, object_id):
+    """
+    Task to update hot scores for all feed entries related to a specific content object
+    """
+    content_type = ContentType.objects.get_for_id(content_type_id)
+    feed_entries = FeedEntry.objects.filter(
+        content_type=content_type, object_id=object_id
+    )
+
+    for feed_entry in feed_entries:
+        update_feed_entry_hot_score(feed_entry)

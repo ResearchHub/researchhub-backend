@@ -63,6 +63,13 @@ class FeedEntry(DefaultModel):
         db_comment="The unified document associated with the feed entry. Directly added to the feed entry for performance reasons.",
     )
 
+    hot_score = models.IntegerField(
+        default=0,
+        db_index=True,
+        db_comment="Calculated popularity score for ranking in popular feeds. "
+        "Considers votes, replies, and tips.",
+    )
+
     class Meta:
         indexes = [
             models.Index(
@@ -76,6 +83,14 @@ class FeedEntry(DefaultModel):
             models.Index(
                 fields=["-action_date"],
                 name="feed_action_date_idx",
+            ),
+            models.Index(
+                fields=["created_date"],
+                name="feed_created_date_idx",
+            ),
+            models.Index(
+                fields=["-hot_score"],
+                name="feed_hot_score_idx",
             ),
         ]
         constraints = [
