@@ -69,6 +69,25 @@ def create_feed_entry(
 
 
 @app.task
+def refresh_feed_entries_for_objects(item_id, item_content_type_id):
+    item_content_type = ContentType.objects.get(id=item_content_type_id)
+
+    feed_entries = FeedEntry.objects.filter(
+        object_id=item_id,
+        content_type=item_content_type,
+    )
+
+    for feed_entry in feed_entries:
+        content = serialize_feed_item(feed_entry.item, item_content_type)
+
+        metrics = serialize_feed_metrics(feed_entry.item, item_content_type)
+
+        feed_entry.content = content
+        feed_entry.metrics = metrics
+        feed_entry.save(update_fields=["content", "metrics"])
+
+
+@app.task
 def update_feed_metrics(item_id, item_content_type_id, metrics):
     item_content_type = ContentType.objects.get(id=item_content_type_id)
 

@@ -8,6 +8,7 @@ from feed.tasks import (
     _get_unified_document,
     create_feed_entry,
     delete_feed_entry,
+    refresh_feed_entries_for_objects,
     update_feed_metrics,
 )
 from hub.models import Hub
@@ -241,3 +242,43 @@ class FeedTasksTest(TestCase):
 
         # Assert
         self.assertFalse(FeedEntry.objects.filter(id=self.paper.id).exists())
+
+    def test_refresh_feed_entries_for_objects(self):
+        """Test refreshing feed entries for a paper."""
+        # Arrange
+        # Create a feed entry
+        feed_entry = create_feed_entry(
+            item_id=self.paper.id,
+            item_content_type_id=self.paper_content_type.id,
+            action=FeedEntry.PUBLISH,
+            parent_item_id=self.hub.id,
+            parent_content_type_id=self.hub_content_type.id,
+            user_id=self.user.id,
+        )
+
+        # Store original content and metrics
+        original_content = feed_entry.content.copy()
+        original_metrics = feed_entry.metrics.copy()
+
+        # Modify the paper
+        self.paper.title = "Updated Test Paper"
+        self.paper.save()
+
+        # Act
+        refresh_feed_entries_for_objects(
+            item_id=self.paper.id,
+            item_content_type_id=self.paper_content_type.id,
+        )
+
+        # Assert
+        # Fetch the updated feed entry
+        updated_feed_entry = FeedEntry.objects.get(id=feed_entry.id)
+
+        # Verify content was updated
+        self.assertNotEqual(updated_feed_entry.content, original_content)
+        self.assertEqual(updated_feed_entry.content["title"], "Updated Test Paper")
+
+        # Verify metrics still exist
+        self.assertEqual(
+            set(updated_feed_entry.metrics.keys()), set(original_metrics.keys())
+        )
