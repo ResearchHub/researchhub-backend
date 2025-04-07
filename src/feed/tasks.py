@@ -91,18 +91,6 @@ def refresh_feed_entries_for_objects(item_id, item_content_type_id):
 def update_feed_metrics(item_id, item_content_type_id, metrics):
     item_content_type = ContentType.objects.get(id=item_content_type_id)
 
-    # Also update the metrics for the bounty feed entry if one exists for the given comment
-    if item_content_type.model == "rhcommentmodel":
-        bounty_content_type = ContentType.objects.get_for_model(Bounty)
-        comment = item_content_type.get_object_for_this_type(id=item_id)
-        parent_bounty = comment.bounties.filter(parent_id__isnull=True).first()
-
-        if parent_bounty:
-            FeedEntry.objects.filter(
-                object_id=parent_bounty.id,
-                content_type=bounty_content_type,
-            ).update(metrics=metrics)
-
     FeedEntry.objects.filter(
         object_id=item_id,
         content_type=item_content_type,
