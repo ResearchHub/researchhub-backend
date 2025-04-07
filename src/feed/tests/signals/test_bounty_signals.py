@@ -14,7 +14,7 @@ from paper.tests.helpers import create_paper
 from reputation.models import Bounty, Escrow
 from researchhub_comment.tests.helpers import create_rh_comment
 from researchhub_document.helpers import create_post
-from researchhub_document.related_models.constants.document_type import POSTS
+from researchhub_document.related_models.constants.document_type import DISCUSSION
 from user.tests.helpers import create_random_default_user
 
 
@@ -30,7 +30,7 @@ class BountySignalsTests(TestCase):
 
         # Create a post with unified document
         self.post = create_post(
-            title="Test Post", created_by=self.user, document_type=POSTS
+            title="Test Post", created_by=self.user, document_type=DISCUSSION
         )
         self.post.unified_document.hubs.add(self.hub)
 
