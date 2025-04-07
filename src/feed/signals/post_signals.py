@@ -95,7 +95,7 @@ def _create_post_feed_entries(post):
 def _delete_post_feed_entries(unified_document):
     if (
         unified_document.document_type == document_type.DISCUSSION
-        and unified_document.is_removed == True
+        and unified_document.is_removed is True
     ):
         posts = unified_document.posts.all()
         hubs = unified_document.hubs.all()
