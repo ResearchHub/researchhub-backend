@@ -6,7 +6,6 @@ from django.test import TestCase, override_settings
 from feed.models import FeedEntry
 from feed.signals.bounty_signals import (
     handle_bounty_delete_update_feed_entries,
-    handle_bounty_status_changed,
     handle_bounty_update_feed_entries,
 )
 from hub.tests.helpers import create_hub
@@ -268,52 +267,5 @@ class BountySignalsTests(TestCase):
         post_content_type = ContentType.objects.get_for_model(self.post)
         mock_refresh_feed_entries.apply_async.assert_called_with(
             args=(self.post.id, post_content_type.id),
-            priority=1,
-        )
-
-    @patch("feed.signals.bounty_signals.refresh_feed_entries_for_objects")
-    def test_directly_calling_handlers(self, mock_refresh_feed_entry):
-        """Test direct calling of signal handlers"""
-        # Arrange
-        mock_refresh_feed_entry.apply_async = MagicMock()
-
-        # Create a bounty for the paper
-        bounty = Bounty.objects.create(
-            amount=100,
-            status=Bounty.OPEN,
-            bounty_type=Bounty.Type.REVIEW,
-            unified_document=self.paper.unified_document,
-            item_content_type=ContentType.objects.get_for_model(self.paper),
-            item_object_id=self.paper.id,
-            escrow=self.paper_escrow,
-            created_by=self.user,
-        )
-
-        # Reset mock to clear creation call
-        mock_refresh_feed_entry.apply_async.reset_mock()
-
-        # Act - Call handlers directly
-        handle_bounty_update_feed_entries(sender=Bounty, instance=bounty, created=False)
-
-        # Assert first call
-        self.assertTrue(mock_refresh_feed_entry.apply_async.called)
-        # Verify correct args were passed
-        paper_content_type = ContentType.objects.get_for_model(self.paper)
-        mock_refresh_feed_entry.apply_async.assert_called_with(
-            args=(self.paper.id, paper_content_type.id),
-            priority=1,
-        )
-
-        # Reset mock
-        mock_refresh_feed_entry.apply_async.reset_mock()
-
-        # Act - Call status changed handler
-        handle_bounty_status_changed(sender=Bounty, instance=bounty)
-
-        # Assert second call
-        self.assertTrue(mock_refresh_feed_entry.apply_async.called)
-        # Verify correct args were passed
-        mock_refresh_feed_entry.apply_async.assert_called_with(
-            args=(self.paper.id, paper_content_type.id),
             priority=1,
         )

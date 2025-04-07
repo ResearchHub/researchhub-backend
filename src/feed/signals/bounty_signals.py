@@ -43,18 +43,6 @@ def handle_bounty_delete_update_feed_entries(sender, instance, **kwargs):
         )
 
 
-@receiver(post_save, sender=Bounty, dispatch_uid="bounty_status_changed_update")
-def handle_bounty_status_changed(sender, instance, **kwargs):
-    """
-    When a bounty's status changes, update the feed entries for the associated
-    paper or post to reflect the new status.
-    """
-    try:
-        _update_associated_document_feed_entries(instance)
-    except Exception as e:
-        logger.error(f"Failed to handle status change for bounty {instance.id}: {e}")
-
-
 def _update_associated_document_feed_entries(bounty):
     """
     Updates the feed entries for the paper or post associated with the bounty.
