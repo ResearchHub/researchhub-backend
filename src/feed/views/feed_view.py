@@ -2,6 +2,7 @@
 Standard feed view for ResearchHub.
 """
 
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db import models
@@ -11,10 +12,9 @@ from rest_framework.response import Response
 
 from hub.models import Hub
 from paper.related_models.paper_model import Paper
-from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 
-from ..models import FeedEntry
+from ..models import FeedEntryLatest, FeedEntryPopular
 from ..serializers import FeedEntrySerializer
 from .common import (
     DEFAULT_CACHE_TIMEOUT,
@@ -34,6 +34,7 @@ class FeedViewSet(viewsets.ModelViewSet):
     serializer_class = FeedEntrySerializer
     permission_classes = []
     pagination_class = FeedPagination
+    cache_enabled = settings.TESTING
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -44,7 +45,7 @@ class FeedViewSet(viewsets.ModelViewSet):
         page = request.query_params.get("page", "1")
         page_num = int(page)
         cache_key = get_cache_key(request)
-        use_cache = page_num < 4
+        use_cache = self.cache_enabled and page_num < 4
 
         if use_cache:
             # try to get cached response
@@ -77,18 +78,16 @@ class FeedViewSet(viewsets.ModelViewSet):
         hub_slug = self.request.query_params.get("hub_slug")
         source = self.request.query_params.get("source", "all")
 
-        queryset = (
-            FeedEntry.objects.all()
-            .select_related(
-                "content_type",
-                "parent_content_type",
-                "user",
-                "user__author_profile",
-            )
-            .prefetch_related(
-                "unified_document",
-                "unified_document__hubs",
-            )
+        if feed_view == "popular":
+            queryset = FeedEntryPopular.objects.all()
+        else:
+            queryset = FeedEntryLatest.objects.all()
+
+        queryset = queryset.select_related(
+            "content_type",
+            "parent_content_type",
+            "user",
+            "user__author_profile",
         )
 
         # Apply source filter
@@ -110,7 +109,14 @@ class FeedViewSet(viewsets.ModelViewSet):
                 )
 
         if feed_view == "popular":
-            unified_doc = ResearchhubUnifiedDocument.objects.filter(is_removed=False)
+            # Only include papers and posts in the popular feed # FIXME: Move up
+            paper_content_type = ContentType.objects.get_for_model(Paper)
+            post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+            hub_content_type = ContentType.objects.get_for_model(Hub)
+
+            feed_entries = FeedEntryPopular.objects.filter(
+                content_type__in=[paper_content_type, post_content_type],
+            )
 
             # Apply any additional filters
             if hub_slug:
@@ -121,30 +127,25 @@ class FeedViewSet(viewsets.ModelViewSet):
                         {"error": "Hub not found"}, status=status.HTTP_404_NOT_FOUND
                     )
 
-                unified_doc = unified_doc.filter(hubs=hub)
-
-            # Only include papers and posts in the popular feed
-            paper_content_type = ContentType.objects.get_for_model(Paper)
-            post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
+                feed_entries = feed_entries.filter(
+                    parent_content_type=hub_content_type, parent_object_id=hub.id
+                )
 
             # Since there can be multiple feed entries per unified document,
             # we need to select the most recent entry for each document
             # Get the IDs of the most recent feed entry for each unified document
             latest_entries_subquery = (
-                FeedEntry.objects.filter(
-                    unified_document__in=unified_doc,
-                    content_type__in=[paper_content_type, post_content_type],
-                )
-                .values("unified_document")
+                feed_entries.values("unified_document")
                 .annotate(latest_id=models.Max("id"))
                 .values_list("latest_id", flat=True)
             )
 
-            queryset = queryset.filter(
-                id__in=Subquery(latest_entries_subquery)
-            ).order_by("-unified_document__hot_score")
+            # No need to order by hotscore descending since the view is already sorted
+            queryset = queryset.filter(id__in=Subquery(latest_entries_subquery))
 
             return queryset
+
+        # Latest / Following
 
         # For other feed views (latest, following with hub filter)
         # Apply hub filter if hub_id is provided
@@ -161,10 +162,4 @@ class FeedViewSet(viewsets.ModelViewSet):
                 parent_content_type=hub_content_type, parent_object_id=hub.id
             )
 
-        sub_qs = queryset.order_by(
-            "content_type_id", "object_id", "-action_date"
-        ).distinct("content_type_id", "object_id")
-
-        final_qs = queryset.filter(pk__in=sub_qs.values("pk")).order_by("-action_date")
-
-        return final_qs
+        return queryset

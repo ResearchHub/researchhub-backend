@@ -91,3 +91,138 @@ class FeedEntry(DefaultModel):
                 name="unique_feed_entry",
             )
         ]
+
+
+class FeedEntryPopular(models.Model):
+    """
+    Materialized view for popular feed entries, based on the `FeedEntry` model.
+    This view is used to optimize the performance of feed entry queries.
+    """
+
+    id = models.BigIntegerField(primary_key=True)
+
+    action = models.TextField(choices=FeedEntry.action_choices)
+    action_date = models.DateTimeField()
+    content = models.JSONField(default=dict)
+
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.DO_NOTHING,
+        db_column="content_type_id",
+        related_name="popular_feed_entries",
+    )
+    hot_score = models.FloatField()
+    item = GenericForeignKey("content_type", "object_id")
+    object_id = models.PositiveIntegerField()
+    metrics = models.JSONField(default=dict)
+    parent_content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.DO_NOTHING,
+        db_column="parent_content_type_id",
+        related_name="popular_parent_feed_entries",
+        null=True,
+        blank=True,
+    )
+    parent_item = GenericForeignKey("parent_content_type", "parent_object_id")
+    parent_object_id = models.PositiveIntegerField(null=True)
+    unified_document = models.ForeignKey(
+        ResearchhubUnifiedDocument,
+        on_delete=models.DO_NOTHING,
+        db_column="unified_document_id",
+        related_name="popular_feed_entries",
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.DO_NOTHING,
+        db_column="user_id",
+        related_name="popular_feed_entries",
+        null=True,
+        blank=True,
+    )
+
+    created_date = models.DateTimeField()
+    updated_date = models.DateTimeField()
+
+    class Meta:
+        managed = False
+        db_table = "feed_feedentry_popular"
+        ordering = ["-hot_score"]
+
+    @classmethod
+    def refresh(cls):
+        """
+        Refresh the materialized view.
+        """
+        from django.db import connection
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "REFRESH MATERIALIZED VIEW CONCURRENTLY feed_feedentry_popular"
+            )
+
+
+class FeedEntryLatest(models.Model):
+    """
+    Materialized view for latest feed entries, based on the `FeedEntry` model.
+    This view is used to optimize the performance of feed entry queries.
+    """
+
+    id = models.BigIntegerField(primary_key=True)
+
+    action = models.TextField(choices=FeedEntry.action_choices)
+    action_date = models.DateTimeField()
+    content = models.JSONField(default=dict)
+
+    content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.DO_NOTHING,
+        db_column="content_type_id",
+        related_name="latest_feed_entries",
+    )
+    item = GenericForeignKey("content_type", "object_id")
+    object_id = models.PositiveIntegerField()
+    metrics = models.JSONField(default=dict)
+    parent_content_type = models.ForeignKey(
+        ContentType,
+        on_delete=models.DO_NOTHING,
+        db_column="parent_content_type_id",
+        related_name="latest_parent_feed_entries",
+        null=True,
+        blank=True,
+    )
+    parent_item = GenericForeignKey("parent_content_type", "parent_object_id")
+    parent_object_id = models.PositiveIntegerField(null=True)
+    unified_document = models.ForeignKey(
+        ResearchhubUnifiedDocument,
+        on_delete=models.DO_NOTHING,
+        db_column="unified_document_id",
+        related_name="latest_feed_entries",
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.DO_NOTHING,
+        db_column="user_id",
+        related_name="latest_feed_entries",
+        null=True,
+        blank=True,
+    )
+
+    created_date = models.DateTimeField()
+    updated_date = models.DateTimeField()
+
+    class Meta:
+        managed = False
+        db_table = "feed_feedentry_latest"
+        ordering = ["-action_date"]
+
+    @classmethod
+    def refresh(cls):
+        """
+        Refresh the materialized view.
+        """
+        from django.db import connection
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "REFRESH MATERIALIZED VIEW CONCURRENTLY feed_feedentry_latest"
+            )
