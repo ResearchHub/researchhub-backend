@@ -97,25 +97,18 @@ class BountySignalsTests(TestCase):
         )
 
         # Comment feed entry
-        thread_has_content = False
-        if hasattr(self.comment, "thread") and self.comment.thread:
-            thread = self.comment.thread
-            if hasattr(thread, "content_object") and thread.content_object:
-                thread_has_content = True
-
-        if thread_has_content:
-            self.comment_feed_entry = FeedEntry.objects.create(
-                content_type=comment_content_type,
-                object_id=self.comment.id,
-                parent_content_type=hub_content_type,
-                parent_object_id=self.hub.id,
-                action=FeedEntry.PUBLISH,
-                action_date=self.comment.created_date,
-                user=self.user,
-                unified_document=self.paper.unified_document,
-                content={},
-                metrics={},
-            )
+        self.comment_feed_entry = FeedEntry.objects.create(
+            content_type=comment_content_type,
+            object_id=self.comment.id,
+            parent_content_type=hub_content_type,
+            parent_object_id=self.hub.id,
+            action=FeedEntry.PUBLISH,
+            action_date=self.comment.created_date,
+            user=self.user,
+            unified_document=self.paper.unified_document,
+            content={},
+            metrics={},
+        )
 
     @patch("feed.signals.bounty_signals.refresh_feed_entries_for_objects")
     def test_bounty_create_updates_paper_feed_entries(self, mock_refresh_feed_entry):
@@ -137,6 +130,12 @@ class BountySignalsTests(TestCase):
 
         # Assert
         self.assertTrue(mock_refresh_feed_entry.apply_async.called)
+        # Verify correct args were passed
+        paper_content_type = ContentType.objects.get_for_model(self.paper)
+        mock_refresh_feed_entry.apply_async.assert_called_with(
+            args=(self.paper.id, paper_content_type.id),
+            priority=1,
+        )
 
     @patch("feed.signals.bounty_signals.refresh_feed_entries_for_objects")
     def test_bounty_create_updates_post_feed_entries(self, mock_refresh_feed_entry):
@@ -158,6 +157,12 @@ class BountySignalsTests(TestCase):
 
         # Assert
         self.assertTrue(mock_refresh_feed_entry.apply_async.called)
+        # Verify correct args were passed
+        post_content_type = ContentType.objects.get_for_model(self.post)
+        mock_refresh_feed_entry.apply_async.assert_called_with(
+            args=(self.post.id, post_content_type.id),
+            priority=1,
+        )
 
     @patch("feed.signals.bounty_signals.refresh_feed_entries_for_objects")
     def test_bounty_status_change_updates_feed_entries(self, mock_refresh_feed_entry):
@@ -186,6 +191,12 @@ class BountySignalsTests(TestCase):
 
         # Assert
         self.assertTrue(mock_refresh_feed_entry.apply_async.called)
+        # Verify correct args were passed
+        paper_content_type = ContentType.objects.get_for_model(self.paper)
+        mock_refresh_feed_entry.apply_async.assert_called_with(
+            args=(self.paper.id, paper_content_type.id),
+            priority=1,
+        )
 
     @patch("feed.signals.bounty_signals.refresh_feed_entries_for_objects")
     def test_bounty_for_comment_updates_feed_entries(self, mock_refresh_feed_entry):
@@ -220,6 +231,12 @@ class BountySignalsTests(TestCase):
 
         # Assert - feed entry should be updated
         self.assertTrue(mock_refresh_feed_entry.apply_async.called)
+        # Verify correct args were passed
+        paper_content_type = ContentType.objects.get_for_model(self.paper)
+        mock_refresh_feed_entry.apply_async.assert_called_with(
+            args=(self.paper.id, paper_content_type.id),
+            priority=1,
+        )
 
     @patch("feed.signals.bounty_signals.refresh_feed_entries_for_objects")
     def test_bounty_delete_updates_feed_entries(self, mock_refresh_feed_entries):
@@ -247,6 +264,12 @@ class BountySignalsTests(TestCase):
 
         # Assert
         self.assertTrue(mock_refresh_feed_entries.apply_async.called)
+        # Verify correct args were passed
+        post_content_type = ContentType.objects.get_for_model(self.post)
+        mock_refresh_feed_entries.apply_async.assert_called_with(
+            args=(self.post.id, post_content_type.id),
+            priority=1,
+        )
 
     @patch("feed.signals.bounty_signals.refresh_feed_entries_for_objects")
     def test_directly_calling_handlers(self, mock_refresh_feed_entry):
@@ -274,6 +297,12 @@ class BountySignalsTests(TestCase):
 
         # Assert first call
         self.assertTrue(mock_refresh_feed_entry.apply_async.called)
+        # Verify correct args were passed
+        paper_content_type = ContentType.objects.get_for_model(self.paper)
+        mock_refresh_feed_entry.apply_async.assert_called_with(
+            args=(self.paper.id, paper_content_type.id),
+            priority=1,
+        )
 
         # Reset mock
         mock_refresh_feed_entry.apply_async.reset_mock()
@@ -283,3 +312,8 @@ class BountySignalsTests(TestCase):
 
         # Assert second call
         self.assertTrue(mock_refresh_feed_entry.apply_async.called)
+        # Verify correct args were passed
+        mock_refresh_feed_entry.apply_async.assert_called_with(
+            args=(self.paper.id, paper_content_type.id),
+            priority=1,
+        )
