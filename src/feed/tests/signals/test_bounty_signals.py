@@ -4,10 +4,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase, override_settings
 
 from feed.models import FeedEntry
-from feed.signals.bounty_signals import (
-    handle_bounty_delete_update_feed_entries,
-    handle_bounty_update_feed_entries,
-)
+from feed.signals.bounty_signals import handle_bounty_delete_update_feed_entries
 from hub.tests.helpers import create_hub
 from paper.tests.helpers import create_paper
 from reputation.models import Bounty, Escrow
@@ -110,9 +107,13 @@ class BountySignalsTests(TestCase):
         )
 
     @patch("feed.signals.bounty_signals.refresh_feed_entries_for_objects")
-    def test_bounty_create_updates_paper_feed_entries(self, mock_refresh_feed_entry):
+    @patch("feed.signals.bounty_signals.transaction")
+    def test_bounty_create_updates_paper_feed_entries(
+        self, mock_transaction, mock_refresh_feed_entry
+    ):
         """Test that creating a bounty for a paper updates the paper's feed entries"""
         # Arrange
+        mock_transaction.on_commit = lambda func: func()
         mock_refresh_feed_entry.apply_async = MagicMock()
 
         # Act - Create a bounty for the paper
@@ -137,9 +138,13 @@ class BountySignalsTests(TestCase):
         )
 
     @patch("feed.signals.bounty_signals.refresh_feed_entries_for_objects")
-    def test_bounty_create_updates_post_feed_entries(self, mock_refresh_feed_entry):
+    @patch("feed.signals.bounty_signals.transaction")
+    def test_bounty_create_updates_post_feed_entries(
+        self, mock_transaction, mock_refresh_feed_entry
+    ):
         """Test that creating a bounty for a post updates the post's feed entries"""
         # Arrange
+        mock_transaction.on_commit = lambda func: func()
         mock_refresh_feed_entry.apply_async = MagicMock()
 
         # Act
@@ -164,9 +169,13 @@ class BountySignalsTests(TestCase):
         )
 
     @patch("feed.signals.bounty_signals.refresh_feed_entries_for_objects")
-    def test_bounty_status_change_updates_feed_entries(self, mock_refresh_feed_entry):
+    @patch("feed.signals.bounty_signals.transaction")
+    def test_bounty_status_change_updates_feed_entries(
+        self, mock_transaction, mock_refresh_feed_entry
+    ):
         """Test that changing a bounty's status updates the document's feed entries"""
         # Arrange
+        mock_transaction.on_commit = lambda func: func()
         mock_refresh_feed_entry.apply_async = MagicMock()
 
         # Create a bounty for the paper
@@ -198,9 +207,13 @@ class BountySignalsTests(TestCase):
         )
 
     @patch("feed.signals.bounty_signals.refresh_feed_entries_for_objects")
-    def test_bounty_for_comment_updates_feed_entries(self, mock_refresh_feed_entry):
+    @patch("feed.signals.bounty_signals.transaction")
+    def test_bounty_for_comment_updates_feed_entries(
+        self, mock_transaction, mock_refresh_feed_entry
+    ):
         """Test that bounty for comment updates both feed entries"""
         # Arrange
+        mock_transaction.on_commit = lambda func: func()
         mock_refresh_feed_entry.apply_async = MagicMock()
 
         # Set the comment's thread to be on the paper
@@ -238,9 +251,13 @@ class BountySignalsTests(TestCase):
         )
 
     @patch("feed.signals.bounty_signals.refresh_feed_entries_for_objects")
-    def test_bounty_delete_updates_feed_entries(self, mock_refresh_feed_entries):
+    @patch("feed.signals.bounty_signals.transaction")
+    def test_bounty_delete_updates_feed_entries(
+        self, mock_transaction, mock_refresh_feed_entries
+    ):
         """Test that deleting a bounty updates the document's feed entries"""
         # Arrange
+        mock_transaction.on_commit = lambda func: func()
         mock_refresh_feed_entries.apply_async = MagicMock()
 
         # Create a bounty for the post
