@@ -1,6 +1,8 @@
 import logging
+from functools import partial
 
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from django.db.models.signals import post_delete, post_save
 from django.dispatch import receiver
 
@@ -46,6 +48,7 @@ def handle_bounty_delete_update_feed_entries(sender, instance, **kwargs):
 def _update_associated_document_feed_entries(bounty):
     """
     Updates the feed entries for the paper or post associated with the bounty.
+    The update is scheduled to run after the current transaction is committed.
     """
     unified_document = bounty.unified_document
     if not unified_document:
@@ -56,10 +59,12 @@ def _update_associated_document_feed_entries(bounty):
         document = unified_document.get_document()
         document_content_type = ContentType.objects.get_for_model(document)
 
-        refresh_feed_entries_for_objects.apply_async(
+        task = partial(
+            refresh_feed_entries_for_objects.apply_async,
             args=(document.id, document_content_type.id),
             priority=1,
         )
+        transaction.on_commit(task)
     except Exception as e:
         logger.warning(
             f"No document found for unified document {unified_document.id}: {e}"
