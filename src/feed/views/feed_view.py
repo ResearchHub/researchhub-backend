@@ -36,6 +36,8 @@ class FeedViewSet(viewsets.ModelViewSet):
     pagination_class = FeedPagination
     cache_enabled = settings.TESTING
 
+    _content_types = {}
+
     def get_serializer_context(self):
         context = super().get_serializer_context()
         context.update(get_common_serializer_context())
@@ -96,8 +98,7 @@ class FeedViewSet(viewsets.ModelViewSet):
         # a simplified heuristic is to filter out papers (papers are ingested via
         # OpenAlex and do not originate on ResearchHub).
         if source == "researchhub":
-            paper_content_type = ContentType.objects.get_for_model(Paper)
-            queryset = queryset.exclude(content_type_id=paper_content_type.id)
+            queryset = queryset.exclude(content_type=self.paper_content_type)
 
         # Apply following filter if feed_view is 'following' and user is authenticated
         if feed_view == "following" and self.request.user.is_authenticated:
@@ -109,13 +110,9 @@ class FeedViewSet(viewsets.ModelViewSet):
                 )
 
         if feed_view == "popular":
-            # Only include papers and posts in the popular feed # FIXME: Move up
-            paper_content_type = ContentType.objects.get_for_model(Paper)
-            post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
-            hub_content_type = ContentType.objects.get_for_model(Hub)
-
+            # Only include papers and posts in the popular feed
             feed_entries = FeedEntryPopular.objects.filter(
-                content_type__in=[paper_content_type, post_content_type],
+                content_type__in=[self.paper_content_type, self.post_content_type],
             )
 
             # Apply any additional filters
@@ -157,9 +154,28 @@ class FeedViewSet(viewsets.ModelViewSet):
                     {"error": "Hub not found"}, status=status.HTTP_404_NOT_FOUND
                 )
 
-            hub_content_type = ContentType.objects.get_for_model(Hub)
             queryset = queryset.filter(
-                parent_content_type=hub_content_type, parent_object_id=hub.id
+                parent_content_type=self.hub_content_type, parent_object_id=hub.id
             )
 
         return queryset
+
+    @property
+    def hub_content_type(self):
+        return self._get_content_type(Hub)
+
+    @property
+    def paper_content_type(self):
+        return self._get_content_type(Paper)
+
+    @property
+    def post_content_type(self):
+        return self._get_content_type(ResearchhubPost)
+
+    def _get_content_type(self, model_class):
+        model_name = model_class.__name__.lower()
+        if model_name not in self._content_types:
+            self._content_types[model_name] = ContentType.objects.get_for_model(
+                model_class
+            )
+        return self._content_types[model_name]
