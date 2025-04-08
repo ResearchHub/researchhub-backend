@@ -14,12 +14,7 @@ from hub.models import Hub
 
 from ..models import FeedEntryLatest, FeedEntryPopular
 from ..serializers import FeedEntrySerializer
-from .common import (
-    DEFAULT_CACHE_TIMEOUT,
-    FeedPagination,
-    get_cache_key,
-    get_common_serializer_context,
-)
+from .common import FeedPagination
 
 
 class FeedViewSet(BaseFeedView):
@@ -35,13 +30,13 @@ class FeedViewSet(BaseFeedView):
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        context.update(get_common_serializer_context())
+        context.update(self.get_common_serializer_context())
         return context
 
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
         page_num = int(page)
-        cache_key = get_cache_key(request)
+        cache_key = self.get_cache_key(request)
         use_cache = self.cache_enabled and page_num < 4
 
         if use_cache:
@@ -56,7 +51,7 @@ class FeedViewSet(BaseFeedView):
 
         if use_cache:
             # cache response
-            cache.set(cache_key, response.data, timeout=DEFAULT_CACHE_TIMEOUT)
+            cache.set(cache_key, response.data, timeout=self.DEFAULT_CACHE_TIMEOUT)
 
         if request.user.is_authenticated:
             self.add_user_votes_to_response(request.user, response.data)

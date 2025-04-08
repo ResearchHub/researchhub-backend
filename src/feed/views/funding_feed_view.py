@@ -20,12 +20,7 @@ from researchhub_document.related_models.constants.document_type import PREREGIS
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 
 from ..serializers import PostSerializer
-from .common import (
-    DEFAULT_CACHE_TIMEOUT,
-    FeedPagination,
-    get_cache_key,
-    get_common_serializer_context,
-)
+from .common import FeedPagination
 
 
 class FundingFeedViewSet(BaseFeedView):
@@ -47,13 +42,13 @@ class FundingFeedViewSet(BaseFeedView):
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        context.update(get_common_serializer_context())
+        context.update(self.get_common_serializer_context())
         return context
 
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
         page_num = int(page)
-        cache_key = get_cache_key(request, "funding")
+        cache_key = self.get_cache_key(request, "funding")
         use_cache = page_num < 4
 
         if use_cache:
@@ -90,7 +85,7 @@ class FundingFeedViewSet(BaseFeedView):
             self.add_user_votes_to_response(request.user, response_data)
 
         if use_cache:
-            cache.set(cache_key, response_data, timeout=DEFAULT_CACHE_TIMEOUT)
+            cache.set(cache_key, response_data, timeout=self.DEFAULT_CACHE_TIMEOUT)
 
         return Response(response_data)
 

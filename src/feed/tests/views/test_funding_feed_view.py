@@ -12,7 +12,6 @@ from rest_framework.request import Request
 from rest_framework.test import APIClient, APIRequestFactory
 
 from discussion.reaction_models import Vote as GrmVote
-from feed.views.common import get_cache_key
 from hub.models import Hub
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.constants.rsc_exchange_currency import MORALIS
@@ -294,7 +293,7 @@ class FundingFeedViewSetTests(TestCase):
         anon_user.id = None
         request.user = anon_user
 
-        cache_key = get_cache_key(request, "funding")
+        cache_key = viewset.get_cache_key(request, "funding")
         self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20")
 
         # Authenticated user
@@ -307,7 +306,7 @@ class FundingFeedViewSetTests(TestCase):
         mock_user.id = self.user.id
         request.user = mock_user
 
-        cache_key = get_cache_key(request, "funding")
+        cache_key = viewset.get_cache_key(request, "funding")
         self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20")
 
         # Custom page and page size
@@ -315,7 +314,7 @@ class FundingFeedViewSetTests(TestCase):
         request = Request(request)
         request.user = mock_user
 
-        cache_key = get_cache_key(request, "funding")
+        cache_key = viewset.get_cache_key(request, "funding")
         self.assertEqual(cache_key, "funding_feed:latest:all:all:none:3-10")
 
     def test_preregistration_post_only(self):

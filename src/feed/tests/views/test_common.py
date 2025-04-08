@@ -2,7 +2,6 @@ from unittest.mock import Mock
 
 from django.test import TestCase
 
-from feed.views.common import get_cache_key
 from feed.views.feed_view import FeedViewSet
 
 
@@ -76,7 +75,7 @@ class FeedCommonTests(TestCase):
             mock_request.user.id = user_id
 
             # Act
-            cache_key = get_cache_key(
+            cache_key = viewset.get_cache_key(
                 mock_request,
             )
 
