@@ -34,7 +34,7 @@ class FeedViewSet(viewsets.ModelViewSet):
     serializer_class = FeedEntrySerializer
     permission_classes = []
     pagination_class = FeedPagination
-    cache_enabled = settings.TESTING
+    cache_enabled = settings.TESTING or settings.CLOUD
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
