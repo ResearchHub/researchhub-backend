@@ -48,22 +48,10 @@ class BaseFeedView(viewsets.ModelViewSet):
             user: The authenticated user
             response_data: The response data containing feed items
         """
-        # Get content types once to avoid repeated database queries
-        paper_content_type = ContentType.objects.get_for_model(Paper)
-        post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
-        comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
-
         # Get uppercase model names from ContentType objects
-        paper_type_str = paper_content_type.model.upper()
-        post_type_str = post_content_type.model.upper()
-        comment_type_str = comment_content_type.model.upper()
-
-        # Map content type strings to their ContentType objects
-        content_type_map = {
-            paper_type_str: paper_content_type,
-            post_type_str: post_content_type,
-            comment_type_str: comment_content_type,
-        }
+        paper_type_str = self._paper_content_type.model.upper()
+        post_type_str = self._post_content_type.model.upper()
+        comment_type_str = self._comment_content_type.model.upper()
 
         paper_ids = []
         post_ids = []
@@ -84,7 +72,7 @@ class BaseFeedView(viewsets.ModelViewSet):
             paper_votes = get_user_votes(
                 user,
                 paper_ids,
-                content_type_map[paper_type_str],
+                self._paper_content_type,
             )
 
             paper_votes_map = {}
@@ -102,7 +90,7 @@ class BaseFeedView(viewsets.ModelViewSet):
             post_votes = get_user_votes(
                 user,
                 post_ids,
-                content_type_map[post_type_str],
+                self._post_content_type,
             )
 
             post_votes_map = {}
@@ -120,7 +108,7 @@ class BaseFeedView(viewsets.ModelViewSet):
             comment_votes = get_user_votes(
                 user,
                 comment_ids,
-                content_type_map[comment_type_str],
+                self._comment_content_type,
             )
 
             comment_votes_map = {}
