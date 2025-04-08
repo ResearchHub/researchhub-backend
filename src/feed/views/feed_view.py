@@ -3,16 +3,14 @@ Standard feed view for ResearchHub.
 """
 
 from django.conf import settings
-from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db import models
 from django.db.models import Subquery
-from rest_framework import status, viewsets
+from rest_framework import status
 from rest_framework.response import Response
 
+from feed.views.base_feed_view import BaseFeedView
 from hub.models import Hub
-from paper.related_models.paper_model import Paper
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 
 from ..models import FeedEntryLatest, FeedEntryPopular
 from ..serializers import FeedEntrySerializer
@@ -25,7 +23,7 @@ from .common import (
 )
 
 
-class FeedViewSet(viewsets.ModelViewSet):
+class FeedViewSet(BaseFeedView):
     """
     ViewSet for accessing the main feed of ResearchHub activities.
     Supports filtering by hub, following status, and sorting by popularity.
@@ -96,8 +94,7 @@ class FeedViewSet(viewsets.ModelViewSet):
         # a simplified heuristic is to filter out papers (papers are ingested via
         # OpenAlex and do not originate on ResearchHub).
         if source == "researchhub":
-            paper_content_type = ContentType.objects.get_for_model(Paper)
-            queryset = queryset.exclude(content_type_id=paper_content_type.id)
+            queryset = queryset.exclude(content_type=self._paper_content_type)
 
         # Apply following filter if feed_view is 'following' and user is authenticated
         if feed_view == "following" and self.request.user.is_authenticated:
@@ -109,13 +106,9 @@ class FeedViewSet(viewsets.ModelViewSet):
                 )
 
         if feed_view == "popular":
-            # Only include papers and posts in the popular feed # FIXME: Move up
-            paper_content_type = ContentType.objects.get_for_model(Paper)
-            post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
-            hub_content_type = ContentType.objects.get_for_model(Hub)
-
+            # Only include papers and posts in the popular feed
             feed_entries = FeedEntryPopular.objects.filter(
-                content_type__in=[paper_content_type, post_content_type],
+                content_type__in=[self._paper_content_type, self._post_content_type],
             )
 
             # Apply any additional filters
@@ -128,7 +121,7 @@ class FeedViewSet(viewsets.ModelViewSet):
                     )
 
                 feed_entries = feed_entries.filter(
-                    parent_content_type=hub_content_type, parent_object_id=hub.id
+                    parent_content_type=self._hub_content_type, parent_object_id=hub.id
                 )
 
             # Since there can be multiple feed entries per unified document,
@@ -157,9 +150,8 @@ class FeedViewSet(viewsets.ModelViewSet):
                     {"error": "Hub not found"}, status=status.HTTP_404_NOT_FOUND
                 )
 
-            hub_content_type = ContentType.objects.get_for_model(Hub)
             queryset = queryset.filter(
-                parent_content_type=hub_content_type, parent_object_id=hub.id
+                parent_content_type=self._hub_content_type, parent_object_id=hub.id
             )
 
         return queryset

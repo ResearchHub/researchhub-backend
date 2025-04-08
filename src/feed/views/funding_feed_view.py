@@ -8,14 +8,13 @@ This is done for three reasons:
 3. Older feed entries are not in the feed table.
 """
 
-from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db.models import Q
-from rest_framework import viewsets
 from rest_framework.response import Response
 
 from feed.models import FeedEntry
 from feed.serializers import FeedEntrySerializer
+from feed.views.base_feed_view import BaseFeedView
 from purchase.related_models.fundraise_model import Fundraise
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -30,7 +29,7 @@ from .common import (
 )
 
 
-class FundingFeedViewSet(viewsets.ModelViewSet):
+class FundingFeedViewSet(BaseFeedView):
     """
     ViewSet for accessing entries specifically related to preregistration documents.
     This provides a dedicated endpoint for clients to fetch and display preregistration
@@ -70,15 +69,12 @@ class FundingFeedViewSet(viewsets.ModelViewSet):
         queryset = self.get_queryset()
         page = self.paginate_queryset(queryset)
 
-        # Create content type for posts
-        post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
-
         feed_entries = []
         for post in page:
             # Create an unsaved FeedEntry instance
             feed_entry = FeedEntry(
                 id=post.id,  # We can use the post ID as a temporary ID
-                content_type=post_content_type,
+                content_type=self._post_content_type,
                 object_id=post.id,
                 action="PUBLISH",
                 action_date=post.created_date,
