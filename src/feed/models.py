@@ -159,6 +159,7 @@ class FeedEntryPopular(models.Model):
             cursor.execute(
                 "REFRESH MATERIALIZED VIEW CONCURRENTLY feed_feedentry_popular"
             )
+            cursor.execute("SELECT pg_prewarm('feed_feedentry_popular')")
 
 
 class FeedEntryLatest(models.Model):
@@ -226,3 +227,4 @@ class FeedEntryLatest(models.Model):
             cursor.execute(
                 "REFRESH MATERIALIZED VIEW CONCURRENTLY feed_feedentry_latest"
             )
+            cursor.execute("SELECT pg_prewarm('feed_feedentry_latest')")
