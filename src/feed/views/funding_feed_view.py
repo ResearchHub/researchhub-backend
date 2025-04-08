@@ -23,7 +23,6 @@ from ..serializers import PostSerializer
 from .common import (
     DEFAULT_CACHE_TIMEOUT,
     FeedPagination,
-    add_user_votes_to_response,
     get_cache_key,
     get_common_serializer_context,
 )
@@ -62,7 +61,7 @@ class FundingFeedViewSet(BaseFeedView):
             cached_response = cache.get(cache_key)
             if cached_response:
                 if request.user.is_authenticated:
-                    add_user_votes_to_response(request.user, cached_response)
+                    self.add_user_votes_to_response(request.user, cached_response)
                 return Response(cached_response)
 
         # Get paginated posts
@@ -88,7 +87,7 @@ class FundingFeedViewSet(BaseFeedView):
         response_data = self.get_paginated_response(serializer.data).data
 
         if request.user.is_authenticated:
-            add_user_votes_to_response(request.user, response_data)
+            self.add_user_votes_to_response(request.user, response_data)
 
         if use_cache:
             cache.set(cache_key, response_data, timeout=DEFAULT_CACHE_TIMEOUT)

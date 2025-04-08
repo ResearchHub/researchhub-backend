@@ -17,7 +17,6 @@ from ..serializers import FeedEntrySerializer
 from .common import (
     DEFAULT_CACHE_TIMEOUT,
     FeedPagination,
-    add_user_votes_to_response,
     get_cache_key,
     get_common_serializer_context,
 )
@@ -50,7 +49,7 @@ class FeedViewSet(BaseFeedView):
             cached_response = cache.get(cache_key)
             if cached_response:
                 if request.user.is_authenticated:
-                    add_user_votes_to_response(request.user, cached_response)
+                    self.add_user_votes_to_response(request.user, cached_response)
                 return Response(cached_response)
 
         response = super().list(request, *args, **kwargs)
@@ -60,7 +59,7 @@ class FeedViewSet(BaseFeedView):
             cache.set(cache_key, response.data, timeout=DEFAULT_CACHE_TIMEOUT)
 
         if request.user.is_authenticated:
-            add_user_votes_to_response(request.user, response.data)
+            self.add_user_votes_to_response(request.user, response.data)
 
         return response
 
