@@ -1,3 +1,5 @@
+# Manually created
+
 from django.db import migrations
 
 
