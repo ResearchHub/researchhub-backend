@@ -2,19 +2,14 @@ from unittest.mock import Mock
 
 from django.test import TestCase
 
-from feed.views.feed_view import FeedViewSet
+from feed.views.base_feed_view import BaseFeedView
 
 
-class FeedCommonTests(TestCase):
+class BaseFeedViewTests(TestCase):
     def test_get_cache_key(self):
         """Test cache key generation method with various inputs"""
         # Arrange
-        viewset = FeedViewSet()
-        viewset.pagination_class = type(
-            "TestPagination",
-            (),
-            {"page_size": 20, "page_size_query_param": "page_size"},
-        )
+        view = BaseFeedView()
 
         test_cases = [
             # (query_params, is_authenticated, user_id, expected_key)
@@ -75,7 +70,7 @@ class FeedCommonTests(TestCase):
             mock_request.user.id = user_id
 
             # Act
-            cache_key = viewset.get_cache_key(
+            cache_key = view.get_cache_key(
                 mock_request,
             )
 
