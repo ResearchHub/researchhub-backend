@@ -1438,17 +1438,17 @@ with-social = ["django-allauth (>=0.40.0,<0.53.0)"]
 
 [[package]]
 name = "django"
-version = "5.1.8"
+version = "5.2"
 description = "A high-level Python web framework that encourages rapid development and clean, pragmatic design."
 optional = false
 python-versions = ">=3.10"
 files = [
-    {file = "Django-5.1.8-py3-none-any.whl", hash = "sha256:11b28fa4b00e59d0def004e9ee012fefbb1065a5beb39ee838983fd24493ad4f"},
-    {file = "Django-5.1.8.tar.gz", hash = "sha256:42e92a1dd2810072bcc40a39a212b693f94406d0ba0749e68eb642f31dc770b4"},
+    {file = "Django-5.2-py3-none-any.whl", hash = "sha256:91ceed4e3a6db5aedced65e3c8f963118ea9ba753fc620831c77074e620e7d83"},
+    {file = "Django-5.2.tar.gz", hash = "sha256:1a47f7a7a3d43ce64570d350e008d2949abe8c7e21737b351b6a1611277c6d89"},
 ]
 
 [package.dependencies]
-asgiref = ">=3.8.1,<4"
+asgiref = ">=3.8.1"
 sqlparse = ">=0.3.1"
 tzdata = {version = "*", markers = "sys_platform == \"win32\""}
 
@@ -1663,17 +1663,17 @@ files = [
 
 [[package]]
 name = "django-mjml"
-version = "1.3"
+version = "1.4"
 description = "Use MJML in Django templates"
 optional = false
 python-versions = ">=3.6"
 files = [
-    {file = "django_mjml-1.3-py3-none-any.whl", hash = "sha256:a8eb15f32b6a9c497da48bff36e998b61dcf9bca2c44f3d98c7517e9edd06fe6"},
-    {file = "django_mjml-1.3.tar.gz", hash = "sha256:d6d2f6cf664f2f7d7e42e12dd1587a45545a7f43393b8dc1a574382975150516"},
+    {file = "django_mjml-1.4-py3-none-any.whl", hash = "sha256:09dc440fcec64f3656b17646439336e6c15c5987103dfb6fe23eb1f1bf734d11"},
+    {file = "django_mjml-1.4.tar.gz", hash = "sha256:a805b3721de92a4972bb6bd4a3bffa91579420e48297a55f3ffef6d8e926b0b4"},
 ]
 
 [package.dependencies]
-django = ">=2.2,<5.2"
+django = ">=2.2,<5.3"
 
 [package.extras]
 requests = ["requests (>=2.24)"]
@@ -6107,4 +6107,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "c451c83a1b47d7d56a5959e6146a40b4bd715638654f95598cb9163785d33c3c"
+content-hash = "ff5a4a4c1038be1b0bd0a5b86ad6dc5be249457719ac589b210e74590f64aaae"
