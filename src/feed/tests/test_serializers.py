@@ -13,7 +13,7 @@ from feed.serializers import (
     PaperSerializer,
     PostSerializer,
 )
-from feed.views.common import get_common_serializer_context
+from feed.views.base_feed_view import BaseFeedView
 from hub.models import Hub
 from hub.serializers import SimpleHubSerializer
 from hub.tests.helpers import create_hub
@@ -268,7 +268,7 @@ class PostSerializerTests(TestCase):
         )
 
         # Get the context with the field specifications
-        context = get_common_serializer_context()
+        context = BaseFeedView().get_common_serializer_context()
 
         # Mock the RscExchangeRate.usd_to_rsc method to avoid database dependency
         with patch.object(

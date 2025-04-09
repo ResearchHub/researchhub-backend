@@ -3,29 +3,21 @@ Standard feed view for ResearchHub.
 """
 
 from django.conf import settings
-from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.db import models
 from django.db.models import Subquery
-from rest_framework import status, viewsets
+from rest_framework import status
 from rest_framework.response import Response
 
+from feed.views.base_feed_view import BaseFeedView
 from hub.models import Hub
-from paper.related_models.paper_model import Paper
-from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 
 from ..models import FeedEntryLatest, FeedEntryPopular
 from ..serializers import FeedEntrySerializer
-from .common import (
-    DEFAULT_CACHE_TIMEOUT,
-    FeedPagination,
-    add_user_votes_to_response,
-    get_cache_key,
-    get_common_serializer_context,
-)
+from .common import FeedPagination
 
 
-class FeedViewSet(viewsets.ModelViewSet):
+class FeedViewSet(BaseFeedView):
     """
     ViewSet for accessing the main feed of ResearchHub activities.
     Supports filtering by hub, following status, and sorting by popularity.
@@ -38,13 +30,13 @@ class FeedViewSet(viewsets.ModelViewSet):
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-        context.update(get_common_serializer_context())
+        context.update(self.get_common_serializer_context())
         return context
 
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
         page_num = int(page)
-        cache_key = get_cache_key(request)
+        cache_key = self.get_cache_key(request)
         use_cache = self.cache_enabled and page_num < 4
 
         if use_cache:
@@ -52,17 +44,17 @@ class FeedViewSet(viewsets.ModelViewSet):
             cached_response = cache.get(cache_key)
             if cached_response:
                 if request.user.is_authenticated:
-                    add_user_votes_to_response(request.user, cached_response)
+                    self.add_user_votes_to_response(request.user, cached_response)
                 return Response(cached_response)
 
         response = super().list(request, *args, **kwargs)
 
         if use_cache:
             # cache response
-            cache.set(cache_key, response.data, timeout=DEFAULT_CACHE_TIMEOUT)
+            cache.set(cache_key, response.data, timeout=self.DEFAULT_CACHE_TIMEOUT)
 
         if request.user.is_authenticated:
-            add_user_votes_to_response(request.user, response.data)
+            self.add_user_votes_to_response(request.user, response.data)
 
         return response
 
@@ -96,8 +88,7 @@ class FeedViewSet(viewsets.ModelViewSet):
         # a simplified heuristic is to filter out papers (papers are ingested via
         # OpenAlex and do not originate on ResearchHub).
         if source == "researchhub":
-            paper_content_type = ContentType.objects.get_for_model(Paper)
-            queryset = queryset.exclude(content_type_id=paper_content_type.id)
+            queryset = queryset.exclude(content_type=self._paper_content_type)
 
         # Apply following filter if feed_view is 'following' and user is authenticated
         if feed_view == "following" and self.request.user.is_authenticated:
@@ -109,13 +100,9 @@ class FeedViewSet(viewsets.ModelViewSet):
                 )
 
         if feed_view == "popular":
-            # Only include papers and posts in the popular feed # FIXME: Move up
-            paper_content_type = ContentType.objects.get_for_model(Paper)
-            post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
-            hub_content_type = ContentType.objects.get_for_model(Hub)
-
+            # Only include papers and posts in the popular feed
             feed_entries = FeedEntryPopular.objects.filter(
-                content_type__in=[paper_content_type, post_content_type],
+                content_type__in=[self._paper_content_type, self._post_content_type],
             )
 
             # Apply any additional filters
@@ -128,7 +115,7 @@ class FeedViewSet(viewsets.ModelViewSet):
                     )
 
                 feed_entries = feed_entries.filter(
-                    parent_content_type=hub_content_type, parent_object_id=hub.id
+                    parent_content_type=self._hub_content_type, parent_object_id=hub.id
                 )
 
             # Since there can be multiple feed entries per unified document,
@@ -157,9 +144,8 @@ class FeedViewSet(viewsets.ModelViewSet):
                     {"error": "Hub not found"}, status=status.HTTP_404_NOT_FOUND
                 )
 
-            hub_content_type = ContentType.objects.get_for_model(Hub)
             queryset = queryset.filter(
-                parent_content_type=hub_content_type, parent_object_id=hub.id
+                parent_content_type=self._hub_content_type, parent_object_id=hub.id
             )
 
         return queryset
