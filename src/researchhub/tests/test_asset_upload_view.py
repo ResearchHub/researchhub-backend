@@ -47,6 +47,39 @@ class AssetUploadViewTest(APITestCase):
             "application/pdf",
         )
 
+    def test_post_filename_with_special_characters(self):
+        # Arrange
+        request = self.factory.post(
+            "/asset/upload/",
+            {
+                "content_type": "application/pdf",
+                "entity": "paper",
+                "filename": "test)(*&^%$#@!)123.pdf",
+            },
+        )
+
+        force_authenticate(request, self.user)
+
+        # Act
+        response = self.view(request, storage_service=self.mock_storage_service)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data,
+            {
+                "presigned_url": self.mock_storage_service.create_presigned_url.return_value.url,
+                "object_key": self.mock_storage_service.create_presigned_url.return_value.object_key,
+                "object_url": self.mock_storage_service.create_presigned_url.return_value.object_url,
+            },
+        )
+        self.mock_storage_service.create_presigned_url.assert_called_once_with(
+            "paper",
+            "test123.pdf",
+            request.user.id,
+            "application/pdf",
+        )
+
     def test_post_fails_unauthenticated(self):
         # Arrange
         request = self.factory.post("/assets/upload/")

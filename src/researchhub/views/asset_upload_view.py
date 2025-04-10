@@ -5,6 +5,7 @@ from rest_framework.views import APIView
 
 from researchhub.serializers.asset_upload_serializer import AssetUploadRequestSerializer
 from researchhub.services.storage_service import S3StorageService
+from utils.parsers import clean_filename
 
 
 class AssetUploadView(APIView):
@@ -31,7 +32,7 @@ class AssetUploadView(APIView):
 
         content_type = data.get("content_type")
         entity = data.get("entity")
-        filename = data.get("filename")
+        filename = clean_filename(data.get("filename"))
 
         presigned_url = self.storage_service.create_presigned_url(
             entity, filename, user.id, content_type
