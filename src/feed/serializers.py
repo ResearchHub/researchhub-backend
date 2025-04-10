@@ -1,11 +1,9 @@
-from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
 from rest_framework import serializers
 
 from hub.models import Hub
 from paper.models import Paper
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
-from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.related_models.constants import document_type
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -71,12 +69,27 @@ class SimpleHubSerializer(serializers.ModelSerializer):
         fields = ["name", "slug"]
 
 
+class SimpleReviewSerializer(serializers.ModelSerializer):
+    """Minimal review serializer with just essential fields"""
+
+    author = SimpleAuthorSerializer(source="created_by.author_profile")
+
+    class Meta:
+        model = ReviewSerializer.Meta.model
+        fields = [
+            "author",
+            "id",
+            "score",
+        ]
+
+
 class ContentObjectSerializer(serializers.Serializer):
     """Base serializer for content objects (papers, posts, etc.)"""
 
     id = serializers.IntegerField()
     created_date = serializers.DateTimeField()
     hub = serializers.SerializerMethodField()
+    reviews = serializers.SerializerMethodField()
     slug = serializers.CharField()
 
     def get_hub(self, obj):
@@ -99,8 +112,19 @@ class ContentObjectSerializer(serializers.Serializer):
             return BountySerializer(bounties, many=True).data
         return []
 
+    def get_reviews(self, obj):
+        """Return reviews from the unified document if it exists"""
+        if hasattr(obj, "unified_document") and obj.unified_document:
+            reviews = obj.unified_document.reviews.all()
+
+            if not reviews.exists():
+                return []
+
+            return SimpleReviewSerializer(reviews, many=True).data
+        return []
+
     class Meta:
-        fields = ["id", "created_date", "hub", "slug", "user"]
+        fields = ["id", "created_date", "hub", "reviews", "slug", "user"]
         abstract = True
 
 

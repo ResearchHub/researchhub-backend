@@ -12,6 +12,7 @@ from feed.serializers import (
     FeedEntrySerializer,
     PaperSerializer,
     PostSerializer,
+    SimpleReviewSerializer,
 )
 from feed.views.base_feed_view import BaseFeedView
 from hub.models import Hub
@@ -97,6 +98,27 @@ class PaperSerializerTests(TestCase):
             topic=topic, unified_document=self.paper.unified_document, is_primary=True
         )
 
+        self.thread = RhCommentThreadModel.objects.create(
+            thread_type=rh_comment_thread_types.PEER_REVIEW,
+            object_id=self.paper.id,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(Paper),
+        )
+
+        self.comment = RhCommentModel.objects.create(
+            thread=self.thread,
+            created_by=self.user,
+            comment_content_type=QUILL_EDITOR,
+        )
+
+        Review.objects.create(
+            score=8.5,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=self.comment.id,
+            unified_document=self.paper.unified_document,
+        )
+
         self.hub = create_hub("Test Hub")
         self.hub.subfield_id = primary_topic.topic.subfield_id
         self.hub.save()
@@ -111,6 +133,7 @@ class PaperSerializerTests(TestCase):
         self.assertIn("created_date", data)
         self.assertIn("hub", data)
         self.assertIn("slug", data)
+        self.assertIn("reviews", data)
 
         # Test PaperSerializer specific fields
         self.assertEqual(data["title"], "Test Paper")
@@ -225,6 +248,27 @@ class PostSerializerTests(TestCase):
         )
         self.post.save()
 
+        self.thread = RhCommentThreadModel.objects.create(
+            thread_type=rh_comment_thread_types.PEER_REVIEW,
+            object_id=self.post.id,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+        )
+
+        self.comment = RhCommentModel.objects.create(
+            thread=self.thread,
+            created_by=self.user,
+            comment_content_type=QUILL_EDITOR,
+        )
+
+        self.review = Review.objects.create(
+            score=8.5,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=self.comment.id,
+            unified_document=self.post.unified_document,
+        )
+
     def test_serializes_post(self):
         serializer = PostSerializer(self.post)
         data = serializer.data
@@ -236,6 +280,7 @@ class PostSerializerTests(TestCase):
         self.assertEqual(data["title"], self.post.title)
         self.assertEqual(data["type"], self.post.document_type)
         self.assertIsNone(data["fundraise"])
+        self.assertIn("reviews", data)
 
     def test_serializes_preregistration_post_with_fundraise(self):
         from decimal import Decimal
@@ -574,6 +619,52 @@ class SimpleHubSerializerTests(TestCase):
 
         self.assertEqual(data["name"], self.hub.name)
         self.assertEqual(data["slug"], self.hub.slug)
+
+
+class SimpleReviewSerializerTests(TestCase):
+    def setUp(self):
+        self.user = create_random_default_user("paper_creator")
+        self.author = self.user.author_profile
+        self.author.profile_image = "https://example.com/profile.jpg"
+        self.author.save()
+
+        self.paper = create_paper(
+            uploaded_by=self.user,
+            title="Test Paper",
+            raw_authors=["Test Author", "Test Author 2"],
+        )
+        self.paper.authors.add(self.user.author_profile)
+        self.paper.save()
+
+        self.thread = RhCommentThreadModel.objects.create(
+            thread_type=rh_comment_thread_types.GENERIC_COMMENT,
+            object_id=self.paper.id,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(Paper),
+        )
+
+        self.comment = RhCommentModel.objects.create(
+            thread=self.thread,
+            created_by=self.user,
+            comment_content_type=QUILL_EDITOR,
+        )
+
+        self.review = Review.objects.create(
+            score=8.5,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=self.comment.id,
+            unified_document=self.paper.unified_document,
+        )
+
+    def test_serializes_review(self):
+        # Act
+        data = SimpleReviewSerializer(self.review).data
+
+        # Assert
+        self.assertEqual(data["id"], self.review.id)
+        self.assertEqual(data["score"], self.review.score)
+        self.assertIn("author", data)
 
 
 class FeedEntrySerializerTests(TestCase):
