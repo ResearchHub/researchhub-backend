@@ -6,7 +6,6 @@ from django.contrib.contenttypes.models import ContentType
 
 from feed.models import FeedEntry, FeedEntryLatest, FeedEntryPopular
 from feed.serializers import serialize_feed_item, serialize_feed_metrics
-from reputation.related_models.bounty import Bounty
 from researchhub.celery import app
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,

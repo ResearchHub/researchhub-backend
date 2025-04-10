@@ -1,11 +1,9 @@
-from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
 from rest_framework import serializers
 
 from hub.models import Hub
 from paper.models import Paper
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
-from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.related_models.constants import document_type
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost

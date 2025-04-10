@@ -9,7 +9,6 @@ from django.dispatch import receiver
 from feed.models import FeedEntry
 from feed.serializers import serialize_feed_metrics
 from feed.tasks import create_feed_entry, delete_feed_entry, update_feed_metrics
-from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 
 """
