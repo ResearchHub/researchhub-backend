@@ -38,7 +38,6 @@ class FundingFeedViewSetTests(TestCase):
         self.hub = Hub.objects.create(
             name="Test Hub",
         )
-        self.unified_document.hubs.add(self.hub)
 
         # Create a preregistration post
         self.post = ResearchhubPost.objects.create(
@@ -49,6 +48,7 @@ class FundingFeedViewSetTests(TestCase):
             slug="test-preregistration",
             unified_document=self.unified_document,
             created_date=timezone.now(),
+            score=11,
         )
 
         # Set up API client
@@ -198,8 +198,8 @@ class FundingFeedViewSetTests(TestCase):
         self.assertEqual(len(response2.data["results"]), 2)
         self.assertEqual(response.data["results"], response2.data["results"])
 
-    def test_add_user_votes(self):
-        """Test that user votes are added to response data"""
+    def test_add_user_votes_and_metrics(self):
+        """Test that user votes and metrics are added to response data"""
         # Create a vote for the post
         post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
         vote = GrmVote.objects.create(
@@ -224,6 +224,9 @@ class FundingFeedViewSetTests(TestCase):
         self.assertIsNotNone(post_data)
         self.assertIn("user_vote", post_data)
         self.assertEqual(post_data["user_vote"]["id"], vote.id)  # NOSONAR
+
+        self.assertIn("metrics", post_data)
+        self.assertEqual(post_data["metrics"]["votes"], 11)
 
         # Use the integer value for the vote type, as that's what gets serialized
         vote_type = post_data["user_vote"]["vote_type"]
