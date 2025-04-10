@@ -69,12 +69,27 @@ class SimpleHubSerializer(serializers.ModelSerializer):
         fields = ["name", "slug"]
 
 
+class SimpleReviewSerializer(serializers.ModelSerializer):
+    """Minimal review serializer with just essential fields"""
+
+    author = SimpleAuthorSerializer(source="created_by.author_profile")
+
+    class Meta:
+        model = ReviewSerializer.Meta.model
+        fields = [
+            "author",
+            "id",
+            "score",
+        ]
+
+
 class ContentObjectSerializer(serializers.Serializer):
     """Base serializer for content objects (papers, posts, etc.)"""
 
     id = serializers.IntegerField()
     created_date = serializers.DateTimeField()
     hub = serializers.SerializerMethodField()
+    reviews = serializers.SerializerMethodField()
     slug = serializers.CharField()
 
     def get_hub(self, obj):
@@ -97,8 +112,19 @@ class ContentObjectSerializer(serializers.Serializer):
             return BountySerializer(bounties, many=True).data
         return []
 
+    def get_reviews(self, obj):
+        """Return reviews from the unified document if it exists"""
+        if hasattr(obj, "unified_document") and obj.unified_document:
+            reviews = obj.unified_document.reviews.all()
+
+            if not reviews.exists():
+                return []
+
+            return SimpleReviewSerializer(reviews, many=True).data
+        return []
+
     class Meta:
-        fields = ["id", "created_date", "hub", "slug", "user"]
+        fields = ["id", "created_date", "hub", "reviews", "slug", "user"]
         abstract = True
 
 
