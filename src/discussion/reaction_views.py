@@ -409,34 +409,15 @@ def create_automated_bounty(item):
                         "attributes": {
                             "link": "https://blog.researchhub.foundation/peer-reviewing-on-researchhub/"
                         },
-                        "insert": "Peer Review",
+                        "insert": "Peer Review Guide",
                     },
                     {
-                        "insert": " guide with details about the process and examples of awarded reviews.\n\n"
+                        "insert": " with details about the process and examples of awarded reviews.\n\n"
                     },
                     {"attributes": {"bold": True}, "insert": "Requirements:"},
                     {
                         "insert": "\nSubmit your review within 14 days of the date this bounty was initiated."
                     },
-                    {"attributes": {"list": "ordered"}, "insert": "\n"},
-                    {
-                        "insert": 'Use the rating system in the "Peer Reviews" tab for all 5 criteria: '
-                    },
-                    {
-                        "attributes": {"italic": True},
-                        "insert": "overall assessment, introduction, methods, results, and discussion",
-                    },
-                    {"insert": "."},
-                    {"attributes": {"list": "ordered"}, "insert": "\n"},
-                    {
-                        "insert": "Please enhance the scientific quality, rigor, and content of the manuscript and "
-                    },
-                    {"attributes": {"bold": True}, "insert": "avoid summaries"},
-                    {"insert": "."},
-                    {"attributes": {"list": "ordered"}, "insert": "\n"},
-                    {"insert": "Please "},
-                    {"attributes": {"bold": True}, "insert": "critically assess"},
-                    {"insert": " the figures and tables."},
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
                     {"attributes": {"bold": True}, "insert": "Disclose"},
                     {"insert": " AI use. Please refer to our "},
@@ -451,6 +432,25 @@ def create_automated_bounty(item):
                     {"attributes": {"bold": True}, "insert": "Disclose"},
                     {"insert": " conflicts of interest."},
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
+                    {
+                        "insert": 'Use the rating system in the "Peer Reviews" tab for all 5 criteria: '
+                    },
+                    {
+                        "attributes": {"italic": True},
+                        "insert": "overall assessment, introduction, methods, results, and discussion",
+                    },
+                    {"insert": "."},
+                    {"attributes": {"list": "ordered"}, "insert": "\n"},
+                    {
+                        "insert": "a. Please enhance the scientific quality, rigor, and content of the manuscript and "
+                    },
+                    {"attributes": {"bold": True}, "insert": "avoid summaries"},
+                    {"insert": "."},
+                    {"attributes": {"indent": 1}, "insert": "\n"},
+                    {"insert": "b. Please "},
+                    {"attributes": {"bold": True}, "insert": "critically assess"},
+                    {"insert": " the figures and tables."},
+                    {"attributes": {"indent": 1}, "insert": "\n"},
                     {"insert": "\nEditors will review and award "},
                     {
                         "attributes": {"bold": True},
