@@ -397,53 +397,30 @@ def create_automated_bounty(item):
             bypass_user_balance = True
             json_content = {
                 "ops": [
-                    {
-                        "insert": "ResearchHub Foundation is assigning a peer review grant of "
-                    },
+                    {"insert": "ResearchHub Foundation is assigning an incentive of "},
                     {
                         "attributes": {"bold": True},
                         "insert": "$150 in ResearchCoin (RSC)",
                     },
                     {
-                        "insert": " to incentivize the peer review of this preprint. Anyone can perform a peer review and receive rewards from upvotes/tips, but only those who provide a high-quality, thorough peer review are eligible for the grant. We strongly encourage you to read the "
+                        "insert": " for a high-quality, rigorous, and constructive peer review of this manuscript. If your expertise aligns well with this research, please read our "
                     },
                     {
                         "attributes": {
                             "link": "https://blog.researchhub.foundation/peer-reviewing-on-researchhub/"
                         },
-                        "insert": "Peer Reviewing on ResearchHub",
+                        "insert": "Peer Review Guide",
                     },
                     {
-                        "insert": " guide with examples of acceptable peer reviews and additional information.\n\n"
+                        "insert": " with details about the process and examples of awarded reviews.\n\n"
                     },
                     {"attributes": {"bold": True}, "insert": "Requirements:"},
                     {
-                        "insert": "\nYour review must be submitted during the 14-day submission window from the day this grant was initiated."
+                        "insert": "\nSubmit your review within 14 days of the date this bounty was initiated."
                     },
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
-                    {
-                        "insert": "Mention your credentials and include your areas of relevant expertise and limitations in assessing this preprint."
-                    },
-                    {"attributes": {"list": "ordered"}, "insert": "\n"},
-                    {
-                        "insert": "Include the version of the preprint you are reviewing (e.g. 1st, 2nd, etc.). Make sure you review the most updated version available."
-                    },
-                    {"attributes": {"list": "ordered"}, "insert": "\n"},
-                    {
-                        "insert": 'Use the rating system in the "Peer Reviews" tab for all 5 criteria (overall assessment, introduction, methods, results, discussion) but the content within each is flexible (in-line comments can be used instead of a block of text in each section).'
-                    },
-                    {"attributes": {"list": "ordered"}, "insert": "\n"},
-                    {"insert": "For "},
-                    {"attributes": {"bold": True}, "insert": "each"},
-                    {
-                        "insert": " figure, including supplementary material, you must provide a detailed assessment (pros or cons)."
-                    },
-                    {"attributes": {"list": "ordered"}, "insert": "\n"},
-                    {"insert": "Plagiarism will not be tolerated. You "},
-                    {"attributes": {"bold": True}, "insert": "must"},
-                    {
-                        "insert": " comprehensively disclose any use of artificial intelligence (AI) platforms used in the review process. Please refer to our "
-                    },
+                    {"attributes": {"bold": True}, "insert": "Disclose AI use"},
+                    {"insert": ". Please refer to our "},
                     {
                         "attributes": {
                             "link": "https://drive.google.com/file/d/1KihDvQze5rzi8xwleWfMNsdPbc6EF0t_/view"
@@ -452,13 +429,34 @@ def create_automated_bounty(item):
                     },
                     {"insert": " for additional details."},
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
+                    {"insert": "Disclose conflicts of interest."},
+                    {"attributes": {"list": "ordered"}, "insert": "\n"},
+                    {
+                        "insert": 'Use the rating system in the "Peer Reviews" tab for all 5 criteria: '
+                    },
+                    {
+                        "attributes": {"italic": True},
+                        "insert": "overall assessment, introduction, methods, results, and discussion",
+                    },
+                    {"insert": "."},
+                    {"attributes": {"list": "ordered"}, "insert": "\n"},
+                    {
+                        "insert": "a. Please enhance the scientific quality, rigor, and content of the manuscript and "
+                    },
+                    {"attributes": {"bold": True}, "insert": "avoid summaries"},
+                    {"insert": "."},
+                    {"attributes": {"indent": 1}, "insert": "\n"},
+                    {"insert": "b. Please "},
+                    {"attributes": {"bold": True}, "insert": "critically assess"},
+                    {"insert": " the figures and tables."},
+                    {"attributes": {"indent": 1}, "insert": "\n"},
                     {"insert": "\nEditors will review and award "},
                     {
                         "attributes": {"bold": True},
                         "insert": "up to 2 high-quality peer reviews",
                     },
                     {
-                        "insert": " within 1 week following the closure of the submission window. Awardees will be notified. All decisions are final. For questions, please contact "
+                        "insert": " within 1 week following the 14 day submission window. All decisions are final. For questions, please contact "
                     },
                     {
                         "attributes": {
