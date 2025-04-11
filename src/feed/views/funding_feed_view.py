@@ -19,7 +19,7 @@ from purchase.related_models.fundraise_model import Fundraise
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 
-from ..serializers import PostSerializer
+from ..serializers import PostSerializer, serialize_feed_metrics
 from .common import FeedPagination
 
 
@@ -76,6 +76,8 @@ class FundingFeedViewSet(BaseFeedView):
                 unified_document=post.unified_document,
             )
             feed_entry.item = post
+            metrics = serialize_feed_metrics(post, self._post_content_type)
+            feed_entry.metrics = metrics
             feed_entries.append(feed_entry)
 
         serializer = FeedEntrySerializer(feed_entries, many=True)
