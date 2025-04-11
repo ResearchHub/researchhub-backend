@@ -419,8 +419,8 @@ def create_automated_bounty(item):
                         "insert": "\nSubmit your review within 14 days of the date this bounty was initiated."
                     },
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
-                    {"attributes": {"bold": True}, "insert": "Disclose"},
-                    {"insert": " AI use. Please refer to our "},
+                    {"attributes": {"bold": True}, "insert": "Disclose AI use"},
+                    {"insert": ". Please refer to our "},
                     {
                         "attributes": {
                             "link": "https://drive.google.com/file/d/1KihDvQze5rzi8xwleWfMNsdPbc6EF0t_/view"
@@ -429,8 +429,7 @@ def create_automated_bounty(item):
                     },
                     {"insert": " for additional details."},
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
-                    {"attributes": {"bold": True}, "insert": "Disclose"},
-                    {"insert": " conflicts of interest."},
+                    {"insert": "Disclose conflicts of interest."},
                     {"attributes": {"list": "ordered"}, "insert": "\n"},
                     {
                         "insert": 'Use the rating system in the "Peer Reviews" tab for all 5 criteria: '
