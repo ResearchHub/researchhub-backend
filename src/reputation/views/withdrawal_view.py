@@ -52,6 +52,8 @@ NETWORKS = {
     },
 }
 
+logger = logging.getLogger(__name__)
+
 
 class WithdrawalViewSet(viewsets.ModelViewSet):
     queryset = Withdrawal.objects.all()
@@ -73,17 +75,22 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             return Withdrawal.objects.filter(user=user)
 
     def create(self, request):
+        amount = decimal.Decimal(request.data["amount"])
+        to_address = request.data.get("to_address")
+        user = request.user
+
         if LogEntry.objects.filter(
             object_repr="WITHDRAWAL_SWITCH", action_flag=3
         ).exists():
+            logger.info(
+                f"Withdrawals suspended; request blocked for user {user.id} (amount: {amount}, to_address: {to_address})"
+            )
             return Response(
                 "Withdrawals are suspended for the time being. "
                 "Please be patient as we work to turn withdrawals back on",
                 status=400,
             )
 
-        user = request.user
-        amount = decimal.Decimal(request.data["amount"])
         network = request.data.get("network", "ETHEREUM").upper()
         if network not in NETWORKS:
             return Response(
@@ -91,7 +98,6 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             )
 
         transaction_fee = self.calculate_transaction_fee(network)
-        to_address = request.data.get("to_address")
 
         pending_tx = Withdrawal.objects.filter(
             user=user, paid_status="PENDING", transaction_hash__isnull=False
