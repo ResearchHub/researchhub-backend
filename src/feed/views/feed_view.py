@@ -37,7 +37,10 @@ class FeedViewSet(BaseFeedView):
         page = request.query_params.get("page", "1")
         page_num = int(page)
         cache_key = self.get_cache_key(request)
-        use_cache = self.cache_enabled and page_num < 4
+
+        disable_cache_token = request.query_params.get("disable_cache")
+        force_disable_cache = disable_cache_token == settings.HEALTH_CHECK_TOKEN
+        use_cache = not force_disable_cache and self.cache_enabled and page_num < 4
 
         if use_cache:
             # try to get cached response
