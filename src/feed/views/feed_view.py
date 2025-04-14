@@ -45,7 +45,11 @@ class FeedViewSet(BaseFeedView):
             if cached_response:
                 if request.user.is_authenticated:
                     self.add_user_votes_to_response(request.user, cached_response)
-                return Response(cached_response)
+                response = Response(cached_response)
+                response["RH-Cache"] = "hit" + (
+                    " (auth)" if request.user.is_authenticated else ""
+                )
+                return response
 
         response = super().list(request, *args, **kwargs)
 
@@ -56,6 +60,9 @@ class FeedViewSet(BaseFeedView):
         if request.user.is_authenticated:
             self.add_user_votes_to_response(request.user, response.data)
 
+        response["RH-Cache"] = "miss" + (
+            " (auth)" if request.user.is_authenticated else ""
+        )
         return response
 
     def get_queryset(self):
