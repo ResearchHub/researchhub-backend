@@ -77,6 +77,10 @@ class FeedEntry(DefaultModel):
                 fields=["-action_date"],
                 name="feed_action_date_idx",
             ),
+            models.Index(
+                fields=["created_date"],
+                name="feed_created_date_idx",
+            ),
         ]
         constraints = [
             models.UniqueConstraint(
