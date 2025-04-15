@@ -45,6 +45,7 @@ class Migration(migrations.Migration):
             CREATE INDEX feed_feedentry_popular_hotscore_idx ON feed_feedentry_popular (hot_score DESC);
             CREATE INDEX feed_feedentry_popular_action_date_idx ON feed_feedentry_popular (action_date DESC);
             CREATE INDEX feed_feedentry_popular_parent_lookup_idx ON feed_feedentry_popular (parent_content_type_id, parent_object_id);
+            CREATE INDEX feed_feedentry_composite_dedupe_idx ON feed_feedentry_popular (content_type_id, unified_document_id, id DESC);
             """.format(
             limit_data
         )
