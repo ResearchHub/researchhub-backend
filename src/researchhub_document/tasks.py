@@ -34,8 +34,6 @@ def recalc_hot_score_task(instance_content_type_id, instance_id):
     try:
         if model_name in ["researchhubpost", "paper"]:
             uni_doc = model_class.objects.get(id=instance_id).unified_document
-        elif model_name == "paper":
-            uni_doc = model_class.objects.get(id=instance_id).unified_document
         elif model_name == "citation":
             uni_doc = model_class.objects.get(id=instance_id).source
         elif model_name == "bounty":
