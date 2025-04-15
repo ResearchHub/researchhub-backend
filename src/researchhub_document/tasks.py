@@ -32,14 +32,15 @@ def recalc_hot_score_task(instance_content_type_id, instance_id):
     uni_doc = None
 
     try:
-        if model_name in ["researchhubpost", "paper"]:
+        if model_name in [
+            "bounty",
+            "contribution",
+            "paper",
+            "researchhubpost",
+        ]:
             uni_doc = model_class.objects.get(id=instance_id).unified_document
         elif model_name == "citation":
             uni_doc = model_class.objects.get(id=instance_id).source
-        elif model_name == "bounty":
-            uni_doc = model_class.objects.get(id=instance_id).unified_document
-        elif model_name == "contribution":
-            uni_doc = model_class.objects.get(id=instance_id).unified_document
 
         if uni_doc:
             uni_doc.calculate_hot_score(should_save=True)
