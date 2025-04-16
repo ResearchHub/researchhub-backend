@@ -25,7 +25,7 @@ class TestHotScore(unittest.TestCase):
         """Helper to create test items with controlled properties."""
         item = MagicMock()
         item.score = score
-        item.discussion_count = discussion_count
+        item.get_discussion_count = MagicMock(return_value=discussion_count)
         item.created_date = created_date or self.now
 
         # Setup bounties if provided
@@ -59,7 +59,7 @@ class TestHotScore(unittest.TestCase):
         # Calculate expected score components for verification
         weights = CONTENT_TYPE_WEIGHTS["paper"]
         vote_component = 20 * weights["vote_weight"]
-        discussion_component = math.log(11) * weights["discussion_weight"] * 10
+        discussion_component = math.log(11) * weights["reply_weight"] * 10
         bounty_component = 0  # No bounties
         base_score = vote_component + discussion_component + bounty_component
 
@@ -94,7 +94,7 @@ class TestHotScore(unittest.TestCase):
 
         weights = CONTENT_TYPE_WEIGHTS["researchhubpost"]
         vote_component = 15 * weights["vote_weight"]
-        discussion_component = math.log(9) * weights["discussion_weight"] * 10
+        discussion_component = math.log(9) * weights["reply_weight"] * 10
         bounty_component = math.sqrt(25) * weights["bounty_weight"]
         base_score = vote_component + discussion_component + bounty_component
 

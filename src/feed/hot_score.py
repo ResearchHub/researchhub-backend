@@ -11,25 +11,21 @@ from datetime import datetime, timezone
 # These weights will be used to adjust the importance of different signals
 # based on content type
 #    - vote_weight: Base vote weight (upvotes - downvotes)
-#    - discussion_weight: Weight for discussions/comments
-#    - citation_weight: Weight for citations (paper-specific)
-#    - download_weight: Weight for downloads (paper-specific)
+#    - reply_weight: Weight for discussions/comments
 #    - bounty_weight: Weight for bounties
 #    - time_decay_factor: How quickly score decays with time
 #    - half_life_days: Decay half-life in days
 CONTENT_TYPE_WEIGHTS = {
     "paper": {
         "vote_weight": 1.0,
-        "discussion_weight": 0.5,
-        "citation_weight": 2.0,
-        "download_weight": 0.3,
+        "reply_weight": 0.5,
         "bounty_weight": 1.5,
         "time_decay_factor": 0.85,
         "half_life_days": 7,
     },
     "researchhubpost": {
         "vote_weight": 1.0,
-        "discussion_weight": 1.0,
+        "reply_weight": 1.0,
         "bounty_weight": 2.0,
         "time_decay_factor": 0.90,
         "half_life_days": 3,
@@ -60,7 +56,12 @@ def calculate_hot_score(item, content_type_name):
 
     # Get common attributes with defaults
     vote_score = getattr(item, "score", 0) or 0
-    discussion_count = getattr(item, "discussion_count", 0) or 0
+    reply_county = 0
+    if hasattr(item, "get_discussion_count"):
+        reply_county = item.get_discussion_count()
+    elif content_type_name == "rhcommentmodel":
+        reply_county = getattr(item, "children_count", 0) or 0
+
     created_date = getattr(item, "created_date", datetime.now(timezone.utc))
 
     # Get bounty amount
@@ -74,7 +75,7 @@ def calculate_hot_score(item, content_type_name):
     # Calculate base score components
     vote_component = vote_score * weights.get("vote_weight", 1.0)
     discussion_component = (
-        math.log(discussion_count + 1) * weights.get("discussion_weight", 0.5) * 10
+        math.log(reply_county + 1) * weights.get("reply_weight", 0.5) * 10
     )
     bounty_component = math.sqrt(bounty_amount) * weights.get("bounty_weight", 1.5)
 
