@@ -5,16 +5,7 @@ from hashlib import sha1
 from allauth.account.models import EmailAddress
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import (
-    DecimalField,
-    ExpressionWrapper,
-    F,
-    OuterRef,
-    Q,
-    Subquery,
-    Sum,
-    Value,
-)
+from django.db.models import DecimalField, F, OuterRef, Q, Subquery, Sum, Value
 from django.db.models.functions import Cast, Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -316,13 +307,19 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
                             )
                             & ~Q(
                                 reputation_records__distribution_type__in=[
-                                    "BOUNTY_DAO_FEE",  # When someone creates a bounty
-                                    "THREAD_UPVOTED",  # When someone tips a thread
-                                    "COMMENT_UPVOTED",  # When someone tips a comment
-                                    "RhCOMMENT_UPVOTED",  # When someone tips in new comment system
-                                    "RESEARCHHUB_POST_UPVOTED",  # When someone tips a post
-                                    "SUMMARY_BOUNTY",  # When someone funds a summary bounty
-                                    "FUNDRAISE_PAYOUT",  # When someone contributes to fundraising
+                                    "REFERRAL",
+                                    "PURCHASE",
+                                    "REWARD",
+                                    "EDITOR_COMPENSATION",
+                                    "EDITOR_PAYOUT",
+                                    "MOD_PAYOUT",
+                                    "CREATE_BULLET_POINT",
+                                    "CREATE_SUMMARY",
+                                    "SUMMARY_UPVOTED",
+                                    "BULLET_POINT_UPVOTED",
+                                    "CREATE_FIRST_SUMMARY",
+                                    "REFERRAL_APPROVED",
+                                    "BOUNTY_DAO_FEE",
                                 ]
                             ),
                         ),
@@ -342,13 +339,18 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
                                 )
                                 & ~Q(
                                     reputation_records__distribution_type__in=[
-                                        "BOUNTY_DAO_FEE",  # When someone creates a bounty
-                                        "THREAD_UPVOTED",  # When someone tips a thread
-                                        "COMMENT_UPVOTED",  # When someone tips a comment
-                                        "RhCOMMENT_UPVOTED",  # When someone tips in new comment system
-                                        "RESEARCHHUB_POST_UPVOTED",  # When someone tips a post
-                                        "SUMMARY_BOUNTY",  # When someone funds a summary bounty
-                                        "FUNDRAISE_PAYOUT",  # When someone contributes to fundraising
+                                        "REFERRAL",
+                                        "PURCHASE",
+                                        "REWARD",
+                                        "EDITOR_COMPENSATION",
+                                        "EDITOR_PAYOUT",
+                                        "MOD_PAYOUT",
+                                        "CREATE_BULLET_POINT",
+                                        "CREATE_SUMMARY",
+                                        "SUMMARY_UPVOTED",
+                                        "BULLET_POINT_UPVOTED",
+                                        "CREATE_FIRST_SUMMARY",
+                                        "REFERRAL_APPROVED",
                                     ]
                                 ),
                             ),
