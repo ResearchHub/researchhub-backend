@@ -74,15 +74,15 @@ class SupportViewSet(viewsets.ModelViewSet):
         if sender.id != sender_id:
             return Response(status=400)
 
-        # Balance check
-        if payment_type == Support.RSC_OFF_CHAIN:
-            sender_balance = sender.get_balance()
-            decimal_amount = decimal.Decimal(amount)
-            if sender_balance - decimal_amount < 0:
-                return Response("Insufficient Funds", status=402)
-
         with transaction.atomic():
             sender = User.objects.select_for_update().get(id=sender.id)
+            # Balance check
+            if payment_type == Support.RSC_OFF_CHAIN:
+                sender_balance = sender.get_balance()
+                decimal_amount = decimal.Decimal(amount)
+                if sender_balance - decimal_amount < 0:
+                    return Response("Insufficient Funds", status=402)
+
             support = Support.objects.create(
                 payment_type=payment_type,
                 duration=payment_option,

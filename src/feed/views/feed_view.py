@@ -37,7 +37,10 @@ class FeedViewSet(BaseFeedView):
         page = request.query_params.get("page", "1")
         page_num = int(page)
         cache_key = self.get_cache_key(request)
-        use_cache = self.cache_enabled and page_num < 4
+
+        disable_cache_token = request.query_params.get("disable_cache")
+        force_disable_cache = disable_cache_token == settings.HEALTH_CHECK_TOKEN
+        use_cache = not force_disable_cache and self.cache_enabled and page_num < 4
 
         if use_cache:
             # try to get cached response
@@ -45,7 +48,11 @@ class FeedViewSet(BaseFeedView):
             if cached_response:
                 if request.user.is_authenticated:
                     self.add_user_votes_to_response(request.user, cached_response)
-                return Response(cached_response)
+                response = Response(cached_response)
+                response["RH-Cache"] = "hit" + (
+                    " (auth)" if request.user.is_authenticated else ""
+                )
+                return response
 
         response = super().list(request, *args, **kwargs)
 
@@ -56,6 +63,9 @@ class FeedViewSet(BaseFeedView):
         if request.user.is_authenticated:
             self.add_user_votes_to_response(request.user, response.data)
 
+        response["RH-Cache"] = "miss" + (
+            " (auth)" if request.user.is_authenticated else ""
+        )
         return response
 
     def get_queryset(self):

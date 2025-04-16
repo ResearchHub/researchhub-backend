@@ -32,34 +32,24 @@ def recalc_hot_score_task(instance_content_type_id, instance_id):
     uni_doc = None
 
     try:
-        if model_name in ["researchhubpost", "paper"]:
-            uni_doc = model_class.objects.get(id=instance_id).unified_document
-        elif model_name in ["thread", "comment", "reply"]:
-            thread = None
-            if model_name == "thread":
-                thread = model_class.objects.get(id=instance_id)
-            elif model_name == "comment":
-                comment = model_class.objects.get(id=instance_id)
-                thread = comment.parent
-            elif model_name == "reply":
-                reply = model_class.objects.get(id=instance_id)
-                thread = reply.parent.parent
-
-            if thread.paper:
-                uni_doc = thread.paper.unified_document
-            elif thread.post:
-                uni_doc = thread.post.unified_document
-        elif model_name == "paper":
+        if model_name in [
+            "bounty",
+            "contribution",
+            "paper",
+            "researchhubpost",
+        ]:
             uni_doc = model_class.objects.get(id=instance_id).unified_document
         elif model_name == "citation":
             uni_doc = model_class.objects.get(id=instance_id).source
-        elif model_name == "bounty":
-            uni_doc = model_class.objects.get(id=instance_id).unified_document
-        elif model_name == "contribution":
-            uni_doc = model_class.objects.get(id=instance_id).unified_document
 
         if uni_doc:
-            uni_doc.calculate_hot_score(should_save=True)
+            # Recalculate and save hot score on the unified document
+            hot_score, _ = uni_doc.calculate_hot_score(should_save=True)
+
+            # Update hot score for all related feed entries
+            for feed_entry in uni_doc.feed_entries.all():
+                feed_entry.hot_score = hot_score
+                feed_entry.save()
     except Exception as error:
         sentry.log_error(error)
 

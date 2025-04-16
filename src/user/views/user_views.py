@@ -85,28 +85,6 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
     def get_serializer_context(self):
         return {"get_subscribed": True, "get_balance": True, "user": self.request.user}
 
-    def destroy(self, request, pk=None):
-        with transaction.atomic():
-            # Manually retrieving user obj instead of using get_object
-            # because this view is legacy and does not support it
-            user_to_be_deleted = User.objects.get(id=pk)
-            if not DeleteUserPermission().has_object_permission(
-                request, self, user_to_be_deleted
-            ):
-                return Response(status=403)
-            author_profile = user_to_be_deleted.author_profile
-
-            # Close any open bounties
-            bounties = user_to_be_deleted.bounties.filter(
-                status=Bounty.OPEN, parent__isnull=True
-            )
-            for bounty in bounties.iterator():
-                bounty.close(Bounty.EXPIRED)
-
-            user_to_be_deleted.delete()
-            author_profile.delete()
-            return Response(status=204)
-
     def get_queryset(self):
         # TODO: Remove this override
         user = self.request.user

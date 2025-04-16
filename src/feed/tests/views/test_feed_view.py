@@ -265,7 +265,7 @@ class FeedViewSetTests(TestCase):
         self.assertEqual(len(response.data["results"]), 3)
 
     def test_popular_feed_view(self):
-        """Test that popular feed view sorts by unified_document.hot_score"""
+        """Test that popular feed view sorts by hot_score"""
         high_score_doc = ResearchhubUnifiedDocument.objects.create(
             document_type="PAPER", hot_score=100
         )
@@ -306,6 +306,7 @@ class FeedViewSetTests(TestCase):
             parent_content_type=self.hub_content_type,
             parent_object_id=self.hub.id,
             unified_document=high_score_doc,
+            hot_score=high_score_doc.hot_score,
         )
         FeedEntry.objects.create(
             user=self.user,
@@ -316,6 +317,7 @@ class FeedViewSetTests(TestCase):
             parent_content_type=self.hub_content_type,
             parent_object_id=self.hub.id,
             unified_document=medium_score_doc,
+            hot_score=medium_score_doc.hot_score,
         )
         FeedEntry.objects.create(
             user=self.user,
@@ -326,6 +328,7 @@ class FeedViewSetTests(TestCase):
             parent_content_type=self.hub_content_type,
             parent_object_id=self.hub.id,
             unified_document=low_score_doc,
+            hot_score=low_score_doc.hot_score,
         )
         FeedEntryPopular.refresh()
 

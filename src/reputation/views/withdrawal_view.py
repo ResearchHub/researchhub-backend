@@ -9,6 +9,7 @@ import requests
 from django.conf import settings
 from django.contrib.admin.models import LogEntry
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -52,6 +53,8 @@ NETWORKS = {
     },
 }
 
+logger = logging.getLogger(__name__)
+
 
 class WithdrawalViewSet(viewsets.ModelViewSet):
     queryset = Withdrawal.objects.all()
@@ -73,17 +76,23 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             return Withdrawal.objects.filter(user=user)
 
     def create(self, request):
+        amount = decimal.Decimal(request.data["amount"])
+        to_address = request.data.get("to_address")
+        user = request.user
+
         if LogEntry.objects.filter(
             object_repr="WITHDRAWAL_SWITCH", action_flag=3
         ).exists():
+            logger.info(
+                f"Withdrawals suspended; request blocked for user {user.id} "
+                f"(amount: {amount}, to_address: {to_address})"
+            )
             return Response(
                 "Withdrawals are suspended for the time being. "
                 "Please be patient as we work to turn withdrawals back on",
                 status=400,
             )
 
-        user = request.user
-        amount = decimal.Decimal(request.data["amount"])
         network = request.data.get("network", "ETHEREUM").upper()
         if network not in NETWORKS:
             return Response(
@@ -91,7 +100,6 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             )
 
         transaction_fee = self.calculate_transaction_fee(network)
-        to_address = request.data.get("to_address")
 
         pending_tx = Withdrawal.objects.filter(
             user=user, paid_status="PENDING", transaction_hash__isnull=False
@@ -120,25 +128,31 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             valid, message = self._check_withdrawal_time_limit(to_address, user)
 
         if valid:
-            valid, message, amount = self._check_withdrawal_amount(
-                amount, transaction_fee, user
-            )
-
-        if valid:
             valid, message = self._check_hotwallet_balance(amount, network)
 
         if valid:
             try:
-                withdrawal = Withdrawal.objects.create(
-                    user=user,
-                    token_address=NETWORKS[network]["token_address"],
-                    to_address=to_address,
-                    amount=amount,
-                    fee=transaction_fee,
-                    network=network,
-                )
+                with transaction.atomic():
+                    # Lock the user record to prevent race conditions during withdrawal
+                    user = User.objects.select_for_update().get(id=user.id)
 
-                self._pay_withdrawal(withdrawal, amount, transaction_fee)
+                    valid, message, amount = self._check_withdrawal_amount(
+                        amount, transaction_fee, user
+                    )
+
+                    if not valid:
+                        return Response(message, status=400)
+
+                    withdrawal = Withdrawal.objects.create(
+                        user=user,
+                        token_address=NETWORKS[network]["token_address"],
+                        to_address=to_address,
+                        amount=amount,
+                        fee=transaction_fee,
+                        network=network,
+                    )
+
+                    self._pay_withdrawal(withdrawal, amount, transaction_fee)
 
                 # Track in Amplitude
                 track_revenue_event.apply_async(
@@ -158,7 +172,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                 sentry.log_error(e)
                 return Response(str(e), status=400)
         else:
-            sentry.log_info(message)
+            logger.error(f"Invalid withdrawal: {message}")
             return Response(message, status=400)
 
     def _can_withdraw(self, user: User) -> bool:

@@ -6,6 +6,7 @@ from django.contrib.contenttypes.models import ContentType
 
 from feed.models import FeedEntry, FeedEntryLatest, FeedEntryPopular
 from feed.serializers import serialize_feed_item, serialize_feed_metrics
+from feed.views.feed_view import FeedViewSet
 from researchhub.celery import app
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -144,3 +145,34 @@ def refresh_feed():
     FeedEntryPopular.refresh()
     duration = time.time() - start_time
     logger.info(f"Refreshed materialized feed entries in {duration:.2f}s")
+
+
+@app.task
+def refresh_popular_feed_entries():
+    import time
+
+    from rest_framework.request import Request
+    from rest_framework.test import APIRequestFactory
+
+    start = time.time()
+    logger.info("Refreshing popular feed entries...")
+
+    factory = APIRequestFactory()
+    django_request = factory.get(
+        "/api/feed/",
+        {
+            "feed_view": "popular",
+        },
+    )
+
+    drf_request = Request(django_request)
+
+    viewset = FeedViewSet()
+    viewset.setup(drf_request, None)
+    viewset.format_kwarg = None
+
+    # Call the list() method
+    viewset.list(drf_request)
+
+    duration = time.time() - start
+    logger.info(f"Popular feed entries refreshed ({duration:.2f}s)")

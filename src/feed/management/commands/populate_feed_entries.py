@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 from django.db.models import Q
 
@@ -60,6 +61,9 @@ class Command(BaseCommand):
         # Order by ID in descending order to process the most recent entries first
         queryset = queryset.order_by("-id")
 
+        paper_content_type = ContentType.objects.get(model="paper")
+        researchhub_post_content_type = ContentType.objects.get(model="researchhubpost")
+
         for feed_entry in queryset.iterator(chunk_size=CHUNK_SIZE):
             feed_item = feed_entry.item
             fields_to_update = []
@@ -73,6 +77,16 @@ class Command(BaseCommand):
                 content = serialize_feed_item(feed_item, feed_entry.content_type)
                 feed_entry.content = content
                 fields_to_update.append("content")
+
+            # Update hot score for papers and posts
+            if feed_entry.content_type_id in [
+                paper_content_type.id,
+                researchhub_post_content_type.id,
+            ]:
+                document_hot_score = feed_item.unified_document.hot_score
+                if document_hot_score != feed_entry.hot_score:
+                    feed_entry.hot_score = document_hot_score
+                    fields_to_update.append("hot_score")
 
             print(
                 f"Populating feed entry: {feed_entry.id} ({', '.join(fields_to_update)})"

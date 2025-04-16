@@ -180,7 +180,6 @@ class User(AbstractUser):
 
         failed_withdrawals = self.withdrawals.filter(
             Q(paid_status=PaidStatusModelMixin.FAILED)
-            | Q(paid_status=PaidStatusModelMixin.PENDING)
         ).values_list("id")
 
         balance = self.balances.exclude(

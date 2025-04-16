@@ -32,6 +32,11 @@ class FeedEntry(DefaultModel):
         null=False,
     )
 
+    hot_score = models.IntegerField(
+        default=0,
+        help_text="Feed ranking score.",
+    )
+
     metrics = models.JSONField(
         encoder=DjangoJSONEncoder,
         default=dict,
@@ -76,6 +81,14 @@ class FeedEntry(DefaultModel):
             models.Index(
                 fields=["-action_date"],
                 name="feed_action_date_idx",
+            ),
+            models.Index(
+                fields=["created_date"],
+                name="feed_created_date_idx",
+            ),
+            models.Index(
+                fields=["-hot_score"],
+                name="feed_hot_score_idx",
             ),
         ]
         constraints = [
