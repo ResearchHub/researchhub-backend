@@ -49,6 +49,14 @@ app.conf.beat_schedule = {
             "queue": QUEUE_CACHES,
         },
     },
+    "refresh_popular_feed_entries": {
+        "task": "feed.tasks.refresh_popular_feed_entries",
+        "schedule": crontab(minute="*/1"),
+        "options": {
+            "priority": 1,
+            "queue": QUEUE_CACHES,
+        },
+    },
     # Unified Documents
     "reset_homepage_cache": {
         "task": "researchhub_document.tasks.reset_homepage_cache",
