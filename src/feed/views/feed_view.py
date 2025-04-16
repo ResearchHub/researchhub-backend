@@ -2,6 +2,9 @@
 Standard feed view for ResearchHub.
 """
 
+import logging
+import time
+
 from django.conf import settings
 from django.core.cache import cache
 from django.db import models
@@ -11,10 +14,13 @@ from rest_framework.response import Response
 
 from feed.views.base_feed_view import BaseFeedView
 from hub.models import Hub
+from utils.sentry import log_info
 
 from ..models import FeedEntryLatest, FeedEntryPopular
 from ..serializers import FeedEntrySerializer
 from .common import FeedPagination
+
+logger = logging.getLogger(__name__)
 
 
 class FeedViewSet(BaseFeedView):
@@ -34,6 +40,9 @@ class FeedViewSet(BaseFeedView):
         return context
 
     def list(self, request, *args, **kwargs):
+        start_time = time.time()
+        log_info("FeedViewSet list method called")
+
         page = request.query_params.get("page", "1")
         page_num = int(page)
         cache_key = self.get_cache_key(request)
@@ -55,6 +64,9 @@ class FeedViewSet(BaseFeedView):
                 return response
 
         response = super().list(request, *args, **kwargs)
+        log_info(
+            f"FeedViewSet feed response fetched (duration {time.time() - start_time:.2f}s, feed_view={request.query_params.get('feed_view', 'latest')})",
+        )
 
         if use_cache:
             # cache response
@@ -63,8 +75,12 @@ class FeedViewSet(BaseFeedView):
         if request.user.is_authenticated:
             self.add_user_votes_to_response(request.user, response.data)
 
+        duration = time.time() - start_time
         response["RH-Cache"] = "miss" + (
-            " (auth)" if request.user.is_authenticated else ""
+            " (auth) " if request.user.is_authenticated else " " + f"({duration:.2f}s)"
+        )
+        log_info(
+            f"FeedViewSet list method completed (duration {duration:.2f}s, feed_view={request.query_params.get('feed_view', 'latest')})",
         )
         return response
 
