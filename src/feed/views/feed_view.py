@@ -80,7 +80,7 @@ class FeedViewSet(BaseFeedView):
             " (auth) " if request.user.is_authenticated else " " + f"({duration:.2f}s)"
         )
         log_info(
-            f"FeedViewSet list method completed (duration {duration:.2f}s, feed_view={request.query_params.get('feed_view', 'latest')})",
+            f"FeedViewSet list method completed (duration: {duration:.2f}s, feed_view={request.query_params.get('feed_view', 'latest')})",
         )
         return response
 
