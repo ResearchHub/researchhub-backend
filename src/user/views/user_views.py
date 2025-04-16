@@ -5,7 +5,17 @@ from hashlib import sha1
 from allauth.account.models import EmailAddress
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import F, Q, Sum
+from django.db.models import (
+    DecimalField,
+    ExpressionWrapper,
+    F,
+    OuterRef,
+    Q,
+    Subquery,
+    Sum,
+    Value,
+    When,
+)
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -25,7 +35,9 @@ from rest_framework.response import Response
 from paper.models import Paper
 from paper.serializers import DynamicPaperSerializer
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
+from purchase.models import Purchase
 from reputation.models import Bounty, Distribution
+from reputation.related_models.escrow import Escrow, EscrowRecipients
 from reputation.serializers import (
     DynamicBountySerializer,
     DynamicBountySolutionSerializer,
@@ -36,6 +48,8 @@ from researchhub.settings import (
     SIFT_MODERATION_WHITELIST,
     SIFT_WEBHOOK_SECRET_KEY,
 )
+from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
+from researchhub_comment.models import RhCommentModel
 from user.filters import UserFilter
 from user.models import Author, Major, University, User
 from user.permissions import Censor, DeleteUserPermission, RequestorIsOwnUser
@@ -325,19 +339,13 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
                             )
                             & ~Q(
                                 reputation_records__distribution_type__in=[
-                                    "REFERRAL",
-                                    "PURCHASE",
-                                    "REWARD",
-                                    "EDITOR_COMPENSATION",
-                                    "EDITOR_PAYOUT",
-                                    "MOD_PAYOUT",
-                                    "CREATE_BULLET_POINT",
-                                    "CREATE_SUMMARY",
-                                    "SUMMARY_UPVOTED",
-                                    "BULLET_POINT_UPVOTED",
-                                    "CREATE_FIRST_SUMMARY",
-                                    "REFERRAL_APPROVED",
-                                    "BOUNTY_DAO_FEE",
+                                    "BOUNTY_DAO_FEE",  # When someone creates a bounty
+                                    "THREAD_UPVOTED",  # When someone tips a thread
+                                    "COMMENT_UPVOTED",  # When someone tips a comment
+                                    "RhCOMMENT_UPVOTED",  # When someone tips in new comment system
+                                    "RESEARCHHUB_POST_UPVOTED",  # When someone tips a post
+                                    "SUMMARY_BOUNTY",  # When someone funds a summary bounty
+                                    "FUNDRAISE_PAYOUT",  # When someone contributes to fundraising
                                 ]
                             ),
                         ),
@@ -357,18 +365,13 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
                                 )
                                 & ~Q(
                                     reputation_records__distribution_type__in=[
-                                        "REFERRAL",
-                                        "PURCHASE",
-                                        "REWARD",
-                                        "EDITOR_COMPENSATION",
-                                        "EDITOR_PAYOUT",
-                                        "MOD_PAYOUT",
-                                        "CREATE_BULLET_POINT",
-                                        "CREATE_SUMMARY",
-                                        "SUMMARY_UPVOTED",
-                                        "BULLET_POINT_UPVOTED",
-                                        "CREATE_FIRST_SUMMARY",
-                                        "REFERRAL_APPROVED",
+                                        "BOUNTY_DAO_FEE",  # When someone creates a bounty
+                                        "THREAD_UPVOTED",  # When someone tips a thread
+                                        "COMMENT_UPVOTED",  # When someone tips a comment
+                                        "RhCOMMENT_UPVOTED",  # When someone tips in new comment system
+                                        "RESEARCHHUB_POST_UPVOTED",  # When someone tips a post
+                                        "SUMMARY_BOUNTY",  # When someone funds a summary bounty
+                                        "FUNDRAISE_PAYOUT",  # When someone contributes to fundraising
                                     ]
                                 ),
                             ),
@@ -387,6 +390,263 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         )
 
         return self.get_paginated_response(serializer.data)
+
+    # @method_decorator(cache_page(60 * 60 * 6))
+    @action(detail=False, methods=[RequestMethods.GET], url_path="leaderboard/overview")
+    def leaderboard_overview(self, request):
+        """Returns top 3 users for each category (reviewers and funders)"""
+
+        # Get current week's date range
+        start_date = timezone.now() - timedelta(days=7)
+
+        # Get top reviewers
+        top_reviewers = (
+            User.objects.filter(
+                is_active=True,
+                is_suspended=False,
+                probable_spammer=False,
+                reputation_records__created_date__gte=start_date,
+                reputation_records__distribution_type__in=[
+                    # Content Creation & Reviews
+                    "BOUNTY_PAYOUT",
+                    "PAPER_REWARD",
+                    "CREATE_BULLET_POINT",
+                    "EDITOR_PAYOUT",
+                    # Tips Received
+                    "THREAD_UPVOTED",
+                    "COMMENT_UPVOTED",
+                    "RhCOMMENT_UPVOTED",
+                    "REPLY_UPVOTED",
+                    "RESEARCHHUB_POST_UPVOTED",
+                    "HYPOTHESIS_UPVOTED",
+                    # Rewards
+                    "REWARD",
+                ],
+            )
+            .annotate(
+                earned_rsc=Coalesce(
+                    Sum(
+                        ExpressionWrapper(
+                            F("reputation_records__amount"),
+                            output_field=DecimalField(max_digits=19, decimal_places=8),
+                        )
+                    ),
+                    Value(
+                        0, output_field=DecimalField(max_digits=19, decimal_places=8)
+                    ),
+                )
+            )
+            .order_by("-earned_rsc")[:3]
+        )
+
+        # Get top funders
+        top_funders = (
+            User.objects.filter(
+                is_active=True,
+                is_suspended=False,
+                probable_spammer=False,
+                reputation_handed_out__created_date__gte=start_date,
+                reputation_handed_out__distribution_type__in=[
+                    # Bounties & Support
+                    "BOUNTY_DAO_FEE",
+                    "BOUNTY_RH_FEE",
+                    "SUPPORT_RH_FEE",
+                    "SUPPORT_DAO_FEE",
+                    "FUNDRAISE_PAYOUT",
+                    # Content Tips
+                    "PAPER_UPVOTED",
+                    "THREAD_UPVOTED",
+                    "COMMENT_UPVOTED",
+                    "RhCOMMENT_UPVOTED",
+                    "REPLY_UPVOTED",
+                    "RESEARCHHUB_POST_UPVOTED",
+                    "HYPOTHESIS_UPVOTED",
+                ],
+            )
+            .annotate(
+                funded_rsc=Coalesce(
+                    Sum(
+                        ExpressionWrapper(
+                            F("reputation_handed_out__amount"),
+                            output_field=DecimalField(max_digits=19, decimal_places=8),
+                        )
+                    ),
+                    Value(
+                        0, output_field=DecimalField(max_digits=19, decimal_places=8)
+                    ),
+                )
+            )
+            .order_by("-funded_rsc")[:3]
+        )
+
+        return Response(
+            {
+                "reviewers": [
+                    {
+                        **UserSerializer(reviewer, context={"request": request}).data,
+                        "earned_rsc": reviewer.earned_rsc,
+                    }
+                    for reviewer in top_reviewers
+                ],
+                "funders": [
+                    {
+                        **UserSerializer(funder, context={"request": request}).data,
+                        "funded_rsc": funder.funded_rsc,
+                    }
+                    for funder in top_funders
+                ],
+            }
+        )
+
+    # @method_decorator(cache_page(60 * 60 * 1))
+    @action(
+        detail=False, methods=[RequestMethods.GET], url_path="leaderboard/reviewers"
+    )
+    def leaderboard_reviewers(self, request):
+        """Returns top reviewers for a given time period"""
+
+        # Base filter conditions for bounty awards
+        bounty_conditions = {
+            "user_id": OuterRef("pk"),
+            "escrow__status": Escrow.PAID,
+            "escrow__hold_type": Escrow.BOUNTY,
+            "escrow__bounties__bounty_type": Bounty.Type.REVIEW,
+            "escrow__bounties__solutions__rh_comment__comment_type": PEER_REVIEW,
+        }
+
+        # Base filter conditions for tips
+        tips_conditions = {
+            "recipient_id": OuterRef("pk"),
+            "distribution_type": "PURCHASE",
+            "proof_item_content_type": ContentType.objects.get_for_model(Purchase),
+            "proof_item_object_id__in": Purchase.objects.filter(
+                content_type_id=ContentType.objects.get_for_model(RhCommentModel).id,
+                paid_status="PAID",
+                rh_comments__comment_type=PEER_REVIEW,
+            ).values("id"),
+        }
+
+        # Add date filters if provided
+        if request.GET.get("start_date"):
+            bounty_conditions["created_date__gte"] = request.GET.get("start_date")
+            tips_conditions["created_date__gte"] = request.GET.get("start_date")
+        if request.GET.get("end_date"):
+            bounty_conditions["created_date__lte"] = request.GET.get("end_date")
+            tips_conditions["created_date__lte"] = request.GET.get("end_date")
+
+        reviewers = (
+            User.objects.filter(
+                is_suspended=False, probable_spammer=False, is_active=True
+            )
+            .annotate(
+                bounty_earnings=Coalesce(
+                    Subquery(
+                        EscrowRecipients.objects.filter(**bounty_conditions)
+                        .values("user_id")
+                        .annotate(total=Sum("amount"))
+                        .values("total"),
+                        output_field=DecimalField(max_digits=19, decimal_places=8),
+                    ),
+                    Value(
+                        0, output_field=DecimalField(max_digits=19, decimal_places=8)
+                    ),
+                ),
+                tip_earnings=Coalesce(
+                    Subquery(
+                        Distribution.objects.filter(**tips_conditions)
+                        .values("recipient_id")
+                        .annotate(total=Sum("amount"))
+                        .values("total"),
+                        output_field=DecimalField(max_digits=19, decimal_places=8),
+                    ),
+                    Value(
+                        0, output_field=DecimalField(max_digits=19, decimal_places=8)
+                    ),
+                ),
+                earned_rsc=F("bounty_earnings") + F("tip_earnings"),
+            )
+            .order_by("-earned_rsc")
+        )
+
+        # Print the SQL query
+        print("\nFinal Query:")
+        print(reviewers.query)
+
+        page = self.paginate_queryset(reviewers)
+        data = [
+            {
+                **UserSerializer(reviewer, context={"request": request}).data,
+                "earned_rsc": reviewer.earned_rsc,
+                "bounty_earnings": reviewer.bounty_earnings,
+                "tip_earnings": reviewer.tip_earnings,
+            }
+            for reviewer in page
+        ]
+        return self.get_paginated_response(data)
+
+    # @method_decorator(cache_page(60 * 60 * 1))
+    @action(detail=False, methods=[RequestMethods.GET], url_path="leaderboard/funders")
+    def leaderboard_funders(self, request):
+        """Returns top funders for a given time period"""
+
+        filters = {
+            "is_active": True,
+            "is_suspended": False,
+            "probable_spammer": False,
+            "reputation_handed_out__distributed_status": "DISTRIBUTED",
+            "reputation_handed_out__distribution_type__in": [
+                # Bounties & Support
+                "BOUNTY_DAO_FEE",
+                "BOUNTY_RH_FEE",
+                "SUPPORT_RH_FEE",
+                "SUPPORT_DAO_FEE",
+                "FUNDRAISE_PAYOUT",
+                # Content Tips
+                "PAPER_UPVOTED",
+                "THREAD_UPVOTED",
+                "COMMENT_UPVOTED",
+                "RhCOMMENT_UPVOTED",
+                "REPLY_UPVOTED",
+                "RESEARCHHUB_POST_UPVOTED",
+                "HYPOTHESIS_UPVOTED",
+            ],
+        }
+
+        start_date = request.GET.get("start_date")
+        if start_date:
+            filters["reputation_handed_out__created_date__gte"] = start_date
+
+        end_date = request.GET.get("end_date")
+        if end_date:
+            filters["reputation_handed_out__created_date__lte"] = end_date
+
+        top_funders = (
+            User.objects.filter(**filters)
+            .annotate(
+                funded_rsc=Coalesce(
+                    Sum(
+                        ExpressionWrapper(
+                            F("reputation_handed_out__amount"),
+                            output_field=DecimalField(max_digits=19, decimal_places=8),
+                        )
+                    ),
+                    Value(
+                        0, output_field=DecimalField(max_digits=19, decimal_places=8)
+                    ),
+                )
+            )
+            .order_by("-funded_rsc")
+        )
+
+        page = self.paginate_queryset(top_funders)
+        data = [
+            {
+                **UserSerializer(funder, context={"request": request}).data,
+                "funded_rsc": funder.funded_rsc,
+            }
+            for funder in page
+        ]
+        return self.get_paginated_response(data)
 
     @action(
         detail=True, methods=[RequestMethods.GET], permission_classes=[IsAuthenticated]
