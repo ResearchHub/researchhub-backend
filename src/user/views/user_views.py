@@ -368,6 +368,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
 
         return self.get_paginated_response(serializer.data)
 
+    # @method_decorator(cache_page(60 * 60 * 6))
     @action(detail=False, methods=[RequestMethods.GET], url_path="leaderboard/overview")
     def leaderboard_overview(self, request):
         """Returns top 3 users for each category (reviewers and funders)"""
@@ -398,7 +399,6 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
             "created_date__gte": start_date,
         }
 
-        # Get top reviewers using the same logic as leaderboard_reviewers
         top_reviewers = (
             User.objects.filter(
                 is_active=True,
@@ -435,7 +435,6 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
             .order_by("-earned_rsc")[:3]
         )
 
-        # Update funders logic to match leaderboard_funders
         # Base conditions for purchase fundings
         purchase_conditions = {
             "user_id": OuterRef("pk"),
@@ -543,7 +542,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
             }
         )
 
-    # @method_decorator(cache_page(60 * 60 * 1))
+    # @method_decorator(cache_page(60 * 60 * 6))
     @action(
         detail=False, methods=[RequestMethods.GET], url_path="leaderboard/reviewers"
     )
@@ -613,10 +612,6 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
             .order_by("-earned_rsc")
         )
 
-        # Print the SQL query
-        print("\nFinal Query:")
-        print(reviewers.query)
-
         page = self.paginate_queryset(reviewers)
         data = [
             {
@@ -629,7 +624,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         ]
         return self.get_paginated_response(data)
 
-    # @method_decorator(cache_page(60 * 60 * 1))
+    # @method_decorator(cache_page(60 * 60 * 6))
     @action(detail=False, methods=[RequestMethods.GET], url_path="leaderboard/funders")
     def leaderboard_funders(self, request):
         """Returns top funders for a given time period"""
