@@ -90,6 +90,10 @@ def calculate_hot_score(item, content_type_name):
 
     # Calculate age and apply decay
     age_seconds = (datetime.now(timezone.utc) - created_date).total_seconds()
+    # This formula calculates a decay factor between 0 and 1, where:
+    # - Fresh content (age = 0) gets a decay factor of 1.0 (no decay)
+    # - Content at exactly half-life age gets a factor of 0.5 (50% reduction)
+    # - Older content gets progressively smaller factors approaching zero
     time_decay = math.pow(2, -age_seconds / half_life_seconds)
 
     # Calculate final score with time decay
