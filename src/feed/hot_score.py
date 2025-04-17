@@ -7,7 +7,6 @@ Calculates content-type specific hot scores for ranking feed entries.
 import logging
 import math
 from datetime import datetime, timezone
-from re import I
 
 from django.contrib.contenttypes.models import ContentType
 
