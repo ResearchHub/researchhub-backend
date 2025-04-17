@@ -447,11 +447,10 @@ def serialize_feed_metrics(item, item_content_type):
     if hasattr(item, "children_count"):
         metrics["replies"] = getattr(item, "children_count", 0)
 
-    if item_content_type.model == "paper":
-        if hasattr(item, "unified_document"):
-            metrics["review_metrics"] = item.unified_document.get_review_details()
-        if hasattr(item, "citations"):
-            metrics["citations"] = item.citations
+    if hasattr(item, "unified_document"):
+        metrics["review_metrics"] = item.unified_document.get_review_details()
+    if hasattr(item, "citations"):
+        metrics["citations"] = item.citations
 
     return metrics
 
