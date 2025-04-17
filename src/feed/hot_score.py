@@ -127,7 +127,7 @@ def calculate_hot_score(item, content_type_name):
     reply_county = 0
     if hasattr(item, "get_discussion_count"):
         reply_county = item.get_discussion_count()
-    elif content_type_name == "rhcommentmodel":
+    if hasattr(item, "children_count"):
         reply_county = getattr(item, "children_count", 0) or 0
 
     created_date = getattr(item, "created_date", datetime.now(timezone.utc))
