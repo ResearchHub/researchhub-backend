@@ -4,8 +4,18 @@ Hot Score Implementation for Feed Entry Ranking
 Calculates content-type specific hot scores for ranking feed entries.
 """
 
+import logging
 import math
 from datetime import datetime, timezone
+from re import I
+
+from django.contrib.contenttypes.models import ContentType
+
+from paper.related_models.paper_model import Paper
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from utils import sentry
+
+logger = logging.getLogger(__name__)
 
 # Content Type Weights
 # These weights will be used to adjust the importance of different signals
@@ -18,26 +28,76 @@ from datetime import datetime, timezone
 CONTENT_TYPE_WEIGHTS = {
     "paper": {
         "vote_weight": 1.0,
-        "reply_weight": 0.5,
-        "bounty_weight": 1.5,
-        "time_decay_factor": 0.85,
-        "half_life_days": 7,
+        "reply_weight": 1.0,
+        "bounty_weight": 3.0,
+        "time_decay_factor": 0.90,
+        "half_life_days": 3,
     },
     "researchhubpost": {
         "vote_weight": 1.0,
         "reply_weight": 1.0,
-        "bounty_weight": 2.0,
+        "bounty_weight": 3.0,
         "time_decay_factor": 0.90,
         "half_life_days": 3,
     },
     "rhcommentmodel": {
         "vote_weight": 1.0,
-        "reply_weight": 1.2,
-        "bounty_weight": 2.5,
-        "time_decay_factor": 0.95,
-        "half_life_days": 2,
+        "reply_weight": 1.0,
+        "bounty_weight": 3.0,
+        "time_decay_factor": 0.90,
+        "half_life_days": 3,
     },
 }
+
+
+def calculate_hot_score_for_item(item):
+    """
+    Calculate hot score for an item
+    """
+    item_content_type = ContentType.objects.get_for_model(item)
+    if item_content_type.model_name == "comment" and item.comment_type == "REVIEW":
+        # Only calculate hot score for peer review comments
+        return calculate_hot_score_for_peer_review(item)
+    else:
+        return calculate_hot_score(item, item.content_type.model_name)
+
+
+def calculate_hot_score_for_peer_review(comment):
+    """
+    Calculate hot score for a peer review differs from the hot score for a paper
+    and posts because we get the score of the paper or post and then add peer review.
+    This ensures that the peer review shows up in the feed instead of the paper or post
+    since we distinct on unified_document_id.
+    """
+    # Get the base score from the associated paper or post
+    unified_document = comment.unified_document
+    if not unified_document:
+        return 0
+
+    feed_entries = unified_document.feed_entries.filter(
+        content_type__in=[
+            ContentType.objects.get_for_model(ResearchhubPost),
+            ContentType.objects.get_for_model(Paper),
+        ],
+    )
+
+    parent_score = 0
+    if feed_entries.count() != 1:
+        logger.info(
+            f"Expected 1 feed entry for unified document {unified_document.id}, got {feed_entries.count()}"
+        )
+        sentry.log_info(
+            f"Expected 1 feed entry for unified document {unified_document.id}, got {feed_entries.count()}"
+        )
+
+    parent_score = feed_entries.first().hot_score or 0
+
+    peer_review_score = calculate_hot_score(comment, "rhcommentmodel")
+
+    # Add the peer review's own score to ensure it ranks higher than the original paper
+    final_score = int(parent_score + (peer_review_score))
+
+    return max(1, final_score)
 
 
 def calculate_hot_score(item, content_type_name):
