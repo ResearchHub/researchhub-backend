@@ -2,10 +2,12 @@ from datetime import timedelta
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import DecimalField, F, OuterRef, Subquery, Sum, Value
-from django.db.models.functions import Cast, Coalesce
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from purchase.models import Purchase
@@ -18,7 +20,26 @@ from user.serializers import UserSerializer
 from utils.http import RequestMethods
 
 
-class LeaderboardViewSet(viewsets.ViewSet):
+class LeaderboardPagination(PageNumberPagination):
+    """
+    Pagination class for leaderboard endpoints.
+    """
+
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+
+class LeaderboardViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.filter(
+        is_active=True,
+        is_suspended=False,
+        probable_spammer=False,
+    )
+    serializer_class = UserSerializer
+    permission_classes = [AllowAny]
+    pagination_class = LeaderboardPagination
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -26,11 +47,7 @@ class LeaderboardViewSet(viewsets.ViewSet):
         self.comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
 
     def get_queryset(self):
-        return User.objects.filter(
-            is_active=True,
-            is_suspended=False,
-            probable_spammer=False,
-        )
+        return self.queryset
 
     def _get_reviewer_bounty_conditions(self, start_date=None, end_date=None):
         conditions = {
@@ -110,112 +127,92 @@ class LeaderboardViewSet(viewsets.ViewSet):
 
         return conditions
 
+    def _create_reviewer_earnings_annotation(self, start_date=None, end_date=None):
+        """
+        Creates annotation dictionary for reviewer earnings calculations
+
+        Args:
+            start_date: Optional start date for filtering
+            end_date: Optional end date for filtering
+        Returns:
+            Dictionary of annotations for bounty_earnings, tip_earnings, and earned_rsc
+        """
+        bounty_conditions = self._get_reviewer_bounty_conditions(start_date, end_date)
+        tips_conditions = self._get_reviewer_tips_conditions(start_date, end_date)
+
+        return {
+            "bounty_earnings": Coalesce(
+                Subquery(
+                    EscrowRecipients.objects.filter(**bounty_conditions)
+                    .values("user_id")
+                    .annotate(total=Sum("amount"))
+                    .values("total"),
+                    output_field=DecimalField(max_digits=19, decimal_places=8),
+                ),
+                Value(0, output_field=DecimalField(max_digits=19, decimal_places=8)),
+            ),
+            "tip_earnings": Coalesce(
+                Subquery(
+                    Distribution.objects.filter(**tips_conditions)
+                    .values("recipient_id")
+                    .annotate(total=Sum("amount"))
+                    .values("total"),
+                    output_field=DecimalField(max_digits=19, decimal_places=8),
+                ),
+                Value(0, output_field=DecimalField(max_digits=19, decimal_places=8)),
+            ),
+            "earned_rsc": F("bounty_earnings") + F("tip_earnings"),
+        }
+
+    def _create_funder_earnings_annotation(self, start_date=None, end_date=None):
+        """
+        Creates annotation dictionary for funder earnings calculations
+
+        Args:
+            start_date: Optional start date for filtering
+            end_date: Optional end date for filtering
+        Returns:
+            Dictionary of annotations for purchase_funding, bounty_funding, distribution_funding, and total_funding
+        """
+        purchase_conditions = self._get_funder_purchase_conditions(start_date, end_date)
+        bounty_conditions = self._get_funder_bounty_conditions(start_date, end_date)
+        distribution_conditions = self._get_funder_distribution_conditions(
+            start_date, end_date
+        )
+
+        return {
+            "purchase_funding": self._create_purchase_sum_subquery(purchase_conditions),
+            "bounty_funding": self._create_sum_subquery(
+                Bounty, bounty_conditions, id_field="created_by_id"
+            ),
+            "distribution_funding": self._create_sum_subquery(
+                Distribution, distribution_conditions, id_field="giver_id"
+            ),
+            "total_funding": F("purchase_funding")
+            + F("bounty_funding")
+            + F("distribution_funding"),
+        }
+
     # @method_decorator(cache_page(60 * 60 * 6))
     @action(detail=False, methods=[RequestMethods.GET])
     def overview(self, request):
         """Returns top 3 users for each category (reviewers and funders)"""
         start_date = timezone.now() - timedelta(days=7)
 
-        # Get reviewer conditions
-        bounty_conditions = self._get_reviewer_bounty_conditions(start_date=start_date)
-        tips_conditions = self._get_reviewer_tips_conditions(start_date=start_date)
-
-        # Get funder conditions
-        purchase_conditions = self._get_funder_purchase_conditions(
-            start_date=start_date
-        )
-        bounty_funding_conditions = self._get_funder_bounty_conditions(
-            start_date=start_date
-        )
-        distribution_conditions = self._get_funder_distribution_conditions(
-            start_date=start_date
-        )
-
-        # Get top reviewers
+        # Get top reviewers using the helper method
         top_reviewers = (
             self.get_queryset()
             .annotate(
-                bounty_earnings=Coalesce(
-                    Subquery(
-                        EscrowRecipients.objects.filter(**bounty_conditions)
-                        .values("user_id")
-                        .annotate(total=Sum("amount"))
-                        .values("total"),
-                        output_field=DecimalField(max_digits=19, decimal_places=8),
-                    ),
-                    Value(
-                        0, output_field=DecimalField(max_digits=19, decimal_places=8)
-                    ),
-                ),
-                tip_earnings=Coalesce(
-                    Subquery(
-                        Distribution.objects.filter(**tips_conditions)
-                        .values("recipient_id")
-                        .annotate(total=Sum("amount"))
-                        .values("total"),
-                        output_field=DecimalField(max_digits=19, decimal_places=8),
-                    ),
-                    Value(
-                        0, output_field=DecimalField(max_digits=19, decimal_places=8)
-                    ),
-                ),
-                earned_rsc=F("bounty_earnings") + F("tip_earnings"),
+                **self._create_reviewer_earnings_annotation(start_date=start_date)
             )
             .order_by("-earned_rsc")[:3]
         )
 
+        # Get top funders using the helper method
         top_funders = (
             self.get_queryset()
-            .annotate(
-                purchase_funding=Coalesce(
-                    Subquery(
-                        Purchase.objects.filter(**purchase_conditions)
-                        .annotate(
-                            numeric_amount=Cast(
-                                "amount",
-                                output_field=DecimalField(
-                                    max_digits=19, decimal_places=8
-                                ),
-                            )
-                        )
-                        .values("user_id")
-                        .annotate(total=Sum("numeric_amount"))
-                        .values("total"),
-                        output_field=DecimalField(max_digits=19, decimal_places=8),
-                    ),
-                    Value(
-                        0, output_field=DecimalField(max_digits=19, decimal_places=8)
-                    ),
-                ),
-                bounty_funding=Coalesce(
-                    Subquery(
-                        Bounty.objects.filter(**bounty_funding_conditions)
-                        .values("created_by_id")
-                        .annotate(total=Sum("amount"))
-                        .values("total"),
-                        output_field=DecimalField(max_digits=19, decimal_places=8),
-                    ),
-                    Value(
-                        0, output_field=DecimalField(max_digits=19, decimal_places=8)
-                    ),
-                ),
-                distribution_funding=Coalesce(
-                    Subquery(
-                        Distribution.objects.filter(**distribution_conditions)
-                        .values("giver_id")
-                        .annotate(total=Sum("amount"))
-                        .values("total"),
-                        output_field=DecimalField(max_digits=19, decimal_places=8),
-                    ),
-                    Value(
-                        0, output_field=DecimalField(max_digits=19, decimal_places=8)
-                    ),
-                ),
-                funded_rsc=F("purchase_funding")
-                + F("bounty_funding")
-                + F("distribution_funding"),
-            )
-            .order_by("-funded_rsc")[:3]
+            .annotate(**self._create_funder_earnings_annotation(start_date=start_date))
+            .order_by("-total_funding")[:3]
         )
 
         return Response(
@@ -232,7 +229,7 @@ class LeaderboardViewSet(viewsets.ViewSet):
                 "funders": [
                     {
                         **UserSerializer(funder, context={"request": request}).data,
-                        "funded_rsc": funder.funded_rsc,
+                        "total_funding": funder.total_funding,
                         "purchase_funding": funder.purchase_funding,
                         "bounty_funding": funder.bounty_funding,
                         "distribution_funding": funder.distribution_funding,
@@ -246,44 +243,12 @@ class LeaderboardViewSet(viewsets.ViewSet):
     @action(detail=False, methods=[RequestMethods.GET])
     def reviewers(self, request):
         """Returns top reviewers for a given time period"""
-        bounty_conditions = self._get_reviewer_bounty_conditions(
-            start_date=request.GET.get("start_date"),
-            end_date=request.GET.get("end_date"),
-        )
-        tips_conditions = self._get_reviewer_tips_conditions(
-            start_date=request.GET.get("start_date"),
-            end_date=request.GET.get("end_date"),
-        )
+        start_date = request.GET.get("start_date")
+        end_date = request.GET.get("end_date")
 
         reviewers = (
             self.get_queryset()
-            .annotate(
-                bounty_earnings=Coalesce(
-                    Subquery(
-                        EscrowRecipients.objects.filter(**bounty_conditions)
-                        .values("user_id")
-                        .annotate(total=Sum("amount"))
-                        .values("total"),
-                        output_field=DecimalField(max_digits=19, decimal_places=8),
-                    ),
-                    Value(
-                        0, output_field=DecimalField(max_digits=19, decimal_places=8)
-                    ),
-                ),
-                tip_earnings=Coalesce(
-                    Subquery(
-                        Distribution.objects.filter(**tips_conditions)
-                        .values("recipient_id")
-                        .annotate(total=Sum("amount"))
-                        .values("total"),
-                        output_field=DecimalField(max_digits=19, decimal_places=8),
-                    ),
-                    Value(
-                        0, output_field=DecimalField(max_digits=19, decimal_places=8)
-                    ),
-                ),
-                earned_rsc=F("bounty_earnings") + F("tip_earnings"),
-            )
+            .annotate(**self._create_reviewer_earnings_annotation(start_date, end_date))
             .order_by("-earned_rsc")
         )
 
@@ -306,58 +271,9 @@ class LeaderboardViewSet(viewsets.ViewSet):
         start_date = request.GET.get("start_date")
         end_date = request.GET.get("end_date")
 
-        purchase_conditions = self._get_funder_purchase_conditions(start_date, end_date)
-        bounty_conditions = self._get_funder_bounty_conditions(start_date, end_date)
-        distribution_conditions = self._get_funder_distribution_conditions(
-            start_date, end_date
-        )
-
         top_funders = (
             self.get_queryset()
-            .annotate(
-                purchase_funding=Coalesce(
-                    Subquery(
-                        Purchase.objects.filter(**purchase_conditions)
-                        .annotate(
-                            numeric_amount=Cast("amount", output_field=DecimalField())
-                        )
-                        .values("user_id")
-                        .annotate(total=Sum("numeric_amount"))
-                        .values("total"),
-                        output_field=DecimalField(max_digits=19, decimal_places=8),
-                    ),
-                    Value(
-                        0, output_field=DecimalField(max_digits=19, decimal_places=8)
-                    ),
-                ),
-                bounty_funding=Coalesce(
-                    Subquery(
-                        Bounty.objects.filter(**bounty_conditions)
-                        .values("created_by_id")
-                        .annotate(total=Sum("amount"))
-                        .values("total"),
-                        output_field=DecimalField(max_digits=19, decimal_places=8),
-                    ),
-                    Value(
-                        0, output_field=DecimalField(max_digits=19, decimal_places=8)
-                    ),
-                ),
-                distribution_funding=Coalesce(
-                    Subquery(
-                        Distribution.objects.filter(**distribution_conditions)
-                        .values("giver_id")
-                        .annotate(total=Sum("amount"))
-                        .values("total"),
-                        output_field=DecimalField(max_digits=19, decimal_places=8),
-                    ),
-                    Value(
-                        0, output_field=DecimalField(max_digits=19, decimal_places=8)
-                    ),
-                ),
-                total_funding=F("purchase_funding")
-                + F("bounty_funding")
-                + F("distribution_funding"),
-            )
+            .annotate(**self._create_funder_earnings_annotation(start_date, end_date))
             .order_by("-total_funding")
         )
 
