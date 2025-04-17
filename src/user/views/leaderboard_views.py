@@ -165,33 +165,38 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         }
 
     def _create_sum_annotation(
-        self, model, conditions, id_field="user_id", amount_field="amount"
+        self,
+        model,
+        conditions,
+        id_field="user_id",
+        amount_field="amount",
+        needs_cast=False,
     ):
-        """Helper method to create a sum annotation with Coalesce"""
-        return Coalesce(
-            Subquery(
-                model.objects.filter(**conditions)
-                .values(id_field)
-                .annotate(total=Sum(amount_field))
-                .values("total"),
-                output_field=DecimalField(max_digits=19, decimal_places=8),
-            ),
-            Value(0, output_field=DecimalField(max_digits=19, decimal_places=8)),
-        )
+        """
+        Generic helper method to create a sum annotation with optional casting
 
-    def _create_purchase_sum_subquery(self, conditions):
-        """Special case for Purchase model that needs amount casting"""
+        Args:
+            model: The model to query
+            conditions: Filter conditions
+            id_field: Field to group by (default: user_id)
+            amount_field: Field to sum (default: amount)
+            needs_cast: Whether to cast the amount field to Decimal (default: False)
+        """
+        query = model.objects.filter(**conditions)
+
+        if needs_cast:
+            query = query.annotate(
+                numeric_amount=Cast(
+                    amount_field,
+                    output_field=DecimalField(max_digits=19, decimal_places=8),
+                )
+            )
+            amount_field = "numeric_amount"
+
         return Coalesce(
             Subquery(
-                Purchase.objects.filter(**conditions)
-                .annotate(
-                    numeric_amount=Cast(
-                        "amount",
-                        output_field=DecimalField(max_digits=19, decimal_places=8),
-                    )
-                )
-                .values("user_id")
-                .annotate(total=Sum("numeric_amount"))
+                query.values(id_field)
+                .annotate(total=Sum(amount_field))
                 .values("total"),
                 output_field=DecimalField(max_digits=19, decimal_places=8),
             ),
@@ -207,9 +212,11 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         )
 
         return {
-            "purchase_funding": self._create_purchase_sum_subquery(
-                purchase_conditions
-            ),  # Using the special purchase method
+            "purchase_funding": self._create_sum_annotation(
+                Purchase,
+                purchase_conditions,
+                needs_cast=True,  # Only Purchase needs casting since amount is text
+            ),
             "bounty_funding": self._create_sum_annotation(
                 Bounty, bounty_conditions, id_field="created_by_id"
             ),
