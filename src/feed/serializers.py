@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
 from rest_framework import serializers
 
@@ -447,10 +448,13 @@ def serialize_feed_metrics(item, item_content_type):
     if hasattr(item, "children_count"):
         metrics["replies"] = getattr(item, "children_count", 0)
 
-    if hasattr(item, "unified_document"):
-        metrics["review_metrics"] = item.unified_document.get_review_details()
-    if hasattr(item, "citations"):
-        metrics["citations"] = item.citations
+    if item_content_type == ContentType.objects.get_for_model(
+        Paper
+    ) or item_content_type == ContentType.objects.get_for_model(ResearchhubPost):
+        if hasattr(item, "unified_document"):
+            metrics["review_metrics"] = item.unified_document.get_review_details()
+        if hasattr(item, "citations"):
+            metrics["citations"] = item.citations
 
     return metrics
 
