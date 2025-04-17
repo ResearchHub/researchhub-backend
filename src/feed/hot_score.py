@@ -11,6 +11,11 @@ from datetime import datetime, timezone
 from django.contrib.contenttypes.models import ContentType
 
 from paper.related_models.paper_model import Paper
+from researchhub_comment.constants.rh_comment_thread_types import (
+    COMMUNITY_REVIEW,
+    PEER_REVIEW,
+)
+from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from utils import sentry
 
@@ -54,11 +59,13 @@ def calculate_hot_score_for_item(item):
     Calculate hot score for an item
     """
     item_content_type = ContentType.objects.get_for_model(item)
-    if item_content_type.model_name == "comment" and item.comment_type == "REVIEW":
+    if item_content_type == ContentType.objects.get_for_model(RhCommentModel) and (
+        item.comment_type == COMMUNITY_REVIEW or item.comment_type == PEER_REVIEW
+    ):
         # Only calculate hot score for peer review comments
         return calculate_hot_score_for_peer_review(item)
     else:
-        return calculate_hot_score(item, item.content_type.model_name)
+        return calculate_hot_score(item, item_content_type)
 
 
 def calculate_hot_score_for_peer_review(comment):
@@ -81,7 +88,9 @@ def calculate_hot_score_for_peer_review(comment):
     )
 
     parent_score = 0
-    if feed_entries.count() != 1:
+    if feed_entries.count() == 1:
+        parent_score = feed_entries.first().hot_score or 0
+    else:
         logger.info(
             f"Expected 1 feed entry for unified document {unified_document.id}, got {feed_entries.count()}"
         )
@@ -89,13 +98,13 @@ def calculate_hot_score_for_peer_review(comment):
             f"Expected 1 feed entry for unified document {unified_document.id}, got {feed_entries.count()}"
         )
 
-    parent_score = feed_entries.first().hot_score or 0
-
-    peer_review_score = calculate_hot_score(comment, "rhcommentmodel")
+    peer_review_score = calculate_hot_score(
+        comment,
+        ContentType.objects.get_for_model(RhCommentModel),
+    )
 
     # Add the peer review's own score to ensure it ranks higher than the original paper
     final_score = int(parent_score + (peer_review_score))
-
     return max(1, final_score)
 
 
@@ -123,7 +132,6 @@ def calculate_hot_score(item, content_type_name):
 
     created_date = getattr(item, "created_date", datetime.now(timezone.utc))
 
-    # Get bounty amount
     bounty_amount = 0
     if hasattr(item, "bounties"):
         try:
@@ -131,7 +139,6 @@ def calculate_hot_score(item, content_type_name):
         except Exception:
             pass
 
-    # Calculate base score components
     vote_component = vote_score * weights.get("vote_weight", 1.0)
     discussion_component = (
         math.log(reply_county + 1) * weights.get("reply_weight", 0.5) * 10
@@ -140,14 +147,7 @@ def calculate_hot_score(item, content_type_name):
 
     score = vote_component + discussion_component + bounty_component
 
-    # Apply time decay
     half_life_seconds = weights.get("half_life_days", 7) * 24 * 60 * 60
-
-    # Parse string date if needed
-    if isinstance(created_date, str):
-        created_date = datetime.fromisoformat(created_date.replace("Z", "+00:00"))
-
-    # Calculate age and apply decay
     age_seconds = (datetime.now(timezone.utc) - created_date).total_seconds()
     # This formula calculates a decay factor between 0 and 1, where:
     # - Fresh content (age = 0) gets a decay factor of 1.0 (no decay)
@@ -155,8 +155,6 @@ def calculate_hot_score(item, content_type_name):
     # - Older content gets progressively smaller factors approaching zero
     time_decay = math.pow(2, -age_seconds / half_life_seconds)
 
-    # Calculate final score with time decay
     final_score = int(score * time_decay)
 
-    # Ensure score is at least 1 for valid content
     return max(1, final_score)
