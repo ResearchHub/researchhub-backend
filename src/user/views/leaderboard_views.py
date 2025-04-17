@@ -2,7 +2,7 @@ from datetime import timedelta
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import DecimalField, F, OuterRef, Subquery, Sum, Value
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Cast, Coalesce
 from django.utils import timezone
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -164,16 +164,42 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
             "earned_rsc": F("bounty_earnings") + F("tip_earnings"),
         }
 
-    def _create_funder_earnings_annotation(self, start_date=None, end_date=None):
-        """
-        Creates annotation dictionary for funder earnings calculations
+    def _create_sum_annotation(
+        self, model, conditions, id_field="user_id", amount_field="amount"
+    ):
+        """Helper method to create a sum annotation with Coalesce"""
+        return Coalesce(
+            Subquery(
+                model.objects.filter(**conditions)
+                .values(id_field)
+                .annotate(total=Sum(amount_field))
+                .values("total"),
+                output_field=DecimalField(max_digits=19, decimal_places=8),
+            ),
+            Value(0, output_field=DecimalField(max_digits=19, decimal_places=8)),
+        )
 
-        Args:
-            start_date: Optional start date for filtering
-            end_date: Optional end date for filtering
-        Returns:
-            Dictionary of annotations for purchase_funding, bounty_funding, distribution_funding, and total_funding
-        """
+    def _create_purchase_sum_subquery(self, conditions):
+        """Special case for Purchase model that needs amount casting"""
+        return Coalesce(
+            Subquery(
+                Purchase.objects.filter(**conditions)
+                .annotate(
+                    numeric_amount=Cast(
+                        "amount",
+                        output_field=DecimalField(max_digits=19, decimal_places=8),
+                    )
+                )
+                .values("user_id")
+                .annotate(total=Sum("numeric_amount"))
+                .values("total"),
+                output_field=DecimalField(max_digits=19, decimal_places=8),
+            ),
+            Value(0, output_field=DecimalField(max_digits=19, decimal_places=8)),
+        )
+
+    def _create_funder_earnings_annotation(self, start_date=None, end_date=None):
+        """Creates annotation dictionary for funder earnings calculations"""
         purchase_conditions = self._get_funder_purchase_conditions(start_date, end_date)
         bounty_conditions = self._get_funder_bounty_conditions(start_date, end_date)
         distribution_conditions = self._get_funder_distribution_conditions(
@@ -181,11 +207,13 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         )
 
         return {
-            "purchase_funding": self._create_purchase_sum_subquery(purchase_conditions),
-            "bounty_funding": self._create_sum_subquery(
+            "purchase_funding": self._create_purchase_sum_subquery(
+                purchase_conditions
+            ),  # Using the special purchase method
+            "bounty_funding": self._create_sum_annotation(
                 Bounty, bounty_conditions, id_field="created_by_id"
             ),
-            "distribution_funding": self._create_sum_subquery(
+            "distribution_funding": self._create_sum_annotation(
                 Distribution, distribution_conditions, id_field="giver_id"
             ),
             "total_funding": F("purchase_funding")
