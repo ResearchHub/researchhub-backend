@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
 from rest_framework import serializers
 
@@ -9,12 +10,15 @@ from researchhub_document.related_models.constants.document_type import PREREGIS
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from review.serializers.review_serializer import ReviewSerializer
 from user.models import Author, User
+from user.related_models.user_verification_model import UserVerification
 
 from .models import FeedEntry
 
 
 class SimpleUserSerializer(serializers.ModelSerializer):
     """Minimal user serializer with just essential fields"""
+
+    is_verified = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -25,6 +29,13 @@ class SimpleUserSerializer(serializers.ModelSerializer):
             "email",
             "is_verified",
         ]
+
+    def get_is_verified(self, obj):
+        if obj is None:
+            return False
+
+        user_verification = UserVerification.objects.filter(user=obj).last()
+        return user_verification.is_verified if user_verification else False
 
 
 class SimpleAuthorSerializer(serializers.ModelSerializer):
@@ -447,7 +458,9 @@ def serialize_feed_metrics(item, item_content_type):
     if hasattr(item, "children_count"):
         metrics["replies"] = getattr(item, "children_count", 0)
 
-    if item_content_type.model == "paper":
+    if item_content_type == ContentType.objects.get_for_model(
+        Paper
+    ) or item_content_type == ContentType.objects.get_for_model(ResearchhubPost):
         if hasattr(item, "unified_document"):
             metrics["review_metrics"] = item.unified_document.get_review_details()
         if hasattr(item, "citations"):
