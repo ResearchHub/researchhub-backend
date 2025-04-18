@@ -21,6 +21,8 @@ from utils.message import send_email_message
 from utils.siftscience import decisions_api
 from utils.throttles import UserSustainedRateThrottle
 
+FOUNDATION_EMAIL = "main@researchhub.foundation"
+
 
 class UserManager(UserManager):
     def editors(self):
@@ -49,7 +51,7 @@ class UserManager(UserManager):
         return self._get_default_account()
 
     def get_community_account(self):
-        user = User.objects.filter(email="main@researchhub.foundation")
+        user = User.objects.filter(email=FOUNDATION_EMAIL)
         if user.exists():
             return user.first()
 

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 from django.contrib.contenttypes.models import ContentType
 from django.utils import timezone

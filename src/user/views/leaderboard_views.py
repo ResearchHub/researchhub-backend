@@ -15,8 +15,10 @@ from reputation.models import Bounty, Distribution
 from reputation.related_models.escrow import Escrow, EscrowRecipients
 from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
 from researchhub_comment.models import RhCommentModel
+from user.management.commands.setup_bank_user import BANK_EMAIL
 from user.models import User
-from user.serializers import UserSerializer
+from user.related_models.user_model import FOUNDATION_EMAIL
+from user.serializers import DynamicUserSerializer
 from utils.http import RequestMethods
 
 
@@ -35,16 +37,57 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         is_active=True,
         is_suspended=False,
         probable_spammer=False,
+    ).exclude(
+        email__in=[
+            BANK_EMAIL,  # Exclude bank user from leaderboards
+            FOUNDATION_EMAIL,  # Exclude foundation account from leaderboards
+        ]
     )
-    serializer_class = UserSerializer
     permission_classes = [AllowAny]
     pagination_class = LeaderboardPagination
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
         self.purchase_content_type = ContentType.objects.get_for_model(Purchase)
         self.comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
+
+    @property
+    def user_serializer_config(self):
+        """
+        Returns the configuration for DynamicUserSerializer.
+        This ensures consistent user serialization across all endpoints.
+        """
+        return {
+            "context": {
+                "request": self.request,
+                "usr_dus_get_author_profile": {
+                    "_include_fields": [
+                        "first_name",
+                        "last_name",
+                        "created_date",
+                        "profile_image",
+                        "id",
+                        "user",
+                    ]
+                },
+            },
+            "fields": [
+                "id",
+                "first_name",
+                "last_name",
+                "created_date",
+                "author_profile",
+            ],
+        }
+
+    def serialize_user(self, user):
+        """
+        Helper method to serialize a user with consistent configuration.
+        """
+        config = self.user_serializer_config
+        return DynamicUserSerializer(
+            user, context=config["context"], _include_fields=config["fields"]
+        ).data
 
     def get_queryset(self):
         return self.queryset
@@ -234,7 +277,6 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         """Returns top 3 users for each category (reviewers and funders)"""
         start_date = timezone.now() - timedelta(days=7)
 
-        # Get top reviewers using the helper method
         top_reviewers = (
             self.get_queryset()
             .annotate(
@@ -243,7 +285,6 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
             .order_by("-earned_rsc")[:3]
         )
 
-        # Get top funders using the helper method
         top_funders = (
             self.get_queryset()
             .annotate(**self._create_funder_earnings_annotation(start_date=start_date))
@@ -254,7 +295,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
             {
                 "reviewers": [
                     {
-                        **UserSerializer(reviewer, context={"request": request}).data,
+                        **self.serialize_user(reviewer),
                         "earned_rsc": reviewer.earned_rsc,
                         "bounty_earnings": reviewer.bounty_earnings,
                         "tip_earnings": reviewer.tip_earnings,
@@ -263,7 +304,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
                 ],
                 "funders": [
                     {
-                        **UserSerializer(funder, context={"request": request}).data,
+                        **self.serialize_user(funder),
                         "total_funding": funder.total_funding,
                         "purchase_funding": funder.purchase_funding,
                         "bounty_funding": funder.bounty_funding,
@@ -290,7 +331,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         page = self.paginate_queryset(reviewers)
         data = [
             {
-                **UserSerializer(reviewer, context={"request": request}).data,
+                **self.serialize_user(reviewer),
                 "earned_rsc": reviewer.earned_rsc,
                 "bounty_earnings": reviewer.bounty_earnings,
                 "tip_earnings": reviewer.tip_earnings,
@@ -315,7 +356,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         page = self.paginate_queryset(top_funders)
         data = [
             {
-                **UserSerializer(funder, context={"request": request}).data,
+                **self.serialize_user(funder),
                 "total_funding": funder.total_funding,
                 "purchase_funding": funder.purchase_funding,
                 "bounty_funding": funder.bounty_funding,
