@@ -3,6 +3,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 
+from feed.hot_score import calculate_hot_score_for_item
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -104,6 +105,9 @@ class FeedEntry(DefaultModel):
                 name="unique_feed_entry",
             )
         ]
+
+    def calculate_hot_score(self):
+        return calculate_hot_score_for_item(self.item)
 
 
 class FeedEntryPopular(models.Model):

@@ -86,7 +86,8 @@ def refresh_feed_entries_for_objects(item_id, item_content_type_id):
 
         feed_entry.content = content
         feed_entry.metrics = metrics
-        feed_entry.save(update_fields=["content", "metrics"])
+        feed_entry.hot_score = feed_entry.calculate_hot_score()
+        feed_entry.save(update_fields=["content", "metrics", "hot_score"])
 
 
 @app.task
@@ -152,11 +153,45 @@ def refresh_feed():
 @app.task
 def refresh_feed_hot_scores():
     start_time = time.time()
+    count = 0
+    batch_size = 1000
+    total_entries = FeedEntryPopular.objects.count()
 
-    for feed_entry in FeedEntryPopular.objects.iterator():
-        if feed_entry.item:
-            feed_entry.hot_score = calculate_hot_score_for_item(feed_entry.item)
-            feed_entry.save()
+    # Process in batches
+    for offset in range(0, total_entries, batch_size):
+        entries_to_update = []
+
+        # Process a batch of entries
+        batch = list(
+            FeedEntryPopular.objects.all().prefetch_related("item")[
+                offset : (offset + batch_size)
+            ]
+        )
+        logger.info(
+            f"Processing batch {offset} to {offset+len(batch)} of {total_entries}"
+        )
+
+        # Calculate hot scores for each entry in the batch
+        for feed_entry in batch:
+            if feed_entry.item:
+                feed_entry.hot_score = calculate_hot_score_for_item(feed_entry.item)
+                entries_to_update.append(feed_entry)
+
+        # Bulk update entries with new hot scores
+        if entries_to_update:
+            from django.db import connection
+
+            with connection.cursor() as cursor:
+                batch_params = [
+                    (entry.hot_score, entry.id) for entry in entries_to_update
+                ]
+                cursor.executemany(
+                    "UPDATE feed_feedentry SET hot_score = %s WHERE id = %s",
+                    batch_params,
+                )
+
+        count += len(batch)
+        logger.info(f"Processed {count} of {total_entries} feed entries")
 
     duration = time.time() - start_time
     logger.info(f"Refreshed feed hot scores in {duration:.2f}s")
