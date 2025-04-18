@@ -27,28 +27,24 @@ logger = logging.getLogger(__name__)
 #    - vote_weight: Base vote weight (upvotes - downvotes)
 #    - reply_weight: Weight for discussions/comments
 #    - bounty_weight: Weight for bounties
-#    - time_decay_factor: How quickly score decays with time
 #    - half_life_days: Decay half-life in days
 CONTENT_TYPE_WEIGHTS = {
-    "paper": {
-        "vote_weight": 1.0,
-        "reply_weight": 1.0,
-        "bounty_weight": 3.0,
-        "time_decay_factor": 0.90,
+    ContentType.objects.get_for_model(Paper): {
+        "vote_weight": 100.0,
+        "reply_weight": 100.0,
+        "bounty_weight": 300.0,
         "half_life_days": 3,
     },
-    "researchhubpost": {
-        "vote_weight": 1.0,
-        "reply_weight": 1.0,
-        "bounty_weight": 3.0,
-        "time_decay_factor": 0.90,
+    ContentType.objects.get_for_model(ResearchhubPost): {
+        "vote_weight": 100.0,
+        "reply_weight": 100.0,
+        "bounty_weight": 300.0,
         "half_life_days": 3,
     },
-    "rhcommentmodel": {
-        "vote_weight": 1.0,
-        "reply_weight": 1.0,
-        "bounty_weight": 3.0,
-        "time_decay_factor": 0.90,
+    ContentType.objects.get_for_model(RhCommentModel): {
+        "vote_weight": 100.0,
+        "reply_weight": 100.0,
+        "bounty_weight": 300.0,
         "half_life_days": 3,
     },
 }
@@ -59,13 +55,18 @@ def calculate_hot_score_for_item(item):
     Calculate hot score for an item
     """
     item_content_type = ContentType.objects.get_for_model(item)
+
     if item_content_type == ContentType.objects.get_for_model(RhCommentModel) and (
         item.comment_type == COMMUNITY_REVIEW or item.comment_type == PEER_REVIEW
     ):
         # Only calculate hot score for peer review comments
         return calculate_hot_score_for_peer_review(item)
-    else:
+    elif item_content_type == ContentType.objects.get_for_model(
+        ResearchhubPost
+    ) or item_content_type == ContentType.objects.get_for_model(Paper):
         return calculate_hot_score(item, item_content_type)
+    else:
+        return 0
 
 
 def calculate_hot_score_for_peer_review(comment):
@@ -88,7 +89,7 @@ def calculate_hot_score_for_peer_review(comment):
     )
 
     parent_score = 0
-    if feed_entries.count() == 1:
+    if feed_entries.count() > 0:
         parent_score = feed_entries.first().hot_score or 0
     else:
         logger.info(
@@ -105,6 +106,7 @@ def calculate_hot_score_for_peer_review(comment):
 
     # Add the peer review's own score to ensure it ranks higher than the original paper
     final_score = int(parent_score + (peer_review_score))
+
     return max(1, final_score)
 
 
@@ -120,13 +122,16 @@ def calculate_hot_score(item, content_type_name):
         Calculated hot score as an integer
     """
     # Default to paper weights if content type not found
-    weights = CONTENT_TYPE_WEIGHTS.get(content_type_name, CONTENT_TYPE_WEIGHTS["paper"])
+    weights = CONTENT_TYPE_WEIGHTS.get(content_type_name)
+    if not weights:
+        print(f"No weights found for content type {content_type_name}")
+        return 0
 
     # Get common attributes with defaults
     vote_score = getattr(item, "score", 0) or 0
     reply_county = 0
-    if hasattr(item, "get_discussion_count"):
-        reply_county = item.get_discussion_count()
+    if hasattr(item, "discussion_count"):
+        reply_county = getattr(item, "discussion_count", 0) or 0
     if hasattr(item, "children_count"):
         reply_county = getattr(item, "children_count", 0) or 0
 

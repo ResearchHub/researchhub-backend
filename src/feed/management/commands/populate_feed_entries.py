@@ -2,6 +2,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 from django.db.models import Q
 
+from feed.hot_score import calculate_hot_score
 from feed.models import FeedEntry
 from feed.serializers import serialize_feed_metrics
 from feed.tasks import serialize_feed_item
@@ -34,6 +35,13 @@ class Command(BaseCommand):
             default=False,
             help="Whether to only populate object content for feed entries.",
         )
+        parser.add_argument(
+            "--use-old-hot-score-calculation",
+            action="store_true",
+            dest="use_old_hot_score_calculation",
+            default=False,
+            help="Whether to use the old hot score calculation.",
+        )
 
     def handle(self, *args, **options):
         process_all = options["all"]
@@ -61,9 +69,6 @@ class Command(BaseCommand):
         # Order by ID in descending order to process the most recent entries first
         queryset = queryset.order_by("-id")
 
-        paper_content_type = ContentType.objects.get(model="paper")
-        researchhub_post_content_type = ContentType.objects.get(model="researchhubpost")
-
         for feed_entry in queryset.iterator(chunk_size=CHUNK_SIZE):
             feed_item = feed_entry.item
             fields_to_update = []
@@ -79,14 +84,13 @@ class Command(BaseCommand):
                 fields_to_update.append("content")
 
             # Update hot score for papers and posts
-            if feed_entry.content_type_id in [
-                paper_content_type.id,
-                researchhub_post_content_type.id,
-            ]:
-                document_hot_score = feed_item.unified_document.hot_score
-                if document_hot_score != feed_entry.hot_score:
-                    feed_entry.hot_score = document_hot_score
-                    fields_to_update.append("hot_score")
+            if feed_entry.unified_document:
+                if options["use_old_hot_score_calculation"]:
+                    feed_entry.hot_score = feed_item.unified_document.hot_score
+                else:
+                    feed_entry.hot_score = calculate_hot_score(feed_item)
+
+                fields_to_update.append("hot_score")
 
             print(
                 f"Populating feed entry: {feed_entry.id} ({', '.join(fields_to_update)})"
