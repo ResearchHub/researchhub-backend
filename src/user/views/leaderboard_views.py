@@ -4,6 +4,8 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models import DecimalField, F, OuterRef, Subquery, Sum, Value
 from django.db.models.functions import Cast, Coalesce
 from django.utils import timezone
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
@@ -271,7 +273,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
             + F("distribution_funding"),
         }
 
-    # @method_decorator(cache_page(60 * 60 * 6))
+    @method_decorator(cache_page(60 * 60 * 6))
     @action(detail=False, methods=[RequestMethods.GET])
     def overview(self, request):
         """Returns top 3 users for each category (reviewers and funders)"""
@@ -315,7 +317,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
             }
         )
 
-    # @method_decorator(cache_page(60 * 60 * 6))
+    @method_decorator(cache_page(60 * 60 * 6))
     @action(detail=False, methods=[RequestMethods.GET])
     def reviewers(self, request):
         """Returns top reviewers for a given time period"""
@@ -340,7 +342,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         ]
         return self.get_paginated_response(data)
 
-    # @method_decorator(cache_page(60 * 60 * 6))
+    @method_decorator(cache_page(60 * 60 * 6))
     @action(detail=False, methods=[RequestMethods.GET])
     def funders(self, request):
         """Returns top funders for a given time period"""
