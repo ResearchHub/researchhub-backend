@@ -5,6 +5,7 @@ from rest_framework.response import Response
 
 from reputation.models import Deposit
 from reputation.serializers import DepositSerializer
+from reputation.tasks import check_deposits
 
 
 class DepositViewSet(viewsets.ReadOnlyModelViewSet):
@@ -36,5 +37,7 @@ class DepositViewSet(viewsets.ReadOnlyModelViewSet):
             transaction_hash=request.data.get("transaction_hash"),
             network=request.data.get("network"),
         )
+
+        check_deposits.delay()
 
         return Response(200)
