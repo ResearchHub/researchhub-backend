@@ -86,6 +86,8 @@ router.register(
     r"contribution", user.views.ContributionViewSet, basename="contribution"
 )
 
+router.register(r"leaderboard", user.views.LeaderboardViewSet, basename="leaderboard")
+
 router.register(
     r"email_recipient",
     mailing_list.views.EmailRecipientViewSet,
