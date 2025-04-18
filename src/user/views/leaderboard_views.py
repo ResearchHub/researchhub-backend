@@ -215,7 +215,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
             "purchase_funding": self._create_sum_annotation(
                 Purchase,
                 purchase_conditions,
-                needs_cast=True,  # Only Purchase needs casting since amount is text
+                needs_cast=True,  # Purchase amount needs casting since it's text
             ),
             "bounty_funding": self._create_sum_annotation(
                 Bounty, bounty_conditions, id_field="created_by_id"
