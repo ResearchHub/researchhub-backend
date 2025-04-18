@@ -13,6 +13,7 @@ from feed.serializers import (
     PaperSerializer,
     PostSerializer,
     SimpleReviewSerializer,
+    SimpleUserSerializer,
 )
 from feed.views.base_feed_view import BaseFeedView
 from hub.models import Hub
@@ -36,7 +37,34 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 )
 from review.models import Review
 from topic.models import Topic, UnifiedDocumentTopics
+from user.related_models.user_verification_model import UserVerification
 from user.tests.helpers import create_random_default_user
+
+
+class SimpleUserSerializerTests(TestCase):
+    def setUp(self):
+        self.user = create_random_default_user("test_user_serializer")
+        # Create a verification record with non-APPROVED status
+        UserVerification.objects.create(
+            user=self.user,
+            first_name=self.user.first_name,
+            last_name=self.user.last_name,
+            status=UserVerification.Status.APPROVED,
+            verified_by=UserVerification.Type.MANUAL,
+            external_id="test-id",
+        )
+
+    def test_serializes_basic_user_fields(self):
+        # Test that other basic fields are included
+        serializer = SimpleUserSerializer(self.user)
+        data = serializer.data
+
+        self.assertEqual(data["id"], self.user.id)
+        self.assertEqual(data["first_name"], self.user.first_name)
+        self.assertEqual(data["last_name"], self.user.last_name)
+        self.assertEqual(data["email"], self.user.email)
+        self.assertIn("is_verified", data)
+        self.assertTrue(data["is_verified"])
 
 
 class ContentObjectSerializerTests(TestCase):
