@@ -78,7 +78,6 @@ def calculate_hot_score_for_peer_review(feed_entry):
     since we distinct on unified_document_id.
     """
     # Get the base score from the associated paper or post
-    comment = feed_entry.item
     unified_document = feed_entry.unified_document
     if not unified_document:
         return 0
@@ -109,7 +108,8 @@ def calculate_hot_score_for_peer_review(feed_entry):
     )
 
     # Add the peer review's own score to ensure it ranks higher than the original paper
-    final_score = int(parent_score + (peer_review_score))
+    # Subtract 1 to ensure some interaction on our site
+    final_score = int(parent_score + peer_review_score - 1)
 
     return max(1, final_score)
 
@@ -145,13 +145,15 @@ def calculate_hot_score(feed_entry, content_type_name):
     created_date = getattr(item, "created_date", datetime.now(timezone.utc))
 
     bounty_amount = 0
-    if hasattr(unified_document, "bounties"):
-        try:
-            bounty_amount = sum(
-                bounty.amount for bounty in unified_document.bounties.all()
-            )
-        except Exception:
-            pass
+    if hasattr(item, "bounties"):
+        bounties = item.bounties.all()
+
+    elif hasattr(unified_document, "bounties"):
+        bounties = unified_document.bounties.all()
+    else:
+        bounties = []
+
+    bounty_amount = sum(bounty.amount for bounty in bounties)
 
     vote_component = vote_score * weights.get("vote_weight", 1.0)
     discussion_component = (
