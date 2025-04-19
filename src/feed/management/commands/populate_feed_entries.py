@@ -2,7 +2,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.core.management.base import BaseCommand
 from django.db.models import Q
 
-from feed.hot_score import calculate_hot_score
+from feed.hot_score import calculate_hot_score_for_item
 from feed.models import FeedEntry
 from feed.serializers import serialize_feed_metrics
 from feed.tasks import serialize_feed_item
@@ -88,7 +88,7 @@ class Command(BaseCommand):
                 if options["use_old_hot_score_calculation"]:
                     feed_entry.hot_score = feed_item.unified_document.hot_score
                 else:
-                    feed_entry.hot_score = calculate_hot_score(feed_item)
+                    feed_entry.hot_score = calculate_hot_score_for_item(feed_entry)
 
                 fields_to_update.append("hot_score")
 
