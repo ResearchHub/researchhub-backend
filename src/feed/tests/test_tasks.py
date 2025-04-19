@@ -282,3 +282,69 @@ class FeedTasksTest(TestCase):
         self.assertEqual(
             set(updated_feed_entry.metrics.keys()), set(original_metrics.keys())
         )
+
+    def test_refresh_feed_hot_scores(self):
+        """Test refreshing hot scores for feed entries using actual database entries."""
+        # Arrange
+        from feed.models import FeedEntryPopular
+        from feed.tasks import refresh_feed, refresh_feed_hot_scores
+
+        # Create 3 feed entries with different properties
+        papers = []
+        feed_entries = []
+
+        # Create 3 papers with different properties
+        for i in range(3):
+            # Create a unified document for each paper
+            unified_doc = ResearchhubUnifiedDocument.objects.create()
+
+            # Create a paper with different creation dates to affect hot score
+            paper = Paper.objects.create(
+                title=f"Test Paper {i+1}",
+                paper_publish_date="2025-01-01",
+                unified_document=unified_doc,
+                score=10 * (i + 1),  # Different scores to get different hot scores
+            )
+            papers.append(paper)
+
+            # Create a feed entry for each paper
+            feed_entry = create_feed_entry(
+                item_id=paper.id,
+                item_content_type_id=self.paper_content_type.id,
+                action=FeedEntry.PUBLISH,
+                parent_item_id=self.hub.id,
+                parent_content_type_id=self.hub_content_type.id,
+                user_id=self.user.id,
+            )
+            feed_entries.append(feed_entry)
+
+        # Refresh the materialized view to include our test entries
+        refresh_feed()
+
+        # Verify that the entries are in the materialized view
+        popular_entries_before = list(FeedEntryPopular.objects.all())
+        self.assertGreaterEqual(len(popular_entries_before), 3)
+
+        # Record initial hot scores
+        initial_hot_scores = {}
+        for entry in feed_entries:
+            initial_hot_scores[entry.id] = entry.hot_score
+
+        # Act
+        refresh_feed_hot_scores()
+
+        # Assert
+        # Fetch updated feed entries
+        updated_feed_entries = []
+        for entry_id in [entry.id for entry in feed_entries]:
+            updated_entry = FeedEntry.objects.get(id=entry_id)
+            updated_feed_entries.append(updated_entry)
+
+        # Verify that hot scores have been updated
+        for i, entry in enumerate(updated_feed_entries):
+            # Hot scores should be updated and different from initial values
+            self.assertNotEqual(
+                entry.hot_score,
+                initial_hot_scores[entry.id],
+                f"Hot score for entry {i} was not updated",
+            )
