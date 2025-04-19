@@ -110,10 +110,6 @@ class FeedViewSet(BaseFeedView):
                 )
 
         if feed_view == "popular":
-            # Only include papers and posts in the popular feed
-            feed_entries = FeedEntryPopular.objects.filter(
-                content_type__in=[self._paper_content_type, self._post_content_type],
-            )
 
             # Apply any additional filters
             if hub_slug:
@@ -124,7 +120,7 @@ class FeedViewSet(BaseFeedView):
                         {"error": "Hub not found"}, status=status.HTTP_404_NOT_FOUND
                     )
 
-                feed_entries = feed_entries.filter(
+                queryset = queryset.filter(
                     parent_content_type=self._hub_content_type, parent_object_id=hub.id
                 )
 
@@ -132,7 +128,7 @@ class FeedViewSet(BaseFeedView):
             # we need to select the most recent entry for each document
             # Get the IDs of the most recent feed entry for each unified document
             latest_entries_subquery = (
-                feed_entries.values("unified_document")
+                queryset.values("unified_document")
                 .annotate(latest_id=models.Max("id"))
                 .values_list("latest_id", flat=True)
             )

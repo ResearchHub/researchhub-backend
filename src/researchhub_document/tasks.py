@@ -46,10 +46,6 @@ def recalc_hot_score_task(instance_content_type_id, instance_id):
             # Recalculate and save hot score on the unified document
             hot_score, _ = uni_doc.calculate_hot_score(should_save=True)
 
-            # Update hot score for all related feed entries
-            for feed_entry in uni_doc.feed_entries.all():
-                feed_entry.hot_score = hot_score
-                feed_entry.save()
     except Exception as error:
         sentry.log_error(error)
 
