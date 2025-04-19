@@ -107,7 +107,7 @@ class FeedEntry(DefaultModel):
         ]
 
     def calculate_hot_score(self):
-        return calculate_hot_score_for_item(self.item)
+        return calculate_hot_score_for_item(self)
 
 
 class FeedEntryPopular(models.Model):

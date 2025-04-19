@@ -174,7 +174,7 @@ def refresh_feed_hot_scores():
         # Calculate hot scores for each entry in the batch
         for feed_entry in batch:
             if feed_entry.item:
-                feed_entry.hot_score = calculate_hot_score_for_item(feed_entry.item)
+                feed_entry.hot_score = calculate_hot_score_for_item(feed_entry)
                 entries_to_update.append(feed_entry)
 
         # Bulk update entries with new hot scores

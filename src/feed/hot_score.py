@@ -29,19 +29,19 @@ logger = logging.getLogger(__name__)
 #    - bounty_weight: Weight for bounties
 #    - half_life_days: Decay half-life in days
 CONTENT_TYPE_WEIGHTS = {
-    ContentType.objects.get_for_model(Paper): {
+    "paper": {
         "vote_weight": 100.0,
         "reply_weight": 100.0,
         "bounty_weight": 300.0,
         "half_life_days": 3,
     },
-    ContentType.objects.get_for_model(ResearchhubPost): {
+    "researchhubpost": {
         "vote_weight": 100.0,
         "reply_weight": 100.0,
         "bounty_weight": 300.0,
         "half_life_days": 3,
     },
-    ContentType.objects.get_for_model(RhCommentModel): {
+    "rhcommentmodel": {
         "vote_weight": 100.0,
         "reply_weight": 100.0,
         "bounty_weight": 300.0,
@@ -50,26 +50,27 @@ CONTENT_TYPE_WEIGHTS = {
 }
 
 
-def calculate_hot_score_for_item(item):
+def calculate_hot_score_for_item(feed_entry):
     """
     Calculate hot score for an item
     """
+    item = feed_entry.item
     item_content_type = ContentType.objects.get_for_model(item)
 
     if item_content_type == ContentType.objects.get_for_model(RhCommentModel) and (
         item.comment_type == COMMUNITY_REVIEW or item.comment_type == PEER_REVIEW
     ):
         # Only calculate hot score for peer review comments
-        return calculate_hot_score_for_peer_review(item)
+        return calculate_hot_score_for_peer_review(feed_entry)
     elif item_content_type == ContentType.objects.get_for_model(
         ResearchhubPost
     ) or item_content_type == ContentType.objects.get_for_model(Paper):
-        return calculate_hot_score(item, item_content_type)
+        return calculate_hot_score(feed_entry, item_content_type)
     else:
         return 0
 
 
-def calculate_hot_score_for_peer_review(comment):
+def calculate_hot_score_for_peer_review(feed_entry):
     """
     Calculate hot score for a peer review differs from the hot score for a paper
     and posts because we get the score of the paper or post and then add peer review.
@@ -77,7 +78,8 @@ def calculate_hot_score_for_peer_review(comment):
     since we distinct on unified_document_id.
     """
     # Get the base score from the associated paper or post
-    unified_document = comment.unified_document
+    comment = feed_entry.item
+    unified_document = feed_entry.unified_document
     if not unified_document:
         return 0
 
@@ -93,14 +95,16 @@ def calculate_hot_score_for_peer_review(comment):
         parent_score = feed_entries.first().hot_score or 0
     else:
         logger.info(
-            f"Expected 1 feed entry for unified document {unified_document.id}, got {feed_entries.count()}"
+            f"Expected 1 feed entry for unified document {unified_document.id}, "
+            f"got {feed_entries.count()}"
         )
         sentry.log_info(
-            f"Expected 1 feed entry for unified document {unified_document.id}, got {feed_entries.count()}"
+            f"Expected 1 feed entry for unified document {unified_document.id}, "
+            f"got {feed_entries.count()}"
         )
 
     peer_review_score = calculate_hot_score(
-        comment,
+        feed_entry,
         ContentType.objects.get_for_model(RhCommentModel),
     )
 
@@ -110,21 +114,24 @@ def calculate_hot_score_for_peer_review(comment):
     return max(1, final_score)
 
 
-def calculate_hot_score(item, content_type_name):
+def calculate_hot_score(feed_entry, content_type_name):
     """
-    Calculate hot score for an item based on its content type.
+    Calculate hot score for a feed entry based on its content type.
 
     Args:
-        item: The item object (paper, post, comment, etc.)
+        feed_entry: The feed entry object
         content_type_name: String name of the content type
 
     Returns:
         Calculated hot score as an integer
     """
     # Default to paper weights if content type not found
-    weights = CONTENT_TYPE_WEIGHTS.get(content_type_name)
+    item = feed_entry.item
+    unified_document = feed_entry.unified_document
+    weights = CONTENT_TYPE_WEIGHTS.get(content_type_name.model)
     if not weights:
-        print(f"No weights found for content type {content_type_name}")
+        logger.info(f"No weights found for content type {content_type_name.model}")
+        sentry.log_info(f"No weights found for content type {content_type_name.model}")
         return 0
 
     # Get common attributes with defaults
@@ -138,9 +145,11 @@ def calculate_hot_score(item, content_type_name):
     created_date = getattr(item, "created_date", datetime.now(timezone.utc))
 
     bounty_amount = 0
-    if hasattr(item, "bounties"):
+    if hasattr(unified_document, "bounties"):
         try:
-            bounty_amount = sum(bounty.amount for bounty in item.bounties.all())
+            bounty_amount = sum(
+                bounty.amount for bounty in unified_document.bounties.all()
+            )
         except Exception:
             pass
 
