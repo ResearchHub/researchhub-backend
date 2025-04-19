@@ -116,6 +116,9 @@ class ContentObjectSerializer(serializers.Serializer):
             # Get all parent bounties from the unified document
             bounties = obj.unified_document.related_bounties.filter(parent__isnull=True)
 
+            if not bounties.exists():
+                return []
+
             # Return serialized bounties as a list
             return BountySerializer(bounties, many=True).data
         return []
