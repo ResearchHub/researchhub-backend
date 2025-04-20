@@ -5,7 +5,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 from feed.models import FeedEntry, FeedEntryLatest, FeedEntryPopular
-from feed.serializers import serialize_feed_item, serialize_feed_metrics
+from feed.tasks import refresh_feed_entry
 from purchase.related_models.purchase_model import Purchase
 
 logger = logging.getLogger(__name__)
@@ -46,14 +46,10 @@ def refresh_feed_entries_on_purchase(sender, instance, created, **kwargs):
 
         # Update all matching feed entries
         for entry in feed_entries:
-            # Re-serialize the content object
-            entry.content = serialize_feed_item(entry.item, entry.content_type)
-
-            # Update metrics
-            entry.metrics = serialize_feed_metrics(entry.item, entry.content_type)
-
-            # Save the updated entry
-            entry.save()
+            refresh_feed_entry.apply_async(
+                args=(entry.id,),
+                priority=1,
+            )
 
         # Refresh materialized views if we updated any entries
         if feed_entries.exists():

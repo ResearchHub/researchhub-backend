@@ -1,5 +1,3 @@
-from unittest.mock import patch
-
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase, override_settings
 
@@ -35,10 +33,11 @@ class TestPurchaseSignals(TestCase):
             action_date=self.post.created_date,
             user=self.user,
             unified_document=self.unified_document,
-            content={},  # Empty content - will be filled by serializer
-            metrics={},  # Empty metrics - will be filled by serializer
+            content={},
+            metrics={},
         )
 
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     def test_refresh_feed_entries_on_purchase_create(
         self,
     ):
@@ -74,6 +73,7 @@ class TestPurchaseSignals(TestCase):
         self.assertEqual(len(purchase_data), 1)
         self.assertEqual(float(purchase_data[0]["amount"]), float(purchase.amount))
 
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     def test_refresh_feed_entries_on_purchase_update(
         self,
     ):
