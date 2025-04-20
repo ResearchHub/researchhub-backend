@@ -125,36 +125,45 @@ class ContentObjectSerializer(serializers.Serializer):
 
     def get_purchase_data(self, obj):
         """Return purchase data from the unified document if it exists"""
-        if hasattr(obj, "unified_document") and obj.unified_document:
+        purchases_list = []
 
+        # Get purchases directly associated with the object
+        if hasattr(obj, "purchases"):
+            direct_purchases = obj.purchases.all()
+            if direct_purchases.exists():
+                purchases_list.extend(direct_purchases)
+
+        # Get purchases from the unified document
+        if hasattr(obj, "unified_document") and obj.unified_document:
             content_type = ContentType.objects.get_for_model(obj.unified_document)
-            purchases = Purchase.objects.filter(
+            doc_purchases = Purchase.objects.filter(
                 content_type=content_type, object_id=obj.unified_document.id
             )
+            if doc_purchases.exists():
+                purchases_list.extend(doc_purchases)
 
-            if not purchases.exists():
-                return []
+        if not purchases_list:
+            return []
 
-            context = getattr(self, "context", {})
-            context["pch_dps_get_user"] = {
-                "_include_fields": [
-                    "id",
-                    "first_name",
-                    "last_name",
-                    "created_date",
-                    "updated_date",
-                    "profile_image",
-                    "is_verified",
-                ]
-            }
-            serializer = DynamicPurchaseSerializer(
-                purchases,
-                many=True,
-                context=context,
-                _include_fields=["id", "amount", "user"],
-            )
-            return serializer.data
-        return []
+        context = getattr(self, "context", {})
+        context["pch_dps_get_user"] = {
+            "_include_fields": [
+                "id",
+                "first_name",
+                "last_name",
+                "created_date",
+                "updated_date",
+                "profile_image",
+                "is_verified",
+            ]
+        }
+        serializer = DynamicPurchaseSerializer(
+            purchases_list,
+            many=True,
+            context=context,
+            _include_fields=["id", "amount", "user"],
+        )
+        return serializer.data
 
     def get_reviews(self, obj):
         """Return reviews from the unified document if it exists"""
