@@ -8,7 +8,11 @@ from paper.related_models.paper_model import Paper
 from purchase.models import Purchase
 from reputation.models import Bounty, BountySolution, Distribution
 from reputation.related_models.escrow import Escrow, EscrowRecipients
-from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
+from researchhub_comment.constants.rh_comment_thread_types import (
+    ANSWER,
+    COMMUNITY_REVIEW,
+    PEER_REVIEW,
+)
 from researchhub_comment.models import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
@@ -151,6 +155,82 @@ class LeaderboardApiTests(APITestCase):
                 created_date=today,
             )
 
+        self.regular_review_thread = RhCommentThreadModel.objects.create(
+            thread_type=COMMUNITY_REVIEW,
+            content_type=self.paper_content_type,
+            object_id=self.paper.id,
+            created_by=self.funder1,
+        )
+
+        self.regular_review_comment = RhCommentModel.objects.create(
+            comment_content_json={"ops": [{"insert": "Test regular review"}]},
+            comment_type=COMMUNITY_REVIEW,
+            created_by=self.reviewer1,
+            thread=self.regular_review_thread,
+        )
+
+        self.answer_comment = RhCommentModel.objects.create(
+            comment_content_json={"ops": [{"insert": "Test answer"}]},
+            comment_type=ANSWER,
+            created_by=self.reviewer1,
+            thread=self.regular_review_thread,
+        )
+
+        # Create escrow for regular review
+        self.regular_review_escrow = Escrow.objects.create(
+            hold_type=Escrow.BOUNTY,
+            status=Escrow.PAID,
+            amount_holding=75,
+            content_type=self.comment_content_type,
+            object_id=self.regular_review_comment.id,
+            created_by=self.funder1,
+        )
+
+        # Create bounty for regular review
+        self.regular_review_bounty = Bounty.objects.create(
+            bounty_type=Bounty.Type.REVIEW,
+            amount=75,
+            created_by=self.funder1,
+            item_content_type=self.comment_content_type,
+            item_object_id=self.regular_review_comment.id,
+            escrow=self.regular_review_escrow,
+            unified_document=self.paper.unified_document,
+        )
+
+        # Create escrow recipient for regular review
+        EscrowRecipients.objects.create(
+            escrow=self.regular_review_escrow, user=self.reviewer1, amount=75
+        )
+
+        # Create bounty solution for regular review
+        self.regular_review_bounty_solution = BountySolution.objects.create(
+            bounty=self.regular_review_bounty,
+            created_by=self.reviewer1,
+            content_type=self.comment_content_type,
+            object_id=self.regular_review_comment.id,
+        )
+
+        # Create a purchase/tip for regular review
+        self.regular_review_purchase = Purchase.objects.create(
+            user=self.funder1,
+            amount="25",
+            paid_status=Purchase.PAID,
+            purchase_type=Purchase.BOOST,
+            content_type=self.comment_content_type,
+            object_id=self.regular_review_comment.id,
+            created_date=today,
+        )
+
+        # Create distribution (tip) for regular review
+        Distribution.objects.create(
+            recipient=self.reviewer1,
+            giver=self.funder1,
+            amount=25,
+            distribution_type="PURCHASE",
+            proof_item_content_type=self.purchase_content_type,
+            proof_item_object_id=self.regular_review_purchase.id,
+        )
+
     def test_get_reviewers_leaderboard(self):
         """Test that reviewers endpoint returns correct data and ordering"""
         url = "/api/leaderboard/reviewers/"
@@ -169,10 +249,11 @@ class LeaderboardApiTests(APITestCase):
 
         self.assertEqual(top_reviewer["id"], self.reviewer1.id)
         self.assertEqual(
-            float(top_reviewer["earned_rsc"]), 150.0
-        )  # 100 from bounty + 50 from tip
-        self.assertEqual(float(top_reviewer["bounty_earnings"]), 100.0)
-        self.assertEqual(float(top_reviewer["tip_earnings"]), 50.0)
+            float(top_reviewer["earned_rsc"]), 250.0
+        )  # 100 + 75 from bounties + 50 + 25 from tips
+        self.assertEqual(float(top_reviewer["bounty_earnings"]), 175.0)  # 100 + 75
+        self.assertEqual(float(top_reviewer["tip_earnings"]), 75.0)  # 50 + 25
+
         # Verify ordering
         if len(results) > 1:
             self.assertGreater(
@@ -204,15 +285,13 @@ class LeaderboardApiTests(APITestCase):
         top_funder = results[0]
 
         self.assertEqual(top_funder["id"], self.funder1.id)
-        self.assertEqual(float(top_funder["purchase_funding"]), 300.0)  # 200 + 100
-        self.assertEqual(float(top_funder["bounty_funding"]), 100.0)
+        self.assertEqual(float(top_funder["purchase_funding"]), 325.0)  # 200 + 100 + 25
+        self.assertEqual(float(top_funder["bounty_funding"]), 175.0)
         self.assertEqual(float(top_funder["distribution_funding"]), 150.0)  # 3 * 50
-        self.assertEqual(float(top_funder["total_funding"]), 550.0)
+        self.assertEqual(float(top_funder["total_funding"]), 650.0)
 
     def test_get_leaderboard_overview(self):
-        """
-        Test the leaderboard overview endpoint.
-        """
+        """Test the leaderboard overview endpoint."""
 
         Distribution.objects.create(
             recipient=self.reviewer1,
@@ -237,14 +316,14 @@ class LeaderboardApiTests(APITestCase):
         # Verify top reviewer data
         self.assertEqual(top_reviewer["id"], self.reviewer1.id)
         self.assertEqual(
-            float(top_reviewer["earned_rsc"]), 650.0
-        )  # 100 from bounty + 50 from tip + 500 from purchase
-        self.assertEqual(float(top_reviewer["bounty_earnings"]), 100.0)
-        self.assertEqual(float(top_reviewer["tip_earnings"]), 550.0)
+            float(top_reviewer["earned_rsc"]), 750.0
+        )  # 175 from bounties + 75 from regular tips + 500 from additional tip
+        self.assertEqual(float(top_reviewer["bounty_earnings"]), 175.0)  # 100 + 75
+        self.assertEqual(float(top_reviewer["tip_earnings"]), 575.0)  # 50 + 25 + 500
 
         # Verify top funder data
         self.assertEqual(top_funder["id"], self.funder1.id)
-        self.assertEqual(float(top_funder["total_funding"]), 550.0)  # 300 + 100 + 150
-        self.assertEqual(float(top_funder["purchase_funding"]), 300.0)  # 200 + 100
-        self.assertEqual(float(top_funder["bounty_funding"]), 100.0)
-        self.assertEqual(float(top_funder["distribution_funding"]), 150.0)  # 3 * 50
+        self.assertEqual(float(top_funder["total_funding"]), 650.0)
+        self.assertEqual(float(top_funder["purchase_funding"]), 325.0)
+        self.assertEqual(float(top_funder["bounty_funding"]), 175.0)
+        self.assertEqual(float(top_funder["distribution_funding"]), 150.0)
