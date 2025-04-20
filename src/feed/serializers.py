@@ -125,24 +125,8 @@ class ContentObjectSerializer(serializers.Serializer):
 
     def get_purchase_data(self, obj):
         """Return purchase data from the unified document if it exists"""
-        purchases_list = []
-
         # Get purchases directly associated with the object
-        if hasattr(obj, "purchases"):
-            direct_purchases = obj.purchases.all()
-            if direct_purchases.exists():
-                purchases_list.extend(direct_purchases)
-
-        # Get purchases from the unified document
-        if hasattr(obj, "unified_document") and obj.unified_document:
-            content_type = ContentType.objects.get_for_model(obj.unified_document)
-            doc_purchases = Purchase.objects.filter(
-                content_type=content_type, object_id=obj.unified_document.id
-            )
-            if doc_purchases.exists():
-                purchases_list.extend(doc_purchases)
-
-        if not purchases_list:
+        if not hasattr(obj, "purchases"):
             return []
 
         context = getattr(self, "context", {})
@@ -158,7 +142,7 @@ class ContentObjectSerializer(serializers.Serializer):
             ]
         }
         serializer = DynamicPurchaseSerializer(
-            purchases_list,
+            obj.purchases.all(),
             many=True,
             context=context,
             _include_fields=["id", "amount", "user"],

@@ -74,7 +74,6 @@ def create_feed_entry(
 def refresh_feed_entry(feed_entry_id):
     feed_entry = FeedEntry.objects.get(id=feed_entry_id)
     content = serialize_feed_item(feed_entry.item, feed_entry.content_type)
-
     metrics = serialize_feed_metrics(feed_entry.item, feed_entry.content_type)
 
     feed_entry.content = content

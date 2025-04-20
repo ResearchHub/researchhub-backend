@@ -264,8 +264,8 @@ class PaperSerializerTests(TestCase):
         # Create a purchase for the unified document
         purchase = Purchase.objects.create(
             user=self.user,
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
-            object_id=self.paper.unified_document.id,
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=self.paper.id,
             purchase_method=Purchase.OFF_CHAIN,
             purchase_type=Purchase.BOOST,
             amount="10.0",
@@ -524,8 +524,8 @@ class PostSerializerTests(TestCase):
         # Create a purchase for the unified document
         purchase = Purchase.objects.create(
             user=self.user,
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
-            object_id=self.post.unified_document.id,
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=self.post.id,
             purchase_method=Purchase.OFF_CHAIN,
             purchase_type=Purchase.BOOST,
             amount="5.0",
@@ -990,8 +990,8 @@ class FeedEntrySerializerTests(TestCase):
 
         purchase = Purchase.objects.create(
             user=user,
-            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
-            object_id=paper.unified_document.id,
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=paper.id,
             purchase_method=Purchase.OFF_CHAIN,
             purchase_type=Purchase.BOOST,
             amount="15.0",

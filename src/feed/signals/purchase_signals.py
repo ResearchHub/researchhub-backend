@@ -1,6 +1,5 @@
 import logging
 
-from django.contrib.contenttypes.models import ContentType
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
@@ -18,24 +17,14 @@ def refresh_feed_entries_on_purchase(sender, instance, created, **kwargs):
     This ensures feed entries show the latest purchase information.
     """
     try:
-        # The purchased item may not have a feed entry yet or may not be feed-related
-        content_type = instance.content_type
-        object_id = instance.object_id
-
         # Get the a feed entry for this object, then get the unified document
         # to find all feed entries that may be affected by the purchase
-        feed_entry = FeedEntry.objects.filter(
-            content_type=content_type,
-            object_id=object_id,
-        ).first()
-        if not feed_entry:
+        feed_entries = FeedEntry.objects.filter(
+            content_type=instance.content_type,
+            object_id=instance.object_id,
+        )
+        if not feed_entries.exists():
             return
-
-        unified_document = feed_entry.unified_document
-        if not unified_document:
-            return
-
-        feed_entries = unified_document.feed_entries.all()
 
         # Update all matching feed entries
         for entry in feed_entries:
