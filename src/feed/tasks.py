@@ -71,6 +71,18 @@ def create_feed_entry(
 
 
 @app.task
+def refresh_feed_entry(feed_entry_id):
+    feed_entry = FeedEntry.objects.get(id=feed_entry_id)
+    content = serialize_feed_item(feed_entry.item, feed_entry.content_type)
+    metrics = serialize_feed_metrics(feed_entry.item, feed_entry.content_type)
+
+    feed_entry.content = content
+    feed_entry.metrics = metrics
+    feed_entry.hot_score = feed_entry.calculate_hot_score()
+    feed_entry.save(update_fields=["content", "metrics", "hot_score"])
+
+
+@app.task
 def refresh_feed_entries_for_objects(item_id, item_content_type_id):
     item_content_type = ContentType.objects.get(id=item_content_type_id)
 
