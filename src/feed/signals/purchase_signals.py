@@ -22,27 +22,20 @@ def refresh_feed_entries_on_purchase(sender, instance, created, **kwargs):
         content_type = instance.content_type
         object_id = instance.object_id
 
-        # Get all feed entries related to this purchase's item
-        feed_entries = FeedEntry.objects.filter(
+        # Get the a feed entry for this object, then get the unified document
+        # to find all feed entries that may be affected by the purchase
+        feed_entry = FeedEntry.objects.filter(
             content_type=content_type,
             object_id=object_id,
-        )
+        ).first()
+        if not feed_entry:
+            return
 
-        if not feed_entries.exists():
-            # If the purchase is on a comment or other content that might be part of a
-            # parent feed entry, try to get the parent document's feed entries
-            if (
-                hasattr(instance.item, "unified_document")
-                and instance.item.unified_document
-            ):
-                doc_type = ContentType.objects.get_for_model(
-                    instance.item.unified_document
-                )
-                doc_feed_entries = FeedEntry.objects.filter(
-                    content_type=doc_type,
-                    object_id=instance.item.unified_document.id,
-                )
-                feed_entries = feed_entries | doc_feed_entries
+        unified_document = feed_entry.unified_document
+        if not unified_document:
+            return
+
+        feed_entries = unified_document.feed_entries.all()
 
         # Update all matching feed entries
         for entry in feed_entries:
