@@ -4,7 +4,6 @@ from hashlib import sha1
 
 from allauth.account.models import EmailAddress
 from django.contrib.contenttypes.models import ContentType
-from django.db import transaction
 from django.db.models import F, Q, Sum
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
@@ -25,7 +24,7 @@ from rest_framework.response import Response
 from paper.models import Paper
 from paper.serializers import DynamicPaperSerializer
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
-from reputation.models import Bounty, Distribution
+from reputation.models import Distribution
 from reputation.serializers import (
     DynamicBountySerializer,
     DynamicBountySolutionSerializer,
