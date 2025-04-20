@@ -21,6 +21,7 @@ from hub.serializers import SimpleHubSerializer
 from hub.tests.helpers import create_hub
 from paper.models import Paper
 from paper.tests.helpers import create_paper
+from purchase.models import Purchase
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Bounty, Escrow
@@ -259,6 +260,33 @@ class PaperSerializerTests(TestCase):
         self.assertEqual(bounty_data["status"], bounty.status)
         self.assertEqual(bounty_data["bounty_type"], bounty.bounty_type)
 
+    def test_serializes_paper_with_purchases(self):
+        # Create a purchase for the unified document
+        purchase = Purchase.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=self.paper.unified_document.id,
+            purchase_method=Purchase.OFF_CHAIN,
+            purchase_type=Purchase.BOOST,
+            amount="10.0",
+            paid_status=Purchase.PAID,
+        )
+
+        # Serialize and check
+        serializer = PaperSerializer(self.paper)
+        data = serializer.data
+
+        # Verify purchases are included
+        self.assertIn("purchases", data)
+        self.assertIsInstance(data["purchases"], list)
+        self.assertEqual(len(data["purchases"]), 1)
+
+        # Verify purchase data is correct
+        purchase_data = data["purchases"][0]
+        self.assertEqual(purchase_data["id"], purchase.id)
+        self.assertEqual(purchase_data["amount"], purchase.amount)
+        self.assertIn("user", purchase_data)
+
 
 class PostSerializerTests(TestCase):
     def setUp(self):
@@ -492,6 +520,33 @@ class PostSerializerTests(TestCase):
         self.assertEqual(bounty_data["status"], bounty.status)
         self.assertEqual(bounty_data["bounty_type"], bounty.bounty_type)
 
+    def test_serializes_post_with_purchases(self):
+        # Create a purchase for the unified document
+        purchase = Purchase.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=self.post.unified_document.id,
+            purchase_method=Purchase.OFF_CHAIN,
+            purchase_type=Purchase.BOOST,
+            amount="5.0",
+            paid_status=Purchase.PAID,
+        )
+
+        # Serialize and check
+        serializer = PostSerializer(self.post)
+        data = serializer.data
+
+        # Verify purchases are included
+        self.assertIn("purchases", data)
+        self.assertIsInstance(data["purchases"], list)
+        self.assertEqual(len(data["purchases"]), 1)
+
+        # Verify purchase data is correct
+        purchase_data = data["purchases"][0]
+        self.assertEqual(purchase_data["id"], purchase.id)
+        self.assertEqual(purchase_data["amount"], purchase.amount)
+        self.assertIn("user", purchase_data)
+
 
 class CommentSerializerTests(TestCase):
     def setUp(self):
@@ -635,6 +690,33 @@ class CommentSerializerTests(TestCase):
 
         self.assertIsNotNone(data["post"])
         self.assertEqual(data["post"]["title"], self.post.title)
+
+    def test_serializes_comment_with_purchases(self):
+        # Create a purchase for the comment
+        purchase = Purchase.objects.create(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=self.comment.id,
+            purchase_method=Purchase.OFF_CHAIN,
+            purchase_type=Purchase.BOOST,
+            amount="2.5",
+            paid_status=Purchase.PAID,
+        )
+
+        # Serialize and check
+        serializer = CommentSerializer(self.comment)
+        data = serializer.data
+
+        # Verify purchases are included
+        self.assertIn("purchases", data)
+        self.assertIsInstance(data["purchases"], list)
+        self.assertEqual(len(data["purchases"]), 1)
+
+        # Verify purchase data is correct
+        purchase_data = data["purchases"][0]
+        self.assertEqual(purchase_data["id"], purchase.id)
+        self.assertEqual(purchase_data["amount"], purchase.amount)
+        self.assertIn("user", purchase_data)
 
 
 class SimpleHubSerializerTests(TestCase):
@@ -889,3 +971,62 @@ class FeedEntrySerializerTests(TestCase):
         self.assertEqual(data["metrics"]["votes"], 15)
 
         mock_get_primary_hub.assert_called()
+
+    @patch(
+        "researchhub_document.related_models.researchhub_unified_document_model."
+        "ResearchhubUnifiedDocument.get_primary_hub"
+    )
+    def test_feed_entry_includes_purchases(self, mock_get_primary_hub):
+        # Create a user and paper
+        user = create_random_default_user("feed_purchase_test")
+        paper = create_paper(uploaded_by=user, title="Test Paper with Purchases")
+
+        # Create a hub and set it as primary
+        hub = create_hub("Test Hub")
+        mock_get_primary_hub.return_value = hub
+
+        # Create a purchase for the unified document
+        from purchase.models import Purchase
+
+        purchase = Purchase.objects.create(
+            user=user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=paper.unified_document.id,
+            purchase_method=Purchase.OFF_CHAIN,
+            purchase_type=Purchase.BOOST,
+            amount="15.0",
+            paid_status=Purchase.PAID,
+        )
+
+        # Create a feed entry
+        feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(Paper),
+            object_id=paper.id,
+            user=user,
+            action="CREATE",
+            action_date=paper.created_date,
+            unified_document=paper.unified_document,
+        )
+
+        # Force an empty cache in the serializer
+        feed_entry.content = {}
+        feed_entry.save()
+
+        # Serialize and check
+        serializer = FeedEntrySerializer(feed_entry)
+        data = serializer.data
+
+        # Check that content_object contains the paper data including purchases
+        self.assertIn("content_object", data)
+        content_object = data["content_object"]
+
+        # Verify the purchases are included in the serialized content
+        self.assertIn("purchases", content_object)
+        self.assertIsInstance(content_object["purchases"], list)
+        self.assertEqual(len(content_object["purchases"]), 1)
+
+        # Verify purchase data is correct
+        purchase_data = content_object["purchases"][0]
+        self.assertEqual(purchase_data["id"], purchase.id)
+        self.assertEqual(purchase_data["amount"], purchase.amount)
+        self.assertIn("user", purchase_data)
