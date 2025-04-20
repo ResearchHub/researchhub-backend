@@ -4,6 +4,7 @@ from rest_framework import serializers
 
 from hub.models import Hub
 from paper.models import Paper
+from purchase.models import Purchase
 from purchase.serializers import DynamicPurchaseSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from researchhub_document.related_models.constants import document_type
@@ -114,23 +115,17 @@ class ContentObjectSerializer(serializers.Serializer):
     def get_bounty_data(self, obj):
         """Return bounty data from the unified document if it exists"""
         if hasattr(obj, "unified_document") and obj.unified_document:
-            # Get all parent bounties from the unified document
             bounties = obj.unified_document.related_bounties.filter(parent__isnull=True)
 
             if not bounties.exists():
                 return []
 
-            # Return serialized bounties as a list
             return BountySerializer(bounties, many=True).data
         return []
 
     def get_purchase_data(self, obj):
         """Return purchase data from the unified document if it exists"""
         if hasattr(obj, "unified_document") and obj.unified_document:
-            # Get purchases from the unified document
-            from django.contrib.contenttypes.models import ContentType
-
-            from purchase.models import Purchase
 
             content_type = ContentType.objects.get_for_model(obj.unified_document)
             purchases = Purchase.objects.filter(
@@ -425,8 +420,6 @@ class CommentSerializer(serializers.Serializer):
     def get_purchases(self, obj):
         """Return purchases directly associated with this comment"""
         if hasattr(obj, "purchases") and obj.purchases.exists():
-            from purchase.serializers import DynamicPurchaseSerializer
-
             context = getattr(self, "context", {})
             serializer = DynamicPurchaseSerializer(
                 obj.purchases.all(),
