@@ -4,6 +4,8 @@ from rest_framework import serializers
 
 from hub.models import Hub
 from paper.models import Paper
+from purchase.models import Purchase
+from purchase.serializers import DynamicPurchaseSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from researchhub_document.related_models.constants import document_type
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
@@ -113,14 +115,45 @@ class ContentObjectSerializer(serializers.Serializer):
     def get_bounty_data(self, obj):
         """Return bounty data from the unified document if it exists"""
         if hasattr(obj, "unified_document") and obj.unified_document:
-            # Get all parent bounties from the unified document
             bounties = obj.unified_document.related_bounties.filter(parent__isnull=True)
 
             if not bounties.exists():
                 return []
 
-            # Return serialized bounties as a list
             return BountySerializer(bounties, many=True).data
+        return []
+
+    def get_purchase_data(self, obj):
+        """Return purchase data from the unified document if it exists"""
+        if hasattr(obj, "unified_document") and obj.unified_document:
+
+            content_type = ContentType.objects.get_for_model(obj.unified_document)
+            purchases = Purchase.objects.filter(
+                content_type=content_type, object_id=obj.unified_document.id
+            )
+
+            if not purchases.exists():
+                return []
+
+            context = getattr(self, "context", {})
+            context["pch_dps_get_user"] = {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "created_date",
+                    "updated_date",
+                    "profile_image",
+                    "is_verified",
+                ]
+            }
+            serializer = DynamicPurchaseSerializer(
+                purchases,
+                many=True,
+                context=context,
+                _include_fields=["id", "amount", "user"],
+            )
+            return serializer.data
         return []
 
     def get_reviews(self, obj):
@@ -148,9 +181,13 @@ class PaperSerializer(ContentObjectSerializer):
     doi = serializers.CharField()
     work_type = serializers.CharField()
     bounties = serializers.SerializerMethodField()
+    purchases = serializers.SerializerMethodField()
 
     def get_bounties(self, obj):
         return self.get_bounty_data(obj)
+
+    def get_purchases(self, obj):
+        return self.get_purchase_data(obj)
 
     def get_journal(self, obj):
         if not hasattr(obj, "unified_document") or not obj.unified_document:
@@ -184,6 +221,7 @@ class PaperSerializer(ContentObjectSerializer):
             "journal",
             "authors",
             "bounties",
+            "purchases",
         ]
 
 
@@ -196,9 +234,13 @@ class PostSerializer(ContentObjectSerializer):
     fundraise = serializers.SerializerMethodField()
     image_url = serializers.SerializerMethodField()
     bounties = serializers.SerializerMethodField()
+    purchases = serializers.SerializerMethodField()
 
     def get_bounties(self, obj):
         return self.get_bounty_data(obj)
+
+    def get_purchases(self, obj):
+        return self.get_purchase_data(obj)
 
     def get_image_url(self, obj):
         if not obj.image:
@@ -251,6 +293,7 @@ class PostSerializer(ContentObjectSerializer):
             "type",
             "image_url",
             "bounties",
+            "purchases",
         ]
 
 
@@ -342,6 +385,7 @@ class CommentSerializer(serializers.Serializer):
     post = serializers.SerializerMethodField()
     review = serializers.SerializerMethodField()
     thread_id = serializers.IntegerField()
+    purchases = serializers.SerializerMethodField()
 
     def get_author(self, obj):
         return SimpleAuthorSerializer(obj.created_by.author_profile).data
@@ -352,11 +396,7 @@ class CommentSerializer(serializers.Serializer):
         return None
 
     def get_hub(self, obj):
-        if obj.unified_document and obj.unified_document.hubs:
-            # FIXMEL get primary hub
-            hub = obj.unified_document.hubs.first()
-            return SimpleHubSerializer(hub).data
-        return None
+        return SimpleHubSerializer(obj.unified_document.get_primary_hub()).data
 
     def get_paper(self, obj):
         """Return the paper associated with this comment if it exists"""
@@ -388,6 +428,30 @@ class CommentSerializer(serializers.Serializer):
             return ReviewSerializer(review).data
         return None
 
+    def get_purchases(self, obj):
+        """Return purchases directly associated with this comment"""
+        if hasattr(obj, "purchases") and obj.purchases.exists():
+            context = getattr(self, "context", {})
+            context["pch_dps_get_user"] = {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "created_date",
+                    "updated_date",
+                    "profile_image",
+                    "is_verified",
+                ]
+            }
+            serializer = DynamicPurchaseSerializer(
+                obj.purchases.all(),
+                many=True,
+                context=context,
+                _include_fields=["id", "amount", "user", "purchase_type"],
+            )
+            return serializer.data
+        return []
+
     class Meta:
         fields = [
             "comment_content_type",
@@ -401,6 +465,7 @@ class CommentSerializer(serializers.Serializer):
             "post",
             "thread_id",
             "review",
+            "purchases",
         ]
 
 
