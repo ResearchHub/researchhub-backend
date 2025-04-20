@@ -15,7 +15,10 @@ from rest_framework.response import Response
 from purchase.models import Purchase
 from reputation.models import Bounty, Distribution
 from reputation.related_models.escrow import Escrow, EscrowRecipients
-from researchhub_comment.constants.rh_comment_thread_types import PEER_REVIEW
+from researchhub_comment.constants.rh_comment_thread_types import (
+    COMMUNITY_REVIEW,
+    PEER_REVIEW,
+)
 from researchhub_comment.models import RhCommentModel
 from user.management.commands.setup_bank_user import BANK_EMAIL
 from user.models import User
@@ -100,7 +103,10 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
             "escrow__status": Escrow.PAID,
             "escrow__hold_type": Escrow.BOUNTY,
             "escrow__bounties__bounty_type": Bounty.Type.REVIEW,
-            "escrow__bounties__solutions__rh_comment__comment_type": PEER_REVIEW,
+            "escrow__bounties__solutions__rh_comment__comment_type__in": [
+                PEER_REVIEW,
+                COMMUNITY_REVIEW,
+            ],
         }
 
         if start_date:
@@ -118,7 +124,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
             "proof_item_object_id__in": Purchase.objects.filter(
                 content_type_id=self.comment_content_type.id,
                 paid_status="PAID",
-                rh_comments__comment_type=PEER_REVIEW,
+                rh_comments__comment_type__in=[PEER_REVIEW, COMMUNITY_REVIEW],
             ).values("id"),
         }
 
