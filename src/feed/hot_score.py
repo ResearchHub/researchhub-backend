@@ -31,21 +31,21 @@ logger = logging.getLogger(__name__)
 CONTENT_TYPE_WEIGHTS = {
     "paper": {
         "vote_weight": 100.0,
-        "reply_weight": 100.0,
-        "bounty_weight": 300.0,
-        "half_life_days": 3,
+        "reply_weight": 50.0,
+        "bounty_weight": 400.0,
+        "half_life_days": 5,
     },
     "researchhubpost": {
         "vote_weight": 100.0,
-        "reply_weight": 100.0,
-        "bounty_weight": 300.0,
-        "half_life_days": 3,
+        "reply_weight": 50.0,
+        "bounty_weight": 400.0,
+        "half_life_days": 5,
     },
     "rhcommentmodel": {
         "vote_weight": 100.0,
-        "reply_weight": 100.0,
-        "bounty_weight": 300.0,
-        "half_life_days": 3,
+        "reply_weight": 50.0,
+        "bounty_weight": 400.0,
+        "half_life_days": 5,
     },
 }
 
@@ -78,6 +78,7 @@ def calculate_hot_score_for_peer_review(feed_entry):
     since we distinct on unified_document_id.
     """
     # Get the base score from the associated paper or post
+    item = feed_entry.item
     unified_document = feed_entry.unified_document
     if not unified_document:
         return 0
@@ -90,17 +91,9 @@ def calculate_hot_score_for_peer_review(feed_entry):
     )
 
     parent_score = 0
-    if feed_entries.count() > 0:
+    if feed_entries.count() > 0 and item.score >= 3:
+        # Only use the hot score if the parent item has a score of 3 or higher
         parent_score = feed_entries.first().hot_score or 0
-    else:
-        logger.info(
-            f"Expected 1 feed entry for unified document {unified_document.id}, "
-            f"got {feed_entries.count()}"
-        )
-        sentry.log_info(
-            f"Expected 1 feed entry for unified document {unified_document.id}, "
-            f"got {feed_entries.count()}"
-        )
 
     peer_review_score = calculate_hot_score(
         feed_entry,
