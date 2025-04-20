@@ -71,6 +71,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
                         "last_name",
                         "created_date",
                         "profile_image",
+                        "headline",
                         "id",
                         "user",
                     ]
