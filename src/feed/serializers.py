@@ -136,6 +136,17 @@ class ContentObjectSerializer(serializers.Serializer):
                 return []
 
             context = getattr(self, "context", {})
+            context["pch_dps_get_user"] = {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "created_date",
+                    "updated_date",
+                    "profile_image",
+                    "is_verified",
+                ]
+            }
             serializer = DynamicPurchaseSerializer(
                 purchases,
                 many=True,
@@ -421,6 +432,17 @@ class CommentSerializer(serializers.Serializer):
         """Return purchases directly associated with this comment"""
         if hasattr(obj, "purchases") and obj.purchases.exists():
             context = getattr(self, "context", {})
+            context["pch_dps_get_user"] = {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "created_date",
+                    "updated_date",
+                    "profile_image",
+                    "is_verified",
+                ]
+            }
             serializer = DynamicPurchaseSerializer(
                 obj.purchases.all(),
                 many=True,

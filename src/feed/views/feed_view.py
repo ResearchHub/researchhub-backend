@@ -110,7 +110,7 @@ class FeedViewSet(BaseFeedView):
                 )
 
         if feed_view == "popular":
-            # Only show paper, post, and peer review comments
+            # Only show paper and post
             queryset = queryset.filter(
                 content_type__in=[
                     self._paper_content_type,
