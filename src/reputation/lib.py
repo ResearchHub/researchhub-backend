@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from decimal import Decimal
 
 from django.conf import settings
 from web3 import Web3
@@ -375,7 +376,7 @@ class PendingWithdrawal:
                 else RSC_CONTRACT_ADDRESS
             ),
         )
-        amount = int(self.amount)
+        amount = Decimal(self.amount)
         to = self.withdrawal.to_address
         tx_hash = execute_erc20_transfer(
             self.w3,
