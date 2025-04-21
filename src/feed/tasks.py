@@ -193,9 +193,6 @@ def _refresh_feed_hot_scores():
                 offset : (offset + batch_size)
             ]
         )
-        logger.info(
-            f"Processing batch {offset} to {offset+len(batch)} of {total_entries}"
-        )
 
         # Calculate hot scores for each entry in the batch
         for feed_entry in batch:
