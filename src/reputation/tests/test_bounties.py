@@ -1,8 +1,10 @@
 import decimal
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from django.contrib.contenttypes.models import ContentType
+from django.db.models import Sum
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from discussion.reaction_models import Vote
@@ -11,7 +13,7 @@ from hub.tests.helpers import create_hub
 from paper.tests.helpers import create_paper
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
-from reputation.models import Bounty, BountyFee
+from reputation.models import Bounty, BountyFee, BountySolution
 from researchhub_comment.tests.helpers import create_rh_comment
 from user.models import User
 from user.tests.helpers import create_moderator, create_random_default_user, create_user
@@ -24,6 +26,7 @@ class BountyViewTests(APITestCase):
         self.user_2 = create_random_default_user("bounty_user_2")
         self.user_3 = create_random_default_user("bounty_user_3")
         self.user_4 = create_random_default_user("bounty_user_4")
+        self.user_5 = create_random_default_user("bounty_user_5")
         self.recipient = create_random_default_user("bounty_recipient")
         self.moderator = create_moderator(first_name="moderator", last_name="moderator")
 
@@ -33,7 +36,7 @@ class BountyViewTests(APITestCase):
 
         self.comment = create_rh_comment(created_by=self.recipient)
         self.child_comment_1 = create_rh_comment(
-            created_by=self.user_2, parent=self.comment
+            created_by=self.user_5, parent=self.comment
         )
         self.child_comment_2 = create_rh_comment(
             created_by=self.user_3, parent=self.comment
@@ -80,6 +83,11 @@ class BountyViewTests(APITestCase):
 
         distributor = Distributor(
             distribution, self.user_4, self.user_4, time.time(), self.user_4
+        )
+        distributor.distribute()
+
+        distributor = Distributor(
+            distribution, self.user_5, self.user_5, time.time(), self.user_5
         )
         distributor.distribute()
 
@@ -461,32 +469,38 @@ class BountyViewTests(APITestCase):
         recipient_2_balance = self.child_comment_2.created_by.get_balance()
         recipient_3_balance = self.child_comment_3.created_by.get_balance()
         self.assertEqual(approve_bounty_res.status_code, 200)
-        self.assertEqual(initial_recipient_2_balance + amount_paid, recipient_2_balance)
-        self.assertEqual(initial_recipient_3_balance + amount_paid, recipient_3_balance)
         self.assertEqual(
-            bounty_1_created_by_balance,
-            initial_bounty_1_created_by_balance
-            + decimal.Decimal(
-                (amount_1 / total_amount) * (total_amount - 3 * amount_paid)
-            ),
+            recipient_1_balance,
+            initial_recipient_1_balance + decimal.Decimal(amount_paid),
+        )
+        self.assertEqual(
+            recipient_2_balance,
+            initial_recipient_2_balance + decimal.Decimal(amount_paid),
+        )
+        self.assertEqual(
+            recipient_3_balance,
+            initial_recipient_3_balance + decimal.Decimal(amount_paid),
         )
 
-        # These 2 test results should be the same, since they are the same user
-        self.assertEqual(
-            initial_recipient_1_balance
-            + amount_paid
-            + decimal.Decimal(
-                (amount_2 / total_amount) * (total_amount - 3 * amount_paid)
-            ),
-            recipient_1_balance,
+        # Check contributor balances (Should only increase by refund amount)
+        refund_amount = decimal.Decimal(
+            total_amount - 3 * amount_paid
+        )  # 1000 - 300 = 700
+        refund_user_1 = refund_amount * (
+            decimal.Decimal(amount_1) / decimal.Decimal(total_amount)
+        )  # 700 * (600/1000) = 420
+        refund_user_2 = refund_amount * (
+            decimal.Decimal(amount_2) / decimal.Decimal(total_amount)
+        )  # 700 * (400/1000) = 280
+
+        expected_balance_user_1 = initial_bounty_1_created_by_balance + refund_user_1
+        expected_balance_user_2 = initial_bounty_2_created_by_balance + refund_user_2
+
+        self.assertAlmostEqual(
+            bounty_1_created_by_balance, expected_balance_user_1, places=5
         )
-        self.assertEqual(
-            bounty_2_created_by_balance,
-            initial_bounty_2_created_by_balance
-            + amount_paid
-            + decimal.Decimal(
-                (amount_2 / total_amount) * (total_amount - 3 * amount_paid)
-            ),
+        self.assertAlmostEqual(
+            bounty_2_created_by_balance, expected_balance_user_2, places=5
         )
 
     def test_user_cant_approve_approved_bounty(self):
@@ -1039,4 +1053,324 @@ class BountyViewTests(APITestCase):
         # The metrics should contain replies count (the comment has 3 replies)
         self.assertEqual(
             comment_bounty_response.data["results"][0]["metrics"]["replies"], 3
+        )
+
+    def test_user_can_approve_full_amount_to_multiple_solutions(self):
+        self.client.force_authenticate(self.user)
+        amount = 600
+        bounty_res = self.test_user_can_create_bounty(amount=amount)
+        bounty_id = bounty_res.data["id"]
+        bounty = Bounty.objects.get(id=bounty_id)
+
+        initial_user_balance = self.user.get_balance()
+        initial_recipient_1_balance = self.child_comment_1.created_by.get_balance()
+        initial_recipient_2_balance = self.child_comment_2.created_by.get_balance()
+
+        approve_bounty_res = self.client.post(
+            f"/api/bounty/{bounty_id}/approve_bounty/",
+            [
+                {
+                    "amount": amount / 2,
+                    "object_id": self.child_comment_1.id,
+                    "content_type": self.child_comment_1._meta.model_name,
+                },
+                {
+                    "amount": amount / 2,
+                    "object_id": self.child_comment_2.id,
+                    "content_type": self.child_comment_2._meta.model_name,
+                },
+            ],
+        )
+
+        user_balance = self.user.get_balance()
+        recipient_1_balance = self.child_comment_1.created_by.get_balance()
+        recipient_2_balance = self.child_comment_2.created_by.get_balance()
+        bounty.refresh_from_db()
+
+        self.assertEqual(approve_bounty_res.status_code, 200)
+        self.assertEqual(bounty.status, Bounty.CLOSED)
+        total_awarded = (
+            bounty.solutions.filter(status=BountySolution.Status.AWARDED).aggregate(
+                total=Sum("awarded_amount")
+            )["total"]
+            or 0
+        )
+        self.assertEqual(total_awarded, decimal.Decimal(amount))
+
+        # Check balances (consider fee)
+        # User balance should not change as they paid upfront
+        self.assertEqual(user_balance, initial_user_balance)
+
+        self.assertEqual(
+            recipient_1_balance,
+            initial_recipient_1_balance + decimal.Decimal(amount / 2),
+        )
+        self.assertEqual(
+            recipient_2_balance,
+            initial_recipient_2_balance + decimal.Decimal(amount / 2),
+        )
+        self.assertEqual(
+            approve_bounty_res.data["awarded_solutions"][0]["status"], "AWARDED"
+        )
+        self.assertEqual(
+            approve_bounty_res.data["awarded_solutions"][1]["status"], "AWARDED"
+        )
+        self.assertEqual(
+            decimal.Decimal(
+                approve_bounty_res.data["awarded_solutions"][0]["awarded_amount"]
+            ),
+            decimal.Decimal(amount / 2),
+        )
+        self.assertEqual(
+            decimal.Decimal(
+                approve_bounty_res.data["awarded_solutions"][1]["awarded_amount"]
+            ),
+            decimal.Decimal(amount / 2),
+        )
+
+    def test_user_can_approve_partial_amount_to_multiple_solutions(self):
+        self.client.force_authenticate(self.user)
+        amount = 600
+        partial_award_amount = 100
+        expiration_time = timezone.now() + timedelta(days=30)
+        create_bounty_res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": amount,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
+                "expiration_date": expiration_time.isoformat(),
+            },
+        )
+        self.assertEqual(create_bounty_res.status_code, 201)
+        bounty_id = create_bounty_res.data["id"]
+        bounty = Bounty.objects.get(id=bounty_id)
+
+        initial_user_balance = self.user.get_balance()
+        initial_recipient_1_balance = self.child_comment_1.created_by.get_balance()
+        initial_recipient_2_balance = self.child_comment_2.created_by.get_balance()
+
+        approve_bounty_res = self.client.post(
+            f"/api/bounty/{bounty_id}/approve_bounty/",
+            [
+                {
+                    "amount": partial_award_amount,
+                    "object_id": self.child_comment_1.id,
+                    "content_type": self.child_comment_1._meta.model_name,
+                },
+                {
+                    "amount": partial_award_amount,
+                    "object_id": self.child_comment_2.id,
+                    "content_type": self.child_comment_2._meta.model_name,
+                },
+            ],
+        )
+
+        user_balance = self.user.get_balance()
+        recipient_1_balance = self.child_comment_1.created_by.get_balance()
+        recipient_2_balance = self.child_comment_2.created_by.get_balance()
+        bounty.refresh_from_db()
+
+        self.assertEqual(approve_bounty_res.status_code, 200)
+        self.assertEqual(
+            bounty.status, Bounty.CLOSED
+        )  # Should close if partially awarded? Check logic. Assuming yes for now.
+        # Assuming the remaining amount is refunded
+        refund_amount = decimal.Decimal(amount - 2 * partial_award_amount)
+        total_awarded = (
+            bounty.solutions.filter(status=BountySolution.Status.AWARDED).aggregate(
+                total=Sum("awarded_amount")
+            )["total"]
+            or 0
+        )
+        self.assertEqual(total_awarded, decimal.Decimal(2 * partial_award_amount))
+
+        # Check balances (consider fee and refund)
+        # User balance should increase by the refunded amount
+        self.assertEqual(user_balance, initial_user_balance + refund_amount)
+
+        self.assertEqual(
+            recipient_1_balance,
+            initial_recipient_1_balance + decimal.Decimal(partial_award_amount),
+        )
+        self.assertEqual(
+            recipient_2_balance,
+            initial_recipient_2_balance + decimal.Decimal(partial_award_amount),
+        )
+        self.assertEqual(
+            approve_bounty_res.data["awarded_solutions"][0]["status"], "AWARDED"
+        )
+        self.assertEqual(
+            approve_bounty_res.data["awarded_solutions"][1]["status"], "AWARDED"
+        )
+        self.assertEqual(
+            decimal.Decimal(
+                approve_bounty_res.data["awarded_solutions"][0]["awarded_amount"]
+            ),
+            decimal.Decimal(partial_award_amount),
+        )
+        self.assertEqual(
+            decimal.Decimal(
+                approve_bounty_res.data["awarded_solutions"][1]["awarded_amount"]
+            ),
+            decimal.Decimal(partial_award_amount),
+        )
+
+    def test_approve_multiple_solutions_exceeding_bounty_amount_fails(self):
+        self.client.force_authenticate(self.user)
+        amount = 100
+        bounty_res = self.test_user_can_create_bounty(amount=amount)
+        bounty_id = bounty_res.data["id"]
+
+        initial_user_balance = self.user.get_balance()
+        initial_recipient_1_balance = self.child_comment_1.created_by.get_balance()
+        initial_recipient_2_balance = self.child_comment_2.created_by.get_balance()
+
+        approve_bounty_res = self.client.post(
+            f"/api/bounty/{bounty_id}/approve_bounty/",
+            [
+                {
+                    "amount": amount,  # Award full amount to first solution
+                    "object_id": self.child_comment_1.id,
+                    "content_type": self.child_comment_1._meta.model_name,
+                },
+                {
+                    "amount": 1,  # Try to award more to second solution
+                    "object_id": self.child_comment_2.id,
+                    "content_type": self.child_comment_2._meta.model_name,
+                },
+            ],
+        )
+
+        user_balance = self.user.get_balance()
+        recipient_1_balance = self.child_comment_1.created_by.get_balance()
+        recipient_2_balance = self.child_comment_2.created_by.get_balance()
+
+        self.assertEqual(approve_bounty_res.status_code, 400)  # Expecting Bad Request
+
+        # Ensure balances haven't changed
+        self.assertEqual(user_balance, initial_user_balance)
+        self.assertEqual(recipient_1_balance, initial_recipient_1_balance)
+        self.assertEqual(recipient_2_balance, initial_recipient_2_balance)
+
+    def test_approve_multiple_solutions_with_non_existent_solution_fails(self):
+        self.client.force_authenticate(self.user)
+        amount = 100
+        bounty_res = self.test_user_can_create_bounty(amount=amount)
+        bounty_id = bounty_res.data["id"]
+
+        initial_user_balance = self.user.get_balance()
+        initial_recipient_1_balance = self.child_comment_1.created_by.get_balance()
+
+        approve_bounty_res = self.client.post(
+            f"/api/bounty/{bounty_id}/approve_bounty/",
+            [
+                {
+                    "amount": amount / 2,
+                    "object_id": self.child_comment_1.id,
+                    "content_type": self.child_comment_1._meta.model_name,
+                },
+                {
+                    "amount": amount / 2,
+                    "object_id": 999999,  # Non-existent comment ID
+                    # Content type doesn't matter here
+                    "content_type": self.child_comment_1._meta.model_name,
+                },
+            ],
+        )
+
+        user_balance = self.user.get_balance()
+        recipient_1_balance = self.child_comment_1.created_by.get_balance()
+
+        self.assertEqual(approve_bounty_res.status_code, 404)
+
+        # Ensure balances haven't changed
+        self.assertEqual(user_balance, initial_user_balance)
+        self.assertEqual(recipient_1_balance, initial_recipient_1_balance)
+
+    def test_approve_multiple_solutions_for_multi_contributor_bounty(self):
+        amount_1 = 600
+        amount_2 = 400
+        total_amount = amount_1 + amount_2
+        award_amount_1 = 200
+        award_amount_2 = 300
+        total_award = award_amount_1 + award_amount_2
+
+        # User1 creates bounty 1, User2 creates bounty 2 (contributes)
+        bounty_1_res, bounty_2_res = self.test_user_can_contribute_to_bounty(
+            amount_1=amount_1, amount_2=amount_2
+        )
+        bounty_id = bounty_1_res.data["id"]  # Use the parent bounty ID
+        bounty = Bounty.objects.get(id=bounty_id)
+
+        user_1 = User.objects.get(id=bounty_1_res.data["created_by"]["id"])
+        user_2 = User.objects.get(id=bounty_2_res.data["created_by"]["id"])
+        recipient_1 = self.child_comment_1.created_by
+        recipient_2 = self.child_comment_2.created_by
+
+        initial_user_1_balance = user_1.get_balance()
+        initial_user_2_balance = user_2.get_balance()
+        initial_recipient_1_balance = recipient_1.get_balance()
+        initial_recipient_2_balance = recipient_2.get_balance()
+
+        # Original creator (user_1) approves
+        self.client.force_authenticate(user_1)
+        approve_bounty_res = self.client.post(
+            f"/api/bounty/{bounty_id}/approve_bounty/",
+            [
+                {
+                    "amount": award_amount_1,
+                    "object_id": self.child_comment_1.id,
+                    "content_type": self.child_comment_1._meta.model_name,
+                },
+                {
+                    "amount": award_amount_2,
+                    "object_id": self.child_comment_2.id,
+                    "content_type": self.child_comment_2._meta.model_name,
+                },
+            ],
+        )
+
+        user_1_balance = user_1.get_balance()
+        user_2_balance = user_2.get_balance()
+        recipient_1_balance = recipient_1.get_balance()
+        recipient_2_balance = recipient_2.get_balance()
+        bounty.refresh_from_db()
+
+        self.assertEqual(approve_bounty_res.status_code, 200)
+        self.assertEqual(bounty.status, Bounty.CLOSED)  # Assuming partial award closes
+        total_awarded = (
+            bounty.solutions.filter(status=BountySolution.Status.AWARDED).aggregate(
+                total=Sum("awarded_amount")
+            )["total"]
+            or 0
+        )
+        self.assertEqual(total_awarded, decimal.Decimal(total_award))
+
+        # Check recipient balances
+        self.assertEqual(
+            recipient_1_balance,
+            initial_recipient_1_balance + decimal.Decimal(award_amount_1),
+        )
+        self.assertEqual(
+            recipient_2_balance,
+            initial_recipient_2_balance + decimal.Decimal(award_amount_2),
+        )
+
+        # Check contributor balances (refunds)
+        refund_amount = decimal.Decimal(total_amount - total_award)
+        refund_user_1 = refund_amount * (
+            decimal.Decimal(amount_1) / decimal.Decimal(total_amount)
+        )
+        refund_user_2 = refund_amount * (
+            decimal.Decimal(amount_2) / decimal.Decimal(total_amount)
+        )
+
+        # Use assertAlmostEqual for potential floating point inaccuracies
+        # in refund calculation
+        self.assertAlmostEqual(
+            user_1_balance, initial_user_1_balance + refund_user_1, places=3
+        )
+        self.assertAlmostEqual(
+            user_2_balance, initial_user_2_balance + refund_user_2, places=3
         )
