@@ -1116,12 +1116,16 @@ class BountyViewTests(APITestCase):
             approve_bounty_res.data["awarded_solutions"][1]["status"], "AWARDED"
         )
         self.assertEqual(
-            approve_bounty_res.data["awarded_solutions"][0]["awarded_amount"],
-            f"{amount / 2:.10f}",
+            decimal.Decimal(
+                approve_bounty_res.data["awarded_solutions"][0]["awarded_amount"]
+            ),
+            decimal.Decimal(amount / 2),
         )
         self.assertEqual(
-            approve_bounty_res.data["awarded_solutions"][1]["awarded_amount"],
-            f"{amount / 2:.10f}",
+            decimal.Decimal(
+                approve_bounty_res.data["awarded_solutions"][1]["awarded_amount"]
+            ),
+            decimal.Decimal(amount / 2),
         )
 
     def test_user_can_approve_partial_amount_to_multiple_solutions(self):
@@ -1199,14 +1203,17 @@ class BountyViewTests(APITestCase):
         self.assertEqual(
             approve_bounty_res.data["awarded_solutions"][1]["status"], "AWARDED"
         )
-
         self.assertEqual(
-            approve_bounty_res.data["awarded_solutions"][0]["awarded_amount"],
-            f"{partial_award_amount:.10f}",
+            decimal.Decimal(
+                approve_bounty_res.data["awarded_solutions"][0]["awarded_amount"]
+            ),
+            decimal.Decimal(partial_award_amount),
         )
         self.assertEqual(
-            approve_bounty_res.data["awarded_solutions"][1]["awarded_amount"],
-            f"{partial_award_amount:.10f}",
+            decimal.Decimal(
+                approve_bounty_res.data["awarded_solutions"][1]["awarded_amount"]
+            ),
+            decimal.Decimal(partial_award_amount),
         )
 
     def test_approve_multiple_solutions_exceeding_bounty_amount_fails(self):

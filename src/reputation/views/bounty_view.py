@@ -21,7 +21,6 @@ from reputation.models import Bounty, BountyFee, BountySolution, Contribution, E
 from reputation.permissions import UserCanApproveBounty, UserCanCancelBounty
 from reputation.serializers import (
     BountySerializer,
-    BountySolutionSerializer,
     DynamicBountySerializer,
     EscrowSerializer,
 )
@@ -388,24 +387,27 @@ class BountyViewSet(viewsets.ModelViewSet):
                 )
 
             # Second pass: Process validated solutions
+            processed_solutions = []  # Keep track of successfully awarded solutions
             for solution_data in bounty_solutions_to_process:
                 solution_created_by = solution_data["created_by"]
                 content_type_model = solution_data["content_type_model"]
                 object_id = solution_data["object_id"]
                 decimal_amount = solution_data["amount"]
 
-                # Create or update bounty solution
-                bounty_solution_db_data = {
-                    "bounty": bounty.id,
-                    "created_by": solution_created_by.id,
-                    "content_type": content_type_model.id,
-                    "object_id": object_id,
-                }
-                solution_serializer = BountySolutionSerializer(
-                    data=bounty_solution_db_data
+                # Get or create the solution record first
+                bounty_solution, created = BountySolution.objects.get_or_create(
+                    bounty=bounty,
+                    created_by=solution_created_by,
+                    content_type=content_type_model,
+                    object_id=object_id,
+                    defaults={
+                        "status": BountySolution.Status.SUBMITTED
+                    },  # Initial status
                 )
-                solution_serializer.is_valid(raise_exception=True)
-                bounty_solution = solution_serializer.save()
+
+                # Optional: Add logic here to handle already awarded solutions if needed
+                # e.g., if bounty_solution.status == BountySolution.Status.AWARDED:
+                #    continue # Or raise an error, depending on desired behavior
 
                 # Attempt to pay out the bounty
                 bounty_paid = bounty.approve(
@@ -414,20 +416,34 @@ class BountyViewSet(viewsets.ModelViewSet):
 
                 if not bounty_paid:
                     # Exception is raised to rollback database transaction
-                    # Log specific error for debugging
-                    log_error(
-                        f"Bounty (id: {bounty.id}) not paid to recipient "
-                        f"(id: {solution_created_by.id}) for amount {decimal_amount}"
+                    error_msg = (
+                        f"Bounty (id: {bounty.id}) payment failed for recipient "
+                        f"(id: {solution_created_by.id}) amount {decimal_amount}"
                     )
+                    log_error(error_msg)
                     raise Exception("Bounty not paid to recipient")
 
-                # Mark solution as awarded and record amount
-                bounty_solution.award(decimal_amount)
+                # Payment successful: Update status, amount, and save the BountySolution
+                bounty_solution.status = BountySolution.Status.AWARDED
+                bounty_solution.awarded_amount = decimal_amount
+                bounty_solution.save(
+                    update_fields=[
+                        "status",
+                        "awarded_amount",
+                        "updated_date",
+                    ]  # Wrapped list
+                )
+                processed_solutions.append(bounty_solution)
 
-            # Mark any remaining solutions as rejected
-            bounty.solutions.filter(status=BountySolution.Status.SUBMITTED).update(
-                status=BountySolution.Status.REJECTED
+            # Mark remaining SUBMITTED solutions (not in this batch) as REJECTED
+            # Using exclude ensures we don't reject solutions just awarded
+            submitted_solutions = bounty.solutions.filter(
+                status=BountySolution.Status.SUBMITTED
             )
+            solutions_to_reject = submitted_solutions.exclude(
+                id__in=[s.id for s in processed_solutions]
+            )
+            solutions_to_reject.update(status=BountySolution.Status.REJECTED)
 
             bounty_closed = bounty.close(Bounty.CLOSED)
             if not bounty_closed:
@@ -443,12 +459,12 @@ class BountyViewSet(viewsets.ModelViewSet):
                 )
             )
 
-            # Return a simplified response instead of using the serializer
-            # This avoids the circular reference issues in the serializers
+            # Build response using the successfully processed solutions
             awarded_solutions = []
-            for solution in bounty.solutions.filter(
-                status=BountySolution.Status.AWARDED
-            ):
+            for solution in processed_solutions:
+                first_name = solution.created_by.first_name
+                last_name = solution.created_by.last_name
+                creator_name = f"{first_name} {last_name}".strip()
                 awarded_solutions.append(
                     {
                         "id": solution.id,
@@ -457,10 +473,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                         "awarded_amount": str(solution.awarded_amount),
                         "created_by_id": solution.created_by.id,
                         "status": solution.status,
-                        "created_by_name": (
-                            f"{solution.created_by.first_name} "
-                            f"{solution.created_by.last_name}"
-                        ).strip(),
+                        "created_by_name": creator_name,
                     }
                 )
 
@@ -599,7 +612,7 @@ class BountyViewSet(viewsets.ModelViewSet):
         else:
             queryset = self.filter_queryset(self.get_queryset())
 
-            # Sorting by amount requires us to do some math and add up all of the child bounties
+            # Sorting by amount requires calculating total including child bounties
             if sort == "-total_amount":
                 # Subquery to calculate the sum of children amounts
                 children_sum = (
