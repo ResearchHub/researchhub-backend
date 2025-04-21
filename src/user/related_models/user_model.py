@@ -79,7 +79,6 @@ class User(AbstractUser):
         "self", related_name="invitee", on_delete=models.SET_NULL, null=True, blank=True
     )
     is_suspended = models.BooleanField(default=False)
-    is_verified = models.BooleanField(default=False)
     """
     The old verification status that is being replaced by `UserVerification`.
     """
