@@ -167,6 +167,13 @@ class Author(models.Model):
         return None
 
     @property
+    def is_verified(self):
+        if self.user is None:
+            return False
+
+        return self.user.is_verified
+
+    @property
     def open_access_pct(self):
         authorships = Authorship.objects.filter(author=self)
         authored_papers = Paper.objects.filter(

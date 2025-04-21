@@ -286,3 +286,10 @@ class User(AbstractUser):
         ).aggregate(count=Count("id"))["count"]
 
         return peer_review_count
+
+    @property
+    def is_verified(self):
+        from user.related_models.user_verification_model import UserVerification
+
+        user_verification = UserVerification.objects.filter(user=self).last()
+        return user_verification.is_verified if user_verification else False
