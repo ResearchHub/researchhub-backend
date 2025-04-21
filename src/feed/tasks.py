@@ -153,6 +153,23 @@ def delete_feed_entry(
 @app.task
 def refresh_feed():
     """
+    Task that refreshes the materialized feed entries that are managed in a materialized
+    view in the database.
+    """
+    key = lock.name("refresh_feed")
+    if not lock.acquire(key):
+        logger.warning(f"Already locked {key}, skipping task")
+        return False
+
+    try:
+        _refresh_feed()
+    finally:
+        lock.release(key)
+        logger.info(f"Released lock {key}")
+
+
+def _refresh_feed():
+    """
     Refreshes the materialized feed entries that are managed in a materialized
     view in the database.
     """
