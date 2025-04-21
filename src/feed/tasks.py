@@ -226,6 +226,7 @@ def refresh_popular_feed_entries():
         {
             "feed_view": "popular",
         },
+        HTTP_HOST="localhost",
     )
 
     drf_request = Request(django_request)
