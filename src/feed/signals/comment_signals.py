@@ -106,7 +106,8 @@ def _delete_comment_feed_entries(comment):
         return
 
     tasks = [
-        delete_feed_entry.apply_async(
+        partial(
+            delete_feed_entry.apply_async,
             args=(
                 comment.id,
                 ContentType.objects.get_for_model(comment).id,
