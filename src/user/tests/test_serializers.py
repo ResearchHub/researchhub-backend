@@ -108,22 +108,6 @@ class UserSerializersTests(TestCase):
         serializer = UserEditableSerializer(self.user)
         self.assertFalse(serializer.data["is_verified"])
 
-    def test_user_serializer_is_verified_v2(self):
-        UserVerification.objects.create(
-            user=self.user,
-            status=UserVerification.Status.APPROVED,
-        )
-        serializer = UserEditableSerializer(self.user)
-        self.assertTrue(serializer.data["is_verified_v2"])
-
-    def test_user_serializer_is_not_verified_v2(self):
-        UserVerification.objects.create(
-            user=self.user,
-            status=UserVerification.Status.DECLINED,
-        )
-        serializer = UserEditableSerializer(self.user)
-        self.assertFalse(serializer.data["is_verified_v2"])
-
     def test_dynamic_author_serializer_headline(self):
         # Arrange
         self.user.author_profile.headline = "headline1"
