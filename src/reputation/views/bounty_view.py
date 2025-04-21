@@ -4,10 +4,11 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import DecimalField, F, OuterRef, Q, Subquery, Sum, Value
 from django.db.models.functions import Coalesce
+from django.http import Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import viewsets
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -16,7 +17,7 @@ from analytics.amplitude import track_event
 from analytics.tasks import track_revenue_event
 from purchase.models import Balance
 from reputation.constants import MAXIMUM_BOUNTY_AMOUNT_RSC, MINIMUM_BOUNTY_AMOUNT_RSC
-from reputation.models import Bounty, BountyFee, Contribution, Escrow
+from reputation.models import Bounty, BountyFee, BountySolution, Contribution, Escrow
 from reputation.permissions import UserCanApproveBounty, UserCanCancelBounty
 from reputation.serializers import (
     BountySerializer,
@@ -197,6 +198,8 @@ class BountyViewSet(viewsets.ModelViewSet):
             "_include_fields": (
                 "id",
                 "comment_content_json",
+                "comment_content_type",
+                "comment_type",
             )
         }
         context["rep_dbs_get_unified_document"] = {
@@ -296,64 +299,135 @@ class BountyViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticated, UserCanApproveBounty],
     )
     def approve_bounty(self, request, pk=None):
-
         data = request.data
         with transaction.atomic():
             bounty = self.get_object()
             if bounty.parent:
                 bounty = bounty.parent
 
+            # Validate total payout amount doesn't exceed bounty amount
+            total_payout = sum(
+                decimal.Decimal(str(solution.get("amount", 0))) for solution in data
+            )
+            if total_payout > bounty.amount:
+                # Return 400 Bad Request instead of raising Exception
+                return Response(
+                    {"detail": "Total payout amount exceeds bounty amount"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             unified_document = bounty.unified_document
+            bounty_solutions_to_process = []
+
+            # First pass: Validate all solutions and find objects
             for solution in data:
                 amount = solution.get("amount", 0)
-                content_type = solution.get("content_type")
+                content_type_name = solution.get("content_type")
                 object_id = solution.get("object_id")
 
-                if content_type not in self.ALLOWED_APPROVE_CONTENT_TYPES:
-                    raise Exception({"detail": "Invalid content type"})
+                if content_type_name not in self.ALLOWED_APPROVE_CONTENT_TYPES:
+                    return Response(
+                        {"detail": f"Invalid content type: {content_type_name}"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
                 try:
                     decimal_amount = decimal.Decimal(str(amount))
                 except Exception as e:
                     log_error(e)
-                    raise Exception({"detail": "Invalid amount"})
+                    return Response(
+                        {"detail": f"Invalid amount: {amount}"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
                 if decimal_amount <= 0 or not object_id:
-                    raise Exception({"detail": "Bad request"})
+                    detail_msg = (
+                        f"Bad request: Invalid amount ({decimal_amount}) "
+                        f"or object_id ({object_id})"
+                    )
+                    return Response(
+                        {"detail": detail_msg},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
 
-                content_type_model = ContentType.objects.get(model=content_type)
+                try:
+                    content_type_model = ContentType.objects.get(
+                        model=content_type_name
+                    )
+                except ContentType.DoesNotExist:
+                    detail_msg = f"Content type model not found: {content_type_name}"
+                    return Response(
+                        {"detail": detail_msg},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
                 model_class = content_type_model.model_class()
-                solution_obj = get_object_or_404(model_class, pk=object_id)
-                solution_created_by = solution_obj.created_by
 
-                solution_data = {
+                # Use get_object_or_404 to handle non-existent solutions gracefully
+                try:
+                    solution_obj = get_object_or_404(model_class, pk=object_id)
+                except Http404:
+                    detail_msg = (
+                        f"Solution object not found: {content_type_name} "
+                        f"with id {object_id}"
+                    )
+                    return Response(
+                        {"detail": detail_msg},
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+
+                solution_created_by = solution_obj.created_by
+                bounty_solutions_to_process.append(
+                    {
+                        "obj": solution_obj,
+                        "created_by": solution_created_by,
+                        "content_type_model": content_type_model,
+                        "object_id": object_id,
+                        "amount": decimal_amount,
+                    }
+                )
+
+            # Second pass: Process validated solutions
+            for solution_data in bounty_solutions_to_process:
+                solution_created_by = solution_data["created_by"]
+                content_type_model = solution_data["content_type_model"]
+                object_id = solution_data["object_id"]
+                decimal_amount = solution_data["amount"]
+
+                # Create or update bounty solution
+                bounty_solution_db_data = {
                     "bounty": bounty.id,
                     "created_by": solution_created_by.id,
                     "content_type": content_type_model.id,
                     "object_id": object_id,
                 }
-                solution_serializer = BountySolutionSerializer(data=solution_data)
+                solution_serializer = BountySolutionSerializer(
+                    data=bounty_solution_db_data
+                )
                 solution_serializer.is_valid(raise_exception=True)
-                solution_obj = solution_serializer.save()
+                bounty_solution = solution_serializer.save()
+
+                # Attempt to pay out the bounty
                 bounty_paid = bounty.approve(
                     recipient=solution_created_by, payout_amount=decimal_amount
                 )
 
                 if not bounty_paid:
                     # Exception is raised to rollback database transaction
+                    # Log specific error for debugging
+                    log_error(
+                        f"Bounty (id: {bounty.id}) not paid to recipient "
+                        f"(id: {solution_created_by.id}) for amount {decimal_amount}"
+                    )
                     raise Exception("Bounty not paid to recipient")
 
-                create_contribution.apply_async(
-                    (
-                        Contribution.BOUNTY_SOLUTION,
-                        {"app_label": "reputation", "model": "bountysolution"},
-                        solution_created_by.id,
-                        unified_document.id,
-                        solution_obj.id,
-                    ),
-                    priority=1,
-                    countdown=10,
-                )
+                # Mark solution as awarded and record amount
+                bounty_solution.award(decimal_amount)
+
+            # Mark any remaining solutions as rejected
+            bounty.solutions.filter(status=BountySolution.Status.SUBMITTED).update(
+                status=BountySolution.Status.REJECTED
+            )
 
             bounty_closed = bounty.close(Bounty.CLOSED)
             if not bounty_closed:
@@ -369,22 +443,42 @@ class BountyViewSet(viewsets.ModelViewSet):
                 )
             )
 
-            context = self._get_create_context()
-            serializer = DynamicBountySerializer(
-                bounty,
-                context=context,
-                _include_fields=(
-                    "amount",
-                    "created_date",
-                    "created_by",
-                    "expiration_date",
-                    "id",
-                    "parent",
-                    "status",
-                ),
-            )
+            # Return a simplified response instead of using the serializer
+            # This avoids the circular reference issues in the serializers
+            awarded_solutions = []
+            for solution in bounty.solutions.filter(
+                status=BountySolution.Status.AWARDED
+            ):
+                awarded_solutions.append(
+                    {
+                        "id": solution.id,
+                        "content_type": solution.content_type.model,
+                        "object_id": solution.object_id,
+                        "awarded_amount": str(solution.awarded_amount),
+                        "created_by_id": solution.created_by.id,
+                        "status": solution.status,
+                        "created_by_name": (
+                            f"{solution.created_by.first_name} "
+                            f"{solution.created_by.last_name}"
+                        ).strip(),
+                    }
+                )
 
-            return Response(serializer.data, status=200)
+            response_data = {
+                "id": bounty.id,
+                "amount": str(bounty.amount),
+                "status": bounty.status,
+                "created_date": bounty.created_date.isoformat(),
+                "expiration_date": (
+                    bounty.expiration_date.isoformat()
+                    if bounty.expiration_date
+                    else None
+                ),
+                "awarded_solutions": awarded_solutions,
+                "message": "Bounty successfully closed and solutions awarded",
+            }
+
+            return Response(response_data, status=200)
 
     @track_event
     @action(
@@ -393,8 +487,6 @@ class BountyViewSet(viewsets.ModelViewSet):
         permission_classes=[IsAuthenticated, UserCanCancelBounty],
     )
     def cancel_bounty(self, request, pk=None):
-        from user.models import User
-
         with transaction.atomic():
             bounty = self.get_object()
             if bounty.status != Bounty.OPEN:
@@ -449,7 +541,8 @@ class BountyViewSet(viewsets.ModelViewSet):
         # Build filters
         applied_filters = Q()
 
-        # Only return parent bounties. Child bounty amounts are included in the parent bounty amount
+        # Only return parent bounties.
+        # Child bounty amounts are included in the parent bounty amount
         if only_parent_bounties:
             applied_filters &= Q(parent__isnull=True)
 
@@ -473,9 +566,11 @@ class BountyViewSet(viewsets.ModelViewSet):
         if Bounty.Type.OTHER in bounty_types:
             review_or_answer_filter |= Q(bounty_type=Bounty.Type.OTHER)
 
-        # Only show bounties that have not yet expired. We have a periodic celery task to update expiration of bounties
-        # that have expired however, it only runs a few times a day so for a brief period, a situation could arise where a bounty
-        # is considered OPEN but has actually expired.
+        # Only show bounties that have not yet expired.
+        # We have a periodic celery task to update expiration of bounties
+        # that have expired however, it only runs a few times a day so for
+        # a brief period, a situation could arise where a bounty is considered
+        # OPEN but has actually expired.
         now = timezone.now()
         applied_filters &= Q(expiration_date__gt=now)
 
@@ -536,6 +631,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                     )
                 )
 
+            # Apply sorting
             queryset = queryset.order_by(sort)
 
         page = self.paginate_queryset(queryset)
