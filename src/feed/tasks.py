@@ -204,9 +204,9 @@ def _refresh_feed_hot_scores():
     for offset in range(0, total_entries, batch_size):
         entries_to_update = []
 
-        # Process a batch of entries
+        # Process a batch of entries, skipping entries with hot_score <= 10
         batch = list(
-            FeedEntryPopular.objects.all().prefetch_related("item")[
+            FeedEntryPopular.objects.filter(hot_score__gt=10).prefetch_related("item")[
                 offset : (offset + batch_size)
             ]
         )

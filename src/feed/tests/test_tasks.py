@@ -340,11 +340,12 @@ class FeedTasksTest(TestCase):
             updated_entry = FeedEntry.objects.get(id=entry_id)
             updated_feed_entries.append(updated_entry)
 
-        # Verify that hot scores have been updated
+        # Verify that hot scores have been updated if they are greater than 10
         for i, entry in enumerate(updated_feed_entries):
             # Hot scores should be updated and different from initial values
-            self.assertNotEqual(
-                entry.hot_score,
-                initial_hot_scores[entry.id],
-                f"Hot score for entry {i} was not updated",
-            )
+            if initial_hot_scores[entry.id] > 10:
+                self.assertNotEqual(
+                    entry.hot_score,
+                    initial_hot_scores[entry.id],
+                    f"Hot score for entry {i} was not updated",
+                )
