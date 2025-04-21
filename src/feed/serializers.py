@@ -4,7 +4,6 @@ from rest_framework import serializers
 
 from hub.models import Hub
 from paper.models import Paper
-from purchase.models import Purchase
 from purchase.serializers import DynamicPurchaseSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from researchhub_document.related_models.constants import document_type
@@ -12,7 +11,6 @@ from researchhub_document.related_models.constants.document_type import PREREGIS
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from review.serializers.review_serializer import ReviewSerializer
 from user.models import Author, User
-from user.related_models.user_verification_model import UserVerification
 
 from .models import FeedEntry
 
@@ -20,24 +18,15 @@ from .models import FeedEntry
 class SimpleUserSerializer(serializers.ModelSerializer):
     """Minimal user serializer with just essential fields"""
 
-    is_verified = serializers.SerializerMethodField()
-
     class Meta:
         model = User
         fields = [
             "id",
-            "first_name",
-            "last_name",
             "email",
+            "first_name",
             "is_verified",
+            "last_name",
         ]
-
-    def get_is_verified(self, obj):
-        if obj is None:
-            return False
-
-        user_verification = UserVerification.objects.filter(user=obj).last()
-        return user_verification.is_verified if user_verification else False
 
 
 class SimpleAuthorSerializer(serializers.ModelSerializer):
