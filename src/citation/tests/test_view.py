@@ -57,6 +57,47 @@ class CitationEntryViewTests(APITestCaseWithOrg):
         response = self.client.get("/api/citation_entry/saved_org_citations/")
         self.assertEqual(response.data[0]["id"], citation_id)
 
+    def test_create_citation(self):
+        self.client.force_authenticate(self.authenticated_user)
+        response = self.client.post(
+            "/api/citation_entry/",
+            {
+                "fields": {
+                    "id": "user_1_JOURNAL_ARTICLE",
+                    "DOI": "10.1101/1997.01.01.12345",
+                    "URL": "",
+                    "ISSN": "",
+                    "note": "",
+                    "page": "",
+                    "type": "article-journal",
+                    "issue": "",
+                    "title": "Test title",
+                    "author": [
+                        {"given": "John", "family": "Doe"},
+                        {"given": "Alice", "family": "Alice"},
+                        {"given": "Bob", "family": "Bob"},
+                    ],
+                    "issued": {"date-parts": [["2000", "01", "01"]]},
+                    "source": "",
+                    "volume": "",
+                    "archive": "",
+                    "abstract": "This is a fake abstract",
+                    "language": "",
+                    "call-number": "",
+                    "title-short": "",
+                    "container-title": "Fake title",
+                    "archive_location": "",
+                    "collection-title": "",
+                    "journalAbbreviation": "",
+                },
+                "citation_type": JOURNAL_ARTICLE,
+                "doi": "10.1101/1997.01.01.12345",
+                "organization": self.authenticated_user.organization.id,
+            },
+        )
+        self.assertEqual(response.status_code, 201)
+        return response
+
     def test_url_search(self):
         self.client.force_authenticate(self.authenticated_user)
 
