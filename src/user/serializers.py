@@ -274,10 +274,14 @@ class UserApiTokenSerializer(ModelSerializer):
 
 class DynamicAuthorSerializer(DynamicModelFieldSerializer):
     count = IntegerField(read_only=True)
+    is_verified = SerializerMethodField(read_only=True)
 
     class Meta:
         model = Author
         fields = "__all__"
+
+    def get_is_verified(self, author):
+        return author.is_verified
 
 
 class AuthorEditableSerializer(ModelSerializer):
@@ -629,6 +633,7 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
     rsc_earned = SerializerMethodField()
     benefits_expire_on = SerializerMethodField()
     editor_of = SerializerMethodField()
+    is_verified = SerializerMethodField()
 
     class Meta:
         model = User
@@ -670,6 +675,9 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
             permissions, many=True, context=context, **_context_fields
         )
         return serializer.data
+
+    def get_is_verified(self, user):
+        return getattr(user, "is_verified", False)
 
 
 class UserActions:
