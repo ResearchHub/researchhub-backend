@@ -99,12 +99,14 @@ class UserSerializersTests(TestCase):
         self.assertEqual(serializer.data["reputation_list"][1]["score"], 900)
 
     def test_user_serializer_is_verified(self):
-        self.user.is_verified = True
+        UserVerification.objects.create(
+            user=self.user,
+            status=UserVerification.Status.APPROVED,
+        )
         serializer = UserEditableSerializer(self.user)
         self.assertTrue(serializer.data["is_verified"])
 
     def test_user_serializer_is_not_verified(self):
-        self.user.is_verified = False
         serializer = UserEditableSerializer(self.user)
         self.assertFalse(serializer.data["is_verified"])
 
