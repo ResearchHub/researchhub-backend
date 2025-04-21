@@ -514,6 +514,7 @@ class UserEditableSerializer(ModelSerializer):
     organization_slug = SerializerMethodField()
     subscribed = SerializerMethodField()
     auth_provider = SerializerMethodField()
+    is_verified = SerializerMethodField()
 
     class Meta:
         model = User
@@ -565,6 +566,9 @@ class UserEditableSerializer(ModelSerializer):
             balance = user.get_balance(balances)
             return balance
         return None
+
+    def get_is_verified(self, user):
+        return user.is_verified
 
     def get_organization_slug(self, user):
         try:
@@ -1191,7 +1195,6 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
                 "coauthor",
                 "coauthor__first_name",
                 "coauthor__last_name",
-                "coauthor__is_verified",
                 "coauthor__headline",
                 "coauthor__description",
             )
