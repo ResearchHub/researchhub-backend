@@ -308,7 +308,7 @@ class BountyViewSet(viewsets.ModelViewSet):
             total_payout = sum(
                 decimal.Decimal(str(solution.get("amount", 0))) for solution in data
             )
-            if total_payout > bounty.amount:
+            if total_payout > bounty.escrow.amount_holding:
                 # Return 400 Bad Request instead of raising Exception
                 return Response(
                     {"detail": "Total payout amount exceeds bounty amount"},
