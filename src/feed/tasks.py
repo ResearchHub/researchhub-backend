@@ -4,6 +4,7 @@ from typing import Any, Optional
 
 from django.contrib.contenttypes.models import ContentType
 
+import utils.locking as lock
 from feed.hot_score import calculate_hot_score_for_item
 from feed.models import FeedEntry, FeedEntryLatest, FeedEntryPopular
 from feed.serializers import serialize_feed_item, serialize_feed_metrics
@@ -164,6 +165,19 @@ def refresh_feed():
 
 @app.task
 def refresh_feed_hot_scores():
+    key = lock.name("refresh_feed_hot_scores")
+    if not lock.acquire(key):
+        logger.warning(f"Already locked {key}, skipping task")
+        return False
+
+    try:
+        _refresh_feed_hot_scores()
+    finally:
+        lock.release(key)
+        logger.info(f"Released lock {key}")
+
+
+def _refresh_feed_hot_scores():
     start_time = time.time()
     count = 0
     batch_size = 1000
@@ -178,9 +192,6 @@ def refresh_feed_hot_scores():
             FeedEntryPopular.objects.all().prefetch_related("item")[
                 offset : (offset + batch_size)
             ]
-        )
-        logger.info(
-            f"Processing batch {offset} to {offset+len(batch)} of {total_entries}"
         )
 
         # Calculate hot scores for each entry in the batch
