@@ -1,3 +1,4 @@
+from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
@@ -10,6 +11,7 @@ from feed.serializers import (
     CommentSerializer,
     ContentObjectSerializer,
     FeedEntrySerializer,
+    FundingFeedEntrySerializer,
     PaperSerializer,
     PostSerializer,
     SimpleReviewSerializer,
@@ -19,9 +21,10 @@ from feed.views.base_feed_view import BaseFeedView
 from hub.models import Hub
 from hub.serializers import SimpleHubSerializer
 from hub.tests.helpers import create_hub
+from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from paper.models import Paper
 from paper.tests.helpers import create_paper
-from purchase.models import Purchase
+from purchase.models import Fundraise, Purchase
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Bounty, Escrow
@@ -1030,3 +1033,75 @@ class FeedEntrySerializerTests(TestCase):
         self.assertEqual(purchase_data["id"], purchase.id)
         self.assertEqual(purchase_data["amount"], purchase.amount)
         self.assertIn("user", purchase_data)
+
+
+class FundingFeedEntrySerializerTests(TestCase):
+    """Test cases for the FundingFeedEntrySerializer"""
+
+    def setUp(self):
+        self.user = create_random_default_user("funding_feed_user")
+
+    @patch("purchase.related_models.rsc_exchange_rate_model.RscExchangeRate.usd_to_rsc")
+    def test_funding_feed_entry_serializer(self, mock_usd_to_rsc):
+        """Test the FundingFeedEntrySerializer with and without nonprofit links"""
+        # Mock the exchange rate conversion to avoid database dependency
+        mock_usd_to_rsc.return_value = 200.0
+
+        # Create a post for fundraising
+        unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.PREREGISTRATION,
+        )
+
+        post = ResearchhubPost.objects.create(
+            title="Fundraising Post",
+            created_by=self.user,
+            document_type=document_type.PREREGISTRATION,
+            renderable_text="This is a fundraising post",
+            unified_document=unified_doc,
+        )
+
+        # Create a fundraise without nonprofit links
+        fundraise = Fundraise.objects.create(
+            unified_document=unified_doc,
+            created_by=self.user,
+            goal_amount=Decimal("100.00"),
+            goal_currency="USD",
+            status=Fundraise.OPEN,
+        )
+
+        # Create a feed entry for this fundraise
+        feed_entry = FeedEntry.objects.create(
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+            object_id=post.id,
+            user=self.user,
+            action="CREATE",
+            action_date=post.created_date,
+            unified_document=unified_doc,
+        )
+
+        # Test serialization without nonprofit links
+        serializer = FundingFeedEntrySerializer(feed_entry)
+        data = serializer.data
+
+        # Verify basic feed entry fields
+        self.assertIn("id", data)
+        self.assertIn("content_type", data)
+        self.assertEqual(data["content_type"], "RESEARCHHUBPOST")
+
+        # Verify is_nonprofit field is present and False (no nonprofit links)
+        self.assertIn("is_nonprofit", data)
+        self.assertFalse(data["is_nonprofit"])
+
+        # Create a nonprofit organization and link it to the fundraise
+        nonprofit = NonprofitOrg.objects.create(name="Test Nonprofit")
+
+        # Create the nonprofit link - variable not directly used but needed for test
+        # pylint: disable=unused-variable
+        _nonprofit_link = NonprofitFundraiseLink.objects.create(
+            fundraise=fundraise, nonprofit=nonprofit
+        )
+
+        # Re-serialize and verify is_nonprofit is now True
+        serializer = FundingFeedEntrySerializer(feed_entry)
+        data = serializer.data
+        self.assertTrue(data["is_nonprofit"])

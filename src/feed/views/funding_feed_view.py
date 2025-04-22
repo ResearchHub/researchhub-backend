@@ -13,7 +13,7 @@ from django.db.models import Q
 from rest_framework.response import Response
 
 from feed.models import FeedEntry
-from feed.serializers import FeedEntrySerializer
+from feed.serializers import FundingFeedEntrySerializer
 from feed.views.base_feed_view import BaseFeedView
 from purchase.related_models.fundraise_model import Fundraise
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
@@ -80,7 +80,7 @@ class FundingFeedViewSet(BaseFeedView):
             feed_entry.metrics = metrics
             feed_entries.append(feed_entry)
 
-        serializer = FeedEntrySerializer(feed_entries, many=True)
+        serializer = FundingFeedEntrySerializer(feed_entries, many=True)
         response_data = self.get_paginated_response(serializer.data).data
 
         if request.user.is_authenticated:
@@ -107,6 +107,7 @@ class FundingFeedViewSet(BaseFeedView):
             )
             .prefetch_related(
                 "unified_document__hubs",
+                "unified_document__fundraises",
             )
             .filter(document_type=PREREGISTRATION)
             .filter(unified_document__is_removed=False)

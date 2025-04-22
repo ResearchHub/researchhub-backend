@@ -544,3 +544,22 @@ def serialize_feed_item(feed_item, item_content_type):
             return CommentSerializer(feed_item).data
         case _:
             return None
+
+
+class FundingFeedEntrySerializer(FeedEntrySerializer):
+    """Serializer for funding feed entries"""
+
+    is_nonprofit = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FeedEntry
+        fields = FeedEntrySerializer.Meta.fields + ["is_nonprofit"]
+
+    def get_is_nonprofit(self, obj):
+        if (
+            obj.unified_document
+            and hasattr(obj.unified_document, "fundraises")
+            and obj.unified_document.fundraises.exists()
+        ):
+            return obj.unified_document.fundraises.first().nonprofit_links.exists()
+        return None
