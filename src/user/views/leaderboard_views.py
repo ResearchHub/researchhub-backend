@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import DecimalField, F, OuterRef, Subquery, Sum, Value
@@ -280,6 +280,42 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
             + F("distribution_funding"),
         }
 
+    def _validate_date_range(self, start_date, end_date, max_days=30):
+        """
+        Validates that the date range doesn't exceed the maximum allowed days.
+
+        Args:
+            start_date: Start date string in ISO format
+            end_date: End date string in ISO format
+            max_days: Maximum allowed days between dates (default: 30)
+
+        Returns:
+            tuple: (is_valid, error_response)
+                - is_valid: Boolean indicating if the range is valid
+                - error_response: Response object with error details if invalid, None otherwise
+        """
+        if not (start_date and end_date):
+            return True, None
+
+        try:
+            # Parse date strings directly to date objects (not datetime)
+            # This avoids timezone issues and focuses just on the date part
+            start_date_obj = datetime.strptime(start_date, "%Y-%m-%d").date()
+            end_date_obj = datetime.strptime(end_date, "%Y-%m-%d").date()
+
+            # Calculate days between dates
+            delta_days = (end_date_obj - start_date_obj).days
+
+            if delta_days > max_days:
+                error_msg = f"Date range exceeds {max_days} days"
+                return False, Response({"error": error_msg}, status=400)
+            return True, None
+        except (ValueError, TypeError):
+            return False, Response(
+                {"error": "Invalid date format. Use ISO format (YYYY-MM-DD)."},
+                status=400,
+            )
+
     @method_decorator(cache_page(60 * 60 * 6))
     @action(detail=False, methods=[RequestMethods.GET])
     def overview(self, request):
@@ -331,6 +367,11 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         start_date = request.GET.get("start_date")
         end_date = request.GET.get("end_date")
 
+        # Validate date range doesn't exceed 30 days
+        is_valid, error_response = self._validate_date_range(start_date, end_date, 30)
+        if not is_valid:
+            return error_response
+
         reviewers = (
             self.get_queryset()
             .annotate(**self._create_reviewer_earnings_annotation(start_date, end_date))
@@ -355,6 +396,11 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         """Returns top funders for a given time period"""
         start_date = request.GET.get("start_date")
         end_date = request.GET.get("end_date")
+
+        # Validate date range doesn't exceed 30 days
+        is_valid, error_response = self._validate_date_range(start_date, end_date, 30)
+        if not is_valid:
+            return error_response
 
         top_funders = (
             self.get_queryset()
