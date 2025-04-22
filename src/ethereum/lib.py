@@ -141,7 +141,7 @@ def execute_erc20_transfer(
         network (str) - Network to use ("ETHEREUM" or "BASE")
     """
     decimals = contract.functions.decimals().call()
-    decimal_amount = amount * 10 ** int(decimals)
+    decimal_amount = int(amount * 10 ** int(decimals))
     return _transact(
         w3,
         contract.functions.transfer(to, decimal_amount),
