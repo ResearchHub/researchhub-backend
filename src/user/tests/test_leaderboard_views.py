@@ -327,3 +327,19 @@ class LeaderboardApiTests(APITestCase):
         self.assertEqual(float(top_funder["purchase_funding"]), 325.0)
         self.assertEqual(float(top_funder["bounty_funding"]), 175.0)
         self.assertEqual(float(top_funder["distribution_funding"]), 150.0)
+
+    def test_date_range_exceeds_max_days_reviewers(self):
+        """Test that date range exceeds max days returns a 400 error"""
+        url = "/api/leaderboard/reviewers/"
+        response = self.client.get(f"{url}?start_date=2025-03-22&end_date=2025-04-22")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["error"], "Date range exceeds 30 days")
+
+    def test_date_range_exceeds_max_days_funders(self):
+        """Test that date range exceeds max days returns a 400 error"""
+        url = "/api/leaderboard/funders/"
+        response = self.client.get(f"{url}?start_date=2025-03-22&end_date=2025-04-22")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["error"], "Date range exceeds 30 days")
