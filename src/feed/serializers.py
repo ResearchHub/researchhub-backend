@@ -378,10 +378,14 @@ class CommentSerializer(serializers.Serializer):
     post = serializers.SerializerMethodField()
     review = serializers.SerializerMethodField()
     thread_id = serializers.IntegerField()
+    bounties = serializers.SerializerMethodField()
     purchases = serializers.SerializerMethodField()
 
     def get_author(self, obj):
         return SimpleAuthorSerializer(obj.created_by.author_profile).data
+
+    def get_bounties(self, obj):
+        return BountySerializer(obj.bounties, many=True).data
 
     def get_document_type(self, obj):
         if obj.unified_document:

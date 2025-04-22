@@ -718,6 +718,44 @@ class CommentSerializerTests(TestCase):
         self.assertEqual(purchase_data["amount"], purchase.amount)
         self.assertIn("user", purchase_data)
 
+    def test_serializes_comment_with_bounties(self):
+        """Test that comment serializes with bounties field when bounties exist"""
+        # Create an escrow for the bounty
+        escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.BOUNTY,
+            amount_holding=50,
+            content_type=ContentType.objects.get_for_model(RhCommentModel),
+            object_id=self.comment.id,
+        )
+
+        # Create a bounty attached to the comment
+        bounty = Bounty.objects.create(
+            amount=50,
+            status=Bounty.OPEN,
+            bounty_type=Bounty.Type.ANSWER,
+            unified_document=self.unified_document,
+            item_content_type=ContentType.objects.get_for_model(RhCommentModel),
+            item_object_id=self.comment.id,
+            escrow=escrow,
+            created_by=self.user,
+        )
+
+        # Serialize the comment
+        serializer = CommentSerializer(self.comment)
+        data = serializer.data
+
+        # Verify bounties field exists and contains the bounty
+        self.assertIn("bounties", data)
+        self.assertIsInstance(data["bounties"], list)
+        self.assertEqual(len(data["bounties"]), 1)
+
+        # Verify bounty data
+        bounty_data = data["bounties"][0]
+        self.assertEqual(bounty_data["id"], bounty.id)
+        self.assertEqual(bounty_data["status"], bounty.status)
+        self.assertEqual(bounty_data["bounty_type"], bounty.bounty_type)
+
 
 class SimpleHubSerializerTests(TestCase):
     def setUp(self):
