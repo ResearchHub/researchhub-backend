@@ -51,7 +51,7 @@ app.conf.beat_schedule = {
     },
     "feed-refresh-hot-scores": {
         "task": "feed.tasks.refresh_feed_hot_scores",
-        "schedule": crontab(hour="*/8"),
+        "schedule": crontab(hour="*/8", minute=20),
         "options": {
             "priority": 1,
             "queue": QUEUE_CACHES,
