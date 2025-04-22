@@ -45,6 +45,7 @@ app.conf.beat_schedule = {
         "task": "feed.tasks.refresh_feed",
         "schedule": crontab(minute="*/15"),
         "options": {
+            "expires": 14 * 60,
             "priority": 1,
             "queue": QUEUE_CACHES,
         },
