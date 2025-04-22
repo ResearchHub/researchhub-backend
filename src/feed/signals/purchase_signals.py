@@ -33,11 +33,6 @@ def refresh_feed_entries_on_purchase(sender, instance, created, **kwargs):
                 priority=1,
             )
 
-        # Refresh materialized views if we updated any entries
-        if feed_entries.exists():
-            FeedEntryLatest.refresh()
-            FeedEntryPopular.refresh()
-
     except Exception as e:
         logger.error(
             f"Error refreshing feed entries for purchase {instance.id}: {str(e)}"
