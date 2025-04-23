@@ -33,19 +33,19 @@ CONTENT_TYPE_WEIGHTS = {
         "vote_weight": 100.0,
         "reply_weight": 50.0,
         "bounty_weight": 400.0,
-        "half_life_days": 5,
+        "half_life_days": 4,
     },
     "researchhubpost": {
         "vote_weight": 100.0,
         "reply_weight": 50.0,
         "bounty_weight": 400.0,
-        "half_life_days": 5,
+        "half_life_days": 4,
     },
     "rhcommentmodel": {
         "vote_weight": 100.0,
         "reply_weight": 50.0,
         "bounty_weight": 400.0,
-        "half_life_days": 5,
+        "half_life_days": 4,
     },
 }
 
