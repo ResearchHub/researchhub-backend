@@ -128,7 +128,7 @@ app.conf.beat_schedule = {
     # Reputation
     "reputation_check-deposits": {
         "task": "reputation.tasks.check_deposits",
-        "schedule": crontab(minute="*/5"),
+        "schedule": crontab(minute="*/1"),
         "options": {
             "priority": 2,
             "queue": QUEUE_PURCHASES,

@@ -5,7 +5,6 @@ from rest_framework.response import Response
 
 from reputation.models import Deposit
 from reputation.serializers import DepositSerializer
-from reputation.tasks import check_deposits
 
 
 class DepositViewSet(viewsets.ReadOnlyModelViewSet):
@@ -30,12 +29,6 @@ class DepositViewSet(viewsets.ReadOnlyModelViewSet):
         Create a pending deposit that will be updated by a celery task
         """
 
-        # Temorarily disable deposits
-        return Response(
-            "Deposits are suspended for the time being. Please be patient as we work to turn deposits back on",
-            status=400,
-        )
-
         Deposit.objects.create(
             user=request.user,
             amount=request.data.get("amount"),
@@ -43,7 +36,5 @@ class DepositViewSet(viewsets.ReadOnlyModelViewSet):
             transaction_hash=request.data.get("transaction_hash"),
             network=request.data.get("network"),
         )
-
-        check_deposits.delay()
 
         return Response(200)
