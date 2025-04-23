@@ -12,6 +12,7 @@ from django.db.models import DurationField, F, Q
 from django.db.models.functions import Cast
 from web3 import Web3
 
+import utils.locking as lock
 from ethereum.lib import RSC_CONTRACT_ADDRESS
 from hub.models import Hub
 from mailing_list.lib import base_email_context
@@ -159,6 +160,19 @@ def evaluate_transaction(transaction_hash, w3, token_address):
 
 @app.task
 def check_deposits():
+    key = lock.name("check_deposits")
+    if not lock.acquire(key):
+        logger.warning(f"Already locked {key}, skipping task")
+        return False
+
+    try:
+        _check_deposits()
+    finally:
+        lock.release(key)
+        logger.info(f"Released lock {key}")
+
+
+def _check_deposits():
     logger.info("Starting check deposits task")
     # Sort by created date to ensure a malicious user doesn't attempt to take credit for
     # a deposit made by another user. This is a temporary solution until we add signed messages
@@ -168,56 +182,59 @@ def check_deposits():
     ).order_by("created_date")
 
     for deposit in deposits.iterator():
-        # If a deposit is not resolved after our set TTL, mark it as failed
-        if deposit.created_date < datetime.now(pytz.UTC) - timedelta(
-            seconds=PENDING_TRANSACTION_TTL
-        ):
-            deposit.set_paid_failed()
-            continue
+        with transaction.atomic():
+            # Add a db lock on the deposit to prevent race conditions
+            deposit = Deposit.objects.select_for_update().get(id=deposit.id)
 
-        deposit_previously_paid = Deposit.objects.filter(
-            transaction_hash=deposit.transaction_hash, paid_status="PAID"
-        )
-        if deposit_previously_paid.exists():
-            deposit.set_paid_failed()
-            continue
-
-        user = deposit.user
-        try:
-            w3_instance = (
-                web3_provider.base
-                if deposit.network == "BASE"
-                else web3_provider.ethereum
-            )
-            token_address = (
-                settings.WEB3_BASE_RSC_ADDRESS
-                if deposit.network == "BASE"
-                else RSC_CONTRACT_ADDRESS
-            )
-
-            transaction_success = check_transaction_success(
-                deposit.transaction_hash, w3_instance
-            )
-            if not transaction_success:
-                deposit.set_paid_pending()
-                continue
-
-            valid_deposit, deposit_amount = evaluate_transaction(
-                deposit.transaction_hash, w3_instance, token_address
-            )
-            if not valid_deposit:
+            # If a deposit is not resolved after our set TTL, mark it as failed
+            if deposit.created_date < datetime.now(pytz.UTC) - timedelta(
+                seconds=PENDING_TRANSACTION_TTL
+            ):
                 deposit.set_paid_failed()
                 continue
 
-            with transaction.atomic():
+            deposit_previously_paid = Deposit.objects.filter(
+                transaction_hash=deposit.transaction_hash, paid_status="PAID"
+            )
+            if deposit_previously_paid.exists():
+                deposit.set_paid_failed()
+                continue
+
+            user = deposit.user
+            try:
+                w3_instance = (
+                    web3_provider.base
+                    if deposit.network == "BASE"
+                    else web3_provider.ethereum
+                )
+                token_address = (
+                    settings.WEB3_BASE_RSC_ADDRESS
+                    if deposit.network == "BASE"
+                    else RSC_CONTRACT_ADDRESS
+                )
+
+                transaction_success = check_transaction_success(
+                    deposit.transaction_hash, w3_instance
+                )
+                if not transaction_success:
+                    deposit.set_paid_pending()
+                    continue
+
+                valid_deposit, deposit_amount = evaluate_transaction(
+                    deposit.transaction_hash, w3_instance, token_address
+                )
+                if not valid_deposit:
+                    deposit.set_paid_failed()
+                    continue
+
                 distribution = Dist("DEPOSIT", deposit_amount, give_rep=False)
                 distributor = Distributor(distribution, user, user, time.time(), user)
                 distributor.distribute()
                 deposit.amount = deposit_amount
                 deposit.set_paid()
-        except Exception as e:
-            log_error(e, "Failed to process deposit")
-            deposit.set_paid_pending()
+            except Exception as e:
+                log_error(e, "Failed to process deposit")
+                deposit.set_paid_pending()
 
     logger.info("Finished check deposits task")
 
