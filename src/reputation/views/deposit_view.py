@@ -30,6 +30,12 @@ class DepositViewSet(viewsets.ReadOnlyModelViewSet):
         Create a pending deposit that will be updated by a celery task
         """
 
+        # Temorarily disable deposits
+        return Response(
+            "Deposits are suspended for the time being. Please be patient as we work to turn deposits back on",
+            status=400,
+        )
+
         Deposit.objects.create(
             user=request.user,
             amount=request.data.get("amount"),
