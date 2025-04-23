@@ -3,6 +3,7 @@ from datetime import datetime
 from decimal import Decimal
 
 from django.conf import settings
+from django.db import transaction
 from web3 import Web3
 
 import ethereum.lib
@@ -422,12 +423,14 @@ def check_pending_withdrawal():
         paid_status=PaidStatusModelMixin.PENDING
     )
     for withdrawal in pending_withdrawals:
-        paid_status, paid_date = evaluate_transaction_hash(
-            withdrawal.transaction_hash, network=withdrawal.network
-        )
-        withdrawal.paid_status = paid_status
-        withdrawal.paid_date = paid_date
-        withdrawal.save()
+        with transaction.atomic():
+            withdrawal = Withdrawal.objects.select_for_update().get(id=withdrawal.id)
+            paid_status, paid_date = evaluate_transaction_hash(
+                withdrawal.transaction_hash, network=withdrawal.network
+            )
+            withdrawal.paid_status = paid_status
+            withdrawal.paid_date = paid_date
+            withdrawal.save()
 
 
 def check_hotwallet():

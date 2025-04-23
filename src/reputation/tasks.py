@@ -241,9 +241,16 @@ def _check_deposits():
 
 @app.task
 def check_pending_withdrawals():
-    logger.info("Starting check pending withdrawals task")
-    check_pending_withdrawal()
-    logger.info("Starting check pending withdrawals task")
+    key = lock.name("check_pending_withdrawals")
+    if not lock.acquire(key):
+        logger.warning(f"Already locked {key}, skipping task")
+        return False
+
+    try:
+        check_pending_withdrawal()
+    finally:
+        lock.release(key)
+        logger.info(f"Released lock {key}")
 
 
 @app.task
