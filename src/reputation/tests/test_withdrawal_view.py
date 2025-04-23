@@ -439,7 +439,13 @@ class WithdrawalViewSetTests(APITestCase):
         )
 
         self.assertFalse(valid)
-        self.assertIn("next time you're able to withdraw is in", message)
+        # Check that the message starts with the expected text
+        # and contains a time reference
+        expected_start = "The next time you're able to withdraw is in"
+        self.assertTrue(message.startswith(expected_start))
+        # Since we're using humanize, it should have a natural time format
+        # For a 2-week interval with 1 day passed, it should mention days
+        self.assertTrue("12 days" in message)
 
     def test_check_withdrawal_interval_after_time_limit(self):
         """Test withdrawal interval validation for withdrawals after the time limit."""
