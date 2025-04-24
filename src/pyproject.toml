@@ -75,6 +75,7 @@ stripe = "^11.2.0"
 watchdog = "2.1.9"
 web3 = {version = "6.17.1", extras = ["tester"]}
 xmltodict = "0.12.0"
+humanize = "^4.12.2"
 
 [tool.poetry.dev-dependencies]
 

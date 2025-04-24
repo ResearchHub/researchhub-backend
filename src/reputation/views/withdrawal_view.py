@@ -4,6 +4,7 @@ import math
 import os
 from datetime import datetime, timedelta
 
+import humanize
 import pytz
 import requests
 from django.conf import settings
@@ -280,7 +281,6 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
             ending_balance_record.save()
         except Exception as e:
             logging.error(e)
-            print(e)
             withdrawal.set_paid_failed()
             error = WithdrawalError(e, f"Failed to pay withdrawal {withdrawal.id}")
             logging.error(error)
@@ -399,20 +399,17 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
                     return (True, None)
 
                 time_since_withdrawal = last_withdrawal.created_date - time_ago
+                remaining_time = humanize.naturaldelta(time_since_withdrawal)
                 return (
                     False,
-                    "The next time you're able to withdraw is in {} days".format(
-                        time_since_withdrawal.days
-                    ),
+                    f"The next time you're able to withdraw is in {remaining_time}",
                 )
             else:
                 time_since_withdrawal = last_withdrawal.created_date - minutes_ago
-                minutes = int(round(time_since_withdrawal.seconds / 60, 0))
+                remaining_time = humanize.naturaldelta(time_since_withdrawal)
                 return (
                     False,
-                    "The next time you're able to withdraw is in {} minutes".format(
-                        minutes
-                    ),
+                    f"The next time you're able to withdraw is in {remaining_time}",
                 )
 
         return (True, None)
