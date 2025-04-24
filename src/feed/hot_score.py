@@ -33,19 +33,19 @@ CONTENT_TYPE_WEIGHTS = {
         "vote_weight": 100.0,
         "reply_weight": 50.0,
         "bounty_weight": 400.0,
-        "half_life_days": 5,
+        "half_life_days": 4,
     },
     "researchhubpost": {
         "vote_weight": 100.0,
         "reply_weight": 50.0,
         "bounty_weight": 400.0,
-        "half_life_days": 5,
+        "half_life_days": 4,
     },
     "rhcommentmodel": {
         "vote_weight": 100.0,
         "reply_weight": 50.0,
         "bounty_weight": 400.0,
-        "half_life_days": 5,
+        "half_life_days": 4,
     },
 }
 
@@ -140,19 +140,16 @@ def calculate_hot_score(feed_entry, content_type_name):
     bounty_amount = 0
     if hasattr(item, "bounties"):
         bounties = item.bounties.all()
-
-    elif hasattr(unified_document, "bounties"):
-        bounties = unified_document.bounties.all()
     else:
-        bounties = []
+        bounties = unified_document.related_bounties.all()
 
     bounty_amount = sum(bounty.amount for bounty in bounties)
 
-    vote_component = vote_score * weights.get("vote_weight", 1.0)
+    vote_component = vote_score * weights.get("vote_weight", 1)
     discussion_component = (
-        math.log(reply_county + 1) * weights.get("reply_weight", 0.5) * 10
+        math.log(reply_county + 1) * weights.get("reply_weight", 1) * 10
     )
-    bounty_component = math.sqrt(bounty_amount) * weights.get("bounty_weight", 1.5)
+    bounty_component = math.sqrt(bounty_amount) * weights.get("bounty_weight", 1)
 
     score = vote_component + discussion_component + bounty_component
 
