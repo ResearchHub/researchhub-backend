@@ -8,9 +8,6 @@ def set_bounty_unified_document(apps, schema_editor):
     Bounty = apps.get_model('reputation', 'Bounty')
     ContentType = apps.get_model('contenttypes', 'ContentType')
     ResearchhubUnifiedDocument = apps.get_model('researchhub_document', 'ResearchhubUnifiedDocument')
-    Thread = apps.get_model('discussion', 'Thread')
-    Comment = apps.get_model('discussion', 'Comment')
-    Reply = apps.get_model('discussion', 'Reply')
 
     uni_doc_content_type = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
 
@@ -43,16 +40,6 @@ def set_bounty_unified_document(apps, schema_editor):
             Model = apps.get_model(model_class.app_label, model_class.model)
             obj = Model.objects.get(id=bounty.item_object_id)
 
-            if isinstance(obj, Thread):
-                uni_doc_id = _get_uni_doc(obj)
-            elif isinstance(obj, Comment):
-                thread = obj.parent
-                uni_doc_id = _get_uni_doc(thread)
-            else:
-                while isinstance(obj, Reply):
-                    obj = obj.parent
-                thread = obj.parent
-                uni_doc_id = _get_uni_doc(thread)
             bounty.unified_document_id = uni_doc_id
         bounty.save()
 
