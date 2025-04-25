@@ -192,16 +192,9 @@ class BaseComment(AbstractGenericReactionModel):
         comments = Comment.objects.filter(parent_id__in=thread_ids).values(
             "created_by_id", "id"
         )
-        comment_ids = list(map(lambda c: c["id"], comments))
 
-        replies = Reply.objects.filter(object_id__in=comment_ids).values(
-            "created_by_id", "id"
-        )
-
-        contributor_ids = (
-            list(map(lambda t: t["created_by"], threads))
-            + list(map(lambda t: t["created_by_id"], comments))
-            + list(map(lambda t: t["created_by_id"], replies))
+        contributor_ids = list(map(lambda t: t["created_by"], threads)) + list(
+            map(lambda t: t["created_by_id"], comments)
         )
 
         User = apps.get_model("user", "User")
