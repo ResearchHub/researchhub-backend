@@ -1,5 +1,3 @@
-import logging
-from re import I
 from unittest.mock import MagicMock, patch
 
 from django.contrib.contenttypes.models import ContentType
@@ -22,8 +20,6 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 )
 from review.models.review_model import Review
 from user.tests.helpers import create_random_default_user
-
-logger = logging.getLogger(__name__)
 
 
 class TestReviewSignals(TestCase):
@@ -196,7 +192,7 @@ class TestReviewSignals(TestCase):
         self.comment_feed_entry.delete()
 
         # Act - Create a review
-        Review.objects.create(  # noqa: F841
+        Review.objects.create(
             score=8.5,
             created_by=self.user,
             content_type=ContentType.objects.get_for_model(RhCommentModel),
@@ -215,7 +211,6 @@ class TestReviewSignals(TestCase):
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     def test_integration_review_refreshes_feed_entries(self):
         """Integration test that verifies the review signal updates feed entries without mocking"""
-        # Set initial metrics for feed entries
         self.post_feed_entry.metrics = {
             "votes": 5,
             "review_metrics": {"avg": 0, "count": 0},
@@ -225,7 +220,6 @@ class TestReviewSignals(TestCase):
         self.comment_feed_entry.metrics = {"votes": 0}
         self.comment_feed_entry.save()
 
-        # Create a review
         review = Review.objects.create(
             score=8.5,
             created_by=self.user,
@@ -234,19 +228,14 @@ class TestReviewSignals(TestCase):
             unified_document=self.unified_document,
         )
 
-        # Refresh feed entries from database
         refreshed_post_entry = FeedEntry.objects.get(id=self.post_feed_entry.id)
         refreshed_comment_entry = FeedEntry.objects.get(id=self.comment_feed_entry.id)
 
-        # Verify the metrics were updated
-        # The post feed entry should now have review metrics
         self.assertIn("review_metrics", refreshed_post_entry.metrics)
 
-        # Update review
         review.score = 4.0
         review.save()
 
-        # Refresh again from database
         refreshed_post_entry = FeedEntry.objects.get(id=self.post_feed_entry.id)
         refreshed_comment_entry = FeedEntry.objects.get(id=self.comment_feed_entry.id)
 
