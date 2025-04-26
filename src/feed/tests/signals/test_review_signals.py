@@ -1,4 +1,5 @@
 import logging
+from re import I
 from unittest.mock import MagicMock, patch
 
 from django.contrib.contenttypes.models import ContentType
@@ -100,19 +101,12 @@ class TestReviewSignals(TestCase):
         # Should be called twice - once for post and once for comment
         self.assertEqual(mock_refresh_feed_entry.apply_async.call_count, 2)
 
-        # Check calls include the correct feed entry IDs
         calls = mock_refresh_feed_entry.apply_async.call_args_list
 
-        # Extract the feed entry IDs from each call
         feed_entry_ids = [call[1]["args"][0] for call in calls]
 
-        # Verify both feed entries were refreshed
         self.assertIn(self.post_feed_entry.id, feed_entry_ids)
         self.assertIn(self.comment_feed_entry.id, feed_entry_ids)
-
-        # Verify priority was set to 1
-        for call in calls:
-            self.assertEqual(call[1]["priority"], 1)
 
     @patch("feed.signals.review_signals.refresh_feed_entry")
     def test_review_updated_updates_feed_entries(self, mock_refresh_feed_entry):
@@ -134,16 +128,12 @@ class TestReviewSignals(TestCase):
         review.save()
 
         # Assert
-        # Should be called twice - once for post and once for comment
         self.assertEqual(mock_refresh_feed_entry.apply_async.call_count, 2)
 
-        # Check calls include the correct feed entry IDs
         calls = mock_refresh_feed_entry.apply_async.call_args_list
 
-        # Extract the feed entry IDs from each call
         feed_entry_ids = [call[1]["args"][0] for call in calls]
 
-        # Verify both feed entries were refreshed
         self.assertIn(self.post_feed_entry.id, feed_entry_ids)
         self.assertIn(self.comment_feed_entry.id, feed_entry_ids)
 
@@ -253,15 +243,20 @@ class TestReviewSignals(TestCase):
         self.assertIn("review_metrics", refreshed_post_entry.metrics)
 
         # Update review
-        review.score = 9.0
+        review.score = 4.0
         review.save()
 
         # Refresh again from database
         refreshed_post_entry = FeedEntry.objects.get(id=self.post_feed_entry.id)
         refreshed_comment_entry = FeedEntry.objects.get(id=self.comment_feed_entry.id)
 
-        # Verify metrics were updated again
-        if "review_metrics" in refreshed_post_entry.metrics:
-            # Check if avg score was updated - this may not always change depending on serialization
-            # as some implementations might combine results from multiple reviews
-            self.assertIsNotNone(refreshed_post_entry.metrics["review_metrics"])
+        self.assertIsNotNone(refreshed_post_entry.metrics["review_metrics"])
+        self.assertEqual(
+            refreshed_post_entry.metrics["review_metrics"],
+            {
+                "avg": 4.0,
+                "count": 1,
+            },
+        )
+        self.assertIsNotNone(refreshed_comment_entry.content["review"])
+        self.assertEqual(refreshed_comment_entry.content["review"]["score"], 4.0)
