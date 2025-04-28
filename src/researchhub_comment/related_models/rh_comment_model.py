@@ -174,9 +174,7 @@ class RhCommentModel(
 
                 return ""
 
-            plain_text = _extract_text(comment_json)
-            print(f"plain_text: {plain_text}")
-            return plain_text
+            return _extract_text(comment_json)
 
         # Default / QUILL behaviour
         ops = comment_json.get("ops", []) if isinstance(comment_json, dict) else []
