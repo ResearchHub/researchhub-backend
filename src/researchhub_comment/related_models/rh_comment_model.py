@@ -1,3 +1,5 @@
+import json
+
 from django.contrib.contenttypes.fields import GenericRelation
 from django.db.models import (
     CASCADE,
@@ -15,6 +17,7 @@ from purchase.models import Purchase
 from researchhub_comment.constants.rh_comment_content_types import (
     QUILL_EDITOR,
     RH_COMMENT_CONTENT_TYPES,
+    TIPTAP,
 )
 from researchhub_comment.constants.rh_comment_thread_types import (
     GENERIC_COMMENT,
@@ -120,14 +123,69 @@ class RhCommentModel(
 
     @property
     def plain_text(self):
-        plain_text = ""
-        comment_json = self.comment_content_json
-        ops = comment_json.get("ops", [])
+        """Return the raw text contained in the comment body.
+
+        The implementation must support the two currently-used rich-text
+        formats:
+
+        1. **QUILL** – `comment_content_json` is expected to be a dict (or JSON
+           encoded string) with an ``ops`` list.  Each item in that list may
+           contain an ``insert`` key with the text.
+
+        2. **TIPTAP** – `comment_content_json` is a JSON representation of the
+           ProseMirror node tree.  We need to recursively walk the tree and
+           concatenate the content of nodes whose ``type`` is ``"text"``.
+
+        In addition, the method guards against malformed / unexpected data so
+        that property access never raises.
+        """
+
+        if not self.comment_content_json:
+            return ""
+
+        # Accept either python dict or JSON encoded str
+        try:
+            comment_json = (
+                json.loads(self.comment_content_json)
+                if isinstance(self.comment_content_json, str)
+                else self.comment_content_json
+            )
+        except (ValueError, TypeError):
+            # Return empty string if json cannot be parsed
+            return ""
+
+        # Handle TIPTAP format first because it does not contain `ops`
+        if self.comment_content_type == TIPTAP:
+
+            def _extract_text(node):
+                """Recursively extract text from a Tiptap/ProseMirror node."""
+                if isinstance(node, dict):
+                    # If this node is a text node
+                    if node.get("type") == "text" and "text" in node:
+                        return node.get("text", "")
+
+                    # If the node has children, iterate through them
+                    children = node.get("content")
+                    if isinstance(children, list):
+                        return "".join(_extract_text(child) for child in children)
+
+                elif isinstance(node, list):
+                    return "".join(_extract_text(child) for child in node)
+
+                return ""
+
+            plain_text = _extract_text(comment_json)
+            print(f"plain_text: {plain_text}")
+            return plain_text
+
+        # Default / QUILL behaviour
+        ops = comment_json.get("ops", []) if isinstance(comment_json, dict) else []
+        plain_text_parts = []
         for op in ops:
-            text = op.get("insert")
-            # Ensuring it is a string
-            plain_text = f"{plain_text}{text}"
-        return plain_text
+            text = op.get("insert", "") if isinstance(op, dict) else ""
+            if isinstance(text, str):
+                plain_text_parts.append(text)
+        return "".join(plain_text_parts)
 
     @property
     def users_to_notify(self):
