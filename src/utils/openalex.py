@@ -362,6 +362,7 @@ class OpenAlex:
         openalex_author_id=None,
         from_updated_date=None,
         core_sources_only: bool = False,
+        require_abstracts_and_authors: bool = False,
     ):
         """
         Fetches works from OpenAlex based on the given criteria.
@@ -370,6 +371,8 @@ class OpenAlex:
 
         Args:
             core_sources_only (bool): If True, only fetch works from "core sources".
+            require_abstracts_and_authors (bool): If True, only fetch works that have
+                abstracts and authors.
         """
         # Build the filter
         oa_filters = []
@@ -389,6 +392,11 @@ class OpenAlex:
             # Only fetch works that are from "core sources".
             # See: https://docs.openalex.org/api-entities/sources/source-object#is_core
             oa_filters.append("primary_location.source.is_core:true")
+
+        if require_abstracts_and_authors:
+            # Only fetch works that have abstracts and authors
+            oa_filters.append("has_abstract:true")
+            oa_filters.append("authors_count:>0")
 
         if since_date:
             # Format the date in YYYY-MM-DD format
