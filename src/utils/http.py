@@ -1,7 +1,10 @@
+import urllib.parse
 from urllib.parse import urlparse, urlunparse
 
 import cloudscraper
 import requests
+from django.core.exceptions import ValidationError
+from django.core.validators import URLValidator
 
 
 def remove_origin_from_url(url):
@@ -19,6 +22,37 @@ def remove_origin_from_url(url):
     )
 
     return non_origin_url
+
+
+def clean_url(url):
+    """
+    Clean and validate a URL.
+
+    Args:
+        url (str): The URL to clean and validate
+
+    Returns:
+        str or None: The cleaned URL if valid, None otherwise
+
+    This function:
+    1. Strips whitespace from the URL
+    2. URL encodes it properly with safe characters
+    3. Validates the URL using Django's URLValidator
+    4. Returns None if validation fails
+    """
+    if not url:
+        return None
+
+    url = url.strip()
+    url = urllib.parse.quote(url, safe=":/?&=")
+
+    validate = URLValidator()
+    try:
+        validate(url)
+    except ValidationError:
+        return None
+
+    return url
 
 
 # TODO: Use contstants instead of class
