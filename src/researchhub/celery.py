@@ -109,14 +109,6 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PULL_PAPERS,
         },
     },
-    "paper_pull-updated-openalex-works": {
-        "task": "paper.openalex_tasks.pull_updated_openalex_works",
-        "schedule": crontab(minute=0, hour=0),
-        "options": {
-            "priority": 3,
-            "queue": QUEUE_PULL_PAPERS,
-        },
-    },
     # Purchase
     "purchase_update-purchases": {
         "task": "purchase.tasks.update_purchases",
