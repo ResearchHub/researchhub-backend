@@ -5,11 +5,7 @@ from rest_framework.test import APITestCase
 
 from hub.models import Hub
 from paper.models import Paper
-from paper.openalex_util import (
-    OPENALEX_SOURCES_TO_JOURNAL_HUBS,
-    clean_url,
-    process_openalex_works,
-)
+from paper.openalex_util import OPENALEX_SOURCES_TO_JOURNAL_HUBS, process_openalex_works
 from paper.paper_upload_tasks import _get_or_create_journal_hub
 from paper.related_models.citation_model import Citation
 from user.related_models.author_model import Author
@@ -353,12 +349,6 @@ class ProcessOpenAlexWorksTests(APITestCase):
             ).first()
 
             self.assertGreater(len(author.contribution_summaries.all()), 0)
-
-    def test_clean_url(self):
-        url = "https://abc.com/def ghi"
-
-        cleaned_url = clean_url(url)
-        self.assertEqual(cleaned_url, "https://abc.com/def%20ghi")
 
     def test_get_or_create_journal_hub(self):
         # Arrange
