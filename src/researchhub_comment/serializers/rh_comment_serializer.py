@@ -77,6 +77,10 @@ class DynamicRhCommentSerializer(
         return serializer.data
 
     def get_created_by(self, comment):
+        # For censored comments, don't expose the creator
+        if comment.is_removed:
+            return None
+
         context = self.context
         _context_fields = context.get("rhc_dcs_get_created_by", {})
         serializer = DynamicUserSerializer(
@@ -125,12 +129,36 @@ class DynamicRhCommentSerializer(
         if depth_context[relative_depth_key] >= max_depth:
             return []
 
+        # Use all_objects instead of children to include removed (censored) comments
         # Passing comment.children as a related manager for filtering purposes
         # See filter class for more details
-        if view:
-            qs = view.filter_queryset(comment.children)
+        # Build a queryset from all_objects that filters to this comment's children
+        from researchhub_comment.models import RhCommentModel
+
+        # Check if we have prefetched children (list) first
+        if hasattr(comment, "prefetched_children"):
+            # Use prefetched children which may include censored comments
+            prefetched_children = comment.prefetched_children
+
+            if isinstance(prefetched_children, list):
+                # For lists, we can't use select_related/prefetch_related
+                serializer = DynamicRhCommentSerializer(
+                    prefetched_children,
+                    many=True,
+                    context=context,
+                    **_context_fields,
+                )
+                return serializer.data
+            else:
+                # It's a queryset, proceed with normal select_related
+                qs = prefetched_children
+        elif view:
+            # If view is available, use it to filter the queryset
+            # But first we need to get all children from all_objects
+            all_children = RhCommentModel.all_objects.filter(parent=comment)
+            qs = view.filter_queryset(all_children)
         else:
-            qs = comment.children.filter(**_filter_fields)
+            qs = RhCommentModel.all_objects.filter(parent=comment, **_filter_fields)
 
         serializer = DynamicRhCommentSerializer(
             qs.select_related(*_select_related_fields).prefetch_related(
@@ -202,3 +230,13 @@ class DynamicRhCommentSerializer(
                 review, many=False, context=context, **_context_fields
             )
             return serializer.data
+
+    def to_representation(self, instance):
+        # Get the standard representation
+        ret = super().to_representation(instance)
+
+        # If the comment is censored, sanitize the content
+        if instance.is_removed:
+            ret["comment_content_json"] = {"ops": [{"insert": "[Comment removed]"}]}
+
+        return ret
