@@ -1374,3 +1374,44 @@ class BountyViewTests(APITestCase):
         self.assertAlmostEqual(
             user_2_balance, initial_user_2_balance + refund_user_2, places=3
         )
+
+    def test_hubs_endpoint_returns_hubs_with_bounties(self):
+        """Ensure /api/bounty/hubs/ returns hubs linked to open bounties."""
+        # Arrange: create a hub linked paper and bounty
+        paper = create_paper()
+        paper.unified_document.hubs.add(self.hub)
+        comment = create_rh_comment(created_by=self.user, paper=paper)
+        self.client.force_authenticate(self.user)
+        self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 100,
+                "item_content_type": comment._meta.model_name,
+                "item_object_id": comment.id,
+            },
+        )
+
+        # Act
+        response = self.client.get("/api/bounty/hubs/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        hub_ids = [hub["id"] for hub in response.data]
+        self.assertIn(self.hub.id, hub_ids)
+
+    def test_hubs_endpoint_excludes_hubs_without_bounties(self):
+        """Hubs without open bounties should not be returned by the endpoint."""
+        # Arrange: create another hub without bounty
+        from hub.tests.helpers import create_hub as test_create_hub
+
+        unused_hub = test_create_hub(name="Unused Hub")
+
+        # Ensure the unused hub has no bounty
+
+        # Act
+        response = self.client.get("/api/bounty/hubs/")
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+        hub_ids = [hub["id"] for hub in response.data]
+        self.assertNotIn(unused_hub.id, hub_ids)
