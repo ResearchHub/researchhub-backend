@@ -15,6 +15,7 @@ from rest_framework.response import Response
 
 from analytics.amplitude import track_event
 from analytics.tasks import track_revenue_event
+from hub.models import Hub
 from purchase.models import Balance
 from reputation.constants import MAXIMUM_BOUNTY_AMOUNT_RSC, MINIMUM_BOUNTY_AMOUNT_RSC
 from reputation.models import Bounty, BountyFee, BountySolution, Contribution, Escrow
@@ -699,3 +700,31 @@ class BountyViewSet(viewsets.ModelViewSet):
             context=context,
         )
         return Response(serializer.data, status=200)
+
+    @action(
+        detail=False,
+        methods=["get"],
+        permission_classes=[AllowAny],
+    )
+    def hubs(self, request):
+        """Return a list of hubs that currently have open bounties."""
+        from django.core.cache import cache
+
+        cache_key = "bounty-hubs"
+        cache_hit = cache.get(cache_key)
+        if cache_hit:
+            return Response(cache_hit, status=200)
+
+        # Fetch hubs linked to OPEN bounties via their unified documents
+        hub_data = list(
+            Hub.objects.filter(
+                related_documents__related_bounties__status=Bounty.OPEN,
+                is_removed=False,
+            )
+            .values("id", "name", "slug")
+            .distinct()
+        )
+
+        cache.set(cache_key, hub_data, timeout=60 * 60)
+
+        return Response(hub_data, status=200)
