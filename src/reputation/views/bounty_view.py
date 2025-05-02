@@ -725,6 +725,6 @@ class BountyViewSet(viewsets.ModelViewSet):
             .distinct()
         )
 
-        cache.set(cache_key, hub_data, timeout=60 * 60 * 24)  # Cache for 24h
+        cache.set(cache_key, hub_data, timeout=60 * 60)
 
         return Response(hub_data, status=200)
