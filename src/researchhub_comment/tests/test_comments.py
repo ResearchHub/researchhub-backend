@@ -300,51 +300,7 @@ class CommentViewTests(APITestCase):
         # Verify discussion count - with new behavior, count should remain the same
         # as comments are still accessible, just marked as removed
         paper_res = self.client.get(f"/api/paper/{self.paper.id}/")
-        self.assertEqual(paper_res.data["discussion_count"], initial_count)
-
-    def test_censor_child_with_deleted_parent_preserves_count(self):
-        """Test highlighting the improved behavior in the comment system:
-        1. Even with a parent deletion attempt returning 400
-        2. Our new implementation can still successfully censor child comments
-        3. Discussion counts are properly preserved (no count reduction)
-        """
-        # Create a comment chain: parent -> child1
-        parent_comment = self._create_paper_comment(self.paper.id, self.user_1)
-        child1 = self._create_paper_comment(
-            self.paper.id, self.user_2, parent_id=parent_comment.data["id"]
-        )
-
-        # Get initial count
-        paper_res = self.client.get(f"/api/paper/{self.paper.id}/")
-        initial_count = paper_res.data["discussion_count"]
-        self.assertEqual(initial_count, 2)  # Should be 2 comments
-
-        # Delete parent (regular delete, not censor) - this returns an error 400
-        self.client.force_authenticate(self.user_1)
-        delete_res = self.client.delete(
-            f"/api/paper/{self.paper.id}/comments/{parent_comment.data['id']}/"
-        )
-        # Still fails with 400 - deleting parent comments with children is not allowed
-        self.assertEqual(delete_res.status_code, 400)
-
-        # Verify count after parent deletion attempt
-        paper_res = self.client.get(f"/api/paper/{self.paper.id}/")
-        count_after_parent_delete = paper_res.data["discussion_count"]
-        self.assertEqual(count_after_parent_delete, 2)
-
-        # Now attempt to censor the child comment - should now succeed with improved implementation
-        self.client.force_authenticate(self.moderator)
-        censor_res = self.client.delete(
-            f"/api/paper/{self.paper.id}/comments/{child1.data['id']}/censor/"
-        )
-        # With our improved implementation, we can now censor despite parent issues
-        self.assertEqual(censor_res.status_code, 200)
-        self.assertTrue(censor_res.data["is_removed"])
-
-        # Count should remain the same - censored comments are still counted
-        paper_res = self.client.get(f"/api/paper/{self.paper.id}/")
-        final_count = paper_res.data["discussion_count"]
-        self.assertEqual(final_count, count_after_parent_delete)
+        self.assertEqual(paper_res.data["discussion_count"], initial_count - 1)
 
     def test_censor_nested_comments(self):
         # Create a deeply nested chain of comments
@@ -407,7 +363,7 @@ class CommentViewTests(APITestCase):
         # With the new behavior, counts should remain the same since comments are
         # still accessible, just marked as removed
         paper_res = self.client.get(f"/api/paper/{self.paper.id}/")
-        self.assertEqual(paper_res.data["discussion_count"], 4)
+        self.assertEqual(paper_res.data["discussion_count"], 3)
 
     def test_censor_post_comments_updates_discussion_count(self):
         # Create a post first
@@ -460,7 +416,7 @@ class CommentViewTests(APITestCase):
         # With the new behavior, counts should remain the same
         # as comments are still accessible, just marked as removed
         post_res = self.client.get(f"/api/researchhubpost/{post_id}/")
-        self.assertEqual(post_res.data["discussion_count"], initial_count)
+        self.assertEqual(post_res.data["discussion_count"], initial_count - 1)
 
     def test_censor_post_child_with_deleted_parent_preserves_count(self):
         # Create a post
@@ -521,7 +477,9 @@ class CommentViewTests(APITestCase):
         # With the new behavior, count remains the same after censoring
         # since censored comments are still accessible, just marked as removed
         post_res = self.client.get(f"/api/researchhubpost/{post_id}/")
-        self.assertEqual(post_res.data["discussion_count"], count_after_parent_delete)
+        self.assertEqual(
+            post_res.data["discussion_count"], count_after_parent_delete - 1
+        )
 
     def test_censor_nested_post_comments(self):
         # Create a post
@@ -579,7 +537,7 @@ class CommentViewTests(APITestCase):
         # With the new behavior, counts should remain the same
         # as comments are still accessible, just marked as removed
         post_res = self.client.get(f"/api/researchhubpost/{post_id}/")
-        self.assertEqual(post_res.data["discussion_count"], initial_count)
+        self.assertEqual(post_res.data["discussion_count"], initial_count - 1)
 
     def test_censored_top_level_comments_appear_in_list(self):
         """
@@ -840,3 +798,112 @@ class CommentViewTests(APITestCase):
         grandchild = middle_comment["children"][0]
         self.assertEqual(grandchild["id"], child2.data["id"])
         self.assertFalse(grandchild.get("is_removed", False))
+
+    # ------------------------------------------------------------------
+    #  DOCUMENT-METADATA METRICS TESTS
+    # ------------------------------------------------------------------
+
+    def _get_metadata(self):
+        """Helper to fetch the document-metadata payload for ``self.paper``."""
+        url = f"/api/researchhub_unified_document/{self.paper.unified_document.id}/get_document_metadata/"
+        return self.client.get(url)
+
+    def test_get_document_metadata_review_metrics_update(self):
+        """
+        Creating a *peer-review* and then deleting it should respectively
+        increase and decrease the ``reviews.count`` field returned by the
+        ``get_document_metadata`` endpoint.
+        """
+
+        # Authenticate as user_1 who will author the review comment & review
+        self.client.force_authenticate(self.user_1)
+
+        # 1) Baseline – there should be *no* reviews initially
+        baseline_meta = self._get_metadata()
+        self.assertEqual(baseline_meta.status_code, 200)
+        baseline_review_count = baseline_meta.data["reviews"]["count"]
+        self.assertEqual(baseline_review_count, 0)
+
+        # 2) Create a *peer-review* RhComment **and** a corresponding Review
+        # ----------------------------------------------------------------
+        #   a) Create the peer-review comment itself
+        comment_res = self._create_paper_comment(
+            self.paper.id,
+            self.user_1,
+            thread_type="REVIEW",
+            comment_type="REVIEW",
+        )
+        self.assertEqual(comment_res.status_code, 200)
+        comment_id = comment_res.data["id"]
+
+        #   b) Create a Review object that references this comment
+        review_create_res = self.client.post(
+            f"/api/researchhub_unified_document/{self.paper.unified_document.id}/review/",
+            {
+                "score": 8,
+                "content_type": "rhcommentmodel",
+                "object_id": comment_id,
+            },
+        )
+        self.assertIn(review_create_res.status_code, (200, 201))
+
+        # 3) Metadata should now report *one* review
+        after_create_meta = self._get_metadata()
+        self.assertEqual(after_create_meta.status_code, 200)
+        self.assertEqual(
+            after_create_meta.data["reviews"]["count"], baseline_review_count + 1
+        )
+
+        # 4) Delete the review (soft-delete)
+        review_id = review_create_res.data["id"]
+        review_delete_res = self.client.delete(
+            f"/api/researchhub_unified_document/{self.paper.unified_document.id}/review/{review_id}/"
+        )
+        self.assertIn(review_delete_res.status_code, (200, 204))
+
+        # 5) Metadata should revert back to the baseline count
+        after_delete_meta = self._get_metadata()
+        self.assertEqual(
+            after_delete_meta.data["reviews"]["count"], baseline_review_count
+        )
+
+    def test_get_document_metadata_discussion_count_update(self):
+        """
+        Creating a *generic* comment should increase the `discussion_count`
+        inside the document-metadata payload. Deleting that comment should
+        bring the count back down.
+        """
+
+        self.client.force_authenticate(self.user_1)
+
+        # Helper to pull discussion_count from metadata
+        def _discussion_count():
+            meta = self._get_metadata()
+            self.assertEqual(meta.status_code, 200)
+            documents_field = meta.data["documents"]
+            # For papers, `documents` is a dict; for posts it may be a list.
+            if isinstance(documents_field, list):
+                doc_payload = documents_field[0]
+            else:
+                doc_payload = documents_field
+            return doc_payload["discussion_aggregates"]["discussion_count"]
+
+        baseline_discussion_ct = _discussion_count()
+
+        # Create a *generic* top-level comment (counts toward discussion_count)
+        comment_res = self._create_paper_comment(self.paper.id, self.user_1)
+        self.assertEqual(comment_res.status_code, 200)
+        comment_id = comment_res.data["id"]
+
+        # Confirm increment
+        self.assertEqual(_discussion_count(), baseline_discussion_ct + 1)
+
+        # Censor the comment (soft delete)
+        censor_res = self.client.delete(
+            f"/api/paper/{self.paper.id}/comments/{comment_id}/censor/"
+        )
+        # Using censor instead of destroy; expect success
+        self.assertEqual(censor_res.status_code, 200)
+
+        # Count should revert to baseline
+        self.assertEqual(_discussion_count(), baseline_discussion_ct)

@@ -362,8 +362,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     countdown=10,
                 )
 
-                unified_document.update_filter(SORT_DISCUSSED)
-
             context = self._get_retrieve_context()
             serializer_data = DynamicRhCommentSerializer(
                 rh_comment,
@@ -792,6 +790,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 # Apply the censorship (mark as removed)
                 comment.is_removed = True
                 comment.save()
+                comment.refresh_related_discussion_count()
 
                 # Get children for the response
                 children_qs = RhCommentModel.all_objects.filter(parent=comment)

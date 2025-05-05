@@ -215,10 +215,38 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
             return None
 
     def get_review_details(self):
-        details = {"avg": 0, "count": 0}
-        reviews = self.reviews
+        """Return average score & count of *active* reviews.
+
+        A review is considered active iff:
+        1. The review itself has not been soft-deleted (`is_removed=False`).
+        2. The underlying comment (`RhCommentModel`) it references has not been
+           soft-deleted.
+
+        Because `Review.item` is a `GenericForeignKey`, we cannot traverse the
+        relationship using the ORM double-underscore (`item__…`).  Instead we
+        filter by `content_type` and `object_id`.
+        """
+
+        from django.contrib.contenttypes.models import ContentType
+
+        from researchhub_comment.related_models.rh_comment_model import RhCommentModel
+
+        comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+
+        active_comment_ids = RhCommentModel.objects.filter(is_removed=False).values(
+            "id"
+        )
+
+        reviews = self.reviews.filter(
+            is_removed=False,
+            content_type=comment_ct,
+            object_id__in=active_comment_ids,
+        )
+
         if reviews.exists():
             details = reviews.aggregate(avg=Avg("score"), count=Count("id"))
+        else:
+            details = {"avg": 0, "count": 0}
         return details
 
     def frontend_view_link(self):
