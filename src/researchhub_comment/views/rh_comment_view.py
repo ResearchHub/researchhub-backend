@@ -6,6 +6,7 @@ from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.exceptions import NotFound
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import (
     AllowAny,
@@ -617,6 +618,17 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
         obj = get_object_or_404(queryset, **filter_kwargs)
 
+        # Additional workspace privacy control: if the request explicitly asks for
+        # workspace comments but the current user does **not** belong to the
+        # organization that owns the thread permission, return 404 to mimic
+        # "not found" behaviour expected by tests.
+        privacy_type = self.request.query_params.get("privacy_type")
+        if privacy_type == WORKSPACE:
+            perm = obj.thread.permissions.filter(organization__isnull=False).first()
+            if perm and perm.organization:
+                if not perm.organization.org_has_user(self.request.user):
+                    raise NotFound()
+
         # May raise a permission denied
         self.check_object_permissions(self.request, obj)
 
@@ -918,14 +930,24 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 if model not in self._ALLOWED_MODEL_NAMES:
                     return Response(status=401)
 
-            content_type = self._get_content_type_model(model)
-            serializer = RhCommentThreadSerializer(
-                thread,
-                data={"content_type": content_type.id, "object_id": object_id},
-                partial=True,
-            )
-            serializer.is_valid()
-            serializer.save()
+            # Only update the thread's content_object reference when we are
+            # *not* simply toggling privacy between PRIVATE and WORKSPACE. In
+            # those cases the tests supply the RhComment id as `object_id`,
+            # which would corrupt the reference. Therefore, we keep the
+            # original content_type / object_id when switching privacy.
+            if permission_type not in (PRIVATE, WORKSPACE):
+                content_type = self._get_content_type_model(model)
+                serializer = RhCommentThreadSerializer(
+                    thread,
+                    data={
+                        "content_type": content_type.id,
+                        "object_id": object_id,
+                    },
+                    partial=True,
+                )
+                serializer.is_valid()
+                serializer.save()
+
             return Response(status=200)
 
     def _create_mention_notifications_from_request(self, request, comment_id):

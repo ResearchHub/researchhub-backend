@@ -141,9 +141,7 @@ class RHCommentFilter(filters.FilterSet):
         """
         Return True if an explicit `filtering` parameter was supplied by the client.
         """
-        # ``self.data`` is a QueryDict. If the key is missing, ``get`` returns None.
-        value = self.data.get("filtering", None)
-        return value not in [None, ""]
+        return bool(self.data.get("filtering"))
 
     @property
     def qs(self):

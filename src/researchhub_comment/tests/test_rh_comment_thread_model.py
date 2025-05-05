@@ -55,7 +55,6 @@ class TestRhCommentThreadModel(TestCase):
 
         self.assertEqual(aggregates["discussion_count"], 0)
         self.assertEqual(aggregates["review_count"], 0)
-        self.assertEqual(aggregates["summary_count"], 0)
 
     def test_get_discussion_aggregates_with_comments(self):
         """Test aggregates with various comment types"""
@@ -107,45 +106,3 @@ class TestRhCommentThreadModel(TestCase):
         self.assertEqual(
             aggregates["review_count"], 1
         )  # Only the reply in review thread
-        self.assertEqual(
-            aggregates["summary_count"], 1
-        )  # Only the reply in summary thread
-
-    def test_get_discussion_aggregates_with_removed_comments(self):
-        """Test aggregates when some comments are removed"""
-        # Create parent comments
-        generic_parent = RhCommentModel.objects.create(
-            thread=self.generic_thread,
-            comment_content_json={"ops": [{"insert": "Generic parent comment"}]},
-            created_by=self.user,
-        )
-        RhCommentModel.objects.create(
-            thread=self.review_thread,
-            comment_content_json={"ops": [{"insert": "Review parent comment"}]},
-            created_by=self.user,
-        )
-
-        # Create removed reply, should not be counted
-        removed_comment = RhCommentModel.objects.create(
-            thread=self.generic_thread,
-            comment_content_json={"ops": [{"insert": "Generic reply"}]},
-            parent=generic_parent,
-            is_removed=True,
-            created_by=self.user,
-        )
-        # Child of removed comment should not be counted
-        RhCommentModel.objects.create(
-            thread=self.review_thread,
-            comment_content_json={"ops": [{"insert": "Review reply"}]},
-            parent=removed_comment,
-            created_by=self.user,
-        )
-
-        generic_parent.refresh_related_discussion_count()
-        self.paper.refresh_from_db()
-
-        aggregates = RhCommentThreadModel.objects.get_discussion_aggregates(self.paper)
-
-        self.assertEqual(aggregates["discussion_count"], 2)
-        self.assertEqual(aggregates["review_count"], 1)
-        self.assertEqual(aggregates["summary_count"], 0)

@@ -473,7 +473,8 @@ DATABASES = {
 if ELASTIC_BEANSTALK:
     # Connection pooling
     # See: https://docs.djangoproject.com/en/5.1/ref/databases/#connection-pool
-    # See: https://www.psycopg.org/psycopg3/docs/api/pool.html#psycopg_pool.ConnectionPool
+    # See psycopg3 connection pool docs:
+    # https://www.psycopg.org/psycopg3/docs/api/pool.html
     DB_POOL_MIN_SIZE = int(os.environ.get("DB_POOL_MIN_SIZE", 10))
     DB_POOL_MAX_SIZE = int(os.environ.get("DB_POOL_MAX_SIZE", 50))
 

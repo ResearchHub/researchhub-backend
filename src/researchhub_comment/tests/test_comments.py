@@ -305,48 +305,26 @@ class CommentViewTests(APITestCase):
     def test_censor_nested_comments(self):
         # Create a deeply nested chain of comments
         parent = self._create_paper_comment(self.paper.id, self.user_1)
-        print(f"Parent comment ID: {parent.data['id']}")
         child1 = self._create_paper_comment(
             self.paper.id, self.user_2, parent_id=parent.data["id"]
         )
-        print(f"Child1 comment ID: {child1.data['id']}")
         child2 = self._create_paper_comment(
             self.paper.id, self.user_3, parent_id=child1.data["id"]
         )
-        print(f"Child2 comment ID: {child2.data['id']}")
         child3 = self._create_paper_comment(
             self.paper.id, self.user_4, parent_id=child2.data["id"]
         )
-        print(f"Child3 comment ID: {child3.data['id']}")
-
         # Verify initial count
         paper_res = self.client.get(f"/api/paper/{self.paper.id}/")
         self.assertEqual(paper_res.data["discussion_count"], 4)
 
         # Directly check if the comment exists
         self.client.force_authenticate(self.moderator)
-        check_comment = self.client.get(
-            f"/api/paper/{self.paper.id}/comments/{child2.data['id']}/"
-        )
-        print(f"Check comment status: {check_comment.status_code}")
 
         # Attempt to censor child2 (middle of chain)
         censor_res = self.client.delete(
             f"/api/paper/{self.paper.id}/comments/{child2.data['id']}/censor/"
         )
-        print(f"Censor response status: {censor_res.status_code}")
-
-        if censor_res.status_code == 404:
-            # If 404, try to check what's wrong with the comment
-            print("Received 404 when trying to censor comment")
-
-            # Check if we can access any comments at all
-            all_comments = self.client.get(f"/api/paper/{self.paper.id}/comments/")
-            print(f"All comments count: {all_comments.data['count']}")
-
-            if all_comments.data["count"] > 0:
-                comment_ids = [item["id"] for item in all_comments.data["results"]]
-                print(f"Available comment IDs: {comment_ids}")
 
         # Verify censor response returns a censored representation
         self.assertEqual(censor_res.status_code, 200)
@@ -388,7 +366,7 @@ class CommentViewTests(APITestCase):
 
         # Create a parent comment with a child
         parent_comment = self._create_post_comment(post_id, self.user_1)
-        _ = self._create_post_comment(  # noqa: F841
+        self._create_post_comment(
             post_id, self.user_2, parent_id=parent_comment.data["id"]
         )
 
@@ -723,32 +701,12 @@ class CommentViewTests(APITestCase):
         )
         self.assertEqual(censor_res.status_code, 200)
 
-        print("Censor response contains children:", "children" in censor_res.data)
-        if "children" in censor_res.data:
-            print("Censor response children count:", len(censor_res.data["children"]))
-            print(
-                "Child IDs in censor response:",
-                [c["id"] for c in censor_res.data["children"]],
-            )
-
         # Get the top-level comment directly, which should include its censored child and grandchild
         comment_detail_res = self.client.get(
             f"/api/paper/{self.paper.id}/comments/{parent.data['id']}/"
         )
         self.assertEqual(comment_detail_res.status_code, 200)
         top_comment = comment_detail_res.data
-
-        print("Comments directly from API - has children:", "children" in top_comment)
-        print("Children count:", top_comment.get("children_count", 0))
-        if "children" in top_comment:
-            print("Children count from array:", len(top_comment["children"]))
-            if len(top_comment["children"]) > 0:
-                child = top_comment["children"][0]
-                print("First child ID:", child["id"])
-                print("First child is_removed:", child.get("is_removed", False))
-                print("First child has children:", "children" in child)
-                if "children" in child:
-                    print("Grandchildren count:", len(child["children"]))
 
         # Check the comment structure directly - parent should have a censored child
         self.assertEqual(
