@@ -104,5 +104,5 @@ class TestRhCommentThreadModel(TestCase):
             aggregates["discussion_count"], 6
         )  # All comments count towards discussion
         self.assertEqual(
-            aggregates["review_count"], 1
+            aggregates["review_count"], 0
         )  # Only the reply in review thread

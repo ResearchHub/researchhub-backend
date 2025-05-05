@@ -930,23 +930,29 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                 if model not in self._ALLOWED_MODEL_NAMES:
                     return Response(status=401)
 
-            # Only update the thread's content_object reference when we are
-            # *not* simply toggling privacy between PRIVATE and WORKSPACE. In
-            # those cases the tests supply the RhComment id as `object_id`,
-            # which would corrupt the reference. Therefore, we keep the
-            # original content_type / object_id when switching privacy.
-            if permission_type not in (PRIVATE, WORKSPACE):
-                content_type = self._get_content_type_model(model)
-                serializer = RhCommentThreadSerializer(
-                    thread,
-                    data={
-                        "content_type": content_type.id,
-                        "object_id": object_id,
-                    },
-                    partial=True,
-                )
-                serializer.is_valid()
-                serializer.save()
+            # When switching between privacy types (public/private/workspace),
+            # update the content_type and object_id if they are provided
+            # and represent a valid model.
+            if model in self._ALLOWED_MODEL_NAMES and object_id:
+                try:
+                    # Validate that the object_id exists for the given model
+                    content_type = self._get_content_type_model(model)
+                    model_class = content_type.model_class()
+                    if model_class.objects.filter(id=object_id).exists():
+                        serializer = RhCommentThreadSerializer(
+                            thread,
+                            data={
+                                "content_type": content_type.id,
+                                "object_id": object_id,
+                            },
+                            partial=True,
+                        )
+                        serializer.is_valid()
+                        serializer.save()
+                except Exception:
+                    # If there's any issue with the model/object_id, just continue
+                    # without updating the content_object reference
+                    pass
 
             return Response(status=200)
 
