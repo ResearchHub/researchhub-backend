@@ -315,6 +315,16 @@ class CitationEntryViewTests(APITestCaseWithOrg):
         self.client.force_authenticate(
             self.authenticated_user, organization=self.authenticated_user.organization
         )
+
+        # Make sure no permissions exist before we change to private
+        from researchhub_comment.models import RhCommentModel
+
+        comment = RhCommentModel.objects.get(id=public_comment_id)
+        thread = comment.thread
+
+        # There should be no permissions at this point since the comment is public
+        self.assertEqual(thread.permissions.count(), 0)
+
         response_1 = self.client.patch(
             f"/api/paper/{paper_id}/comments/{public_comment_id}/update_comment_permission/",
             {
@@ -325,10 +335,29 @@ class CitationEntryViewTests(APITestCaseWithOrg):
         )
         self.assertEqual(response_1.status_code, 200)
 
+        # After changing to private, verify permissions were created
+        thread.refresh_from_db()
+        self.assertEqual(thread.permissions.count(), 1)
+
+        # Verify the permission is for the authenticated user and has no organization
+        permission = thread.permissions.first()
+        self.assertEqual(permission.user, self.authenticated_user)
+        self.assertIsNone(permission.organization)
+
+        # Verify the thread now points to the citation
+        self.assertEqual(thread.content_type.model, "citationentry")
+        self.assertEqual(thread.object_id, citation_id)
+
+        # Get the individual comment
         response_2 = self.client.get(
             f"/api/citationentry/{citation_id}/comments/{public_comment_id}/?privacy_type=PRIVATE"
         )
         self.assertEqual(response_2.status_code, 200)
+
+        # Now try to get the list of comments as the authenticated user
+        self.client.force_authenticate(
+            self.authenticated_user, organization=self.authenticated_user.organization
+        )
         response_3 = self.client.get(
             f"/api/citationentry/{citation_id}/comments/?privacy_type=PRIVATE"
         )

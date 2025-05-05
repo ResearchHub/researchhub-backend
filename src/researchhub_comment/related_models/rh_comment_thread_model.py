@@ -1,14 +1,13 @@
 from django.contrib.contenttypes.fields import GenericRelation
-from django.db import connection, models
+from django.db import models
 from django.db.models import CharField, Count, JSONField, Q
-from django.db.models.functions import Cast
 
 from researchhub_access_group.models import Permission
 from researchhub_comment.constants.rh_comment_thread_types import (
+    COMMUNITY_REVIEW,
     GENERIC_COMMENT,
     PEER_REVIEW,
     RH_COMMENT_THREAD_TYPES,
-    SUMMARY,
 )
 from utils.models import AbstractGenericRelationModel
 
@@ -16,60 +15,40 @@ from utils.models import AbstractGenericRelationModel
 class RhCommentThreadQuerySet(models.QuerySet):
     def get_discussion_count(self):
         """
-        Uses a recursive CTE to count all comments (including replies)
-        ignoring removed comments, for all threads in this QuerySet.
+        Counts top-level generic comments without bounties across all threads
+        in this QuerySet, plus all their nested children comments.
         """
-        thread_ids = list(self.values_list("id", flat=True))
-        if not thread_ids:
-            return 0
+        from researchhub_comment.models import RhCommentModel
 
-        query = """
-            WITH RECURSIVE comment_tree AS (
-                SELECT c.id, c.parent_id, 1 AS comment_count
-                FROM researchhub_comment_rhcommentmodel c
-                JOIN researchhub_comment_rhcommentthreadmodel t ON c.thread_id = t.id
-                WHERE c.parent_id IS NULL
-                  AND c.is_removed = FALSE
-                  AND t.id IN (SELECT UNNEST(%s))
+        # Count *all* generic, non-removed comments that do **not** have a
+        # bounty attached – hierarchy (parent/child) no longer matters since a
+        # censored parent should **not** hide its visible children from the
+        # discussion count.
 
-                UNION ALL
+        visible_comments = RhCommentModel.objects.filter(
+            thread__in=self,
+            comment_type=GENERIC_COMMENT,
+            bounties__isnull=True,
+            is_removed=False,
+        )
 
-                SELECT c.id, c.parent_id, 1
-                FROM researchhub_comment_rhcommentmodel c
-                JOIN comment_tree ct ON c.parent_id = ct.id
-                WHERE c.is_removed = FALSE
-            )
-            SELECT COALESCE(SUM(comment_count), 0)::int AS total_count
-            FROM comment_tree;
-        """
-
-        with connection.cursor() as cursor:
-            cursor.execute(query, [thread_ids])
-            result = cursor.fetchone()
-            return result[0] if result else 0
+        return visible_comments.count()
 
     def get_discussion_aggregates(self, item):
         """
         Example aggregator, adapted from your code.
         Note: self.exclude(...) etc. uses the QuerySet instead of Manager.
         """
-        aggregator = self.exclude(rh_comments__bounties__isnull=False).aggregate(
+        # Review comments should ignore those with bounties. Start from a
+        # queryset that excludes comments carrying bounties.
+        review_qs = self.exclude(rh_comments__bounties__isnull=False)
+
+        aggregator = review_qs.aggregate(
             review_count=Count(
                 "rh_comments",
                 filter=Q(
-                    thread_type=PEER_REVIEW,
+                    rh_comments__comment_type__in=[PEER_REVIEW, COMMUNITY_REVIEW],
                     rh_comments__is_removed=False,
-                    rh_comments__parent__isnull=False,
-                    rh_comments__parent__bounties__isnull=True,
-                ),
-            ),
-            summary_count=Count(
-                "rh_comments",
-                filter=Q(
-                    thread_type=SUMMARY,
-                    rh_comments__is_removed=False,
-                    rh_comments__parent__isnull=False,
-                    rh_comments__parent__bounties__isnull=True,
                 ),
             ),
         )
@@ -97,7 +76,10 @@ class RhCommentThreadModel(AbstractGenericRelationModel):
     )
     thread_reference = CharField(
         blank=True,
-        help_text="A thread may need a special referencing tool. Use this field for such a case",
+        help_text=(
+            "A thread may need a special referencing tool. "
+            "Use this field for such a case"
+        ),
         max_length=144,
         null=True,
     )
