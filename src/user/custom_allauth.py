@@ -1,7 +1,6 @@
 from allauth.account.adapter import DefaultAccountAdapter, get_adapter
 from allauth.account.forms import ResetPasswordForm
 from allauth.account.utils import user_pk_to_url_str
-from dj_rest_auth.registration.serializers import RegisterSerializer
 from dj_rest_auth.serializers import PasswordResetSerializer
 
 from researchhub.settings import (
