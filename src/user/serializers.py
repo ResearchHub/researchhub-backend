@@ -1192,44 +1192,24 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
         return serializer.data
 
     def get_coauthors(self, author):
-        from django.db.models import Count
+        from django.db.models import Count, Q
 
         context = self.context
         _context_fields = context.get("author_profile::get_coauthors", {})
 
-        coauthors = (
-            CoAuthor.objects.filter(author=author)
-            .values(
-                "coauthor",
-                "coauthor__first_name",
-                "coauthor__last_name",
-                "coauthor__headline",
-                "coauthor__description",
+        qs = (
+            Author.objects.annotate(
+                count=Count("coauthored_with", filter=Q(coauthored_with__author=author))
             )
-            .annotate(count=Count("coauthor"))
+            .filter(count__gt=0)
             .order_by("-count")[:10]
         )
-
-        coauthor_data = [
-            {
-                "id": co["coauthor"],
-                "first_name": co["coauthor__first_name"],
-                "last_name": co["coauthor__last_name"],
-                "is_verified": co["coauthor__is_verified"],
-                "headline": co["coauthor__headline"],
-                "description": co["coauthor__description"],
-                "count": co["count"],
-            }
-            for co in coauthors
-        ]
-
-        serializer = DynamicAuthorSerializer(
-            coauthor_data,
-            context=context,
+        return DynamicAuthorSerializer(
+            qs,
             many=True,
+            context=context,
             **_context_fields,
-        )
-        return serializer.data
+        ).data
 
 
 class DynamicAuthorContributionSummarySerializer(DynamicModelFieldSerializer):
