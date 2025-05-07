@@ -72,7 +72,6 @@ class Author(models.Model):
         max_length=255, default=None, null=True, blank=True
     )
     claimed = models.BooleanField(default=True, null=True, blank=True)
-    is_verified = models.BooleanField(default=False)
     country_code = models.CharField(
         blank=True,
         null=True,
@@ -166,6 +165,13 @@ class Author(models.Model):
             except ValueError:
                 return str(self.profile_image)
         return None
+
+    @property
+    def is_verified(self):
+        if self.user is None:
+            return False
+
+        return self.user.is_verified
 
     @property
     def open_access_pct(self):
