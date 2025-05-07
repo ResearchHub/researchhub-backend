@@ -102,6 +102,7 @@ class AuthorSerializer(ModelSerializer):
     university = UniversitySerializer(required=False)
     wallet = SerializerMethodField()
     suspended_status = SerializerMethodField()
+    is_verified_v2 = SerializerMethodField()
 
     class Meta:
         model = Author
@@ -122,6 +123,7 @@ class AuthorSerializer(ModelSerializer):
             "university",
             "wallet",
             "is_verified",
+            "is_verified_v2",
         ]
         read_only_fields = [
             "added_as_editor_date",
@@ -131,12 +133,20 @@ class AuthorSerializer(ModelSerializer):
             "num_posts",
             "merged_with",
             "is_verified",
+            "is_verified_v2",
         ]
 
     def get_reputation(self, obj):
         if obj.user is None:
             return 0
         return obj.user.reputation
+
+    def get_is_verified_v2(self, obj):
+        if obj.user is None:
+            return False
+
+        user_verification = UserVerification.objects.filter(user=obj.user).last()
+        return user_verification.is_verified if user_verification else False
 
     def get_reputation_v2(self, author):
         score = Score.objects.filter(author=author).order_by("-score").first()
@@ -274,14 +284,10 @@ class UserApiTokenSerializer(ModelSerializer):
 
 class DynamicAuthorSerializer(DynamicModelFieldSerializer):
     count = IntegerField(read_only=True)
-    is_verified = SerializerMethodField(read_only=True)
 
     class Meta:
         model = Author
         fields = "__all__"
-
-    def get_is_verified(self, author):
-        return author.is_verified
 
 
 class AuthorEditableSerializer(ModelSerializer):
@@ -518,7 +524,7 @@ class UserEditableSerializer(ModelSerializer):
     organization_slug = SerializerMethodField()
     subscribed = SerializerMethodField()
     auth_provider = SerializerMethodField()
-    is_verified = SerializerMethodField()
+    is_verified_v2 = SerializerMethodField()
 
     class Meta:
         model = User
@@ -571,8 +577,10 @@ class UserEditableSerializer(ModelSerializer):
             return balance
         return None
 
-    def get_is_verified(self, user):
-        return user.is_verified
+    # FIXME: is_verified_v2 should be available on user model and not on author. This is a shim for legacy reasons.
+    def get_is_verified_v2(self, user):
+        user_verification = UserVerification.objects.filter(user=user).first()
+        return user_verification.is_verified if user_verification else False
 
     def get_organization_slug(self, user):
         try:
@@ -633,7 +641,6 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
     rsc_earned = SerializerMethodField()
     benefits_expire_on = SerializerMethodField()
     editor_of = SerializerMethodField()
-    is_verified = SerializerMethodField()
 
     class Meta:
         model = User
@@ -675,9 +682,6 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
             permissions, many=True, context=context, **_context_fields
         )
         return serializer.data
-
-    def get_is_verified(self, user):
-        return getattr(user, "is_verified", False)
 
 
 class UserActions:
@@ -1192,24 +1196,45 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
         return serializer.data
 
     def get_coauthors(self, author):
-        from django.db.models import Count, Q
+        from django.db.models import Count
 
         context = self.context
         _context_fields = context.get("author_profile::get_coauthors", {})
 
-        qs = (
-            Author.objects.annotate(
-                count=Count("coauthored_with", filter=Q(coauthored_with__author=author))
+        coauthors = (
+            CoAuthor.objects.filter(author=author)
+            .values(
+                "coauthor",
+                "coauthor__first_name",
+                "coauthor__last_name",
+                "coauthor__is_verified",
+                "coauthor__headline",
+                "coauthor__description",
             )
-            .filter(count__gt=0)
+            .annotate(count=Count("coauthor"))
             .order_by("-count")[:10]
         )
-        return DynamicAuthorSerializer(
-            qs,
-            many=True,
+
+        coauthor_data = [
+            {
+                "id": co["coauthor"],
+                "first_name": co["coauthor__first_name"],
+                "last_name": co["coauthor__last_name"],
+                "is_verified": co["coauthor__is_verified"],
+                "headline": co["coauthor__headline"],
+                "description": co["coauthor__description"],
+                "count": co["count"],
+            }
+            for co in coauthors
+        ]
+
+        serializer = DynamicAuthorSerializer(
+            coauthor_data,
             context=context,
+            many=True,
             **_context_fields,
-        ).data
+        )
+        return serializer.data
 
 
 class DynamicAuthorContributionSummarySerializer(DynamicModelFieldSerializer):
