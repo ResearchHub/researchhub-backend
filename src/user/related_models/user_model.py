@@ -79,6 +79,7 @@ class User(AbstractUser):
         "self", related_name="invitee", on_delete=models.SET_NULL, null=True, blank=True
     )
     is_suspended = models.BooleanField(default=False)
+    is_verified = models.BooleanField(default=False)
     """
     The old verification status that is being replaced by `UserVerification`.
     """
@@ -167,6 +168,12 @@ class User(AbstractUser):
         if is_suspended:
             source = "MANUAL_REVIEW" if is_manual else "AUTOMATED_RULE"
             decisions_api.apply_bad_user_decision(self, source)
+
+    def set_verified(self, is_verified=True):
+        self.is_verified = is_verified
+        self.author_profile.is_verified = is_verified
+        self.author_profile.save(update_fields=["is_verified"])
+        self.save(update_fields=["is_verified"])
 
     def get_balance_qs(self):
         user_balance = self.balances.all()
@@ -286,10 +293,3 @@ class User(AbstractUser):
         ).aggregate(count=Count("id"))["count"]
 
         return peer_review_count
-
-    @property
-    def is_verified(self):
-        from user.related_models.user_verification_model import UserVerification
-
-        user_verification = UserVerification.objects.filter(user=self).last()
-        return user_verification.is_verified if user_verification else False
