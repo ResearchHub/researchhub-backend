@@ -26,6 +26,7 @@ def create_feed_entry(
     action,
     parent_item_id,
     parent_content_type_id,
+    hub_ids=None,
     user_id=None,
 ):
     # Get the ContentType objects
@@ -63,6 +64,14 @@ def create_feed_entry(
             parent_object_id=parent_item_id,
             unified_document=unified_document,
         )
+        if hub_ids:
+            current = feed_entry.hubs or []
+            merged = []
+            for h in current + list(hub_ids):
+                if h not in merged:
+                    merged.append(h)
+            feed_entry.hubs = merged
+            feed_entry.save(update_fields=["hubs"])
         return feed_entry
     except Exception as e:
         # Ignore error if feed entry already exists
@@ -139,15 +148,31 @@ def delete_feed_entry(
     item_content_type_id,
     parent_item_id,
     parent_item_content_type_id,
+    hub_ids=None,
 ):
     item_content_type = ContentType.objects.get(id=item_content_type_id)
     parent_item_content_type = ContentType.objects.get(id=parent_item_content_type_id)
-    FeedEntry.objects.filter(
+
+    feed_entries = FeedEntry.objects.filter(
         object_id=item_id,
         content_type=item_content_type,
         parent_object_id=parent_item_id,
         parent_content_type=parent_item_content_type,
-    ).delete()
+    )
+
+    if hub_ids:
+        # remove hubs
+        for entry in feed_entries:
+            current = entry.hubs
+            new = [h for h in current if h not in hub_ids]
+            entry.hubs = new
+            if new:
+                entry.save(update_fields=["hubs"])
+            else:
+                # if no hubs remain, delete the entry entirely
+                entry.delete()
+    else:
+        feed_entries.delete()
 
 
 @app.task
