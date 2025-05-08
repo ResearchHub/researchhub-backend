@@ -19,6 +19,11 @@ class Migration(migrations.Migration):
                 SELECT id
                 FROM django_content_type
                 WHERE app_label='hub' AND model='hub'
+            ) AND NOT EXISTS (
+                SELECT 1
+                FROM feed_feedentry_hubs fh
+                WHERE fh.feedentry_id = f.id
+                AND fh.hub_id = f.parent_object_id
             );
             """,
             reverse_sql="""
