@@ -57,11 +57,11 @@ class FeedEntry(DefaultModel):
     parent_object_id = models.PositiveIntegerField(null=True, blank=True)
     parent_item = GenericForeignKey("parent_content_type", "parent_object_id")
 
+    # The hubs associated with the feed entry.
     hubs = models.ManyToManyField(
         Hub,
         blank=True,
         related_name="feed_entries",
-        db_comment="The hubs associated with the feed entry.",
     )
 
     action = models.TextField(choices=action_choices)
