@@ -75,23 +75,18 @@ def handle_post_hubs_changed(sender, instance, action, pk_set, **kwargs):
 
 def _create_post_feed_entries(post):
     hub_ids = list(post.unified_document.hubs.values_list("id", flat=True))
-    tasks = [
-        partial(
-            create_feed_entry.apply_async,
+    transaction.on_commit(
+        lambda: create_feed_entry.apply_async(
             args=(
                 post.id,
                 ContentType.objects.get_for_model(post).id,
                 FeedEntry.PUBLISH,
-                hub.id,
-                ContentType.objects.get_for_model(hub).id,
                 hub_ids,
                 post.created_by.id,
             ),
             priority=1,
         )
-        for hub in post.unified_document.hubs.all()
-    ]
-    transaction.on_commit(lambda: [task() for task in tasks])
+    )
 
 
 def _delete_post_feed_entries(unified_document):
@@ -100,7 +95,6 @@ def _delete_post_feed_entries(unified_document):
         and unified_document.is_removed is True
     ):
         posts = unified_document.posts.all()
-        hubs = unified_document.hubs.all()
         hub_ids = list(unified_document.hubs.values_list("id", flat=True))
 
         tasks = [
@@ -109,14 +103,11 @@ def _delete_post_feed_entries(unified_document):
                 args=(
                     post.id,
                     ContentType.objects.get_for_model(post).id,
-                    hub.id,
-                    ContentType.objects.get_for_model(hub).id,
                     hub_ids,
                 ),
                 priority=1,
             )
             for post in posts
-            for hub in hubs
         ]
         transaction.on_commit(lambda: [task() for task in tasks])
 
@@ -139,8 +130,6 @@ def _handle_post_hubs_added(instance, pk_set):
                     post.id,
                     ContentType.objects.get_for_model(post).id,
                     "PUBLISH",
-                    hub.id,
-                    ContentType.objects.get_for_model(hub).id,
                     [hub.id],
                 ),
                 priority=1,
@@ -164,8 +153,6 @@ def _handle_post_hubs_removed(instance, pk_set):
                 args=(
                     post.id,
                     ContentType.objects.get_for_model(post).id,
-                    hub.id,
-                    ContentType.objects.get_for_model(hub).id,
                     [hub.id],
                 ),
                 priority=1,
