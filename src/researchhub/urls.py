@@ -43,6 +43,7 @@ from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from review.views.peer_review_view import PeerReviewViewSet
 from review.views.review_view import ReviewViewSet
 from user.views import author_views, editor_views, moderator_view, persona_webhook_view
+from user.views.custom_verify_email_view import CustomVerifyEmailView
 
 router = routers.DefaultRouter()
 
@@ -250,6 +251,11 @@ urlpatterns = [
     path("api/auth/captcha_verify/", oauth.views.captcha_verify, name="captcha_verify"),
     path(
         "api/auth/google/login/", oauth.views.GoogleLogin.as_view(), name="google_login"
+    ),
+    path(
+        "api/auth/register/verify-email/",
+        CustomVerifyEmailView.as_view(),
+        name="rest_verify_email",
     ),
     re_path(r"api/auth/register/", include("dj_rest_auth.registration.urls")),
     re_path(
