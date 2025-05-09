@@ -48,8 +48,7 @@ class FeedTasksTest(TestCase):
             item_id=self.paper.id,
             item_content_type_id=self.paper_content_type.id,
             action=FeedEntry.PUBLISH,
-            parent_item_id=self.hub.id,
-            parent_content_type_id=self.hub_content_type.id,
+            hub_ids=[self.hub.id],
             user_id=self.user.id,
         )
 
@@ -61,7 +60,7 @@ class FeedTasksTest(TestCase):
         self.assertEqual(feed_entry.user, self.user)
         self.assertEqual(feed_entry.action, FeedEntry.PUBLISH)
         self.assertEqual(feed_entry.item, self.paper)
-        self.assertEqual(feed_entry.parent_item, self.hub)
+        self.assertEqual(feed_entry.hubs.first(), self.hub)
         self.assertEqual(feed_entry.unified_document, self.paper.unified_document)
 
     def test_create_feed_entry_twice(self):
@@ -73,16 +72,14 @@ class FeedTasksTest(TestCase):
             item_id=self.paper.id,
             item_content_type_id=self.paper_content_type.id,
             action=FeedEntry.PUBLISH,
-            parent_item_id=self.hub.id,
-            parent_content_type_id=self.hub_content_type.id,
+            hub_ids=[self.hub.id],
         )
         # attempt to create the same feed entry again
         create_feed_entry(
             item_id=self.paper.id,
             item_content_type_id=self.paper_content_type.id,
             action=FeedEntry.PUBLISH,
-            parent_item_id=self.hub.id,
-            parent_content_type_id=self.hub_content_type.id,
+            hub_ids=[self.hub.id],
         )
 
         # Assert
@@ -96,8 +93,7 @@ class FeedTasksTest(TestCase):
             item_id=self.paper.id,
             item_content_type_id=self.paper_content_type.id,
             action=FeedEntry.PUBLISH,
-            parent_item_id=self.hub.id,
-            parent_content_type_id=self.hub_content_type.id,
+            hub_ids=[self.hub.id],
             user_id=self.user.id,
         )
 
@@ -105,8 +101,7 @@ class FeedTasksTest(TestCase):
         delete_feed_entry(
             item_id=feed_entry.item.id,
             item_content_type_id=feed_entry.content_type.id,
-            parent_item_id=feed_entry.parent_item.id,
-            parent_item_content_type_id=feed_entry.parent_content_type.id,
+            hub_ids=[self.hub.id],
         )
 
         # Assert
@@ -118,8 +113,7 @@ class FeedTasksTest(TestCase):
             delete_feed_entry(
                 item_id=self.paper.id,
                 item_content_type_id=self.paper_content_type.id,
-                parent_item_id=self.hub.id,
-                parent_item_content_type_id=self.hub_content_type.id,
+                hub_ids=[self.hub.id],
             )
         except Exception as e:
             self.fail(f"delete_feed_entry raised an exception: {e}")
@@ -205,8 +199,7 @@ class FeedTasksTest(TestCase):
             item_id=self.paper.id,
             item_content_type_id=self.paper_content_type.id,
             action=FeedEntry.PUBLISH,
-            parent_item_id=self.hub.id,
-            parent_content_type_id=self.hub_content_type.id,
+            hub_ids=[self.hub.id],
             user_id=self.user.id,
         )
 
@@ -251,8 +244,7 @@ class FeedTasksTest(TestCase):
             item_id=self.paper.id,
             item_content_type_id=self.paper_content_type.id,
             action=FeedEntry.PUBLISH,
-            parent_item_id=self.hub.id,
-            parent_content_type_id=self.hub_content_type.id,
+            hub_ids=[self.hub.id],
             user_id=self.user.id,
         )
 
@@ -312,8 +304,7 @@ class FeedTasksTest(TestCase):
                 item_id=paper.id,
                 item_content_type_id=self.paper_content_type.id,
                 action=FeedEntry.PUBLISH,
-                parent_item_id=self.hub.id,
-                parent_content_type_id=self.hub_content_type.id,
+                hub_ids=[self.hub.id],
                 user_id=self.user.id,
             )
             feed_entries.append(feed_entry)
