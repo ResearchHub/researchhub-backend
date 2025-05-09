@@ -67,11 +67,14 @@ class AuthorClaimCaseSerializer(ModelSerializer):
     def get_paper(self, case):
         paper = case.target_paper
         if paper:
+            primary_hub = getattr(
+                paper.unified_document.get_primary_hub(), "name", None
+            )
             obj = {
                 "title": paper.title,
                 "id": paper.id,
                 "slug": paper.slug,
-                "primary_hub": paper.unified_document.get_primary_hub().name,
+                "primary_hub": primary_hub,
             }
             return obj
         else:
