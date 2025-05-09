@@ -68,8 +68,6 @@ class BountySignalsTests(TestCase):
         self.paper_feed_entry = FeedEntry.objects.create(
             content_type=paper_content_type,
             object_id=self.paper.id,
-            parent_content_type=hub_content_type,
-            parent_object_id=self.hub.id,
             action=FeedEntry.PUBLISH,
             action_date=self.paper.created_date,
             user=self.user,
@@ -82,8 +80,6 @@ class BountySignalsTests(TestCase):
         self.post_feed_entry = FeedEntry.objects.create(
             content_type=post_content_type,
             object_id=self.post.id,
-            parent_content_type=hub_content_type,
-            parent_object_id=self.hub.id,
             action=FeedEntry.PUBLISH,
             action_date=self.post.created_date,
             user=self.user,
@@ -96,8 +92,6 @@ class BountySignalsTests(TestCase):
         self.comment_feed_entry = FeedEntry.objects.create(
             content_type=comment_content_type,
             object_id=self.comment.id,
-            parent_content_type=hub_content_type,
-            parent_object_id=self.hub.id,
             action=FeedEntry.PUBLISH,
             action_date=self.comment.created_date,
             user=self.user,
