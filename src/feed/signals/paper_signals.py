@@ -65,8 +65,7 @@ def _create_paper_feed_entries(instance, pk_set):
                 paper.id,
                 ContentType.objects.get_for_model(paper).id,
                 "PUBLISH",
-                hub.id,
-                ContentType.objects.get_for_model(hub).id,
+                [hub.id],
             ),
             priority=1,
         )
@@ -95,6 +94,7 @@ def _delete_paper_feed_entries(instance, pk_set):
                 ContentType.objects.get_for_model(paper).id,
                 hub.id,
                 ContentType.objects.get_for_model(hub).id,
+                [hub.id],
             ),
             priority=1,
         )

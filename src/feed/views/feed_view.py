@@ -102,11 +102,12 @@ class FeedViewSet(BaseFeedView):
 
         # Apply following filter if feed_view is 'following' and user is authenticated
         if feed_view == "following" and self.request.user.is_authenticated:
-            following = self.request.user.following.all()
-            if following.exists():
+            followed_hub_ids = self.request.user.following.filter(
+                content_type=self._hub_content_type
+            ).values_list("object_id", flat=True)
+            if followed_hub_ids:
                 queryset = queryset.filter(
-                    parent_content_type_id__in=following.values("content_type"),
-                    parent_object_id__in=following.values("object_id"),
+                    hubs__id__in=followed_hub_ids,
                 )
 
         if feed_view == "popular":
@@ -126,7 +127,7 @@ class FeedViewSet(BaseFeedView):
                     )
 
                 queryset = queryset.filter(
-                    parent_content_type=self._hub_content_type, parent_object_id=hub.id
+                    hubs__in=[hub],
                 )
 
             # Since there can be multiple feed entries per unified document,
@@ -156,7 +157,7 @@ class FeedViewSet(BaseFeedView):
                 )
 
             queryset = queryset.filter(
-                parent_content_type=self._hub_content_type, parent_object_id=hub.id
+                hubs__in=[hub],
             )
 
         return queryset

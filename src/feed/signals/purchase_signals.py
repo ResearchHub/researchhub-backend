@@ -3,7 +3,7 @@ import logging
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from feed.models import FeedEntry, FeedEntryLatest, FeedEntryPopular
+from feed.models import FeedEntry
 from feed.tasks import refresh_feed_entry
 from purchase.related_models.purchase_model import Purchase
 

@@ -24,13 +24,11 @@ def create_feed_entry(
     item_id,
     item_content_type_id,
     action,
-    parent_item_id,
-    parent_content_type_id,
+    hub_ids=None,
     user_id=None,
 ):
     # Get the ContentType objects
     item_content_type = ContentType.objects.get(id=item_content_type_id)
-    parent_content_type = ContentType.objects.get(id=parent_content_type_id)
 
     # Get the actual model instances
     item = item_content_type.get_object_for_this_type(id=item_id)
@@ -59,15 +57,15 @@ def create_feed_entry(
             action=action,
             action_date=action_date,
             metrics=metrics,
-            parent_content_type=parent_content_type,
-            parent_object_id=parent_item_id,
             unified_document=unified_document,
         )
+        if hub_ids:
+            feed_entry.hubs.add(*hub_ids)
         return feed_entry
     except Exception as e:
         # Ignore error if feed entry already exists
         logger.warning(
-            f"Failed to save feed entry for item_id={item_id} content_type={item_content_type.model} parent_item_id={parent_item_id} parent_content_type={parent_content_type.model}: {e}"
+            f"Failed to save feed entry for item_id={item_id} content_type={item_content_type.model}: {e}"
         )
 
 
@@ -137,17 +135,24 @@ def _get_unified_document(
 def delete_feed_entry(
     item_id,
     item_content_type_id,
-    parent_item_id,
-    parent_item_content_type_id,
+    hub_ids=None,
 ):
     item_content_type = ContentType.objects.get(id=item_content_type_id)
-    parent_item_content_type = ContentType.objects.get(id=parent_item_content_type_id)
-    FeedEntry.objects.filter(
+
+    feed_entries = FeedEntry.objects.filter(
         object_id=item_id,
         content_type=item_content_type,
-        parent_object_id=parent_item_id,
-        parent_content_type=parent_item_content_type,
-    ).delete()
+    )
+
+    if hub_ids:
+        # drop hub relations
+        for entry in feed_entries:
+            entry.hubs.remove(*hub_ids)
+            # if no hubs remain, delete the entry entirely
+            if not entry.hubs.exists():
+                entry.delete()
+    else:
+        feed_entries.delete()
 
 
 @app.task

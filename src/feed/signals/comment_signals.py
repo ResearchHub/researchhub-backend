@@ -80,22 +80,19 @@ def _create_comment_feed_entries(comment):
     ):
         return
 
-    tasks = [
-        partial(
-            create_feed_entry.apply_async,
+    hub_ids = list(comment.unified_document.hubs.values_list("id", flat=True))
+    transaction.on_commit(
+        lambda: create_feed_entry.apply_async(
             args=(
                 comment.id,
                 ContentType.objects.get_for_model(comment).id,
                 FeedEntry.PUBLISH,
-                hub.id,
-                ContentType.objects.get_for_model(hub).id,
+                hub_ids,
                 comment.created_by.id,
             ),
             priority=1,
         )
-        for hub in comment.unified_document.hubs.all()
-    ]
-    transaction.on_commit(lambda: [task() for task in tasks])
+    )
 
 
 def _delete_comment_feed_entries(comment):
@@ -105,6 +102,7 @@ def _delete_comment_feed_entries(comment):
     ):
         return
 
+    hub_ids = list(comment.unified_document.hubs.values_list("id", flat=True))
     tasks = [
         partial(
             delete_feed_entry.apply_async,
@@ -113,6 +111,7 @@ def _delete_comment_feed_entries(comment):
                 ContentType.objects.get_for_model(comment).id,
                 hub.id,
                 ContentType.objects.get_for_model(hub).id,
+                hub_ids,
             ),
             priority=1,
         )

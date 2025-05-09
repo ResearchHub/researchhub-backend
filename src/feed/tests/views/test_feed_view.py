@@ -64,7 +64,6 @@ class FeedViewSetTests(TestCase):
         self.user_content_type = ContentType.objects.get_for_model(User)
         self.paper_content_type = ContentType.objects.get_for_model(Paper)
         self.post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
-        self.hub_content_type = ContentType.objects.get_for_model(Hub)
 
         create_follow(self.user, self.hub)
 
@@ -76,10 +75,9 @@ class FeedViewSetTests(TestCase):
             content_type=self.paper_content_type,
             metrics={"votes": 100, "comments": 10},
             object_id=self.paper.id,
-            parent_content_type=self.hub_content_type,
-            parent_object_id=self.hub.id,
             unified_document=self.paper.unified_document,
         )
+        self.feed_entry.hubs.add(self.hub)
 
         # Create another user and their content for testing
         self.other_user = User.objects.create_user(
@@ -100,10 +98,9 @@ class FeedViewSetTests(TestCase):
             content_type=self.paper_content_type,
             metrics={"votes": 100, "comments": 10},
             object_id=self.other_paper.id,
-            parent_content_type=self.hub_content_type,
-            parent_object_id=self.other_hub.id,
             unified_document=self.other_paper.unified_document,
         )
+        self.other_feed_entry.hubs.add(self.other_hub)
 
         self.post_feed_entry = FeedEntry.objects.create(
             user=self.other_user,
@@ -112,10 +109,9 @@ class FeedViewSetTests(TestCase):
             content_type=self.post_content_type,
             metrics={"votes": 100, "comments": 10},
             object_id=self.post.id,
-            parent_content_type=self.hub_content_type,
-            parent_object_id=self.other_hub.id,
             unified_document=self.post.unified_document,
         )
+        self.post_feed_entry.hubs.add(self.other_hub)
 
         FeedEntryLatest.refresh()
         FeedEntryPopular.refresh()
@@ -174,8 +170,6 @@ class FeedViewSetTests(TestCase):
                 action_date=paper.paper_publish_date,
                 content_type=self.paper_content_type,
                 object_id=paper.id,
-                parent_content_type=self.hub_content_type,
-                parent_object_id=self.hub.id,
                 unified_document=paper.unified_document,
             )
         FeedEntryLatest.refresh()
@@ -204,8 +198,6 @@ class FeedViewSetTests(TestCase):
             action_date=paper2.paper_publish_date,
             content_type=self.paper_content_type,
             object_id=paper2.id,
-            parent_content_type=self.hub_content_type,
-            parent_object_id=self.hub.id,
             unified_document=paper2.unified_document,
         )
 
@@ -303,8 +295,6 @@ class FeedViewSetTests(TestCase):
             action_date=timezone.now(),
             content_type=self.paper_content_type,
             object_id=high_score_paper.id,
-            parent_content_type=self.hub_content_type,
-            parent_object_id=self.hub.id,
             unified_document=high_score_doc,
             hot_score=high_score_doc.hot_score,
         )
@@ -314,8 +304,6 @@ class FeedViewSetTests(TestCase):
             action_date=timezone.now(),
             content_type=self.paper_content_type,
             object_id=medium_score_paper.id,
-            parent_content_type=self.hub_content_type,
-            parent_object_id=self.hub.id,
             unified_document=medium_score_doc,
             hot_score=medium_score_doc.hot_score,
         )
@@ -325,8 +313,6 @@ class FeedViewSetTests(TestCase):
             action_date=timezone.now(),
             content_type=self.paper_content_type,
             object_id=low_score_paper.id,
-            parent_content_type=self.hub_content_type,
-            parent_object_id=self.hub.id,
             unified_document=low_score_doc,
             hot_score=low_score_doc.hot_score,
         )
@@ -371,8 +357,6 @@ class FeedViewSetTests(TestCase):
             action_date=timezone.now() - timezone.timedelta(days=10),
             content_type=self.paper_content_type,
             object_id=high_score_paper.id,
-            parent_content_type=self.hub_content_type,
-            parent_object_id=self.hub.id,
             unified_document=high_score_doc,
         )
 
@@ -382,8 +366,6 @@ class FeedViewSetTests(TestCase):
             action_date=timezone.now() - timezone.timedelta(days=5),
             content_type=self.paper_content_type,
             object_id=high_score_paper.id,
-            parent_content_type=self.hub_content_type,
-            parent_object_id=self.hub.id,
             unified_document=high_score_doc,
         )
 
@@ -394,8 +376,6 @@ class FeedViewSetTests(TestCase):
             action_date=timezone.now(),
             content_type=self.paper_content_type,
             object_id=high_score_paper.id,
-            parent_content_type=self.hub_content_type,
-            parent_object_id=self.hub.id,
             unified_document=high_score_doc,
         )
         FeedEntryPopular.refresh()
@@ -437,16 +417,16 @@ class FeedViewSetTests(TestCase):
 
         high_score_doc.hubs.add(another_hub)
 
-        FeedEntry.objects.create(
+        feed_entry = FeedEntry.objects.create(
             user=self.user,
             action="PUBLISH",
             action_date=timezone.now(),
             content_type=self.paper_content_type,
             object_id=high_score_paper.id,
-            parent_content_type=self.hub_content_type,
-            parent_object_id=another_hub.id,
             unified_document=high_score_doc,
         )
+        feed_entry.hubs.add(another_hub)
+
         FeedEntryPopular.refresh()
 
         url = reverse("feed-list")
@@ -695,8 +675,6 @@ class FeedViewSetTests(TestCase):
             action_date=timezone.now(),
             content_type=self.paper_content_type,
             object_id=self.paper.id,
-            parent_content_type=self.hub_content_type,
-            parent_object_id=self.hub.id,
             unified_document=self.unified_document,
         )
 
@@ -709,8 +687,6 @@ class FeedViewSetTests(TestCase):
             action_date=timezone.now() - timezone.timedelta(days=5),
             content_type=self.paper_content_type,
             object_id=self.paper.id,
-            parent_content_type=self.hub_content_type,
-            parent_object_id=self.hub.id,
             unified_document=self.unified_document,
         )
 
@@ -758,8 +734,6 @@ class FeedViewSetTests(TestCase):
             action_date=timezone.now() - timezone.timedelta(days=5),
             content_type=self.paper_content_type,
             object_id=self.paper.id,
-            parent_content_type=self.hub_content_type,
-            parent_object_id=self.hub.id,
             unified_document=self.unified_document,
         )
 
@@ -769,8 +743,6 @@ class FeedViewSetTests(TestCase):
             action_date=timezone.now(),
             content_type=self.paper_content_type,
             object_id=self.paper.id,
-            parent_content_type=self.hub_content_type,
-            parent_object_id=self.hub.id,
             unified_document=self.unified_document,
         )
 
