@@ -2,16 +2,13 @@ from django.db import transaction
 from django.db.models import Q
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
-from citation.utils import get_paper_by_doi_url
 from paper.models import Paper
-from paper.paper_upload_tasks import celery_process_paper
 from reputation.related_models.paper_reward import PaperReward
 from reputation.serializers.paper_reward_serializer import PaperRewardSerializer
 from researchhub_case.models import AuthorClaimCase
 from user.models import User
 from user.related_models.user_verification_model import UserVerification
 from user.serializers import UserSerializer
-from utils.parsers import get_pure_doi
 
 from .researchhub_case_abstract_serializer import EXPOSABLE_FIELDS
 
@@ -70,11 +67,14 @@ class AuthorClaimCaseSerializer(ModelSerializer):
     def get_paper(self, case):
         paper = case.target_paper
         if paper:
+            primary_hub = getattr(
+                paper.unified_document.get_primary_hub(), "name", None
+            )
             obj = {
                 "title": paper.title,
                 "id": paper.id,
                 "slug": paper.slug,
-                "primary_hub": paper.unified_document.get_primary_hub().name,
+                "primary_hub": primary_hub,
             }
             return obj
         else:

@@ -137,6 +137,43 @@ class RHCommentFilter(filters.FilterSet):
         if instance_class_name == "RelatedManager":
             return True
 
+    def _has_explicit_filtering(self):
+        """
+        Return True if an explicit `filtering` parameter was supplied by the client.
+        """
+        return bool(self.data.get("filtering"))
+
+    @property
+    def qs(self):
+        """
+        Override the default queryset evaluation.
+        It applies a *default* filter when the client has not explicitly provided
+        the ``filtering`` query parameter.
+        The default behaviour should return only GENERIC_COMMENT comments that do
+        **not** have any bounties attached. This excludes REVIEW / PEER_REVIEW
+        comments and comments with bounties.
+        This keeps the response focused on general discussion by default.
+        """
+        # Start with the base queryset that Django-Filters builds using the
+        # declared filters (ordering, privacy, explicit filtering, etc.).
+        base_qs = super().qs
+
+        # If we're on a RelatedManager (children queryset) or the caller explicitly
+        # requested a filtering, respect that request and return the queryset
+        # unmodified.
+        if self._is_on_child_queryset() or self._has_explicit_filtering():
+            return base_qs
+
+        # Apply the default restriction: include only comments whose own
+        # `comment_type` and their parent thread's `thread_type` are both
+        # GENERIC_COMMENT, and that do **not** have bounties attached.
+        return base_qs.filter(
+            comment_type=GENERIC_COMMENT,
+            thread__thread_type=GENERIC_COMMENT,
+            bounties__isnull=True,
+            parent__isnull=True,
+        )
+
     def ordering_filter(self, qs, name, value):
         if value == BEST:
             qs = self._annotate_bounty_sum(
@@ -233,4 +270,14 @@ class RHCommentFilter(filters.FilterSet):
     def filtering_parent(self, qs, name, value):
         if self._is_on_child_queryset():
             return qs
+
+        # Use the all_objects manager to ensure censored comments are included
+        if name == "parent__isnull" and value is True:
+            from researchhub_comment.models import RhCommentModel
+
+            # Get all IDs from the current queryset
+            ids = qs.values_list("id", flat=True)
+            # Return a queryset with all objects (including censored) filtered by these IDs and parent=None
+            return RhCommentModel.all_objects.filter(id__in=ids, parent__isnull=True)
+
         return qs.filter(**{name: value})

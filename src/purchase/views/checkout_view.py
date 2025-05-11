@@ -26,7 +26,6 @@ class CheckoutView(APIView):
         data = serializer.data
 
         try:
-            # FIXME: Current data is for testing purposes only.
             session = stripe.checkout.Session.create(
                 payment_method_types=["card"],
                 line_items=[
@@ -36,7 +35,7 @@ class CheckoutView(APIView):
                             "product_data": {
                                 "name": "Paper APC Fee",
                             },
-                            "unit_amount": 0,
+                            "unit_amount": 30000,
                         },
                         "quantity": 1,
                     },

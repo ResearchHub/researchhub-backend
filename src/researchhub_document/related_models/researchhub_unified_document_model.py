@@ -1,4 +1,5 @@
 from django.contrib.contenttypes.fields import GenericRelation
+from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models import Avg, Count, Q
 from django.utils.functional import cached_property
@@ -6,6 +7,7 @@ from django.utils.functional import cached_property
 from hub.models import Hub
 from researchhub.settings import BASE_FRONTEND_URL
 from researchhub_access_group.models import Permission
+from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.hot_score_mixin import HotScoreMixin
 from researchhub_document.related_models.constants.document_type import (
     BOUNTY,
@@ -215,10 +217,30 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
             return None
 
     def get_review_details(self):
-        details = {"avg": 0, "count": 0}
-        reviews = self.reviews
+        """Return average score & count of *active* reviews.
+
+        A review is considered active if:
+        1. The review itself has not been soft-deleted (`is_removed=False`).
+        2. The underlying comment (`RhCommentModel`) it references has not been
+           soft-deleted.
+        """
+
+        comment_content_type = ContentType.objects.get_for_model(RhCommentModel)
+
+        active_comment_ids = RhCommentModel.objects.filter(is_removed=False).values(
+            "id"
+        )
+
+        reviews = self.reviews.filter(
+            is_removed=False,
+            content_type=comment_content_type,
+            object_id__in=active_comment_ids,
+        )
+
         if reviews.exists():
             details = reviews.aggregate(avg=Avg("score"), count=Count("id"))
+        else:
+            details = {"avg": 0, "count": 0}
         return details
 
     def frontend_view_link(self):

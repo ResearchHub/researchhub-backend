@@ -7,7 +7,11 @@ from feed.models import FeedEntry
 from hub.models import Hub
 from paper.related_models.paper_model import Paper
 from reputation.related_models.escrow import Escrow
-from researchhub_comment.constants.rh_comment_thread_types import ANSWER, PEER_REVIEW
+from researchhub_comment.constants.rh_comment_thread_types import (
+    ANSWER,
+    GENERIC_COMMENT,
+    PEER_REVIEW,
+)
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
@@ -142,14 +146,14 @@ class CommentSignalsTests(TestCase):
         # Act
         RhCommentModel.objects.create(
             comment_content_json={"ops": [{"insert": "reply1"}]},
-            comment_type=ANSWER,
+            comment_type=GENERIC_COMMENT,
             created_by=self.user,
             thread=self.thread,
             parent=self.comment,
         )
         RhCommentModel.objects.create(
             comment_content_json={"ops": [{"insert": "reply2"}]},
-            comment_type=ANSWER,
+            comment_type=GENERIC_COMMENT,
             created_by=self.user,
             thread=self.thread,
             parent=self.comment,
@@ -164,7 +168,7 @@ class CommentSignalsTests(TestCase):
                         ContentType.objects.get_for_model(Paper).id,
                         {
                             "votes": 0,
-                            "replies": 3,
+                            "replies": 1,
                             "review_metrics": {"avg": 0, "count": 0},
                             "citations": 0,
                         },
@@ -179,7 +183,7 @@ class CommentSignalsTests(TestCase):
                     args=(
                         self.comment.id,
                         ContentType.objects.get_for_model(self.comment).id,
-                        {"votes": 0, "replies": 2},
+                        {"votes": 0, "replies": 1},
                     ),
                     priority=1,
                 ),
