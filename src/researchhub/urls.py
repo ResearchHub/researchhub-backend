@@ -43,6 +43,7 @@ from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from review.views.peer_review_view import PeerReviewViewSet
 from review.views.review_view import ReviewViewSet
 from user.views import author_views, editor_views, moderator_view, persona_webhook_view
+from user_saved.views import UserSavedView
 
 router = routers.DefaultRouter()
 
@@ -314,6 +315,7 @@ urlpatterns = [
         purchase.views.CheckoutView.as_view(),
         name="payment_view",
     ),
+    path("user_saved/", UserSavedView.as_view(), name="user_saved"),
 ]
 
 if "silk" in settings.INSTALLED_APPS:

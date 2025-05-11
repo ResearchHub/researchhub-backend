@@ -276,6 +276,7 @@ INSTALLED_APPS = [
     "review",
     "simple_history",
     "organizations",
+    "user_saved",
     # Health checks
     "health_check",
     "health_check.db",
