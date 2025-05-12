@@ -1,5 +1,6 @@
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.contrib.postgres.fields import ArrayField
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 
@@ -55,6 +56,13 @@ class FeedEntry(DefaultModel):
     )
     parent_object_id = models.PositiveIntegerField(null=True, blank=True)
     parent_item = GenericForeignKey("parent_content_type", "parent_object_id")
+
+    hubs = ArrayField(
+        models.PositiveIntegerField(),
+        default=list,
+        blank=True,
+        db_comment="Tags associated with the feed entry.",
+    )
 
     action = models.TextField(choices=action_choices)
     action_date = models.DateTimeField(db_index=True)
