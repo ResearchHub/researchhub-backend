@@ -1,5 +1,6 @@
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
+from django.contrib.postgres import indexes
 from django.contrib.postgres.fields import ArrayField
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
@@ -98,6 +99,10 @@ class FeedEntry(DefaultModel):
             models.Index(
                 fields=["-hot_score"],
                 name="feed_hot_score_idx",
+            ),
+            indexes.GinIndex(
+                fields=["hubs"],
+                name="feed_hubs_gin_idx",
             ),
         ]
         constraints = [
