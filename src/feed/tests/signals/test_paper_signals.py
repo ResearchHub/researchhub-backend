@@ -42,3 +42,28 @@ class PaperSignalsTests(TestCase):
             object_id=self.paper.id,
         )
         self.assertEqual(len(feed_entries), self.paper.hubs.count())
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
+    def test_feed_entries_are_deleted_when_paper_is_removed(self):
+        """Test that feed entries are deleted when a paper is marked as removed."""
+        # Verify feed entries exist before removal
+        feed_entries_before = FeedEntry.objects.filter(
+            content_type=ContentType.objects.get_for_model(self.paper),
+            object_id=self.paper.id,
+        )
+        self.assertGreater(
+            len(feed_entries_before), 0, "Feed entries should exist before removal"
+        )
+
+        # Mark the paper as removed
+        self.paper.is_removed = True
+        self.paper.save()
+
+        # Verify feed entries are deleted
+        feed_entries_after = FeedEntry.objects.filter(
+            content_type=ContentType.objects.get_for_model(self.paper),
+            object_id=self.paper.id,
+        )
+        self.assertEqual(
+            len(feed_entries_after), 0, "Feed entries should be deleted after removal"
+        )

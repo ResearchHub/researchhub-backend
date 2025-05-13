@@ -8,13 +8,26 @@ This is done for three reasons:
 3. Older feed entries are not in the feed table.
 """
 
+from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
-from django.db.models import Q
+from django.db.models import (
+    Case,
+    DecimalField,
+    IntegerField,
+    OuterRef,
+    Q,
+    Subquery,
+    Sum,
+    Value,
+    When,
+)
+from django.db.models.functions import Cast
 from rest_framework.response import Response
 
 from feed.models import FeedEntry
 from feed.serializers import FundingFeedEntrySerializer
 from feed.views.base_feed_view import BaseFeedView
+from purchase.models import Purchase
 from purchase.related_models.fundraise_model import Fundraise
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -59,8 +72,10 @@ class FundingFeedViewSet(BaseFeedView):
                     self.add_user_votes_to_response(request.user, cached_response)
                 return Response(cached_response)
 
-        # Get paginated posts
+        # Get queryset
         queryset = self.get_queryset()
+
+        # Get paginated posts
         page = self.paginate_queryset(queryset)
 
         feed_entries = []
@@ -95,8 +110,30 @@ class FundingFeedViewSet(BaseFeedView):
         """
         Filter to only include posts that are preregistrations.
         Additionally filter by fundraise status if specified.
+        Uses database annotations to calculate amount raised and sort.
         """
         fundraise_status = self.request.query_params.get("fundraise_status", None)
+
+        # Get content type for Fundraise model for GenericRelation
+        fundraise_content_type = ContentType.objects.get_for_model(Fundraise)
+
+        # Subquery to calculate total amount raised for each fundraise
+        amount_raised_subquery = Subquery(
+            Purchase.objects.filter(
+                content_type=fundraise_content_type,
+                object_id=OuterRef("unified_document__fundraises__id"),
+            )
+            .annotate(
+                # Cast amount (which is a CharField) to Decimal first
+                amount_decimal=Sum(
+                    Cast(
+                        "amount",
+                        output_field=DecimalField(max_digits=19, decimal_places=10),
+                    )
+                )
+            )
+            .values("amount_decimal")[:1]
+        )
 
         queryset = (
             ResearchhubPost.objects.all()
@@ -124,6 +161,34 @@ class FundingFeedViewSet(BaseFeedView):
                     | Q(unified_document__fundraises__status=Fundraise.COMPLETED)
                 )
 
-        queryset = queryset.order_by("-created_date")
+        # Annotate with status priority
+        # (0 for OPEN, 1 for CLOSED/COMPLETED, 2 for no fundraise)
+        queryset = queryset.annotate(
+            status_priority=Case(
+                When(
+                    unified_document__fundraises__status=Fundraise.OPEN, then=Value(0)
+                ),
+                When(
+                    unified_document__fundraises__status=Fundraise.CLOSED, then=Value(1)
+                ),
+                When(
+                    unified_document__fundraises__status=Fundraise.COMPLETED,
+                    then=Value(1),
+                ),
+                default=Value(2),
+                output_field=IntegerField(),
+            ),
+            amount_raised=Case(
+                When(
+                    unified_document__fundraises__isnull=False,
+                    then=amount_raised_subquery,
+                ),
+                default=Value(0),
+                output_field=DecimalField(max_digits=19, decimal_places=10),
+            ),
+        )
+
+        # Order by status priority (OPEN first) and then by amount raised (descending)
+        queryset = queryset.order_by("status_priority", "-amount_raised")
 
         return queryset
