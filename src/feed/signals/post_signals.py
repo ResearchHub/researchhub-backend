@@ -38,22 +38,6 @@ def handle_post_create_feed_entry(sender, instance, **kwargs):
 
 
 @receiver(
-    post_save, sender=ResearchhubUnifiedDocument, dispatch_uid="post_delete_feed_entry"
-)
-def handle_post_delete_feed_entry(sender, instance, **kwargs):
-    """
-    When a post is deleted, delete feed entries for all hubs associated with the
-    researchhub document that the post is associated with.
-    """
-    try:
-        _delete_post_feed_entries(instance)
-    except Exception as e:
-        logger.error(
-            f"Failed to delete feed entries for unified document {instance.id}: {e}"
-        )
-
-
-@receiver(
     m2m_changed,
     sender=ResearchhubUnifiedDocument.hubs.through,
     dispatch_uid="post_hubs_changed",
@@ -87,29 +71,6 @@ def _create_post_feed_entries(post):
             priority=1,
         )
     )
-
-
-def _delete_post_feed_entries(unified_document):
-    if (
-        unified_document.document_type == document_type.DISCUSSION
-        and unified_document.is_removed is True
-    ):
-        posts = unified_document.posts.all()
-        hub_ids = list(unified_document.hubs.values_list("id", flat=True))
-
-        tasks = [
-            partial(
-                delete_feed_entry.apply_async,
-                args=(
-                    post.id,
-                    ContentType.objects.get_for_model(post).id,
-                    hub_ids,
-                ),
-                priority=1,
-            )
-            for post in posts
-        ]
-        transaction.on_commit(lambda: [task() for task in tasks])
 
 
 def _handle_post_hubs_added(instance, pk_set):

@@ -55,12 +55,6 @@ def delete_feed_entries_for_unified_document(unified_document):
                 args=(
                     entry.object_id,
                     entry.content_type_id,
-                    entry.parent_object_id if entry.parent_object_id else None,
-                    (
-                        entry.parent_content_type_id
-                        if entry.parent_content_type_id
-                        else None
-                    ),
                 ),
                 priority=1,
             )

@@ -4,10 +4,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
 from feed.models import FeedEntry
-from feed.signals.post_signals import (
-    handle_post_create_feed_entry,
-    handle_post_delete_feed_entry,
-)
+from feed.signals.post_signals import handle_post_create_feed_entry
 from hub.models import Hub
 from researchhub_document.related_models.constants import document_type
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -83,35 +80,6 @@ class TestPostSignals(TestCase):
                         FeedEntry.PUBLISH,
                         [self.hub1.id, self.hub2.id],
                         self.post.created_by.id,
-                    ),
-                    priority=1,
-                ),
-            ]
-        )
-
-    @patch("feed.signals.post_signals.delete_feed_entry")
-    @patch("feed.signals.post_signals.transaction")
-    def test_post_delete_feed_entry(self, mock_transaction, mock_delete_feed_entry):
-        # Arrange
-        mock_transaction.on_commit = lambda func: func()
-        mock_delete_feed_entry.apply_async = MagicMock()
-
-        self.unified_document.is_removed = True
-        self.unified_document.save()
-
-        # Act
-        handle_post_delete_feed_entry(
-            sender=ResearchhubPost, instance=self.unified_document
-        )
-
-        # Assert
-        mock_delete_feed_entry.apply_async.assert_has_calls(
-            [
-                call(
-                    args=(
-                        self.post.id,
-                        ContentType.objects.get_for_model(self.post).id,
-                        [self.hub1.id, self.hub2.id],
                     ),
                     priority=1,
                 ),
