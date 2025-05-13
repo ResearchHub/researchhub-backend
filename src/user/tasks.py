@@ -13,12 +13,25 @@ from utils.sentry import log_info
 
 @app.task
 def handle_spam_user_task(user_id, requestor=None):
-    User = apps.get_model("user.User")
+    from researchhub_document.models import ResearchhubUnifiedDocument
+    from user.models import User
+
     user = User.objects.filter(id=user_id).first()
     from researchhub_comment.views.rh_comment_view import remove_bounties
 
     if user:
-        user.papers.update(is_removed=True)
+        papers = user.papers.all()
+        papers.update(is_removed=True)
+        ResearchhubUnifiedDocument.all_objects.filter(paper__in=papers).update(
+            is_removed=True
+        )
+
+        posts = user.created_posts.all()
+        post_unified_docs = ResearchhubUnifiedDocument.all_objects.filter(
+            posts__in=posts
+        ).distinct()
+        post_unified_docs.update(is_removed=True)
+
         comments = user.created_researchhub_comment_rhcommentmodel.all()
         for comment in comments.iterator():
             remove_bounties(comment)
@@ -33,10 +46,9 @@ def handle_spam_user_task(user_id, requestor=None):
 
 @app.task
 def reinstate_user_task(user_id):
-    User = apps.get_model("user.User")
-    ResearchhubUnifiedDocument = apps.get_model(
-        "researchhub_document.ResearchhubUnifiedDocument"
-    )
+    from researchhub_document.models import ResearchhubUnifiedDocument
+    from user.models import User
+
     user = User.objects.get(id=user_id)
 
     papers = Paper.objects.filter(uploaded_by=user)
@@ -45,6 +57,12 @@ def reinstate_user_task(user_id):
     ResearchhubUnifiedDocument.all_objects.filter(paper__in=papers).update(
         is_removed=False
     )
+
+    posts = user.created_posts.all()
+    post_unified_docs = ResearchhubUnifiedDocument.all_objects.filter(
+        posts__in=posts
+    ).distinct()
+    post_unified_docs.update(is_removed=False)
 
 
 def get_latest_actions(cursor):
