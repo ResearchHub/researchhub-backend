@@ -26,6 +26,22 @@ class PaperSignalsTests(TestCase):
         self.assertEqual(len(feed_entries), self.paper.hubs.count())
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
+    def test_feed_entries_are_created_with_multiple_hubs(self):
+        """Test that feed entries are created with multiple hubs in the hubs field."""
+        hub2 = create_hub(name="Test Hub 2")
+        hub3 = create_hub(name="Test Hub 3")
+        self.paper.unified_document.hubs.add(hub2, hub3)
+        self.paper.save()
+
+        feed_entries = FeedEntry.objects.filter(
+            content_type=ContentType.objects.get_for_model(self.paper),
+            object_id=self.paper.id,
+        )
+
+        self.assertEqual(len(feed_entries), self.paper.hubs.count())
+        self.assertEqual(len(feed_entries.last().hubs), self.paper.hubs.count())
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     def test_feed_entries_are_deleted_when_hubs_are_removed(self):
         """Test that feed entries are deleted when unified document hubs are removed."""
         feed_entries = FeedEntry.objects.filter(

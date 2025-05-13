@@ -65,7 +65,10 @@ def create_feed_entry(
             unified_document=unified_document,
         )
         if hub_ids:
-            current = feed_entry.hubs or []
+
+            current = (
+                list(unified_document.hubs.all().values_list("id", flat=True)) or []
+            )
             merged = []
             for h in current + list(hub_ids):
                 if h not in merged:
