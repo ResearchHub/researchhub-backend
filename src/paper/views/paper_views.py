@@ -29,6 +29,7 @@ from analytics.amplitude import track_event
 from discussion.reaction_models import Vote as GrmVote
 from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
 from discussion.reaction_views import ReactionViewActionMixin
+from hub.permissions import IsModerator
 from paper.exceptions import DOINotFoundError, PaperSerializerError
 from paper.filters import PaperFilter
 from paper.models import Figure, Paper, PaperSubmission, PaperVersion
@@ -488,6 +489,208 @@ class PaperViewSet(
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    @action(
+        detail=False,
+        methods=["post"],
+        permission_classes=[IsAuthenticated & IsModerator],
+    )
+    def publish_to_researchhub_journal(self, request):
+        """
+        Publish an existing paper to the ResearchHub Journal.
+        Can only be called by editors or moderators.
+
+        Required fields:
+        - previous_paper_id: The ID of the paper to publish in the journal
+        """
+        # Check if user is an editor or moderator
+        user = request.user
+        if not user.is_authenticated:
+            return Response(
+                {"error": "Authentication required"},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        if not user.moderator:
+            return Response(
+                {"error": "Only moderators can publish to ResearchHub Journal"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            with transaction.atomic():
+                # Extract data from request
+                previous_paper_id = request.data.get("previous_paper_id")
+
+                # Validate previous_paper_id
+                if not previous_paper_id:
+                    return Response(
+                        {"error": "previous_paper_id is required"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                # Get the previous paper
+                try:
+                    previous_paper = Paper.objects.get(id=previous_paper_id)
+                except Paper.DoesNotExist as e:
+                    log_error(
+                        e, message=f"Previous paper not found: {previous_paper_id}"
+                    )
+                    return Response(
+                        {
+                            "error": "Previous paper not found. Please check the paper ID and try again."
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                # Create paper using data from previous paper
+                paper_data = {
+                    "title": previous_paper.title,
+                    "paper_title": previous_paper.paper_title or previous_paper.title,
+                    "abstract": previous_paper.abstract,
+                    "abstract_src": previous_paper.abstract_src,
+                    "abstract_src_type": previous_paper.abstract_src_type,
+                    "uploaded_by": request.user,
+                    "paper_publish_date": timezone.now(),
+                    "pdf_license": "cc-by-4.0",  # Use CC-BY 4.0 for journal publications
+                    "work_type": "journal-article",
+                    "doi": None,  # Will be generated later
+                }
+
+                # Keep the PDF URL from the previous paper
+                if previous_paper.pdf_url:
+                    paper_data["pdf_url"] = previous_paper.pdf_url
+
+                # Copy the file if it exists
+                if previous_paper.file:
+                    paper_data["file"] = previous_paper.file
+
+                # Create paper and paper series
+                paper = Paper.objects.create(**paper_data)
+                paper_series = PaperSeries.objects.create()
+                paper.paper_series = paper_series
+                paper.save()
+
+                # Copy authors from previous paper
+                previous_authorships = Authorship.objects.filter(paper=previous_paper)
+                for prev_authorship in previous_authorships:
+                    authorship = Authorship.objects.create(
+                        paper=paper,
+                        author=prev_authorship.author,
+                        department=prev_authorship.department,
+                        email=prev_authorship.email,
+                        source="RESEARCHHUB",
+                        author_position=prev_authorship.author_position,
+                        raw_author_name=prev_authorship.raw_author_name,
+                        is_corresponding=prev_authorship.is_corresponding,
+                    )
+
+                    # Copy institutions if any
+                    if prev_authorship.institutions.exists():
+                        for institution in prev_authorship.institutions.all():
+                            authorship.institutions.add(institution)
+
+                # Copy hubs from previous paper
+                if previous_paper.unified_document:
+                    for hub in previous_paper.unified_document.hubs.all():
+                        paper.unified_document.hubs.add(hub.id)
+
+                # Handle paper versioning and DOI
+                paper_version_number = 1
+                base_doi = None
+                original_paper_id = previous_paper.id
+
+                try:
+                    paper_version = previous_paper.version
+                    original_paper_id = (
+                        paper_version.original_paper_id or paper_version.paper_id
+                    )
+                    paper_version_number = paper_version.version + 1
+                    if paper_version.base_doi:
+                        base_doi = paper_version.base_doi
+                except PaperVersion.DoesNotExist:
+                    # If the previous paper version does not exist, create the initial version
+                    # and set the current version to 2.
+                    PaperVersion.objects.create(
+                        paper=previous_paper,
+                        version=1,
+                        original_paper_id=original_paper_id,
+                    )
+                    paper_version_number = 2
+
+                # Get authors for DOI registration
+                authors = Author.objects.filter(
+                    id__in=Authorship.objects.filter(paper=paper).values_list(
+                        "author_id", flat=True
+                    )
+                )
+
+                doi = DOI(base_doi=base_doi, version=paper_version_number)
+
+                # Register DOI with Crossref
+                crossref_response = doi.register_doi_for_paper(
+                    authors=authors,
+                    title=paper.title,
+                    rh_paper=paper,
+                )
+
+                if crossref_response.status_code != 200:
+                    error_msg = "Crossref API Failure"
+                    log_error(
+                        ValueError(error_msg),
+                        message=f"Crossref API returned status {crossref_response.status_code}",
+                        json_data={"response_text": crossref_response.text},
+                    )
+                    return Response(
+                        {
+                            "error": "Unable to register DOI for this paper. Please try again later."
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                paper.doi = doi.doi
+                paper.save()
+
+                # Create PaperVersion with ResearchHub Journal publication info
+                PaperVersion.objects.create(
+                    paper=paper,
+                    version=paper_version_number,
+                    base_doi=doi.base_doi,
+                    original_paper_id=original_paper_id,
+                    journal=PaperVersion.RESEARCHHUB,
+                    publication_status=PaperVersion.PUBLISHED,
+                )
+
+            # Return serialized paper
+            context = self._get_paper_context(request)
+            serializer = self.dynamic_serializer_class(
+                paper,
+                context=context,
+                _include_fields=[
+                    "id",
+                    "title",
+                    "abstract",
+                    "authors",
+                    "hubs",
+                    "version",
+                    "version_list",
+                ],
+            )
+
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            log_error(
+                e,
+                message="Unhandled exception in publish_to_researchhub_journal",
+                json_data={"request_data": request.data},
+            )
+            return Response(
+                {
+                    "error": "An error occurred while creating the paper. Please try again later."
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
     def _get_integrity_error_response(self, error):
         error_message = str(error)
         parts = error_message.split("DETAIL:")
@@ -685,7 +888,6 @@ class PaperViewSet(
     @action(
         detail=False,
         methods=["get"],
-        permission_classes=[],
     )
     def pdf_coverage(self, request, pk=None):
         date = request.GET.get("date", None)
