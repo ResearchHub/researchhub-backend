@@ -549,7 +549,7 @@ class PaperViewSet(
                     "abstract": previous_paper.abstract,
                     "abstract_src": previous_paper.abstract_src,
                     "abstract_src_type": previous_paper.abstract_src_type,
-                    "uploaded_by": request.user,
+                    "uploaded_by": previous_paper.uploaded_by,
                     "paper_publish_date": timezone.now(),
                     "pdf_license": "cc-by-4.0",  # Use CC-BY 4.0 for journal publications
                     "work_type": "journal-article",

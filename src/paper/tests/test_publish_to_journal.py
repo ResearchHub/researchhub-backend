@@ -92,9 +92,7 @@ class PublishToResearchHubJournalTestCase(TestCase):
         # Verify data was copied from previous paper
         self.assertEqual(new_paper.title, self.previous_paper.title)
         self.assertEqual(new_paper.abstract, self.previous_paper.abstract)
-        self.assertEqual(
-            new_paper.uploaded_by, self.moderator
-        )  # Should be the moderator who published it
+        self.assertEqual(new_paper.uploaded_by, self.previous_paper.uploaded_by)
 
         # Verify paper version was created
         paper_version = PaperVersion.objects.get(paper=new_paper)
