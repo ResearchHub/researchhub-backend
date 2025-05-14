@@ -833,15 +833,13 @@ class PaperVersion(models.Model):
     message = models.TextField(default=None, null=True, blank=True)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
-    journal = models.CharField(
-        max_length=32,
+    journal = models.TextField(
         choices=JOURNAL_CHOICES,
         null=True,
         blank=True,
         help_text="The journal this paper version belongs to",
     )
-    publication_status = models.CharField(
-        max_length=20,
+    publication_status = models.TextField(
         choices=PUBLICATION_STATUS_CHOICES,
         default=PREPRINT,
         help_text="Indicates whether this is a preprint or a published article",
