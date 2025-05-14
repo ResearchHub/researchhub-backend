@@ -9,7 +9,7 @@ This is done for three reasons:
 """
 
 from django.core.cache import cache
-from django.db.models import Q
+from django.db.models import BooleanField, Case, DateTimeField, F, Q, Value, When
 from rest_framework.response import Response
 
 from feed.models import FeedEntry
@@ -118,12 +118,43 @@ class FundingFeedViewSet(BaseFeedView):
                 queryset = queryset.filter(
                     unified_document__fundraises__status=Fundraise.OPEN
                 )
+                # Order by end_date ascending (closest deadline first)
+                queryset = queryset.order_by("unified_document__fundraises__end_date")
             elif fundraise_status.upper() == "CLOSED":
                 queryset = queryset.filter(
                     Q(unified_document__fundraises__status=Fundraise.CLOSED)
                     | Q(unified_document__fundraises__status=Fundraise.COMPLETED)
                 )
-
-        queryset = queryset.order_by("-created_date")
+                # Order by end date descending (most recent deadlines first)
+                queryset = queryset.order_by("-unified_document__fundraises__end_date")
+        else:
+            # For ALL tab: We need different sorting for OPEN vs CLOSED/COMPLETED
+            # Sort first by status (OPEN first), then apply different date sorts based on status
+            queryset = queryset.annotate(
+                # Create a flag to identify OPEN fundraises
+                is_open=Case(
+                    When(
+                        unified_document__fundraises__status=Fundraise.OPEN,
+                        then=Value(True),
+                    ),
+                    default=Value(False),
+                    output_field=BooleanField(),
+                ),
+            ).order_by(
+                "-is_open",
+                # For OPEN (is_open=True): Sort by closest (earliest) end_date first
+                Case(
+                    When(
+                        is_open=True, then=F("unified_document__fundraises__end_date")
+                    ),
+                ),
+                # For CLOSED (is_open=False): Sort by most recent (latest) end_date first
+                Case(
+                    When(
+                        is_open=False, then=F("unified_document__fundraises__end_date")
+                    ),
+                    default=None,
+                ).desc(),
+            )
 
         return queryset
