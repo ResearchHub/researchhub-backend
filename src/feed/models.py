@@ -4,6 +4,7 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 
 from feed.hot_score import calculate_hot_score_for_item
+from hub.models import Hub
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )
@@ -55,6 +56,13 @@ class FeedEntry(DefaultModel):
     )
     parent_object_id = models.PositiveIntegerField(null=True, blank=True)
     parent_item = GenericForeignKey("parent_content_type", "parent_object_id")
+
+    # The hubs associated with the feed entry.
+    hubs = models.ManyToManyField(
+        Hub,
+        blank=True,
+        related_name="feed_entries",
+    )
 
     action = models.TextField(choices=action_choices)
     action_date = models.DateTimeField(db_index=True)

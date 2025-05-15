@@ -74,6 +74,7 @@ def handle_post_hubs_changed(sender, instance, action, pk_set, **kwargs):
 
 
 def _create_post_feed_entries(post):
+    hub_ids = list(post.unified_document.hubs.values_list("id", flat=True))
     tasks = [
         partial(
             create_feed_entry.apply_async,
@@ -83,6 +84,7 @@ def _create_post_feed_entries(post):
                 FeedEntry.PUBLISH,
                 hub.id,
                 ContentType.objects.get_for_model(hub).id,
+                hub_ids,
                 post.created_by.id,
             ),
             priority=1,
@@ -99,6 +101,7 @@ def _delete_post_feed_entries(unified_document):
     ):
         posts = unified_document.posts.all()
         hubs = unified_document.hubs.all()
+        hub_ids = list(unified_document.hubs.values_list("id", flat=True))
 
         tasks = [
             partial(
@@ -108,6 +111,7 @@ def _delete_post_feed_entries(unified_document):
                     ContentType.objects.get_for_model(post).id,
                     hub.id,
                     ContentType.objects.get_for_model(hub).id,
+                    hub_ids,
                 ),
                 priority=1,
             )
@@ -137,6 +141,7 @@ def _handle_post_hubs_added(instance, pk_set):
                     "PUBLISH",
                     hub.id,
                     ContentType.objects.get_for_model(hub).id,
+                    [hub.id],
                 ),
                 priority=1,
             )
@@ -161,6 +166,7 @@ def _handle_post_hubs_removed(instance, pk_set):
                     ContentType.objects.get_for_model(post).id,
                     hub.id,
                     ContentType.objects.get_for_model(hub).id,
+                    [hub.id],
                 ),
                 priority=1,
             )
