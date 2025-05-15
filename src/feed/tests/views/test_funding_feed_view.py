@@ -433,7 +433,7 @@ class FundingFeedViewSetTests(TestCase):
         today = timezone.now()
 
         # Early deadline - 3 days from now
-        early_fundraise = Fundraise.objects.create(
+        Fundraise.objects.create(
             created_by=self.user,
             unified_document=early_doc,
             escrow=escrow_early,
@@ -443,7 +443,7 @@ class FundingFeedViewSetTests(TestCase):
         )
 
         # Medium deadline - 10 days from now
-        medium_fundraise = Fundraise.objects.create(
+        Fundraise.objects.create(
             created_by=self.user,
             unified_document=medium_doc,
             escrow=escrow_medium,
@@ -453,7 +453,7 @@ class FundingFeedViewSetTests(TestCase):
         )
 
         # Later deadline - 30 days from now
-        later_fundraise = Fundraise.objects.create(
+        Fundraise.objects.create(
             created_by=self.user,
             unified_document=later_doc,
             escrow=escrow_later,
@@ -547,7 +547,7 @@ class FundingFeedViewSetTests(TestCase):
         today = timezone.now()
 
         # End dates in the past (all closed fundraises)
-        early_fundraise = Fundraise.objects.create(
+        Fundraise.objects.create(
             created_by=self.user,
             unified_document=early_doc,
             escrow=escrow_early,
@@ -556,7 +556,7 @@ class FundingFeedViewSetTests(TestCase):
             end_date=today - timezone.timedelta(days=30),  # Oldest end date
         )
 
-        medium_fundraise = Fundraise.objects.create(
+        Fundraise.objects.create(
             created_by=self.user,
             unified_document=medium_doc,
             escrow=escrow_medium,
@@ -565,7 +565,7 @@ class FundingFeedViewSetTests(TestCase):
             end_date=today - timezone.timedelta(days=10),  # Middle end date
         )
 
-        later_fundraise = Fundraise.objects.create(
+        Fundraise.objects.create(
             created_by=self.user,
             unified_document=later_doc,
             escrow=escrow_later,
@@ -615,7 +615,7 @@ class FundingFeedViewSetTests(TestCase):
         )
 
         today = timezone.now()
-        early_open_fundraise = Fundraise.objects.create(
+        Fundraise.objects.create(
             created_by=self.user,
             unified_document=early_open_doc,
             escrow=escrow_early_open,
@@ -644,7 +644,7 @@ class FundingFeedViewSetTests(TestCase):
             object_id=later_open_doc.id,
         )
 
-        later_open_fundraise = Fundraise.objects.create(
+        Fundraise.objects.create(
             created_by=self.user,
             unified_document=later_open_doc,
             escrow=escrow_later_open,
@@ -673,7 +673,7 @@ class FundingFeedViewSetTests(TestCase):
             object_id=recent_closed_doc.id,
         )
 
-        recent_closed_fundraise = Fundraise.objects.create(
+        Fundraise.objects.create(
             created_by=self.user,
             unified_document=recent_closed_doc,
             escrow=escrow_recent_closed,
@@ -702,7 +702,7 @@ class FundingFeedViewSetTests(TestCase):
             object_id=old_closed_doc.id,
         )
 
-        old_closed_fundraise = Fundraise.objects.create(
+        Fundraise.objects.create(
             created_by=self.user,
             unified_document=old_closed_doc,
             escrow=escrow_old_closed,
