@@ -1,3 +1,4 @@
+import uuid
 from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
@@ -16,16 +17,16 @@ class PublishToResearchHubJournalTestCase(TestCase):
     def setUp(self):
         # Create users: regular user, moderator, and staff
         self.user = User.objects.create_user(
-            username="testuser", email="test@example.com", password="testpass"
+            username="testuser", email="test@example.com", password=uuid.uuid4().hex
         )
         self.moderator = User.objects.create_user(
-            username="moduser", email="mod@example.com", password="modpass"
+            username="moduser", email="mod@example.com", password=uuid.uuid4().hex
         )
         self.moderator.moderator = True
         self.moderator.save()
 
         self.staff = User.objects.create_user(
-            username="staffuser", email="staff@example.com", password="staffpass"
+            username="staffuser", email="staff@example.com", password=uuid.uuid4().hex
         )
         self.staff.is_staff = True
         self.staff.save()
