@@ -1,3 +1,4 @@
+from django.contrib.contenttypes.models import ContentType
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils.crypto import get_random_string
@@ -9,7 +10,7 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from utils.sentry import log_error
 
-from .models import Paper
+from .models import Paper, PaperVersion
 
 
 @receiver(post_save, sender=Paper, dispatch_uid="add_paper_slug")
@@ -44,3 +45,39 @@ def add_unified_doc(created, instance, **kwargs):
                 instance.save()
             except Exception as e:
                 log_error("EXCPETION (add_unified_doc): ", e)
+
+
+@receiver(
+    post_save, sender="purchase.Payment", dispatch_uid="update_paper_journal_status"
+)
+def update_paper_journal_status(sender, instance, created, **kwargs):
+    """
+    When a payment is received for a paper, update its version to be part
+    of the ResearchHub journal.
+
+    This signal handler checks if the payment is for a Paper model and if so,
+    finds the PaperVersion for that paper and sets its journal field to RESEARCHHUB.
+    """
+    if not created:
+        return
+
+    try:
+        paper_content_type = ContentType.objects.get_for_model(Paper)
+
+        if instance.content_type_id == paper_content_type.id:
+            paper_id = instance.object_id
+            paper = Paper.objects.get(id=paper_id)
+
+            try:
+                paper_version = PaperVersion.objects.get(paper=paper)
+
+                paper_version.journal = PaperVersion.RESEARCHHUB
+                paper_version.save()
+
+            except PaperVersion.DoesNotExist:
+                log_error(
+                    f"No PaperVersion found for paper {paper_id}, skipping journal update"
+                )
+
+    except Exception as e:
+        log_error(f"Error updating paper journal status: {e}")

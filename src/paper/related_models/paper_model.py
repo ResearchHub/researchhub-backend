@@ -809,6 +809,19 @@ class Paper(AbstractGenericReactionModel):
 
 
 class PaperVersion(models.Model):
+    PREPRINT = "PREPRINT"
+    PUBLISHED = "PUBLISHED"
+    PUBLICATION_STATUS_CHOICES = [
+        (PREPRINT, "Preprint"),
+        (PUBLISHED, "Published"),
+    ]
+
+    # Journal choices
+    RESEARCHHUB = "RESEARCHHUB"
+    JOURNAL_CHOICES = [
+        (RESEARCHHUB, "ResearchHub Journal"),
+    ]
+
     paper = models.OneToOneField(
         Paper, on_delete=models.CASCADE, related_name="version"
     )
@@ -820,6 +833,17 @@ class PaperVersion(models.Model):
     message = models.TextField(default=None, null=True, blank=True)
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
+    journal = models.TextField(
+        choices=JOURNAL_CHOICES,
+        null=True,
+        blank=True,
+        help_text="The journal this paper version belongs to",
+    )
+    publication_status = models.TextField(
+        choices=PUBLICATION_STATUS_CHOICES,
+        default=PREPRINT,
+        help_text="Indicates whether this is a preprint or a published article",
+    )
 
     class Meta:
         indexes = (
