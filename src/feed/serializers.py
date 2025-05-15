@@ -20,7 +20,9 @@ from .models import FeedEntry
 class SimpleUserSerializer(serializers.ModelSerializer):
     """Minimal user serializer with just essential fields"""
 
-    is_verified = serializers.SerializerMethodField()
+    is_verified = serializers.BooleanField(
+        source="userverification.is_verified", default=False
+    )
 
     class Meta:
         model = User
@@ -31,13 +33,6 @@ class SimpleUserSerializer(serializers.ModelSerializer):
             "email",
             "is_verified",
         ]
-
-    def get_is_verified(self, obj):
-        if obj is None:
-            return False
-
-        verification = getattr(obj, "user_verification", None)
-        return verification.is_verified if verification else False
 
 
 class SimpleAuthorSerializer(serializers.ModelSerializer):
