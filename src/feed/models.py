@@ -137,6 +137,13 @@ class FeedEntryPopular(models.Model):
         related_name="popular_feed_entries",
     )
     hot_score = models.FloatField()
+    # The hubs associated with the feed entry.
+    hubs = models.ManyToManyField(
+        Hub,
+        through="FeedEntryPopularHubs",
+        blank=True,
+        related_name="popular_feed_entries",
+    )
     item = GenericForeignKey("content_type", "object_id")
     object_id = models.PositiveIntegerField()
     metrics = models.JSONField(default=dict)
@@ -187,6 +194,24 @@ class FeedEntryPopular(models.Model):
             cursor.execute("SELECT pg_prewarm('feed_feedentry_popular')")
 
 
+class FeedEntryPopularHubs(models.Model):
+    feedentrypopular = models.ForeignKey(
+        "FeedEntryPopular",
+        db_column="feedentry_id",
+        on_delete=models.DO_NOTHING,
+    )
+    hub = models.ForeignKey(
+        Hub,
+        db_column="hub_id",
+        on_delete=models.DO_NOTHING,
+    )
+
+    class Meta:
+        managed = False
+        db_table = "feed_feedentry_hubs"
+        unique_together = (("feedentrypopular", "hub"),)
+
+
 class FeedEntryLatest(models.Model):
     """
     Materialized view for latest feed entries, based on the `FeedEntry` model.
@@ -204,6 +229,13 @@ class FeedEntryLatest(models.Model):
         on_delete=models.DO_NOTHING,
         db_column="content_type_id",
         related_name="latest_feed_entries",
+    )
+    # The hubs associated with the feed entry.
+    hubs = models.ManyToManyField(
+        Hub,
+        through="FeedEntryLatestHubs",
+        related_name="latest_feed_entries",
+        blank=True,
     )
     item = GenericForeignKey("content_type", "object_id")
     object_id = models.PositiveIntegerField()
@@ -253,3 +285,21 @@ class FeedEntryLatest(models.Model):
                 "REFRESH MATERIALIZED VIEW CONCURRENTLY feed_feedentry_latest"
             )
             cursor.execute("SELECT pg_prewarm('feed_feedentry_latest')")
+
+
+class FeedEntryLatestHubs(models.Model):
+    feedentrylatest = models.ForeignKey(
+        "FeedEntryLatest",
+        db_column="feedentry_id",
+        on_delete=models.DO_NOTHING,
+    )
+    hub = models.ForeignKey(
+        Hub,
+        db_column="hub_id",
+        on_delete=models.DO_NOTHING,
+    )
+
+    class Meta:
+        managed = False
+        db_table = "feed_feedentry_hubs"
+        unique_together = (("feedentrylatest", "hub"),)

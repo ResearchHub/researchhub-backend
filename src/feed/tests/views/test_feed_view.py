@@ -80,6 +80,7 @@ class FeedViewSetTests(TestCase):
             parent_object_id=self.hub.id,
             unified_document=self.paper.unified_document,
         )
+        self.feed_entry.hubs.add(self.hub)
 
         # Create another user and their content for testing
         self.other_user = User.objects.create_user(
@@ -104,6 +105,7 @@ class FeedViewSetTests(TestCase):
             parent_object_id=self.other_hub.id,
             unified_document=self.other_paper.unified_document,
         )
+        self.other_feed_entry.hubs.add(self.other_hub)
 
         self.post_feed_entry = FeedEntry.objects.create(
             user=self.other_user,
@@ -116,6 +118,7 @@ class FeedViewSetTests(TestCase):
             parent_object_id=self.other_hub.id,
             unified_document=self.post.unified_document,
         )
+        self.post_feed_entry.hubs.add(self.other_hub)
 
         FeedEntryLatest.refresh()
         FeedEntryPopular.refresh()
@@ -437,7 +440,7 @@ class FeedViewSetTests(TestCase):
 
         high_score_doc.hubs.add(another_hub)
 
-        FeedEntry.objects.create(
+        feed_entry = FeedEntry.objects.create(
             user=self.user,
             action="PUBLISH",
             action_date=timezone.now(),
@@ -447,6 +450,7 @@ class FeedViewSetTests(TestCase):
             parent_object_id=another_hub.id,
             unified_document=high_score_doc,
         )
+        feed_entry.hubs.add(another_hub)
         FeedEntryPopular.refresh()
 
         url = reverse("feed-list")
