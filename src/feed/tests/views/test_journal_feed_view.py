@@ -236,7 +236,7 @@ class JournalFeedViewSetTests(TestCase):
 
         self.assertIsNotNone(paper_data)
         self.assertIn("user_vote", paper_data)
-        self.assertEqual(paper_data["user_vote"]["id"], vote.id)
+        self.assertEqual(paper_data["user_vote"]["id"], vote.id)  # NOSONAR
 
         # Use the integer value for the vote type, as that's what gets serialized
         vote_type = paper_data["user_vote"]["vote_type"]
@@ -295,7 +295,7 @@ class JournalFeedViewSetTests(TestCase):
         self.assertIsNotNone(paper_data)
         self.assertIn("user_vote", paper_data)
         # Verify the vote ID matches the one we created
-        self.assertEqual(paper_data["user_vote"]["id"], vote.id)
+        self.assertEqual(paper_data["user_vote"]["id"], vote.id)  # NOSONAR
 
     def test_pagination(self):
         """Test journal feed pagination"""
