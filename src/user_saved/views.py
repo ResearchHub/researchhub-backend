@@ -10,6 +10,9 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 from researchhub_document.serializers.researchhub_unified_document_serializer import (
     DynamicUnifiedDocumentSerializer,
 )
+from researchhub_document.views.researchhub_unified_document_views import (
+    ResearchhubUnifiedDocumentViewSet,
+)
 
 from .models import UserSavedEntry, UserSavedList
 from .serializers import (
@@ -18,6 +21,8 @@ from .serializers import (
     DeleteListSerializer,
     UserSavedListSerializer,
 )
+
+LIST_NOT_FOUND = "List not found"
 
 
 class UserSavedView(APIView):
@@ -36,7 +41,9 @@ class UserSavedView(APIView):
                     usersavedentry__parent_list=user_list,
                     usersavedentry__is_removed=False,
                 )
-                context = self._get_serializer_context()
+                context = ResearchhubUnifiedDocumentViewSet._get_serializer_context(
+                    self
+                )
                 serializer = DynamicUnifiedDocumentSerializer(
                     docs,
                     _include_fields=[
@@ -59,7 +66,7 @@ class UserSavedView(APIView):
                 return Response(serializer.data, status=status.HTTP_200_OK)
             except UserSavedList.DoesNotExist:
                 return Response(
-                    {"error": "List not found"},
+                    {"error": LIST_NOT_FOUND},
                     status=status.HTTP_404_NOT_FOUND,
                 )
         if u_doc_id:
@@ -168,7 +175,7 @@ class UserSavedView(APIView):
                 )
             except UserSavedList.DoesNotExist:
                 return Response(
-                    {"error": "List not found"}, status=status.HTTP_404_NOT_FOUND
+                    {"error": LIST_NOT_FOUND}, status=status.HTTP_404_NOT_FOUND
                 )
             except ResearchhubUnifiedDocument.DoesNotExist:
                 return Response(
@@ -202,98 +209,6 @@ class UserSavedView(APIView):
                 )
             except UserSavedList.DoesNotExist:
                 return Response(
-                    {"error": "List not found"}, status=status.HTTP_404_NOT_FOUND
+                    {"error": LIST_NOT_FOUND}, status=status.HTTP_404_NOT_FOUND
                 )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def _get_serializer_context(self):
-        context = {
-            "doc_duds_get_documents": {
-                "_include_fields": [
-                    "abstract",
-                    "created_by",
-                    "created_date",
-                    "discussion_count",
-                    "file",
-                    "first_preview",
-                    "hot_score",
-                    "id",
-                    "external_source",
-                    "paper_publish_date",
-                    "paper_title",
-                    "pdf_url",
-                    "image_url",
-                    "is_open_access",
-                    "oa_status",
-                    "pdf_copyright_allows_display",
-                    "authors",
-                    "preview_img",
-                    "renderable_text",
-                    "slug",
-                    "title",
-                    "uploaded_by",
-                    "uploaded_date",
-                    "citations",
-                    "authorships",
-                    "work_type",
-                ]
-            },
-            "doc_duds_get_hubs": {
-                "_include_fields": [
-                    "id",
-                    "name",
-                    "is_locked",
-                    "slug",
-                    "is_removed",
-                    "hub_image",
-                    "is_used_for_rep",
-                ],
-            },
-            "pap_dps_get_authorships": {
-                "_include_fields": [
-                    "id",
-                    "author",
-                    "author_position",
-                    "author_id",
-                    "raw_author_name",
-                    "is_corresponding",
-                ]
-            },
-            "authorship::get_author": {"_include_fields": ["id", "profile_image"]},
-            "doc_dps_get_created_by": {
-                "_include_fields": [
-                    "id",
-                    "author_profile",
-                ]
-            },
-            "pap_dps_get_uploaded_by": {
-                "_include_fields": [
-                    "id",
-                    "author_profile",
-                ]
-            },
-            "pap_dps_get_authors": {
-                "_include_fields": ["id", "first_name", "last_name"]
-            },
-            "doc_duds_get_fundraise": {
-                "_include_fields": [
-                    "id",
-                    "status",
-                    "goal_amount",
-                    "goal_currency",
-                    "start_date",
-                    "end_date",
-                    "amount_raised",
-                    "contributors",
-                ]
-            },
-            "pch_dfs_get_contributors": {
-                "_include_fields": [
-                    "id",
-                    "author_profile",
-                    "first_name",
-                    "last_name",
-                ]
-            },
-        }
-        return context
