@@ -36,8 +36,8 @@ class SimpleUserSerializer(serializers.ModelSerializer):
         if obj is None:
             return False
 
-        user_verification = UserVerification.objects.filter(user=obj).last()
-        return user_verification.is_verified if user_verification else False
+        verification = getattr(obj, "user_verification", None)
+        return verification.is_verified if verification else False
 
 
 class SimpleAuthorSerializer(serializers.ModelSerializer):
