@@ -70,9 +70,10 @@ def update_paper_journal_status(sender, instance, created, **kwargs):
 
             try:
                 paper_version = PaperVersion.objects.get(paper=paper)
-
-                paper_version.journal = PaperVersion.RESEARCHHUB
-                paper_version.save()
+                paper_versions = PaperVersion.objects.filter(
+                    original_paper=paper_version.original_paper
+                )
+                paper_versions.update(journal=PaperVersion.RESEARCHHUB)
 
             except PaperVersion.DoesNotExist:
                 log_error(
