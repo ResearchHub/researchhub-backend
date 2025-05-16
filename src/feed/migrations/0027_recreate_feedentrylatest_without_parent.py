@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
     def get_sql():
         # Limit data to the last 30 days in production
         limit_data = (
-            "WHERE fe.created_date >= (NOW() - INTERVAL '30 days')"
+            "AND fe.created_date >= (NOW() - INTERVAL '30 days')"
             if settings.PRODUCTION
             else ""
         )
@@ -34,7 +34,13 @@ class Migration(migrations.Migration):
                         fe.updated_date
                     FROM
                         feed_feedentry fe
-                    {limit_data}
+                    WHERE
+                        fe.id IN (
+                            SELECT DISTINCT ON (content_type_id, object_id) id
+                            FROM feed_feedentry
+                            ORDER BY content_type_id ASC, object_id ASC, action_date DESC
+                        )
+                        {limit_data}
                     ORDER BY
                         fe.action_date DESC;
 
