@@ -60,7 +60,6 @@ class BountySignalsTests(TestCase):
 
         # Create feed entries for our test
         paper_content_type = ContentType.objects.get_for_model(self.paper)
-        hub_content_type = ContentType.objects.get_for_model(self.hub)
         post_content_type = ContentType.objects.get_for_model(self.post)
         comment_content_type = ContentType.objects.get_for_model(self.comment)
 
