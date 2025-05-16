@@ -47,16 +47,6 @@ class FeedEntry(DefaultModel):
         null=False,
     )
 
-    parent_content_type = models.ForeignKey(
-        ContentType,
-        on_delete=models.CASCADE,
-        related_name="parent_feed_entries",
-        null=True,
-        blank=True,
-    )
-    parent_object_id = models.PositiveIntegerField(null=True, blank=True)
-    parent_item = GenericForeignKey("parent_content_type", "parent_object_id")
-
     # The hubs associated with the feed entry.
     hubs = models.ManyToManyField(
         Hub,
@@ -80,10 +70,6 @@ class FeedEntry(DefaultModel):
     class Meta:
         indexes = [
             models.Index(
-                fields=["parent_content_type", "parent_object_id"],
-                name="feed_parent_lookup_idx",
-            ),
-            models.Index(
                 fields=["content_type", "object_id", "-action_date"],
                 name="feed_partition_action_idx",
             ),
@@ -105,8 +91,6 @@ class FeedEntry(DefaultModel):
                 fields=[
                     "content_type",
                     "object_id",
-                    "parent_content_type",
-                    "parent_object_id",
                     "action",
                     "user",
                 ],
@@ -147,16 +131,6 @@ class FeedEntryPopular(models.Model):
     item = GenericForeignKey("content_type", "object_id")
     object_id = models.PositiveIntegerField()
     metrics = models.JSONField(default=dict)
-    parent_content_type = models.ForeignKey(
-        ContentType,
-        on_delete=models.DO_NOTHING,
-        db_column="parent_content_type_id",
-        related_name="popular_parent_feed_entries",
-        null=True,
-        blank=True,
-    )
-    parent_item = GenericForeignKey("parent_content_type", "parent_object_id")
-    parent_object_id = models.PositiveIntegerField(null=True)
     unified_document = models.ForeignKey(
         ResearchhubUnifiedDocument,
         on_delete=models.DO_NOTHING,
@@ -240,16 +214,6 @@ class FeedEntryLatest(models.Model):
     item = GenericForeignKey("content_type", "object_id")
     object_id = models.PositiveIntegerField()
     metrics = models.JSONField(default=dict)
-    parent_content_type = models.ForeignKey(
-        ContentType,
-        on_delete=models.DO_NOTHING,
-        db_column="parent_content_type_id",
-        related_name="latest_parent_feed_entries",
-        null=True,
-        blank=True,
-    )
-    parent_item = GenericForeignKey("parent_content_type", "parent_object_id")
-    parent_object_id = models.PositiveIntegerField(null=True)
     unified_document = models.ForeignKey(
         ResearchhubUnifiedDocument,
         on_delete=models.DO_NOTHING,
