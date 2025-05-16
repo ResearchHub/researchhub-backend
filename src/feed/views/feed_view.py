@@ -87,7 +87,6 @@ class FeedViewSet(BaseFeedView):
 
         queryset = queryset.select_related(
             "content_type",
-            "parent_content_type",
             "user",
             "user__author_profile",
         )
