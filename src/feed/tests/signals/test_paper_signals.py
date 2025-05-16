@@ -26,17 +26,19 @@ class PaperSignalsTests(TestCase):
         self.assertEqual(len(feed_entries), self.paper.hubs.count())
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
-    def test_feed_entries_are_deleted_when_hubs_are_removed(self):
+    def test_feed_entries_are_deleted_when_all_hubs_are_removed(self):
         """Test that feed entries are deleted when unified document hubs are removed."""
+        # Arrange
         feed_entries = FeedEntry.objects.filter(
             content_type=ContentType.objects.get_for_model(self.paper),
             object_id=self.paper.id,
         )
         self.assertEqual(len(feed_entries), self.paper.hubs.count())
 
-        initial_hub = self.paper.unified_document.hubs.first()
-        self.paper.unified_document.hubs.remove(initial_hub)
+        # Act
+        self.paper.unified_document.hubs.remove()  # Remove all hubs
 
+        # Assert
         feed_entries = FeedEntry.objects.filter(
             content_type=ContentType.objects.get_for_model(self.paper),
             object_id=self.paper.id,
