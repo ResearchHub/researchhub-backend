@@ -14,8 +14,8 @@ from .models import UserSavedEntry, UserSavedList
 class UserSavedViewTests(APITestCase):
     def setUp(self):
         # Create two users for testing user scoping
-        self.user1 = User.objects.create_user(username="user1", password="testpass")
-        self.user2 = User.objects.create_user(username="user2", password="testpass")
+        self.user1 = User.objects.create_user(username="user1")
+        self.user2 = User.objects.create_user(username="user2")
 
         # Create unified documents
         self.doc1 = ResearchhubUnifiedDocument.objects.create(document_type=PAPER)
