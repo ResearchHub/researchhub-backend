@@ -479,18 +479,6 @@ class FeedViewSetTests(TestCase):
         )
 
         FeedEntry.objects.create(
-            content_type=self.paper_content_type,
-            object_id=self.paper.id,
-            item=self.paper,
-            created_date=timezone.now(),
-            action="PUBLISH",
-            action_date=timezone.now(),
-            metrics={"votes": 100, "comments": 10},
-            user=self.user,
-            unified_document=self.unified_document,
-        )
-
-        FeedEntry.objects.create(
             content_type=ContentType.objects.get_for_model(ResearchhubPost),
             object_id=post.id,
             item=post,
@@ -543,7 +531,7 @@ class FeedViewSetTests(TestCase):
         )
 
         feed_entries = FeedEntry.objects.all()
-        self.assertEqual(feed_entries.count(), 6)
+        self.assertEqual(feed_entries.count(), 5)
 
         # Act
         url = reverse("feed-list")
@@ -681,7 +669,7 @@ class FeedViewSetTests(TestCase):
         # Create another entry for the same paper but with an older date and
         # different action
         # Using OPEN action to avoid unique constraint violation
-        _ = FeedEntry.objects.create(
+        FeedEntry.objects.create(
             user=self.user,
             action="OPEN",
             action_date=timezone.now() - timezone.timedelta(days=5),
