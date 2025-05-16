@@ -64,6 +64,12 @@ class Fundraise(DefaultModel):
         default=get_default_expiration_date,
     )
 
+    class Meta:
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["end_date"]),
+        ]
+
     def is_expired(self):
         if self.end_date:
             return self.end_date < datetime.now(pytz.UTC)

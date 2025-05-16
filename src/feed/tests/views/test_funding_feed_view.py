@@ -362,3 +362,396 @@ class FundingFeedViewSetTests(TestCase):
         self.assertEqual(
             response.data["results"][0]["content_object"]["id"], self.other_post.id
         )
+
+    def test_open_fundraise_sorting(self):
+        """Test that OPEN fundraises are sorted by end_date in ascending order"""
+        # Create several additional open fundraises with different end dates
+
+        # Create a unified document and post for each test fundraise
+        # Earlier deadline (closest to now)
+        early_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        early_post = ResearchhubPost.objects.create(
+            title="Early Deadline Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=early_doc,
+            created_date=timezone.now(),
+        )
+
+        # Medium deadline
+        medium_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        medium_post = ResearchhubPost.objects.create(
+            title="Medium Deadline Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=medium_doc,
+            created_date=timezone.now(),
+        )
+
+        # Later deadline (furthest in future)
+        later_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        later_post = ResearchhubPost.objects.create(
+            title="Later Deadline Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=later_doc,
+            created_date=timezone.now(),
+        )
+
+        # Create escrows for each fundraise
+        escrow_early = Escrow.objects.create(
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=early_doc.id,
+        )
+
+        escrow_medium = Escrow.objects.create(
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=medium_doc.id,
+        )
+
+        escrow_later = Escrow.objects.create(
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=later_doc.id,
+        )
+
+        # Create fundraises with different end dates (all OPEN)
+        today = timezone.now()
+
+        # Early deadline - 3 days from now
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=early_doc,
+            escrow=escrow_early,
+            status=Fundraise.OPEN,
+            goal_amount=100,
+            end_date=today + timezone.timedelta(days=3),
+        )
+
+        # Medium deadline - 10 days from now
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=medium_doc,
+            escrow=escrow_medium,
+            status=Fundraise.OPEN,
+            goal_amount=100,
+            end_date=today + timezone.timedelta(days=10),
+        )
+
+        # Later deadline - 30 days from now
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=later_doc,
+            escrow=escrow_later,
+            status=Fundraise.OPEN,
+            goal_amount=100,
+            end_date=today + timezone.timedelta(days=30),
+        )
+
+        # Query the OPEN fundraises
+        url = reverse("funding_feed-list") + "?fundraise_status=OPEN"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should have 4 results (the original open fundraise + 3 new ones)
+        self.assertEqual(len(response.data["results"]), 4)
+
+        # Extract post IDs in the order they are returned
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+
+        # Verify ordering - closest deadlines should be first
+        # Check early_post is before medium_post
+        self.assertLess(post_ids.index(early_post.id), post_ids.index(medium_post.id))
+
+        # Check medium_post is before later_post
+        self.assertLess(post_ids.index(medium_post.id), post_ids.index(later_post.id))
+
+    def test_closed_fundraise_sorting(self):
+        """Test that CLOSED fundraises are sorted by end_date in descending order"""
+        # Create several additional closed fundraises with different end dates
+
+        # Create unified documents and posts for test fundraises
+        early_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        early_post = ResearchhubPost.objects.create(
+            title="Early Closed Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=early_doc,
+            created_date=timezone.now(),
+        )
+
+        medium_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        medium_post = ResearchhubPost.objects.create(
+            title="Medium Closed Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=medium_doc,
+            created_date=timezone.now(),
+        )
+
+        later_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        later_post = ResearchhubPost.objects.create(
+            title="Later Closed Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=later_doc,
+            created_date=timezone.now(),
+        )
+
+        # Create escrows for each fundraise
+        escrow_early = Escrow.objects.create(
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=early_doc.id,
+        )
+
+        escrow_medium = Escrow.objects.create(
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=medium_doc.id,
+        )
+
+        escrow_later = Escrow.objects.create(
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=later_doc.id,
+        )
+
+        # Create fundraises with different end dates (all CLOSED)
+        today = timezone.now()
+
+        # End dates in the past (all closed fundraises)
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=early_doc,
+            escrow=escrow_early,
+            status=Fundraise.CLOSED,
+            goal_amount=100,
+            end_date=today - timezone.timedelta(days=30),  # Oldest end date
+        )
+
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=medium_doc,
+            escrow=escrow_medium,
+            status=Fundraise.CLOSED,
+            goal_amount=100,
+            end_date=today - timezone.timedelta(days=10),  # Middle end date
+        )
+
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=later_doc,
+            escrow=escrow_later,
+            status=Fundraise.CLOSED,
+            goal_amount=100,
+            end_date=today - timezone.timedelta(days=3),  # Most recent end date
+        )
+
+        # Query the CLOSED fundraises
+        url = reverse("funding_feed-list") + "?fundraise_status=CLOSED"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should have 4 results (the original closed fundraise + 3 new ones)
+        self.assertEqual(len(response.data["results"]), 4)
+
+        # Extract post IDs in the order they are returned
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+
+        # Verify ordering - most recent end dates should be first for CLOSED
+        # Check later_post (most recent end date) is before medium_post
+        self.assertLess(post_ids.index(later_post.id), post_ids.index(medium_post.id))
+
+        # Check medium_post is before early_post
+        self.assertLess(post_ids.index(medium_post.id), post_ids.index(early_post.id))
+
+    def test_all_fundraise_conditional_sorting(self):
+        """Test the conditional sorting for the ALL tab (mixed OPEN and CLOSED fundraises)"""
+        # Create an additional open fundraise with early deadline
+        early_open_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        early_open_post = ResearchhubPost.objects.create(
+            title="Early Open Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=early_open_doc,
+            created_date=timezone.now(),
+        )
+
+        escrow_early_open = Escrow.objects.create(
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=early_open_doc.id,
+        )
+
+        today = timezone.now()
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=early_open_doc,
+            escrow=escrow_early_open,
+            status=Fundraise.OPEN,
+            goal_amount=100,
+            end_date=today + timezone.timedelta(days=3),  # Very close deadline
+        )
+
+        # Create an additional open fundraise with later deadline
+        later_open_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        later_open_post = ResearchhubPost.objects.create(
+            title="Later Open Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=later_open_doc,
+            created_date=timezone.now(),
+        )
+
+        escrow_later_open = Escrow.objects.create(
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=later_open_doc.id,
+        )
+
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=later_open_doc,
+            escrow=escrow_later_open,
+            status=Fundraise.OPEN,
+            goal_amount=100,
+            end_date=today + timezone.timedelta(days=30),  # Further deadline
+        )
+
+        # Create an additional closed fundraise with recent end date
+        recent_closed_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        recent_closed_post = ResearchhubPost.objects.create(
+            title="Recent Closed Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=recent_closed_doc,
+            created_date=timezone.now(),
+        )
+
+        escrow_recent_closed = Escrow.objects.create(
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=recent_closed_doc.id,
+        )
+
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=recent_closed_doc,
+            escrow=escrow_recent_closed,
+            status=Fundraise.CLOSED,
+            goal_amount=100,
+            end_date=today - timezone.timedelta(days=3),  # Recently closed
+        )
+
+        # Create an additional closed fundraise with older end date
+        old_closed_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        old_closed_post = ResearchhubPost.objects.create(
+            title="Old Closed Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=old_closed_doc,
+            created_date=timezone.now(),
+        )
+
+        escrow_old_closed = Escrow.objects.create(
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=old_closed_doc.id,
+        )
+
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=old_closed_doc,
+            escrow=escrow_old_closed,
+            status=Fundraise.CLOSED,
+            goal_amount=100,
+            end_date=today - timezone.timedelta(days=30),  # Closed a while ago
+        )
+
+        # Query the ALL fundraises (no filter)
+        url = reverse("funding_feed-list")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should have 6 results (2 original + 4 new ones)
+        self.assertEqual(len(response.data["results"]), 6)
+
+        # Extract post IDs in the order they are returned
+        post_ids = [item["content_object"]["id"] for item in response.data["results"]]
+
+        # Verify the ordering is as expected:
+        # 1. All OPEN fundraises should come before CLOSED ones
+        # 2. Within OPEN, closer deadlines should be first
+        # 3. Within CLOSED, more recent end dates should be first
+
+        # All open posts should come before all closed posts
+        all_open_post_ids = [early_open_post.id, later_open_post.id, self.post.id]
+        all_closed_post_ids = [
+            recent_closed_post.id,
+            old_closed_post.id,
+            self.other_post.id,
+        ]
+
+        # Get the last index of any open post
+        last_open_index = max(post_ids.index(post_id) for post_id in all_open_post_ids)
+
+        # Get the first index of any closed post
+        first_closed_index = min(
+            post_ids.index(post_id) for post_id in all_closed_post_ids
+        )
+
+        # Verify that all open posts come before all closed posts
+        self.assertLess(last_open_index, first_closed_index)
+
+        # Within OPEN posts, verify closer deadlines come first
+        self.assertLess(
+            post_ids.index(early_open_post.id), post_ids.index(later_open_post.id)
+        )
+
+        # Within CLOSED posts, verify more recent end dates come first
+        self.assertLess(
+            post_ids.index(recent_closed_post.id), post_ids.index(old_closed_post.id)
+        )
