@@ -90,6 +90,7 @@ class FeedViewSet(BaseFeedView):
             "parent_content_type",
             "user",
             "user__author_profile",
+            "user__userverification",
         )
 
         # Apply source filter
