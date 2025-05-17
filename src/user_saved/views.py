@@ -41,28 +41,7 @@ class UserSavedView(APIView):
                     usersavedentry__parent_list=user_list,
                     usersavedentry__is_removed=False,
                 )
-                context = ResearchhubUnifiedDocumentViewSet._get_serializer_context(
-                    self
-                )
-                serializer = DynamicUnifiedDocumentSerializer(
-                    docs,
-                    _include_fields=[
-                        "id",
-                        "created_date",
-                        "reviews",
-                        "title",
-                        "documents",
-                        "paper_title",
-                        "slug",
-                        "is_removed",
-                        "document_type",
-                        "hubs",
-                        "created_by",
-                    ],
-                    many=True,
-                    context=context,
-                )
-
+                serializer = self._get_docs_serializer(docs)
                 return Response(serializer.data, status=status.HTTP_200_OK)
             except UserSavedList.DoesNotExist:
                 return Response(
@@ -212,3 +191,25 @@ class UserSavedView(APIView):
                     {"error": LIST_NOT_FOUND}, status=status.HTTP_404_NOT_FOUND
                 )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def _get_docs_serializer(self, docs):
+        context = ResearchhubUnifiedDocumentViewSet._get_serializer_context(self)
+        serializer = DynamicUnifiedDocumentSerializer(
+            docs,
+            _include_fields=[
+                "id",
+                "created_date",
+                "reviews",
+                "title",
+                "documents",
+                "paper_title",
+                "slug",
+                "is_removed",
+                "document_type",
+                "hubs",
+                "created_by",
+            ],
+            many=True,
+            context=context,
+        )
+        return serializer

@@ -36,8 +36,10 @@ class UserSavedList(DefaultAuthenticatedModel, SoftDeletableModel):
         ]
 
 
-# This models a row for a user's saved content, which is a UnifiedDocument
 class UserSavedEntry(DefaultAuthenticatedModel, SoftDeletableModel):
+    """
+    UserSavedEntry models a row for a user's saved content, which is a UnifiedDocument
+    """
 
     unified_document = models.ForeignKey(
         ResearchhubUnifiedDocument,
