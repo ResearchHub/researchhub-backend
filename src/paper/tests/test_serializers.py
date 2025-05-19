@@ -55,6 +55,7 @@ class PaperSerializersTests(TestCase):
             base_doi="10.1234/test",
             message="Test Message",
             original_paper=paper,  # Add original_paper reference
+            publication_status=PaperVersion.PREPRINT,
         )
 
         serialized = PaperSerializer(paper)
@@ -66,8 +67,10 @@ class PaperSerializersTests(TestCase):
                     "version": 1,
                     "paper_id": paper.id,
                     "message": "Test Message",
+                    "publication_status": PaperVersion.PREPRINT,
                     "published_date": paper.paper_publish_date,
                     "is_latest": True,
+                    "is_version_of_record": False,  # Not VoR
                 }
             ],
         )
@@ -80,6 +83,7 @@ class PaperSerializersTests(TestCase):
             base_doi="10.1234/test",
             message="Test Message 2",
             original_paper=paper,  # Link to original paper
+            publication_status=PaperVersion.PUBLISHED,
         )
 
         # Test serialization of both versions
@@ -92,15 +96,19 @@ class PaperSerializersTests(TestCase):
                     "version": 1,
                     "paper_id": paper.id,
                     "message": "Test Message",
+                    "publication_status": PaperVersion.PREPRINT,
                     "published_date": paper.paper_publish_date,
                     "is_latest": False,
+                    "is_version_of_record": False,
                 },
                 {
                     "version": 2,
                     "paper_id": paper2.id,
                     "message": "Test Message 2",
+                    "publication_status": PaperVersion.PUBLISHED,
                     "published_date": paper2.paper_publish_date,
                     "is_latest": True,
+                    "is_version_of_record": True,  # Published VoR
                 },
             ],
         )
@@ -114,6 +122,7 @@ class PaperSerializersTests(TestCase):
             base_doi="10.1234/test",
             message="Test Message",
             original_paper=paper,  # Add original_paper reference
+            publication_status=PaperVersion.PREPRINT,
         )
 
         serialized = DynamicPaperSerializer(paper)
@@ -125,8 +134,10 @@ class PaperSerializersTests(TestCase):
                     "version": 1,
                     "paper_id": paper.id,
                     "message": "Test Message",
+                    "publication_status": PaperVersion.PREPRINT,
                     "published_date": paper.paper_publish_date,
                     "is_latest": True,
+                    "is_version_of_record": False,  # Not VoR
                 }
             ],
         )
@@ -139,6 +150,7 @@ class PaperSerializersTests(TestCase):
             base_doi="10.1234/test",
             message="Test Message 2",
             original_paper=paper,  # Link to original paper
+            publication_status=PaperVersion.PUBLISHED,
         )
 
         # Test serialization of both versions
@@ -151,15 +163,19 @@ class PaperSerializersTests(TestCase):
                     "version": 1,
                     "paper_id": paper.id,
                     "message": "Test Message",
+                    "publication_status": PaperVersion.PREPRINT,
                     "published_date": paper.paper_publish_date,
                     "is_latest": False,
+                    "is_version_of_record": False,
                 },
                 {
                     "version": 2,
                     "paper_id": paper2.id,
                     "message": "Test Message 2",
+                    "publication_status": PaperVersion.PUBLISHED,
                     "published_date": paper2.paper_publish_date,
                     "is_latest": True,
+                    "is_version_of_record": True,  # Published VoR
                 },
             ],
         )
