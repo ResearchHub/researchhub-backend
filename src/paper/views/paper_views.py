@@ -248,7 +248,7 @@ class PaperViewSet(
                     "abstract": abstract,
                     "uploaded_by": request.user,
                     "paper_publish_date": timezone.now(),
-                    "pdf_license": "CC:BY 4.0",
+                    "pdf_license": "CC BY",
                     "work_type": "preprint",
                 }
 
@@ -551,7 +551,7 @@ class PaperViewSet(
                     "abstract_src_type": previous_paper.abstract_src_type,
                     "uploaded_by": previous_paper.uploaded_by,
                     "paper_publish_date": timezone.now(),
-                    "pdf_license": "CC:BY 4.0",
+                    "pdf_license": "CC BY",
                     "work_type": "journal-article",
                     "doi": None,  # Will be generated later
                 }
