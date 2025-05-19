@@ -161,9 +161,6 @@ class Fundraise(DefaultModel):
             # Get all purchases (contributions) for this fundraise
             contributions = self.purchases.all()
 
-            # Keep track of total refunded
-            total_refunded = Decimal("0")
-
             # Refund each contributor
             for contribution in contributions:
                 user = contribution.user
@@ -172,12 +169,9 @@ class Fundraise(DefaultModel):
                 # Only refund what's still in escrow
                 if amount > 0:
                     success = self.escrow.refund(user, amount)
-                    if success:
-                        total_refunded += amount
-
-            # Update escrow amount_holding
-            self.escrow.amount_holding -= total_refunded
-            self.escrow.save()
+                    if not success:
+                        # If a refund fails, we should abort the whole transaction
+                        return False
 
             # Update fundraise status
             self.status = self.CLOSED
