@@ -1,5 +1,4 @@
 import logging
-from functools import partial
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
@@ -103,9 +102,8 @@ def _delete_comment_feed_entries(comment):
         return
 
     hub_ids = list(comment.unified_document.hubs.values_list("id", flat=True))
-    tasks = [
-        partial(
-            delete_feed_entry.apply_async,
+    transaction.on_commit(
+        lambda: delete_feed_entry.apply_async(
             args=(
                 comment.id,
                 ContentType.objects.get_for_model(comment).id,
@@ -113,6 +111,4 @@ def _delete_comment_feed_entries(comment):
             ),
             priority=1,
         )
-        for hub in comment.unified_document.hubs.all()
-    ]
-    transaction.on_commit(lambda: [task() for task in tasks])
+    )
