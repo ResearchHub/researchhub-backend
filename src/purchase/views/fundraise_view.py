@@ -288,3 +288,39 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         context = self._purchase_serializer_context()
         serializer = DynamicPurchaseSerializer(purchases, context=context, many=True)
         return Response(serializer.data)
+
+    @action(
+        methods=["POST"],
+        detail=True,
+        permission_classes=[IsModerator],
+    )
+    def close(self, request, *args, **kwargs):
+        """
+        Close a fundraise and refund all contributions to their contributors.
+        Only works if the fundraise is in OPEN status and has escrow funds.
+        """
+        fundraise_id = kwargs.get("pk", None)
+
+        # Get fundraise object
+        try:
+            fundraise = Fundraise.objects.get(id=fundraise_id)
+            if fundraise is None:
+                return Response({"message": "Fundraise does not exist"}, status=400)
+        except Fundraise.DoesNotExist:
+            return Response({"message": "Fundraise does not exist"}, status=400)
+
+        # Close the fundraise
+        result = fundraise.close_fundraise()
+
+        if result:
+            # Return updated fundraise object
+            context = self.get_serializer_context()
+            serializer = self.get_serializer(fundraise, context=context)
+            return Response(serializer.data)
+        else:
+            return Response(
+                {
+                    "message": "Failed to close fundraise. It may already be closed or have no funds to refund."
+                },
+                status=400,
+            )

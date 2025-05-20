@@ -308,19 +308,61 @@ class FundraiseViewTests(APITestCase):
         self.assertIn(100.0, contribution_amounts)
 
     def test_create_contribution_closed_fundraise(self):
-        fundraise = self._create_fundraise(self.post.id, goal_amount=100)
+        fundraise = self._create_fundraise(self.post.id)
         fundraise_id = fundraise.data["id"]
+
+        # Set fundraise status to closed
+        fundraise_obj = Fundraise.objects.get(id=fundraise_id)
+        fundraise_obj.status = Fundraise.CLOSED
+        fundraise_obj.save()
 
         user = create_random_authenticated_user("fundraise_views")
         self._give_user_balance(user, 1000)
         response = self._create_contribution(fundraise_id, user, amount=200)
 
+        self.assertEqual(response.status_code, 400)
+
+    def test_close_fundraise(self):
+        """Test that a fundraise can be closed via the API"""
+        # Create a fundraise
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        # Create a contributor
+        contributor = create_random_authenticated_user("fundraise_contributor")
+        self._give_user_balance(contributor, 1000)
+
+        # Make a contribution
+        self._create_contribution(fundraise_id, contributor)
+
+        # Verify fundraise is open
+        fundraise_obj = Fundraise.objects.get(id=fundraise_id)
+        self.assertEqual(fundraise_obj.status, Fundraise.OPEN)
+
+        # Call close endpoint
+        self.client.force_authenticate(self.user)  # Need moderator permissions
+        response = self.client.post(f"/api/fundraise/{fundraise_id}/close/")
+
         self.assertEqual(response.status_code, 200)
 
-        updated_fundraise = response.data
-        # make sure fundraise is closed
-        self.assertEqual(updated_fundraise["status"], "COMPLETED")
+        # Verify fundraise is now closed
+        fundraise_obj.refresh_from_db()
+        self.assertEqual(fundraise_obj.status, Fundraise.CLOSED)
 
-        response = self._create_contribution(fundraise_id, user, amount=200)
+        # Verify escrow is cancelled and empty
+        self.assertEqual(fundraise_obj.escrow.status, "CANCELLED")
+        self.assertEqual(float(fundraise_obj.escrow.amount_holding), 0.0)
 
-        self.assertEqual(response.status_code, 400)
+    def test_close_fundraise_not_moderator(self):
+        """Test that only moderators can close a fundraise"""
+        # Create a fundraise
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        # Try to close with non-moderator
+        regular_user = create_random_authenticated_user("regular_user")
+        self.client.force_authenticate(regular_user)
+        response = self.client.post(f"/api/fundraise/{fundraise_id}/close/")
+
+        # Should get 403 Forbidden
+        self.assertEqual(response.status_code, 403)

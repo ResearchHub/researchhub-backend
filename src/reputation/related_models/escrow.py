@@ -166,6 +166,10 @@ class Escrow(DefaultModel):
         if amount == 0:
             return True
 
+        # Validate refund amount doesn't exceed remaining escrow
+        if amount > self.amount_holding:
+            return False
+
         distribution = create_bounty_refund_distribution(amount)
         distributor = Distributor(
             distribution,
@@ -178,6 +182,10 @@ class Escrow(DefaultModel):
         record = distributor.distribute()
         if record.distributed_status == "FAILED":
             return False
+
+        # Update escrow amount_holding
+        self.amount_holding -= amount
+        self.save()
 
         if status and self.status not in (self.PAID, self.PARTIALLY_PAID):
             self.set_cancelled_status(should_save=True)

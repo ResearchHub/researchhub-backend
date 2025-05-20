@@ -5,7 +5,7 @@ import pytz
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.contenttypes.fields import GenericRelation
-from django.db import models
+from django.db import models, transaction
 
 from purchase.related_models.constants.currency import ETHER, RSC, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
@@ -76,7 +76,10 @@ class Fundraise(DefaultModel):
         return False
 
     def get_amount_raised(self, currency=USD):
-        # Since purchases.amount is a `CharField`, we need to cast it to a `DecimalField` to perform aggregation.
+        """
+        Since purchases.amount is a `CharField`, we need to cast it to a
+        `DecimalField` to perform aggregation.
+        """
         rsc_amount = (
             self.purchases.annotate(
                 amount_decimal=models.functions.Cast(
@@ -143,3 +146,38 @@ class Fundraise(DefaultModel):
         )
 
         return did_payout
+
+    def close_fundraise(self):
+        """
+        Close a fundraise and refund all contributions to their contributors.
+        Only works if the fundraise is in OPEN status and has escrow funds.
+        Returns True if successful, False otherwise.
+        """
+        with transaction.atomic():
+            # Check if fundraise can be refunded (is open and has escrow funds)
+            if self.status != self.OPEN or self.escrow.amount_holding <= 0:
+                return False
+
+            # Get all purchases (contributions) for this fundraise
+            contributions = self.purchases.all()
+
+            # Refund each contributor
+            for contribution in contributions:
+                user = contribution.user
+                amount = Decimal(contribution.amount)
+
+                # Only refund what's still in escrow
+                if amount > 0:
+                    success = self.escrow.refund(user, amount)
+                    if not success:
+                        # If a refund fails, we should abort the whole transaction
+                        return False
+
+            # Update fundraise status
+            self.status = self.CLOSED
+            self.save()
+
+            # Update escrow status
+            self.escrow.set_cancelled_status()
+
+            return True
