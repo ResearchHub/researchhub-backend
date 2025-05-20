@@ -109,8 +109,6 @@ def _delete_comment_feed_entries(comment):
             args=(
                 comment.id,
                 ContentType.objects.get_for_model(comment).id,
-                hub.id,
-                ContentType.objects.get_for_model(hub).id,
                 hub_ids,
             ),
             priority=1,

@@ -100,8 +100,6 @@ class CommentSignalsTests(TestCase):
                     args=(
                         self.comment.id,
                         ContentType.objects.get_for_model(RhCommentModel).id,
-                        self.hub1.id,
-                        ContentType.objects.get_for_model(Hub).id,
                         [self.hub1.id, self.hub2.id],
                     ),
                     priority=1,

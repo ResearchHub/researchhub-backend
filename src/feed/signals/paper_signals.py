@@ -92,8 +92,6 @@ def _delete_paper_feed_entries(instance, pk_set):
             args=(
                 paper.id,
                 ContentType.objects.get_for_model(paper).id,
-                hub.id,
-                ContentType.objects.get_for_model(hub).id,
                 [hub.id],
             ),
             priority=1,
