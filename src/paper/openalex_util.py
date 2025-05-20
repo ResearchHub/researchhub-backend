@@ -7,7 +7,6 @@ from django.core.exceptions import ValidationError
 from django.core.validators import URLValidator
 from django.db import IntegrityError, transaction
 from django.db.models import Q
-from simple_history.utils import bulk_update_with_history
 
 import utils.sentry as sentry
 from institution.models import Institution
@@ -49,7 +48,7 @@ PAPER_FIELDS_ALLOWED_TO_UPDATE = [
 ]
 
 """
-This dictionary maps OpenAlex sources (`external_source`) to ResearchHub journal hubs. 
+This dictionary maps OpenAlex sources (`external_source`) to ResearchHub journal hubs.
 It is used to automatically tag papers with the appropriate journal hub when they are fetched from OpenAlex.
 Note: If the name of the journal hub changes, this dictionary will need to be updated.
 """
@@ -263,7 +262,7 @@ def update_papers(open_alex, works) -> Dict[int, Dict[str, Any]]:
         fields_to_update = [*PAPER_FIELDS_ALLOWED_TO_UPDATE]
         papers_to_update = [paper for paper, _ in works]
         try:
-            bulk_update_with_history(papers_to_update, Paper, fields_to_update)
+            Paper.objects.bulk_update(papers_to_update, fields_to_update)
         except Exception as e:
             sentry.log_error(e, message="Failed to bulk update papers")
 
