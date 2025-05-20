@@ -5,6 +5,9 @@ SECRET_KEY = os.environ.get("SECRET_KEY", "development")
 AWS_REGION_NAME = os.environ.get("AWS_REGION_NAME", "")
 AWS_STORAGE_BUCKET_NAME = os.environ.get("AWS_STORAGE_BUCKET_NAME", "")
 AWS_SES_REGION_ENDPOINT = os.environ.get("AWS_SES_REGION_ENDPOINT", "")
+AWS_S3_CUSTOM_DOMAIN = os.environ.get(
+    "AWS_S3_CUSTOM_DOMAIN", "storage.dev.researchhub.com"
+)
 
 EMAIL_WHITELIST = os.environ.get("EMAIL_WHITELIST", "no-one@researchhub.com")
 
