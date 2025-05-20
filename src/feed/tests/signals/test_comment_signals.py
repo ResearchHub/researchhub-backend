@@ -6,9 +6,7 @@ from django.test import TestCase
 from feed.models import FeedEntry
 from hub.models import Hub
 from paper.related_models.paper_model import Paper
-from reputation.related_models.escrow import Escrow
 from researchhub_comment.constants.rh_comment_thread_types import (
-    ANSWER,
     GENERIC_COMMENT,
     PEER_REVIEW,
 )

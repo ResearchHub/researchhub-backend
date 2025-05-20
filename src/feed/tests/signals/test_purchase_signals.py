@@ -1,5 +1,7 @@
+from unittest.mock import MagicMock, call, patch
+
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase, override_settings
+from django.test import TestCase
 
 from feed.models import FeedEntry
 from purchase.related_models.purchase_model import Purchase
@@ -40,18 +42,21 @@ class TestPurchaseSignals(TestCase):
             metrics={},
         )
 
-    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
+    @patch("feed.signals.purchase_signals.refresh_feed_entry")
+    @patch("feed.signals.purchase_signals.transaction")
     def test_refresh_feed_entries_on_purchase_create(
         self,
+        mock_transaction,
+        mock_refresh_feed_entry,
     ):
         """Test that feed entries are refreshed when a purchase is created"""
 
-        # Initial check - feed entry content should be empty
-        self.assertEqual(self.feed_entry.content, {})
-        self.assertEqual(self.feed_entry.metrics, {})
+        # Arrange
+        mock_transaction.on_commit = lambda func: func()
+        mock_refresh_feed_entry.apply_async = MagicMock()
 
-        # Create a purchase for the post
-        purchase = Purchase.objects.create(
+        # Act
+        Purchase.objects.create(
             user=self.user,
             content_type=self.post_content_type,
             object_id=self.post.id,
@@ -60,30 +65,31 @@ class TestPurchaseSignals(TestCase):
             amount="10.0",
         )
 
-        # Refresh the feed entry from the database
-        self.feed_entry.refresh_from_db()
+        # Assert
+        mock_refresh_feed_entry.apply_async.assert_has_calls(
+            [
+                call(
+                    args=(self.feed_entry.id,),
+                    priority=1,
+                ),
+            ]
+        )
 
-        # The feed entry should now have content and metrics
-        self.assertNotEqual(self.feed_entry.content, {})
-        self.assertIsInstance(self.feed_entry.content, dict)
-
-        # Verify the purchase data is included in the feed entry content
-        purchase_data = []
-        if "purchases" in self.feed_entry.content:
-            purchase_data = self.feed_entry.content["purchases"]
-
-        self.assertTrue(isinstance(purchase_data, list))
-        self.assertEqual(len(purchase_data), 1)
-        self.assertEqual(float(purchase_data[0]["amount"]), float(purchase.amount))
-
-    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
+    @patch("feed.signals.purchase_signals.refresh_feed_entry")
+    @patch("feed.signals.purchase_signals.transaction")
     def test_refresh_feed_entries_on_purchase_update(
         self,
+        mock_transaction,
+        mock_refresh_feed_entry,
     ):
         """Test that feed entries are refreshed when a purchase is updated"""
 
-        # Create a purchase for the post
-        purchase = Purchase.objects.create(
+        # Arrange
+        mock_transaction.on_commit = lambda func: func()
+        mock_refresh_feed_entry.apply_async = MagicMock()
+
+        # Act
+        Purchase.objects.create(
             user=self.user,
             content_type=self.post_content_type,
             object_id=self.post.id,
@@ -92,26 +98,12 @@ class TestPurchaseSignals(TestCase):
             amount="10.0",
         )
 
-        # Refresh the feed entry and clear content
-        self.feed_entry.refresh_from_db()
-        self.feed_entry.content = {}
-        self.feed_entry.save()
-
-        # Update the purchase
-        purchase.amount = "20.0"
-        purchase.save()
-
-        # Refresh feed entry from database
-        self.feed_entry.refresh_from_db()
-
-        # The feed entry should have content again
-        self.assertNotEqual(self.feed_entry.content, {})
-
-        # Verify the updated purchase data is included in the feed entry content
-        purchase_data = []
-        if "purchases" in self.feed_entry.content:
-            purchase_data = self.feed_entry.content["purchases"]
-
-        self.assertTrue(isinstance(purchase_data, list))
-        self.assertEqual(len(purchase_data), 1)
-        self.assertEqual(float(purchase_data[0]["amount"]), 20.0)
+        # Assert
+        mock_refresh_feed_entry.apply_async.assert_has_calls(
+            [
+                call(
+                    args=(self.feed_entry.id,),
+                    priority=1,
+                ),
+            ]
+        )

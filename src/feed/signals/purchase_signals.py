@@ -1,9 +1,11 @@
 import logging
+from functools import partial
 
+from django.db import transaction
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from feed.models import FeedEntry, FeedEntryLatest, FeedEntryPopular
+from feed.models import FeedEntry
 from feed.tasks import refresh_feed_entry
 from purchase.related_models.purchase_model import Purchase
 
@@ -27,11 +29,15 @@ def refresh_feed_entries_on_purchase(sender, instance, created, **kwargs):
             return
 
         # Update all matching feed entries
-        for entry in feed_entries:
-            refresh_feed_entry.apply_async(
+        tasks = [
+            partial(
+                refresh_feed_entry.apply_async,
                 args=(entry.id,),
                 priority=1,
             )
+            for entry in feed_entries
+        ]
+        transaction.on_commit(lambda: [task() for task in tasks])
 
     except Exception as e:
         logger.error(
