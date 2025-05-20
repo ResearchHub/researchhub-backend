@@ -12,18 +12,26 @@ class Migration(migrations.Migration):
     operations = [
         migrations.RunSQL(
             sql="""
-            DELETE FROM feed_feedentry_hubs
-            WHERE feedentry_id NOT IN (
-                SELECT MAX(id)
-                FROM feed_feedentry
-                GROUP BY content_type_id, object_id
+            DELETE FROM feed_feedentry_hubs f
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM (
+                    SELECT MAX(id) AS id
+                    FROM feed_feedentry
+                    GROUP BY content_type_id, object_id
+                ) latest
+                WHERE latest.id = f.feedentry_id
             );
 
-            DELETE FROM feed_feedentry
-            WHERE id NOT IN (
-                SELECT MAX(id)
-                FROM feed_feedentry
-                GROUP BY content_type_id, object_id
+            DELETE FROM feed_feedentry f
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM (
+                    SELECT MAX(id) AS id
+                    FROM feed_feedentry
+                    GROUP BY content_type_id, object_id
+                ) latest
+                WHERE latest.id = f.id
             );
             """,
         )
