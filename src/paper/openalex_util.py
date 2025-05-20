@@ -16,7 +16,6 @@ from user.related_models.author_contribution_summary_model import (
     AuthorContributionSummary,
 )
 from user.related_models.author_institution import AuthorInstitution
-from user.related_models.coauthor_model import CoAuthor
 from utils.openalex import OpenAlex
 
 # Only these particular fields will be updated when an OpenAlex
@@ -49,7 +48,7 @@ PAPER_FIELDS_ALLOWED_TO_UPDATE = [
 ]
 
 """
-This dictionary maps OpenAlex sources (`external_source`) to ResearchHub journal hubs. 
+This dictionary maps OpenAlex sources (`external_source`) to ResearchHub journal hubs.
 It is used to automatically tag papers with the appropriate journal hub when they are fetched from OpenAlex.
 Note: If the name of the journal hub changes, this dictionary will need to be updated.
 """
@@ -87,8 +86,6 @@ def process_openalex_works(works):
     create_openalex_authorships_and_institutions(
         paper_to_openalex_data, oa_authors_by_work_id, authors_by_oa_id
     )
-
-    create_coauthors(paper_to_openalex_data, oa_authors_by_work_id, authors_by_oa_id)
 
 
 def create_all_paper_tags(papers_to_openalex_data):
@@ -462,34 +459,6 @@ def create_openalex_authorships_and_institutions(
             f"{authorship.author_id}:{authorship.paper_id}", []
         ):
             authorship.institutions.add(institution)
-
-
-def create_coauthors(paper_to_openalex_data, oa_authors_by_work_id, authors_by_oa_id):
-    for _, paper_data in paper_to_openalex_data.items():
-        work = paper_data["openalex_work"]
-        related_paper = paper_data["paper"]
-        oa_authors = oa_authors_by_work_id.get(work["id"], [])
-        authors = []
-        for oa_author in oa_authors:
-            authors.extend(authors_by_oa_id.get(oa_author.get("id"), []))
-
-        # Create co-author relationships
-        coauthor_objects = []
-        for author in authors:
-            coauthor_count = 0
-            for coauthor in authors:
-                if author != coauthor:
-                    coauthor_objects.append(
-                        CoAuthor(
-                            author=author, coauthor=coauthor, paper_id=related_paper.id
-                        )
-                    )
-                    coauthor_count += 1
-
-                if coauthor_count >= 10:
-                    break
-
-        CoAuthor.objects.bulk_create(coauthor_objects, ignore_conflicts=True)
 
 
 def merge_openalex_authors_with_researchhub_authors(oa_authors, authors_by_oa_id):
