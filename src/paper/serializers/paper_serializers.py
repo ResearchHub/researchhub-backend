@@ -335,6 +335,7 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
             {
                 "version": version.version,
                 "paper_id": version.paper.id,
+                "publication_status": version.publication_status,
                 "published_date": (
                     version.paper.paper_publish_date.strftime("%Y-%m-%d")
                     if version.paper.paper_publish_date
@@ -342,6 +343,10 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
                 ),
                 "message": version.message,
                 "is_latest": version.version == latest_version.version,
+                "is_version_of_record": (
+                    version.version == latest_version.version
+                    and version.publication_status == PaperVersion.PUBLISHED
+                ),
             }
             for version in paper_versions
         ]
@@ -1062,6 +1067,7 @@ class DynamicPaperSerializer(
             {
                 "version": version.version,
                 "paper_id": version.paper.id,
+                "publication_status": version.publication_status,
                 "published_date": (
                     version.paper.paper_publish_date.strftime("%Y-%m-%d")
                     if version.paper.paper_publish_date
@@ -1069,6 +1075,10 @@ class DynamicPaperSerializer(
                 ),
                 "message": version.message,
                 "is_latest": version.version == latest_version.version,
+                "is_version_of_record": (
+                    version.version == latest_version.version
+                    and version.publication_status == PaperVersion.PUBLISHED
+                ),
             }
             for version in paper_versions
         ]
