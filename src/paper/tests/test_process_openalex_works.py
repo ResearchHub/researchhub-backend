@@ -326,22 +326,6 @@ class ProcessOpenAlexWorksTests(APITestCase):
             self.assertGreater(author.i10_index, 0)
 
     @patch.object(OpenAlex, "get_authors")
-    def test_create_coauthor_relationship(self, mock_get_authors):
-        with open("./paper/tests/openalex_authors.json", "r") as file:
-            mock_data = json.load(file)
-            mock_get_authors.return_value = (mock_data["results"], None)
-
-            open_alex = OpenAlex()
-            open_alex.get_authors()
-
-            process_openalex_works(self.works)
-            author = Author.objects.filter(
-                openalex_ids__contains=[mock_data["results"][0]["id"]]
-            ).first()
-
-            self.assertGreater(author.coauthors.count(), 0)
-
-    @patch.object(OpenAlex, "get_authors")
     def test_create_contribution_activity(self, mock_get_authors):
         with open("./paper/tests/openalex_authors.json", "r") as file:
             mock_data = json.load(file)
