@@ -274,7 +274,6 @@ INSTALLED_APPS = [
     "user",
     "new_feature_release",
     "review",
-    "simple_history",
     "organizations",
     # Health checks
     "health_check",
