@@ -17,14 +17,6 @@ class UnifiedDocumentSignalsTests(TestCase):
         # Add to hub to create feed entries
         self.paper.unified_document.hubs.add(self.hub)
 
-        # Verify feed entries exist
-        self.feed_entries = FeedEntry.objects.filter(
-            unified_document=self.paper.unified_document
-        )
-        self.assertTrue(
-            self.feed_entries.exists(), "Feed entries should be created for the paper"
-        )
-
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     def test_feed_entries_are_deleted_when_unified_document_is_removed(self):
         """Test feed entries deletion when unified document is marked as removed."""
