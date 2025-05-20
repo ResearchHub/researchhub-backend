@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 from rest_framework.test import APIRequestFactory, APITestCase, force_authenticate
@@ -11,8 +12,14 @@ class PaperUploadViewTest(APITestCase):
     def setUp(self):
         self.factory = APIRequestFactory()
         self.view = PaperUploadView.as_view()
-        self.mock_storage_service = Mock()
         self.user = create_random_default_user("user1")
+
+        self.mock_storage_service = Mock()
+        self.mock_storage_service.create_presigned_url.return_value = SimpleNamespace(
+            url="https://presigned.url",
+            object_key="paper/test.pdf",
+            object_url="https://storage/paper/test.pdf",
+        )
 
     def test_post(self):
         # Arrange
@@ -33,8 +40,9 @@ class PaperUploadViewTest(APITestCase):
         self.assertEqual(
             response.data,
             {
-                "presigned_url": self.mock_storage_service.create_presigned_url.return_value.url,
-                "object_key": self.mock_storage_service.create_presigned_url.return_value.object_key,
+                "presigned_url": "https://presigned.url",
+                "object_key": "paper/test.pdf",
+                "object_url": "https://storage/paper/test.pdf",
             },
         )
         self.mock_storage_service.create_presigned_url.assert_called_once_with(
