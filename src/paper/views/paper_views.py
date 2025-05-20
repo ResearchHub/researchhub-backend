@@ -552,7 +552,7 @@ class PaperViewSet(
                     "uploaded_by": previous_paper.uploaded_by,
                     "paper_publish_date": timezone.now(),
                     "pdf_license": "cc-by",
-                    "work_type": "journal-article",
+                    "work_type": "article",
                     "doi": None,  # Will be generated later
                 }
 
