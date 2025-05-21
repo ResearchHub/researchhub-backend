@@ -4,6 +4,7 @@ This view returns papers based on their PaperVersion journal status and
 allows filtering by publication status (PREPRINT or PUBLISHED).
 """
 
+from django.conf import settings
 from django.core.cache import cache
 from django.db.models import OuterRef, Subquery
 from rest_framework.response import Response
@@ -43,7 +44,7 @@ class JournalFeedViewSet(BaseFeedView):
         page = request.query_params.get("page", "1")
         page_num = int(page)
         cache_key = self.get_cache_key(request, "journal")
-        use_cache = page_num < 4
+        use_cache = page_num < 4 and not settings.STAGING
 
         if use_cache:
             # try to get cached response
