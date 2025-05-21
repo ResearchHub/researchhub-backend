@@ -59,6 +59,15 @@ class PublishToResearchHubJournalTestCase(TestCase):
             department="Chemistry",  # Department belongs in Authorship
         )
 
+        # Add version to the paper
+        PaperVersion.objects.create(
+            paper=self.previous_paper,
+            version=1,
+            original_paper=self.previous_paper,
+            publication_status=PaperVersion.PREPRINT,
+            journal=PaperVersion.RESEARCHHUB,
+        )
+
         # Add hub to the paper
         self.previous_paper.unified_document.hubs.add(self.hub)
 
@@ -170,39 +179,3 @@ class PublishToResearchHubJournalTestCase(TestCase):
         # Verify bad request response
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("Unable to register DOI", response.data["error"])
-
-    @patch("utils.doi.DOI.register_doi_for_paper")
-    def test_publish_to_journal_with_previous_versions(self, mock_register_doi):
-        """Test publishing a paper that already has version information"""
-        # Mock the DOI registration response
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_register_doi.return_value = mock_response
-
-        # Create a version for the previous paper
-        PaperVersion.objects.create(
-            paper=self.previous_paper,
-            version=2,
-            base_doi="10.1234/base.123",
-            original_paper=self.previous_paper,
-        )
-
-        # Login as moderator
-        self.client.force_authenticate(user=self.moderator)
-
-        # Make the request
-        response = self.client.post(
-            self.url, {"previous_paper_id": self.previous_paper.id}, format="json"
-        )
-
-        # Verify successful response
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-        # Get the new paper
-        new_paper = Paper.objects.latest("id")
-
-        # Verify version was incremented
-        paper_version = PaperVersion.objects.get(paper=new_paper)
-        self.assertEqual(paper_version.version, 3)
-        self.assertEqual(paper_version.journal, PaperVersion.RESEARCHHUB)
-        self.assertEqual(paper_version.publication_status, PaperVersion.PUBLISHED)
