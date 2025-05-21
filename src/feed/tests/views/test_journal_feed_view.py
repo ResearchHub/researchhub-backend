@@ -9,9 +9,11 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.test import APIClient
+from rest_framework.request import Request
+from rest_framework.test import APIClient, APIRequestFactory
 
 from discussion.reaction_models import Vote as GrmVote
+from feed.views.journal_feed_view import JournalFeedViewSet
 from hub.models import Hub
 from paper.related_models.paper_model import Paper, PaperVersion
 from researchhub_document.related_models.researchhub_unified_document_model import (
@@ -450,3 +452,82 @@ class JournalFeedViewSetTests(TestCase):
         paper_ids = [item["content_object"]["id"] for item in response.data["results"]]
         self.assertNotIn(oldest_paper.id, paper_ids)
         self.assertNotIn(middle_paper.id, paper_ids)
+
+    def test_cache_key_with_publication_status(self):
+        """Test that cache keys are different for different publication status values"""
+        # Clear cache before testing
+        cache.clear()
+
+        # Create a test instance
+        viewset = JournalFeedViewSet()
+
+        # Mock requests with different publication status values
+
+        factory = APIRequestFactory()
+
+        # Test with ALL status (default)
+        all_request = factory.get("/api/journal_feed/")
+        all_request = Request(all_request)
+        all_request.user = self.user
+
+        # Test with PREPRINT status
+        preprint_request = factory.get("/api/journal_feed/?publication_status=PREPRINT")
+        preprint_request = Request(preprint_request)
+        preprint_request.user = self.user
+
+        # Test with PUBLISHED status
+        published_request = factory.get(
+            "/api/journal_feed/?publication_status=PUBLISHED"
+        )
+        published_request = Request(published_request)
+        published_request.user = self.user
+
+        # Generate cache keys for different statuses
+        all_status = all_request.query_params.get("publication_status", "ALL").lower()
+        preprint_status = preprint_request.query_params.get(
+            "publication_status", "ALL"
+        ).lower()
+        published_status = published_request.query_params.get(
+            "publication_status", "ALL"
+        ).lower()
+
+        all_cache_key = viewset.get_cache_key(all_request, f"journal_{all_status}")
+        preprint_cache_key = viewset.get_cache_key(
+            preprint_request, f"journal_{preprint_status}"
+        )
+        published_cache_key = viewset.get_cache_key(
+            published_request, f"journal_{published_status}"
+        )
+
+        # Verify the cache keys are different
+        self.assertNotEqual(all_cache_key, preprint_cache_key)
+        self.assertNotEqual(all_cache_key, published_cache_key)
+        self.assertNotEqual(preprint_cache_key, published_cache_key)
+
+        # Verify the cache keys contain the correct publication status
+        self.assertIn("journal_all", all_cache_key)
+        self.assertIn("journal_preprint", preprint_cache_key)
+        self.assertIn("journal_published", published_cache_key)
+
+    def test_api_requests_with_different_publication_status(self):
+        """Test API responses for different publication status filters"""
+        # Clear cache before making requests
+        cache.clear()
+
+        # Make requests with different publication status
+        url = reverse("journal_feed-list")
+
+        # Make request with ALL status
+        all_response = self.client.get(url)
+        self.assertEqual(all_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(all_response.data["results"]), 2)  # Both papers
+
+        # Make request with PREPRINT status
+        preprint_response = self.client.get(url, {"publication_status": "PREPRINT"})
+        self.assertEqual(preprint_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(preprint_response.data["results"]), 1)  # Only preprint
+
+        # Make request with PUBLISHED status
+        published_response = self.client.get(url, {"publication_status": "PUBLISHED"})
+        self.assertEqual(published_response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(published_response.data["results"]), 1)  # Only published
