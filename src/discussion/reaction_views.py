@@ -3,6 +3,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError, transaction
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -31,12 +32,7 @@ from researchhub_document.related_models.constants.document_type import (
     SORT_DISCUSSED,
     SORT_UPVOTED,
 )
-from researchhub_document.related_models.constants.filters import (
-    DISCUSSED,
-    HOT,
-    UPVOTED,
-)
-from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
+from researchhub_document.related_models.constants.filters import HOT, UPVOTED
 from user.models import User
 from utils.models import SoftDeletableModel
 from utils.permissions import CreateOrUpdateIfAllowed
@@ -128,12 +124,12 @@ class ReactionViewActionMixin:
         reason_choice = request.data.get("reason_choice")
 
         try:
-            flag, flag_data = create_flag(user, item, reason, reason_choice)
+            _, flag_data = create_flag(user, item, reason, reason_choice)
 
             content_id = f"{type(item).__name__}_{item.id}"
             events_api.track_flag_content(item.created_by, content_id, user.id)
             return Response(flag_data, status=201)
-        except IntegrityError:
+        except (IntegrityError, ValidationError):
             return Response(
                 {
                     "msg": "Already flagged",
