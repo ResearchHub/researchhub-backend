@@ -390,7 +390,7 @@ class PaperViewSet(
                     if previous_paper:
                         try:
                             paper_version = previous_paper.version
-                            original_paper_id = paper_version.paper_id
+                            original_paper_id = paper_version.original_paper_id
                             paper_version_number = paper_version.version + 1
                             if previous_paper.version.base_doi:
                                 base_doi = previous_paper.version.base_doi

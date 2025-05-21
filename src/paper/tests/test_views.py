@@ -540,6 +540,112 @@ class PaperApiTests(APITestCase):
         self.assertEqual(paper_version.message, "Updated content")
         self.assertEqual(paper_version.original_paper_id, original_paper.id)
 
+    def test_create_researchhub_paper_version_lineage(self):
+        """Test that creating multiple versions maintains consistent base_doi and original_paper_id"""
+        user = create_random_authenticated_user("test_user")
+        self.client.force_authenticate(user)
+
+        # Create an author
+        author = Author.objects.create(first_name="Test", last_name="Author")
+
+        # Create the first version with required declarations
+        data_v1 = {
+            "title": "Original Paper",
+            "abstract": "Original abstract",
+            "authors": [
+                {"id": author.id, "author_position": "first", "is_corresponding": True}
+            ],
+            "hub_ids": [],
+            "declarations": [
+                {"declaration_type": "ACCEPT_TERMS_AND_CONDITIONS", "accepted": True},
+                {"declaration_type": "AUTHORIZE_CC_BY_4_0", "accepted": True},
+                {"declaration_type": "CONFIRM_AUTHORS_RIGHTS", "accepted": True},
+                {
+                    "declaration_type": "CONFIRM_ORIGINALITY_AND_COMPLIANCE",
+                    "accepted": True,
+                },
+            ],
+        }
+
+        response_v1 = self.client.post(
+            "/api/paper/create_researchhub_paper/", data_v1, format="json"
+        )
+
+        self.assertEqual(response_v1.status_code, 201)
+        paper_v1_id = response_v1.data["id"]
+        paper_v1 = Paper.objects.get(id=paper_v1_id)
+        paper_version_v1 = PaperVersion.objects.get(paper_id=paper_v1_id)
+
+        # Verify first version
+        self.assertEqual(paper_version_v1.version, 1)
+        self.assertIsNotNone(paper_version_v1.base_doi)
+        self.assertEqual(paper_version_v1.original_paper_id, paper_v1_id)
+
+        # Create the second version
+        data_v2 = {
+            "title": "Updated Paper V2",
+            "abstract": "Updated abstract V2",
+            "authors": [
+                {"id": author.id, "author_position": "first", "is_corresponding": True}
+            ],
+            "hub_ids": [],
+            "previous_paper_id": paper_v1_id,
+            "change_description": "Second version",
+        }
+
+        response_v2 = self.client.post(
+            "/api/paper/create_researchhub_paper/", data_v2, format="json"
+        )
+
+        self.assertEqual(response_v2.status_code, 201)
+        paper_v2_id = response_v2.data["id"]
+        paper_v2 = Paper.objects.get(id=paper_v2_id)
+        paper_version_v2 = PaperVersion.objects.get(paper_id=paper_v2_id)
+
+        # Verify second version
+        self.assertEqual(paper_version_v2.version, 2)
+        self.assertEqual(paper_version_v2.base_doi, paper_version_v1.base_doi)
+        self.assertEqual(paper_version_v2.original_paper_id, paper_v1_id)
+        self.assertEqual(paper_version_v2.message, "Second version")
+
+        # Create the third version
+        data_v3 = {
+            "title": "Updated Paper V3",
+            "abstract": "Updated abstract V3",
+            "authors": [
+                {"id": author.id, "author_position": "first", "is_corresponding": True}
+            ],
+            "hub_ids": [],
+            "previous_paper_id": paper_v2_id,
+            "change_description": "Third version",
+        }
+
+        response_v3 = self.client.post(
+            "/api/paper/create_researchhub_paper/", data_v3, format="json"
+        )
+
+        self.assertEqual(response_v3.status_code, 201)
+        paper_v3_id = response_v3.data["id"]
+        paper_v3 = Paper.objects.get(id=paper_v3_id)
+        paper_version_v3 = PaperVersion.objects.get(paper_id=paper_v3_id)
+
+        # Verify third version
+        self.assertEqual(paper_version_v3.version, 3)
+        self.assertEqual(paper_version_v3.base_doi, paper_version_v1.base_doi)
+        self.assertEqual(paper_version_v3.original_paper_id, paper_v1_id)
+        self.assertEqual(paper_version_v3.message, "Third version")
+
+        # Verify DOIs have the same base but different version numbers
+        self.assertNotEqual(paper_v1.doi, paper_v2.doi)
+        self.assertNotEqual(paper_v2.doi, paper_v3.doi)
+        self.assertNotEqual(paper_v1.doi, paper_v3.doi)
+
+        # The DOI should be structured with the same base but different version numbers
+        doi_base = paper_version_v1.base_doi
+        self.assertTrue(paper_v1.doi.startswith(doi_base))
+        self.assertTrue(paper_v2.doi.startswith(doi_base))
+        self.assertTrue(paper_v3.doi.startswith(doi_base))
+
 
 class PaperViewsTests(TestCase):
     def setUp(self):
