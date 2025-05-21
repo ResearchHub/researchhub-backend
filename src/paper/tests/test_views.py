@@ -504,6 +504,42 @@ class PaperApiTests(APITestCase):
             str(response.data["error"]),
         )
 
+    def test_create_researchhub_paper_update_doesnt_require_declarations(self):
+        """Test that updating a paper (new version) doesn't require declarations"""
+        user = create_random_authenticated_user("test_user")
+        self.client.force_authenticate(user)
+
+        # Create initial paper with version
+        original_paper = create_paper()
+        PaperVersion.objects.create(
+            paper=original_paper, version=1, original_paper=original_paper
+        )
+        author = Author.objects.create(first_name="Test", last_name="Author")
+
+        # No declarations provided for the update
+        data = {
+            "title": "Updated Test Paper",
+            "abstract": "Updated abstract",
+            "authors": [
+                {"id": author.id, "author_position": "first", "is_corresponding": True}
+            ],
+            "hub_ids": [],
+            "previous_paper_id": original_paper.id,
+            "change_description": "Updated content",
+            # No declarations provided
+        }
+
+        response = self.client.post(
+            "/api/paper/create_researchhub_paper/", data, format="json"
+        )
+
+        # Should succeed without declarations
+        self.assertEqual(response.status_code, 201)
+        paper_version = PaperVersion.objects.get(paper_id=response.data["id"])
+        self.assertEqual(paper_version.version, 2)
+        self.assertEqual(paper_version.message, "Updated content")
+        self.assertEqual(paper_version.original_paper_id, original_paper.id)
+
 
 class PaperViewsTests(TestCase):
     def setUp(self):
