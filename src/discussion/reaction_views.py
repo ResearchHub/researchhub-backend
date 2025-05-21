@@ -3,6 +3,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError, transaction
 from rest_framework import status
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -133,7 +134,7 @@ class ReactionViewActionMixin:
             content_id = f"{type(item).__name__}_{item.id}"
             events_api.track_flag_content(item.created_by, content_id, user.id)
             return Response(flag_data, status=201)
-        except IntegrityError:
+        except (IntegrityError, ValidationError):
             return Response(
                 {
                     "msg": "Already flagged",
