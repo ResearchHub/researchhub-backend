@@ -277,40 +277,46 @@ class PaperViewSet(
                     PaperSeriesDeclaration.DECLARATION_TYPE_CHOICES
                 ).keys()
 
-                # Check for missing declarations
-                missing_declarations = [
-                    d_type
-                    for d_type in valid_declaration_types
-                    if not any(d["declaration_type"] == d_type for d in declarations)
-                ]
-                if missing_declarations:
-                    error_msg = f"Missing required declarations: {', '.join(missing_declarations)}"
-                    log_error(
-                        ValueError(error_msg), json_data={"declarations": declarations}
-                    )
-                    return Response(
-                        {
-                            "error": "Please accept all required declarations to continue."
-                        },
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
+                # Only check declarations for new papers (not for updates)
+                if not previous_paper:
+                    # Check for missing declarations
+                    missing_declarations = [
+                        d_type
+                        for d_type in valid_declaration_types
+                        if not any(
+                            d["declaration_type"] == d_type for d in declarations
+                        )
+                    ]
+                    if missing_declarations:
+                        error_msg = f"Missing required declarations: {', '.join(missing_declarations)}"
+                        log_error(
+                            ValueError(error_msg),
+                            json_data={"declarations": declarations},
+                        )
+                        return Response(
+                            {
+                                "error": "Please accept all required declarations to continue."
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
 
-                # Check for unaccepted declarations
-                unaccepted_declarations = [
-                    d["declaration_type"]
-                    for d in declarations
-                    if d["declaration_type"] in valid_declaration_types
-                    and not d.get("accepted", False)
-                ]
-                if unaccepted_declarations:
-                    error_msg = f"All declarations must be accepted. Unaccepted: {', '.join(unaccepted_declarations)}"
-                    log_error(
-                        ValueError(error_msg), json_data={"declarations": declarations}
-                    )
-                    return Response(
-                        {"error": "All declarations must be accepted to continue."},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
+                    # Check for unaccepted declarations
+                    unaccepted_declarations = [
+                        d["declaration_type"]
+                        for d in declarations
+                        if d["declaration_type"] in valid_declaration_types
+                        and not d.get("accepted", False)
+                    ]
+                    if unaccepted_declarations:
+                        error_msg = f"All declarations must be accepted. Unaccepted: {', '.join(unaccepted_declarations)}"
+                        log_error(
+                            ValueError(error_msg),
+                            json_data={"declarations": declarations},
+                        )
+                        return Response(
+                            {"error": "All declarations must be accepted to continue."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
 
                 paper.series = paper_series
                 paper.save()
@@ -384,7 +390,7 @@ class PaperViewSet(
                     if previous_paper:
                         try:
                             paper_version = previous_paper.version
-                            original_paper_id = paper_version.paper_id
+                            original_paper_id = paper_version.original_paper_id
                             paper_version_number = paper_version.version + 1
                             if previous_paper.version.base_doi:
                                 base_doi = previous_paper.version.base_doi
