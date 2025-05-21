@@ -1,4 +1,5 @@
 import uuid
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -56,6 +57,7 @@ class JournalFeedViewSetTests(TestCase):
             journal=PaperVersion.RESEARCHHUB,
             publication_status=PaperVersion.PREPRINT,
             version=1,
+            base_doi="10.1234/preprint.12345",
         )
 
         # Published paper
@@ -79,6 +81,7 @@ class JournalFeedViewSetTests(TestCase):
             journal=PaperVersion.RESEARCHHUB,
             publication_status=PaperVersion.PUBLISHED,
             version=1,
+            base_doi="10.1234/published.12345",
         )
 
         # Non-journal paper (should not appear in feed)
@@ -116,6 +119,7 @@ class JournalFeedViewSetTests(TestCase):
             journal=PaperVersion.RESEARCHHUB,
             publication_status=PaperVersion.PREPRINT,
             version=1,
+            base_doi="10.1234/removed.12345",
         )
 
         # Clear cache before tests
@@ -318,6 +322,7 @@ class JournalFeedViewSetTests(TestCase):
                 journal=PaperVersion.RESEARCHHUB,
                 publication_status=PaperVersion.PREPRINT,
                 version=1,
+                base_doi=f"10.1234/paper{i}.12345",
             )
 
         url = reverse("journal_feed-list")
@@ -338,3 +343,110 @@ class JournalFeedViewSetTests(TestCase):
         )  # 27 total items, 7 on page 2
         self.assertIsNone(response_page_2.data["next"])
         self.assertIsNotNone(response_page_2.data["previous"])
+
+    def test_unique_base_doi(self):
+        """Test that journal feed returns only one paper per base_doi (the latest one)"""
+        # Create a common base_doi for multiple papers
+        base_doi = "10.1234/test.12345"
+
+        # Create papers with the same base_doi but different creation dates
+        # Paper 1 - Oldest
+        oldest_unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER"
+        )
+        oldest_unified_document.hubs.add(self.hub)
+
+        oldest_paper = Paper.objects.create(
+            title="Oldest Paper - Same DOI",
+            uploaded_by=self.user,
+            is_public=True,
+            is_removed=False,
+            is_removed_by_user=False,
+            unified_document=oldest_unified_document,
+            created_date=timezone.now() - timedelta(days=2),
+        )
+
+        oldest_version = PaperVersion.objects.create(  # noqa: F841
+            paper=oldest_paper,
+            journal=PaperVersion.RESEARCHHUB,
+            publication_status=PaperVersion.PREPRINT,
+            version=1,
+            base_doi=base_doi,
+        )
+
+        # Paper 2 - Middle
+        middle_unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER"
+        )
+        middle_unified_document.hubs.add(self.hub)
+
+        middle_paper = Paper.objects.create(
+            title="Middle Paper - Same DOI",
+            uploaded_by=self.user,
+            is_public=True,
+            is_removed=False,
+            is_removed_by_user=False,
+            unified_document=middle_unified_document,
+            created_date=timezone.now() - timedelta(days=1),
+        )
+
+        middle_version = PaperVersion.objects.create(  # noqa: F841
+            paper=middle_paper,
+            journal=PaperVersion.RESEARCHHUB,
+            publication_status=PaperVersion.PREPRINT,
+            version=2,
+            base_doi=base_doi,
+        )
+
+        # Paper 3 - Newest (should be the one that appears in feed)
+        newest_unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER"
+        )
+        newest_unified_document.hubs.add(self.hub)
+
+        newest_paper = Paper.objects.create(
+            title="Newest Paper - Same DOI",
+            uploaded_by=self.user,
+            is_public=True,
+            is_removed=False,
+            is_removed_by_user=False,
+            unified_document=newest_unified_document,
+            created_date=timezone.now(),
+        )
+
+        newest_version = PaperVersion.objects.create(  # noqa: F841
+            paper=newest_paper,
+            journal=PaperVersion.RESEARCHHUB,
+            publication_status=PaperVersion.PREPRINT,
+            version=3,
+            base_doi=base_doi,
+        )
+
+        # Clear cache before testing
+        cache.clear()
+
+        # Make request to journal feed
+        url = reverse("journal_feed-list")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Check for papers with the same base_doi
+        papers_with_base_doi = []
+        for item in response.data["results"]:
+            paper_id = item["content_object"]["id"]
+            paper = Paper.objects.get(id=paper_id)
+            paper_version = paper.version
+            if paper_version.base_doi == base_doi:
+                papers_with_base_doi.append(paper)
+
+        # Verify that only one paper with this base_doi is returned
+        self.assertEqual(len(papers_with_base_doi), 1)
+
+        # Verify that it's the newest paper
+        self.assertEqual(papers_with_base_doi[0].id, newest_paper.id)
+
+        # The older papers with the same DOI should not be in the response
+        paper_ids = [item["content_object"]["id"] for item in response.data["results"]]
+        self.assertNotIn(oldest_paper.id, paper_ids)
+        self.assertNotIn(middle_paper.id, paper_ids)

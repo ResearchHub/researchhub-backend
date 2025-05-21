@@ -5,6 +5,7 @@ allows filtering by publication status (PREPRINT or PUBLISHED).
 """
 
 from django.core.cache import cache
+from django.db.models import OuterRef, Subquery
 from rest_framework.response import Response
 
 from feed.models import FeedEntry
@@ -88,8 +89,16 @@ class JournalFeedViewSet(BaseFeedView):
         """
         Filter to only include papers published in the ResearchHub journal.
         Additionally filter by publication status if specified.
+        Returns only one paper per base_doi.
         """
         publication_status = self.request.query_params.get("publication_status", "ALL")
+
+        # Get latest paper per base_doi
+        latest_versions = (
+            PaperVersion.objects.filter(base_doi=OuterRef("version__base_doi"))
+            .order_by("-created_date")
+            .values("paper_id")[:1]
+        )
 
         queryset = (
             Paper.objects.all()
@@ -108,6 +117,10 @@ class JournalFeedViewSet(BaseFeedView):
                 is_removed_by_user=False,
                 is_public=True,
             )
+            # Only include papers where the version's base_doi is not null
+            .filter(version__base_doi__isnull=False)
+            # Use a subquery to only include the latest paper per base_doi
+            .filter(id=Subquery(latest_versions))
         )
 
         # Apply publication status filter
