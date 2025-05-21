@@ -32,12 +32,7 @@ from researchhub_document.related_models.constants.document_type import (
     SORT_DISCUSSED,
     SORT_UPVOTED,
 )
-from researchhub_document.related_models.constants.filters import (
-    DISCUSSED,
-    HOT,
-    UPVOTED,
-)
-from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
+from researchhub_document.related_models.constants.filters import HOT, UPVOTED
 from user.models import User
 from utils.models import SoftDeletableModel
 from utils.permissions import CreateOrUpdateIfAllowed
