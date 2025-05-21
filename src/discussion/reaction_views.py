@@ -124,7 +124,7 @@ class ReactionViewActionMixin:
         reason_choice = request.data.get("reason_choice")
 
         try:
-            flag, flag_data = create_flag(user, item, reason, reason_choice)
+            _, flag_data = create_flag(user, item, reason, reason_choice)
 
             content_id = f"{type(item).__name__}_{item.id}"
             events_api.track_flag_content(item.created_by, content_id, user.id)
