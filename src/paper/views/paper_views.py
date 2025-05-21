@@ -612,6 +612,10 @@ class PaperViewSet(
                     if paper_version.base_doi:
                         base_doi = paper_version.base_doi
                 except PaperVersion.DoesNotExist:
+                    log_error(
+                        ValueError("Previous paper version not found"),
+                        message=f"Previous paper version not found for paper {previous_paper.id}",
+                    )
                     raise
 
                 # Get authors for DOI registration
