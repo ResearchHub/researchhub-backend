@@ -47,6 +47,35 @@ class UserSavedViewTests(APITestCase):
             created_by=self.user2, parent_list=self.list3, unified_document=self.doc1
         )
 
+    def test_get_all_items_authenticated(self):
+        """Test GET with all flag returns all user item counts"""
+        # Add doc1 to list2 as well (it's already in list1 from setUp)
+        UserSavedEntry.objects.create(
+            created_by=self.user1, parent_list=self.list2, unified_document=self.doc1
+        )
+
+        # Add doc2 to list1
+        UserSavedEntry.objects.create(
+            created_by=self.user1, parent_list=self.list1, unified_document=self.doc2
+        )
+
+        # Add doc2 to list2 as well
+        UserSavedEntry.objects.create(
+            created_by=self.user1, parent_list=self.list2, unified_document=self.doc2
+        )
+
+        self.client.force_authenticate(user=self.user1)
+        response = self.client.get("/user_saved/?all_items=true")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data,
+            {
+                str(self.doc1.id): 2,  # doc1 appears in both lists
+                str(self.doc2.id): 2,  # doc2 appears in both lists
+            },
+        )
+
     def test_get_all_lists_authenticated(self):
         """Test GET without list_name returns all user list names"""
         self.client.force_authenticate(user=self.user1)

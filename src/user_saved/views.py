@@ -1,4 +1,5 @@
 from django.db import IntegrityError
+from django.db.models import Count
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -32,6 +33,14 @@ class UserSavedView(APIView):
         input_list_name = request.query_params.get("list_name")
         u_doc_id = request.query_params.get("u_doc_id")
         paper_id = request.query_params.get("paper_id")
+        all_flag = request.query_params.get("all_items")
+        if all_flag:
+            docs = ResearchhubUnifiedDocument.objects.filter(
+                usersavedentry__created_by=request.user,
+                usersavedentry__is_removed=False,
+            ).annotate(count=Count("usersavedentry"))
+            res = {str(doc.id): doc.count for doc in docs}
+            return Response(res, status=status.HTTP_200_OK)
         if input_list_name:
             try:
                 user_list = UserSavedList.objects.get(
