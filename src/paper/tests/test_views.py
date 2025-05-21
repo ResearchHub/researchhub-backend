@@ -608,6 +608,100 @@ class PaperApiTests(APITestCase):
         self.assertTrue(paper_v2.doi.startswith(doi_base))
         self.assertTrue(paper_v3.doi.startswith(doi_base))
 
+    def test_create_researchhub_paper_preserves_publication_metadata(self):
+        """Test that journal and publication_status are preserved across versions"""
+        user = create_random_authenticated_user("test_user")
+        self.client.force_authenticate(user)
+
+        # Create an author
+        author = Author.objects.create(first_name="Test", last_name="Author")
+
+        # Create the first version with required declarations
+        data_v1 = {
+            "title": "Journal Paper",
+            "abstract": "Original abstract",
+            "authors": [
+                {"id": author.id, "author_position": "first", "is_corresponding": True}
+            ],
+            "hub_ids": [],
+            "declarations": [
+                {"declaration_type": "ACCEPT_TERMS_AND_CONDITIONS", "accepted": True},
+                {"declaration_type": "AUTHORIZE_CC_BY_4_0", "accepted": True},
+                {"declaration_type": "CONFIRM_AUTHORS_RIGHTS", "accepted": True},
+                {
+                    "declaration_type": "CONFIRM_ORIGINALITY_AND_COMPLIANCE",
+                    "accepted": True,
+                },
+            ],
+        }
+
+        # Create first version (default is PREPRINT)
+        response_v1 = self.client.post(
+            "/api/paper/create_researchhub_paper/", data_v1, format="json"
+        )
+
+        self.assertEqual(response_v1.status_code, 201)
+        paper_v1_id = response_v1.data["id"]
+        paper_v1 = Paper.objects.get(id=paper_v1_id)
+        paper_version_v1 = PaperVersion.objects.get(paper_id=paper_v1_id)
+
+        # Verify initial publication status is PREPRINT
+        self.assertEqual(paper_version_v1.publication_status, PaperVersion.PREPRINT)
+        self.assertIsNone(paper_version_v1.journal)
+
+        # Manually update the first version to have specific journal and status
+        paper_version_v1.journal = PaperVersion.RESEARCHHUB
+        paper_version_v1.publication_status = PaperVersion.PUBLISHED
+        paper_version_v1.save()
+
+        # Create second version - should inherit journal and status
+        data_v2 = {
+            "title": "Journal Paper V2",
+            "abstract": "Updated abstract",
+            "authors": [
+                {"id": author.id, "author_position": "first", "is_corresponding": True}
+            ],
+            "hub_ids": [],
+            "previous_paper_id": paper_v1_id,
+            "change_description": "Second version",
+        }
+
+        response_v2 = self.client.post(
+            "/api/paper/create_researchhub_paper/", data_v2, format="json"
+        )
+
+        self.assertEqual(response_v2.status_code, 201)
+        paper_v2_id = response_v2.data["id"]
+        paper_version_v2 = PaperVersion.objects.get(paper_id=paper_v2_id)
+
+        # Verify second version inherited journal and status from first version
+        self.assertEqual(paper_version_v2.journal, PaperVersion.RESEARCHHUB)
+        self.assertEqual(paper_version_v2.publication_status, PaperVersion.PUBLISHED)
+
+        # Create third version - should still maintain journal and status
+        data_v3 = {
+            "title": "Journal Paper V3",
+            "abstract": "Third version abstract",
+            "authors": [
+                {"id": author.id, "author_position": "first", "is_corresponding": True}
+            ],
+            "hub_ids": [],
+            "previous_paper_id": paper_v2_id,
+            "change_description": "Third version",
+        }
+
+        response_v3 = self.client.post(
+            "/api/paper/create_researchhub_paper/", data_v3, format="json"
+        )
+
+        self.assertEqual(response_v3.status_code, 201)
+        paper_v3_id = response_v3.data["id"]
+        paper_version_v3 = PaperVersion.objects.get(paper_id=paper_v3_id)
+
+        # Verify third version still maintains journal and status
+        self.assertEqual(paper_version_v3.journal, PaperVersion.RESEARCHHUB)
+        self.assertEqual(paper_version_v3.publication_status, PaperVersion.PUBLISHED)
+
 
 class PaperViewsTests(TestCase):
     def setUp(self):
