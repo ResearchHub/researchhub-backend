@@ -387,29 +387,25 @@ class PaperViewSet(
                     paper_version_number = 1
                     base_doi = None
                     original_paper_id = paper.id
+                    journal = None
+                    publication_status = PaperVersion.PREPRINT
                     if previous_paper:
                         try:
-                            paper_version = previous_paper.version
-                            original_paper_id = paper_version.original_paper_id
-                            paper_version_number = paper_version.version + 1
-                            if previous_paper.version.base_doi:
-                                base_doi = previous_paper.version.base_doi
+                            previous_paper_version = previous_paper.version
+                            original_paper_id = previous_paper_version.original_paper_id
+                            paper_version_number = previous_paper_version.version + 1
+                            if previous_paper_version.base_doi:
+                                base_doi = previous_paper_version.base_doi
+                            journal = previous_paper_version.journal
+                            publication_status = (
+                                previous_paper_version.publication_status
+                            )
                         except PaperVersion.DoesNotExist as e:
                             log_error(
                                 e,
                                 message=f"Previous paper version not found for paper {previous_paper.id}",
                             )
-                            # If the previous paper version does not exist, create the initial version
-                            # and set the current version to 2.
-                            original_paper_id = (
-                                previous_paper.id
-                            )  # The original paper was created outside of ResearchHub
-                            PaperVersion.objects.create(
-                                paper=previous_paper,
-                                version=1,
-                                original_paper_id=original_paper_id,
-                            )
-                            paper_version_number = 2
+                            raise
 
                     doi = DOI(base_doi=base_doi, version=paper_version_number)
 
@@ -442,6 +438,8 @@ class PaperViewSet(
                         message=change_description,
                         base_doi=doi.base_doi,
                         original_paper_id=original_paper_id,
+                        journal=journal,
+                        publication_status=publication_status,
                     )
                 except Exception as e:
                     log_error(
@@ -614,14 +612,7 @@ class PaperViewSet(
                     if paper_version.base_doi:
                         base_doi = paper_version.base_doi
                 except PaperVersion.DoesNotExist:
-                    # If the previous paper version does not exist, create the initial version
-                    # and set the current version to 2.
-                    PaperVersion.objects.create(
-                        paper=previous_paper,
-                        version=1,
-                        original_paper_id=original_paper_id,
-                    )
-                    paper_version_number = 2
+                    raise
 
                 # Get authors for DOI registration
                 authors = Author.objects.filter(
