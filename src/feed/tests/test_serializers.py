@@ -1,6 +1,7 @@
 from decimal import Decimal
 from unittest.mock import patch
 
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -289,6 +290,35 @@ class PaperSerializerTests(TestCase):
         self.assertEqual(purchase_data["id"], purchase.id)
         self.assertEqual(purchase_data["amount"], purchase.amount)
         self.assertIn("user", purchase_data)
+
+    def test_prioritizes_researchhub_journal(self):
+        """
+        Test that the ResearchHub Journal is prioritized when multiple journals exist.
+        """
+        # Create regular journal
+        regular_journal = create_hub("Regular Journal", namespace=Hub.Namespace.JOURNAL)
+
+        # Create ResearchHub journal
+        researchhub_journal = create_hub(
+            "ResearchHub Journal", namespace=Hub.Namespace.JOURNAL
+        )
+
+        # Create a paper with both journals
+        paper = create_paper(
+            uploaded_by=self.user,
+            title="Multi-Journal Paper",
+        )
+        paper.hubs.add(regular_journal)
+        paper.hubs.add(researchhub_journal)
+        paper.save()
+
+        with patch.object(settings, "RESEARCHHUB_JOURNAL_ID", researchhub_journal.id):
+            serializer = PaperSerializer(paper)
+            data = serializer.data
+
+            self.assertIn("journal", data)
+            self.assertEqual(data["journal"]["name"], "ResearchHub Journal")
+            self.assertEqual(data["journal"]["id"], researchhub_journal.id)
 
 
 class PostSerializerTests(TestCase):
@@ -1134,10 +1164,8 @@ class FundingFeedEntrySerializerTests(TestCase):
         nonprofit = NonprofitOrg.objects.create(name="Test Nonprofit")
 
         # Create the nonprofit link - variable not directly used but needed for test
-        # pylint: disable=unused-variable
-        _nonprofit_link = NonprofitFundraiseLink.objects.create(
-            fundraise=fundraise, nonprofit=nonprofit
-        )
+        # Creating the link is necessary for the test though the variable isn't used
+        NonprofitFundraiseLink.objects.create(fundraise=fundraise, nonprofit=nonprofit)
 
         # Re-serialize and verify is_nonprofit is now True
         serializer = FundingFeedEntrySerializer(feed_entry)

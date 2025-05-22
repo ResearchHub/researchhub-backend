@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
 from rest_framework import serializers
@@ -179,14 +180,23 @@ class PaperSerializer(ContentObjectSerializer):
         if not hasattr(obj, "unified_document") or not obj.unified_document:
             return None
 
-        journal_hub = next(
-            (
-                hub
-                for hub in obj.unified_document.hubs.all()
-                if hub.namespace == Hub.Namespace.JOURNAL
-            ),
-            None,
-        )
+        journal_hubs = [
+            hub
+            for hub in obj.unified_document.hubs.all()
+            if hub.namespace == Hub.Namespace.JOURNAL
+        ]
+
+        if not journal_hubs:
+            return None
+
+        researchhub_journal = None
+        for hub in journal_hubs:
+            if int(hub.id) == int(settings.RESEARCHHUB_JOURNAL_ID):
+                researchhub_journal = hub
+                break
+
+        # Use ResearchHub Journal if found, otherwise use the first journal
+        journal_hub = researchhub_journal or journal_hubs[0]
 
         if journal_hub:
             return {
