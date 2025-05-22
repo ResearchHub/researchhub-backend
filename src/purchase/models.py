@@ -10,6 +10,7 @@ from .related_models.wallet_model import Wallet
 migratables = (
     AggregatePurchase,
     Balance,
+    Fundraise,
     Payment,
     Purchase,
     RscExchangeRate,
