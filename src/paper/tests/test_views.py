@@ -2,6 +2,7 @@ import json
 import random
 from unittest.mock import PropertyMock, patch
 
+from django.conf import settings
 from django.test import Client, TestCase
 from django.urls import reverse
 from rest_framework import status
@@ -23,6 +24,9 @@ from utils.test_helpers import (
 
 
 class PaperApiTests(APITestCase):
+    def setUp(self):
+        Hub.objects.create(id=settings.RESEARCHHUB_JOURNAL_ID)
+
     @patch.object(OpenAlex, "get_data_from_doi")
     @patch.object(OpenAlex, "get_works")
     def test_fetches_author_works_by_doi_if_name_matches(
@@ -642,7 +646,7 @@ class PaperApiTests(APITestCase):
 
         self.assertEqual(response_v1.status_code, 201)
         paper_v1_id = response_v1.data["id"]
-        paper_v1 = Paper.objects.get(id=paper_v1_id)
+        Paper.objects.get(id=paper_v1_id)
         paper_version_v1 = PaperVersion.objects.get(paper_id=paper_v1_id)
 
         # Verify initial publication status is PREPRINT
@@ -701,6 +705,89 @@ class PaperApiTests(APITestCase):
         # Verify third version still maintains journal and status
         self.assertEqual(paper_version_v3.journal, PaperVersion.RESEARCHHUB)
         self.assertEqual(paper_version_v3.publication_status, PaperVersion.PUBLISHED)
+
+    def test_researchhub_journal_hub_preserved_across_versions(self):
+        """Test that ResearchHub Journal hub is preserved in new paper versions"""
+        # Create a user and authenticate
+        user = create_random_authenticated_user("test_user")
+        self.client.force_authenticate(user)
+
+        # Get the ResearchHub Journal hub
+        researchhub_journal_hub = Hub.objects.get(id=settings.RESEARCHHUB_JOURNAL_ID)
+
+        # Create an author
+        author = Author.objects.create(first_name="Test", last_name="Author")
+
+        # Create first paper with ResearchHub Journal hub
+        data_v1 = {
+            "title": "ResearchHub Journal Paper",
+            "abstract": "Original abstract for journal paper",
+            "authors": [
+                {"id": author.id, "author_position": "first", "is_corresponding": True}
+            ],
+            # Include ResearchHub Journal hub
+            "hub_ids": [researchhub_journal_hub.id],
+            "declarations": [
+                {"declaration_type": "ACCEPT_TERMS_AND_CONDITIONS", "accepted": True},
+                {"declaration_type": "AUTHORIZE_CC_BY_4_0", "accepted": True},
+                {"declaration_type": "CONFIRM_AUTHORS_RIGHTS", "accepted": True},
+                {
+                    "declaration_type": "CONFIRM_ORIGINALITY_AND_COMPLIANCE",
+                    "accepted": True,
+                },
+            ],
+        }
+
+        # Create first version
+        response_v1 = self.client.post(
+            "/api/paper/create_researchhub_paper/", data_v1, format="json"
+        )
+
+        self.assertEqual(response_v1.status_code, 201)
+        paper_v1_id = response_v1.data["id"]
+        paper_v1 = Paper.objects.get(id=paper_v1_id)
+
+        paper_v1.version.journal = PaperVersion.RESEARCHHUB
+        paper_v1.version.save()
+
+        # Verify first paper has ResearchHub Journal as hub
+        paper_v1_hubs = paper_v1.unified_document.hubs.all()
+        self.assertIn(researchhub_journal_hub, paper_v1_hubs)
+
+        # Create second version
+        data_v2 = {
+            "title": "ResearchHub Journal Paper V2",
+            "abstract": "Updated abstract for journal paper",
+            "authors": [
+                {"id": author.id, "author_position": "first", "is_corresponding": True}
+            ],
+            "hub_ids": [],  # Not specifying hub_ids for the update
+            "previous_paper_id": paper_v1_id,
+            "change_description": "Updated journal paper",
+        }
+
+        response_v2 = self.client.post(
+            "/api/paper/create_researchhub_paper/", data_v2, format="json"
+        )
+
+        self.assertEqual(response_v2.status_code, 201)
+        paper_v2_id = response_v2.data["id"]
+        paper_v2 = Paper.objects.get(id=paper_v2_id)
+
+        # Verify second paper also has ResearchHub Journal as hub
+        paper_v2_hubs = paper_v2.unified_document.hubs.all()
+        self.assertIn(researchhub_journal_hub, paper_v2_hubs)
+
+        # Verify paper version metadata
+        paper_version_v1 = PaperVersion.objects.get(paper_id=paper_v1_id)
+        paper_version_v2 = PaperVersion.objects.get(paper_id=paper_v2_id)
+
+        # Both versions should have the same base_doi
+        self.assertEqual(paper_version_v2.base_doi, paper_version_v1.base_doi)
+
+        # Both versions should link back to the same original paper
+        self.assertEqual(paper_version_v2.original_paper_id, paper_v1_id)
+        self.assertEqual(paper_version_v1.original_paper_id, paper_v1_id)
 
 
 class PaperViewsTests(TestCase):

@@ -1,8 +1,10 @@
 from unittest.mock import patch
 
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.test import TransactionTestCase
 
+from hub.models import Hub
 from paper.related_models.paper_model import Paper, PaperVersion
 from paper.tests.helpers import create_paper
 from purchase.related_models.payment_model import Payment
@@ -17,6 +19,7 @@ class UpdatePaperJournalStatusSignalTest(TransactionTestCase):
         self.user = create_random_default_user("payment_test_user")
         self.paper = create_paper(uploaded_by=self.user)
         self.paper_content_type = ContentType.objects.get_for_model(Paper)
+        Hub.objects.create(id=settings.RESEARCHHUB_JOURNAL_ID)
 
     def test_payment_for_paper_updates_journal_status(self):
         """Test that a payment for a paper updates its journal status."""
@@ -42,6 +45,10 @@ class UpdatePaperJournalStatusSignalTest(TransactionTestCase):
         # Verify the paper version was updated to be part of the ResearchHub journal
         paper_version.refresh_from_db()
         self.assertEqual(paper_version.journal, PaperVersion.RESEARCHHUB)
+
+        # Verify that the ResearchHub Journal was added to the paper
+        self.assertEqual(self.paper.hubs.count(), 1)
+        self.assertEqual(self.paper.hubs.first().id, settings.RESEARCHHUB_JOURNAL_ID)
 
         # Verify that the publication status was not changed
         self.assertEqual(paper_version.publication_status, PaperVersion.PREPRINT)

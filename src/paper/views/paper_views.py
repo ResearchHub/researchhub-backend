@@ -3,6 +3,7 @@ import json
 from urllib.parse import urlparse
 
 import requests
+from django.conf import settings
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.postgres.search import SearchQuery
 from django.core.cache import cache
@@ -29,6 +30,7 @@ from analytics.amplitude import track_event
 from discussion.reaction_models import Vote as GrmVote
 from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
 from discussion.reaction_views import ReactionViewActionMixin
+from hub.models import Hub
 from hub.permissions import IsModerator
 from paper.exceptions import DOINotFoundError, PaperSerializerError
 from paper.filters import PaperFilter
@@ -399,6 +401,11 @@ class PaperViewSet(
                             if previous_paper_version.base_doi:
                                 base_doi = previous_paper_version.base_doi
                             journal = previous_paper_version.journal
+                            if journal == "RESEARCHHUB":
+                                paper.unified_document.hubs.add(
+                                    settings.RESEARCHHUB_JOURNAL_ID
+                                )
+
                             publication_status = (
                                 previous_paper_version.publication_status
                             )
