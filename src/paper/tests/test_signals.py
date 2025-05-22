@@ -48,7 +48,9 @@ class UpdatePaperJournalStatusSignalTest(TransactionTestCase):
 
         # Verify that the ResearchHub Journal was added to the paper
         self.assertEqual(self.paper.hubs.count(), 1)
-        self.assertEqual(self.paper.hubs.first().id, settings.RESEARCHHUB_JOURNAL_ID)
+        self.assertEqual(
+            self.paper.hubs.first().id, int(settings.RESEARCHHUB_JOURNAL_ID)
+        )
 
         # Verify that the publication status was not changed
         self.assertEqual(paper_version.publication_status, PaperVersion.PREPRINT)
