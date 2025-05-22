@@ -14,12 +14,13 @@ from user.tests.helpers import create_random_default_user
 class UpdatePaperJournalStatusSignalTest(TransactionTestCase):
     """Test the update_paper_journal_status signal handler."""
 
+    @patch.object(settings, "RESEARCHHUB_JOURNAL_ID", "123")
     def setUp(self):
         """Set up test data."""
         self.user = create_random_default_user("payment_test_user")
         self.paper = create_paper(uploaded_by=self.user)
         self.paper_content_type = ContentType.objects.get_for_model(Paper)
-        Hub.objects.create(id=settings.RESEARCHHUB_JOURNAL_ID)
+        Hub.objects.create(id=123)
 
     def test_payment_for_paper_updates_journal_status(self):
         """Test that a payment for a paper updates its journal status."""
@@ -32,28 +33,27 @@ class UpdatePaperJournalStatusSignalTest(TransactionTestCase):
         self.assertIsNone(paper_version.journal)
 
         # Create a payment for the paper
-        Payment.objects.create(
-            amount=1000,
-            currency="USD",
-            external_payment_id="test_payment_id",
-            payment_processor="STRIPE",
-            content_type=self.paper_content_type,
-            object_id=self.paper.id,
-            user=self.user,
-        )
+        with patch.object(settings, "RESEARCHHUB_JOURNAL_ID", "123"):
+            Payment.objects.create(
+                amount=1000,
+                currency="USD",
+                external_payment_id="test_payment_id",
+                payment_processor="STRIPE",
+                content_type=self.paper_content_type,
+                object_id=self.paper.id,
+                user=self.user,
+            )
 
-        # Verify the paper version was updated to be part of the ResearchHub journal
-        paper_version.refresh_from_db()
-        self.assertEqual(paper_version.journal, PaperVersion.RESEARCHHUB)
+            # Verify the paper version was updated to be part of the ResearchHub journal
+            paper_version.refresh_from_db()
+            self.assertEqual(paper_version.journal, PaperVersion.RESEARCHHUB)
 
-        # Verify that the ResearchHub Journal was added to the paper
-        self.assertEqual(self.paper.hubs.count(), 1)
-        self.assertEqual(
-            self.paper.hubs.first().id, int(settings.RESEARCHHUB_JOURNAL_ID)
-        )
+            # Verify that the ResearchHub Journal was added to the paper
+            self.assertEqual(self.paper.hubs.count(), 1)
+            self.assertEqual(self.paper.hubs.first().id, 123)
 
-        # Verify that the publication status was not changed
-        self.assertEqual(paper_version.publication_status, PaperVersion.PREPRINT)
+            # Verify that the publication status was not changed
+            self.assertEqual(paper_version.publication_status, PaperVersion.PREPRINT)
 
     def test_payment_for_non_paper_doesnt_update_journal_status(self):
         """Test that a payment for a non-paper doesn't update any journal status."""

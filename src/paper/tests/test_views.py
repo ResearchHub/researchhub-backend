@@ -24,8 +24,10 @@ from utils.test_helpers import (
 
 
 class PaperApiTests(APITestCase):
+    @patch.object(settings, "RESEARCHHUB_JOURNAL_ID", "123")
     def setUp(self):
-        Hub.objects.create(id=settings.RESEARCHHUB_JOURNAL_ID)
+        # Create the hub with the same ID we mocked
+        Hub.objects.create(id=123)
 
     @patch.object(OpenAlex, "get_data_from_doi")
     @patch.object(OpenAlex, "get_works")
@@ -612,6 +614,7 @@ class PaperApiTests(APITestCase):
         self.assertTrue(paper_v2.doi.startswith(doi_base))
         self.assertTrue(paper_v3.doi.startswith(doi_base))
 
+    @patch.object(settings, "RESEARCHHUB_JOURNAL_ID", "123")
     def test_create_researchhub_paper_preserves_publication_metadata(self):
         """Test that journal and publication_status are preserved across versions"""
         user = create_random_authenticated_user("test_user")
@@ -706,6 +709,7 @@ class PaperApiTests(APITestCase):
         self.assertEqual(paper_version_v3.journal, PaperVersion.RESEARCHHUB)
         self.assertEqual(paper_version_v3.publication_status, PaperVersion.PUBLISHED)
 
+    @patch.object(settings, "RESEARCHHUB_JOURNAL_ID", "123")
     def test_researchhub_journal_hub_preserved_across_versions(self):
         """Test that ResearchHub Journal hub is preserved in new paper versions"""
         # Create a user and authenticate
@@ -713,7 +717,7 @@ class PaperApiTests(APITestCase):
         self.client.force_authenticate(user)
 
         # Get the ResearchHub Journal hub
-        researchhub_journal_hub = Hub.objects.get(id=settings.RESEARCHHUB_JOURNAL_ID)
+        researchhub_journal_hub = Hub.objects.get(id=123)
 
         # Create an author
         author = Author.objects.create(first_name="Test", last_name="Author")
