@@ -202,9 +202,11 @@ class PaperViewSet(
                 declarations = request.data.get("declarations", [])
 
                 previous_paper = None
+                work_type = "preprint"
                 if previous_paper_id:
                     try:
                         previous_paper = Paper.objects.get(id=previous_paper_id)
+                        work_type = previous_paper.work_type
                     except Paper.DoesNotExist as e:
                         log_error(
                             e, message=f"Previous paper not found: {previous_paper_id}"
@@ -249,7 +251,7 @@ class PaperViewSet(
                     "uploaded_by": request.user,
                     "paper_publish_date": timezone.now(),
                     "pdf_license": "cc-by",
-                    "work_type": "preprint",
+                    "work_type": work_type,
                 }
 
                 if pdf_url:
