@@ -1,0 +1,181 @@
+from django.contrib.contenttypes.models import ContentType
+from django.test import TestCase, override_settings
+
+from feed.models import FeedEntry
+from hub.tests.helpers import create_hub
+from paper.tests.helpers import create_paper
+from researchhub_document.helpers import create_post
+from user.related_models.user_model import User
+
+
+class DocumentSignalsTests(TestCase):
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
+    def test_feed_entries_are_created_when_hubs_are_added_to_paper(self):
+        """
+        Test that feed entries are created when hubs are added to a paper.
+        """
+        # Arrange
+        hub1 = create_hub(name="testHub1")
+        hub2 = create_hub(name="testHub2")
+        paper = create_paper(title="testPaper1")
+
+        # Act
+        paper.unified_document.hubs.add(hub1, hub2)
+        paper.save()
+
+        # Assert
+        feed_entries = FeedEntry.objects.filter(
+            content_type=ContentType.objects.get_for_model(paper),
+            object_id=paper.id,
+        )
+        self.assertEqual(len(feed_entries), 1)
+        self.assertEqual(feed_entries[0].hubs.count(), 2)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
+    def test_feed_entries_are_deleted_when_all_hubs_are_removed_from_paper(self):
+        """
+        Test that feed entries are deleted when all hubs are removed from a paper.
+        """
+        # Arrange
+        hub1 = create_hub(name="testHub1")
+        hub2 = create_hub(name="testHub2")
+        paper = create_paper(title="testPaper1")
+        paper.unified_document.hubs.add(hub1, hub2)
+        paper.save()
+
+        # Act
+        paper.unified_document.hubs.remove(hub1, hub2)  # remove all hubs
+        paper.save()
+
+        # Assert
+        feed_entries_exist = FeedEntry.objects.filter(
+            content_type=ContentType.objects.get_for_model(paper),
+            object_id=paper.id,
+        ).exists()
+        self.assertFalse(feed_entries_exist)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
+    def test_hubs_are_removed_from_feed_entries_when_all_hubs_are_removed_from_paper(
+        self,
+    ):
+        """
+        Test that hubs are removed from feed entries when all hubs are removed from a
+        paper.
+        """
+        # Arrange
+        hub1 = create_hub(name="testHub1")
+        hub2 = create_hub(name="testHub2")
+        paper = create_paper(title="testPaper1")
+        paper.unified_document.hubs.add(hub1, hub2)
+        paper.save()
+
+        # Act
+        paper.unified_document.hubs.remove(hub1)  # remove one hub
+        paper.save()
+
+        # Assert
+        feed_entries = FeedEntry.objects.filter(
+            content_type=ContentType.objects.get_for_model(paper),
+            object_id=paper.id,
+        )
+        self.assertEqual(len(feed_entries), 1)
+        self.assertEqual(feed_entries[0].hubs.count(), 1)
+        self.assertEqual(feed_entries[0].hubs.all()[0], hub2)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
+    def test_feed_entries_are_created_when_papers_are_added_to_hubs(self):
+        """
+        Test that feed entries are created when papers are added to hubs.
+        """
+        # Arrange
+        hub1 = create_hub(name="testHub1")
+        hub2 = create_hub(name="testHub2")
+        paper = create_paper(title="testPaper1")
+        paper.hubs.add(hub2)
+
+        # Act
+        hub1.related_documents.add(paper.unified_document)
+        hub1.save()
+
+        # Assert
+        feed_entries = FeedEntry.objects.filter(
+            content_type=ContentType.objects.get_for_model(paper),
+            object_id=paper.id,
+        )
+        self.assertEqual(len(feed_entries), 1)
+        self.assertEqual(feed_entries.first().hubs.count(), 2)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
+    def test_feed_entries_are_created_when_hubs_are_added_to_post(self):
+        """
+        Test that feed entries are created when posts are added to hubs.
+        """
+        # Arrange
+        hub1 = create_hub(name="testHub1")
+        hub2 = create_hub(name="testHub2")
+        user = User.objects.create_user(username="testUser1")
+        post = create_post(title="testPaper1", created_by=user)
+
+        # Act
+        post.unified_document.hubs.add(hub1, hub2)
+        post.save()
+
+        # Assert
+        feed_entries = FeedEntry.objects.filter(
+            content_type=ContentType.objects.get_for_model(post),
+            object_id=post.id,
+        )
+        self.assertEqual(len(feed_entries), 1)
+        self.assertEqual(feed_entries[0].hubs.count(), 2)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
+    def test_feed_entries_are_deleted_when_all_hubs_are_removed_from_post(self):
+        """
+        Test that feed entries are deleted when all hubs are removed from a post.
+        """
+        # Arrange
+        hub1 = create_hub(name="testHub1")
+        hub2 = create_hub(name="testHub2")
+        user = User.objects.create_user(username="testUser1")
+        post = create_post(title="testPaper1", created_by=user)
+
+        # Act
+        post.unified_document.hubs.remove(hub1, hub2)  # remove all hubs
+        post.save()
+
+        # Assert
+        feed_entries_exist = FeedEntry.objects.filter(
+            content_type=ContentType.objects.get_for_model(post),
+            object_id=post.id,
+        ).exists()
+
+        self.assertFalse(feed_entries_exist)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
+    def test_hubs_are_removed_from_feed_entries_when_all_hubs_are_removed_from_post(
+        self,
+    ):
+        """
+        Test that hubs are removed from feed entries when hubs are removed from posts.
+        """
+        # Arrange
+        hub1 = create_hub(name="testHub1")
+        hub2 = create_hub(name="testHub2")
+        user = User.objects.create_user(username="testUser1")
+        post = create_post(title="testPaper1", created_by=user)
+        post.unified_document.hubs.add(hub1, hub2)
+
+        # Act
+        post.unified_document.hubs.remove(hub1)  # remove one hub
+        post.save()
+
+        # Assert
+        feed_entries = FeedEntry.objects.filter(
+            content_type=ContentType.objects.get_for_model(post),
+            object_id=post.id,
+        )
+
+        self.assertEqual(len(feed_entries), 1)
+        self.assertEqual(feed_entries[0].hubs.count(), 1)
+        self.assertEqual(feed_entries[0].hubs.first(), hub2)
