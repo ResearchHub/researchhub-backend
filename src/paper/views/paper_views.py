@@ -38,7 +38,7 @@ from paper.models import Figure, Paper, PaperSubmission, PaperVersion
 from paper.paper_upload_tasks import celery_process_paper
 from paper.permissions import CreatePaper, IsAuthor, UpdatePaper
 from paper.related_models.authorship_model import Authorship
-from paper.related_models.series_model import PaperSeries, PaperSeriesDeclaration
+from paper.related_models.paper_version import PaperSeries, PaperSeriesDeclaration
 from paper.serializers import (
     DynamicPaperSerializer,
     FigureSerializer,

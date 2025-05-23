@@ -5,7 +5,8 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TransactionTestCase
 
 from hub.models import Hub
-from paper.related_models.paper_model import Paper, PaperVersion
+from paper.related_models.paper_model import Paper
+from paper.related_models.paper_version import PaperVersion
 from paper.tests.helpers import create_paper
 from purchase.related_models.payment_model import Payment
 from user.tests.helpers import create_random_default_user
