@@ -1,5 +1,4 @@
 import logging
-from functools import partial
 
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
@@ -59,14 +58,14 @@ def _update_associated_document_feed_entries(bounty):
         document = unified_document.get_document()
         document_content_type = ContentType.objects.get_for_model(document)
 
-        task = partial(
-            refresh_feed_entries_for_objects.apply_async,
-            args=(document.id, document_content_type.id),
-            priority=1,
+        transaction.on_commit(
+            lambda: refresh_feed_entries_for_objects.apply_async(
+                args=(document.id, document_content_type.id),
+                priority=1,
+            )
         )
-        transaction.on_commit(task)
     except Exception as e:
         logger.warning(
-            f"No document found for unified document {unified_document.id}: {e}"
+            f"Failed to update feed entries associated with unified document {unified_document.id}: {e}"
         )
         return
