@@ -547,17 +547,25 @@ class PaperSerializer(BasePaperSerializer):
 
                 unified_doc = paper.unified_document
                 if hubs is not None:
-                    new_hubs = []
-                    remove_hubs = []
-                    current_hubs = unified_doc.hubs.all()
-                    for current_hub in current_hubs:
-                        if current_hub not in hubs:
-                            remove_hubs.append(current_hub)
-                    for hub in hubs:
-                        if hub not in current_hubs:
-                            new_hubs.append(hub)
-                    unified_doc.hubs.remove(*remove_hubs)
-                    unified_doc.hubs.add(*hubs)
+                    # Create list of hub IDs independent of whether hubs is
+                    # a list of Hub objects or a list of hub IDs.
+                    new_hub_ids = [h.id if hasattr(h, "id") else int(h) for h in hubs]
+
+                    # Get the current hub IDs from the unified document
+                    current_hub_ids = list(
+                        unified_doc.hubs.values_list("id", flat=True)
+                    )
+
+                    # Calculate the actual delta
+                    remove_ids = [
+                        hid for hid in current_hub_ids if hid not in new_hub_ids
+                    ]
+                    add_ids = [hid for hid in new_hub_ids if hid not in current_hub_ids]
+
+                    if remove_ids:
+                        unified_doc.hubs.remove(*remove_ids)
+                    if add_ids:
+                        unified_doc.hubs.add(*add_ids)
 
                 if pdf_license:
                     paper.pdf_license = pdf_license
