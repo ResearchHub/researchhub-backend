@@ -1,6 +1,7 @@
 from decimal import Decimal
 from unittest.mock import patch
 
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -157,32 +158,33 @@ class PaperSerializerTests(TestCase):
         self.paper.hubs.add(self.hub)
 
     def test_serializes_paper_specific_fields(self):
-        serializer = PaperSerializer(self.paper)
-        data = serializer.data
+        with patch.object(settings, "RESEARCHHUB_JOURNAL_ID", str(self.journal.id)):
+            serializer = PaperSerializer(self.paper)
+            data = serializer.data
 
-        # Test base fields from ContentObjectSerializer
-        self.assertIn("id", data)
-        self.assertIn("created_date", data)
-        self.assertIn("hub", data)
-        self.assertIn("slug", data)
-        self.assertIn("reviews", data)
+            # Test base fields from ContentObjectSerializer
+            self.assertIn("id", data)
+            self.assertIn("created_date", data)
+            self.assertIn("hub", data)
+            self.assertIn("slug", data)
+            self.assertIn("reviews", data)
 
-        # Test PaperSerializer specific fields
-        self.assertEqual(data["title"], "Test Paper")
-        self.assertEqual(data["abstract"], "Test Abstract")
-        self.assertEqual(data["doi"], "10.1234/test")
-        self.assertIn("journal", data)
-        self.assertEqual(data["journal"]["name"], self.journal.name)
-        self.assertIn("authors", data)
-        self.assertEqual(len(data["authors"]), 1)
-        self.assertEqual(data["authors"][0]["first_name"], self.user.first_name)
-        self.assertEqual(data["authors"][0]["last_name"], self.user.last_name)
-        self.assertEqual(
-            data["authors"][0]["profile_image"], "https://example.com/profile.jpg"
-        )
-        self.assertIn("raw_authors", data)
-        self.assertEqual(data["raw_authors"], ["Test Author", "Test Author 2"])
-        self.assertIn("work_type", data)
+            # Test PaperSerializer specific fields
+            self.assertEqual(data["title"], "Test Paper")
+            self.assertEqual(data["abstract"], "Test Abstract")
+            self.assertEqual(data["doi"], "10.1234/test")
+            self.assertIn("journal", data)
+            self.assertEqual(data["journal"]["name"], self.journal.name)
+            self.assertIn("authors", data)
+            self.assertEqual(len(data["authors"]), 1)
+            self.assertEqual(data["authors"][0]["first_name"], self.user.first_name)
+            self.assertEqual(data["authors"][0]["last_name"], self.user.last_name)
+            self.assertEqual(
+                data["authors"][0]["profile_image"], "https://example.com/profile.jpg"
+            )
+            self.assertIn("raw_authors", data)
+            self.assertEqual(data["raw_authors"], ["Test Author", "Test Author 2"])
+            self.assertIn("work_type", data)
 
     def test_serializes_paper_with_work_type(self):
         # Test various work_type values
@@ -218,12 +220,15 @@ class PaperSerializerTests(TestCase):
         paper.hubs.add(journal_without_image)
         paper.save()
 
-        serializer = PaperSerializer(paper)
-        data = serializer.data
+        with patch.object(
+            settings, "RESEARCHHUB_JOURNAL_ID", str(journal_without_image.id)
+        ):
+            serializer = PaperSerializer(paper)
+            data = serializer.data
 
-        self.assertIn("journal", data)
-        self.assertEqual(data["journal"]["name"], journal_without_image.name)
-        self.assertEqual(data["journal"]["image"], None)
+            self.assertIn("journal", data)
+            self.assertEqual(data["journal"]["name"], journal_without_image.name)
+            self.assertEqual(data["journal"]["image"], None)
 
     def test_serializes_paper_with_bounties(self):
         """Test that paper serializes with bounties field when bounties exist"""
@@ -249,19 +254,20 @@ class PaperSerializerTests(TestCase):
         )
 
         # Serialize the paper
-        serializer = PaperSerializer(self.paper)
-        data = serializer.data
+        with patch.object(settings, "RESEARCHHUB_JOURNAL_ID", str(self.journal.id)):
+            serializer = PaperSerializer(self.paper)
+            data = serializer.data
 
-        # Verify bounties field exists and contains the bounty
-        self.assertIn("bounties", data)
-        self.assertIsInstance(data["bounties"], list)
-        self.assertEqual(len(data["bounties"]), 1)
+            # Verify bounties field exists and contains the bounty
+            self.assertIn("bounties", data)
+            self.assertIsInstance(data["bounties"], list)
+            self.assertEqual(len(data["bounties"]), 1)
 
-        # Verify bounty data
-        bounty_data = data["bounties"][0]
-        self.assertEqual(bounty_data["id"], bounty.id)
-        self.assertEqual(bounty_data["status"], bounty.status)
-        self.assertEqual(bounty_data["bounty_type"], bounty.bounty_type)
+            # Verify bounty data
+            bounty_data = data["bounties"][0]
+            self.assertEqual(bounty_data["id"], bounty.id)
+            self.assertEqual(bounty_data["status"], bounty.status)
+            self.assertEqual(bounty_data["bounty_type"], bounty.bounty_type)
 
     def test_serializes_paper_with_purchases(self):
         # Create a purchase for the unified document
@@ -276,19 +282,49 @@ class PaperSerializerTests(TestCase):
         )
 
         # Serialize and check
-        serializer = PaperSerializer(self.paper)
-        data = serializer.data
+        with patch.object(settings, "RESEARCHHUB_JOURNAL_ID", str(self.journal.id)):
+            serializer = PaperSerializer(self.paper)
+            data = serializer.data
 
-        # Verify purchases are included
-        self.assertIn("purchases", data)
-        self.assertIsInstance(data["purchases"], list)
-        self.assertEqual(len(data["purchases"]), 1)
+            # Verify purchases are included
+            self.assertIn("purchases", data)
+            self.assertIsInstance(data["purchases"], list)
+            self.assertEqual(len(data["purchases"]), 1)
 
-        # Verify purchase data is correct
-        purchase_data = data["purchases"][0]
-        self.assertEqual(purchase_data["id"], purchase.id)
-        self.assertEqual(purchase_data["amount"], purchase.amount)
-        self.assertIn("user", purchase_data)
+            # Verify purchase data is correct
+            purchase_data = data["purchases"][0]
+            self.assertEqual(purchase_data["id"], purchase.id)
+            self.assertEqual(purchase_data["amount"], purchase.amount)
+            self.assertIn("user", purchase_data)
+
+    def test_prioritizes_researchhub_journal(self):
+        """
+        Test that the ResearchHub Journal is prioritized when multiple journals exist.
+        """
+        # Create regular journal
+        regular_journal = create_hub("Regular Journal", namespace=Hub.Namespace.JOURNAL)
+
+        # Create ResearchHub journal
+        researchhub_journal = create_hub(
+            "ResearchHub Journal", namespace=Hub.Namespace.JOURNAL
+        )
+
+        # Create a paper with both journals
+        paper = create_paper(
+            uploaded_by=self.user,
+            title="Multi-Journal Paper",
+        )
+        paper.hubs.add(regular_journal)
+        paper.hubs.add(researchhub_journal)
+        paper.save()
+
+        with patch.object(settings, "RESEARCHHUB_JOURNAL_ID", researchhub_journal.id):
+            serializer = PaperSerializer(paper)
+            data = serializer.data
+
+            self.assertIn("journal", data)
+            self.assertEqual(data["journal"]["name"], "ResearchHub Journal")
+            self.assertEqual(data["journal"]["id"], researchhub_journal.id)
 
 
 class PostSerializerTests(TestCase):
@@ -1134,10 +1170,8 @@ class FundingFeedEntrySerializerTests(TestCase):
         nonprofit = NonprofitOrg.objects.create(name="Test Nonprofit")
 
         # Create the nonprofit link - variable not directly used but needed for test
-        # pylint: disable=unused-variable
-        _nonprofit_link = NonprofitFundraiseLink.objects.create(
-            fundraise=fundraise, nonprofit=nonprofit
-        )
+        # Creating the link is necessary for the test though the variable isn't used
+        NonprofitFundraiseLink.objects.create(fundraise=fundraise, nonprofit=nonprofit)
 
         # Re-serialize and verify is_nonprofit is now True
         serializer = FundingFeedEntrySerializer(feed_entry)

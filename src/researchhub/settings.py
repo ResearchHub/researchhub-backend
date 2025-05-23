@@ -865,3 +865,8 @@ analytics.write_key = os.environ.get("SEGMENT_WRITE_KEY", keys.SEGMENT_WRITE_KEY
 
 # Endaoment Account ID
 ENDAOMENT_ACCOUNT_ID = os.environ.get("ENDAOMENT_ACCOUNT_ID", keys.ENDAOMENT_ACCOUNT_ID)
+
+# ResearchHub Journal ID
+RESEARCHHUB_JOURNAL_ID = os.environ.get(
+    "RESEARCHHUB_JOURNAL_ID", keys.RESEARCHHUB_JOURNAL_ID
+)
