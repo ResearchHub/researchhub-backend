@@ -515,7 +515,7 @@ class PaperSerializer(BasePaperSerializer):
 
         validated_data.pop("authors", [None])
         file = validated_data.pop("file", None)
-        hubs = validated_data.pop("hubs", [])
+        hubs = validated_data.pop("hubs", None)
         pdf_license = validated_data.get("pdf_license", None)
         validated_data.pop("raw_authors", [])
 
