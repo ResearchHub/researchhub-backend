@@ -11,7 +11,10 @@ from paper.related_models.paper_model import (
     Figure,
     Paper,
     PaperFetchLog,
-    PaperVersion,
 )
 from paper.related_models.paper_submission_model import PaperSubmission
-from paper.related_models.series_model import PaperSeries, PaperSeriesDeclaration
+from paper.related_models.paper_version import (
+    PaperSeries,
+    PaperSeriesDeclaration,
+    PaperVersion,
+)
