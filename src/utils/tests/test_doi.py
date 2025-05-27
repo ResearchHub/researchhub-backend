@@ -63,6 +63,26 @@ class TestDOI(unittest.TestCase):
             == settings.CROSSREF_DOI_SUFFIX_LENGTH + len(settings.CROSSREF_DOI_PREFIX)
         )
 
+    def test_generate_base_doi_with_researchhub_journal(self):
+        """Test DOI generation for ResearchHub Journal papers."""
+        doi = DOI()
+        generated = doi._generate_base_doi(journal="RESEARCHHUB")
+        self.assertTrue(generated.startswith(settings.CROSSREF_DOI_RHJ_PREFIX))
+        self.assertTrue(
+            len(generated)
+            == settings.CROSSREF_DOI_SUFFIX_LENGTH
+            + len(settings.CROSSREF_DOI_RHJ_PREFIX)
+        )
+
+    def test_init_with_journal_parameter(self):
+        """Test DOI initialization with journal parameter."""
+        doi = DOI(journal="RESEARCHHUB")
+        self.assertTrue(doi.base_doi.startswith(settings.CROSSREF_DOI_RHJ_PREFIX))
+
+        # Test with regular journal (should use default prefix)
+        doi_regular = DOI(journal="OTHER")
+        self.assertTrue(doi_regular.base_doi.startswith(settings.CROSSREF_DOI_PREFIX))
+
     def test_register_doi_basic(self):
         """Test basic DOI registration with minimal author info."""
         with patch("utils.doi.render_to_string") as mock_render, patch(

@@ -416,7 +416,9 @@ class PaperViewSet(
                             )
                             raise
 
-                    doi = DOI(base_doi=base_doi, version=paper_version_number)
+                    doi = DOI(
+                        base_doi=base_doi, version=paper_version_number, journal=journal
+                    )
 
                     crossref_response = doi.register_doi_for_paper(
                         authors=authors,
@@ -634,7 +636,11 @@ class PaperViewSet(
                     )
                 )
 
-                doi = DOI(base_doi=base_doi, version=paper_version_number)
+                doi = DOI(
+                    base_doi=base_doi,
+                    version=paper_version_number,
+                    journal=PaperVersion.RESEARCHHUB,
+                )
 
                 # Register DOI with Crossref
                 crossref_response = doi.register_doi_for_paper(

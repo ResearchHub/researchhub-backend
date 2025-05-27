@@ -19,11 +19,14 @@ from user.models import Author
 # Class for handling Digital Object Identifier (DOI) generation and registration with Crossref.
 class DOI:
     def __init__(
-        self, base_doi: Optional[str] = None, version: Optional[int] = None
+        self,
+        base_doi: Optional[str] = None,
+        version: Optional[int] = None,
+        journal: Optional[str] = None,
     ) -> None:
         self.base_doi = base_doi
         if base_doi is None:
-            self.base_doi = self._generate_base_doi()
+            self.base_doi = self._generate_base_doi(journal)
 
         self.doi = self.base_doi
         if version is not None:
@@ -38,10 +41,8 @@ class DOI:
         if not doi:
             return None
 
-        # Remove any trailing slashes and whitespace
-        doi = (
-            doi.strip().rstrip("/").lower()
-        )  # Convert to lowercase for case-insensitive comparison
+        # Convert to lowercase for case-insensitive comparison
+        doi = doi.strip().rstrip("/").lower()
 
         # Handle various URL formats
         if "doi.org" in doi:
@@ -110,9 +111,15 @@ class DOI:
 
         return bool(match)
 
-    # Generate a random DOI using the configured prefix ("10.55277/ResearchHub.") and a random suffix.
-    def _generate_base_doi(self) -> str:
-        return settings.CROSSREF_DOI_PREFIX + "".join(
+    # Generate a random DOI using the configured prefix and a random suffix.
+    def _generate_base_doi(self, journal: Optional[str] = None) -> str:
+        # Use ResearchHub Journal prefix for RHJ papers
+        if journal == "RESEARCHHUB":
+            prefix = settings.CROSSREF_DOI_RHJ_PREFIX
+        else:
+            prefix = settings.CROSSREF_DOI_PREFIX
+
+        return prefix + "".join(
             random.choice(string.ascii_lowercase + string.digits)
             for _ in range(settings.CROSSREF_DOI_SUFFIX_LENGTH)
         )
