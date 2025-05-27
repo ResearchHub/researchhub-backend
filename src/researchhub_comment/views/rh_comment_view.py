@@ -598,41 +598,22 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         """
         Override to retrieve comment with all_objects manager to include censored comments
         """
-        queryset = self.filter_queryset(self.get_queryset())
+        assert self.kwargs.get(
+            "pk"
+        ), "Expected view to be called with a URL keyword argument named 'pk'"
 
-        # Ensure we're using all_objects queryset to include censored comments
-        if queryset.model == RhCommentModel:
-            # Get a reference to the all_objects manager
-            queryset = RhCommentModel.all_objects.filter(id__in=queryset.values("id"))
+        # Get the base queryset without applying filters
+        queryset = self.get_queryset()
 
-        # Perform the lookup filtering.
+        # Apply only the lookup, not the full filtering
         lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
-
-        assert lookup_url_kwarg in self.kwargs, (
-            "Expected view %s to be called with a URL keyword argument "
-            'named "%s". Fix your URL conf, or set the `.lookup_field` '
-            "attribute on the view correctly."
-            % (self.__class__.__name__, lookup_url_kwarg)
-        )
-
         filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
-        obj = get_object_or_404(queryset, **filter_kwargs)
 
-        # Additional workspace privacy control: if the request explicitly asks for
-        # workspace comments but the current user does **not** belong to the
-        # organization that owns the thread permission, return 404 to mimic
-        # "not found" behaviour expected by tests.
-        privacy_type = self.request.query_params.get("privacy_type")
-        if privacy_type == WORKSPACE:
-            perm = obj.thread.permissions.filter(organization__isnull=False).first()
-            if perm and perm.organization:
-                if not perm.organization.org_has_user(self.request.user):
-                    raise NotFound()
-
-        # May raise a permission denied
-        self.check_object_permissions(self.request, obj)
-
-        return obj
+        try:
+            obj = get_object_or_404(queryset, **filter_kwargs)
+            return obj
+        except Exception:
+            raise
 
     def retrieve(self, request, *args, **kwargs):
         from django.db.models import Prefetch
