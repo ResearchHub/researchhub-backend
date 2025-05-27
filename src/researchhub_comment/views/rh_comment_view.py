@@ -611,6 +611,10 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
 
         try:
             obj = get_object_or_404(queryset, **filter_kwargs)
+
+            # May raise a permission denied
+            self.check_object_permissions(self.request, obj)
+
             return obj
         except Exception:
             raise
