@@ -12,6 +12,7 @@ from django.template.loader import render_to_string
 
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
+from paper.related_models.paper_version import PaperVersion
 from researchhub_document.models import ResearchhubPost
 from user.models import Author
 
@@ -115,7 +116,7 @@ class DOI:
     # (e.g., "10.55277/researchhub." or "10.55277/rhj.") and a random suffix.
     def _generate_base_doi(self, journal: Optional[str] = None) -> str:
         # Use ResearchHub Journal prefix for RHJ papers
-        if journal == "RESEARCHHUB":
+        if journal == PaperVersion.RESEARCHHUB:
             prefix = settings.CROSSREF_DOI_RHJ_PREFIX
         else:
             prefix = settings.CROSSREF_DOI_PREFIX
