@@ -83,7 +83,13 @@ def update_paper_journal_status(sender, instance, created, **kwargs):
                 paper_version.refresh_from_db()
 
                 # Create a new DOI for the ResearchHub journal publication
-                doi = DOI(journal=PaperVersion.RESEARCHHUB)
+                # Use existing base_doi if available, otherwise generate a new one
+                base_doi = paper_version.base_doi
+                version = paper_version.version
+
+                doi = DOI(
+                    base_doi=base_doi, version=version, journal=PaperVersion.RESEARCHHUB
+                )
 
                 # Get authors for DOI registration
                 authors = paper.authors.all()
