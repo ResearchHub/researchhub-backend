@@ -15,7 +15,8 @@ from rest_framework.test import APIClient, APIRequestFactory
 from discussion.reaction_models import Vote as GrmVote
 from feed.views.journal_feed_view import JournalFeedViewSet
 from hub.models import Hub
-from paper.related_models.paper_model import Paper, PaperVersion
+from paper.related_models.paper_model import Paper
+from paper.related_models.paper_version import PaperVersion
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
 )

@@ -12,7 +12,8 @@ from rest_framework.response import Response
 from feed.models import FeedEntry
 from feed.serializers import FeedEntrySerializer
 from feed.views.base_feed_view import BaseFeedView
-from paper.related_models.paper_model import Paper, PaperVersion
+from paper.related_models.paper_model import Paper
+from paper.related_models.paper_version import PaperVersion
 
 from ..serializers import serialize_feed_metrics
 from .common import FeedPagination

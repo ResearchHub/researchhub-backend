@@ -11,7 +11,8 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from utils.sentry import log_error
 
-from .models import Paper, PaperVersion
+from .models import Paper
+from .related_models.paper_version import PaperVersion
 
 
 @receiver(post_save, sender=Paper, dispatch_uid="add_paper_slug")
