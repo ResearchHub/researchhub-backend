@@ -111,7 +111,8 @@ class DOI:
 
         return bool(match)
 
-    # Generate a random DOI using the configured prefix and a random suffix.
+    # Generate a random DOI using the configured prefix
+    # (e.g., "10.55277/researchhub." or "10.55277/rhj.") and a random suffix.
     def _generate_base_doi(self, journal: Optional[str] = None) -> str:
         # Use ResearchHub Journal prefix for RHJ papers
         if journal == "RESEARCHHUB":
