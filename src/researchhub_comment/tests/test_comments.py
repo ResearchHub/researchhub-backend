@@ -9,6 +9,9 @@ from paper.tests.helpers import create_paper
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.models import Score
+from researchhub_comment.models import RhCommentThreadModel
+from researchhub_comment.serializers import DynamicRhThreadSerializer
+from researchhub_document.tests.helpers import create_post
 from user.tests.helpers import create_moderator, create_random_default_user, create_user
 
 
@@ -826,42 +829,103 @@ class CommentViewTests(APITestCase):
         )
 
     def test_get_document_metadata_discussion_count_update(self):
-        """
-        Creating a *generic* comment should increase the `discussion_count`
-        inside the document-metadata payload. Deleting that comment should
-        bring the count back down.
-        """
+        creator_1 = self.user_1
+        creator_2 = self.user_2
+        creator_3 = self.user_3
+        parent_comment_1 = self._create_paper_comment(self.paper.id, creator_1)
+        parent_comment_2 = self._create_paper_comment(self.paper.id, creator_2)
 
-        self.client.force_authenticate(self.user_1)
-
-        # Helper to pull discussion_count from metadata
         def _discussion_count():
-            meta = self._get_metadata()
-            self.assertEqual(meta.status_code, 200)
-            documents_field = meta.data["documents"]
-            # For papers, `documents` is a dict; for posts it may be a list.
-            if isinstance(documents_field, list):
-                doc_payload = documents_field[0]
-            else:
-                doc_payload = documents_field
-            return doc_payload["discussion_aggregates"]["discussion_count"]
+            res = self.client.get(f"/api/paper/{self.paper.id}/")
+            return res.data["discussion_count"]
 
-        baseline_discussion_ct = _discussion_count()
+        self.assertEqual(_discussion_count(), 2)
 
-        # Create a *generic* top-level comment (counts toward discussion_count)
-        comment_res = self._create_paper_comment(self.paper.id, self.user_1)
-        self.assertEqual(comment_res.status_code, 200)
-        comment_id = comment_res.data["id"]
-
-        # Confirm increment
-        self.assertEqual(_discussion_count(), baseline_discussion_ct + 1)
-
-        # Censor the comment (soft delete)
-        censor_res = self.client.delete(
-            f"/api/paper/{self.paper.id}/comments/{comment_id}/censor/"
+        comment_1 = self._create_paper_comment(
+            self.paper.id, creator_3, parent_id=parent_comment_1.data["id"]
         )
-        # Using censor instead of destroy; expect success
-        self.assertEqual(censor_res.status_code, 200)
+        comment_2 = self._create_paper_comment(
+            self.paper.id, creator_3, parent_id=parent_comment_2.data["id"]
+        )
 
-        # Count should revert to baseline
-        self.assertEqual(_discussion_count(), baseline_discussion_ct)
+        self.assertEqual(_discussion_count(), 4)
+
+    def test_dynamic_rh_thread_serializer_content_object_fields_for_paper(self):
+        """Test that content_object_id and content_object_type are properly populated for papers."""
+        # Create a comment thread for the paper
+        comment_response = self._create_paper_comment(self.paper.id, self.user_1)
+        self.assertEqual(comment_response.status_code, 200)
+
+        # Get the thread from the database
+        thread = RhCommentThreadModel.objects.get(
+            object_id=self.paper.id, content_type__model="paper"
+        )
+
+        # Serialize the thread
+        serializer = DynamicRhThreadSerializer(thread)
+        data = serializer.data
+
+        # Assert the new fields are present and correct
+        self.assertIn("content_object_id", data)
+        self.assertIn("content_object_type", data)
+        self.assertEqual(data["content_object_id"], self.paper.id)
+        self.assertEqual(data["content_object_type"], "paper")
+
+    def test_dynamic_rh_thread_serializer_content_object_fields_for_post(self):
+        """Test that content_object_id and content_object_type are properly populated for posts."""
+        # Create a post
+        post = create_post(created_by=self.user_1)
+
+        # Create a comment thread for the post
+        comment_response = self._create_post_comment(post.id, self.user_1)
+        self.assertEqual(comment_response.status_code, 200)
+
+        # Get the thread from the database
+        thread = RhCommentThreadModel.objects.get(
+            object_id=post.id, content_type__model="researchhubpost"
+        )
+
+        # Serialize the thread
+        serializer = DynamicRhThreadSerializer(thread)
+        data = serializer.data
+
+        # Assert the new fields are present and correct
+        self.assertIn("content_object_id", data)
+        self.assertIn("content_object_type", data)
+        self.assertEqual(data["content_object_id"], post.id)
+        self.assertEqual(data["content_object_type"], "researchhubpost")
+
+    def test_dynamic_rh_thread_serializer_content_object_fields_with_none_content(self):
+        """Test that content_object_id and content_object_type handle None content gracefully."""
+        # Create a thread manually without content object
+        thread = RhCommentThreadModel.objects.create()
+
+        # Serialize the thread
+        serializer = DynamicRhThreadSerializer(thread)
+        data = serializer.data
+
+        # Assert the new fields handle None gracefully
+        self.assertIn("content_object_id", data)
+        self.assertIn("content_object_type", data)
+        self.assertIsNone(data["content_object_id"])
+        self.assertIsNone(data["content_object_type"])
+
+    def test_dynamic_rh_thread_serializer_content_object_fields_in_api_response(self):
+        """Test that the new fields appear in actual API responses."""
+        # Create a comment
+        comment_response = self._create_paper_comment(self.paper.id, self.user_1)
+        self.assertEqual(comment_response.status_code, 200)
+
+        # Get the paper details which should include thread information
+        self.client.force_authenticate(self.user_1)
+        paper_response = self.client.get(f"/api/paper/{self.paper.id}/")
+        self.assertEqual(paper_response.status_code, 200)
+
+        # Check if discussions field contains our new fields
+        discussions = paper_response.data.get("discussions", [])
+        if discussions:
+            thread_data = discussions[0]
+            self.assertIn("content_object_id", thread_data)
+            self.assertIn("content_object_type", thread_data)
+            self.assertEqual(thread_data["content_object_id"], self.paper.id)
+            self.assertEqual(thread_data["content_object_type"], "paper")

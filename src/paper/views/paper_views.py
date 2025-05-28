@@ -798,6 +798,8 @@ class PaperViewSet(
                 "boost_amount",
                 "created_date",
                 "discussion_count",
+                "discussions",
+                "discussion_aggregates",
                 "doi",
                 "external_source",
                 "file",

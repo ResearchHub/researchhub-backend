@@ -4,6 +4,7 @@ import re
 import requests
 import rest_framework.serializers as serializers
 from django.contrib.admin.options import get_content_type_for_model
+from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.db import IntegrityError, transaction
 from django.db.models import Case, IntegerField, Value, When
@@ -45,6 +46,7 @@ from reputation.models import Contribution
 from reputation.tasks import create_contribution
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub.settings import TESTING
+from researchhub_comment.related_models.rh_comment_model import RhCommentThreadModel
 from researchhub_document.utils import update_unified_document_to_paper
 from review.serializers.peer_review_serializer import PeerReviewSerializer
 from user.models import Author
@@ -909,10 +911,36 @@ class DynamicPaperSerializer(
         _context_fields = context.get("pap_dps_get_discussions", {})
         _select_related_fields = context.get("pap_dps_get_discussions_select", [])
         _prefetch_related_fields = context.get("pap_dps_get_discussions_prefetch", [])
+
+        # Get all paper versions in the same series
+        try:
+            paper_version = paper.version
+            # Get all papers in the same version series
+            all_paper_versions = PaperVersion.objects.filter(
+                base_doi=paper_version.base_doi
+            ).select_related("paper")
+
+            # Extract all paper IDs from the version series
+            paper_ids = [version.paper.id for version in all_paper_versions]
+
+            # Get all threads from all paper versions
+            paper_content_type = ContentType.objects.get_for_model(Paper)
+            all_threads = (
+                RhCommentThreadModel.objects.filter(
+                    content_type=paper_content_type, object_id__in=paper_ids
+                )
+                .select_related(*_select_related_fields)
+                .prefetch_related(*_prefetch_related_fields)
+            )
+
+        except PaperVersion.DoesNotExist:
+            # If no version exists, just return threads for this paper
+            all_threads = paper.rh_threads.select_related(
+                *_select_related_fields
+            ).prefetch_related(*_prefetch_related_fields)
+
         serializer = DynamicRhThreadSerializer(
-            paper.rh_threads.select_related(*_select_related_fields).prefetch_related(
-                *_prefetch_related_fields
-            ),
+            all_threads,
             many=True,
             context=context,
             **_context_fields,
@@ -920,7 +948,30 @@ class DynamicPaperSerializer(
         return serializer.data
 
     def get_discussion_aggregates(self, paper):
-        return paper.rh_threads.get_discussion_aggregates(paper)
+        # Get all paper versions in the same series
+        try:
+            paper_version = paper.version
+            # Get all papers in the same version series
+            all_paper_versions = PaperVersion.objects.filter(
+                base_doi=paper_version.base_doi
+            ).select_related("paper")
+
+            # Calculate aggregates across all versions
+            total_discussion_count = 0
+            for version in all_paper_versions:
+                total_discussion_count += (
+                    version.paper.rh_threads.get_discussion_count()
+                )
+
+            # Return aggregated data
+            return {
+                "discussion_count": total_discussion_count,
+                "versions_included": len(all_paper_versions),
+            }
+
+        except PaperVersion.DoesNotExist:
+            # If no version exists, just return aggregates for this paper
+            return paper.rh_threads.get_discussion_aggregates(paper)
 
     def get_hubs(self, paper):
         context = self.context

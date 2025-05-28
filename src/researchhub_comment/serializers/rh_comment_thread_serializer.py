@@ -36,6 +36,8 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
     comments = SerializerMethodField()
     comment_count = SerializerMethodField()
     content_object = SerializerMethodField()
+    content_object_id = SerializerMethodField()
+    content_object_type = SerializerMethodField()
     content_type = SerializerMethodField()
     privacy_type = SerializerMethodField()
     peer_review = SerializerMethodField()
@@ -72,6 +74,16 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
 
     def get_comment_count(self, thread):
         return thread.rh_comments.count()
+
+    def get_content_object_id(self, thread):
+        """Return the ID of the related content object."""
+        content_object = thread.content_object
+        return content_object.id if content_object else None
+
+    def get_content_object_type(self, thread):
+        """Return the type/model name of the related content object."""
+        content_object = thread.content_object
+        return content_object._meta.model_name if content_object else None
 
     def get_content_object(self, thread):
         context = self.context

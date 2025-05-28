@@ -51,7 +51,8 @@ class PaperApiTests(APITestCase):
             mock_get_data_from_doi.return_value = json.load(single_work_file)
 
             response = self.client.get(
-                "/api/paper/fetch_publications_by_doi/?doi=10.1371/journal.pone.0305345",
+                "/api/paper/fetch_publications_by_doi/"
+                "?doi=10.1371/journal.pone.0305345",
             )
 
             self.assertGreater(len(response.data["works"]), 0)
@@ -78,7 +79,8 @@ class PaperApiTests(APITestCase):
             mock_get_data_from_doi.return_value = json.load(single_work_file)
 
             response = self.client.get(
-                "/api/paper/fetch_publications_by_doi/?doi=10.1371/journal.pone.0305345",
+                "/api/paper/fetch_publications_by_doi/"
+                "?doi=10.1371/journal.pone.0305345",
             )
 
             self.assertEqual(len(response.data["works"]), 0)
@@ -109,7 +111,8 @@ class PaperApiTests(APITestCase):
             author_id = "A5075662890"
 
             response = self.client.get(
-                f"/api/paper/fetch_publications_by_doi/?doi=10.1371/journal.pone.0305345&author_id={author_id}",
+                f"/api/paper/fetch_publications_by_doi/"
+                f"?doi=10.1371/journal.pone.0305345&author_id={author_id}",
             )
 
             self.assertEqual(response.data["selected_author_id"], author_id)
@@ -302,7 +305,7 @@ class PaperApiTests(APITestCase):
         self.assertIn("corresponding author is required", str(response.data["error"]))
 
     def test_create_researchhub_paper_increments_version(self):
-        """Test that creating a new version of an existing paper increments the version number"""
+        """Test that creating a new version increments the version number"""
         # Create initial paper
         original_paper = create_paper()
         PaperVersion.objects.create(
@@ -509,7 +512,7 @@ class PaperApiTests(APITestCase):
         self.assertEqual(paper_version.original_paper_id, original_paper.id)
 
     def test_create_researchhub_paper_version_lineage(self):
-        """Test that creating multiple versions maintains consistent base_doi and original_paper_id"""
+        """Test that multiple versions maintain consistent base_doi"""
         user = create_random_authenticated_user("test_user")
         self.client.force_authenticate(user)
 
@@ -985,3 +988,23 @@ class PaperDOITests(APITestCase):
             )
             self.assertEqual(response.data["doi"], test_doi)
             self.assertEqual(response.data["id"], paper.id)
+
+    def test_paper_serializer_includes_discussions_and_aggregates_fields(self):
+        """Test that paper serializer includes discussions and discussion_aggregates"""
+        # Create paper
+        paper = create_paper(title="Test Paper with Discussions")
+
+        # Get the paper via API
+        url = reverse("paper-detail", kwargs={"pk": paper.id})
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        # Check that the new fields are present in the response
+        self.assertIn("discussions", data)
+        self.assertIn("discussion_aggregates", data)
+
+        # Verify they are lists/dicts as expected
+        self.assertIsInstance(data["discussions"], list)
+        self.assertIsInstance(data["discussion_aggregates"], dict)
