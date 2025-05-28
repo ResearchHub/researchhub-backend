@@ -40,6 +40,12 @@ jobs:
           --health-retries 5
         ports:
           - 6379:6379
+      elasticsearch:
+        image: elasticsearch:7.10.1
+        env:
+          discovery.type: single-node
+        ports:
+          - 9200:9200
 
     steps:
       - name: Check out sources
