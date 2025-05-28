@@ -40,6 +40,12 @@ jobs:
           --health-retries 5
         ports:
           - 6379:6379
+      elasticsearch:
+        image: elasticsearch:7.10.1
+        env:
+          discovery.type: single-node
+        ports:
+          - 9200:9200
 
     steps:
       - name: Check out sources
@@ -65,6 +71,7 @@ jobs:
           cp config/ci/* config
           poetry run python manage.py migrate
           poetry run python manage.py collectstatic --noinput
+          poetry run python manage.py search_index --rebuild -f
           poetry run coverage run manage.py test --verbosity=2
           poetry run coverage xml -o coverage.xml
 
