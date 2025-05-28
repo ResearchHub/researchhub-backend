@@ -1,5 +1,6 @@
 from django.forms.models import model_to_dict
 from django.test import TestCase
+from rest_framework.test import APIRequestFactory
 
 from hub.tests.helpers import create_hub
 from paper.models import PaperVersion
@@ -196,3 +197,30 @@ class PaperSerializersTests(TestCase):
         peer_review_ids = {review["id"] for review in actual.data["peer_reviews"]}
         expected_ids = {peer_review1.id, peer_review2.id}
         self.assertEqual(peer_review_ids, expected_ids)
+
+    def test_update_with_hubs(self):
+        """
+        Verify that updating a paper with hubs works correctly.
+        """
+        # Arrange
+        user = create_random_default_user("user1")
+        factory = APIRequestFactory()
+        request = factory.patch("/")
+        request.user = user
+        hub1 = create_hub(name="hub1")
+        hub2 = create_hub(name="hub2")
+        hub3 = create_hub(name="hub3")
+        paper = helpers.create_paper(title="paper1")
+        paper.unified_document.hubs.add(hub1, hub2)  # Initially add hub1 and hub2
+
+        # Act
+        data = {"hubs": [hub2.id, hub3.id]}  # Remove hub1 and add hub3
+        serializer = PaperSerializer(
+            instance=paper, data=data, context={"request": request}, partial=True
+        )
+
+        # Assert: unified_document hubs should be updated to hub2 and hub3 only
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        updated = serializer.save()
+        updated_hubs = set(updated.unified_document.hubs.all())
+        self.assertSetEqual(updated_hubs, {hub2, hub3})
