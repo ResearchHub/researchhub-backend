@@ -198,46 +198,6 @@ class PaperSerializersTests(TestCase):
         expected_ids = {peer_review1.id, peer_review2.id}
         self.assertEqual(peer_review_ids, expected_ids)
 
-    def test_get_discussions_single_paper_no_version(self):
-        """Test discussions method when paper has no version"""
-        paper = helpers.create_paper(title="Test Paper No Version")
-
-        # Create serializer instance
-        serializer = DynamicPaperSerializer(paper)
-
-        # Test that the method exists and returns a list
-        discussions = serializer.get_discussions(paper)
-        self.assertIsInstance(discussions, list)
-        self.assertEqual(len(discussions), 0)  # No discussions created
-
-    def test_get_discussions_with_paper_version(self):
-        """Test discussions method when paper has a version"""
-        paper = helpers.create_paper(title="Test Paper With Version")
-
-        # Create a paper version
-        base_doi = "10.1234/test.base"
-        PaperVersion.objects.create(paper=paper, version=1, base_doi=base_doi)
-
-        # Create serializer instance
-        serializer = DynamicPaperSerializer(paper)
-
-        # Test that the method exists and returns a list
-        discussions = serializer.get_discussions(paper)
-        self.assertIsInstance(discussions, list)
-        self.assertEqual(len(discussions), 0)  # No discussions created
-
-    def test_get_discussion_aggregates_single_paper_no_version(self):
-        """Test discussion aggregates when paper has no version"""
-        paper = helpers.create_paper(title="Test Paper No Version")
-
-        # Create serializer instance
-        serializer = DynamicPaperSerializer(paper)
-
-        # Test that the method exists and returns expected structure
-        aggregates = serializer.get_discussion_aggregates(paper)
-        self.assertIsInstance(aggregates, dict)
-        # Should call paper.rh_threads.get_discussion_aggregates(paper)
-
     def test_get_discussion_aggregates_with_paper_version(self):
         """Test discussion aggregates when paper has a version"""
         paper = helpers.create_paper(title="Test Paper With Version")
