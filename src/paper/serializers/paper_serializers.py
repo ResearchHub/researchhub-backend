@@ -903,16 +903,36 @@ class DynamicPaperSerializer(
         return serializer.data
 
     def get_discussions(self, paper):
+        from django.contrib.contenttypes.models import ContentType
+
+        from paper.services.paper_version_service import PaperVersionService
         from researchhub_comment.serializers import DynamicRhThreadSerializer
 
         context = self.context
         _context_fields = context.get("pap_dps_get_discussions", {})
         _select_related_fields = context.get("pap_dps_get_discussions_select", [])
         _prefetch_related_fields = context.get("pap_dps_get_discussions_prefetch", [])
+
+        # Get all versions of this paper
+        paper_versions = PaperVersionService.get_all_paper_versions(paper.id)
+
+        # Get content type for Paper model
+        paper_content_type = ContentType.objects.get_for_model(paper)
+
+        # Get threads for all paper versions
+        from researchhub_comment.models import RhCommentThreadModel
+
+        thread_queryset = (
+            RhCommentThreadModel.objects.filter(
+                content_type=paper_content_type,
+                object_id__in=paper_versions.values_list("id", flat=True),
+            )
+            .select_related(*_select_related_fields)
+            .prefetch_related(*_prefetch_related_fields)
+        )
+
         serializer = DynamicRhThreadSerializer(
-            paper.rh_threads.select_related(*_select_related_fields).prefetch_related(
-                *_prefetch_related_fields
-            ),
+            thread_queryset,
             many=True,
             context=context,
             **_context_fields,
@@ -920,7 +940,24 @@ class DynamicPaperSerializer(
         return serializer.data
 
     def get_discussion_aggregates(self, paper):
-        return paper.rh_threads.get_discussion_aggregates(paper)
+        from django.contrib.contenttypes.models import ContentType
+
+        from paper.services.paper_version_service import PaperVersionService
+        from researchhub_comment.models import RhCommentThreadModel
+
+        # Get all versions of this paper
+        paper_versions = PaperVersionService.get_all_paper_versions(paper.id)
+
+        # Get content type for Paper model
+        paper_content_type = ContentType.objects.get_for_model(paper)
+
+        # Get threads for all paper versions
+        thread_queryset = RhCommentThreadModel.objects.filter(
+            content_type=paper_content_type,
+            object_id__in=paper_versions.values_list("id", flat=True),
+        )
+
+        return thread_queryset.get_discussion_aggregates(paper)
 
     def get_hubs(self, paper):
         context = self.context

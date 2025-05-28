@@ -162,9 +162,33 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         return model_object
 
     def _get_model_object_threads(self):
+        model_name = self._get_model_name()
         model_object = self._get_model_object()
-        thread_queryset = model_object.rh_threads.all()
-        return thread_queryset
+
+        # Special handling for Paper model to get comments from all versions
+        if model_name == PAPER:
+            from django.contrib.contenttypes.models import ContentType
+
+            from paper.services.paper_version_service import PaperVersionService
+
+            # Get content type for Paper model
+            paper_content_type = ContentType.objects.get_for_model(model_object)
+
+            # Get all versions of the paper
+            paper_versions = PaperVersionService.get_all_paper_versions(model_object.id)
+
+            # Get threads for all paper versions
+            from researchhub_comment.models import RhCommentThreadModel
+
+            thread_queryset = RhCommentThreadModel.objects.filter(
+                content_type=paper_content_type,
+                object_id__in=paper_versions.values_list("id", flat=True),
+            )
+            return thread_queryset
+        else:
+            # Normal handling for other models
+            thread_queryset = model_object.rh_threads.all()
+            return thread_queryset
 
     def get_queryset(self):
         """
