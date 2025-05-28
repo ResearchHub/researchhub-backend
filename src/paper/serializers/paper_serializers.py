@@ -277,7 +277,8 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
         if not file:
             return None
 
-        # Don't return copyrighted content by default, but enable override for specific cases
+        # Don't return copyrighted content by default, but enable override for
+        # specific cases
         exclude_copyrighted_content = self.context.get(
             "exclude_copyrighted_content", True
         )
@@ -292,7 +293,8 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
         if not paper.pdf_url:
             return None
 
-        # Don't return copyrighted content by default, but enable override for specific cases
+        # Don't return copyrighted content by default, but enable override for
+        # specific cases
         exclude_copyrighted_content = self.context.get(
             "exclude_copyrighted_content", True
         )
@@ -913,7 +915,8 @@ class DynamicPaperSerializer(
         _prefetch_related_fields = context.get("pap_dps_get_discussions_prefetch", [])
 
         # Get all paper versions in the same series
-        try:
+        # Check if paper has a version before accessing it
+        if hasattr(paper, "version") and paper.version is not None:
             paper_version = paper.version
             # Get all papers in the same version series
             all_paper_versions = PaperVersion.objects.filter(
@@ -932,8 +935,7 @@ class DynamicPaperSerializer(
                 .select_related(*_select_related_fields)
                 .prefetch_related(*_prefetch_related_fields)
             )
-
-        except PaperVersion.DoesNotExist:
+        else:
             # If no version exists, just return threads for this paper
             all_threads = paper.rh_threads.select_related(
                 *_select_related_fields
@@ -949,7 +951,8 @@ class DynamicPaperSerializer(
 
     def get_discussion_aggregates(self, paper):
         # Get all paper versions in the same series
-        try:
+        # Check if paper has a version before accessing it
+        if hasattr(paper, "version") and paper.version is not None:
             paper_version = paper.version
             # Get all papers in the same version series
             all_paper_versions = PaperVersion.objects.filter(
@@ -968,8 +971,7 @@ class DynamicPaperSerializer(
                 "discussion_count": total_discussion_count,
                 "versions_included": len(all_paper_versions),
             }
-
-        except PaperVersion.DoesNotExist:
+        else:
             # If no version exists, just return aggregates for this paper
             return paper.rh_threads.get_discussion_aggregates(paper)
 
@@ -1066,7 +1068,8 @@ class DynamicPaperSerializer(
         if not paper.file:
             return None
 
-        # Don't return copyrighted content by default, but enable override for specific cases
+        # Don't return copyrighted content by default, but enable override for
+        # specific cases
         exclude_copyrighted_content = self.context.get(
             "exclude_copyrighted_content", True
         )
@@ -1081,7 +1084,8 @@ class DynamicPaperSerializer(
         if not paper.pdf_url:
             return None
 
-        # Don't return copyrighted content by default, but enable override for specific cases
+        # Don't return copyrighted content by default, but enable override for
+        # specific cases
         exclude_copyrighted_content = self.context.get(
             "exclude_copyrighted_content", True
         )
