@@ -170,11 +170,7 @@ class UpdatePaperJournalStatusSignalTest(TransactionTestCase):
             )
 
         # Verify DOI was created with correct journal parameter
-        mock_doi_class.assert_called_once_with(
-            base_doi=paper_version.base_doi,
-            version=paper_version.version,
-            journal=PaperVersion.RESEARCHHUB,
-        )
+        mock_doi_class.assert_called_once_with(journal=PaperVersion.RESEARCHHUB)
 
         # Verify DOI registration was called with correct parameters
         mock_doi_instance.register_doi_for_paper.assert_called_once()
