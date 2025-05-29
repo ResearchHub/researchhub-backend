@@ -90,20 +90,23 @@ class DynamicRhCommentSerializer(
 
     def get_thread(self, comment):
         from researchhub_comment.serializers import DynamicRhThreadSerializer
+        from researchhub_comment.serializers.utils import (
+            create_thread_reference,
+            increment_depth,
+            should_use_reference_only,
+        )
 
         context = self.context
         _context_fields = context.get("rhc_dcs_get_thread", {})
 
-        # Only exclude comments field if user hasn't specified custom include fields
-        # This maintains backwards compatibility
-        thread_context_fields = _context_fields.copy()
-        if "_include_fields" not in thread_context_fields:
-            # Only exclude circular field when not using custom include fields
-            exclude_fields = thread_context_fields.get("_exclude_fields", [])
-            thread_context_fields["_exclude_fields"] = exclude_fields + ["comments"]
+        # Use depth limiting to prevent circular dependencies
+        if should_use_reference_only(context):
+            return create_thread_reference(comment.thread)
 
+        # Full serialization for shallow depths
+        new_context = increment_depth(context)
         serializer = DynamicRhThreadSerializer(
-            comment.thread, context=context, **thread_context_fields
+            comment.thread, context=new_context, **_context_fields
         )
         return serializer.data
 

@@ -64,24 +64,30 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
 
     def get_comments(self, thread):
         from researchhub_comment.serializers import DynamicRhCommentSerializer
+        from researchhub_comment.serializers.utils import (
+            create_comment_reference,
+            increment_depth,
+            should_use_reference_only,
+        )
 
         context = self.context
         _context_fields = context.get("rhc_dts_get_comments", {})
         _filter_fields = _context_fields.get("_filter_fields", {})
 
-        # Only exclude thread field if user hasn't specified custom include fields
-        # This maintains backwards compatibility
-        comment_context_fields = _context_fields.copy()
-        if "_include_fields" not in comment_context_fields:
-            # Only exclude circular field when not using custom include fields
-            exclude_fields = comment_context_fields.get("_exclude_fields", [])
-            comment_context_fields["_exclude_fields"] = exclude_fields + ["thread"]
+        # Use depth limiting to prevent circular dependencies
+        if should_use_reference_only(context):
+            comments = thread.rh_comments.filter(**_filter_fields)
+            return [
+                create_comment_reference(comment) for comment in comments[:5]
+            ]  # Limit to 5 for performance
 
+        # Full serialization for shallow depths
+        new_context = increment_depth(context)
         serializer = DynamicRhCommentSerializer(
             thread.rh_comments.filter(**_filter_fields),
             many=True,
-            context=context,
-            **comment_context_fields,
+            context=new_context,
+            **_context_fields,
         )
         return serializer.data
 
@@ -89,9 +95,19 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
         return thread.rh_comments.count()
 
     def get_content_object(self, thread):
+        from researchhub_comment.serializers.utils import (
+            create_content_object_reference,
+            increment_depth,
+            should_use_reference_only,
+        )
+
         context = self.context
         _context_fields = context.get("rhc_dts_get_content_object", {})
         content_object = thread.content_object
+
+        # Use depth limiting to prevent circular dependencies
+        if should_use_reference_only(context):
+            return create_content_object_reference(content_object)
 
         serializer = None
         if isinstance(content_object, Paper):
@@ -106,16 +122,10 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
         if not serializer:
             raise Exception(f"No content object serializer for {str(content_object)}")
 
-        # Exclude discussions field to prevent circular dependency
-        content_context_fields = _context_fields.copy()
-        if "_include_fields" not in content_context_fields:
-            # Only exclude when not using custom include fields
-            exclude_fields = content_context_fields.get("_exclude_fields", [])
-            updated_exclude_fields = exclude_fields + ["discussions"]
-            content_context_fields["_exclude_fields"] = updated_exclude_fields
-
+        # Full serialization for shallow depths
+        new_context = increment_depth(context)
         serializer_data = serializer(
-            content_object, context=context, **content_context_fields
+            content_object, context=new_context, **_context_fields
         ).data
         serializer_data["name"] = content_object._meta.model_name
 

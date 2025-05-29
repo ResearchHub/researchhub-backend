@@ -4,6 +4,14 @@ from rest_framework.test import APITestCase
 from paper.related_models.paper_version import PaperVersion
 from paper.tests.helpers import create_paper
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
+from researchhub_comment.serializers.utils import (
+    DEFAULT_MAX_DEPTH,
+    create_comment_reference,
+    create_thread_reference,
+    get_serialization_depth,
+    increment_depth,
+    should_use_reference_only,
+)
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from user.tests.helpers import create_random_default_user
 
@@ -234,3 +242,72 @@ class PaperVersionCommentsTests(APITestCase):
         self.assertEqual(comment_ids, expected_comment_ids)
         self.assertTrue(comment_ids.isdisjoint(unexpected_comment_ids))
         self.assertEqual(response.data["count"], 2)
+
+    def test_depth_limiting_utilities(self):
+        """Test the depth limiting utility functions work correctly."""
+        # Test initial context
+        context = {}
+        self.assertEqual(get_serialization_depth(context), 0)
+        self.assertFalse(should_use_reference_only(context))
+
+        # Test depth increment
+        new_context = increment_depth(context)
+        self.assertEqual(get_serialization_depth(new_context), 1)
+        self.assertEqual(get_serialization_depth(context), 0)  # Original unchanged
+
+        # Test depth limit
+        context_at_limit = {"serialization_depth": DEFAULT_MAX_DEPTH}
+        self.assertTrue(should_use_reference_only(context_at_limit))
+
+        context_below_limit = {"serialization_depth": DEFAULT_MAX_DEPTH - 1}
+        self.assertFalse(should_use_reference_only(context_below_limit))
+
+    def test_reference_creation(self):
+        """Test that reference creation functions return proper data."""
+        # Create a thread and comment
+        thread = self._create_comment_thread(self.original_paper)
+        comment = self._create_comment(thread, "Test comment")
+
+        # Test thread reference
+        thread_ref = create_thread_reference(thread)
+        self.assertEqual(thread_ref["id"], thread.id)
+        self.assertEqual(thread_ref["thread_type"], thread.thread_type)
+        self.assertIn("anchor", thread_ref)
+        self.assertIn("created_date", thread_ref)
+
+        # Test comment reference
+        comment_ref = create_comment_reference(comment)
+        self.assertEqual(comment_ref["id"], comment.id)
+        self.assertEqual(comment_ref["created_by"], comment.created_by_id)
+        self.assertIn("created_date", comment_ref)
+
+    def test_serialization_depth_prevents_circular_dependencies(self):
+        """Test that serialization depth prevents infinite recursion."""
+        from researchhub_comment.serializers import DynamicRhCommentSerializer
+
+        # Create a thread and comment
+        thread = self._create_comment_thread(self.original_paper)
+        comment = self._create_comment(thread, "Test comment")
+
+        # Test with depth at limit - should use reference only
+        context_at_limit = {"serialization_depth": DEFAULT_MAX_DEPTH}
+        serializer = DynamicRhCommentSerializer(comment, context=context_at_limit)
+
+        # The get_thread method should return a reference-only representation
+        thread_data = serializer.get_thread(comment)
+
+        # Should be a simple reference, not a full serialization
+        self.assertIn("id", thread_data)
+        self.assertIn("thread_type", thread_data)
+        # Should not contain deeply nested data like comments
+        self.assertNotIn("comments", thread_data)
+
+        # Test with depth below limit - should work normally
+        context_below_limit = {"serialization_depth": 0}
+        serializer_normal = DynamicRhCommentSerializer(
+            comment, context=context_below_limit
+        )
+        thread_data_normal = serializer_normal.get_thread(comment)
+
+        # This should have more complete data
+        self.assertIn("id", thread_data_normal)
