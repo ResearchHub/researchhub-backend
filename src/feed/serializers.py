@@ -7,8 +7,12 @@ from hub.models import Hub
 from paper.models import Paper
 from purchase.serializers import DynamicPurchaseSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
+from purchase.serializers.grant_serializer import DynamicGrantSerializer
 from researchhub_document.related_models.constants import document_type
-from researchhub_document.related_models.constants.document_type import PREREGISTRATION
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from review.serializers.review_serializer import ReviewSerializer
 from user.models import Author, User
@@ -228,6 +232,7 @@ class PostSerializer(ContentObjectSerializer):
     title = serializers.CharField()
     type = serializers.CharField(source="document_type")
     fundraise = serializers.SerializerMethodField()
+    grant = serializers.SerializerMethodField()
     image_url = serializers.SerializerMethodField()
     bounties = serializers.SerializerMethodField()
     purchases = serializers.SerializerMethodField()
@@ -280,12 +285,45 @@ class PostSerializer(ContentObjectSerializer):
             return serializer.data
         return None
 
+    def get_grant(self, obj):
+        """Return grant data if this is a grant post"""
+        if (
+            hasattr(obj, "document_type")
+            and obj.document_type == GRANT
+            and hasattr(obj, "unified_document")
+            and obj.unified_document
+            and hasattr(obj.unified_document, "grants")
+            and obj.unified_document.grants.exists()
+        ):
+            grant = obj.unified_document.grants.first()
+            context = getattr(self, "context", {})
+            serializer = DynamicGrantSerializer(
+                grant,
+                context=context,
+                _include_fields=[
+                    "id",
+                    "status",
+                    "amount",
+                    "currency",
+                    "organization",
+                    "description",
+                    "start_date",
+                    "end_date",
+                    "is_expired",
+                    "is_active",
+                    "created_by",
+                ],
+            )
+            return serializer.data
+        return None
+
     class Meta(ContentObjectSerializer.Meta):
         model = ResearchhubPost
         fields = ContentObjectSerializer.Meta.fields + [
             "title",
             "renderable_text",
             "fundraise",
+            "grant",
             "type",
             "image_url",
             "bounties",
@@ -569,4 +607,55 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
             and obj.unified_document.fundraises.exists()
         ):
             return obj.unified_document.fundraises.first().nonprofit_links.exists()
+        return None
+
+
+class GrantFeedEntrySerializer(FeedEntrySerializer):
+    """Serializer for grant feed entries"""
+
+    organization = serializers.SerializerMethodField()
+    grant_amount = serializers.SerializerMethodField()
+    is_expired = serializers.SerializerMethodField()
+
+    class Meta:
+        model = FeedEntry
+        fields = FeedEntrySerializer.Meta.fields + [
+            "organization",
+            "grant_amount",
+            "is_expired",
+        ]
+
+    def get_organization(self, obj):
+        """Return the granting organization name"""
+        if (
+            obj.unified_document
+            and hasattr(obj.unified_document, "grants")
+            and obj.unified_document.grants.exists()
+        ):
+            return obj.unified_document.grants.first().organization
+        return None
+
+    def get_grant_amount(self, obj):
+        """Return the grant amount in a formatted way"""
+        if (
+            obj.unified_document
+            and hasattr(obj.unified_document, "grants")
+            and obj.unified_document.grants.exists()
+        ):
+            grant = obj.unified_document.grants.first()
+            return {
+                "amount": float(grant.amount),
+                "currency": grant.currency,
+                "formatted": f"{grant.amount:,.2f} {grant.currency}",
+            }
+        return None
+
+    def get_is_expired(self, obj):
+        """Return whether the grant application deadline has passed"""
+        if (
+            obj.unified_document
+            and hasattr(obj.unified_document, "grants")
+            and obj.unified_document.grants.exists()
+        ):
+            return obj.unified_document.grants.first().is_expired()
         return None
