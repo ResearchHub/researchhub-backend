@@ -6,12 +6,18 @@ from paper.serializers import DynamicPaperSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import PRIVATE, PUBLIC, WORKSPACE
 from researchhub_comment.models import RhCommentThreadModel
-from researchhub_comment.serializers.constants.rh_comment_thread_serializer_constants import (
-    RH_COMMENT_THREAD_FIELDS,
-    RH_COMMENT_THREAD_READ_ONLY_FIELDS,
+from researchhub_comment.serializers.constants import (
+    rh_comment_thread_serializer_constants,
 )
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.serializers import DynamicPostSerializer
+
+RH_COMMENT_THREAD_FIELDS = (
+    rh_comment_thread_serializer_constants.RH_COMMENT_THREAD_FIELDS
+)
+RH_COMMENT_THREAD_READ_ONLY_FIELDS = (
+    rh_comment_thread_serializer_constants.RH_COMMENT_THREAD_READ_ONLY_FIELDS
+)
 
 
 class RhCommentThreadSerializer(ModelSerializer):
@@ -62,11 +68,20 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
         context = self.context
         _context_fields = context.get("rhc_dts_get_comments", {})
         _filter_fields = _context_fields.get("_filter_fields", {})
+
+        # Only exclude thread field if user hasn't specified custom include fields
+        # This maintains backwards compatibility
+        comment_context_fields = _context_fields.copy()
+        if "_include_fields" not in comment_context_fields:
+            # Only exclude circular field when not using custom include fields
+            exclude_fields = comment_context_fields.get("_exclude_fields", [])
+            comment_context_fields["_exclude_fields"] = exclude_fields + ["thread"]
+
         serializer = DynamicRhCommentSerializer(
             thread.rh_comments.filter(**_filter_fields),
             many=True,
             context=context,
-            **_context_fields,
+            **comment_context_fields,
         )
         return serializer.data
 
@@ -91,10 +106,19 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
         if not serializer:
             raise Exception(f"No content object serializer for {str(content_object)}")
 
+        # Exclude discussions field to prevent circular dependency
+        content_context_fields = _context_fields.copy()
+        if "_include_fields" not in content_context_fields:
+            # Only exclude when not using custom include fields
+            exclude_fields = content_context_fields.get("_exclude_fields", [])
+            updated_exclude_fields = exclude_fields + ["discussions"]
+            content_context_fields["_exclude_fields"] = updated_exclude_fields
+
         serializer_data = serializer(
-            content_object, context=context, **_context_fields
+            content_object, context=context, **content_context_fields
         ).data
         serializer_data["name"] = content_object._meta.model_name
+
         return serializer_data
 
     def get_content_type(self, thread):

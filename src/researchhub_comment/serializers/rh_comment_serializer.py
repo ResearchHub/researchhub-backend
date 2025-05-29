@@ -93,8 +93,17 @@ class DynamicRhCommentSerializer(
 
         context = self.context
         _context_fields = context.get("rhc_dcs_get_thread", {})
+
+        # Only exclude comments field if user hasn't specified custom include fields
+        # This maintains backwards compatibility
+        thread_context_fields = _context_fields.copy()
+        if "_include_fields" not in thread_context_fields:
+            # Only exclude circular field when not using custom include fields
+            exclude_fields = thread_context_fields.get("_exclude_fields", [])
+            thread_context_fields["_exclude_fields"] = exclude_fields + ["comments"]
+
         serializer = DynamicRhThreadSerializer(
-            comment.thread, context=context, **_context_fields
+            comment.thread, context=context, **thread_context_fields
         )
         return serializer.data
 
