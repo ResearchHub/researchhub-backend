@@ -1,0 +1,62 @@
+from rest_framework import serializers
+
+from purchase.models import Grant
+from purchase.related_models.constants.currency import RSC, USD
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from researchhub.serializers import DynamicModelFieldSerializer
+from user.serializers import DynamicUserSerializer
+
+
+class GrantSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Grant
+        fields = "__all__"
+        read_only_fields = [
+            "created_date",
+            "updated_date",
+            "start_date",
+        ]
+
+
+class DynamicGrantSerializer(DynamicModelFieldSerializer):
+    created_by = serializers.SerializerMethodField()
+    amount = serializers.SerializerMethodField()
+    is_expired = serializers.SerializerMethodField()
+    is_active = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Grant
+        fields = "__all__"
+
+    def get_created_by(self, grant):
+        context = self.context
+        _context_fields = context.get("pch_dgs_get_created_by", {})
+        serializer = DynamicUserSerializer(
+            grant.created_by, context=context, **_context_fields
+        )
+        return serializer.data
+
+    def get_amount(self, grant):
+        """
+        Return amount in multiple currencies for display flexibility
+        """
+        usd_amount = float(grant.amount)
+        rsc_amount = RscExchangeRate.usd_to_rsc(usd_amount)
+
+        return {
+            "usd": usd_amount,
+            "rsc": rsc_amount,
+            "formatted": f"{grant.amount:,.2f} {grant.currency}",
+        }
+
+    def get_is_expired(self, grant):
+        """
+        Check if the grant application deadline has passed
+        """
+        return grant.is_expired()
+
+    def get_is_active(self, grant):
+        """
+        Check if the grant is currently accepting applications
+        """
+        return grant.is_active()
