@@ -311,3 +311,36 @@ class PaperVersionCommentsTests(APITestCase):
 
         # This should have more complete data
         self.assertIn("id", thread_data_normal)
+
+    def test_comment_view_with_mocked_paper_service(self):
+        """Test that RhCommentViewSet can use an injected paper service for easier testing."""
+        from unittest.mock import Mock
+
+        from paper.services.paper_version_service import PaperService
+        from researchhub_comment.views.rh_comment_view import RhCommentViewSet
+
+        # Create a mock paper service
+        mock_service = Mock(spec=PaperService)
+        mock_service.get_all_paper_versions.return_value = (
+            self.original_paper.__class__.objects.filter(
+                id__in=[self.original_paper.id, self.version_1_paper.id]
+            )
+        )
+
+        # Create view instance
+        view = RhCommentViewSet()
+        view.kwargs = {"model": "paper", "model_object_id": self.original_paper.id}
+
+        # Inject the mock service
+        view.paper_service = mock_service
+
+        # Test the method that uses the service
+        threads = view._get_model_object_threads()
+
+        # Verify the mock was called
+        mock_service.get_all_paper_versions.assert_called_once_with(
+            self.original_paper.id
+        )
+
+        # The method should return threads as expected
+        self.assertIsNotNone(threads)

@@ -1,11 +1,13 @@
+from unittest.mock import Mock
+
 from django.test import TestCase
 
 from paper.related_models.paper_version import PaperVersion
-from paper.services.paper_version_service import PaperVersionService
+from paper.services.paper_version_service import PaperService
 from paper.tests.helpers import create_paper
 
 
-class PaperVersionServiceTests(TestCase):
+class PaperServiceTests(TestCase):
     def setUp(self):
         """Set up test data for paper version service tests."""
         # Create original paper
@@ -35,7 +37,8 @@ class PaperVersionServiceTests(TestCase):
 
     def test_get_all_paper_versions_with_original_paper_id(self):
         """Test getting all versions when providing the original paper ID."""
-        result = PaperVersionService.get_all_paper_versions(self.original_paper.id)
+        service = PaperService()
+        result = service.get_all_paper_versions(self.original_paper.id)
 
         # Should return all papers: original + versions
         paper_ids = set(result.values_list("id", flat=True))
@@ -50,7 +53,7 @@ class PaperVersionServiceTests(TestCase):
 
     def test_get_all_paper_versions_with_version_paper_id(self):
         """Test getting all versions when providing a version paper ID."""
-        result = PaperVersionService.get_all_paper_versions(self.version_1_paper.id)
+        result = PaperService().get_all_paper_versions(self.version_1_paper.id)
 
         # Should return all papers: original + versions
         paper_ids = set(result.values_list("id", flat=True))
@@ -65,7 +68,7 @@ class PaperVersionServiceTests(TestCase):
 
     def test_get_all_paper_versions_with_another_version_paper_id(self):
         """Test getting all versions when providing another version paper ID."""
-        result = PaperVersionService.get_all_paper_versions(self.version_2_paper.id)
+        result = PaperService().get_all_paper_versions(self.version_2_paper.id)
 
         # Should return all papers: original + versions
         paper_ids = set(result.values_list("id", flat=True))
@@ -82,7 +85,7 @@ class PaperVersionServiceTests(TestCase):
         """Test getting versions for a paper that has no versions."""
         standalone_paper = create_paper(title="Standalone Paper")
 
-        result = PaperVersionService.get_all_paper_versions(standalone_paper.id)
+        result = PaperService().get_all_paper_versions(standalone_paper.id)
 
         # Should return only the standalone paper
         paper_ids = set(result.values_list("id", flat=True))
@@ -95,7 +98,7 @@ class PaperVersionServiceTests(TestCase):
         """Test getting versions for a paper that doesn't exist."""
         nonexistent_id = 99999
 
-        result = PaperVersionService.get_all_paper_versions(nonexistent_id)
+        result = PaperService().get_all_paper_versions(nonexistent_id)
 
         # Should return empty queryset
         self.assertEqual(result.count(), 0)
@@ -104,7 +107,7 @@ class PaperVersionServiceTests(TestCase):
     def test_get_all_paper_versions_removes_duplicates(self):
         """Test that the service removes duplicate paper IDs."""
         # This test ensures the set() operation works correctly
-        result = PaperVersionService.get_all_paper_versions(self.original_paper.id)
+        result = PaperService().get_all_paper_versions(self.original_paper.id)
 
         # Convert to list to check for duplicates
         paper_ids = list(result.values_list("id", flat=True))
@@ -126,7 +129,7 @@ class PaperVersionServiceTests(TestCase):
             publication_status=PaperVersion.PREPRINT,
         )
 
-        result = PaperVersionService.get_all_paper_versions(self.original_paper.id)
+        result = PaperService().get_all_paper_versions(self.original_paper.id)
 
         # Should return all papers: original + 3 versions
         paper_ids = set(result.values_list("id", flat=True))
@@ -156,7 +159,7 @@ class PaperVersionServiceTests(TestCase):
             publication_status=PaperVersion.PREPRINT,
         )
 
-        result = PaperVersionService.get_all_paper_versions(original_only.id)
+        result = PaperService().get_all_paper_versions(original_only.id)
 
         # Should return both papers
         paper_ids = set(result.values_list("id", flat=True))
@@ -164,3 +167,102 @@ class PaperVersionServiceTests(TestCase):
 
         self.assertEqual(paper_ids, expected_ids)
         self.assertEqual(result.count(), 2)
+
+
+class PaperServiceTests(TestCase):
+    """Test the new instance-based PaperService with dependency injection."""
+
+    def setUp(self):
+        """Set up test data for paper service tests."""
+        # Create original paper
+        self.original_paper = create_paper(title="Original Paper")
+
+        # Create version 1
+        self.version_1_paper = create_paper(title="Paper Version 1")
+        self.version_1 = PaperVersion.objects.create(
+            paper=self.version_1_paper,
+            version=1,
+            base_doi="10.1234/test",
+            message="First version",
+            original_paper=self.original_paper,
+            publication_status=PaperVersion.PREPRINT,
+        )
+
+    def test_paper_service_instance_based(self):
+        """Test that PaperService works as an instance-based service."""
+        service = PaperService()
+        result = service.get_all_paper_versions(self.original_paper.id)
+
+        paper_ids = set(result.values_list("id", flat=True))
+        expected_ids = {self.original_paper.id, self.version_1_paper.id}
+
+        self.assertEqual(paper_ids, expected_ids)
+        self.assertEqual(result.count(), 2)
+
+    def test_paper_service_with_mock_dependencies(self):
+        """Test PaperService with mocked dependencies for better testability."""
+        # Create mock models
+        mock_paper_model = Mock()
+        mock_version_model = Mock()
+
+        # Mock a paper instance
+        mock_paper = Mock()
+        mock_paper.id = 123
+        mock_paper_model.objects.get.return_value = mock_paper
+
+        # Mock a paper version instance
+        mock_version = Mock()
+        mock_version.original_paper.id = 456
+        mock_version.paper_id = 789
+        mock_version_model.objects.get.return_value = mock_version
+        mock_version_model.objects.filter.return_value = [mock_version]
+
+        # Mock the final queryset
+        mock_queryset = Mock()
+        mock_paper_model.objects.filter.return_value = mock_queryset
+
+        # Create service with mocked dependencies
+        service = PaperService(
+            paper_model=mock_paper_model, paper_version_model=mock_version_model
+        )
+
+        # Test the method
+        result = service.get_all_paper_versions(123)
+
+        # Verify the mocks were called correctly
+        mock_paper_model.objects.get.assert_called_once_with(id=123)
+        mock_version_model.objects.get.assert_called_once_with(paper=mock_paper)
+        mock_version_model.objects.filter.assert_called_once_with(original_paper_id=456)
+        mock_paper_model.objects.filter.assert_called_once_with(id__in={456, 789})
+
+        # Result should be the mocked queryset
+        self.assertEqual(result, mock_queryset)
+
+    def test_get_original_paper(self):
+        """Test the get_original_paper method."""
+        service = PaperService()
+
+        # Test with version paper - should return original
+        original = service.get_original_paper(self.version_1_paper.id)
+        self.assertEqual(original, self.original_paper)
+
+        # Test with original paper - should return itself
+        original = service.get_original_paper(self.original_paper.id)
+        self.assertEqual(original, self.original_paper)
+
+        # Test with nonexistent paper
+        original = service.get_original_paper(99999)
+        self.assertIsNone(original)
+
+    def test_is_paper_version(self):
+        """Test the is_paper_version method."""
+        service = PaperService()
+
+        # Version paper should return True
+        self.assertTrue(service.is_paper_version(self.version_1_paper.id))
+
+        # Original paper should return False
+        self.assertFalse(service.is_paper_version(self.original_paper.id))
+
+        # Nonexistent paper should return False
+        self.assertFalse(service.is_paper_version(99999))
