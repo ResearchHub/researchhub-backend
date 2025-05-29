@@ -78,6 +78,8 @@ def update_paper_journal_status(sender, instance, created, **kwargs):
                     original_paper=paper_version.original_paper
                 )
                 paper_versions.update(journal=PaperVersion.RESEARCHHUB)
+                paper.unified_document.hubs.add(settings.RESEARCHHUB_JOURNAL_ID)
+                paper.unified_document.save()
 
                 # Refresh the paper_version object to get the updated journal value
                 paper_version.refresh_from_db()
