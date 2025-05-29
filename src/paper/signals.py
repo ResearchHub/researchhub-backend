@@ -9,6 +9,7 @@ from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     PAPER as PAPER_DOC_TYPE,
 )
+from utils.doi import DOI
 from utils.sentry import log_error
 
 from .models import Paper
@@ -55,10 +56,11 @@ def add_unified_doc(created, instance, **kwargs):
 def update_paper_journal_status(sender, instance, created, **kwargs):
     """
     When a payment is received for a paper, update its version to be part
-    of the ResearchHub journal.
+    of the ResearchHub journal and create a new DOI.
 
     This signal handler checks if the payment is for a Paper model and if so,
-    finds the PaperVersion for that paper and sets its journal field to RESEARCHHUB.
+    finds the PaperVersion for that paper, sets its journal field to RESEARCHHUB,
+    and creates a new DOI for both the PaperVersion and Paper.
     """
     if not created:
         return
@@ -76,12 +78,49 @@ def update_paper_journal_status(sender, instance, created, **kwargs):
                     original_paper=paper_version.original_paper
                 )
                 paper_versions.update(journal=PaperVersion.RESEARCHHUB)
+
+                # Refresh the paper_version object to get the updated journal value
+                paper_version.refresh_from_db()
+
+                # Create a new DOI for the ResearchHub journal publication
+                doi = DOI(journal=PaperVersion.RESEARCHHUB)
+
+                # Get authors for DOI registration
+                authors = paper.authors.all()
+
+                # Register DOI with Crossref
+                crossref_response = doi.register_doi_for_paper(
+                    authors=list(authors),
+                    title=paper.title or paper.paper_title,
+                    rh_paper=paper,
+                )
+
+                if crossref_response.status_code == 200:
+                    # Update paper with new DOI
+                    paper.doi = doi.doi
+                    paper.save()
+
+                    # Update paper version with new base DOI
+                    paper_version.base_doi = doi.base_doi
+                    paper_version.save()
+
+                    log_error(
+                        f"Successfully created DOI {doi.doi} for paper {paper_id}"
+                    )
+                else:
+                    log_error(
+                        f"Failed to register DOI for paper {paper_id}: "
+                        f"Crossref returned status {crossref_response.status_code}"
+                    )
+
+                # Add paper to ResearchHub journal hub
                 paper.unified_document.hubs.add(settings.RESEARCHHUB_JOURNAL_ID)
                 paper.unified_document.save()
 
             except PaperVersion.DoesNotExist:
                 log_error(
-                    f"No PaperVersion found for paper {paper_id}, skipping journal update"
+                    f"No PaperVersion found for paper {paper_id}, "
+                    f"skipping journal update"
                 )
 
     except Exception as e:
