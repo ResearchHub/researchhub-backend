@@ -43,6 +43,17 @@ class GrantFeedViewSet(BaseFeedView):
         context.update(self.get_common_serializer_context())
         return context
 
+    def get_cache_key(self, request, feed_type=""):
+        """Override to include grant-specific query parameters in cache key"""
+        base_key = super().get_cache_key(request, feed_type)
+
+        # Add grant-specific parameters to cache key
+        status = request.query_params.get("status", "")
+        organization = request.query_params.get("organization", "")
+
+        grant_params = f"-status:{status}-org:{organization}"
+        return base_key + grant_params
+
     def list(self, request, *args, **kwargs):
         page = request.query_params.get("page", "1")
         page_num = int(page)

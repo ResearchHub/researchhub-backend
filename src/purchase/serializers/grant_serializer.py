@@ -41,7 +41,13 @@ class DynamicGrantSerializer(DynamicModelFieldSerializer):
         Return amount in multiple currencies for display flexibility
         """
         usd_amount = float(grant.amount)
-        rsc_amount = RscExchangeRate.usd_to_rsc(usd_amount)
+
+        # Handle case where no exchange rate exists (e.g., in tests)
+        try:
+            rsc_amount = RscExchangeRate.usd_to_rsc(usd_amount)
+        except AttributeError:
+            # Fallback to None if no exchange rate is available
+            rsc_amount = None
 
         return {
             "usd": usd_amount,

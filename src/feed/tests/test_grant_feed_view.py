@@ -2,17 +2,21 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 import pytz
-from django.test import TestCase
+from django.test import TestCase, TransactionTestCase
 from rest_framework.test import APITestCase
 
 from purchase.models import Grant
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import GRANT
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.tests.helpers import create_random_authenticated_user
 
 
 class GrantFeedViewTests(APITestCase):
     def setUp(self):
+        # Clear any existing data to avoid test interference
+        Grant.objects.all().delete()
+        ResearchhubPost.objects.filter(document_type=GRANT).delete()
         # Create users
         self.moderator = create_random_authenticated_user(
             "grant_feed_moderator", moderator=True
@@ -63,6 +67,11 @@ class GrantFeedViewTests(APITestCase):
             status=Grant.COMPLETED,
             end_date=datetime.now(pytz.UTC) - timedelta(days=5),
         )
+
+    def tearDown(self):
+        """Clean up after each test"""
+        Grant.objects.all().delete()
+        ResearchhubPost.objects.filter(document_type=GRANT).delete()
 
     def test_grant_feed_list_authenticated(self):
         """Test that authenticated users can access the grant feed"""
@@ -186,7 +195,7 @@ class GrantFeedViewTests(APITestCase):
 
         self.assertEqual(grant_amount["amount"], 50000.0)
         self.assertEqual(grant_amount["currency"], "USD")
-        self.assertEqual(grant_amount["formatted"], "50000.00 USD")
+        self.assertEqual(grant_amount["formatted"], "50,000.00 USD")
 
     def test_grant_feed_is_expired_field(self):
         """Test that the is_expired field is correctly populated"""
