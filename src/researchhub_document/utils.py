@@ -1,10 +1,9 @@
 from datetime import datetime, timedelta
 
-from django.db.models.query import QuerySet
-
 from researchhub_document.related_models.constants.document_type import (
     ALL,
     BOUNTY,
+    GRANT,
     PAPER,
     POSTS,
     PREREGISTRATION,
@@ -78,6 +77,7 @@ def reset_unified_document_cache(
         PAPER.lower(),
         QUESTION.lower(),
         BOUNTY.lower(),
+        GRANT.lower(),
     ],
     filters=[DISCUSSED, HOT, NEW, UPVOTED, EXPIRING_SOON, MOST_RSC],
     date_ranges=CACHE_DATE_RANGES,

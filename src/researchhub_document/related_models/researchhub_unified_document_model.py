@@ -13,6 +13,7 @@ from researchhub_document.related_models.constants.document_type import (
     BOUNTY,
     DISCUSSION,
     DOCUMENT_TYPES,
+    GRANT,
     NOTE,
     PAPER,
     POSTS,
@@ -157,6 +158,8 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
             return "post"
         elif self.document_type == PREREGISTRATION:
             return "preregistration"
+        elif self.document_type == GRANT:
+            return "grant"
         elif self.document_type == QUESTION:
             return "question"
         elif self.document_type == NOTE:
@@ -195,6 +198,8 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
         elif self.document_type == BOUNTY:
             return self.posts.first()
         elif self.document_type == PREREGISTRATION:
+            return self.posts.first()
+        elif self.document_type == GRANT:
             return self.posts.first()
         else:
             raise Exception(f"Unrecognized document_type: {self.document_type}")
@@ -246,7 +251,14 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
     def frontend_view_link(self):
         doc = self.get_document()
         document_type = self.document_type
-        if document_type in (QUESTION, DISCUSSION, POSTS, BOUNTY, PREREGISTRATION):
+        if document_type in (
+            QUESTION,
+            DISCUSSION,
+            POSTS,
+            BOUNTY,
+            PREREGISTRATION,
+            GRANT,
+        ):
             document_type = "post"
         url = f"{BASE_FRONTEND_URL}/{document_type.lower()}/{doc.id}/{doc.slug}"
         return url
