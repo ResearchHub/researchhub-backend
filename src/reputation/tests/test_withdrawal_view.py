@@ -42,9 +42,9 @@ class WithdrawalViewSetTests(APITestCase):
 
         # Configure mock to return different responses based on the URL
         def get_mock_response(*args, **kwargs):
-            if "etherscan.io" in args[0]:
+            if "etherscan.io/v2/api?chainid=1" in args[0]:
                 return eth_mock_response
-            elif "basescan.org" in args[0]:
+            elif "etherscan.io/v2/api?chainid=8453" in args[0]:
                 return base_mock_response
             return eth_mock_response  # Default fallback
 
@@ -388,7 +388,7 @@ class WithdrawalViewSetTests(APITestCase):
             # Verify the call to etherscan
             mock_get.assert_called_once()
             args, kwargs = mock_get.call_args
-            self.assertIn("https://api.etherscan.io/api", args[0])
+            self.assertIn("https://api.etherscan.io/v2/api", args[0])
             self.assertIn("gastracker", args[0])
             self.assertIn("gasoracle", args[0])
 
@@ -412,7 +412,7 @@ class WithdrawalViewSetTests(APITestCase):
             # Verify the call to basescan
             mock_get.assert_called_once()
             args, kwargs = mock_get.call_args
-            self.assertIn("https://api.basescan.org/api", args[0])
+            self.assertIn("https://api.etherscan.io/v2/api?chainid=8453", args[0])
             self.assertIn("proxy", args[0])
             self.assertIn("eth_gasPrice", args[0])
 
@@ -446,7 +446,8 @@ class WithdrawalViewSetTests(APITestCase):
         expected_start = "The next time you're able to withdraw is in"
         self.assertTrue(message.startswith(expected_start))
         # Since we're using humanize, it should have a natural time format
-        # For a 2-week interval with slightly less than 1 day passed, it should mention days
+        # For a 2-week interval with slightly less than 1 day passed,
+        # it should mention days
         self.assertTrue("13 days" in message)
 
     def test_check_withdrawal_interval_after_time_limit(self):

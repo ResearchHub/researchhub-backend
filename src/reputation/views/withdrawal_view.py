@@ -222,8 +222,9 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         if network == "BASE":
             # Get gas price from Basescan API
             res = requests.get(
-                f"https://api.basescan.org/api"
-                f"?module=proxy"
+                f"https://api.etherscan.io/v2/api"
+                f"?chainid=8453"
+                f"&module=proxy"
                 f"&action=eth_gasPrice"
                 f"&apikey={settings.BASESCAN_API_KEY}",
                 timeout=10,
@@ -234,7 +235,10 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         else:
             # For Ethereum network
             res = requests.get(
-                f"https://api.etherscan.io/api?module=gastracker&action=gasoracle&apikey={settings.ETHERSCAN_API_KEY}",
+                f"https://api.etherscan.io/v2/api?chainid=1"
+                f"&module=gastracker"
+                f"&action=gasoracle"
+                f"&apikey={settings.ETHERSCAN_API_KEY}",
                 timeout=10,
             )
             json = res.json()
