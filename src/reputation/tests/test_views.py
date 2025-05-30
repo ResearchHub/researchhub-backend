@@ -41,11 +41,15 @@ class ReputationViewsTests(APITestCase):
         self.mocker.start()
 
         # Mock calls to etherscan
-        etherscan_matcher = re.compile("https://api.etherscan.io/.*")
+        etherscan_matcher = re.compile(
+            r"https://api\.etherscan\.io/v2/api\?chainid=1.*"
+        )
         self.mocker.get(etherscan_matcher, json={"result": {"SafeGasPrice": "30"}})
 
         # Mock calls to basescan
-        basescan_matcher = re.compile("https://api.basescan.org/.*")
+        basescan_matcher = re.compile(
+            r"https://api\.etherscan\.io/v2/api\?chainid=8453.*"
+        )
         self.mocker.get(basescan_matcher, json={"result": "0x38a5ef"})
 
         # Mock calls to coingecko
@@ -227,7 +231,7 @@ class ReputationViewsTests(APITestCase):
 
     def test_unverified_user_cannot_rewithdraw_rsc_within_14_days(self):
         # Mock calls to etherscan
-        etherscan_matcher = re.compile("https://api.etherscan.io/.*")
+        etherscan_matcher = re.compile(r"https://api\.etherscan\.io/.*")
         # Mock with float to validate it doesn't throw.
         self.mocker.get(etherscan_matcher, json={"result": {"SafeGasPrice": "30.1"}})
 
@@ -646,16 +650,27 @@ class ReputationViewsTests(APITestCase):
         user = create_random_authenticated_user_with_reputation("rep_user", 1000)
         self.client.force_authenticate(user)
 
+        # Reset the mocker to clear existing mocks
+        self.mocker.reset()
+
         # Mock etherscan response for Ethereum network with higher gas price
-        etherscan_matcher = re.compile("https://api.etherscan.io/.*")
+        etherscan_matcher = re.compile(
+            r"https://api\.etherscan\.io/v2/api\?chainid=1.*"
+        )
         self.mocker.get(etherscan_matcher, json={"result": {"SafeGasPrice": "30"}})
 
         # Get Ethereum network fee first
         eth_response = self.client.get("/api/withdrawal/transaction_fee/")
         eth_fee = eth_response.data
 
-        # Override the mock for Base network to use lower gas price
-        self.mocker.get(etherscan_matcher, json={"result": {"SafeGasPrice": "1"}})
+        # Reset and setup mock for Base network to use lower gas price in hex format
+        self.mocker.reset()
+        basescan_matcher = re.compile(
+            r"https://api\.etherscan\.io/v2/api\?chainid=8453.*"
+        )
+        self.mocker.get(
+            basescan_matcher, json={"result": "0x3b9aca00"}
+        )  # 1 gwei in hex
 
         # Get Base network fee
         base_response = self.client.get(
@@ -667,7 +682,7 @@ class ReputationViewsTests(APITestCase):
         # Base fee should be lower than Ethereum fee
         self.assertLess(base_fee, eth_fee)
 
-        self.assertEqual(base_fee, decimal.Decimal("0.01"))
+        self.assertEqual(base_fee, decimal.Decimal("1.2"))
 
     """
     Helper methods
