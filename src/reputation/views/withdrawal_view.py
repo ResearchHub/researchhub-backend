@@ -220,13 +220,13 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         """
 
         if network == "BASE":
-            # Get gas price from Basescan API
+            # Get Base gas price from Etherscan API
             res = requests.get(
                 f"https://api.etherscan.io/v2/api"
                 f"?chainid=8453"
                 f"&module=proxy"
                 f"&action=eth_gasPrice"
-                f"&apikey={settings.BASESCAN_API_KEY}",
+                f"&apikey={settings.ETHERSCAN_API_KEY}",
                 timeout=10,
             )
             json = res.json()
