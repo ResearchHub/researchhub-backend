@@ -555,6 +555,22 @@ class Paper(AbstractGenericReactionModel):
         return False
 
     def get_discussion_count(self):
+        from paper.services.paper_version_service import PaperService
+
+        if hasattr(self, "version") and self.version is not None:
+            paper_service = PaperService()
+            all_paper_versions = paper_service.get_all_paper_versions(self.id)
+
+            paper_content_type = ContentType.objects.get_for_model(self)
+
+            thread_queryset = RhCommentThreadModel.objects.filter(
+                content_type=paper_content_type,
+                object_id__in=all_paper_versions.values_list("id", flat=True),
+            )
+
+            return thread_queryset.get_discussion_count()
+
+        # Default behavior: only count threads from this paper
         return self.rh_threads.get_discussion_count()
 
     def extract_pdf_preview(self, use_celery=True):

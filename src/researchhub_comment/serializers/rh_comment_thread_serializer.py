@@ -6,12 +6,18 @@ from paper.serializers import DynamicPaperSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import PRIVATE, PUBLIC, WORKSPACE
 from researchhub_comment.models import RhCommentThreadModel
-from researchhub_comment.serializers.constants.rh_comment_thread_serializer_constants import (
-    RH_COMMENT_THREAD_FIELDS,
-    RH_COMMENT_THREAD_READ_ONLY_FIELDS,
+from researchhub_comment.serializers.constants import (
+    rh_comment_thread_serializer_constants,
 )
 from researchhub_document.models import ResearchhubPost
 from researchhub_document.serializers import DynamicPostSerializer
+
+RH_COMMENT_THREAD_FIELDS = (
+    rh_comment_thread_serializer_constants.RH_COMMENT_THREAD_FIELDS
+)
+RH_COMMENT_THREAD_READ_ONLY_FIELDS = (
+    rh_comment_thread_serializer_constants.RH_COMMENT_THREAD_READ_ONLY_FIELDS
+)
 
 
 class RhCommentThreadSerializer(ModelSerializer):
@@ -58,14 +64,29 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
 
     def get_comments(self, thread):
         from researchhub_comment.serializers import DynamicRhCommentSerializer
+        from researchhub_comment.serializers.utils import (
+            create_comment_reference,
+            increment_depth,
+            should_use_reference_only,
+        )
 
         context = self.context
         _context_fields = context.get("rhc_dts_get_comments", {})
         _filter_fields = _context_fields.get("_filter_fields", {})
+
+        # Use depth limiting to prevent circular dependencies
+        if should_use_reference_only(context):
+            comments = thread.rh_comments.filter(**_filter_fields)
+            return [
+                create_comment_reference(comment) for comment in comments[:5]
+            ]  # Limit to 5 for performance
+
+        # Full serialization for shallow depths
+        new_context = increment_depth(context)
         serializer = DynamicRhCommentSerializer(
             thread.rh_comments.filter(**_filter_fields),
             many=True,
-            context=context,
+            context=new_context,
             **_context_fields,
         )
         return serializer.data
@@ -74,9 +95,19 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
         return thread.rh_comments.count()
 
     def get_content_object(self, thread):
+        from researchhub_comment.serializers.utils import (
+            create_content_object_reference,
+            increment_depth,
+            should_use_reference_only,
+        )
+
         context = self.context
         _context_fields = context.get("rhc_dts_get_content_object", {})
         content_object = thread.content_object
+
+        # Use depth limiting to prevent circular dependencies
+        if should_use_reference_only(context):
+            return create_content_object_reference(content_object)
 
         serializer = None
         if isinstance(content_object, Paper):
@@ -91,10 +122,13 @@ class DynamicRhThreadSerializer(DynamicModelFieldSerializer):
         if not serializer:
             raise Exception(f"No content object serializer for {str(content_object)}")
 
+        # Full serialization for shallow depths
+        new_context = increment_depth(context)
         serializer_data = serializer(
-            content_object, context=context, **_context_fields
+            content_object, context=new_context, **_context_fields
         ).data
         serializer_data["name"] = content_object._meta.model_name
+
         return serializer_data
 
     def get_content_type(self, thread):
