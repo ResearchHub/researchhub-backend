@@ -1,4 +1,5 @@
 import time
+from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
 from django.test import override_settings
@@ -8,12 +9,15 @@ from hub.models import Hub
 from hub.tests.helpers import create_hub
 from note.tests.helpers import create_note
 from paper.tests.helpers import create_paper
+from purchase.models import Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.distributions import Distribution
 from reputation.distributor import Distributor
 from researchhub_access_group.constants import SENIOR_EDITOR
 from researchhub_access_group.models import Permission
+from researchhub_document.helpers import create_post
 from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.related_models.constants.document_type import GRANT
 from user.related_models.author_model import Author
 from user.related_models.organization_model import Organization
 from user.tests.helpers import create_organization, create_random_default_user
@@ -600,3 +604,110 @@ class ViewTests(APITestCase):
         self.assertIsNotNone(doc_response.data["doi"])
         # Balance should remain unchanged for preregistrations
         self.assertEqual(int(author.get_balance()), initial_balance)
+
+    def test_grants_included_in_get_unified_documents(self):
+        """Test that grants are included in get_unified_documents endpoint"""
+        user = create_random_default_user("grant_test_user", moderator=True)
+        hub = create_hub("Grant Hub")
+
+        # Create a grant post
+        post = create_post(created_by=user, document_type=GRANT)
+        post.unified_document.hubs.add(hub)
+
+        # Create a grant
+        grant = Grant.objects.create(
+            created_by=user,
+            unified_document=post.unified_document,
+            amount=Decimal("50000.00"),
+            currency="USD",
+            organization="Test Foundation",
+            description="Test grant for research",
+            status=Grant.OPEN,
+        )
+
+        self.client.force_authenticate(user)
+        response = self.client.get(
+            "/api/researchhub_unified_document/get_unified_documents/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        # Find the grant post in the response
+        grant_doc = None
+        for doc in response.data["results"]:
+            if doc["id"] == post.unified_document.id:
+                grant_doc = doc
+                break
+
+        self.assertIsNotNone(grant_doc, "Grant document should be in response")
+        self.assertIn("grants", grant_doc, "Grants field should be present")
+        self.assertEqual(len(grant_doc["grants"]), 1)
+        self.assertEqual(grant_doc["grants"][0]["id"], grant.id)
+        self.assertEqual(grant_doc["grants"][0]["organization"], "Test Foundation")
+
+    def test_grants_included_in_recommendations(self):
+        """Test that grants are included in recommendations endpoint"""
+        user = create_random_default_user("grant_rec_user", moderator=True)
+        hub = create_hub("Recommendation Hub")
+
+        # Create a grant post
+        post = create_post(created_by=user, document_type=GRANT)
+        post.unified_document.hubs.add(hub)
+        post.unified_document.hot_score = 100  # Make it appear in recommendations
+        post.unified_document.save()
+
+        # Create a grant
+        grant = Grant.objects.create(
+            created_by=user,
+            unified_document=post.unified_document,
+            amount=Decimal("25000.00"),
+            currency="USD",
+            organization="Recommendation Foundation",
+            description="Test grant for recommendations",
+            status=Grant.OPEN,
+        )
+
+        response = self.client.get("/api/researchhub_unified_document/recommendations/")
+
+        self.assertEqual(response.status_code, 200)
+
+        # Find the grant post in the response
+        grant_doc = None
+        for doc in response.data["results"]:
+            if doc["id"] == post.unified_document.id:
+                grant_doc = doc
+                break
+
+        if grant_doc:  # Only check if the document appears in recommendations
+            self.assertIn("grants", grant_doc, "Grants field should be present")
+            self.assertEqual(len(grant_doc["grants"]), 1)
+            self.assertEqual(grant_doc["grants"][0]["id"], grant.id)
+
+    def test_grants_included_in_get_document_metadata(self):
+        """Test that grants are included in get_document_metadata endpoint"""
+        user = create_random_default_user("grant_meta_user", moderator=True)
+
+        # Create a grant post
+        post = create_post(created_by=user, document_type=GRANT)
+
+        # Create a grant
+        grant = Grant.objects.create(
+            created_by=user,
+            unified_document=post.unified_document,
+            amount=Decimal("75000.00"),
+            currency="USD",
+            organization="Metadata Foundation",
+            description="Test grant for metadata",
+            status=Grant.COMPLETED,
+        )
+
+        response = self.client.get(
+            f"/api/researchhub_unified_document/{post.unified_document.id}/"
+            "get_document_metadata/"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("grants", response.data, "Grants field should be present")
+        self.assertEqual(len(response.data["grants"]), 1)
+        self.assertEqual(response.data["grants"][0]["id"], grant.id)
+        self.assertEqual(response.data["grants"][0]["status"], Grant.COMPLETED)

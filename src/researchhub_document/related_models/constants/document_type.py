@@ -1,6 +1,7 @@
 ALL = "ALL"  # ALL includes paper and posts
 DISCUSSION = "DISCUSSION"
 ELN = "ELN"
+GRANT = "GRANT"
 NOTE = "NOTE"
 PAPER = "PAPER"
 POSTS = "POSTS"  # POSTS include discussion and eln
@@ -12,6 +13,7 @@ HYPOTHESIS = "HYPOTHESIS"
 DOCUMENT_TYPES = (
     (DISCUSSION, DISCUSSION),
     (ELN, ELN),
+    (GRANT, GRANT),
     (NOTE, NOTE),
     (PAPER, PAPER),
     (QUESTION, QUESTION),
@@ -21,6 +23,7 @@ DOCUMENT_TYPES = (
 RESEARCHHUB_POST_DOCUMENT_TYPES = [
     DISCUSSION,
     ELN,
+    GRANT,
     POSTS,
     QUESTION,
     BOUNTY,

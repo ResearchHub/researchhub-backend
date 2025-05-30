@@ -1,8 +1,6 @@
-import copy
-
 from rest_framework.serializers import ModelSerializer, SerializerMethodField
 
-from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
+from hub.serializers import SimpleHubSerializer
 from paper.serializers import DynamicPaperSerializer, PaperSerializer
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_document.models import ResearchhubUnifiedDocument
@@ -92,6 +90,7 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
     reviews = SerializerMethodField()
     concepts = SerializerMethodField()
     fundraise = SerializerMethodField()
+    grants = SerializerMethodField()
     recommendation_metadata = SerializerMethodField()
 
     class Meta:
@@ -205,3 +204,19 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
             fundraiser, context=context, **_context_fields
         )
         return serializer.data
+
+    def get_grants(self, unified_doc):
+        from purchase.serializers import DynamicGrantSerializer
+
+        context = self.context
+        _context_fields = context.get("doc_duds_get_grants", {})
+        _filter_fields = _context_fields.get("_filter_fields", {})
+        if unified_doc.grants.exists():
+            serializer = DynamicGrantSerializer(
+                unified_doc.grants.filter(**_filter_fields),
+                many=True,
+                context=context,
+                **_context_fields,
+            )
+            return serializer.data
+        return []
