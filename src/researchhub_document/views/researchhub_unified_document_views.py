@@ -94,6 +94,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "reviews",
                 "score",
                 "fundraise",
+                "grants",
             ],
             many=True,
             context=context,
@@ -235,7 +236,28 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "contributors",
                 ]
             },
+            "doc_duds_get_grants": {
+                "_include_fields": [
+                    "id",
+                    "status",
+                    "amount",
+                    "currency",
+                    "organization",
+                    "description",
+                    "start_date",
+                    "end_date",
+                    "created_by",
+                ]
+            },
             "pch_dfs_get_contributors": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
+                    "first_name",
+                    "last_name",
+                ]
+            },
+            "pch_dgs_get_created_by": {
                 "_include_fields": [
                     "id",
                     "author_profile",
@@ -290,6 +312,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "reviews",
             "score",
             "fundraise",
+            "grants",
         ]
 
         serializer = self.dynamic_serializer_class(
@@ -377,6 +400,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "reviews",
                 "score",
                 "fundraise",
+                "grants",
             ],
             many=True,
             context=context,
@@ -408,6 +432,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "score",
                 "bounties",
                 "fundraise",
+                "grants",
             ],
             many=True,
             context=context,
@@ -553,7 +578,28 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "contributors",
                 ]
             },
+            "doc_duds_get_grants": {
+                "_include_fields": [
+                    "id",
+                    "status",
+                    "amount",
+                    "currency",
+                    "organization",
+                    "description",
+                    "start_date",
+                    "end_date",
+                    "created_by",
+                ]
+            },
             "pch_dfs_get_contributors": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
+                    "first_name",
+                    "last_name",
+                ]
+            },
+            "pch_dgs_get_created_by": {
                 "_include_fields": [
                     "id",
                     "author_profile",
@@ -579,6 +625,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "score",
                 "hubs",
                 "fundraise",
+                "grants",
             ),
             context=metadata_context,
         )

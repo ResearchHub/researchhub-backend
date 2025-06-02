@@ -10,6 +10,7 @@ from researchhub.settings import PRODUCTION, STAGING
 from researchhub_document.related_models.constants.document_type import (
     ALL,
     BOUNTY,
+    GRANT,
     PAPER,
     POSTS,
     PREREGISTRATION,
@@ -152,6 +153,7 @@ def reset_homepage_cache():
     reset_unified_document_cache(
         document_type=[
             ALL.lower(),
+            GRANT.lower(),
             POSTS.lower(),
             PREREGISTRATION.lower(),
             PAPER.lower(),

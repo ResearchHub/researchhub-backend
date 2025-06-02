@@ -38,6 +38,7 @@ from feed.views import (
     FeedV2ViewSet,
     FeedViewSet,
     FundingFeedViewSet,
+    GrantFeedViewSet,
     JournalFeedViewSet,
 )
 from organizations.views import NonprofitFundraiseLinkViewSet, NonprofitOrgViewSet
@@ -193,11 +194,15 @@ router.register(
 
 router.register(r"fundraise", purchase.views.FundraiseViewSet, basename="fundraise")
 
+router.register(r"grant", purchase.views.GrantViewSet, basename="grant")
+
 router.register(r"feed", FeedViewSet, basename="feed")
 
 router.register(r"feed_v2", FeedV2ViewSet, basename="feed_v2")
 
 router.register(r"funding_feed", FundingFeedViewSet, basename="funding_feed")
+
+router.register(r"grant_feed", GrantFeedViewSet, basename="grant_feed")
 
 router.register(r"journal_feed", JournalFeedViewSet, basename="journal_feed")
 
