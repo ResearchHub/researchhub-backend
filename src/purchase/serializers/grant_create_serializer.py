@@ -5,8 +5,6 @@ from rest_framework import serializers
 from purchase.models import Grant
 from purchase.related_models.constants.currency import USD
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
-from researchhub_document.related_models.constants.document_type import GRANT
-from user.models import User
 
 
 class GrantCreateSerializer(serializers.ModelSerializer):
@@ -74,10 +72,6 @@ class GrantCreateSerializer(serializers.ModelSerializer):
                 unified_document = post.unified_document
             except ResearchhubPost.DoesNotExist:
                 raise serializers.ValidationError("Post does not exist")
-
-        # Validate document type
-        if unified_document.document_type != GRANT:
-            raise serializers.ValidationError("Document must be of type GRANT")
 
         # Check for existing grant
         existing_grant = Grant.objects.filter(unified_document=unified_document).first()

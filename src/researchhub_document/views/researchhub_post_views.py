@@ -16,6 +16,8 @@ from purchase.models import Balance, Purchase
 from purchase.related_models.constants.currency import USD
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
+from purchase.serializers.grant_create_serializer import GrantCreateSerializer
+from purchase.serializers.grant_serializer import DynamicGrantSerializer
 from purchase.services.fundraise_service import FundraiseService
 from researchhub.settings import CROSSREF_DOI_RSC_FEE, TESTING
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
@@ -123,7 +125,10 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         if type(title) is not str or len(title) < MIN_POST_TITLE_LENGTH:
             return Response(
                 {
-                    "msg": f"Title cannot be less than {MIN_POST_TITLE_LENGTH} characters"
+                    "msg": (
+                        f"Title cannot be less than "
+                        f"{MIN_POST_TITLE_LENGTH} characters"
+                    )
                 },
                 400,
             )
@@ -133,7 +138,10 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         ):
             return Response(
                 {
-                    "msg": f"Post body cannot be less than {MIN_POST_BODY_LENGTH} characters"
+                    "msg": (
+                        f"Post body cannot be less than "
+                        f"{MIN_POST_BODY_LENGTH} characters"
+                    )
                 },
                 400,
             )
@@ -195,6 +203,32 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     except serializers.ValidationError as e:
                         return Response({"message": str(e)}, status=400)
 
+                grant = None
+                if grant_amount := data.get("grant_amount"):
+                    serializer = GrantCreateSerializer(
+                        data={
+                            "amount": grant_amount,
+                            "currency": data.get("grant_currency", USD),
+                            "organization": data.get("grant_organization"),
+                            "description": data.get("grant_description"),
+                            "unified_document_id": unified_document.id,
+                            "end_date": data.get("grant_end_date"),
+                        }
+                    )
+                    serializer.is_valid(raise_exception=True)
+
+                    from purchase.models import Grant
+
+                    grant = Grant.objects.create(
+                        created_by=created_by,
+                        unified_document=unified_document,
+                        amount=serializer.validated_data["amount"],
+                        currency=serializer.validated_data["currency"],
+                        organization=serializer.validated_data["organization"],
+                        description=serializer.validated_data["description"],
+                        end_date=serializer.validated_data.get("end_date"),
+                    )
+
                 if not TESTING:
                     if document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
                         rh_post.discussion_src.save(file_name, full_src_file)
@@ -233,6 +267,9 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             response_data["fundraise"] = (
                 DynamicFundraiseSerializer(fundraise).data if fundraise else None
             )
+            response_data["grant"] = (
+                DynamicGrantSerializer(grant).data if grant else None
+            )
             return Response(response_data, status=200)
 
         except (KeyError, TypeError) as exception:
@@ -266,7 +303,10 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         if type(title) is not str or len(title) < MIN_POST_TITLE_LENGTH:
             return Response(
                 {
-                    "msg": f"Title cannot be less than {MIN_POST_TITLE_LENGTH} characters"
+                    "msg": (
+                        f"Title cannot be less than "
+                        f"{MIN_POST_TITLE_LENGTH} characters"
+                    )
                 },
                 400,
             )
@@ -276,7 +316,10 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         ):
             return Response(
                 {
-                    "msg": f"Post body cannot be less than {MIN_POST_BODY_LENGTH} characters"
+                    "msg": (
+                        f"Post body cannot be less than "
+                        f"{MIN_POST_BODY_LENGTH} characters"
+                    )
                 },
                 400,
             )
