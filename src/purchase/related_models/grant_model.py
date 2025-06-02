@@ -1,3 +1,6 @@
+from datetime import datetime
+
+import pytz
 from django.db import models
 from django.db.models import CASCADE
 
@@ -78,10 +81,6 @@ class Grant(DefaultModel):
     def is_expired(self):
         """Check if the grant application deadline has passed"""
         if self.end_date:
-            from datetime import datetime
-
-            import pytz
-
             return self.end_date < datetime.now(pytz.UTC)
         return False
 
