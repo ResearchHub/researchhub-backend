@@ -34,6 +34,12 @@ class FundingFeedViewSet(BaseFeedView):
       Options:
         - OPEN: Only show posts with open fundraises
         - CLOSED: Only show posts with closed or completed fundraises
+    - grant_id: Filter by grant applications (show only posts that applied to specific grant)
+    - ordering: Sort order when grant_id is provided
+      Options:
+        - newest (default): Sort by creation date (newest first)
+        - hot_score: Sort by hot score (most popular first)
+        - upvotes: Sort by score (most upvoted first)
     """
 
     serializer_class = PostSerializer
@@ -94,9 +100,10 @@ class FundingFeedViewSet(BaseFeedView):
     def get_queryset(self):
         """
         Filter to only include posts that are preregistrations.
-        Additionally filter by fundraise status if specified.
+        Additionally filter by fundraise status and/or grant applications if specified.
         """
         fundraise_status = self.request.query_params.get("fundraise_status", None)
+        grant_id = self.request.query_params.get("grant_id", None)
 
         queryset = (
             ResearchhubPost.objects.all()
@@ -112,6 +119,21 @@ class FundingFeedViewSet(BaseFeedView):
             .filter(document_type=PREREGISTRATION)
             .filter(unified_document__is_removed=False)
         )
+
+        # Filter by grant applications if grant_id is provided
+        if grant_id:
+            queryset = queryset.filter(grant_applications__grant_id=grant_id)
+
+            # Add custom sorting for grant applications
+            ordering = self.request.query_params.get("ordering", "-created_date")
+            if ordering == "hot_score":
+                queryset = queryset.order_by("-unified_document__hot_score")
+            elif ordering == "upvotes":
+                queryset = queryset.order_by("-score")
+            else:  # newest (default)
+                queryset = queryset.order_by("-created_date")
+
+            return queryset
 
         if fundraise_status:
             if fundraise_status.upper() == "OPEN":

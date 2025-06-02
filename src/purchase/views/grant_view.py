@@ -4,9 +4,11 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from purchase.models import Grant
+from purchase.models import Grant, GrantApplication
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
+from researchhub_document.related_models.constants.document_type import PREREGISTRATION
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.permissions import IsModerator
 
 
@@ -156,3 +158,35 @@ class GrantViewSet(viewsets.ModelViewSet):
         context = self.get_serializer_context()
         serializer = self.get_serializer(grant, context=context)
         return Response(serializer.data)
+
+    @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
+    def apply(self, request, pk=None):
+        """Apply to a grant with a preregistration post."""
+        grant = self.get_object()
+        preregistration_post_id = request.data.get("preregistration_post_id")
+
+        # Validation
+        try:
+            post = ResearchhubPost.objects.get(
+                id=preregistration_post_id,
+                created_by=request.user,
+                document_type=PREREGISTRATION,
+            )
+        except ResearchhubPost.DoesNotExist:
+            return Response({"error": "Invalid preregistration post"}, status=400)
+
+        # Check if grant is still active
+        if not grant.is_active():
+            return Response(
+                {"error": "Grant is no longer accepting applications"}, status=400
+            )
+
+        # Create application
+        application, created = GrantApplication.objects.get_or_create(
+            grant=grant, preregistration_post=post, applicant=request.user
+        )
+
+        if created:
+            return Response({"message": "Application submitted"}, status=201)
+        else:
+            return Response({"message": "Already applied"}, status=200)
