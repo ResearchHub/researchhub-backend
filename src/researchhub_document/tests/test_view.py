@@ -605,6 +605,175 @@ class ViewTests(APITestCase):
         # Balance should remain unchanged for preregistrations
         self.assertEqual(int(author.get_balance()), initial_balance)
 
+    def test_grant_created_when_grant_amount_provided(self):
+        """Test that a grant is created when grant_amount is provided"""
+        author = create_random_default_user("author")
+        hub = create_hub()
+
+        self.client.force_authenticate(author)
+
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": "sufficiently long title. sufficiently long title.",
+                "hubs": [hub.id],
+                "grant_amount": 50000,
+                "grant_currency": "USD",
+                "grant_organization": "Test Foundation",
+                "grant_description": "Test grant for research",
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 200)
+        self.assertIsNotNone(doc_response.data["grant"])
+        self.assertEqual(doc_response.data["grant"]["amount"]["usd"], 50000.0)
+        self.assertEqual(doc_response.data["grant"]["organization"], "Test Foundation")
+        self.assertEqual(
+            doc_response.data["grant"]["description"], "Test grant for research"
+        )
+        self.assertEqual(doc_response.data["grant"]["status"], "OPEN")
+
+    def test_grant_null_when_no_grant_amount(self):
+        """Test that grant is null when no grant_amount is provided"""
+        author = create_random_default_user("author")
+        hub = create_hub()
+
+        self.client.force_authenticate(author)
+
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": "sufficiently long title. sufficiently long title.",
+                "hubs": [hub.id],
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 200)
+        self.assertIsNone(doc_response.data["grant"])
+
+    def test_grant_created_with_end_date(self):
+        """Test that a grant can be created with an end date"""
+        from datetime import datetime, timedelta
+
+        import pytz
+
+        author = create_random_default_user("author")
+        hub = create_hub()
+        end_date = datetime.now(pytz.UTC) + timedelta(days=30)
+
+        self.client.force_authenticate(author)
+
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": "sufficiently long title. sufficiently long title.",
+                "hubs": [hub.id],
+                "grant_amount": 25000,
+                "grant_organization": "Another Foundation",
+                "grant_description": "Grant with deadline",
+                "grant_end_date": end_date.isoformat(),
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 200)
+        self.assertIsNotNone(doc_response.data["grant"])
+        self.assertEqual(doc_response.data["grant"]["amount"]["usd"], 25000.0)
+        self.assertEqual(
+            doc_response.data["grant"]["organization"], "Another Foundation"
+        )
+        self.assertIsNotNone(doc_response.data["grant"]["end_date"])
+
+    def test_grant_creation_validation_error(self):
+        """Test that grant creation fails with invalid data"""
+        author = create_random_default_user("author")
+        hub = create_hub()
+
+        self.client.force_authenticate(author)
+
+        # Test with missing organization
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": "sufficiently long title. sufficiently long title.",
+                "hubs": [hub.id],
+                "grant_amount": 50000,
+                "grant_description": "Test grant",
+                # Missing grant_organization
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 400)
+
+    def test_grant_with_fundraise_both_created(self):
+        """Test that both grant and fundraise can be created on the same post"""
+        author = create_random_default_user("author")
+        hub = create_hub()
+
+        self.client.force_authenticate(author)
+
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "PREREGISTRATION",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": "sufficiently long title. sufficiently long title.",
+                "hubs": [hub.id],
+                "fundraise_goal_amount": 10000,
+                "grant_amount": 50000,
+                "grant_organization": "Dual Foundation",
+                "grant_description": "Grant with fundraise",
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 200)
+        self.assertIsNotNone(doc_response.data["fundraise"])
+        self.assertIsNotNone(doc_response.data["grant"])
+        self.assertEqual(doc_response.data["grant"]["amount"]["usd"], 50000.0)
+        self.assertEqual(doc_response.data["grant"]["organization"], "Dual Foundation")
+
     def test_grants_included_in_get_unified_documents(self):
         """Test that grants are included in get_unified_documents endpoint"""
         user = create_random_default_user("grant_test_user", moderator=True)
