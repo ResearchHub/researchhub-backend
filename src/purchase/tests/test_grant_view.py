@@ -6,9 +6,12 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from purchase.models import Grant
+from purchase.models import Grant, GrantApplication
 from researchhub_document.helpers import create_post
-from researchhub_document.related_models.constants.document_type import GRANT
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -32,6 +35,13 @@ class GrantViewTests(APITestCase):
             organization="National Science Foundation",
             description="Research grant for innovative AI applications in healthcare",
             status=Grant.OPEN,
+        )
+
+        # Create a preregistration post for testing applications
+        self.preregistration_post = create_post(
+            created_by=self.regular_user,
+            document_type=PREREGISTRATION,
+            title="Test Preregistration for Grant Application",
         )
 
     def test_list_grants_authenticated(self):
@@ -304,3 +314,147 @@ class GrantViewTests(APITestCase):
         # Check status fields
         self.assertIn("is_expired", response.data)
         self.assertIn("is_active", response.data)
+
+    def test_apply_to_grant_success(self):
+        """Test successfully applying to a grant with a preregistration post"""
+        self.client.force_authenticate(self.regular_user)
+
+        apply_data = {"preregistration_post_id": self.preregistration_post.id}
+
+        response = self.client.post(f"/api/grant/{self.grant.id}/apply/", apply_data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["message"], "Application submitted")
+
+        # Verify application was created in database
+        application = GrantApplication.objects.get(
+            grant=self.grant,
+            preregistration_post=self.preregistration_post,
+            applicant=self.regular_user,
+        )
+        self.assertIsNotNone(application)
+
+    def test_apply_to_grant_duplicate_application(self):
+        """Test applying to the same grant twice returns already applied message"""
+        self.client.force_authenticate(self.regular_user)
+
+        # First application
+        GrantApplication.objects.create(
+            grant=self.grant,
+            preregistration_post=self.preregistration_post,
+            applicant=self.regular_user,
+        )
+
+        apply_data = {"preregistration_post_id": self.preregistration_post.id}
+
+        response = self.client.post(f"/api/grant/{self.grant.id}/apply/", apply_data)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["message"], "Already applied")
+
+    def test_apply_to_grant_unauthenticated(self):
+        """Test that unauthenticated users cannot apply to grants"""
+        apply_data = {"preregistration_post_id": self.preregistration_post.id}
+
+        response = self.client.post(f"/api/grant/{self.grant.id}/apply/", apply_data)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_apply_to_grant_invalid_post_id(self):
+        """Test applying with an invalid preregistration post ID"""
+        self.client.force_authenticate(self.regular_user)
+
+        apply_data = {"preregistration_post_id": 99999}  # Non-existent ID
+
+        response = self.client.post(f"/api/grant/{self.grant.id}/apply/", apply_data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error"], "Invalid preregistration post")
+
+    def test_apply_to_grant_not_owner_of_post(self):
+        """Test applying with a preregistration post not owned by the user"""
+        other_user = create_random_authenticated_user("other_user")
+        other_preregistration = create_post(
+            created_by=other_user,
+            document_type=PREREGISTRATION,
+            title="Other User's Preregistration",
+        )
+
+        self.client.force_authenticate(self.regular_user)
+
+        apply_data = {"preregistration_post_id": other_preregistration.id}
+
+        response = self.client.post(f"/api/grant/{self.grant.id}/apply/", apply_data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error"], "Invalid preregistration post")
+
+    def test_apply_to_grant_wrong_document_type(self):
+        """Test applying with a post that's not a preregistration"""
+        discussion_post = create_post(
+            created_by=self.regular_user,
+            document_type="DISCUSSION",
+            title="Regular Discussion Post",
+        )
+
+        self.client.force_authenticate(self.regular_user)
+
+        apply_data = {"preregistration_post_id": discussion_post.id}
+
+        response = self.client.post(f"/api/grant/{self.grant.id}/apply/", apply_data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error"], "Invalid preregistration post")
+
+    def test_apply_to_closed_grant(self):
+        """Test applying to a closed grant"""
+        self.grant.status = Grant.CLOSED
+        self.grant.save()
+
+        self.client.force_authenticate(self.regular_user)
+
+        apply_data = {"preregistration_post_id": self.preregistration_post.id}
+
+        response = self.client.post(f"/api/grant/{self.grant.id}/apply/", apply_data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["error"], "Grant is no longer accepting applications"
+        )
+
+    def test_apply_to_expired_grant(self):
+        """Test applying to an expired grant"""
+        # Set end_date to yesterday
+        yesterday = datetime.now(pytz.UTC) - timedelta(days=1)
+        self.grant.end_date = yesterday
+        self.grant.save()
+
+        self.client.force_authenticate(self.regular_user)
+
+        apply_data = {"preregistration_post_id": self.preregistration_post.id}
+
+        response = self.client.post(f"/api/grant/{self.grant.id}/apply/", apply_data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["error"], "Grant is no longer accepting applications"
+        )
+
+    def test_apply_to_grant_missing_post_id(self):
+        """Test applying without providing a preregistration post ID"""
+        self.client.force_authenticate(self.regular_user)
+
+        apply_data = {}  # Missing preregistration_post_id
+
+        response = self.client.post(f"/api/grant/{self.grant.id}/apply/", apply_data)
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error"], "Invalid preregistration post")
+
+    def test_apply_to_nonexistent_grant(self):
+        """Test applying to a grant that doesn't exist"""
+        self.client.force_authenticate(self.regular_user)
+
+        apply_data = {"preregistration_post_id": self.preregistration_post.id}
+
+        response = self.client.post("/api/grant/99999/apply/", apply_data)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
