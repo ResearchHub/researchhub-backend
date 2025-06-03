@@ -105,7 +105,9 @@ class NoteSerializer(ModelSerializer):
                     "name",
                 ]
             },
-            "doc_dps_get_unified_document": {"_include_fields": ["fundraise"]},
+            "doc_dps_get_unified_document": {
+                "_include_fields": ["fundraise", "grants"]
+            },
             "doc_duds_get_fundraise": {
                 "_include_fields": [
                     "id",
@@ -116,6 +118,27 @@ class NoteSerializer(ModelSerializer):
                     "end_date",
                     "amount_raised",
                     "contributors",
+                ]
+            },
+            "doc_duds_get_grants": {
+                "_include_fields": [
+                    "id",
+                    "status",
+                    "amount",
+                    "currency",
+                    "organization",
+                    "description",
+                    "start_date",
+                    "end_date",
+                    "created_by",
+                ]
+            },
+            "pch_dgs_get_created_by": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
+                    "first_name",
+                    "last_name",
                 ]
             },
         }
@@ -233,7 +256,9 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
                     "name",
                 ]
             },
-            "doc_dps_get_unified_document": {"_include_fields": ["fundraise"]},
+            "doc_dps_get_unified_document": {
+                "_include_fields": ["fundraise", "grants"]
+            },
             "doc_duds_get_fundraise": {
                 "_include_fields": [
                     "id",
@@ -243,6 +268,28 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
                     "start_date",
                     "end_date",
                     "amount_raised",
+                    "contributors",
+                ]
+            },
+            "doc_duds_get_grants": {
+                "_include_fields": [
+                    "id",
+                    "status",
+                    "amount",
+                    "currency",
+                    "organization",
+                    "description",
+                    "start_date",
+                    "end_date",
+                    "created_by",
+                ]
+            },
+            "pch_dgs_get_created_by": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
+                    "first_name",
+                    "last_name",
                 ]
             },
         }
