@@ -1,22 +1,17 @@
 from django_elasticsearch_dsl_drf.filter_backends import (
     CompoundSearchFilterBackend,
     DefaultOrderingFilterBackend,
-    HighlightBackend,
-    FilteringFilterBackend,
-    NestedFilteringFilterBackend,
-    IdsFilterBackend,
-    OrderingFilterBackend,
-    SuggesterFilterBackend,
-    PostFilterFilteringFilterBackend,
     FacetedSearchFilterBackend,
-    SearchFilterBackend,
+    FilteringFilterBackend,
+    HighlightBackend,
+    OrderingFilterBackend,
+    PostFilterFilteringFilterBackend,
 )
-
+from django_elasticsearch_dsl_drf.pagination import LimitOffsetPagination
+from django_elasticsearch_dsl_drf.viewsets import DocumentViewSet
 from elasticsearch_dsl import Search
 
-from django_elasticsearch_dsl_drf.viewsets import DocumentViewSet
-from django_elasticsearch_dsl_drf.pagination import LimitOffsetPagination
-
+from search.backends.multi_match_filter import MultiMatchSearchFilterBackend
 from search.documents.post import PostDocument
 from search.serializers.post import PostDocumentSerializer
 from utils.permissions import ReadOnly

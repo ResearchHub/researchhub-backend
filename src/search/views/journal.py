@@ -7,7 +7,6 @@ from django_elasticsearch_dsl_drf.viewsets import DocumentViewSet
 from elasticsearch_dsl import Search
 
 from search.backends.multi_match_filter import MultiMatchSearchFilterBackend
-from search.documents.hub import HubDocument
 from search.documents.journal import JournalDocument
 from search.serializers.hub import HubDocumentSerializer
 from utils.permissions import ReadOnly
