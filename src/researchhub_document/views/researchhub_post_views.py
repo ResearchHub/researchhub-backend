@@ -102,6 +102,16 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 return False
         return True
 
+    def _check_grant_permission(self, request, document_type, grant_amount):
+        """Check if user has permission to create/update posts with grant data"""
+        if grant_amount and (document_type == GRANT or grant_amount):
+            if not request.user.moderator:
+                message = {
+                    "message": "Only moderators can create GRANT posts with grant data"
+                }
+                return Response(message, status=403)
+        return None
+
     @sift_track(SIFT_POST)
     def create_researchhub_post(self, request):
         data = request.data
@@ -112,6 +122,14 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         title = data.get("title", "")
         assign_doi = data.get("assign_doi", False)
         renderable_text = data.get("renderable_text", "")
+        grant_amount = data.get("grant_amount")
+
+        # Check grant permission for moderators only
+        grant_permission_check = self._check_grant_permission(
+            request, document_type, grant_amount
+        )
+        if grant_permission_check:
+            return grant_permission_check
 
         # If a note is provided, check if all given authors are in the same organization
         if note_id is not None:
@@ -283,6 +301,15 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         authors = data.get("authors", [])
         rh_post_id = data.get("post_id", None)
         rh_post = ResearchhubPost.objects.get(id=rh_post_id)
+        grant_amount = data.get("grant_amount")
+
+        # Check grant permission for moderators only
+        grant_permission_check = self._check_grant_permission(
+            request, rh_post.document_type, grant_amount
+        )
+        if grant_permission_check:
+            return grant_permission_check
+
         # Check if all given authors are in the same organization
         if rh_post.note_id:
             note = Note.objects.get(id=rh_post.note_id)
