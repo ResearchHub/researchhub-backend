@@ -1,6 +1,7 @@
 from .related_models.aggregate_purchase_model import AggregatePurchase
 from .related_models.balance_model import Balance
 from .related_models.fundraise_model import Fundraise
+from .related_models.grant_application_model import GrantApplication
 from .related_models.grant_model import Grant
 from .related_models.payment_model import Payment
 from .related_models.purchase_model import Purchase
@@ -13,6 +14,7 @@ migratables = (
     Balance,
     Fundraise,
     Grant,
+    GrantApplication,
     Payment,
     Purchase,
     RscExchangeRate,

@@ -16,6 +16,8 @@ from hub.models import Hub
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.constants.rsc_exchange_currency import MORALIS
 from purchase.related_models.fundraise_model import Fundraise
+from purchase.related_models.grant_application_model import GrantApplication
+from purchase.related_models.grant_model import Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Escrow
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
@@ -755,3 +757,304 @@ class FundingFeedViewSetTests(TestCase):
         self.assertLess(
             post_ids.index(recent_closed_post.id), post_ids.index(old_closed_post.id)
         )
+
+    def test_grant_id_filter(self):
+        """Test filtering funding feed by grant_id parameter"""
+        # Create a grant and grant unified document
+        from researchhub_document.related_models.constants.document_type import GRANT
+
+        grant_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        grant_post = ResearchhubPost.objects.create(
+            title="Test Grant",
+            created_by=self.user,
+            document_type=GRANT,
+            unified_document=grant_doc,
+            created_date=timezone.now(),
+        )
+
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_doc,
+            amount=50000.00,
+            currency="USD",
+            organization="Test Foundation",
+            description="Test grant description",
+            status=Grant.OPEN,
+        )
+
+        # Create a grant application linking the grant to our preregistration post
+        GrantApplication.objects.create(
+            grant=grant, preregistration_post=self.post, applicant=self.user
+        )
+
+        # Create another preregistration post without grant application
+        other_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        other_post = ResearchhubPost.objects.create(
+            title="Other Preregistration",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=other_doc,
+            created_date=timezone.now(),
+        )
+
+        # Test filtering by grant_id
+        url = reverse("funding_feed-list") + f"?grant_id={grant.id}"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 1)
+
+        # Should only return the post that applied to this grant
+        returned_post_id = response.data["results"][0]["content_object"]["id"]
+        self.assertEqual(returned_post_id, self.post.id)
+
+    def test_grant_id_filter_no_applications(self):
+        """Test grant_id filter when grant has no applications"""
+        from researchhub_document.related_models.constants.document_type import GRANT
+
+        grant_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_doc,
+            amount=25000.00,
+            currency="USD",
+            organization="Empty Grant Foundation",
+            description="Grant with no applications",
+            status=Grant.OPEN,
+        )
+
+        # Filter by grant that has no applications
+        url = reverse("funding_feed-list") + f"?grant_id={grant.id}"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 0)
+
+    def test_grant_id_filter_with_ordering_newest(self):
+        """Test grant_id filter with ordering by newest"""
+        from researchhub_document.related_models.constants.document_type import GRANT
+
+        grant_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_doc,
+            amount=30000.00,
+            currency="USD",
+            organization="Test Foundation",
+            description="Test grant",
+            status=Grant.OPEN,
+        )
+
+        # Create multiple preregistration posts with different creation dates
+        older_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        older_post = ResearchhubPost.objects.create(
+            title="Older Preregistration",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=older_doc,
+            created_date=timezone.now() - timezone.timedelta(days=2),
+        )
+
+        newer_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        newer_post = ResearchhubPost.objects.create(
+            title="Newer Preregistration",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=newer_doc,
+            created_date=timezone.now() - timezone.timedelta(days=1),
+        )
+
+        # Create grant applications for both posts
+        GrantApplication.objects.create(
+            grant=grant, preregistration_post=older_post, applicant=self.user
+        )
+        GrantApplication.objects.create(
+            grant=grant, preregistration_post=newer_post, applicant=self.user
+        )
+
+        # Test ordering by newest (default)
+        url = reverse("funding_feed-list") + f"?grant_id={grant.id}&ordering=newest"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 2)
+
+        # Newer post should come first
+        first_post_id = response.data["results"][0]["content_object"]["id"]
+        second_post_id = response.data["results"][1]["content_object"]["id"]
+
+        self.assertEqual(first_post_id, newer_post.id)
+        self.assertEqual(second_post_id, older_post.id)
+
+    def test_grant_id_filter_with_ordering_hot_score(self):
+        """Test grant_id filter with ordering by hot_score"""
+        from researchhub_document.related_models.constants.document_type import GRANT
+
+        grant_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_doc,
+            amount=40000.00,
+            currency="USD",
+            organization="Hot Score Foundation",
+            description="Test grant for hot score ordering",
+            status=Grant.OPEN,
+        )
+
+        # Create preregistration posts with different hot scores
+        low_score_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION, hot_score=10.0
+        )
+        low_score_post = ResearchhubPost.objects.create(
+            title="Low Score Preregistration",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=low_score_doc,
+            created_date=timezone.now(),
+        )
+
+        high_score_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION, hot_score=100.0
+        )
+        high_score_post = ResearchhubPost.objects.create(
+            title="High Score Preregistration",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=high_score_doc,
+            created_date=timezone.now(),
+        )
+
+        # Create grant applications for both posts
+        GrantApplication.objects.create(
+            grant=grant, preregistration_post=low_score_post, applicant=self.user
+        )
+        GrantApplication.objects.create(
+            grant=grant, preregistration_post=high_score_post, applicant=self.user
+        )
+
+        # Test ordering by hot_score
+        url = reverse("funding_feed-list") + f"?grant_id={grant.id}&ordering=hot_score"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 2)
+
+        # High score post should come first
+        first_post_id = response.data["results"][0]["content_object"]["id"]
+        second_post_id = response.data["results"][1]["content_object"]["id"]
+
+        self.assertEqual(first_post_id, high_score_post.id)
+        self.assertEqual(second_post_id, low_score_post.id)
+
+    def test_grant_id_filter_with_ordering_upvotes(self):
+        """Test grant_id filter with ordering by upvotes (score)"""
+        from researchhub_document.related_models.constants.document_type import GRANT
+
+        grant_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_doc,
+            amount=35000.00,
+            currency="USD",
+            organization="Upvote Foundation",
+            description="Test grant for upvote ordering",
+            status=Grant.OPEN,
+        )
+
+        # Create preregistration posts with different scores
+        low_score_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        low_score_post = ResearchhubPost.objects.create(
+            title="Low Upvote Preregistration",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=low_score_doc,
+            created_date=timezone.now(),
+            score=5,
+        )
+
+        high_score_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        high_score_post = ResearchhubPost.objects.create(
+            title="High Upvote Preregistration",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=high_score_doc,
+            created_date=timezone.now(),
+            score=50,
+        )
+
+        # Create grant applications for both posts
+        GrantApplication.objects.create(
+            grant=grant, preregistration_post=low_score_post, applicant=self.user
+        )
+        GrantApplication.objects.create(
+            grant=grant, preregistration_post=high_score_post, applicant=self.user
+        )
+
+        # Test ordering by upvotes
+        url = reverse("funding_feed-list") + f"?grant_id={grant.id}&ordering=upvotes"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 2)
+
+        # High score post should come first
+        first_post_id = response.data["results"][0]["content_object"]["id"]
+        second_post_id = response.data["results"][1]["content_object"]["id"]
+
+        self.assertEqual(first_post_id, high_score_post.id)
+        self.assertEqual(second_post_id, low_score_post.id)
+
+    def test_grant_id_filter_disables_caching(self):
+        """Test that grant_id filter disables caching"""
+        from researchhub_document.related_models.constants.document_type import GRANT
+
+        grant_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_doc,
+            amount=20000.00,
+            currency="USD",
+            organization="Cache Test Foundation",
+            description="Test grant for cache behavior",
+            status=Grant.OPEN,
+        )
+
+        GrantApplication.objects.create(
+            grant=grant, preregistration_post=self.post, applicant=self.user
+        )
+
+        # Clear cache before test
+        cache.clear()
+
+        # Make request with grant_id filter
+        url = reverse("funding_feed-list") + f"?grant_id={grant.id}&page=1"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify that cache was not used for this request
+        # The view should not cache responses when grant_id is provided
+        cache_key = f"funding_feed:latest:all:all:none:1-20"
+        cached_response = cache.get(cache_key)
+
+        # Cache should be None since grant_id disables caching
+        self.assertIsNone(cached_response)
+
+    def test_grant_id_filter_invalid_grant_id(self):
+        """Test grant_id filter with invalid grant ID"""
+        # Use a non-existent grant ID
+        url = reverse("funding_feed-list") + "?grant_id=99999"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 0)
