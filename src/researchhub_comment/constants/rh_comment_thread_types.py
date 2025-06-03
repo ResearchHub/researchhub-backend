@@ -1,3 +1,7 @@
+# AUTHOR_UPDATE is for updates that can only be posted by the original author
+# of the document. This is used for comments on grants where authors can post
+# updates as part of the grant process.
+AUTHOR_UPDATE = "AUTHOR_UPDATE"
 GENERIC_COMMENT = "GENERIC_COMMENT"
 INNER_CONTENT_COMMENT = "INNER_CONTENT_COMMENT"
 SUMMARY = "SUMMARY"
@@ -7,6 +11,7 @@ ANSWER = "ANSWER"
 REPLICABILITY_COMMENT = "REPLICABILITY_COMMENT"
 
 RH_COMMENT_THREAD_TYPES = (
+    (AUTHOR_UPDATE, AUTHOR_UPDATE),
     (GENERIC_COMMENT, GENERIC_COMMENT),
     (INNER_CONTENT_COMMENT, INNER_CONTENT_COMMENT),
     (ANSWER, ANSWER),
