@@ -6,12 +6,8 @@ from django_elasticsearch_dsl_drf.filter_backends import (
     FacetedSearchFilterBackend,
     FilteringFilterBackend,
     HighlightBackend,
-    IdsFilterBackend,
-    NestedFilteringFilterBackend,
     OrderingFilterBackend,
     PostFilterFilteringFilterBackend,
-    SearchFilterBackend,
-    SuggesterFilterBackend,
 )
 from django_elasticsearch_dsl_drf.pagination import LimitOffsetPagination
 from django_elasticsearch_dsl_drf.viewsets import DocumentViewSet
