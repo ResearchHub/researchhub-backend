@@ -74,7 +74,7 @@ class PaperDocumentSerializer(DocumentSerializer):
         try:
             paper = Paper.objects.get(id=hit["id"])
             score = paper.unified_document.score
-        except Exception as e:
+        except Exception:
             pass
 
         return score
@@ -91,7 +91,7 @@ class PaperDocumentSerializer(DocumentSerializer):
         publish_year = None
         try:
             publish_year = hit["paper_publish_year"]
-        except Exception as e:
+        except Exception:
             pass
 
         return publish_year
@@ -100,7 +100,7 @@ class PaperDocumentSerializer(DocumentSerializer):
         citations = None
         try:
             citations = hit["citations"]
-        except Exception as e:
+        except Exception:
             pass
 
         return citations
@@ -109,7 +109,7 @@ class PaperDocumentSerializer(DocumentSerializer):
         citation_percentile = None
         try:
             citation_percentile = hit["citation_percentile"]
-        except Exception as e:
+        except Exception:
             pass
 
         return citation_percentile
