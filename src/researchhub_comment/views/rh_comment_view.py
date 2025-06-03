@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
-from rest_framework.exceptions import NotFound
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import (
     AllowAny,
@@ -28,7 +28,10 @@ from researchhub.permissions import IsObjectOwner, IsObjectOwnerOrModerator
 from researchhub.settings import TESTING
 from researchhub_access_group.constants import ADMIN, EDITOR, PRIVATE, PUBLIC, WORKSPACE
 from researchhub_access_group.models import Permission
-from researchhub_comment.constants.rh_comment_thread_types import GENERIC_COMMENT
+from researchhub_comment.constants.rh_comment_thread_types import (
+    AUTHOR_UPDATE,
+    GENERIC_COMMENT,
+)
 from researchhub_comment.constants.rh_comment_view_constants import (
     CITATION_ENTRY,
     HYPOTHESIS,
@@ -49,15 +52,12 @@ from researchhub_comment.serializers import (
 )
 from researchhub_comment.tasks import celery_create_mention_notification
 from researchhub_document.related_models.constants.document_type import (
-    FILTER_ANSWERED,
-    FILTER_BOUNTY_CLOSED,
     FILTER_BOUNTY_OPEN,
     FILTER_HAS_BOUNTY,
     SORT_BOUNTY_EXPIRATION_DATE,
     SORT_BOUNTY_TOTAL_AMOUNT,
     SORT_DISCUSSED,
 )
-from researchhub_document.utils import get_doc_type_key
 from utils.siftscience import SIFT_COMMENT, sift_track
 from utils.throttles import THROTTLE_CLASSES
 
@@ -369,6 +369,13 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         data = request.data
         user = request.user
         model = self._get_model_name()
+
+        # Enforce author-only for author updates
+        if data.get("thread_type") == AUTHOR_UPDATE:
+            target = self._get_model_object()
+            if not getattr(target, "created_by", None) or target.created_by != user:
+                raise PermissionDenied("Only the author can add author updates.")
+
         with transaction.atomic():
             rh_thread, parent_id = self._retrieve_or_create_thread_from_request(request)
             data.update(

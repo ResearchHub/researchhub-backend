@@ -102,8 +102,43 @@ class CommentViewTests(APITestCase):
             },
         )
 
-        self.assertEqual(update_comment_res.status_code, 200)
-        return update_comment_res
+    def test_comment_author_can_post_author_update(self):
+        # Arrange
+        author = self.paper.created_by
+        self.client.force_authenticate(author)
+
+        # Act
+        res = self.client.post(
+            f"/api/paper/{self.paper.id}/comments/create_rh_comment/",
+            {
+                "comment_content_json": {
+                    "ops": [{"insert": "this is an author update"}]
+                },
+                "thread_type": "AUTHOR_UPDATE",
+            },
+        )
+
+        # Assert
+        self.assertEqual(res.status_code, 200)
+
+    def test_comment_non_author_cant_post_author_update(self):
+        # Arrange
+        non_author = self.user_1
+        self.client.force_authenticate(non_author)
+
+        # Act
+        res = self.client.post(
+            f"/api/paper/{self.paper.id}/comments/create_rh_comment/",
+            {
+                "comment_content_json": {
+                    "ops": [{"insert": "this is an author update"}]
+                },
+                "thread_type": "AUTHOR_UPDATE",
+            },
+        )
+
+        # Assert
+        self.assertEqual(res.status_code, 403)
 
     def test_non_comment_creator_cant_edit(self):
         creator = self.user_1
