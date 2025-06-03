@@ -1050,3 +1050,57 @@ class NoteTests(APITestCase):
         self.assertEqual(
             note["post"]["unified_document"]["fundraise"]["goal_amount"]["usd"], 1000.0
         )
+
+    def test_note_with_grant_post(self):
+        # Create a note first
+        response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Note with grant post",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        note = response.data
+
+        # Create a grant post
+        post_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": self.user.id,
+                "full_src": "Test grant post content",
+                "is_public": True,
+                "note_id": note["id"],
+                "renderable_text": (
+                    "Test grant post content that is sufficiently long for validation"
+                ),
+                "title": "Test grant post title that is sufficiently long",
+                "hubs": [],
+                "grant_amount": 50000,
+                "grant_currency": "USD",
+                "grant_organization": "National Science Foundation",
+                "grant_description": "Research grant for AI applications",
+            },
+        )
+        self.assertEqual(post_response.status_code, 200)
+
+        # Re-fetch the note to verify post data
+        response = self.client.get(f"/api/note/{note['id']}/")
+        self.assertEqual(response.status_code, 200)
+        note = response.data
+
+        # Verify grant data is present in the unified document
+        self.assertIsNotNone(note["post"]["unified_document"]["grants"])
+        self.assertIsInstance(note["post"]["unified_document"]["grants"], list)
+        self.assertEqual(len(note["post"]["unified_document"]["grants"]), 1)
+
+        grant_data = note["post"]["unified_document"]["grants"][0]
+        self.assertEqual(grant_data["amount"]["usd"], 50000.0)
+        self.assertEqual(grant_data["organization"], "National Science Foundation")
+        self.assertEqual(
+            grant_data["description"], "Research grant for AI applications"
+        )
+        self.assertEqual(grant_data["status"], "OPEN")
+        self.assertIn("created_by", grant_data)
