@@ -223,7 +223,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
 
                 grant = None
                 if grant_amount := data.get("grant_amount"):
-                    serializer = GrantCreateSerializer(
+                    grant_serializer = GrantCreateSerializer(
                         data={
                             "amount": grant_amount,
                             "currency": data.get("grant_currency", USD),
@@ -233,18 +233,18 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                             "end_date": data.get("grant_end_date"),
                         }
                     )
-                    serializer.is_valid(raise_exception=True)
+                    grant_serializer.is_valid(raise_exception=True)
 
                     from purchase.models import Grant
 
                     grant = Grant.objects.create(
                         created_by=created_by,
                         unified_document=unified_document,
-                        amount=serializer.validated_data["amount"],
-                        currency=serializer.validated_data["currency"],
-                        organization=serializer.validated_data["organization"],
-                        description=serializer.validated_data["description"],
-                        end_date=serializer.validated_data.get("end_date"),
+                        amount=grant_serializer.validated_data["amount"],
+                        currency=grant_serializer.validated_data["currency"],
+                        organization=grant_serializer.validated_data["organization"],
+                        description=grant_serializer.validated_data["description"],
+                        end_date=grant_serializer.validated_data.get("end_date"),
                     )
 
                 if not TESTING:
@@ -399,7 +399,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
 
         # Only update grants if both grant data is provided AND a grant already exists
         if (grant_amount := data.get("grant_amount")) and existing_grant:
-            serializer = GrantCreateSerializer(
+            grant_serializer = GrantCreateSerializer(
                 data={
                     "amount": grant_amount,
                     "currency": data.get("grant_currency", USD),
@@ -409,14 +409,16 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     "end_date": data.get("grant_end_date"),
                 }
             )
-            serializer.is_valid(raise_exception=True)
+            grant_serializer.is_valid(raise_exception=True)
 
             # Update existing grant
-            existing_grant.amount = serializer.validated_data["amount"]
-            existing_grant.currency = serializer.validated_data["currency"]
-            existing_grant.organization = serializer.validated_data["organization"]
-            existing_grant.description = serializer.validated_data["description"]
-            existing_grant.end_date = serializer.validated_data.get("end_date")
+            existing_grant.amount = grant_serializer.validated_data["amount"]
+            existing_grant.currency = grant_serializer.validated_data["currency"]
+            existing_grant.organization = grant_serializer.validated_data[
+                "organization"
+            ]
+            existing_grant.description = grant_serializer.validated_data["description"]
+            existing_grant.end_date = grant_serializer.validated_data.get("end_date")
             existing_grant.save()
             grant = existing_grant
         else:
