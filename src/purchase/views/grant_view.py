@@ -182,7 +182,7 @@ class GrantViewSet(viewsets.ModelViewSet):
             )
 
         # Create application
-        application, created = GrantApplication.objects.get_or_create(
+        _, created = GrantApplication.objects.get_or_create(
             grant=grant, preregistration_post=post, applicant=request.user
         )
 
