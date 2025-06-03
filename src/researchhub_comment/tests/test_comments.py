@@ -93,7 +93,7 @@ class CommentViewTests(APITestCase):
         comment = self._create_paper_comment(self.paper.id, creator)
         self.client.force_authenticate(self.user_1)
 
-        update_comment_res = self.client.patch(
+        res = self.client.patch(
             f"/api/paper/{self.paper.id}/comments/{comment.data['id']}/",
             {
                 "comment_content_json": {
@@ -101,6 +101,8 @@ class CommentViewTests(APITestCase):
                 },
             },
         )
+
+        self.assertEqual(res.status_code, 200)
 
     def test_comment_author_can_post_author_update(self):
         # Arrange
