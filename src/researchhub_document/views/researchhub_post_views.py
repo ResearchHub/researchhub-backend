@@ -228,6 +228,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                             "amount": grant_amount,
                             "currency": data.get("grant_currency", USD),
                             "organization": data.get("grant_organization"),
+                            "contacts": data.get("grant_contacts"),
                             "description": data.get("grant_description"),
                             "unified_document_id": unified_document.id,
                             "end_date": data.get("grant_end_date"),
@@ -245,6 +246,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                         organization=grant_serializer.validated_data["organization"],
                         description=grant_serializer.validated_data["description"],
                         end_date=grant_serializer.validated_data.get("end_date"),
+                        contacts=grant_serializer.validated_data.get("contacts"),
                     )
 
                 if not TESTING:
@@ -407,6 +409,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     "description": data.get("grant_description"),
                     "unified_document_id": unified_document.id,
                     "end_date": data.get("grant_end_date"),
+                    "contacts": data.get("grant_contacts"),
                 }
             )
             grant_serializer.is_valid(raise_exception=True)
@@ -419,6 +422,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             ]
             existing_grant.description = grant_serializer.validated_data["description"]
             existing_grant.end_date = grant_serializer.validated_data.get("end_date")
+            existing_grant.contacts.set(grant_serializer.validated_data.get("contacts"))
             existing_grant.save()
             grant = existing_grant
         else:

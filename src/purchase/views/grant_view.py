@@ -36,6 +36,14 @@ class GrantViewSet(viewsets.ModelViewSet):
                 "last_name",
             )
         }
+        context["pch_dgs_get_contacts"] = {
+            "_include_fields": (
+                "id",
+                "author_profile",
+                "first_name",
+                "last_name",
+            )
+        }
         context["usr_dus_get_author_profile"] = {
             "_include_fields": (
                 "id",
@@ -55,18 +63,11 @@ class GrantViewSet(viewsets.ModelViewSet):
         """
         serializer = GrantCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        validated_data = serializer.validated_data
 
         with transaction.atomic():
-            grant = Grant.objects.create(
-                created_by=request.user,
-                unified_document=validated_data["unified_document"],
-                amount=validated_data["amount"],
-                currency=validated_data["currency"],
-                organization=validated_data["organization"],
-                description=validated_data["description"],
-                end_date=validated_data.get("end_date"),
-            )
+            validated_data = serializer.validated_data.copy()
+            validated_data["created_by"] = request.user
+            grant = serializer.create(validated_data)
 
         context = self.get_serializer_context()
         response_serializer = self.get_serializer(grant, context=context)

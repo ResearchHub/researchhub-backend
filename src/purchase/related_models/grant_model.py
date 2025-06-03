@@ -39,6 +39,12 @@ class Grant(DefaultModel):
         related_name="grants",
         help_text="Associated unified document",
     )
+    contacts = models.ManyToManyField(
+        "user.User",
+        blank=True,
+        related_name="grant_contacts",
+        help_text="Contact persons for this grant",
+    )
 
     # Grant-specific fields
     amount = models.DecimalField(
@@ -48,7 +54,10 @@ class Grant(DefaultModel):
         max_length=16, default=USD, help_text="Currency of the grant amount"
     )
     organization = models.CharField(
-        max_length=255, help_text="Name of the granting organization"
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Name of the granting organization",
     )
     description = models.TextField(
         help_text="Grant description, requirements, and application details"
@@ -76,7 +85,8 @@ class Grant(DefaultModel):
         ]
 
     def __str__(self):
-        return f"{self.organization} - {self.amount} {self.currency}"
+        org_name = self.organization or "Unknown Organization"
+        return f"{org_name} - {self.amount} {self.currency}"
 
     def is_expired(self):
         """Check if the grant application deadline has passed"""

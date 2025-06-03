@@ -476,3 +476,90 @@ class GrantViewTests(APITestCase):
 
         response = self.client.post("/api/grant/99999/application/", apply_data)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_create_grant_without_organization(self):
+        """Test that grants can be created without an organization"""
+        self.client.force_authenticate(self.moderator)
+
+        new_post = create_post(created_by=self.moderator, document_type=GRANT)
+
+        grant_data = {
+            "unified_document_id": new_post.unified_document.id,
+            "amount": "25000.00",
+            "currency": "USD",
+            "description": "Test grant without organization",
+        }
+
+        response = self.client.post("/api/grant/", grant_data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIsNone(response.data.get("organization"))
+        self.assertEqual(response.data["amount"]["usd"], 25000.0)
+
+        # Verify grant was created in database
+        grant = Grant.objects.get(id=response.data["id"])
+        self.assertIsNone(grant.organization)
+
+    def test_create_grant_with_contacts(self):
+        """Test creating a grant with contact users"""
+        self.client.force_authenticate(self.moderator)
+
+        contact_user = create_random_authenticated_user("contact_user")
+        new_post = create_post(created_by=self.moderator, document_type=GRANT)
+
+        grant_data = {
+            "unified_document_id": new_post.unified_document.id,
+            "amount": "25000.00",
+            "currency": "USD",
+            "organization": "Test Foundation",
+            "description": "Test grant with contacts",
+            "contact_ids": [contact_user.id, self.moderator.id],
+        }
+
+        response = self.client.post("/api/grant/", grant_data)
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(response.data["contacts"]), 2)
+
+        # Verify contacts were set in database
+        grant = Grant.objects.get(id=response.data["id"])
+        self.assertEqual(grant.contacts.count(), 2)
+        self.assertIn(contact_user, grant.contacts.all())
+        self.assertIn(self.moderator, grant.contacts.all())
+
+    def test_create_grant_with_invalid_contacts(self):
+        """Test creating a grant with invalid contact user IDs"""
+        self.client.force_authenticate(self.moderator)
+
+        new_post = create_post(created_by=self.moderator, document_type=GRANT)
+
+        grant_data = {
+            "unified_document_id": new_post.unified_document.id,
+            "amount": "25000.00",
+            "currency": "USD",
+            "organization": "Test Foundation",
+            "description": "Test grant with invalid contacts",
+            "contact_ids": [99999, 99998],  # Non-existent user IDs
+        }
+
+        response = self.client.post("/api/grant/", grant_data)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("contact users do not exist", str(response.data))
+
+    def test_grant_str_method_with_organization(self):
+        """Test grant string representation with organization"""
+        grant_str = str(self.grant)
+        self.assertEqual(grant_str, "National Science Foundation - 50000.00 USD")
+
+    def test_grant_str_method_without_organization(self):
+        """Test grant string representation without organization"""
+        grant_without_org = Grant.objects.create(
+            created_by=self.moderator,
+            unified_document=self.post.unified_document,
+            amount=Decimal("30000.00"),
+            currency="USD",
+            organization=None,
+            description="Grant without organization",
+        )
+        grant_str = str(grant_without_org)
+        self.assertEqual(grant_str, "Unknown Organization - 30000.00 USD")

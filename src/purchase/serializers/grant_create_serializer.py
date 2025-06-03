@@ -10,11 +10,19 @@ from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocum
 class GrantCreateSerializer(serializers.ModelSerializer):
     amount = serializers.DecimalField(max_digits=19, decimal_places=2)
     currency = serializers.CharField(default=USD)
-    organization = serializers.CharField(max_length=255)
+    organization = serializers.CharField(
+        max_length=255, required=False, allow_blank=True
+    )
     description = serializers.CharField()
     unified_document_id = serializers.IntegerField(required=False, allow_null=True)
     post_id = serializers.IntegerField(required=False, allow_null=True)
     end_date = serializers.DateTimeField(required=False, allow_null=True)
+    contact_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        allow_empty=True,
+        help_text="List of user IDs to set as contacts for this grant",
+    )
 
     class Meta:
         model = Grant
@@ -26,6 +34,7 @@ class GrantCreateSerializer(serializers.ModelSerializer):
             "unified_document_id",
             "post_id",
             "end_date",
+            "contact_ids",
         ]
 
     def validate(self, data):
@@ -47,10 +56,16 @@ class GrantCreateSerializer(serializers.ModelSerializer):
         if data["currency"] != USD:
             raise serializers.ValidationError("currency must be USD")
 
-        # Validate organization name
-        organization = data.get("organization", "").strip()
-        if not organization:
-            raise serializers.ValidationError("organization name is required")
+        # Validate contacts if provided
+        contact_ids = data.get("contact_ids", [])
+        if contact_ids:
+            from user.models import User
+
+            valid_contacts = User.objects.filter(id__in=contact_ids)
+            if len(valid_contacts) != len(contact_ids):
+                raise serializers.ValidationError(
+                    "One or more contact users do not exist"
+                )
 
         # Validate description
         description = data.get("description", "").strip()
@@ -77,3 +92,15 @@ class GrantCreateSerializer(serializers.ModelSerializer):
         data["unified_document"] = unified_document
 
         return data
+
+    def create(self, validated_data):
+        contact_ids = validated_data.pop("contact_ids", [])
+        grant = super().create(validated_data)
+
+        if contact_ids:
+            from user.models import User
+
+            contacts = User.objects.filter(id__in=contact_ids)
+            grant.contacts.set(contacts)
+
+        return grant
