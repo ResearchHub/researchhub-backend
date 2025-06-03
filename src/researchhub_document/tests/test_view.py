@@ -609,7 +609,7 @@ class ViewTests(APITestCase):
 
     def test_grant_created_when_grant_amount_provided(self):
         """Test that a grant is created when grant_amount is provided"""
-        author = create_random_default_user("author")
+        author = create_random_default_user("author", moderator=True)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -646,7 +646,7 @@ class ViewTests(APITestCase):
 
     def test_grant_null_when_no_grant_amount(self):
         """Test that grant is null when no grant_amount is provided"""
-        author = create_random_default_user("author")
+        author = create_random_default_user("author", moderator=True)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -673,7 +673,7 @@ class ViewTests(APITestCase):
 
     def test_grant_created_with_end_date(self):
         """Test that a grant can be created with an end date"""
-        author = create_random_default_user("author")
+        author = create_random_default_user("author", moderator=True)
         hub = create_hub()
         end_date = datetime.now(pytz.UTC) + timedelta(days=30)
 
@@ -710,7 +710,7 @@ class ViewTests(APITestCase):
 
     def test_grant_creation_validation_error(self):
         """Test that grant creation fails with invalid data"""
-        author = create_random_default_user("author")
+        author = create_random_default_user("author", moderator=True)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -740,7 +740,7 @@ class ViewTests(APITestCase):
 
     def test_grant_with_fundraise_both_created(self):
         """Test that both grant and fundraise can be created on the same post"""
-        author = create_random_default_user("author")
+        author = create_random_default_user("author", moderator=True)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -886,7 +886,7 @@ class ViewTests(APITestCase):
 
     def test_grant_update_existing_grant(self):
         """Test that an existing grant can be updated when updating a post"""
-        author = create_random_default_user("author")
+        author = create_random_default_user("author", moderator=True)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -960,8 +960,8 @@ class ViewTests(APITestCase):
         self.assertEqual(grants_count, 1)
 
     def test_grant_create_new_grant_during_update(self):
-        """Test that a new grant can be created when updating a post that didn't have one"""
-        author = create_random_default_user("author")
+        """Test that grants cannot be created during updates (only at post creation)"""
+        author = create_random_default_user("author", moderator=True)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -987,7 +987,7 @@ class ViewTests(APITestCase):
         self.assertEqual(doc_response.status_code, 200)
         self.assertIsNone(doc_response.data["grant"])
 
-        # Update the post with grant information
+        # Try to update the post with grant information - should NOT create a grant
         updated_response = self.client.post(
             "/api/researchhubpost/",
             {
@@ -1011,24 +1011,18 @@ class ViewTests(APITestCase):
         )
 
         self.assertEqual(updated_response.status_code, 200)
-        self.assertIsNotNone(updated_response.data["grant"])
-        self.assertEqual(updated_response.data["grant"]["amount"]["usd"], 60000.0)
-        self.assertEqual(
-            updated_response.data["grant"]["organization"], "New Foundation"
-        )
-        self.assertEqual(
-            updated_response.data["grant"]["description"], "New grant description"
-        )
+        # Grant should remain None because we don't create grants during updates
+        self.assertIsNone(updated_response.data["grant"])
 
-        # Verify exactly one grant exists in database
+        # Verify no grant was created in database
         grants_count = Grant.objects.filter(
             unified_document=doc_response.data["unified_document_id"]
         ).count()
-        self.assertEqual(grants_count, 1)
+        self.assertEqual(grants_count, 0)
 
     def test_grant_preserve_existing_grant_when_no_grant_data(self):
         """Test that existing grant is preserved when no grant data is provided in update"""
-        author = create_random_default_user("author")
+        author = create_random_default_user("author", moderator=True)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -1096,7 +1090,7 @@ class ViewTests(APITestCase):
 
     def test_grant_update_with_end_date(self):
         """Test that grant end date can be updated"""
-        author = create_random_default_user("author")
+        author = create_random_default_user("author", moderator=True)
         hub = create_hub()
         initial_end_date = datetime.now(pytz.UTC) + timedelta(days=30)
         updated_end_date = datetime.now(pytz.UTC) + timedelta(days=60)
@@ -1163,7 +1157,7 @@ class ViewTests(APITestCase):
 
     def test_grant_update_validation_error(self):
         """Test that grant update fails with invalid data"""
-        author = create_random_default_user("author")
+        author = create_random_default_user("author", moderator=True)
         hub = create_hub()
 
         self.client.force_authenticate(author)
@@ -1217,7 +1211,7 @@ class ViewTests(APITestCase):
 
     def test_grant_update_with_null_fields(self):
         """Test that grant fields can be updated to null/empty values where appropriate"""
-        author = create_random_default_user("author")
+        author = create_random_default_user("author", moderator=True)
         hub = create_hub()
 
         self.client.force_authenticate(author)

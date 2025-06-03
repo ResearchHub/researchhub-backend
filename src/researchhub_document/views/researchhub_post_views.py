@@ -311,6 +311,14 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     "No permission to update post for organization", status=403
                 )
 
+        # Check grant permission for moderators only
+        grant_amount = data.get("grant_amount")
+        grant_permission_check = self._check_grant_permission(
+            request, data.get("document_type"), grant_amount
+        )
+        if grant_permission_check:
+            return grant_permission_check
+
         created_by = request.user
         created_by_author = created_by.author_profile
         hubs = data.get("hubs", None)
@@ -389,7 +397,8 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         # Get existing grant if any
         existing_grant = Grant.objects.filter(unified_document=unified_document).first()
 
-        if grant_amount := data.get("grant_amount") and existing_grant:
+        # Only update grants if both grant data is provided AND a grant already exists
+        if (grant_amount := data.get("grant_amount")) and existing_grant:
             serializer = GrantCreateSerializer(
                 data={
                     "amount": grant_amount,
@@ -409,6 +418,9 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             existing_grant.description = serializer.validated_data["description"]
             existing_grant.end_date = serializer.validated_data.get("end_date")
             existing_grant.save()
+            grant = existing_grant
+        else:
+            # No grant data provided or no existing grant, preserve existing grant
             grant = existing_grant
 
         response_data = serializer.data
