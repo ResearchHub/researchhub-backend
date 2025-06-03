@@ -9,6 +9,7 @@ from utils.sentry import log_error
 
 
 class PaperDocumentSerializer(DocumentSerializer):
+    authors = serializers.SerializerMethodField()
     slug = serializers.SerializerMethodField()
     highlight = serializers.SerializerMethodField()
     unified_document_id = serializers.SerializerMethodField()
@@ -51,6 +52,9 @@ class PaperDocumentSerializer(DocumentSerializer):
             "title",
             "unified_document_id",
         ]
+
+    def get_authors(self, hit):
+        return hit.to_dict().get("authors", [])
 
     def get_es_score(self, obj):
         return obj.meta.score
