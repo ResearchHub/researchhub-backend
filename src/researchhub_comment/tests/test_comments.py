@@ -157,7 +157,6 @@ class CommentViewTests(APITestCase):
         )
 
         self.assertEqual(update_comment_res.status_code, 403)
-        return update_comment_res
 
     def test_nested_discussion_counts(self):
         creator_1 = self.user_1
