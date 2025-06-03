@@ -260,7 +260,7 @@ class DynamicUnifiedDocumentSerializerGrantsTests(TestCase):
 
 
 class ResearchhubPostGrantModeratorTests(APITestCase):
-    """Test that only moderators can create GRANT type posts with grant data"""
+    """Test moderator restrictions for creating GRANT posts with grant data"""
 
     def setUp(self):
         self.moderator_user = create_random_authenticated_user(
@@ -321,58 +321,3 @@ class ResearchhubPostGrantModeratorTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         # Grant should be None when no grant data is provided
         self.assertIsNone(response.data.get("grant"))
-
-    def test_regular_user_cannot_update_post_to_add_grant_data(self):
-        """Test that regular users cannot update posts to add grant data"""
-        # First create a post without grant data as the regular user
-        self.client.force_authenticate(user=self.regular_user)
-
-        post_data_without_grant = self.grant_post_data.copy()
-        del post_data_without_grant["grant_amount"]
-        del post_data_without_grant["grant_currency"]
-        del post_data_without_grant["grant_organization"]
-        del post_data_without_grant["grant_description"]
-
-        url = reverse("researchhubpost-list")
-        response = self.client.post(url, post_data_without_grant, format="json")
-        self.assertEqual(response.status_code, 200)
-
-        post_id = response.data["id"]
-
-        # Now try to update the post to add grant data
-        update_data = self.grant_post_data.copy()
-        update_data["post_id"] = post_id
-
-        response = self.client.post(url, update_data, format="json")
-
-        self.assertEqual(response.status_code, 403)
-        self.assertIn("message", response.data)
-        expected_message = "Only moderators can create GRANT posts with grant data"
-        self.assertIn(expected_message, response.data["message"])
-
-    def test_moderator_can_update_post_to_add_grant_data(self):
-        """Test that moderators can update posts to add grant data"""
-        # Create a post without grant data as a moderator
-        self.client.force_authenticate(user=self.moderator_user)
-
-        post_data_without_grant = self.grant_post_data.copy()
-        del post_data_without_grant["grant_amount"]
-        del post_data_without_grant["grant_currency"]
-        del post_data_without_grant["grant_organization"]
-        del post_data_without_grant["grant_description"]
-
-        url = reverse("researchhubpost-list")
-        response = self.client.post(url, post_data_without_grant, format="json")
-        self.assertEqual(response.status_code, 200)
-
-        post_id = response.data["id"]
-
-        # Now update the post to add grant data
-        update_data = self.grant_post_data.copy()
-        update_data["post_id"] = post_id
-
-        response = self.client.post(url, update_data, format="json")
-
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("grant", response.data)
-        self.assertIsNotNone(response.data["grant"])

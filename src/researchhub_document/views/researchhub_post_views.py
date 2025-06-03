@@ -103,7 +103,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         return True
 
     def _check_grant_permission(self, request, document_type, grant_amount):
-        """Check if user has permission to create/update posts with grant data"""
+        """Check if user has permission to create posts with grant data"""
         if grant_amount and (document_type == GRANT or grant_amount):
             if not request.user.moderator:
                 message = {
@@ -301,14 +301,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         authors = data.get("authors", [])
         rh_post_id = data.get("post_id", None)
         rh_post = ResearchhubPost.objects.get(id=rh_post_id)
-        grant_amount = data.get("grant_amount")
-
-        # Check grant permission for moderators only
-        grant_permission_check = self._check_grant_permission(
-            request, rh_post.document_type, grant_amount
-        )
-        if grant_permission_check:
-            return grant_permission_check
 
         # Check if all given authors are in the same organization
         if rh_post.note_id:
@@ -397,7 +389,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         # Get existing grant if any
         existing_grant = Grant.objects.filter(unified_document=unified_document).first()
 
-        if grant_amount := data.get("grant_amount"):
+        if grant_amount := data.get("grant_amount") and existing_grant:
             serializer = GrantCreateSerializer(
                 data={
                     "amount": grant_amount,
@@ -410,28 +402,13 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             )
             serializer.is_valid(raise_exception=True)
 
-            if existing_grant:
-                # Update existing grant
-                existing_grant.amount = serializer.validated_data["amount"]
-                existing_grant.currency = serializer.validated_data["currency"]
-                existing_grant.organization = serializer.validated_data["organization"]
-                existing_grant.description = serializer.validated_data["description"]
-                existing_grant.end_date = serializer.validated_data.get("end_date")
-                existing_grant.save()
-                grant = existing_grant
-            else:
-                # Create new grant
-                grant = Grant.objects.create(
-                    created_by=created_by,
-                    unified_document=unified_document,
-                    amount=serializer.validated_data["amount"],
-                    currency=serializer.validated_data["currency"],
-                    organization=serializer.validated_data["organization"],
-                    description=serializer.validated_data["description"],
-                    end_date=serializer.validated_data.get("end_date"),
-                )
-        else:
-            # If no grant_amount provided, keep existing grant if any
+            # Update existing grant
+            existing_grant.amount = serializer.validated_data["amount"]
+            existing_grant.currency = serializer.validated_data["currency"]
+            existing_grant.organization = serializer.validated_data["organization"]
+            existing_grant.description = serializer.validated_data["description"]
+            existing_grant.end_date = serializer.validated_data.get("end_date")
+            existing_grant.save()
             grant = existing_grant
 
         response_data = serializer.data
