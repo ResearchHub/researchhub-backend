@@ -12,7 +12,7 @@ from analytics.tasks import track_revenue_event
 from discussion.reaction_views import ReactionViewActionMixin
 from hub.models import Hub
 from note.related_models.note_model import Note
-from purchase.models import Balance, Purchase
+from purchase.models import Balance, Grant, Purchase
 from purchase.related_models.constants.currency import USD
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
@@ -102,6 +102,16 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 return False
         return True
 
+    def _check_grant_permission(self, request, document_type, grant_amount):
+        """Check if user has permission to create posts with grant data"""
+        if grant_amount and (document_type == GRANT or grant_amount):
+            if not request.user.moderator:
+                message = {
+                    "message": "Only moderators can create GRANT posts with grant data"
+                }
+                return Response(message, status=403)
+        return None
+
     @sift_track(SIFT_POST)
     def create_researchhub_post(self, request):
         data = request.data
@@ -112,6 +122,14 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         title = data.get("title", "")
         assign_doi = data.get("assign_doi", False)
         renderable_text = data.get("renderable_text", "")
+        grant_amount = data.get("grant_amount")
+
+        # Check grant permission for moderators only
+        grant_permission_check = self._check_grant_permission(
+            request, document_type, grant_amount
+        )
+        if grant_permission_check:
+            return grant_permission_check
 
         # If a note is provided, check if all given authors are in the same organization
         if note_id is not None:
@@ -283,6 +301,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
         authors = data.get("authors", [])
         rh_post_id = data.get("post_id", None)
         rh_post = ResearchhubPost.objects.get(id=rh_post_id)
+
         # Check if all given authors are in the same organization
         if rh_post.note_id:
             note = Note.objects.get(id=rh_post.note_id)
@@ -291,6 +310,14 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 return Response(
                     "No permission to update post for organization", status=403
                 )
+
+        # Check grant permission for moderators only
+        grant_amount = data.get("grant_amount")
+        grant_permission_check = self._check_grant_permission(
+            request, data.get("document_type"), grant_amount
+        )
+        if grant_permission_check:
+            return grant_permission_check
 
         created_by = request.user
         created_by_author = created_by.author_profile
@@ -363,7 +390,42 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             if crossref_response.status_code != 200:
                 return Response("Crossref API Failure", status=400)
 
-        return Response(serializer.data, status=200)
+        # Handle grant updates
+        grant = None
+        unified_document = post.unified_document
+
+        # Get existing grant if any
+        existing_grant = Grant.objects.filter(unified_document=unified_document).first()
+
+        # Only update grants if both grant data is provided AND a grant already exists
+        if (grant_amount := data.get("grant_amount")) and existing_grant:
+            serializer = GrantCreateSerializer(
+                data={
+                    "amount": grant_amount,
+                    "currency": data.get("grant_currency", USD),
+                    "organization": data.get("grant_organization"),
+                    "description": data.get("grant_description"),
+                    "unified_document_id": unified_document.id,
+                    "end_date": data.get("grant_end_date"),
+                }
+            )
+            serializer.is_valid(raise_exception=True)
+
+            # Update existing grant
+            existing_grant.amount = serializer.validated_data["amount"]
+            existing_grant.currency = serializer.validated_data["currency"]
+            existing_grant.organization = serializer.validated_data["organization"]
+            existing_grant.description = serializer.validated_data["description"]
+            existing_grant.end_date = serializer.validated_data.get("end_date")
+            existing_grant.save()
+            grant = existing_grant
+        else:
+            # No grant data provided or no existing grant, preserve existing grant
+            grant = existing_grant
+
+        response_data = serializer.data
+        response_data["grant"] = DynamicGrantSerializer(grant).data if grant else None
+        return Response(response_data, status=200)
 
     def create_access_group(self, request):
         return None

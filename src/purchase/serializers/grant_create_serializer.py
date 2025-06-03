@@ -73,11 +73,6 @@ class GrantCreateSerializer(serializers.ModelSerializer):
             except ResearchhubPost.DoesNotExist:
                 raise serializers.ValidationError("Post does not exist")
 
-        # Check for existing grant
-        existing_grant = Grant.objects.filter(unified_document=unified_document).first()
-        if existing_grant:
-            raise serializers.ValidationError("Grant already exists for this document")
-
         # Add validated objects to data for use in create()
         data["unified_document"] = unified_document
 

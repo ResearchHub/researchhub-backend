@@ -20,7 +20,7 @@ class NoteTests(APITestCase):
         username = "test@researchhub_test.com"
         password = uuid.uuid4().hex
         self.user = get_user_model().objects.create_user(
-            username=username, password=password, email=username
+            username=username, password=password, email=username, moderator=True
         )
         self.client.force_authenticate(self.user)
 
@@ -992,7 +992,9 @@ class NoteTests(APITestCase):
                 "full_src": "Test post content",
                 "is_public": True,
                 "note_id": note["id"],
-                "renderable_text": "Test post content that is sufficiently long for validation",
+                "renderable_text": (
+                    "Test post content that is sufficiently long for validation"
+                ),
                 "title": "Test post title that is sufficiently long",
                 "hubs": [],
             },
@@ -1032,7 +1034,9 @@ class NoteTests(APITestCase):
                 "full_src": "Test post content",
                 "is_public": True,
                 "note_id": note["id"],
-                "renderable_text": "Test post content that is sufficiently long for validation",
+                "renderable_text": (
+                    "Test post content that is sufficiently long for validation"
+                ),
                 "title": "Test post title that is sufficiently long",
                 "hubs": [],
                 "fundraise_goal_amount": 1000,
@@ -1074,7 +1078,8 @@ class NoteTests(APITestCase):
                 "is_public": True,
                 "note_id": note["id"],
                 "renderable_text": (
-                    "Test grant post content that is sufficiently long for validation"
+                    "Test grant post content that is "
+                    "sufficiently long for validation"
                 ),
                 "title": "Test grant post title that is sufficiently long",
                 "hubs": [],
