@@ -312,6 +312,7 @@ class PostSerializer(ContentObjectSerializer):
                     "is_expired",
                     "is_active",
                     "created_by",
+                    "contacts",
                 ],
             )
             return serializer.data

@@ -247,6 +247,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "start_date",
                     "end_date",
                     "created_by",
+                    "contacts",
                 ]
             },
             "pch_dfs_get_contributors": {
@@ -263,6 +264,25 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "author_profile",
                     "first_name",
                     "last_name",
+                ]
+            },
+            "pch_dgs_get_contacts": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
+                    "first_name",
+                    "last_name",
+                ]
+            },
+            "usr_dus_get_author_profile": {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "created_date",
+                    "updated_date",
+                    "profile_image",
+                    "is_verified",
                 ]
             },
         }
@@ -589,6 +609,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "start_date",
                     "end_date",
                     "created_by",
+                    "contacts",
                 ]
             },
             "pch_dfs_get_contributors": {
@@ -600,6 +621,14 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 ]
             },
             "pch_dgs_get_created_by": {
+                "_include_fields": [
+                    "id",
+                    "author_profile",
+                    "first_name",
+                    "last_name",
+                ]
+            },
+            "pch_dgs_get_contacts": {
                 "_include_fields": [
                     "id",
                     "author_profile",

@@ -238,6 +238,7 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
 
                     from purchase.models import Grant
 
+                    # Create grant without contacts first
                     grant = Grant.objects.create(
                         created_by=created_by,
                         unified_document=unified_document,
@@ -246,8 +247,12 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                         organization=grant_serializer.validated_data["organization"],
                         description=grant_serializer.validated_data["description"],
                         end_date=grant_serializer.validated_data.get("end_date"),
-                        contacts=grant_serializer.validated_data.get("contacts"),
                     )
+
+                    # Set contacts using the many-to-many set method
+                    contacts = grant_serializer.validated_data.get("contacts")
+                    if contacts:
+                        grant.contacts.set(contacts)
 
                 if not TESTING:
                     if document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
@@ -287,8 +292,57 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             response_data["fundraise"] = (
                 DynamicFundraiseSerializer(fundraise).data if fundraise else None
             )
+            # Set up context for grant serialization including contacts
+            grant_context = {
+                "pch_dgs_get_created_by": {
+                    "_include_fields": (
+                        "id",
+                        "author_profile",
+                        "first_name",
+                        "last_name",
+                    )
+                },
+                "pch_dgs_get_contacts": {
+                    "_include_fields": (
+                        "id",
+                        "author_profile",
+                        "first_name",
+                        "last_name",
+                    )
+                },
+                "usr_dus_get_author_profile": {
+                    "_include_fields": (
+                        "id",
+                        "first_name",
+                        "last_name",
+                        "created_date",
+                        "updated_date",
+                        "profile_image",
+                        "is_verified",
+                    )
+                },
+            }
             response_data["grant"] = (
-                DynamicGrantSerializer(grant).data if grant else None
+                DynamicGrantSerializer(
+                    grant,
+                    context=grant_context,
+                    _include_fields=[
+                        "id",
+                        "status",
+                        "amount",
+                        "currency",
+                        "organization",
+                        "description",
+                        "start_date",
+                        "end_date",
+                        "is_expired",
+                        "is_active",
+                        "created_by",
+                        "contacts",
+                    ],
+                ).data
+                if grant
+                else None
             )
             return Response(response_data, status=200)
 
@@ -430,7 +484,58 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             grant = existing_grant
 
         response_data = serializer.data
-        response_data["grant"] = DynamicGrantSerializer(grant).data if grant else None
+        # Set up context for grant serialization including contacts
+        grant_context = {
+            "pch_dgs_get_created_by": {
+                "_include_fields": (
+                    "id",
+                    "author_profile",
+                    "first_name",
+                    "last_name",
+                )
+            },
+            "pch_dgs_get_contacts": {
+                "_include_fields": (
+                    "id",
+                    "author_profile",
+                    "first_name",
+                    "last_name",
+                )
+            },
+            "usr_dus_get_author_profile": {
+                "_include_fields": (
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "created_date",
+                    "updated_date",
+                    "profile_image",
+                    "is_verified",
+                )
+            },
+        }
+        response_data["grant"] = (
+            DynamicGrantSerializer(
+                grant,
+                context=grant_context,
+                _include_fields=[
+                    "id",
+                    "status",
+                    "amount",
+                    "currency",
+                    "organization",
+                    "description",
+                    "start_date",
+                    "end_date",
+                    "is_expired",
+                    "is_active",
+                    "created_by",
+                    "contacts",
+                ],
+            ).data
+            if grant
+            else None
+        )
         return Response(response_data, status=200)
 
     def create_access_group(self, request):
