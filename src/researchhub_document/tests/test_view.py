@@ -1,8 +1,9 @@
 import time
+from datetime import datetime, timedelta
 from decimal import Decimal
 
+import pytz
 from django.contrib.contenttypes.models import ContentType
-from django.test import override_settings
 from rest_framework.test import APITestCase
 
 from hub.models import Hub
@@ -25,7 +26,8 @@ from user.tests.helpers import create_organization, create_random_default_user
 
 class ViewTests(APITestCase):
     def setUp(self):
-        # Create three users - an org admin, and a member of the admin's org, and a non-member:
+        # Create three users - an org admin, a member of the admin's org,
+        # and a non-member:
         self.admin_user = create_random_default_user("admin")
         self.admin_author, _ = Author.objects.get_or_create(user=self.admin_user)
         self.member_user = create_random_default_user("member")
@@ -671,10 +673,6 @@ class ViewTests(APITestCase):
 
     def test_grant_created_with_end_date(self):
         """Test that a grant can be created with an end date"""
-        from datetime import datetime, timedelta
-
-        import pytz
-
         author = create_random_default_user("author")
         hub = create_hub()
         end_date = datetime.now(pytz.UTC) + timedelta(days=30)
@@ -854,29 +852,428 @@ class ViewTests(APITestCase):
 
     def test_grants_included_in_get_document_metadata(self):
         """Test that grants are included in get_document_metadata endpoint"""
-        user = create_random_default_user("grant_meta_user", moderator=True)
+        user = create_random_default_user("grant_metadata_user", moderator=True)
+        hub = create_hub("Metadata Grant Hub")
 
         # Create a grant post
         post = create_post(created_by=user, document_type=GRANT)
+        post.unified_document.hubs.add(hub)
 
         # Create a grant
         grant = Grant.objects.create(
             created_by=user,
             unified_document=post.unified_document,
-            amount=Decimal("75000.00"),
+            amount=Decimal("30000.00"),
             currency="USD",
             organization="Metadata Foundation",
-            description="Test grant for metadata",
-            status=Grant.COMPLETED,
+            description="Grant for metadata research",
+            status=Grant.OPEN,
         )
 
+        self.client.force_authenticate(user)
         response = self.client.get(
-            f"/api/researchhub_unified_document/{post.unified_document.id}/"
-            "get_document_metadata/"
+            f"/api/researchhub_unified_document/{post.unified_document.id}/get_document_metadata/"
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("grants", response.data, "Grants field should be present")
+        self.assertIn("grants", response.data)
         self.assertEqual(len(response.data["grants"]), 1)
         self.assertEqual(response.data["grants"][0]["id"], grant.id)
-        self.assertEqual(response.data["grants"][0]["status"], Grant.COMPLETED)
+        self.assertEqual(response.data["grants"][0]["amount"]["usd"], 30000.0)
+        self.assertEqual(
+            response.data["grants"][0]["organization"], "Metadata Foundation"
+        )
+
+    def test_grant_update_existing_grant(self):
+        """Test that an existing grant can be updated when updating a post"""
+        author = create_random_default_user("author")
+        hub = create_hub()
+
+        self.client.force_authenticate(author)
+
+        # Create initial post with grant
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": "sufficiently long title. sufficiently long title.",
+                "hubs": [hub.id],
+                "grant_amount": 50000,
+                "grant_currency": "USD",
+                "grant_organization": "Original Foundation",
+                "grant_description": "Original grant description",
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 200)
+        self.assertIsNotNone(doc_response.data["grant"])
+        original_grant_id = doc_response.data["grant"]["id"]
+
+        # Update the post with new grant information
+        updated_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "post_id": doc_response.data["id"],
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "updated body",
+                "is_public": True,
+                "renderable_text": (
+                    "updated sufficiently long body. updated sufficiently long body. "
+                    "updated sufficiently long body. updated sufficiently long body. "
+                    "updated sufficiently long body"
+                ),
+                "title": "updated sufficiently long title. updated sufficiently long title.",
+                "hubs": [hub.id],
+                "grant_amount": 75000,
+                "grant_currency": "USD",
+                "grant_organization": "Updated Foundation",
+                "grant_description": "Updated grant description",
+            },
+        )
+
+        self.assertEqual(updated_response.status_code, 200)
+        self.assertIsNotNone(updated_response.data["grant"])
+
+        # Verify the same grant was updated, not a new one created
+        self.assertEqual(updated_response.data["grant"]["id"], original_grant_id)
+        self.assertEqual(updated_response.data["grant"]["amount"]["usd"], 75000.0)
+        self.assertEqual(
+            updated_response.data["grant"]["organization"], "Updated Foundation"
+        )
+        self.assertEqual(
+            updated_response.data["grant"]["description"], "Updated grant description"
+        )
+
+        # Verify only one grant exists in database
+        grants_count = Grant.objects.filter(
+            unified_document=doc_response.data["unified_document_id"]
+        ).count()
+        self.assertEqual(grants_count, 1)
+
+    def test_grant_create_new_grant_during_update(self):
+        """Test that a new grant can be created when updating a post that didn't have one"""
+        author = create_random_default_user("author")
+        hub = create_hub()
+
+        self.client.force_authenticate(author)
+
+        # Create initial post without grant
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": "sufficiently long title. sufficiently long title.",
+                "hubs": [hub.id],
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 200)
+        self.assertIsNone(doc_response.data["grant"])
+
+        # Update the post with grant information
+        updated_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "post_id": doc_response.data["id"],
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "updated body",
+                "is_public": True,
+                "renderable_text": (
+                    "updated sufficiently long body. updated sufficiently long body. "
+                    "updated sufficiently long body. updated sufficiently long body. "
+                    "updated sufficiently long body"
+                ),
+                "title": "updated sufficiently long title. updated sufficiently long title.",
+                "hubs": [hub.id],
+                "grant_amount": 60000,
+                "grant_currency": "USD",
+                "grant_organization": "New Foundation",
+                "grant_description": "New grant description",
+            },
+        )
+
+        self.assertEqual(updated_response.status_code, 200)
+        self.assertIsNotNone(updated_response.data["grant"])
+        self.assertEqual(updated_response.data["grant"]["amount"]["usd"], 60000.0)
+        self.assertEqual(
+            updated_response.data["grant"]["organization"], "New Foundation"
+        )
+        self.assertEqual(
+            updated_response.data["grant"]["description"], "New grant description"
+        )
+
+        # Verify exactly one grant exists in database
+        grants_count = Grant.objects.filter(
+            unified_document=doc_response.data["unified_document_id"]
+        ).count()
+        self.assertEqual(grants_count, 1)
+
+    def test_grant_preserve_existing_grant_when_no_grant_data(self):
+        """Test that existing grant is preserved when no grant data is provided in update"""
+        author = create_random_default_user("author")
+        hub = create_hub()
+
+        self.client.force_authenticate(author)
+
+        # Create initial post with grant
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": "sufficiently long title. sufficiently long title.",
+                "hubs": [hub.id],
+                "grant_amount": 40000,
+                "grant_currency": "USD",
+                "grant_organization": "Preserve Foundation",
+                "grant_description": "Grant to be preserved",
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 200)
+        self.assertIsNotNone(doc_response.data["grant"])
+        original_grant_data = doc_response.data["grant"]
+
+        # Update the post WITHOUT grant information
+        updated_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "post_id": doc_response.data["id"],
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "updated body",
+                "is_public": True,
+                "renderable_text": (
+                    "updated sufficiently long body. updated sufficiently long body. "
+                    "updated sufficiently long body. updated sufficiently long body. "
+                    "updated sufficiently long body"
+                ),
+                "title": "updated sufficiently long title. updated sufficiently long title.",
+                "hubs": [hub.id],
+                # No grant_amount or other grant fields
+            },
+        )
+
+        self.assertEqual(updated_response.status_code, 200)
+        self.assertIsNotNone(updated_response.data["grant"])
+
+        # Verify grant data is preserved
+        self.assertEqual(
+            updated_response.data["grant"]["id"], original_grant_data["id"]
+        )
+        self.assertEqual(updated_response.data["grant"]["amount"]["usd"], 40000.0)
+        self.assertEqual(
+            updated_response.data["grant"]["organization"], "Preserve Foundation"
+        )
+        self.assertEqual(
+            updated_response.data["grant"]["description"], "Grant to be preserved"
+        )
+
+    def test_grant_update_with_end_date(self):
+        """Test that grant end date can be updated"""
+        author = create_random_default_user("author")
+        hub = create_hub()
+        initial_end_date = datetime.now(pytz.UTC) + timedelta(days=30)
+        updated_end_date = datetime.now(pytz.UTC) + timedelta(days=60)
+
+        self.client.force_authenticate(author)
+
+        # Create initial post with grant and end date
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": "sufficiently long title. sufficiently long title.",
+                "hubs": [hub.id],
+                "grant_amount": 45000,
+                "grant_organization": "Date Foundation",
+                "grant_description": "Grant with end date",
+                "grant_end_date": initial_end_date.isoformat(),
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 200)
+        self.assertIsNotNone(doc_response.data["grant"]["end_date"])
+
+        # Update with new end date
+        updated_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "post_id": doc_response.data["id"],
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "updated body",
+                "is_public": True,
+                "renderable_text": (
+                    "updated sufficiently long body. updated sufficiently long body. "
+                    "updated sufficiently long body. updated sufficiently long body. "
+                    "updated sufficiently long body"
+                ),
+                "title": "updated sufficiently long title. updated sufficiently long title.",
+                "hubs": [hub.id],
+                "grant_amount": 45000,
+                "grant_organization": "Date Foundation",
+                "grant_description": "Grant with updated end date",
+                "grant_end_date": updated_end_date.isoformat(),
+            },
+        )
+
+        self.assertEqual(updated_response.status_code, 200)
+        self.assertIsNotNone(updated_response.data["grant"]["end_date"])
+
+        # Verify end date was updated
+        grant = Grant.objects.get(id=updated_response.data["grant"]["id"])
+        self.assertEqual(
+            grant.end_date.replace(microsecond=0),
+            updated_end_date.replace(microsecond=0),
+        )
+
+    def test_grant_update_validation_error(self):
+        """Test that grant update fails with invalid data"""
+        author = create_random_default_user("author")
+        hub = create_hub()
+
+        self.client.force_authenticate(author)
+
+        # Create initial post with grant
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": "sufficiently long title. sufficiently long title.",
+                "hubs": [hub.id],
+                "grant_amount": 50000,
+                "grant_organization": "Test Foundation",
+                "grant_description": "Test grant",
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 200)
+
+        # Try to update with invalid grant data (missing organization)
+        updated_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "post_id": doc_response.data["id"],
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "updated body",
+                "is_public": True,
+                "renderable_text": (
+                    "updated sufficiently long body. updated sufficiently long body. "
+                    "updated sufficiently long body. updated sufficiently long body. "
+                    "updated sufficiently long body"
+                ),
+                "title": "updated sufficiently long title. updated sufficiently long title.",
+                "hubs": [hub.id],
+                "grant_amount": 60000,
+                "grant_description": "Updated grant description",
+                # Missing grant_organization
+            },
+        )
+
+        self.assertEqual(updated_response.status_code, 400)
+
+    def test_grant_update_with_null_fields(self):
+        """Test that grant fields can be updated to null/empty values where appropriate"""
+        author = create_random_default_user("author")
+        hub = create_hub()
+
+        self.client.force_authenticate(author)
+
+        # Create initial post with grant including end date
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": "sufficiently long title. sufficiently long title.",
+                "hubs": [hub.id],
+                "grant_amount": 50000,
+                "grant_organization": "Test Foundation",
+                "grant_description": "Test grant with end date",
+                "grant_end_date": (
+                    datetime.now(pytz.UTC) + timedelta(days=30)
+                ).isoformat(),
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 200)
+        self.assertIsNotNone(doc_response.data["grant"]["end_date"])
+
+        # Update grant removing the end date
+        updated_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "post_id": doc_response.data["id"],
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "updated body",
+                "is_public": True,
+                "renderable_text": (
+                    "updated sufficiently long body. updated sufficiently long body. "
+                    "updated sufficiently long body. updated sufficiently long body. "
+                    "updated sufficiently long body"
+                ),
+                "title": "updated sufficiently long title. updated sufficiently long title.",
+                "hubs": [hub.id],
+                "grant_amount": 50000,
+                "grant_organization": "Test Foundation",
+                "grant_description": "Test grant without end date",
+                # No grant_end_date
+            },
+        )
+
+        self.assertEqual(updated_response.status_code, 200)
+
+        # Verify end date was set to None
+        grant = Grant.objects.get(id=updated_response.data["grant"]["id"])
+        self.assertIsNone(grant.end_date)

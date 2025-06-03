@@ -12,7 +12,7 @@ from analytics.tasks import track_revenue_event
 from discussion.reaction_views import ReactionViewActionMixin
 from hub.models import Hub
 from note.related_models.note_model import Note
-from purchase.models import Balance, Purchase
+from purchase.models import Balance, Grant, Purchase
 from purchase.related_models.constants.currency import USD
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
@@ -363,7 +363,53 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             if crossref_response.status_code != 200:
                 return Response("Crossref API Failure", status=400)
 
-        return Response(serializer.data, status=200)
+        # Handle grant updates
+        grant = None
+        unified_document = post.unified_document
+
+        # Get existing grant if any
+        existing_grant = Grant.objects.filter(unified_document=unified_document).first()
+
+        if grant_amount := data.get("grant_amount"):
+            serializer = GrantCreateSerializer(
+                data={
+                    "amount": grant_amount,
+                    "currency": data.get("grant_currency", USD),
+                    "organization": data.get("grant_organization"),
+                    "description": data.get("grant_description"),
+                    "unified_document_id": unified_document.id,
+                    "end_date": data.get("grant_end_date"),
+                }
+            )
+            serializer.is_valid(raise_exception=True)
+
+            if existing_grant:
+                # Update existing grant
+                existing_grant.amount = serializer.validated_data["amount"]
+                existing_grant.currency = serializer.validated_data["currency"]
+                existing_grant.organization = serializer.validated_data["organization"]
+                existing_grant.description = serializer.validated_data["description"]
+                existing_grant.end_date = serializer.validated_data.get("end_date")
+                existing_grant.save()
+                grant = existing_grant
+            else:
+                # Create new grant
+                grant = Grant.objects.create(
+                    created_by=created_by,
+                    unified_document=unified_document,
+                    amount=serializer.validated_data["amount"],
+                    currency=serializer.validated_data["currency"],
+                    organization=serializer.validated_data["organization"],
+                    description=serializer.validated_data["description"],
+                    end_date=serializer.validated_data.get("end_date"),
+                )
+        else:
+            # If no grant_amount provided, keep existing grant if any
+            grant = existing_grant
+
+        response_data = serializer.data
+        response_data["grant"] = DynamicGrantSerializer(grant).data if grant else None
+        return Response(response_data, status=200)
 
     def create_access_group(self, request):
         return None
