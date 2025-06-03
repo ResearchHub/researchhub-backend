@@ -321,7 +321,9 @@ class GrantViewTests(APITestCase):
 
         apply_data = {"preregistration_post_id": self.preregistration_post.id}
 
-        response = self.client.post(f"/api/grant/{self.grant.id}/apply/", apply_data)
+        response = self.client.post(
+            f"/api/grant/{self.grant.id}/application/", apply_data
+        )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["message"], "Application submitted")
@@ -347,7 +349,9 @@ class GrantViewTests(APITestCase):
 
         apply_data = {"preregistration_post_id": self.preregistration_post.id}
 
-        response = self.client.post(f"/api/grant/{self.grant.id}/apply/", apply_data)
+        response = self.client.post(
+            f"/api/grant/{self.grant.id}/application/", apply_data
+        )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["message"], "Already applied")
@@ -356,7 +360,9 @@ class GrantViewTests(APITestCase):
         """Test that unauthenticated users cannot apply to grants"""
         apply_data = {"preregistration_post_id": self.preregistration_post.id}
 
-        response = self.client.post(f"/api/grant/{self.grant.id}/apply/", apply_data)
+        response = self.client.post(
+            f"/api/grant/{self.grant.id}/application/", apply_data
+        )
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_apply_to_grant_invalid_post_id(self):
@@ -365,7 +371,9 @@ class GrantViewTests(APITestCase):
 
         apply_data = {"preregistration_post_id": 99999}  # Non-existent ID
 
-        response = self.client.post(f"/api/grant/{self.grant.id}/apply/", apply_data)
+        response = self.client.post(
+            f"/api/grant/{self.grant.id}/application/", apply_data
+        )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["error"], "Invalid preregistration post")
@@ -383,7 +391,9 @@ class GrantViewTests(APITestCase):
 
         apply_data = {"preregistration_post_id": other_preregistration.id}
 
-        response = self.client.post(f"/api/grant/{self.grant.id}/apply/", apply_data)
+        response = self.client.post(
+            f"/api/grant/{self.grant.id}/application/", apply_data
+        )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["error"], "Invalid preregistration post")
@@ -400,7 +410,9 @@ class GrantViewTests(APITestCase):
 
         apply_data = {"preregistration_post_id": discussion_post.id}
 
-        response = self.client.post(f"/api/grant/{self.grant.id}/apply/", apply_data)
+        response = self.client.post(
+            f"/api/grant/{self.grant.id}/application/", apply_data
+        )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["error"], "Invalid preregistration post")
@@ -414,7 +426,9 @@ class GrantViewTests(APITestCase):
 
         apply_data = {"preregistration_post_id": self.preregistration_post.id}
 
-        response = self.client.post(f"/api/grant/{self.grant.id}/apply/", apply_data)
+        response = self.client.post(
+            f"/api/grant/{self.grant.id}/application/", apply_data
+        )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(
@@ -432,7 +446,9 @@ class GrantViewTests(APITestCase):
 
         apply_data = {"preregistration_post_id": self.preregistration_post.id}
 
-        response = self.client.post(f"/api/grant/{self.grant.id}/apply/", apply_data)
+        response = self.client.post(
+            f"/api/grant/{self.grant.id}/application/", apply_data
+        )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(
@@ -445,7 +461,9 @@ class GrantViewTests(APITestCase):
 
         apply_data = {}  # Missing preregistration_post_id
 
-        response = self.client.post(f"/api/grant/{self.grant.id}/apply/", apply_data)
+        response = self.client.post(
+            f"/api/grant/{self.grant.id}/application/", apply_data
+        )
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["error"], "Invalid preregistration post")
@@ -456,5 +474,5 @@ class GrantViewTests(APITestCase):
 
         apply_data = {"preregistration_post_id": self.preregistration_post.id}
 
-        response = self.client.post("/api/grant/99999/apply/", apply_data)
+        response = self.client.post("/api/grant/99999/application/", apply_data)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

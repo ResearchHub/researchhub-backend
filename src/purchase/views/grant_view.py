@@ -160,7 +160,7 @@ class GrantViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     @action(detail=True, methods=["post"], permission_classes=[IsAuthenticated])
-    def apply(self, request, pk=None):
+    def application(self, request, pk=None):
         """Apply to a grant with a preregistration post."""
         grant = self.get_object()
         preregistration_post_id = request.data.get("preregistration_post_id")
