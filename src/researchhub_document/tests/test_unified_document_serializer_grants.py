@@ -49,16 +49,16 @@ class DynamicUnifiedDocumentSerializerGrantsTests(TestCase):
     def test_get_grants_with_existing_grants(self):
         """Test that grants are properly serialized when they exist"""
         serializer = DynamicUnifiedDocumentSerializer(
-            self.unified_doc, _include_fields=["id", "grants"], context={}
+            self.unified_doc, _include_fields=["id", "grant"], context={}
         )
         data = serializer.data
 
-        self.assertIn("grants", data)
-        self.assertIsInstance(data["grants"], list)
-        self.assertEqual(len(data["grants"]), 2)
+        self.assertIn("grant", data)
+        self.assertIsInstance(data["grant"], list)
+        self.assertEqual(len(data["grant"]), 2)
 
         # Check that both grants are included
-        grant_ids = {grant["id"] for grant in data["grants"]}
+        grant_ids = {grant["id"] for grant in data["grant"]}
         expected_ids = {self.grant1.id, self.grant2.id}
         self.assertEqual(grant_ids, expected_ids)
 
@@ -69,14 +69,14 @@ class DynamicUnifiedDocumentSerializerGrantsTests(TestCase):
 
         serializer = DynamicUnifiedDocumentSerializer(
             post_without_grants.unified_document,
-            _include_fields=["id", "grants"],
+            _include_fields=["id", "grant"],
             context={},
         )
         data = serializer.data
 
-        self.assertIn("grants", data)
-        self.assertIsInstance(data["grants"], list)
-        self.assertEqual(len(data["grants"]), 0)
+        self.assertIn("grant", data)
+        self.assertIsInstance(data["grant"], list)
+        self.assertEqual(len(data["grant"]), 0)
 
     def test_get_grants_with_context_fields(self):
         """Test that context fields are properly applied to grant serialization"""
@@ -92,15 +92,15 @@ class DynamicUnifiedDocumentSerializerGrantsTests(TestCase):
         }
 
         serializer = DynamicUnifiedDocumentSerializer(
-            self.unified_doc, _include_fields=["id", "grants"], context=context
+            self.unified_doc, _include_fields=["id", "grant"], context=context
         )
         data = serializer.data
 
-        self.assertIn("grants", data)
-        self.assertEqual(len(data["grants"]), 2)
+        self.assertIn("grant", data)
+        self.assertEqual(len(data["grant"]), 2)
 
         # Check that each grant has the expected fields
-        for grant_data in data["grants"]:
+        for grant_data in data["grant"]:
             expected_fields = {"id", "status", "amount", "organization"}
             # DynamicGrantSerializer includes all fields by default, but we can check
             # our key fields are there
@@ -115,14 +115,14 @@ class DynamicUnifiedDocumentSerializerGrantsTests(TestCase):
         context = {"doc_duds_get_grants": {"_filter_fields": {"status": Grant.OPEN}}}
 
         serializer = DynamicUnifiedDocumentSerializer(
-            self.unified_doc, _include_fields=["id", "grants"], context=context
+            self.unified_doc, _include_fields=["id", "grant"], context=context
         )
         data = serializer.data
 
-        self.assertIn("grants", data)
-        self.assertEqual(len(data["grants"]), 1)
-        self.assertEqual(data["grants"][0]["id"], self.grant1.id)
-        self.assertEqual(data["grants"][0]["status"], Grant.OPEN)
+        self.assertIn("grant", data)
+        self.assertEqual(len(data["grant"]), 1)
+        self.assertEqual(data["grant"][0]["id"], self.grant1.id)
+        self.assertEqual(data["grant"][0]["status"], Grant.OPEN)
 
     def test_get_grants_created_by_context(self):
         """Test that created_by field is properly contextualized"""
@@ -134,15 +134,15 @@ class DynamicUnifiedDocumentSerializerGrantsTests(TestCase):
         }
 
         serializer = DynamicUnifiedDocumentSerializer(
-            self.unified_doc, _include_fields=["id", "grants"], context=context
+            self.unified_doc, _include_fields=["id", "grant"], context=context
         )
         data = serializer.data
 
-        self.assertIn("grants", data)
-        self.assertEqual(len(data["grants"]), 2)
+        self.assertIn("grant", data)
+        self.assertEqual(len(data["grant"]), 2)
 
         # Check that created_by is properly serialized
-        for grant_data in data["grants"]:
+        for grant_data in data["grant"]:
             self.assertIn("created_by", grant_data)
             created_by = grant_data["created_by"]
             self.assertIn("id", created_by)
@@ -150,13 +150,13 @@ class DynamicUnifiedDocumentSerializerGrantsTests(TestCase):
             # implementation
 
     def test_grants_field_not_included_when_not_requested(self):
-        """Test that grants field is not included when not in _include_fields"""
+        """Test that grant field is not included when not in _include_fields"""
         serializer = DynamicUnifiedDocumentSerializer(
             self.unified_doc, _include_fields=["id", "document_type"], context={}
         )
         data = serializer.data
 
-        self.assertNotIn("grants", data)
+        self.assertNotIn("grant", data)
         self.assertIn("id", data)
         self.assertIn("document_type", data)
 
@@ -164,7 +164,7 @@ class DynamicUnifiedDocumentSerializerGrantsTests(TestCase):
         """Test that grants are serialized consistently with DynamicGrantSerializer"""
         # Get grants data from unified document serializer
         unified_doc_serializer = DynamicUnifiedDocumentSerializer(
-            self.unified_doc, _include_fields=["id", "grants"], context={}
+            self.unified_doc, _include_fields=["id", "grant"], context={}
         )
         unified_doc_data = unified_doc_serializer.data
 
@@ -175,10 +175,10 @@ class DynamicUnifiedDocumentSerializerGrantsTests(TestCase):
         direct_grant_data = direct_grant_serializer.data
 
         # Compare the grants data
-        self.assertEqual(len(unified_doc_data["grants"]), len(direct_grant_data))
+        self.assertEqual(len(unified_doc_data["grant"]), len(direct_grant_data))
 
         # Sort both by id for comparison
-        unified_grants = sorted(unified_doc_data["grants"], key=lambda x: x["id"])
+        unified_grants = sorted(unified_doc_data["grant"], key=lambda x: x["id"])
         direct_grants = sorted(direct_grant_data, key=lambda x: x["id"])
 
         for unified_grant, direct_grant in zip(unified_grants, direct_grants):
@@ -212,51 +212,51 @@ class DynamicUnifiedDocumentSerializerGrantsTests(TestCase):
         }
 
         serializer = DynamicUnifiedDocumentSerializer(
-            self.unified_doc, _include_fields=["id", "grants"], context=context
+            self.unified_doc, _include_fields=["id", "grant"], context=context
         )
         data = serializer.data
 
-        self.assertIn("grants", data)
-        self.assertEqual(len(data["grants"]), 2)  # grant1 (OPEN) and grant3 (COMPLETED)
+        self.assertIn("grant", data)
+        self.assertEqual(len(data["grant"]), 2)  # grant1 (OPEN) and grant3 (COMPLETED)
 
-        grant_ids = {grant["id"] for grant in data["grants"]}
+        grant_ids = {grant["id"] for grant in data["grant"]}
         expected_ids = {self.grant1.id, grant3.id}
         self.assertEqual(grant_ids, expected_ids)
 
     def test_grants_field_in_serializer_class(self):
-        """Test that grants field is properly defined in the serializer class"""
+        """Test that grant field is properly defined in the serializer class"""
         serializer = DynamicUnifiedDocumentSerializer()
 
-        # Check that grants field exists in declared_fields (SerializerMethodField)
-        self.assertIn("grants", serializer.fields)
+        # Check that grant field exists in declared_fields (SerializerMethodField)
+        self.assertIn("grant", serializer.fields)
 
-        # Check that get_grants method exists
-        self.assertTrue(hasattr(serializer, "get_grants"))
-        self.assertTrue(callable(getattr(serializer, "get_grants")))
+        # Check that get_grant method exists
+        self.assertTrue(hasattr(serializer, "get_grant"))
+        self.assertTrue(callable(getattr(serializer, "get_grant")))
 
     def test_grants_with_empty_context(self):
         """Test grants serialization with empty context"""
         serializer = DynamicUnifiedDocumentSerializer(
             self.unified_doc,
-            _include_fields=["id", "grants"],
+            _include_fields=["id", "grant"],
             context={"doc_duds_get_grants": {}},
         )
         data = serializer.data
 
-        self.assertIn("grants", data)
-        self.assertEqual(len(data["grants"]), 2)
+        self.assertIn("grant", data)
+        self.assertEqual(len(data["grant"]), 2)
 
     def test_grants_with_missing_context_key(self):
         """Test grants serialization when context key is missing"""
         serializer = DynamicUnifiedDocumentSerializer(
             self.unified_doc,
-            _include_fields=["id", "grants"],
+            _include_fields=["id", "grant"],
             context={"some_other_key": {}},
         )
         data = serializer.data
 
-        self.assertIn("grants", data)
-        self.assertEqual(len(data["grants"]), 2)
+        self.assertIn("grant", data)
+        self.assertEqual(len(data["grant"]), 2)
 
 
 class ResearchhubPostGrantModeratorTests(APITestCase):

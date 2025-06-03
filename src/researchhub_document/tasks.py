@@ -126,6 +126,7 @@ def preload_trending_documents(
             "reviews",
             "score",
             "fundraise",
+            "grant",
         ],
         many=True,
         context=context,

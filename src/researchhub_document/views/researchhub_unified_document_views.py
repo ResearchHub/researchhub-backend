@@ -332,7 +332,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             "reviews",
             "score",
             "fundraise",
-            "grants",
+            "grant",
         ]
 
         serializer = self.dynamic_serializer_class(
@@ -420,7 +420,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "reviews",
                 "score",
                 "fundraise",
-                "grants",
+                "grant",
             ],
             many=True,
             context=context,
@@ -452,7 +452,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "score",
                 "bounties",
                 "fundraise",
-                "grants",
+                "grant",
             ],
             many=True,
             context=context,
@@ -654,7 +654,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "score",
                 "hubs",
                 "fundraise",
-                "grants",
+                "grant",
             ),
             context=metadata_context,
         )

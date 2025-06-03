@@ -90,7 +90,7 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
     reviews = SerializerMethodField()
     concepts = SerializerMethodField()
     fundraise = SerializerMethodField()
-    grants = SerializerMethodField()
+    grant = SerializerMethodField()
     recommendation_metadata = SerializerMethodField()
 
     class Meta:
@@ -205,7 +205,7 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
         )
         return serializer.data
 
-    def get_grants(self, unified_doc):
+    def get_grant(self, unified_doc):
         from purchase.serializers import DynamicGrantSerializer
 
         context = self.context

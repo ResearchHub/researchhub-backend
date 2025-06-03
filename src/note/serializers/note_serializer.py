@@ -105,9 +105,7 @@ class NoteSerializer(ModelSerializer):
                     "name",
                 ]
             },
-            "doc_dps_get_unified_document": {
-                "_include_fields": ["fundraise", "grants"]
-            },
+            "doc_dps_get_unified_document": {"_include_fields": ["fundraise", "grant"]},
             "doc_duds_get_fundraise": {
                 "_include_fields": [
                     "id",
@@ -256,9 +254,7 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
                     "name",
                 ]
             },
-            "doc_dps_get_unified_document": {
-                "_include_fields": ["fundraise", "grants"]
-            },
+            "doc_dps_get_unified_document": {"_include_fields": ["fundraise", "grant"]},
             "doc_duds_get_fundraise": {
                 "_include_fields": [
                     "id",
