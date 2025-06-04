@@ -94,7 +94,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                 "reviews",
                 "score",
                 "fundraise",
-                "grants",
+                "grant",
             ],
             many=True,
             context=context,
