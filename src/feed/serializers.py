@@ -105,10 +105,7 @@ class ContentObjectSerializer(serializers.Serializer):
 
     def get_hub(self, obj):
         if hasattr(obj, "unified_document") and obj.unified_document:
-            hub = (
-                obj.unified_document.get_primary_hub()
-                or obj.unified_document.hubs.first()
-            )
+            hub = obj.unified_document.get_primary_hub(fallback=True)
             if hub:
                 return SimpleHubSerializer(hub).data
         return None
@@ -391,10 +388,7 @@ class BountySerializer(serializers.Serializer):
 
     def get_hub(self, obj):
         if obj.unified_document and obj.unified_document.hubs:
-            hub = (
-                obj.unified_document.get_primary_hub()
-                or obj.unified_document.hubs.first()
-            )
+            hub = obj.unified_document.get_primary_hub(fallback=True)
             return SimpleHubSerializer(hub).data if hub else None
         return None
 
@@ -442,7 +436,7 @@ class CommentSerializer(serializers.Serializer):
 
     def get_hub(self, obj):
         return SimpleHubSerializer(
-            obj.unified_document.get_primary_hub() or obj.unified_document.hubs.first()
+            obj.unified_document.get_primary_hub(fallback=True)
         ).data
 
     def get_paper(self, obj):
