@@ -165,7 +165,7 @@ class GrantFeedViewTests(APITestCase):
     def test_grant_feed_entry_serializer_fields(self):
         """Test that grant feed entries include the expected fields"""
         self.client.force_authenticate(self.user)
-        response = self.client.get("/api/grant_feed/")
+        response = self.client.get("/api/grant_feed/?status=OPEN")
 
         self.assertEqual(response.status_code, 200)
         result = response.data["results"][0]
@@ -179,10 +179,13 @@ class GrantFeedViewTests(APITestCase):
         self.assertIn("action", result)
         self.assertIn("author", result)
 
-        # Check grant-specific fields
-        self.assertIn("organization", result)
-        self.assertIn("grant_amount", result)
-        self.assertIn("is_expired", result)
+        # Check grant-specific fields are in the content_object.grant
+        content_object = result["content_object"]
+        self.assertIn("grant", content_object)
+        grant_data = content_object["grant"]
+        self.assertIn("organization", grant_data)
+        self.assertIn("amount", grant_data)
+        self.assertIn("is_expired", grant_data)
 
     def test_grant_feed_organization_field(self):
         """Test that the organization field is correctly populated"""
@@ -190,7 +193,8 @@ class GrantFeedViewTests(APITestCase):
         response = self.client.get("/api/grant_feed/?status=OPEN")
 
         result = response.data["results"][0]
-        self.assertEqual(result["organization"], "NSF")
+        grant_data = result["content_object"]["grant"]
+        self.assertEqual(grant_data["organization"], "NSF")
 
     def test_grant_feed_grant_amount_field(self):
         """Test that the grant_amount field is correctly populated"""
@@ -198,10 +202,9 @@ class GrantFeedViewTests(APITestCase):
         response = self.client.get("/api/grant_feed/?status=OPEN")
 
         result = response.data["results"][0]
-        grant_amount = result["grant_amount"]
+        grant_amount = result["content_object"]["grant"]["amount"]
 
-        self.assertEqual(grant_amount["amount"], 50000.0)
-        self.assertEqual(grant_amount["currency"], "USD")
+        self.assertEqual(grant_amount["usd"], 50000.0)
         self.assertEqual(grant_amount["formatted"], "50,000.00 USD")
 
     def test_grant_feed_is_expired_field(self):
@@ -211,12 +214,14 @@ class GrantFeedViewTests(APITestCase):
         # Test open grant (not expired)
         response = self.client.get("/api/grant_feed/?status=OPEN")
         result = response.data["results"][0]
-        self.assertFalse(result["is_expired"])
+        grant_data = result["content_object"]["grant"]
+        self.assertFalse(grant_data["is_expired"])
 
         # Test closed grant (expired)
         response = self.client.get("/api/grant_feed/?status=CLOSED")
         result = response.data["results"][0]
-        self.assertTrue(result["is_expired"])
+        grant_data = result["content_object"]["grant"]
+        self.assertTrue(grant_data["is_expired"])
 
     def test_grant_feed_content_object_includes_grant_data(self):
         """Test that the content object includes grant-specific data"""
@@ -321,9 +326,10 @@ class GrantFeedViewTests(APITestCase):
                 break
 
         self.assertIsNotNone(grant_entry)
-        self.assertIn("applications", grant_entry)
+        grant_data = grant_entry["content_object"]["grant"]
+        self.assertIn("applications", grant_data)
 
-        applications = grant_entry["applications"]
+        applications = grant_data["applications"]
         self.assertEqual(len(applications), 2)
 
         # Check application structure
@@ -364,10 +370,11 @@ class GrantFeedViewTests(APITestCase):
                 break
 
         self.assertIsNotNone(grant_entry)
-        self.assertIn("applications", grant_entry)
+        grant_data = grant_entry["content_object"]["grant"]
+        self.assertIn("applications", grant_data)
 
         # Should be empty list when no applications
-        applications = grant_entry["applications"]
+        applications = grant_data["applications"]
         self.assertEqual(len(applications), 0)
         self.assertIsInstance(applications, list)
 
@@ -389,7 +396,8 @@ class GrantFeedViewTests(APITestCase):
 
         result = response.data["results"][0]
         self.assertEqual(result["content_object"]["title"], "Open Grant")
-        self.assertEqual(result["organization"], "NSF")
+        grant_data = result["content_object"]["grant"]
+        self.assertEqual(grant_data["organization"], "NSF")
 
     def test_grant_feed_no_grants(self):
         """Test grant feed when no grants match the filter"""

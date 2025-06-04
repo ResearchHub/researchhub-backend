@@ -25,7 +25,7 @@ from hub.tests.helpers import create_hub
 from organizations.models import NonprofitFundraiseLink, NonprofitOrg
 from paper.models import Paper
 from paper.tests.helpers import create_paper
-from purchase.models import Fundraise, Purchase
+from purchase.models import Fundraise, Grant, GrantApplication, Purchase
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Bounty, Escrow
@@ -585,6 +585,280 @@ class PostSerializerTests(TestCase):
         self.assertEqual(purchase_data["id"], purchase.id)
         self.assertEqual(purchase_data["amount"], purchase.amount)
         self.assertIn("user", purchase_data)
+
+    def test_serializes_grant_post_with_grant(self):
+        """Test that grant posts serialize with grant data"""
+        from datetime import datetime, timedelta
+
+        import pytz
+
+        # Create a grant post
+        grant_unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.GRANT,
+        )
+
+        grant_post = ResearchhubPost.objects.create(
+            title="Test Grant Post",
+            created_by=self.user,
+            document_type=document_type.GRANT,
+            renderable_text="This is a grant post",
+            unified_document=grant_unified_doc,
+        )
+
+        # Create a grant for the post
+        end_date = datetime.now(pytz.UTC) + timedelta(days=30)
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_unified_doc,
+            amount=Decimal("50000.00"),
+            currency="USD",
+            organization="National Science Foundation",
+            description="Research grant for innovative AI applications",
+            status=Grant.OPEN,
+            end_date=end_date,
+        )
+
+        # Add some contacts to the grant
+        contact_user = create_random_default_user("grant_contact")
+        grant.contacts.add(contact_user)
+
+        # Get the context with the field specifications like in the real implementation
+        context = BaseFeedView().get_common_serializer_context()
+
+        # Serialize the grant post
+        serializer = PostSerializer(grant_post, context=context)
+        data = serializer.data
+
+        # Assert basic post fields
+        self.assertEqual(data["id"], grant_post.id)
+        self.assertEqual(data["title"], grant_post.title)
+        self.assertEqual(data["type"], grant_post.document_type)
+
+        # Assert grant data is present
+        self.assertIsNotNone(data["grant"])
+        grant_data = data["grant"]
+
+        # Check basic grant fields
+        self.assertEqual(grant_data["id"], grant.id)
+        self.assertEqual(grant_data["status"], grant.status)
+        self.assertEqual(grant_data["currency"], grant.currency)
+        self.assertEqual(grant_data["organization"], grant.organization)
+        self.assertEqual(grant_data["description"], grant.description)
+
+        # Check amount field (should be a dict with usd and rsc values)
+        self.assertIn("amount", grant_data)
+        amount_data = grant_data["amount"]
+        self.assertIn("usd", amount_data)
+        self.assertEqual(amount_data["usd"], float(grant.amount))
+
+        # Check date fields
+        self.assertIn("start_date", grant_data)
+        self.assertIn("end_date", grant_data)
+
+        # Check status fields
+        self.assertIn("is_expired", grant_data)
+        self.assertIn("is_active", grant_data)
+        self.assertFalse(grant_data["is_expired"])  # Should not be expired
+        self.assertTrue(grant_data["is_active"])  # Should be active
+
+        # Check created_by field
+        self.assertIn("created_by", grant_data)
+        created_by = grant_data["created_by"]
+        self.assertEqual(created_by["id"], self.user.id)
+
+        # Check contacts field
+        self.assertIn("contacts", grant_data)
+        contacts = grant_data["contacts"]
+        self.assertEqual(len(contacts), 1)
+        self.assertEqual(contacts[0]["id"], contact_user.id)
+
+        # Check applications field (should be empty array initially)
+        self.assertIn("applications", grant_data)
+        self.assertEqual(grant_data["applications"], [])
+
+    def test_serializes_grant_post_with_applications(self):
+        """Test that grant posts serialize with application data when applications
+        exist"""
+        from datetime import datetime, timedelta
+
+        import pytz
+
+        # Create a grant post
+        grant_unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.GRANT,
+        )
+
+        grant_post = ResearchhubPost.objects.create(
+            title="Grant Post with Applications",
+            created_by=self.user,
+            document_type=document_type.GRANT,
+            renderable_text="This grant has applications",
+            unified_document=grant_unified_doc,
+        )
+
+        # Create a grant
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_unified_doc,
+            amount=Decimal("25000.00"),
+            currency="USD",
+            organization="Test Foundation",
+            description="Grant with applications",
+            status=Grant.OPEN,
+            end_date=datetime.now(pytz.UTC) + timedelta(days=60),
+        )
+
+        # Create applicants and their preregistration posts
+        applicant1 = create_random_default_user("applicant1")
+        applicant2 = create_random_default_user("applicant2")
+
+        # Create preregistration posts for applications
+        prereg_doc1 = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.PREREGISTRATION,
+        )
+        prereg_post1 = ResearchhubPost.objects.create(
+            title="Preregistration 1",
+            created_by=applicant1,
+            document_type=document_type.PREREGISTRATION,
+            unified_document=prereg_doc1,
+        )
+
+        prereg_doc2 = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.PREREGISTRATION,
+        )
+        prereg_post2 = ResearchhubPost.objects.create(
+            title="Preregistration 2",
+            created_by=applicant2,
+            document_type=document_type.PREREGISTRATION,
+            unified_document=prereg_doc2,
+        )
+
+        # Create grant applications
+        application1 = GrantApplication.objects.create(
+            grant=grant,
+            preregistration_post=prereg_post1,
+            applicant=applicant1,
+        )
+
+        application2 = GrantApplication.objects.create(
+            grant=grant,
+            preregistration_post=prereg_post2,
+            applicant=applicant2,
+        )
+
+        # Get the context
+        context = BaseFeedView().get_common_serializer_context()
+
+        # Serialize the grant post
+        serializer = PostSerializer(grant_post, context=context)
+        data = serializer.data
+
+        # Assert grant data includes applications
+        self.assertIsNotNone(data["grant"])
+        grant_data = data["grant"]
+
+        # Check applications field
+        self.assertIn("applications", grant_data)
+        applications = grant_data["applications"]
+        self.assertEqual(len(applications), 2)
+
+        # Check first application structure
+        app1_data = applications[0]
+        self.assertIn("id", app1_data)
+        self.assertIn("created_date", app1_data)
+        self.assertIn("applicant", app1_data)
+        self.assertIn("preregistration_post_id", app1_data)
+
+        # Check applicant data structure (should use SimpleAuthorSerializer)
+        applicant_data = app1_data["applicant"]
+        self.assertIn("id", applicant_data)
+        self.assertIn("first_name", applicant_data)
+        self.assertIn("last_name", applicant_data)
+
+        # Verify application IDs are present
+        application_ids = [app["id"] for app in applications]
+        self.assertIn(application1.id, application_ids)
+        self.assertIn(application2.id, application_ids)
+
+        # Verify preregistration post IDs
+        prereg_post_ids = [app["preregistration_post_id"] for app in applications]
+        self.assertIn(prereg_post1.id, prereg_post_ids)
+        self.assertIn(prereg_post2.id, prereg_post_ids)
+
+    def test_serializes_non_grant_post_returns_none_for_grant(self):
+        """Test that non-grant posts return None for the grant field"""
+        # Use the existing discussion post from setUp
+        serializer = PostSerializer(self.post)
+        data = serializer.data
+
+        # Verify grant field is None for non-grant posts
+        self.assertIsNone(data["grant"])
+
+    def test_serializes_grant_post_without_grant_returns_none(self):
+        """Test that grant posts without actual Grant objects return None"""
+        # Create a grant post but don't create an associated Grant object
+        grant_unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.GRANT,
+        )
+
+        grant_post = ResearchhubPost.objects.create(
+            title="Grant Post Without Grant Object",
+            created_by=self.user,
+            document_type=document_type.GRANT,
+            renderable_text="This grant post has no Grant object",
+            unified_document=grant_unified_doc,
+        )
+
+        # Serialize the post
+        serializer = PostSerializer(grant_post)
+        data = serializer.data
+
+        # Verify grant field is None when no Grant object exists
+        self.assertIsNone(data["grant"])
+
+    def test_serializes_expired_grant(self):
+        """Test that expired grants are properly identified"""
+        from datetime import datetime, timedelta
+
+        import pytz
+
+        # Create a grant post with an expired grant
+        grant_unified_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=document_type.GRANT,
+        )
+
+        grant_post = ResearchhubPost.objects.create(
+            title="Expired Grant Post",
+            created_by=self.user,
+            document_type=document_type.GRANT,
+            unified_document=grant_unified_doc,
+        )
+
+        # Create an expired grant (end_date in the past)
+        past_date = datetime.now(pytz.UTC) - timedelta(days=5)
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_unified_doc,
+            amount=Decimal("15000.00"),
+            currency="USD",
+            organization="Expired Foundation",
+            description="This grant has expired",
+            status=Grant.OPEN,
+            end_date=past_date,
+        )
+
+        # Get the context
+        context = BaseFeedView().get_common_serializer_context()
+
+        # Serialize the grant post
+        serializer = PostSerializer(grant_post, context=context)
+        data = serializer.data
+
+        # Verify grant data shows as expired and not active
+        grant_data = data["grant"]
+        self.assertEqual(grant_data["id"], grant.id)
+        self.assertTrue(grant_data["is_expired"])
+        self.assertFalse(grant_data["is_active"])
 
 
 class CommentSerializerTests(TestCase):
