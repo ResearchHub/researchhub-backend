@@ -172,7 +172,7 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
     def get_hub_names(self):
         return ",".join(self.hubs.values_list("name", flat=True))
 
-    def get_primary_hub(self):
+    def get_primary_hub(self, fallback=False):
         from topic.models import UnifiedDocumentTopics
 
         primary_topic = UnifiedDocumentTopics.objects.filter(
@@ -183,6 +183,9 @@ class ResearchhubUnifiedDocument(SoftDeletableModel, HotScoreMixin, DefaultModel
             return Hub.objects.filter(
                 subfield_id=primary_topic.topic.subfield_id
             ).first()
+
+        if fallback:
+            return self.hubs.first()
 
         return None
 

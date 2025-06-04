@@ -49,15 +49,17 @@ def create_feed_entry(
 
     # Create and return the feed entry
     try:
-        feed_entry, _ = FeedEntry.objects.update_or_create(
+        feed_entry, created = FeedEntry.objects.update_or_create(
             user=user,
-            content=content,
             content_type=item_content_type,
             object_id=item_id,
             action=action,
-            action_date=action_date,
-            metrics=metrics,
-            unified_document=unified_document,
+            defaults={
+                "content": content,
+                "action_date": action_date,
+                "metrics": metrics,
+                "unified_document": unified_document,
+            },
         )
         if hub_ids:
             feed_entry.hubs.add(*hub_ids)
@@ -65,7 +67,8 @@ def create_feed_entry(
     except Exception as e:
         # Ignore error if feed entry already exists
         logger.warning(
-            f"Failed to save feed entry for item_id={item_id} content_type={item_content_type.model}: {e}"
+            f"Failed to save feed entry for item_id={item_id} "
+            f"content_type={item_content_type.model}: {e}"
         )
 
 

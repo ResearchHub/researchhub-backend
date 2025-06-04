@@ -241,13 +241,15 @@ class TestHotScore(TestCase):
 
         # Create a feed entry for the paper to add to peer review score
         paper_score = calculate_hot_score_for_item(self.feed_entry_paper)
-        FeedEntry.objects.create(
+        FeedEntry.objects.update_or_create(
             object_id=self.paper.id,
             content_type=ContentType.objects.get_for_model(self.paper),
-            hot_score=paper_score,
             action=FeedEntry.PUBLISH,
-            action_date=self.now,
-            unified_document=self.paper.unified_document,
+            defaults={
+                "hot_score": paper_score,
+                "action_date": self.now,
+                "unified_document": self.paper.unified_document,
+            },
         )
 
         # Calculate the scores
