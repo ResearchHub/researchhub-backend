@@ -118,6 +118,7 @@ class GrantFeedViewSet(BaseFeedView):
             .prefetch_related(
                 "unified_document__hubs",
                 "unified_document__grants",
+                "unified_document__grants__applications__applicant__author_profile",
             )
             .filter(document_type=GRANT)
             .filter(unified_document__is_removed=False)
