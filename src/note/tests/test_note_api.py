@@ -1107,3 +1107,189 @@ class NoteTests(APITestCase):
         )
         self.assertEqual(grant_data["status"], "OPEN")
         self.assertIn("created_by", grant_data)
+
+    def test_note_with_grant_post_includes_contacts_and_applications(self):
+        # Create users to be contacts
+        contact1 = get_user_model().objects.create_user(
+            username="contact1",
+            password=uuid.uuid4().hex,
+            email="contact1@researchhub.com",
+        )
+        contact2 = get_user_model().objects.create_user(
+            username="contact2",
+            password=uuid.uuid4().hex,
+            email="contact2@researchhub.com",
+        )
+
+        # Create a note first
+        response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Note with grant post including contacts",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        note = response.data
+
+        # Create a grant post with contacts
+        post_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": self.user.id,
+                "full_src": "Test grant post content with contacts",
+                "is_public": True,
+                "note_id": note["id"],
+                "renderable_text": (
+                    "Test grant post content with contacts that is "
+                    "sufficiently long for validation"
+                ),
+                "title": "Test grant post with contacts title that is sufficiently long",
+                "hubs": [],
+                "grant_amount": 75000,
+                "grant_currency": "USD",
+                "grant_organization": "National Science Foundation with Contacts",
+                "grant_description": "Research grant for AI applications with contacts",
+                "grant_contacts": [contact1.id, contact2.id],
+            },
+        )
+        self.assertEqual(post_response.status_code, 200)
+
+        # Re-fetch the note to verify grant data includes contacts and applications
+        response = self.client.get(f"/api/note/{note['id']}/")
+        self.assertEqual(response.status_code, 200)
+        note = response.data
+
+        # Verify grant data is present
+        self.assertIsNotNone(note["post"]["unified_document"]["grant"])
+        grant_data = note["post"]["unified_document"]["grant"]
+
+        # Verify basic grant fields
+        self.assertEqual(grant_data["amount"]["usd"], 75000.0)
+        self.assertEqual(
+            grant_data["organization"], "National Science Foundation with Contacts"
+        )
+        self.assertEqual(
+            grant_data["description"],
+            "Research grant for AI applications with contacts",
+        )
+
+        # Verify contacts field is present and contains the expected contacts
+        self.assertIn("contacts", grant_data)
+        self.assertEqual(len(grant_data["contacts"]), 2)
+        contact_ids = [contact["id"] for contact in grant_data["contacts"]]
+        self.assertIn(contact1.id, contact_ids)
+        self.assertIn(contact2.id, contact_ids)
+
+        # Verify each contact has expected fields
+        for contact in grant_data["contacts"]:
+            self.assertIn("id", contact)
+            self.assertIn("first_name", contact)
+            self.assertIn("last_name", contact)
+            self.assertIn("author_profile", contact)
+
+        # Verify applications field is present (should be empty initially)
+        self.assertIn("applications", grant_data)
+        self.assertEqual(grant_data["applications"], [])
+
+    def test_note_with_grant_applications_serialization(self):
+        # Create applicant user
+        applicant = get_user_model().objects.create_user(
+            username="applicant",
+            password=uuid.uuid4().hex,
+            email="applicant@researchhub.com",
+        )
+
+        # Create a note first
+        response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "WORKSPACE",
+                "organization_slug": self.org["slug"],
+                "title": "Note with grant applications",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        note = response.data
+
+        # Create a grant post
+        post_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": self.user.id,
+                "full_src": "Test grant post for applications",
+                "is_public": True,
+                "note_id": note["id"],
+                "renderable_text": (
+                    "Test grant post for applications that is "
+                    "sufficiently long for validation"
+                ),
+                "title": "Test grant with applications title that is sufficiently long",
+                "hubs": [],
+                "grant_amount": 60000,
+                "grant_currency": "USD",
+                "grant_organization": "Application Test Foundation",
+                "grant_description": "Research grant for testing applications",
+            },
+        )
+        self.assertEqual(post_response.status_code, 200)
+
+        # Create a preregistration post for the applicant to apply with
+        self.client.force_authenticate(applicant)
+        preregistration_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "PREREGISTRATION",
+                "created_by": applicant.id,
+                "full_src": "Preregistration content for application",
+                "is_public": True,
+                "renderable_text": (
+                    "Preregistration content for application that is "
+                    "sufficiently long for validation"
+                ),
+                "title": "Preregistration for grant application that is sufficiently long",
+                "hubs": [],
+            },
+        )
+        self.assertEqual(preregistration_response.status_code, 200)
+
+        # Apply to the grant
+        from purchase.models import Grant, GrantApplication
+
+        grant = Grant.objects.get(
+            unified_document=post_response.data["unified_document"]["id"]
+        )
+        GrantApplication.objects.create(
+            grant=grant,
+            preregistration_post_id=preregistration_response.data["id"],
+            applicant=applicant,
+        )
+
+        # Switch back to original user to fetch the note
+        self.client.force_authenticate(self.user)
+
+        # Re-fetch the note to verify applications are included
+        response = self.client.get(f"/api/note/{note['id']}/")
+        self.assertEqual(response.status_code, 200)
+        note = response.data
+
+        # Verify grant data is present
+        self.assertIsNotNone(note["post"]["unified_document"]["grant"])
+        grant_data = note["post"]["unified_document"]["grant"]
+
+        # Verify applications field is present and contains the application
+        self.assertIn("applications", grant_data)
+        self.assertEqual(len(grant_data["applications"]), 1)
+
+        application = grant_data["applications"][0]
+        self.assertIn("id", application)
+        self.assertIn("created_date", application)
+        self.assertIn("applicant", application)
+        self.assertIn("preregistration_post_id", application)
+        self.assertEqual(application["applicant"]["id"], applicant.author_profile.id)
+        self.assertEqual(
+            application["preregistration_post_id"], preregistration_response.data["id"]
+        )

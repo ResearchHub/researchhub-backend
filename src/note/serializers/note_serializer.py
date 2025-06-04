@@ -129,6 +129,8 @@ class NoteSerializer(ModelSerializer):
                     "start_date",
                     "end_date",
                     "created_by",
+                    "contacts",
+                    "applications",
                 ]
             },
             "pch_dgs_get_created_by": {
@@ -278,6 +280,8 @@ class DynamicNoteSerializer(DynamicModelFieldSerializer):
                     "start_date",
                     "end_date",
                     "created_by",
+                    "contacts",
+                    "applications",
                 ]
             },
             "pch_dgs_get_created_by": {
