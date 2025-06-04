@@ -7,16 +7,7 @@ from django.conf import settings
 
 class CustomAccountAdapter(DefaultAccountAdapter):
     def get_email_confirmation_url(self, request, emailconfirmation):
-        # TEMPORARY:
-        # Use hard-coded URL pointing to the new web application for email confirmation.
-        # Will be replaced with `BASE_FRONTEND_URL` after moving the new web application to www.
-        base_url = settings.BASE_FRONTEND_URL
-        if settings.PRODUCTION:
-            base_url = "https://new.researchhub.com"
-        elif settings.STAGING:
-            base_url = "https://v2.staging.researchhub.com"
-
-        return f"{base_url}/verify/{emailconfirmation.key}"
+        return f"{settings.BASE_FRONTEND_URL}/verify/{emailconfirmation.key}"
 
 
 class CustomPasswordResetSerializer(PasswordResetSerializer):
