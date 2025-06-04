@@ -209,14 +209,15 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
         from purchase.serializers import DynamicGrantSerializer
 
         context = self.context
-        _context_fields = context.get("doc_duds_get_grants", {})
+        _context_fields = context.get("doc_duds_get_grant", {})
         _filter_fields = _context_fields.get("_filter_fields", {})
-        if unified_doc.grants.exists():
+
+        grant = unified_doc.grants.filter(**_filter_fields).first()
+        if grant:
             serializer = DynamicGrantSerializer(
-                unified_doc.grants.filter(**_filter_fields),
-                many=True,
+                grant,
                 context=context,
                 **_context_fields,
             )
             return serializer.data
-        return []
+        return None

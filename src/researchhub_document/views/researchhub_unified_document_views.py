@@ -236,7 +236,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "contributors",
                 ]
             },
-            "doc_duds_get_grants": {
+            "doc_duds_get_grant": {
                 "_include_fields": [
                     "id",
                     "status",
@@ -598,7 +598,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "contributors",
                 ]
             },
-            "doc_duds_get_grants": {
+            "doc_duds_get_grant": {
                 "_include_fields": [
                     "id",
                     "status",
