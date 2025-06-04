@@ -313,6 +313,7 @@ class PostSerializer(ContentObjectSerializer):
                     "is_active",
                     "created_by",
                     "contacts",
+                    "applications",
                 ],
             )
             return serializer.data
@@ -614,89 +615,6 @@ class FundingFeedEntrySerializer(FeedEntrySerializer):
 class GrantFeedEntrySerializer(FeedEntrySerializer):
     """Serializer for grant feed entries"""
 
-    organization = serializers.SerializerMethodField()
-    grant_amount = serializers.SerializerMethodField()
-    is_expired = serializers.SerializerMethodField()
-    applications = serializers.SerializerMethodField()
-
     class Meta:
         model = FeedEntry
-        fields = FeedEntrySerializer.Meta.fields + [
-            "organization",
-            "grant_amount",
-            "is_expired",
-            "applications",
-        ]
-
-    def get_organization(self, obj):
-        """Return the granting organization name"""
-        if (
-            obj.unified_document
-            and hasattr(obj.unified_document, "grants")
-            and obj.unified_document.grants.exists()
-        ):
-            return obj.unified_document.grants.first().organization
-        return None
-
-    def get_grant_amount(self, obj):
-        """Return the grant amount in a formatted way"""
-        if (
-            obj.unified_document
-            and hasattr(obj.unified_document, "grants")
-            and obj.unified_document.grants.exists()
-        ):
-            grant = obj.unified_document.grants.first()
-            return {
-                "amount": float(grant.amount),
-                "currency": grant.currency,
-                "formatted": f"{grant.amount:,.2f} {grant.currency}",
-            }
-        return None
-
-    def get_is_expired(self, obj):
-        """Return whether the grant application deadline has passed"""
-        if (
-            obj.unified_document
-            and hasattr(obj.unified_document, "grants")
-            and obj.unified_document.grants.exists()
-        ):
-            return obj.unified_document.grants.first().is_expired()
-        return None
-
-    def get_applications(self, obj):
-        """Return grant applications with applicant information"""
-        if (
-            obj.unified_document
-            and hasattr(obj.unified_document, "grants")
-            and obj.unified_document.grants.exists()
-        ):
-            grant = obj.unified_document.grants.first()
-            applications = grant.applications.select_related(
-                "applicant__author_profile"
-            ).all()
-
-            application_data = []
-            for application in applications:
-                if (
-                    application.applicant
-                    and hasattr(application.applicant, "author_profile")
-                    and application.applicant.author_profile
-                ):
-                    applicant_data = SimpleAuthorSerializer(
-                        application.applicant.author_profile
-                    ).data
-                    application_data.append(
-                        {
-                            "id": application.id,
-                            "created_date": application.created_date,
-                            "applicant": applicant_data,
-                            "preregistration_post_id": (
-                                application.preregistration_post.id
-                                if application.preregistration_post
-                                else None
-                            ),
-                        }
-                    )
-
-            return application_data
-        return []
+        fields = FeedEntrySerializer.Meta.fields
