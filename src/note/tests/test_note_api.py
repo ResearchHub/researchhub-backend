@@ -1098,10 +1098,8 @@ class NoteTests(APITestCase):
 
         # Verify grant data is present in the unified document
         self.assertIsNotNone(note["post"]["unified_document"]["grant"])
-        self.assertIsInstance(note["post"]["unified_document"]["grant"], list)
-        self.assertEqual(len(note["post"]["unified_document"]["grant"]), 1)
 
-        grant_data = note["post"]["unified_document"]["grant"][0]
+        grant_data = note["post"]["unified_document"]["grant"]
         self.assertEqual(grant_data["amount"]["usd"], 50000.0)
         self.assertEqual(grant_data["organization"], "National Science Foundation")
         self.assertEqual(

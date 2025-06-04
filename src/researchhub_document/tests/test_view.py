@@ -808,9 +808,8 @@ class ViewTests(APITestCase):
 
         self.assertIsNotNone(grant_doc, "Grant document should be in response")
         self.assertIn("grant", grant_doc, "Grant field should be present")
-        self.assertEqual(len(grant_doc["grant"]), 1)
-        self.assertEqual(grant_doc["grant"][0]["id"], grant.id)
-        self.assertEqual(grant_doc["grant"][0]["organization"], "Test Foundation")
+        self.assertEqual(grant_doc["grant"]["id"], grant.id)
+        self.assertEqual(grant_doc["grant"]["organization"], "Test Foundation")
 
     def test_grants_included_in_recommendations(self):
         """Test that grants are included in recommendations endpoint"""
@@ -847,8 +846,7 @@ class ViewTests(APITestCase):
 
         if grant_doc:  # Only check if the document appears in recommendations
             self.assertIn("grant", grant_doc, "Grant field should be present")
-            self.assertEqual(len(grant_doc["grant"]), 1)
-            self.assertEqual(grant_doc["grant"][0]["id"], grant.id)
+            self.assertEqual(grant_doc["grant"]["id"], grant.id)
 
     def test_grants_included_in_get_document_metadata(self):
         """Test that grants are included in get_document_metadata endpoint"""
@@ -877,12 +875,9 @@ class ViewTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("grant", response.data)
-        self.assertEqual(len(response.data["grant"]), 1)
-        self.assertEqual(response.data["grant"][0]["id"], grant.id)
-        self.assertEqual(response.data["grant"][0]["amount"]["usd"], 30000.0)
-        self.assertEqual(
-            response.data["grant"][0]["organization"], "Metadata Foundation"
-        )
+        self.assertEqual(response.data["grant"]["id"], grant.id)
+        self.assertEqual(response.data["grant"]["amount"]["usd"], 30000.0)
+        self.assertEqual(response.data["grant"]["organization"], "Metadata Foundation")
 
     def test_grant_update_existing_grant(self):
         """Test that an existing grant can be updated when updating a post"""
