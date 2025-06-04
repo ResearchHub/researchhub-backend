@@ -248,6 +248,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "end_date",
                     "created_by",
                     "contacts",
+                    "applications",
                 ]
             },
             "pch_dfs_get_contributors": {
@@ -610,6 +611,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     "end_date",
                     "created_by",
                     "contacts",
+                    "applications",
                 ]
             },
             "pch_dfs_get_contributors": {
