@@ -64,7 +64,10 @@ class FeedEntry(DefaultModel):
         null=False,
         blank=False,
         related_name="feed_entries",
-        db_comment="The unified document associated with the feed entry. Directly added to the feed entry for performance reasons.",
+        db_comment=(
+            "The unified document associated with the feed entry. "
+            "Directly added to the feed entry for performance reasons."
+        ),
     )
 
     class Meta:
@@ -87,6 +90,7 @@ class FeedEntry(DefaultModel):
             ),
         ]
         constraints = [
+            # Constraint for entries WITH a user
             models.UniqueConstraint(
                 fields=[
                     "content_type",
@@ -94,8 +98,19 @@ class FeedEntry(DefaultModel):
                     "action",
                     "user",
                 ],
-                name="unique_feed_entry",
-            )
+                name="unique_feed_entry_with_user",
+                condition=models.Q(user__isnull=False),
+            ),
+            # Constraint for entries WITHOUT a user (system entries)
+            models.UniqueConstraint(
+                fields=[
+                    "content_type",
+                    "object_id",
+                    "action",
+                ],
+                name="unique_feed_entry_without_user",
+                condition=models.Q(user__isnull=True),
+            ),
         ]
 
     def calculate_hot_score(self):
