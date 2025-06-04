@@ -378,7 +378,7 @@ def create_vote(user, item, vote_type):
 def create_automated_bounty(item):
     if (
         isinstance(item, Paper)
-        and item.score >= 5
+        and item.score >= 3
         and item.hubs.filter(id=436).exists()  # Hardcoded Biorxiv Hub
         and not item.automated_bounty_created
     ):
