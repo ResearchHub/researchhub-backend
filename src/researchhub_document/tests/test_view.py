@@ -807,10 +807,9 @@ class ViewTests(APITestCase):
                 break
 
         self.assertIsNotNone(grant_doc, "Grant document should be in response")
-        self.assertIn("grants", grant_doc, "Grants field should be present")
-        self.assertEqual(len(grant_doc["grants"]), 1)
-        self.assertEqual(grant_doc["grants"][0]["id"], grant.id)
-        self.assertEqual(grant_doc["grants"][0]["organization"], "Test Foundation")
+        self.assertIn("grant", grant_doc, "Grant field should be present")
+        self.assertEqual(grant_doc["grant"]["id"], grant.id)
+        self.assertEqual(grant_doc["grant"]["organization"], "Test Foundation")
 
     def test_grants_included_in_recommendations(self):
         """Test that grants are included in recommendations endpoint"""
@@ -846,9 +845,8 @@ class ViewTests(APITestCase):
                 break
 
         if grant_doc:  # Only check if the document appears in recommendations
-            self.assertIn("grants", grant_doc, "Grants field should be present")
-            self.assertEqual(len(grant_doc["grants"]), 1)
-            self.assertEqual(grant_doc["grants"][0]["id"], grant.id)
+            self.assertIn("grant", grant_doc, "Grant field should be present")
+            self.assertEqual(grant_doc["grant"]["id"], grant.id)
 
     def test_grants_included_in_get_document_metadata(self):
         """Test that grants are included in get_document_metadata endpoint"""
@@ -876,13 +874,10 @@ class ViewTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("grants", response.data)
-        self.assertEqual(len(response.data["grants"]), 1)
-        self.assertEqual(response.data["grants"][0]["id"], grant.id)
-        self.assertEqual(response.data["grants"][0]["amount"]["usd"], 30000.0)
-        self.assertEqual(
-            response.data["grants"][0]["organization"], "Metadata Foundation"
-        )
+        self.assertIn("grant", response.data)
+        self.assertEqual(response.data["grant"]["id"], grant.id)
+        self.assertEqual(response.data["grant"]["amount"]["usd"], 30000.0)
+        self.assertEqual(response.data["grant"]["organization"], "Metadata Foundation")
 
     def test_grant_update_existing_grant(self):
         """Test that an existing grant can be updated when updating a post"""
@@ -1271,3 +1266,267 @@ class ViewTests(APITestCase):
         # Verify end date was set to None
         grant = Grant.objects.get(id=updated_response.data["grant"]["id"])
         self.assertIsNone(grant.end_date)
+
+    def test_grant_created_with_contacts(self):
+        """Test that a grant can be created with contact users"""
+        author = create_random_default_user("author", moderator=True)
+        contact1 = create_random_default_user("contact1")
+        contact2 = create_random_default_user("contact2")
+        hub = create_hub()
+
+        self.client.force_authenticate(author)
+
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": "sufficiently long title. sufficiently long title.",
+                "hubs": [hub.id],
+                "grant_amount": 50000,
+                "grant_currency": "USD",
+                "grant_organization": "Contact Foundation",
+                "grant_description": "Grant with contacts",
+                "grant_contacts": [contact1.id, contact2.id],
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 200)
+        self.assertIsNotNone(doc_response.data["grant"])
+
+        # Verify contacts are included in response
+        grant_data = doc_response.data["grant"]
+        self.assertEqual(len(grant_data["contacts"]), 2)
+        contact_ids = [contact["id"] for contact in grant_data["contacts"]]
+        self.assertIn(contact1.id, contact_ids)
+        self.assertIn(contact2.id, contact_ids)
+
+        # Verify contacts are saved in database
+        grant = Grant.objects.get(id=grant_data["id"])
+        self.assertEqual(grant.contacts.count(), 2)
+        self.assertTrue(grant.contacts.filter(id=contact1.id).exists())
+        self.assertTrue(grant.contacts.filter(id=contact2.id).exists())
+
+    def test_grant_update_add_contacts(self):
+        """Test that contacts can be added to an existing grant"""
+        author = create_random_default_user("author", moderator=True)
+        contact1 = create_random_default_user("contact1")
+        contact2 = create_random_default_user("contact2")
+        hub = create_hub()
+
+        self.client.force_authenticate(author)
+
+        # Create initial grant without contacts
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": "sufficiently long title. sufficiently long title.",
+                "hubs": [hub.id],
+                "grant_amount": 40000,
+                "grant_organization": "Update Foundation",
+                "grant_description": "Grant to add contacts",
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 200)
+        original_grant_id = doc_response.data["grant"]["id"]
+        self.assertEqual(len(doc_response.data["grant"]["contacts"]), 0)
+
+        # Update to add contacts
+        updated_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "post_id": doc_response.data["id"],
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "updated body",
+                "is_public": True,
+                "renderable_text": (
+                    "updated sufficiently long body. updated sufficiently "
+                    "long body. updated sufficiently long body. updated "
+                    "sufficiently long body. updated sufficiently long body"
+                ),
+                "title": "updated title. updated title. updated title.",
+                "hubs": [hub.id],
+                "grant_amount": 40000,
+                "grant_organization": "Update Foundation",
+                "grant_description": "Grant with added contacts",
+                "grant_contacts": [contact1.id, contact2.id],
+            },
+        )
+
+        self.assertEqual(updated_response.status_code, 200)
+        self.assertEqual(updated_response.data["grant"]["id"], original_grant_id)
+
+        # Verify contacts were added
+        grant_data = updated_response.data["grant"]
+        self.assertEqual(len(grant_data["contacts"]), 2)
+        contact_ids = [contact["id"] for contact in grant_data["contacts"]]
+        self.assertIn(contact1.id, contact_ids)
+        self.assertIn(contact2.id, contact_ids)
+
+        # Verify in database
+        grant = Grant.objects.get(id=original_grant_id)
+        self.assertEqual(grant.contacts.count(), 2)
+
+    def test_grant_update_remove_contacts(self):
+        """Test that contacts can be removed from an existing grant"""
+        author = create_random_default_user("author", moderator=True)
+        contact1 = create_random_default_user("contact1")
+        contact2 = create_random_default_user("contact2")
+        hub = create_hub()
+
+        self.client.force_authenticate(author)
+
+        # Create initial grant with contacts
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": "sufficiently long title. sufficiently long title.",
+                "hubs": [hub.id],
+                "grant_amount": 35000,
+                "grant_organization": "Remove Foundation",
+                "grant_description": "Grant to remove contacts",
+                "grant_contacts": [contact1.id, contact2.id],
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 200)
+        original_grant_id = doc_response.data["grant"]["id"]
+        self.assertEqual(len(doc_response.data["grant"]["contacts"]), 2)
+
+        # Update to remove contacts by providing empty list
+        updated_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "post_id": doc_response.data["id"],
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "updated body",
+                "is_public": True,
+                "renderable_text": (
+                    "updated sufficiently long body. updated sufficiently "
+                    "long body. updated sufficiently long body. updated "
+                    "sufficiently long body. updated sufficiently long body"
+                ),
+                "title": "updated title. updated title. updated title.",
+                "hubs": [hub.id],
+                "grant_amount": 35000,
+                "grant_organization": "Remove Foundation",
+                "grant_description": "Grant with removed contacts",
+                "grant_contacts": [],
+            },
+        )
+
+        self.assertEqual(updated_response.status_code, 200)
+        self.assertEqual(updated_response.data["grant"]["id"], original_grant_id)
+
+        # Verify contacts were removed
+        grant_data = updated_response.data["grant"]
+        self.assertEqual(len(grant_data["contacts"]), 0)
+
+        # Verify in database
+        grant = Grant.objects.get(id=original_grant_id)
+        self.assertEqual(grant.contacts.count(), 0)
+
+    def test_grant_update_change_contacts(self):
+        """Test that contacts can be changed in an existing grant"""
+        author = create_random_default_user("author", moderator=True)
+        contact1 = create_random_default_user("contact1")
+        contact2 = create_random_default_user("contact2")
+        contact3 = create_random_default_user("contact3")
+        hub = create_hub()
+
+        self.client.force_authenticate(author)
+
+        # Create initial grant with contacts
+        doc_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "body",
+                "is_public": True,
+                "renderable_text": (
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body. sufficiently long body. "
+                    "sufficiently long body"
+                ),
+                "title": "sufficiently long title. sufficiently long title.",
+                "hubs": [hub.id],
+                "grant_amount": 45000,
+                "grant_organization": "Change Foundation",
+                "grant_description": "Grant to change contacts",
+                "grant_contacts": [contact1.id, contact2.id],
+            },
+        )
+
+        self.assertEqual(doc_response.status_code, 200)
+        original_grant_id = doc_response.data["grant"]["id"]
+        self.assertEqual(len(doc_response.data["grant"]["contacts"]), 2)
+
+        # Update to change contacts
+        updated_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "post_id": doc_response.data["id"],
+                "document_type": "GRANT",
+                "created_by": author.id,
+                "full_src": "updated body",
+                "is_public": True,
+                "renderable_text": (
+                    "updated sufficiently long body. updated sufficiently "
+                    "long body. updated sufficiently long body. updated "
+                    "sufficiently long body. updated sufficiently long body"
+                ),
+                "title": "updated title. updated title. updated title.",
+                "hubs": [hub.id],
+                "grant_amount": 45000,
+                "grant_organization": "Change Foundation",
+                "grant_description": "Grant with changed contacts",
+                "grant_contacts": [contact2.id, contact3.id],
+            },
+        )
+
+        self.assertEqual(updated_response.status_code, 200)
+        self.assertEqual(updated_response.data["grant"]["id"], original_grant_id)
+
+        # Verify contacts were changed
+        grant_data = updated_response.data["grant"]
+        self.assertEqual(len(grant_data["contacts"]), 2)
+        contact_ids = [contact["id"] for contact in grant_data["contacts"]]
+        self.assertIn(contact2.id, contact_ids)  # contact2 remains
+        self.assertIn(contact3.id, contact_ids)  # contact3 was added
+        self.assertNotIn(contact1.id, contact_ids)  # contact1 was removed
+
+        # Verify in database
+        grant = Grant.objects.get(id=original_grant_id)
+        self.assertEqual(grant.contacts.count(), 2)
+        self.assertTrue(grant.contacts.filter(id=contact2.id).exists())
+        self.assertTrue(grant.contacts.filter(id=contact3.id).exists())
+        self.assertFalse(grant.contacts.filter(id=contact1.id).exists())
