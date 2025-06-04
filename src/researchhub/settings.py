@@ -185,6 +185,8 @@ CORS_ORIGIN_WHITELIST = [
     "https://researchhub.com",
     "https://staging.researchhub.com",
     "https://www.staging.researchhub.com",
+    "https://old.staging.researchhub.com",
+    "https://www.old.staging.researchhub.com",
     "https://v2.staging.researchhub.com",
     "https://www.v2.staging.researchhub.com",
     "http://127.0.0.1:3000",
