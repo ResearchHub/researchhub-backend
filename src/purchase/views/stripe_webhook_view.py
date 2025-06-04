@@ -38,12 +38,12 @@ class StripeWebhookView(APIView):
                 payload, request_signature, webhook_secret
             )
         except ValueError as e:
-            logger.warning("Failed to parse event: %s", str(e))
+            logger.warning("Failed to parse event: %s", e)
             return Response(
                 {"message": "Invalid payload"}, status=status.HTTP_400_BAD_REQUEST
             )
         except stripe.error.SignatureVerificationError as e:
-            logger.warning("Failed to validate signature: %s", str(e))
+            logger.warning("Failed to validate signature: %s", e)
             return Response(
                 {"message": "Invalid signature"}, status=status.HTTP_400_BAD_REQUEST
             )
@@ -62,14 +62,14 @@ class StripeWebhookView(APIView):
                     payment_intent = event["data"]["object"]
                     logger.info("Payment intent ID=%s created", payment_intent["id"])
                 case _:
-                    logger.info("Unhandled event type: {event_type}")
+                    logger.info("Unhandled event type: %s", event_type)
         except ValueError as e:
-            logger.error("Invalid event data: %s", str(e))
+            logger.error("Invalid event data: %s", e)
             return Response(
                 {"message": "Invalid event data"}, status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
-            logger.error("Error processing event: %s", str(e))
+            logger.error("Error processing event: %s", e)
             return Response(
                 {"message": "Error processing event"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
