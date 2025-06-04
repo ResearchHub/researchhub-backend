@@ -47,6 +47,7 @@ from researchhub_document.serializers.researchhub_post_serializer import (
     ResearchhubPostSerializer,
 )
 from researchhub_document.utils import reset_unified_document_cache
+from user.models import User
 from user.related_models.author_model import Author
 from utils.doi import DOI
 from utils.sentry import log_error
@@ -223,20 +224,22 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
 
                 grant = None
                 if grant_amount := data.get("grant_amount"):
-                    grant_serializer = GrantCreateSerializer(
-                        data={
-                            "amount": grant_amount,
-                            "currency": data.get("grant_currency", USD),
-                            "organization": data.get("grant_organization"),
-                            "contacts": data.get("grant_contacts"),
-                            "description": data.get("grant_description"),
-                            "unified_document_id": unified_document.id,
-                            "end_date": data.get("grant_end_date"),
-                        }
-                    )
-                    grant_serializer.is_valid(raise_exception=True)
+                    grant_data = {
+                        "amount": grant_amount,
+                        "currency": data.get("grant_currency", USD),
+                        "organization": data.get("grant_organization"),
+                        "description": data.get("grant_description"),
+                        "unified_document_id": unified_document.id,
+                        "end_date": data.get("grant_end_date"),
+                    }
 
-                    from purchase.models import Grant
+                    # Only include contact_ids if it's provided and not None
+                    grant_contacts = data.get("grant_contacts")
+                    if grant_contacts is not None:
+                        grant_data["contact_ids"] = grant_contacts
+
+                    grant_serializer = GrantCreateSerializer(data=grant_data)
+                    grant_serializer.is_valid(raise_exception=True)
 
                     # Create grant without contacts first
                     grant = Grant.objects.create(
@@ -249,10 +252,13 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                         end_date=grant_serializer.validated_data.get("end_date"),
                     )
 
-                    # Set contacts using the many-to-many set method
-                    contacts = grant_serializer.validated_data.get("contacts")
-                    if contacts:
+                    # Handle contacts properly - get contact_ids and convert to User objects
+                    contact_ids = grant_serializer.validated_data.get("contact_ids", [])
+                    if contact_ids:
+                        contacts = User.objects.filter(id__in=contact_ids)
                         grant.contacts.set(contacts)
+                    else:
+                        grant.contacts.clear()
 
                 if not TESTING:
                     if document_type in RESEARCHHUB_POST_DOCUMENT_TYPES:
@@ -348,195 +354,218 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
 
         except (KeyError, TypeError) as exception:
             log_error(exception)
-            return Response(exception, status=400)
+            return Response({"error": str(exception)}, status=400)
 
     @sift_track(SIFT_POST, is_update=True)
     def update_existing_researchhub_posts(self, request):
-        data = request.data
+        try:
+            data = request.data
 
-        authors = data.get("authors", [])
-        rh_post_id = data.get("post_id", None)
-        rh_post = ResearchhubPost.objects.get(id=rh_post_id)
+            authors = data.get("authors", [])
+            rh_post_id = data.get("post_id", None)
+            rh_post = ResearchhubPost.objects.get(id=rh_post_id)
 
-        # Check if all given authors are in the same organization
-        if rh_post.note_id:
-            note = Note.objects.get(id=rh_post.note_id)
-            organization = note.organization
-            if not self._check_authors_in_org(authors, organization):
+            # Check if all given authors are in the same organization
+            if rh_post.note_id:
+                note = Note.objects.get(id=rh_post.note_id)
+                organization = note.organization
+                if not self._check_authors_in_org(authors, organization):
+                    return Response(
+                        "No permission to update post for organization", status=403
+                    )
+
+            # Check grant permission for moderators only
+            grant_amount = data.get("grant_amount")
+            grant_permission_check = self._check_grant_permission(
+                request, data.get("document_type"), grant_amount
+            )
+            if grant_permission_check:
+                return grant_permission_check
+
+            created_by = request.user
+            created_by_author = created_by.author_profile
+            hubs = data.get("hubs", None)
+            renderable_text = data.get("renderable_text", "")
+            title = data.get("title", "")
+            assign_doi = data.get("assign_doi", False)
+            doi = DOI() if assign_doi else None
+
+            if type(title) is not str or len(title) < MIN_POST_TITLE_LENGTH:
                 return Response(
-                    "No permission to update post for organization", status=403
+                    {
+                        "msg": (
+                            f"Title cannot be less than "
+                            f"{MIN_POST_TITLE_LENGTH} characters"
+                        )
+                    },
+                    400,
+                )
+            elif (
+                type(renderable_text) is not str
+                or len(renderable_text) < MIN_POST_BODY_LENGTH
+            ):
+                return Response(
+                    {
+                        "msg": (
+                            f"Post body cannot be less than "
+                            f"{MIN_POST_BODY_LENGTH} characters"
+                        )
+                    },
+                    400,
                 )
 
-        # Check grant permission for moderators only
-        grant_amount = data.get("grant_amount")
-        grant_permission_check = self._check_grant_permission(
-            request, data.get("document_type"), grant_amount
-        )
-        if grant_permission_check:
-            return grant_permission_check
+            rh_post.doi = doi.doi if doi else rh_post.doi
+            rh_post.save(update_fields=["doi"])
 
-        created_by = request.user
-        created_by_author = created_by.author_profile
-        hubs = data.get("hubs", None)
-        renderable_text = data.get("renderable_text", "")
-        title = data.get("title", "")
-        assign_doi = data.get("assign_doi", False)
-        doi = DOI() if assign_doi else None
-
-        if type(title) is not str or len(title) < MIN_POST_TITLE_LENGTH:
-            return Response(
-                {
-                    "msg": (
-                        f"Title cannot be less than "
-                        f"{MIN_POST_TITLE_LENGTH} characters"
-                    )
-                },
-                400,
+            serializer = ResearchhubPostSerializer(
+                rh_post, data=request.data, partial=True
             )
-        elif (
-            type(renderable_text) is not str
-            or len(renderable_text) < MIN_POST_BODY_LENGTH
-        ):
-            return Response(
-                {
-                    "msg": (
-                        f"Post body cannot be less than "
-                        f"{MIN_POST_BODY_LENGTH} characters"
-                    )
-                },
-                400,
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            post = serializer.instance
+
+            file_name = f'RH-POST-{request.data.get("document_type")}-USER-{request.user.id}.txt'
+            full_src_file = ContentFile(request.data["full_src"].encode())
+            post.discussion_src.save(file_name, full_src_file)
+
+            if type(authors) is list:
+                rh_post.authors.set(authors)
+
+            if type(hubs) is list:
+                unified_doc = post.unified_document
+                unified_doc.hubs.set(hubs)
+
+            reset_unified_document_cache(
+                document_type=[
+                    ALL.lower(),
+                    POSTS.lower(),
+                    PREREGISTRATION.lower(),
+                    GRANT.lower(),
+                    QUESTION.lower(),
+                ],
+                filters=[NEW, DISCUSSED, UPVOTED, HOT],
             )
 
-        rh_post.doi = doi.doi if doi else rh_post.doi
-        rh_post.save(update_fields=["doi"])
+            if assign_doi:
+                crossref_response = doi.register_doi_for_post(
+                    [created_by_author], title, rh_post
+                )
+                if crossref_response.status_code != 200:
+                    return Response("Crossref API Failure", status=400)
 
-        serializer = ResearchhubPostSerializer(rh_post, data=request.data, partial=True)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        post = serializer.instance
+            # Handle grant updates
+            grant = None
+            unified_document = post.unified_document
 
-        file_name = (
-            f'RH-POST-{request.data.get("document_type")}-USER-{request.user.id}.txt'
-        )
-        full_src_file = ContentFile(request.data["full_src"].encode())
-        post.discussion_src.save(file_name, full_src_file)
+            # Get existing grant if any
+            existing_grant = Grant.objects.filter(
+                unified_document=unified_document
+            ).first()
 
-        if type(authors) is list:
-            rh_post.authors.set(authors)
-
-        if type(hubs) is list:
-            unified_doc = post.unified_document
-            unified_doc.hubs.set(hubs)
-
-        reset_unified_document_cache(
-            document_type=[
-                ALL.lower(),
-                POSTS.lower(),
-                PREREGISTRATION.lower(),
-                GRANT.lower(),
-                QUESTION.lower(),
-            ],
-            filters=[NEW, DISCUSSED, UPVOTED, HOT],
-        )
-
-        if assign_doi:
-            crossref_response = doi.register_doi_for_post(
-                [created_by_author], title, rh_post
-            )
-            if crossref_response.status_code != 200:
-                return Response("Crossref API Failure", status=400)
-
-        # Handle grant updates
-        grant = None
-        unified_document = post.unified_document
-
-        # Get existing grant if any
-        existing_grant = Grant.objects.filter(unified_document=unified_document).first()
-
-        # Only update grants if both grant data is provided AND a grant already exists
-        if (grant_amount := data.get("grant_amount")) and existing_grant:
-            grant_serializer = GrantCreateSerializer(
-                data={
+            # Only update grants if both grant data is provided AND a grant already exists
+            if (grant_amount := data.get("grant_amount")) and existing_grant:
+                grant_data = {
                     "amount": grant_amount,
                     "currency": data.get("grant_currency", USD),
                     "organization": data.get("grant_organization"),
                     "description": data.get("grant_description"),
                     "unified_document_id": unified_document.id,
                     "end_date": data.get("grant_end_date"),
-                    "contacts": data.get("grant_contacts"),
                 }
+
+                # Only include contact_ids if it's provided and not None
+                grant_contacts = data.get("grant_contacts")
+                if grant_contacts is not None:
+                    grant_data["contact_ids"] = grant_contacts
+
+                grant_serializer = GrantCreateSerializer(data=grant_data)
+                grant_serializer.is_valid(raise_exception=True)
+
+                # Update existing grant
+                existing_grant.amount = grant_serializer.validated_data["amount"]
+                existing_grant.currency = grant_serializer.validated_data["currency"]
+                existing_grant.organization = grant_serializer.validated_data[
+                    "organization"
+                ]
+                existing_grant.description = grant_serializer.validated_data[
+                    "description"
+                ]
+                existing_grant.end_date = grant_serializer.validated_data.get(
+                    "end_date"
+                )
+
+                # Handle contacts properly - get contact_ids and convert to User objects
+                contact_ids = grant_serializer.validated_data.get("contact_ids", [])
+                if contact_ids:
+                    contacts = User.objects.filter(id__in=contact_ids)
+                    existing_grant.contacts.set(contacts)
+                else:
+                    existing_grant.contacts.clear()
+
+                existing_grant.save()
+                grant = existing_grant
+            else:
+                # No grant data provided or no existing grant, preserve existing grant
+                grant = existing_grant
+
+            response_data = serializer.data
+            # Set up context for grant serialization including contacts
+            grant_context = {
+                "pch_dgs_get_created_by": {
+                    "_include_fields": (
+                        "id",
+                        "author_profile",
+                        "first_name",
+                        "last_name",
+                    )
+                },
+                "pch_dgs_get_contacts": {
+                    "_include_fields": (
+                        "id",
+                        "author_profile",
+                        "first_name",
+                        "last_name",
+                    )
+                },
+                "usr_dus_get_author_profile": {
+                    "_include_fields": (
+                        "id",
+                        "first_name",
+                        "last_name",
+                        "created_date",
+                        "updated_date",
+                        "profile_image",
+                        "is_verified",
+                    )
+                },
+            }
+            response_data["grant"] = (
+                DynamicGrantSerializer(
+                    grant,
+                    context=grant_context,
+                    _include_fields=[
+                        "id",
+                        "status",
+                        "amount",
+                        "currency",
+                        "organization",
+                        "description",
+                        "start_date",
+                        "end_date",
+                        "is_expired",
+                        "is_active",
+                        "created_by",
+                        "contacts",
+                    ],
+                ).data
+                if grant
+                else None
             )
-            grant_serializer.is_valid(raise_exception=True)
+            return Response(response_data, status=200)
 
-            # Update existing grant
-            existing_grant.amount = grant_serializer.validated_data["amount"]
-            existing_grant.currency = grant_serializer.validated_data["currency"]
-            existing_grant.organization = grant_serializer.validated_data[
-                "organization"
-            ]
-            existing_grant.description = grant_serializer.validated_data["description"]
-            existing_grant.end_date = grant_serializer.validated_data.get("end_date")
-            existing_grant.contacts.set(grant_serializer.validated_data.get("contacts"))
-            existing_grant.save()
-            grant = existing_grant
-        else:
-            # No grant data provided or no existing grant, preserve existing grant
-            grant = existing_grant
-
-        response_data = serializer.data
-        # Set up context for grant serialization including contacts
-        grant_context = {
-            "pch_dgs_get_created_by": {
-                "_include_fields": (
-                    "id",
-                    "author_profile",
-                    "first_name",
-                    "last_name",
-                )
-            },
-            "pch_dgs_get_contacts": {
-                "_include_fields": (
-                    "id",
-                    "author_profile",
-                    "first_name",
-                    "last_name",
-                )
-            },
-            "usr_dus_get_author_profile": {
-                "_include_fields": (
-                    "id",
-                    "first_name",
-                    "last_name",
-                    "created_date",
-                    "updated_date",
-                    "profile_image",
-                    "is_verified",
-                )
-            },
-        }
-        response_data["grant"] = (
-            DynamicGrantSerializer(
-                grant,
-                context=grant_context,
-                _include_fields=[
-                    "id",
-                    "status",
-                    "amount",
-                    "currency",
-                    "organization",
-                    "description",
-                    "start_date",
-                    "end_date",
-                    "is_expired",
-                    "is_active",
-                    "created_by",
-                    "contacts",
-                ],
-            ).data
-            if grant
-            else None
-        )
-        return Response(response_data, status=200)
+        except (KeyError, TypeError) as exception:
+            log_error(exception)
+            return Response({"error": str(exception)}, status=400)
 
     def create_access_group(self, request):
         return None
