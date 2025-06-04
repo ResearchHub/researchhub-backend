@@ -2,12 +2,14 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 import pytz
-from django.test import TestCase, TransactionTestCase
 from rest_framework.test import APITestCase
 
-from purchase.models import Grant
+from purchase.models import Grant, GrantApplication
 from researchhub_document.helpers import create_post
-from researchhub_document.related_models.constants.document_type import GRANT
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.tests.helpers import create_random_authenticated_user
 
@@ -268,6 +270,102 @@ class GrantFeedViewTests(APITestCase):
         # Responses should be identical
         self.assertEqual(response1.data, response2.data)
 
+    def test_grant_feed_includes_applications(self):
+        """Test that grant feed includes application data"""
+
+        # Create applicant users
+        applicant1 = create_random_authenticated_user("applicant1")
+        applicant2 = create_random_authenticated_user("applicant2")
+
+        # Create preregistration posts for applications
+        preregistration1 = create_post(
+            created_by=applicant1,
+            document_type=PREREGISTRATION,
+            title="Preregistration 1",
+        )
+        preregistration2 = create_post(
+            created_by=applicant2,
+            document_type=PREREGISTRATION,
+            title="Preregistration 2",
+        )
+
+        # Create applications
+        GrantApplication.objects.create(
+            grant=self.open_grant,
+            preregistration_post=preregistration1,
+            applicant=applicant1,
+        )
+        GrantApplication.objects.create(
+            grant=self.open_grant,
+            preregistration_post=preregistration2,
+            applicant=applicant2,
+        )
+
+        self.client.force_authenticate(self.user)
+        response = self.client.get("/api/grant_feed/")
+
+        self.assertEqual(response.status_code, 200)
+        results = response.data["results"]
+        self.assertTrue(len(results) > 0)
+
+        # Find the grant entry
+        grant_entry = None
+        for entry in results:
+            if entry["content_object"]["id"] == self.open_post.id:
+                grant_entry = entry
+                break
+
+        self.assertIsNotNone(grant_entry)
+        self.assertIn("applications", grant_entry)
+
+        applications = grant_entry["applications"]
+        self.assertEqual(len(applications), 2)
+
+        # Check application structure
+        application1 = applications[0]
+        self.assertIn("id", application1)
+        self.assertIn("created_date", application1)
+        self.assertIn("applicant", application1)
+        self.assertIn("preregistration_post_id", application1)
+
+        # Check applicant structure using SimpleAuthorSerializer
+        applicant_data = application1["applicant"]
+        self.assertIn("id", applicant_data)
+        self.assertIn("first_name", applicant_data)
+        self.assertIn("last_name", applicant_data)
+        self.assertIn("profile_image", applicant_data)
+        self.assertIn("headline", applicant_data)
+        self.assertIn("user", applicant_data)
+
+        # Verify applicant IDs are correct
+        applicant_ids = [app["applicant"]["id"] for app in applications]
+        self.assertIn(applicant1.author_profile.id, applicant_ids)
+        self.assertIn(applicant2.author_profile.id, applicant_ids)
+
+    def test_grant_feed_empty_applications(self):
+        """Test that grant feed handles grants with no applications"""
+        self.client.force_authenticate(self.user)
+        response = self.client.get("/api/grant_feed/")
+
+        self.assertEqual(response.status_code, 200)
+        results = response.data["results"]
+        self.assertTrue(len(results) > 0)
+
+        # Find the grant entry
+        grant_entry = None
+        for entry in results:
+            if entry["content_object"]["id"] == self.open_post.id:
+                grant_entry = entry
+                break
+
+        self.assertIsNotNone(grant_entry)
+        self.assertIn("applications", grant_entry)
+
+        # Should be empty list when no applications
+        applications = grant_entry["applications"]
+        self.assertEqual(len(applications), 0)
+        self.assertIsInstance(applications, list)
+
     def test_grant_feed_invalid_status_filter(self):
         """Test grant feed with invalid status filter"""
         self.client.force_authenticate(self.user)
@@ -295,3 +393,99 @@ class GrantFeedViewTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["results"]), 0)
+
+    def test_grant_feed_includes_applications(self):
+        """Test that grant feed includes application data"""
+
+        # Create applicant users
+        applicant1 = create_random_authenticated_user("applicant1")
+        applicant2 = create_random_authenticated_user("applicant2")
+
+        # Create preregistration posts for applications
+        preregistration1 = create_post(
+            created_by=applicant1,
+            document_type=PREREGISTRATION,
+            title="Preregistration 1",
+        )
+        preregistration2 = create_post(
+            created_by=applicant2,
+            document_type=PREREGISTRATION,
+            title="Preregistration 2",
+        )
+
+        # Create applications
+        GrantApplication.objects.create(
+            grant=self.open_grant,
+            preregistration_post=preregistration1,
+            applicant=applicant1,
+        )
+        GrantApplication.objects.create(
+            grant=self.open_grant,
+            preregistration_post=preregistration2,
+            applicant=applicant2,
+        )
+
+        self.client.force_authenticate(self.user)
+        response = self.client.get("/api/grant_feed/")
+
+        self.assertEqual(response.status_code, 200)
+        results = response.data["results"]
+        self.assertTrue(len(results) > 0)
+
+        # Find the grant entry
+        grant_entry = None
+        for entry in results:
+            if entry["content_object"]["id"] == self.open_post.id:
+                grant_entry = entry
+                break
+
+        self.assertIsNotNone(grant_entry)
+        self.assertIn("applications", grant_entry)
+
+        applications = grant_entry["applications"]
+        self.assertEqual(len(applications), 2)
+
+        # Check application structure
+        application1 = applications[0]
+        self.assertIn("id", application1)
+        self.assertIn("created_date", application1)
+        self.assertIn("applicant", application1)
+        self.assertIn("preregistration_post_id", application1)
+
+        # Check applicant structure using SimpleAuthorSerializer
+        applicant_data = application1["applicant"]
+        self.assertIn("id", applicant_data)
+        self.assertIn("first_name", applicant_data)
+        self.assertIn("last_name", applicant_data)
+        self.assertIn("profile_image", applicant_data)
+        self.assertIn("headline", applicant_data)
+        self.assertIn("user", applicant_data)
+
+        # Verify applicant IDs are correct
+        applicant_ids = [app["applicant"]["id"] for app in applications]
+        self.assertIn(applicant1.author_profile.id, applicant_ids)
+        self.assertIn(applicant2.author_profile.id, applicant_ids)
+
+    def test_grant_feed_empty_applications(self):
+        """Test that grant feed handles grants with no applications"""
+        self.client.force_authenticate(self.user)
+        response = self.client.get("/api/grant_feed/")
+
+        self.assertEqual(response.status_code, 200)
+        results = response.data["results"]
+        self.assertTrue(len(results) > 0)
+
+        # Find the grant entry
+        grant_entry = None
+        for entry in results:
+            if entry["content_object"]["id"] == self.open_post.id:
+                grant_entry = entry
+                break
+
+        self.assertIsNotNone(grant_entry)
+        self.assertIn("applications", grant_entry)
+
+        # Should be empty list when no applications
+        applications = grant_entry["applications"]
+        self.assertEqual(len(applications), 0)
+        self.assertIsInstance(applications, list)
