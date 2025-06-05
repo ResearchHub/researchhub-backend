@@ -1,71 +1,36 @@
-import logging
-
-from django.contrib.contenttypes.models import ContentType
-from django.db import transaction
-from django.db.models.signals import post_delete, post_save
-from django.dispatch import receiver
-
-from feed.tasks import refresh_feed_entries_for_objects
-from reputation.related_models.bounty import Bounty
-
 """
 Signal handlers for Bounty model.
 
-The signal handlers are responsible for updating feed entries for posts and papers
-when bounties are added, updated, or removed.
+NOTE: This file is now legacy. The bounty signal handling is done through
+the generic feed management system in feed.feed_manager and feed.feed_configs.
+
+The generic system automatically handles:
+- Creating feed entries when bounties are created
+- Deleting feed entries when bounties are removed
+- Updating metrics for related entities
+- Hub association changes
+
+To modify bounty feed behavior, update the Bounty configuration
+in feed.feed_configs.py instead of modifying this file.
 """
 
-logger = logging.getLogger(__name__)
+# Legacy code kept for reference but no longer active
+# All functionality moved to feed.feed_manager and feed.feed_configs
+
+import warnings
 
 
-@receiver(post_save, sender=Bounty, dispatch_uid="bounty_update_feed_entries")
-def handle_bounty_update_feed_entries(sender, instance, created, **kwargs):
-    """
-    When a bounty is created or updated, update the feed entries for the associated
-    paper or post to reflect the bounty status.
-    """
-    try:
-        _update_associated_document_feed_entries(instance)
-    except Exception as e:
-        logger.error(f"Failed to update feed entries for bounty {instance.id}: {e}")
-
-
-@receiver(post_delete, sender=Bounty, dispatch_uid="bounty_delete_update_feed_entries")
 def handle_bounty_delete_update_feed_entries(sender, instance, **kwargs):
     """
-    When a bounty is deleted, update the feed entries for the associated
-    paper or post to reflect the bounty status.
+    DEPRECATED: This function is no longer used.
+
+    Bounty feed entry updates are now handled automatically by the generic
+    feed management system. See feed.feed_manager and feed.feed_configs.
     """
-    try:
-        _update_associated_document_feed_entries(instance)
-    except Exception as e:
-        logger.error(
-            f"Failed to update feed entries for deleted bounty {instance.id}: {e}"
-        )
-
-
-def _update_associated_document_feed_entries(bounty):
-    """
-    Updates the feed entries for the paper or post associated with the bounty.
-    The update is scheduled to run after the current transaction is committed.
-    """
-    unified_document = bounty.unified_document
-    if not unified_document:
-        logger.warning(f"No unified document found for bounty {bounty.id}")
-        return
-
-    try:
-        document = unified_document.get_document()
-        document_content_type = ContentType.objects.get_for_model(document)
-
-        transaction.on_commit(
-            lambda: refresh_feed_entries_for_objects.apply_async(
-                args=(document.id, document_content_type.id),
-                priority=1,
-            )
-        )
-    except Exception as e:
-        logger.warning(
-            f"Failed to update feed entries associated with unified document {unified_document.id}: {e}"
-        )
-        return
+    warnings.warn(
+        "handle_bounty_delete_update_feed_entries is deprecated. "
+        "Bounty feed handling is now done by the generic feed management system.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    # Do nothing - the generic system handles this automatically

@@ -1,67 +1,36 @@
-import logging
+"""
+Signal handlers for Review model.
 
-from django.contrib.contenttypes.models import ContentType
-from django.db.models.signals import post_save
-from django.dispatch import receiver
+NOTE: This file is now legacy. The review signal handling is done through
+the generic feed management system in feed.feed_manager and feed.feed_configs.
 
-from feed.models import FeedEntry
-from feed.tasks import refresh_feed_entry
-from review.models.review_model import Review
+The generic system automatically handles:
+- Creating feed entries when reviews are created
+- Deleting feed entries when reviews are removed
+- Updating metrics for related entities
+- Hub association changes
 
-logger = logging.getLogger(__name__)
+To modify review feed behavior, update the Review configuration
+in feed.feed_configs.py instead of modifying this file.
+"""
+
+# Legacy code kept for reference but no longer active
+# All functionality moved to feed.feed_manager and feed.feed_configs
+
+import warnings
 
 
-@receiver(post_save, sender=Review)
 def handle_review_created_or_updated(sender, instance, created, **kwargs):
     """
-    When a review is created or updated, update feed entries for:
-    1. The comment that was reviewed
-    2. The document associated with the unified document
+    DEPRECATED: This function is no longer used.
+
+    Review feed entry updates are now handled automatically by the generic
+    feed management system. See feed.feed_manager and feed.feed_configs.
     """
-    review = instance
-
-    try:
-        _update_feed_entries(review)
-    except Exception as e:
-        action = "created" if created else "updated"
-        logger.error(
-            f"Failed to update feed entries for review {review.id} {action}: {e}"
-        )
-
-
-def _update_feed_entries(review):
-    """
-    Update feed entries associated with the review.
-    This includes:
-    - Feed entries for the document associated with the unified document
-    - Feed entries for the comment that was reviewed
-    """
-    # Skip if review has no unified document
-    if not getattr(review, "unified_document", None):
-        return
-
-    # Update feed entries for the document associated with the unified document
-    document = review.unified_document.get_document()  # can be paper or post
-    document_content_type = ContentType.objects.get_for_model(document)
-
-    document_feed_entries = FeedEntry.objects.filter(
-        content_type=document_content_type, object_id=document.id
+    warnings.warn(
+        "handle_review_created_or_updated is deprecated. "
+        "Review feed handling is now done by the generic feed management system.",
+        DeprecationWarning,
+        stacklevel=2,
     )
-
-    for entry in document_feed_entries:
-        refresh_feed_entry.apply_async(
-            args=(entry.id,),
-            priority=1,
-        )
-
-    # Update feed entries for the comment that was reviewed
-    if review.item and review.content_type:
-        comment_feed_entries = FeedEntry.objects.filter(
-            content_type=review.content_type, object_id=review.object_id
-        )
-
-        for entry in comment_feed_entries:
-            refresh_feed_entry.apply_async(
-                args=(entry.id,),
-                priority=1,
-            )
+    # Do nothing - the generic system handles this automatically
