@@ -820,7 +820,7 @@ CROSSREF_LOGIN_PASSWORD = os.environ.get(
 )
 CROSSREF_API_URL = (
     "https://doi.crossref.org/servlet/deposit"
-    if STAGING or PRODUCTION
+    if PRODUCTION
     else "https://test.crossref.org/servlet/deposit"
 )
 
