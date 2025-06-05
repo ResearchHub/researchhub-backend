@@ -7,6 +7,8 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
 from feed.models import FeedEntry
+from feed.serializers import PostSerializer
+from feed.views.base_feed_view import BaseFeedView
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.purchase_model import Purchase
 from researchhub_document.helpers import create_post
@@ -125,12 +127,6 @@ class TestPurchaseSignals(TestCase):
         mock_refresh_feed_entry,
     ):
         """Test that creating a grant application triggers feed entry refresh"""
-        from django.contrib.contenttypes.models import ContentType
-
-        from feed.models import FeedEntry
-        from researchhub_document.related_models.researchhub_post_model import (
-            ResearchhubPost,
-        )
 
         # Arrange
         mock_transaction.on_commit = lambda func: func()
@@ -178,7 +174,7 @@ class TestPurchaseSignals(TestCase):
         )
 
         # Act - Create a grant application - this should trigger our signal
-        GrantApplication.objects.create(
+        grant_application = GrantApplication.objects.create(
             grant=open_grant,
             preregistration_post=preregistration,
             applicant=applicant,
@@ -194,6 +190,28 @@ class TestPurchaseSignals(TestCase):
             ]
         )
 
+        # Additional check: Verify that serializing the post now includes
+        # grant applications
+        context = BaseFeedView().get_common_serializer_context()
+        serializer = PostSerializer(open_post, context=context)
+        data = serializer.data
+
+        # Check that grant data includes applications
+        self.assertIsNotNone(data["grant"])
+        grant_data = data["grant"]
+        self.assertIn("applications", grant_data)
+        applications = grant_data["applications"]
+        self.assertEqual(len(applications), 1)
+
+        # Verify the application details
+        application_data = applications[0]
+        self.assertEqual(application_data["id"], grant_application.id)
+        self.assertEqual(
+            application_data["preregistration_post_id"], preregistration.id
+        )
+        applicant_id = application_data["applicant"]["id"]
+        self.assertEqual(applicant_id, applicant.author_profile.id)
+
     @patch("feed.signals.purchase_signals.refresh_feed_entry")
     @patch("feed.signals.purchase_signals.transaction")
     def test_grant_application_delete_signal_refreshes_feed_entry(
@@ -202,12 +220,6 @@ class TestPurchaseSignals(TestCase):
         mock_refresh_feed_entry,
     ):
         """Test that deleting a grant application triggers feed entry refresh"""
-        from django.contrib.contenttypes.models import ContentType
-
-        from feed.models import FeedEntry
-        from researchhub_document.related_models.researchhub_post_model import (
-            ResearchhubPost,
-        )
 
         # Arrange
         mock_transaction.on_commit = lambda func: func()
