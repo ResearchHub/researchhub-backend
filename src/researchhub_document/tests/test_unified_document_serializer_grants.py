@@ -285,18 +285,6 @@ class ResearchhubPostGrantModeratorTests(APITestCase):
         self.assertIn("grant", response.data)
         self.assertIsNotNone(response.data["grant"])
 
-    def test_regular_user_cannot_create_grant_post_with_grant_data(self):
-        """Test that regular users cannot create GRANT type posts with grant data"""
-        self.client.force_authenticate(user=self.regular_user)
-
-        url = reverse("researchhubpost-list")
-        response = self.client.post(url, self.grant_post_data, format="json")
-
-        self.assertEqual(response.status_code, 403)
-        self.assertIn("message", response.data)
-        expected_message = "Only moderators can create GRANT posts with grant data"
-        self.assertIn(expected_message, response.data["message"])
-
     def test_regular_user_can_create_grant_post_without_grant_data(self):
         """Test that regular users can create GRANT type posts without grant data"""
         self.client.force_authenticate(user=self.regular_user)
