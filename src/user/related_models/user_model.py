@@ -21,7 +21,7 @@ from utils.message import send_email_message
 from utils.siftscience import decisions_api
 from utils.throttles import UserSustainedRateThrottle
 
-FOUNDATION_EMAIL = "main@researchhub.foundation"
+FOUNDATION_EMAIL = "revenue1@researchhub.foundation"
 
 
 class UserManager(UserManager):
