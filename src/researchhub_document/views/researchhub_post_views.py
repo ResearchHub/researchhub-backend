@@ -79,10 +79,15 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             query_params = request.query_params
             created_by_id = query_params.get("created_by")
             post_id = query_params.get("post_id")
+            document_type = query_params.get("document_type")
+
             if created_by_id is not None:
                 query_set = query_set.filter(created_by__id=created_by_id)
             if post_id is not None:
                 query_set = query_set.filter(id=post_id)
+            if document_type is not None:
+                query_set = query_set.filter(document_type=document_type)
+
             return query_set.order_by("-created_date")
         except (KeyError, TypeError) as exception:
             return Response(exception, status=400)
@@ -424,7 +429,10 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             serializer.save()
             post = serializer.instance
 
-            file_name = f'RH-POST-{request.data.get("document_type")}-USER-{request.user.id}.txt'
+            file_name = (
+                f'RH-POST-{request.data.get("document_type")}-'
+                f"USER-{request.user.id}.txt"
+            )
             full_src_file = ContentFile(request.data["full_src"].encode())
             post.discussion_src.save(file_name, full_src_file)
 

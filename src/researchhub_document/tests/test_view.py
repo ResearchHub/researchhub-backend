@@ -1530,3 +1530,116 @@ class ViewTests(APITestCase):
         self.assertTrue(grant.contacts.filter(id=contact2.id).exists())
         self.assertTrue(grant.contacts.filter(id=contact3.id).exists())
         self.assertFalse(grant.contacts.filter(id=contact1.id).exists())
+
+    def test_get_queryset_filters_by_document_type(self):
+        """Test that the get_queryset method filters posts by document_type parameter"""
+        author = create_random_default_user("author")
+        hub = create_hub()
+
+        self.client.force_authenticate(author)
+
+        # Create posts with different document types
+        discussion_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "DISCUSSION",
+                "created_by": author.id,
+                "full_src": "discussion body",
+                "is_public": True,
+                "renderable_text": "sufficiently long discussion body. sufficiently long discussion body. sufficiently long discussion body.",
+                "title": "Discussion Post Title - Long Enough",
+                "hubs": [hub.id],
+            },
+        )
+
+        question_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "QUESTION",
+                "created_by": author.id,
+                "full_src": "question body",
+                "is_public": True,
+                "renderable_text": "sufficiently long question body. sufficiently long question body. sufficiently long question body.",
+                "title": "Question Post Title - Long Enough",
+                "hubs": [hub.id],
+            },
+        )
+
+        preregistration_response = self.client.post(
+            "/api/researchhubpost/",
+            {
+                "document_type": "PREREGISTRATION",
+                "created_by": author.id,
+                "full_src": "preregistration body",
+                "is_public": True,
+                "renderable_text": "sufficiently long preregistration body. sufficiently long preregistration body. sufficiently long preregistration body.",
+                "title": "Preregistration Post Title - Long Enough",
+                "hubs": [hub.id],
+            },
+        )
+
+        self.assertEqual(discussion_response.status_code, 200)
+        self.assertEqual(question_response.status_code, 200)
+        self.assertEqual(preregistration_response.status_code, 200)
+
+        # Test filtering by DISCUSSION document_type
+        discussion_filter_response = self.client.get(
+            "/api/researchhubpost/?document_type=DISCUSSION"
+        )
+        self.assertEqual(discussion_filter_response.status_code, 200)
+        discussion_results = discussion_filter_response.data["results"]
+
+        # Should only return the discussion post
+        self.assertEqual(len(discussion_results), 1)
+        self.assertEqual(discussion_results[0]["document_type"], "DISCUSSION")
+        self.assertEqual(discussion_results[0]["id"], discussion_response.data["id"])
+
+        # Test filtering by QUESTION document_type
+        question_filter_response = self.client.get(
+            "/api/researchhubpost/?document_type=QUESTION"
+        )
+        self.assertEqual(question_filter_response.status_code, 200)
+        question_results = question_filter_response.data["results"]
+
+        # Should only return the question post
+        self.assertEqual(len(question_results), 1)
+        self.assertEqual(question_results[0]["document_type"], "QUESTION")
+        self.assertEqual(question_results[0]["id"], question_response.data["id"])
+
+        # Test filtering by PREREGISTRATION document_type
+        preregistration_filter_response = self.client.get(
+            "/api/researchhubpost/?document_type=PREREGISTRATION"
+        )
+        self.assertEqual(preregistration_filter_response.status_code, 200)
+        preregistration_results = preregistration_filter_response.data["results"]
+
+        # Should only return the preregistration post
+        self.assertEqual(len(preregistration_results), 1)
+        self.assertEqual(preregistration_results[0]["document_type"], "PREREGISTRATION")
+        self.assertEqual(
+            preregistration_results[0]["id"], preregistration_response.data["id"]
+        )
+
+        # Test that without filter, all posts are returned
+        all_posts_response = self.client.get("/api/researchhubpost/")
+        self.assertEqual(all_posts_response.status_code, 200)
+        all_results = all_posts_response.data["results"]
+
+        # Should return all three posts (plus any from other tests)
+        self.assertGreaterEqual(len(all_results), 3)
+
+        # Verify our three posts are all present
+        post_ids = [post["id"] for post in all_results]
+        self.assertIn(discussion_response.data["id"], post_ids)
+        self.assertIn(question_response.data["id"], post_ids)
+        self.assertIn(preregistration_response.data["id"], post_ids)
+
+        # Test filtering by non-existent document_type
+        empty_filter_response = self.client.get(
+            "/api/researchhubpost/?document_type=NONEXISTENT"
+        )
+        self.assertEqual(empty_filter_response.status_code, 200)
+        empty_results = empty_filter_response.data["results"]
+
+        # Should return no posts
+        self.assertEqual(len(empty_results), 0)
