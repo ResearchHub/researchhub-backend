@@ -55,7 +55,7 @@ class NoteViewSet(ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        return (
+        queryset = (
             self.queryset.filter(
                 Q(created_by=user)
                 | Q(organization__permissions__user=user)
@@ -64,6 +64,13 @@ class NoteViewSet(ModelViewSet):
             .distinct()
             .order_by("-created_date")
         )
+
+        # Optional filter for unified document's document type
+        document_type = self.request.query_params.get("document_type", None)
+        if document_type:
+            queryset = queryset.filter(unified_document__document_type=document_type)
+
+        return queryset
 
     def create(self, request, *args, **kwargs):
         user = request.user

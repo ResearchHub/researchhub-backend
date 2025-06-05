@@ -1146,7 +1146,9 @@ class NoteTests(APITestCase):
                     "Test grant post content with contacts that is "
                     "sufficiently long for validation"
                 ),
-                "title": "Test grant post with contacts title that is sufficiently long",
+                "title": (
+                    "Test grant post with contacts title that is sufficiently long"
+                ),
                 "hubs": [],
                 "grant_amount": 75000,
                 "grant_currency": "USD",
@@ -1250,7 +1252,9 @@ class NoteTests(APITestCase):
                     "Preregistration content for application that is "
                     "sufficiently long for validation"
                 ),
-                "title": "Preregistration for grant application that is sufficiently long",
+                "title": (
+                    "Preregistration for grant application that is sufficiently long"
+                ),
                 "hubs": [],
             },
         )
@@ -1293,3 +1297,62 @@ class NoteTests(APITestCase):
         self.assertEqual(
             application["preregistration_post_id"], preregistration_response.data["id"]
         )
+
+    def test_user_can_filter_notes_by_document_type(self):
+        """Test that users can filter notes by unified document's document type"""
+        # Create a note with NOTE document type (default)
+        response = self.client.post(
+            "/api/note/",
+            {
+                "grouping": "PRIVATE",
+                "title": "Test Note",
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        note_with_note_type = response.data
+
+        # Create another unified document with different document type
+        from researchhub_document.related_models.constants.document_type import PAPER
+
+        unified_doc_paper = ResearchhubUnifiedDocument.objects.create(
+            document_type=PAPER
+        )
+
+        # Create a note manually with PAPER document type
+        note_with_paper_type = Note.objects.create(
+            created_by=self.user,
+            organization=self.user.organization,
+            unified_document=unified_doc_paper,
+            title="Test Paper Note",
+        )
+
+        # Add permissions for the manually created note
+        content_type = ContentType.objects.get_for_model(ResearchhubUnifiedDocument)
+        Permission.objects.create(
+            access_type="ADMIN",
+            content_type=content_type,
+            object_id=unified_doc_paper.id,
+            user=self.user,
+        )
+
+        # Test filtering by NOTE document type
+        response = self.client.get("/api/note/?document_type=NOTE")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["id"], note_with_note_type["id"])
+
+        # Test filtering by PAPER document type
+        response = self.client.get("/api/note/?document_type=PAPER")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["id"], note_with_paper_type.id)
+
+        # Test no filter returns all notes
+        response = self.client.get("/api/note/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 2)
+
+        # Test filtering by non-existent document type returns no results
+        response = self.client.get("/api/note/?document_type=NONEXISTENT")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 0)
