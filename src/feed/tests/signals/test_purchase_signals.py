@@ -4,11 +4,9 @@ from unittest.mock import MagicMock, call, patch
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from feed.models import FeedEntry
-from feed.serializers import PostSerializer
-from feed.views.base_feed_view import BaseFeedView
 from purchase.models import Grant, GrantApplication
 from purchase.related_models.purchase_model import Purchase
 from researchhub_document.helpers import create_post
@@ -25,6 +23,7 @@ from user.tests.helpers import create_random_authenticated_user, create_user
 
 
 class TestPurchaseSignals(TestCase):
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     def setUp(self):
         self.user = create_user("test@example.com", "password")
 
@@ -119,18 +118,17 @@ class TestPurchaseSignals(TestCase):
             ]
         )
 
-    @patch("feed.signals.purchase_signals.refresh_feed_entry")
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     @patch("feed.signals.purchase_signals.transaction")
     def test_grant_application_signal_refreshes_feed_entry(
         self,
         mock_transaction,
-        mock_refresh_feed_entry,
     ):
-        """Test that creating a grant application triggers feed entry refresh"""
+        """Test that creating a grant application triggers feed entry refresh
+        and updates content"""
 
         # Arrange
         mock_transaction.on_commit = lambda func: func()
-        mock_refresh_feed_entry.apply_async = MagicMock()
 
         # Create users
         moderator = create_random_authenticated_user("grant_moderator", moderator=True)
@@ -165,6 +163,9 @@ class TestPurchaseSignals(TestCase):
             metrics={},
         )
 
+        # Verify initial state - no applications in feed entry
+        self.assertEqual(feed_entry.content, {})
+
         # Create an applicant and preregistration post
         applicant = create_random_authenticated_user("applicant")
         preregistration = create_post(
@@ -180,30 +181,21 @@ class TestPurchaseSignals(TestCase):
             applicant=applicant,
         )
 
-        # Assert - The signal should have triggered feed entry refresh
-        mock_refresh_feed_entry.apply_async.assert_has_calls(
-            [
-                call(
-                    args=(feed_entry.id,),
-                    priority=1,
-                ),
-            ]
-        )
+        # Wait for signals to complete (transactions are committed synchronously
+        # due to test settings)
 
-        # Additional check: Verify that serializing the post now includes
-        # grant applications
-        context = BaseFeedView().get_common_serializer_context()
-        serializer = PostSerializer(open_post, context=context)
-        data = serializer.data
+        # Refresh feed entry from database and check content was updated
+        feed_entry.refresh_from_db()
 
-        # Check that grant data includes applications
-        self.assertIsNotNone(data["grant"])
-        grant_data = data["grant"]
+        # The feed entry content should now include the grant application data
+        self.assertIsNotNone(feed_entry.content)
+        self.assertIn("grant", feed_entry.content)
+        grant_data = feed_entry.content["grant"]
         self.assertIn("applications", grant_data)
         applications = grant_data["applications"]
         self.assertEqual(len(applications), 1)
 
-        # Verify the application details
+        # Verify the application details in the feed entry
         application_data = applications[0]
         self.assertEqual(application_data["id"], grant_application.id)
         self.assertEqual(
@@ -212,18 +204,17 @@ class TestPurchaseSignals(TestCase):
         applicant_id = application_data["applicant"]["id"]
         self.assertEqual(applicant_id, applicant.author_profile.id)
 
-    @patch("feed.signals.purchase_signals.refresh_feed_entry")
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True, CELERY_TASK_EAGER_PROPAGATES=True)
     @patch("feed.signals.purchase_signals.transaction")
     def test_grant_application_delete_signal_refreshes_feed_entry(
         self,
         mock_transaction,
-        mock_refresh_feed_entry,
     ):
-        """Test that deleting a grant application triggers feed entry refresh"""
+        """Test that deleting a grant application triggers feed entry refresh
+        and updates content"""
 
         # Arrange
         mock_transaction.on_commit = lambda func: func()
-        mock_refresh_feed_entry.apply_async = MagicMock()
 
         # Create users
         moderator = create_random_authenticated_user("grant_moderator", moderator=True)
@@ -273,18 +264,25 @@ class TestPurchaseSignals(TestCase):
             applicant=applicant,
         )
 
-        # Reset the mock to ignore the create signal call
-        mock_refresh_feed_entry.apply_async.reset_mock()
+        # Verify the application is in the feed entry after creation
+        feed_entry.refresh_from_db()
+        self.assertIn("grant", feed_entry.content)
+        grant_data = feed_entry.content["grant"]
+        self.assertIn("applications", grant_data)
+        self.assertEqual(len(grant_data["applications"]), 1)
+        self.assertEqual(grant_data["applications"][0]["id"], application.id)
 
         # Act - Delete the application - this should trigger our delete signal
         application.delete()
 
-        # Assert - The delete signal should have triggered feed entry refresh
-        mock_refresh_feed_entry.apply_async.assert_has_calls(
-            [
-                call(
-                    args=(feed_entry.id,),
-                    priority=1,
-                ),
-            ]
-        )
+        # Wait for signals to complete (transactions are committed synchronously
+        # due to test settings)
+
+        # Refresh feed entry from database and verify application was removed
+        feed_entry.refresh_from_db()
+
+        # The feed entry should still have grant data but no applications
+        self.assertIn("grant", feed_entry.content)
+        grant_data = feed_entry.content["grant"]
+        self.assertIn("applications", grant_data)
+        self.assertEqual(len(grant_data["applications"]), 0)
