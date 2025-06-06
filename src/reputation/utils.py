@@ -76,7 +76,7 @@ def _deduct_fees(
         True if successful, else raises exception
     """
     rh_recipient = User.objects.get_revenue_account()
-    dao_recipient = User.objects.get_community_account()
+    dao_recipient = User.objects.get_community_revenue_account()
     if fee_type == "bounty":
         rh_fee_distribution = create_bounty_rh_fee_distribution(rh_fee)
         dao_fee_distribution = create_bounty_dao_fee_distribution(dao_fee)

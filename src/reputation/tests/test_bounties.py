@@ -1415,3 +1415,19 @@ class BountyViewTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         hub_ids = [hub["id"] for hub in response.data]
         self.assertNotIn(unused_hub.id, hub_ids)
+
+    def test_bounty_dao_fee_goes_to_community_revenue_account(self):
+        community_revenue_user, _ = User.objects.get_or_create(email="revenue1@researchhub.foundation")
+        self.client.force_authenticate(self.user)
+        response = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 100,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
+            },
+        )
+        self.assertEqual(response.status_code, 201)
+        from reputation.models import Distribution
+        dao_fee_distribution = Distribution.objects.filter(distribution_type="BOUNTY_DAO_FEE").latest("created_date")
+        self.assertEqual(dao_fee_distribution.recipient, community_revenue_user)

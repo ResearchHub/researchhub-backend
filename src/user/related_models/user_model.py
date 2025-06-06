@@ -22,7 +22,7 @@ from utils.siftscience import decisions_api
 from utils.throttles import UserSustainedRateThrottle
 
 FOUNDATION_EMAIL = "main@researchhub.foundation"
-
+FOUNDATION_REVENUE_EMAIL = "revenue1@researchhub.foundation"
 
 class UserManager(UserManager):
     def editors(self):
@@ -57,7 +57,12 @@ class UserManager(UserManager):
 
         return self._get_default_account()
 
+    def get_community_revenue_account(self):
+        user = User.objects.filter(email=FOUNDATION_REVENUE_EMAIL)
+        if user.exists():
+            return user.first()
 
+        return self._get_default_account()
 """
 User objects have the following fields by default:
     https://docs.djangoproject.com/en/2.2/ref/contrib/auth/#django.contrib.auth.models.User
