@@ -13,11 +13,11 @@ from hub.tests.helpers import create_hub
 from paper.tests.helpers import create_paper
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
-from reputation.models import Bounty, BountyFee, BountySolution
+from reputation.models import Bounty, BountyFee, BountySolution, Distribution
 from researchhub_comment.tests.helpers import create_rh_comment
 from user.models import User
 from user.tests.helpers import create_moderator, create_random_default_user, create_user
-
+from user.related_models.user_model import FOUNDATION_REVENUE_EMAIL
 
 class BountyViewTests(APITestCase):
     def setUp(self):
@@ -1417,7 +1417,7 @@ class BountyViewTests(APITestCase):
         self.assertNotIn(unused_hub.id, hub_ids)
 
     def test_bounty_dao_fee_goes_to_community_revenue_account(self):
-        community_revenue_user, _ = User.objects.get_or_create(email="revenue1@researchhub.foundation")
+        community_revenue_user, _ = User.objects.get_or_create(email=FOUNDATION_REVENUE_EMAIL)
         self.client.force_authenticate(self.user)
         response = self.client.post(
             "/api/bounty/",
@@ -1428,6 +1428,5 @@ class BountyViewTests(APITestCase):
             },
         )
         self.assertEqual(response.status_code, 201)
-        from reputation.models import Distribution
         dao_fee_distribution = Distribution.objects.filter(distribution_type="BOUNTY_DAO_FEE").latest("created_date")
         self.assertEqual(dao_fee_distribution.recipient, community_revenue_user)
