@@ -188,13 +188,14 @@ class Fundraise(DefaultModel):
 
                 if fee > 0:
                     # Create a refund for the fee
+                    rh_revenue_account = User.objects.get_revenue_account()
                     distribution = create_bounty_refund_distribution(fee)
                     distributor = Distributor(
                         distribution,
                         user,
                         fee_object,  # The BountyFee object
                         time.time(),
-                        giver=user,
+                        giver=rh_revenue_account,
                     )
                     record = distributor.distribute()
                     if record.distributed_status == "FAILED":
