@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timedelta
 from decimal import Decimal
 
@@ -9,7 +10,6 @@ from django.db import models, transaction
 
 from purchase.related_models.constants.currency import ETHER, RSC, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from reputation.utils import calculate_bounty_fees
 from utils.models import DefaultModel
 
 
@@ -155,10 +155,10 @@ class Fundraise(DefaultModel):
         Only works if the fundraise is in OPEN status and has escrow funds.
         Returns True if successful, False otherwise.
         """
-        import time
-
+        # Import inside method to avoid circular imports
         from reputation.distributions import create_bounty_refund_distribution
         from reputation.distributor import Distributor
+        from reputation.utils import calculate_bounty_fees
 
         with transaction.atomic():
             # Check if fundraise can be refunded (is open and has escrow funds)
