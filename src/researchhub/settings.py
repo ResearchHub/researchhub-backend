@@ -819,9 +819,7 @@ CROSSREF_LOGIN_PASSWORD = os.environ.get(
     "CROSSREF_LOGIN_PASSWORD", keys.CROSSREF_LOGIN_PASSWORD
 )
 CROSSREF_API_URL = (
-    "https://doi.crossref.org/servlet/deposit"
-    if PRODUCTION
-    else "https://test.crossref.org/servlet/deposit"
+    f"https://{'doi' if PRODUCTION else 'test'}.crossref.org/servlet/deposit"
 )
 
 WEB3_NETWORK = os.environ.get("WEB3_NETWORK", keys.WEB3_NETWORK)
