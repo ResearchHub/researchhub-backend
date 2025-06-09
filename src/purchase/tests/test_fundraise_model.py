@@ -14,6 +14,11 @@ class FundraiseModelTests(TestCase):
         # Create a moderator user
         self.user = create_random_authenticated_user("fundraise_model", moderator=True)
 
+        # Create revenue account that will be used for fee refunds
+        self.revenue_account = create_random_authenticated_user("revenue_account")
+        self.revenue_account.email = "revenue@researchhub.com"
+        self.revenue_account.save()
+
         # Create a post
         self.post = create_post(created_by=self.user, document_type=PREREGISTRATION)
 

@@ -159,6 +159,7 @@ class Fundraise(DefaultModel):
         from reputation.distributions import create_bounty_refund_distribution
         from reputation.distributor import Distributor
         from reputation.utils import calculate_bounty_fees
+        from user.models import User
 
         with transaction.atomic():
             # Check if fundraise can be refunded (is open and has escrow funds)
