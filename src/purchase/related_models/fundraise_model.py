@@ -9,6 +9,7 @@ from django.db import models, transaction
 
 from purchase.related_models.constants.currency import ETHER, RSC, USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from reputation.utils import calculate_bounty_fees
 from utils.models import DefaultModel
 
 
@@ -150,9 +151,15 @@ class Fundraise(DefaultModel):
     def close_fundraise(self):
         """
         Close a fundraise and refund all contributions to their contributors.
+        Also refunds the fees that were deducted when creating contributions.
         Only works if the fundraise is in OPEN status and has escrow funds.
         Returns True if successful, False otherwise.
         """
+        import time
+
+        from reputation.distributions import create_bounty_refund_distribution
+        from reputation.distributor import Distributor
+
         with transaction.atomic():
             # Check if fundraise can be refunded (is open and has escrow funds)
             if self.status != self.OPEN or self.escrow.amount_holding <= 0:
@@ -171,6 +178,28 @@ class Fundraise(DefaultModel):
                     success = self.escrow.refund(user, amount)
                     if not success:
                         # If a refund fails, we should abort the whole transaction
+                        return False
+
+                # Also refund the fees that were deducted when this contribution
+                # was made. Calculate the fee using the same logic used during
+                # contribution creation.
+
+                fee, _, _, fee_object = calculate_bounty_fees(amount)
+
+                if fee > 0:
+                    # Create a refund for the fee
+                    distribution = create_bounty_refund_distribution(fee)
+                    distributor = Distributor(
+                        distribution,
+                        user,
+                        fee_object,  # The BountyFee object
+                        time.time(),
+                        giver=user,
+                    )
+                    record = distributor.distribute()
+                    if record.distributed_status == "FAILED":
+                        # If fee refund fails, we should abort the whole
+                        # transaction
                         return False
 
             # Update fundraise status

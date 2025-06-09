@@ -163,3 +163,44 @@ class FundraiseModelTests(TestCase):
 
         # Check it failed
         self.assertFalse(result)
+
+    def test_close_fundraise_refunds_fees(self):
+        """Test that closing a fundraise also refunds the fees that were deducted"""
+        from decimal import Decimal
+
+        from reputation.utils import calculate_bounty_fees
+
+        # Create a contributor
+        contributor = create_random_authenticated_user("fundraise_contributor")
+        self._give_user_balance(contributor, 1000)
+
+        # Create a contribution
+        contribution_amount = Decimal("100")
+        self._create_contribution(
+            self.fundraise, contributor, amount=contribution_amount
+        )
+
+        # Calculate what the fee would be for this contribution
+        fee, rh_fee, dao_fee, fee_object = calculate_bounty_fees(contribution_amount)
+
+        # Get initial balance count for contributor
+        initial_balance_count = Balance.objects.filter(user=contributor).count()
+
+        # Close the fundraise
+        result = self.fundraise.close_fundraise()
+
+        # Check result
+        self.assertTrue(result)
+
+        # Verify that new positive balance records were created (refunds)
+        final_balance_count = Balance.objects.filter(user=contributor).count()
+        # Should have at least 2 new records: one for contribution refund,
+        # one for fee refund
+        self.assertGreater(final_balance_count, initial_balance_count)
+
+        # Verify that a positive balance record exists for the fee refund
+        fee_refund_exists = Balance.objects.filter(
+            user=contributor,
+            amount=fee.to_eng_string(),  # Positive amount (refund)
+        ).exists()
+        self.assertTrue(fee_refund_exists)
