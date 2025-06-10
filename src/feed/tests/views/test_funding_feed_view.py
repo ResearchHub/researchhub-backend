@@ -131,7 +131,7 @@ class FundingFeedViewSetTests(TestCase):
             goal_amount=100,
         )
 
-        # Create a closed fundraise for the second post
+        # Create a completed fundraise for the second post
         self.escrow2 = Escrow.objects.create(
             amount_holding=0,
             hold_type=Escrow.FUNDRAISE,
@@ -143,7 +143,7 @@ class FundingFeedViewSetTests(TestCase):
             created_by=self.other_user,
             unified_document=self.other_unified_document,
             escrow=self.escrow2,
-            status=Fundraise.CLOSED,
+            status=Fundraise.COMPLETED,
             goal_amount=100,
         )
 
@@ -545,15 +545,15 @@ class FundingFeedViewSetTests(TestCase):
             object_id=later_doc.id,
         )
 
-        # Create fundraises with different end dates (all CLOSED)
+        # Create fundraises with different end dates (all COMPLETED)
         today = timezone.now()
 
-        # End dates in the past (all closed fundraises)
+        # End dates in the past (all completed fundraises)
         Fundraise.objects.create(
             created_by=self.user,
             unified_document=early_doc,
             escrow=escrow_early,
-            status=Fundraise.CLOSED,
+            status=Fundraise.COMPLETED,
             goal_amount=100,
             end_date=today - timezone.timedelta(days=30),  # Oldest end date
         )
@@ -562,7 +562,7 @@ class FundingFeedViewSetTests(TestCase):
             created_by=self.user,
             unified_document=medium_doc,
             escrow=escrow_medium,
-            status=Fundraise.CLOSED,
+            status=Fundraise.COMPLETED,
             goal_amount=100,
             end_date=today - timezone.timedelta(days=10),  # Middle end date
         )
@@ -571,7 +571,7 @@ class FundingFeedViewSetTests(TestCase):
             created_by=self.user,
             unified_document=later_doc,
             escrow=escrow_later,
-            status=Fundraise.CLOSED,
+            status=Fundraise.COMPLETED,
             goal_amount=100,
             end_date=today - timezone.timedelta(days=3),  # Most recent end date
         )
@@ -581,7 +581,7 @@ class FundingFeedViewSetTests(TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-        # Should have 4 results (the original closed fundraise + 3 new ones)
+        # Should have 4 results (the original completed fundraise + 3 new ones)
         self.assertEqual(len(response.data["results"]), 4)
 
         # Extract post IDs in the order they are returned
@@ -655,12 +655,12 @@ class FundingFeedViewSetTests(TestCase):
             end_date=today + timezone.timedelta(days=30),  # Further deadline
         )
 
-        # Create an additional closed fundraise with recent end date
+        # Create an additional completed fundraise with recent end date
         recent_closed_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
         )
         recent_closed_post = ResearchhubPost.objects.create(
-            title="Recent Closed Post",
+            title="Recent Completed Post",
             created_by=self.user,
             document_type=PREREGISTRATION,
             unified_document=recent_closed_doc,
@@ -679,17 +679,17 @@ class FundingFeedViewSetTests(TestCase):
             created_by=self.user,
             unified_document=recent_closed_doc,
             escrow=escrow_recent_closed,
-            status=Fundraise.CLOSED,
+            status=Fundraise.COMPLETED,
             goal_amount=100,
-            end_date=today - timezone.timedelta(days=3),  # Recently closed
+            end_date=today - timezone.timedelta(days=3),  # Recently completed
         )
 
-        # Create an additional closed fundraise with older end date
+        # Create an additional completed fundraise with older end date
         old_closed_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
         )
         old_closed_post = ResearchhubPost.objects.create(
-            title="Old Closed Post",
+            title="Old Completed Post",
             created_by=self.user,
             document_type=PREREGISTRATION,
             unified_document=old_closed_doc,
@@ -708,9 +708,9 @@ class FundingFeedViewSetTests(TestCase):
             created_by=self.user,
             unified_document=old_closed_doc,
             escrow=escrow_old_closed,
-            status=Fundraise.CLOSED,
+            status=Fundraise.COMPLETED,
             goal_amount=100,
-            end_date=today - timezone.timedelta(days=30),  # Closed a while ago
+            end_date=today - timezone.timedelta(days=30),  # Completed a while ago
         )
 
         # Query the ALL fundraises (no filter)
@@ -725,13 +725,13 @@ class FundingFeedViewSetTests(TestCase):
         post_ids = [item["content_object"]["id"] for item in response.data["results"]]
 
         # Verify the ordering is as expected:
-        # 1. All OPEN fundraises should come before CLOSED ones
+        # 1. All OPEN fundraises should come before COMPLETED ones
         # 2. Within OPEN, closer deadlines should be first
-        # 3. Within CLOSED, more recent end dates should be first
+        # 3. Within COMPLETED, more recent end dates should be first
 
-        # All open posts should come before all closed posts
+        # All open posts should come before all completed posts
         all_open_post_ids = [early_open_post.id, later_open_post.id, self.post.id]
-        all_closed_post_ids = [
+        all_completed_post_ids = [
             recent_closed_post.id,
             old_closed_post.id,
             self.other_post.id,
@@ -740,20 +740,20 @@ class FundingFeedViewSetTests(TestCase):
         # Get the last index of any open post
         last_open_index = max(post_ids.index(post_id) for post_id in all_open_post_ids)
 
-        # Get the first index of any closed post
-        first_closed_index = min(
-            post_ids.index(post_id) for post_id in all_closed_post_ids
+        # Get the first index of any completed post
+        first_completed_index = min(
+            post_ids.index(post_id) for post_id in all_completed_post_ids
         )
 
-        # Verify that all open posts come before all closed posts
-        self.assertLess(last_open_index, first_closed_index)
+        # Verify that all open posts come before all completed posts
+        self.assertLess(last_open_index, first_completed_index)
 
         # Within OPEN posts, verify closer deadlines come first
         self.assertLess(
             post_ids.index(early_open_post.id), post_ids.index(later_open_post.id)
         )
 
-        # Within CLOSED posts, verify more recent end dates come first
+        # Within COMPLETED posts, verify more recent end dates come first
         self.assertLess(
             post_ids.index(recent_closed_post.id), post_ids.index(old_closed_post.id)
         )
@@ -764,7 +764,7 @@ class FundingFeedViewSetTests(TestCase):
         from researchhub_document.related_models.constants.document_type import GRANT
 
         grant_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
-        grant_post = ResearchhubPost.objects.create(
+        ResearchhubPost.objects.create(
             title="Test Grant",
             created_by=self.user,
             document_type=GRANT,
@@ -791,7 +791,7 @@ class FundingFeedViewSetTests(TestCase):
         other_doc = ResearchhubUnifiedDocument.objects.create(
             document_type=PREREGISTRATION
         )
-        other_post = ResearchhubPost.objects.create(
+        ResearchhubPost.objects.create(
             title="Other Preregistration",
             created_by=self.user,
             document_type=PREREGISTRATION,
@@ -1044,7 +1044,7 @@ class FundingFeedViewSetTests(TestCase):
 
         # Verify that cache was not used for this request
         # The view should not cache responses when grant_id is provided
-        cache_key = f"funding_feed:latest:all:all:none:1-20"
+        cache_key = "funding_feed:latest:all:all:none:1-20"
         cached_response = cache.get(cache_key)
 
         # Cache should be None since grant_id disables caching

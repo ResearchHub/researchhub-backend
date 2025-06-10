@@ -9,7 +9,7 @@ This is done for three reasons:
 """
 
 from django.core.cache import cache
-from django.db.models import BooleanField, Case, F, Q, Value, When
+from django.db.models import BooleanField, Case, F, Value, When
 from rest_framework.response import Response
 
 from feed.models import FeedEntry
@@ -33,7 +33,7 @@ class FundingFeedViewSet(BaseFeedView):
     - fundraise_status: Filter by fundraise status
       Options:
         - OPEN: Only show posts with open fundraises
-        - CLOSED: Only show posts with closed or completed fundraises
+        - CLOSED: Only show posts with completed fundraises
     - grant_id: Filter by grant applications
       (show only posts that applied to specific grant)
     - ordering: Sort order when grant_id is provided
@@ -146,8 +146,7 @@ class FundingFeedViewSet(BaseFeedView):
                 queryset = queryset.order_by("unified_document__fundraises__end_date")
             elif fundraise_status.upper() == "CLOSED":
                 queryset = queryset.filter(
-                    Q(unified_document__fundraises__status=Fundraise.CLOSED)
-                    | Q(unified_document__fundraises__status=Fundraise.COMPLETED)
+                    unified_document__fundraises__status=Fundraise.COMPLETED
                 )
                 # Order by end date descending (most recent deadlines first)
                 queryset = queryset.order_by("-unified_document__fundraises__end_date")
