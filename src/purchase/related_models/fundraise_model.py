@@ -78,20 +78,17 @@ class Fundraise(DefaultModel):
 
     def get_amount_raised(self, currency=USD):
         """
-        Since purchases.amount is a `CharField`, we need to cast it to a
-        `DecimalField` to perform aggregation.
+        Get the net amount raised by looking at the escrow's current holdings
+        and amount paid out. This automatically accounts for refunds since
+        refunds reduce the escrow's amount_holding.
         """
-        rsc_amount = (
-            self.purchases.annotate(
-                amount_decimal=models.functions.Cast(
-                    "amount", models.DecimalField(max_digits=19, decimal_places=10)
-                )
-            ).aggregate(total_amount=models.Sum("amount_decimal"))["total_amount"]
-            or 0
-        )
-        # Convert decimal.Decimal to float
-        rsc_amount = float(rsc_amount)
-        if rsc_amount == 0:
+        if not self.escrow:
+            return 0
+
+        # The actual amount raised is what's currently held plus what's been paid out
+        rsc_amount = float(self.escrow.amount_holding + self.escrow.amount_paid)
+
+        if rsc_amount <= 0:
             return 0
 
         if currency == USD:
@@ -184,7 +181,6 @@ class Fundraise(DefaultModel):
                 # Also refund the fees that were deducted when this contribution
                 # was made. Calculate the fee using the same logic used during
                 # contribution creation.
-
                 fee, _, _, fee_object = calculate_bounty_fees(amount)
 
                 if fee > 0:
