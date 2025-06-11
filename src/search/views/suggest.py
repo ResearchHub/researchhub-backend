@@ -424,7 +424,7 @@ class SuggestView(APIView):
                             es_results.extend(
                                 [
                                     self.safe_transform(transform_func, option, index)
-                                    for option in options[:3]  # Top 3 per suggestion
+                                    for option in options[:limit]
                                 ]
                             )
                         results.extend(es_results)
