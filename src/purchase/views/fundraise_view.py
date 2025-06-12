@@ -22,6 +22,7 @@ from reputation.models import BountyFee
 from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
 from user.models import User
 from user.permissions import IsModerator
+from user.related_models.follow_model import Follow
 from utils.sentry import log_error
 
 
@@ -243,6 +244,14 @@ class FundraiseViewSet(viewsets.ModelViewSet):
                     "OFF_CHAIN",
                 ),
                 priority=1,
+            )
+
+            # Let the contributor follow the preregistration
+            document = fundraise.unified_document.get_document()
+            Follow.objects.get_or_create(
+                user=user,
+                object_id=document.id,
+                content_type=ContentType.objects.get_for_model(document),
             )
 
             # Update escrow object
