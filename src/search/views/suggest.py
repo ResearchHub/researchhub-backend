@@ -429,7 +429,7 @@ class SuggestView(APIView):
                             es_results.extend(
                                 [
                                     self.safe_transform(transform_func, option, index)
-                                    for option in options[:limit_per_index]
+                                    for option in options
                                 ]
                             )
                         results.extend(es_results)
