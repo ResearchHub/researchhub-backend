@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 from django.conf import settings
 from rest_framework.test import APITestCase
-from web3.types import BlockData, TxData, TxReceipt
+from web3.types import BlockData, TxData
 
 from reputation.tasks import PENDING_TRANSACTION_TTL, check_deposits
 from reputation.tests.helpers import create_deposit
@@ -13,8 +13,11 @@ from user.tests.helpers import create_random_authenticated_user
 
 class TaskTests(APITestCase):
     def mock_get_transaction_receipt_data(self, transaction_hash, w3):
-        tx_receipt = TxReceipt()
-        tx_receipt["status"] = 1
+        # Create mock log entry for Transfer event
+        mock_log = Mock()
+        mock_log.address = settings.WEB3_RSC_ADDRESS  # Use the token address
+
+        tx_receipt = {"status": 1, "logs": [mock_log]}
         return tx_receipt
 
     def mock_get_transaction_data(self, transaction_hash, w3):
@@ -31,18 +34,15 @@ class TaskTests(APITestCase):
 
         return _mock_get_block_data
 
-    def mock_decode_function_input_data(self, input):
-        class FunctionName:
-            def __init__(self, fn_name):
-                self.fn_name = fn_name
-
-        function_name = FunctionName("transfer")
-
-        function_params = {
+    def mock_transfer_event(self):
+        """Mock Transfer event with proper structure"""
+        mock_event = Mock()
+        mock_event.args = {
+            "_from": "0x0000000000000000000000000000000000000000",
             "_to": settings.WEB3_WALLET_ADDRESS,
             "_amount": 2000 * 10**18,
         }
-        return (function_name, function_params)
+        return mock_event
 
     def setUp(self):
         # Create a patcher for each function to be mocked
@@ -66,10 +66,13 @@ class TaskTests(APITestCase):
         self.mock_get_transaction.side_effect = self.mock_get_transaction_data
         self.mock_get_block.side_effect = self.mock_get_block_data(time.time())
 
+        # Mock contract with Transfer event processing
         mock_contract = Mock()
-        mock_contract.decode_function_input.side_effect = (
-            self.mock_decode_function_input_data
+        mock_transfer_event_handler = Mock()
+        mock_transfer_event_handler.process_log.return_value = (
+            self.mock_transfer_event()
         )
+        mock_contract.events.Transfer.return_value = mock_transfer_event_handler
         self.mock_get_contract.return_value = mock_contract
 
     def tearDown(self):
@@ -77,6 +80,7 @@ class TaskTests(APITestCase):
         self.get_transaction_receipt_patcher.stop()
         self.get_transaction_patcher.stop()
         self.get_block_patcher.stop()
+        self.get_contract_patcher.stop()
 
     def test_check_deposits(self):
         user = create_random_authenticated_user("deposit_user")
@@ -158,3 +162,51 @@ class TaskTests(APITestCase):
         deposit.refresh_from_db()
 
         self.assertEqual(deposit.paid_status, "PENDING")
+
+    def test_no_transfer_events_fails(self):
+        """Test that deposits fail when no Transfer events are found"""
+        user = create_random_authenticated_user("deposit_user")
+
+        # Override the mock to return empty logs
+        def mock_empty_receipt(transaction_hash, w3):
+            tx_receipt = {"status": 1, "logs": []}  # No logs
+            return tx_receipt
+
+        self.mock_get_transaction_receipt.side_effect = mock_empty_receipt
+
+        deposit = create_deposit(user, "2000.0", "from_address_7", "transaction_hash_7")
+
+        check_deposits()
+
+        deposit.refresh_from_db()
+        self.assertEqual(deposit.paid_status, "FAILED")
+
+    def test_wrong_recipient_address_fails(self):
+        """Test that deposits fail when Transfer event has wrong recipient"""
+        user = create_random_authenticated_user("deposit_user")
+
+        # Create mock Transfer event with wrong recipient
+        def mock_wrong_recipient_event():
+            mock_event = Mock()
+            mock_event.args = {
+                "_from": "0x0000000000000000000000000000000000000000",
+                "_to": "0x1234567890123456789012345678901234567890",  # Wrong address
+                "_amount": 2000 * 10**18,
+            }
+            return mock_event
+
+        # Override the contract mock
+        mock_contract = Mock()
+        mock_transfer_event_handler = Mock()
+        mock_transfer_event_handler.process_log.return_value = (
+            mock_wrong_recipient_event()
+        )
+        mock_contract.events.Transfer.return_value = mock_transfer_event_handler
+        self.mock_get_contract.return_value = mock_contract
+
+        deposit = create_deposit(user, "2000.0", "from_address_8", "transaction_hash_8")
+
+        check_deposits()
+
+        deposit.refresh_from_db()
+        self.assertEqual(deposit.paid_status, "FAILED")
