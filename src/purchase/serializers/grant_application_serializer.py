@@ -2,7 +2,7 @@ from rest_framework import serializers
 
 from purchase.models import GrantApplication
 from researchhub.serializers import DynamicModelFieldSerializer
-from user.serializers import DynamicAuthorSerializer
+from user.serializers import DynamicUserSerializer
 
 
 class GrantApplicationSerializer(DynamicModelFieldSerializer):
@@ -26,13 +26,12 @@ class GrantApplicationSerializer(DynamicModelFieldSerializer):
 
     def get_applicant(self, application):
         """Get applicant author profile data"""
-        if (
-            application.applicant
-            and hasattr(application.applicant, "author_profile")
-            and application.applicant.author_profile
-        ):
-            return DynamicAuthorSerializer(application.applicant.author_profile).data
-        return None
+        context = self.context
+        _context_fields = context.get("pch_dgs_get_applicant", {})
+        serializer = DynamicUserSerializer(
+            application.applicant, context=context, **_context_fields
+        )
+        return serializer.data
 
     def get_preregistration_post_id(self, application):
         """Get the preregistration post ID"""

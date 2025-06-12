@@ -31,6 +31,14 @@ class GrantViewSet(viewsets.ModelViewSet):
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
+        context["pch_dgs_get_applicant"] = {
+            "_include_fields": (
+                "id",
+                "author_profile",
+                "first_name",
+                "last_name",
+            )
+        }
         context["pch_dgs_get_created_by"] = {
             "_include_fields": (
                 "id",
@@ -205,6 +213,9 @@ class GrantViewSet(viewsets.ModelViewSet):
             "applicant__author_profile", "preregistration_post"
         ).all()
 
-        serializer = GrantApplicationSerializer(applications, many=True)
+        context = self.get_serializer_context()
+        serializer = GrantApplicationSerializer(
+            applications, many=True, context=context
+        )
         return Response(serializer.data)
 
