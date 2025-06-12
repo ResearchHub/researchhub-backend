@@ -399,7 +399,9 @@ class SuggestView(APIView):
 
                 try:
                     suggest = search.suggest(
-                        "suggestions", query, completion={"field": suggest_field}
+                        "suggestions",
+                        query,
+                        completion={"field": suggest_field, "size": limit_per_index},
                     )
                     response = suggest.execute()
 
