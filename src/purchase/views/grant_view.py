@@ -104,7 +104,8 @@ class GrantViewSet(viewsets.ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         """
-        Partially update a grant. Only moderators and the grant creator can update grants.
+        Partially update a grant. Only moderators and the grant creator can
+        update grants.
         """
         grant = self.get_object()
 
@@ -142,7 +143,8 @@ class GrantViewSet(viewsets.ModelViewSet):
     )
     def complete(self, request, *args, **kwargs):
         """
-        Mark a grant as completed (set status to COMPLETED). Only moderators can complete grants.
+        Mark a grant as completed (set status to COMPLETED). Only moderators
+        can complete grants.
         """
         grant = self.get_object()
 
