@@ -5,6 +5,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from purchase.models import Grant, GrantApplication
+from purchase.serializers.grant_application_serializer import (
+    GrantApplicationSerializer,
+)
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
@@ -191,3 +194,17 @@ class GrantViewSet(viewsets.ModelViewSet):
             return Response({"message": "Application submitted"}, status=201)
         else:
             return Response({"message": "Already applied"}, status=200)
+
+    @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
+    def applications(self, request, pk=None):
+        """
+        List all applications for a grant.
+        """
+        grant = self.get_object()
+        applications = grant.applications.select_related(
+            "applicant__author_profile", "preregistration_post"
+        ).all()
+
+        serializer = GrantApplicationSerializer(applications, many=True)
+        return Response(serializer.data)
+
