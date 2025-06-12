@@ -172,7 +172,7 @@ class GrantApplicationViewTests(APITestCase):
 
         # Act
         data = {}
-        url = f"/api/grant/{self.grant.id}/application/{self.application.id}/status/"
+        url = f"/api/grant/{self.grant.id}/applications/{self.application.id}/status/"
         response = self.client.put(url, data)
 
         # Assert
