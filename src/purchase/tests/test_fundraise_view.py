@@ -10,6 +10,8 @@ from purchase.views import FundraiseViewSet
 from reputation.models import BountyFee
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
+from user.related_models.follow_model import Follow
 from user.tests.helpers import create_random_authenticated_user, create_user
 
 
@@ -146,6 +148,14 @@ class FundraiseViewTests(APITestCase):
         )
         self.assertEqual(fee_balance.count(), 1)
         self.assertEqual(float(fee_balance.first().amount), -9.0)
+
+        # check that the user is following the preregistration
+        follow = Follow.objects.filter(
+            user=user,
+            object_id=self.post.id,
+            content_type=ContentType.objects.get_for_model(ResearchhubPost),
+        )
+        self.assertEqual(follow.count(), 1)
 
     def test_create_contribution_already_contributed(self):
         fundraise = self._create_fundraise(self.post.id)
