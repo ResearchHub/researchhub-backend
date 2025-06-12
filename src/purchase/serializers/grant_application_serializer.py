@@ -1,6 +1,7 @@
 from rest_framework import serializers
 
 from purchase.models import GrantApplication
+from purchase.related_models.grant_application_model import GrantApplicationStatus
 from researchhub.serializers import DynamicModelFieldSerializer
 from user.serializers import DynamicUserSerializer
 
@@ -45,3 +46,24 @@ class GrantApplicationSerializer(DynamicModelFieldSerializer):
         """Get the grant ID"""
         return application.grant.id if application.grant else None
 
+
+class UpdateGrantApplicationStatusSerializer(serializers.ModelSerializer):
+    """Serializer for updating GrantApplication status"""
+
+    status = serializers.ChoiceField(
+        choices=GrantApplicationStatus.choices,
+        help_text="Status of the grant application",
+    )
+
+    class Meta:
+        model = GrantApplication
+        fields = ["status"]
+
+    def validate_status(self, value):
+        """Validate that the status is a valid choice"""
+        if value not in [choice[0] for choice in GrantApplicationStatus.choices]:
+            valid_choices = [choice[0] for choice in GrantApplicationStatus.choices]
+            raise serializers.ValidationError(
+                f"Invalid status. Must be one of: {valid_choices}"
+            )
+        return value
