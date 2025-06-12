@@ -1,4 +1,5 @@
 import logging
+import math
 
 from elasticsearch_dsl import Search
 from rest_framework import status
@@ -366,6 +367,8 @@ class SuggestView(APIView):
         results_by_type = {}
         seen_dois = set()  # For deduplicating paper results
 
+        limit_per_index = math.ceil(limit / len(indexes))
+
         # Process each index
         for index in indexes:
             results = []
@@ -424,7 +427,7 @@ class SuggestView(APIView):
                             es_results.extend(
                                 [
                                     self.safe_transform(transform_func, option, index)
-                                    for option in options[:limit]
+                                    for option in options[:limit_per_index]
                                 ]
                             )
                         results.extend(es_results)
