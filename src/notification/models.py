@@ -31,6 +31,7 @@ class Notification(models.Model):
     PAPER_CLAIMED = "PAPER_CLAIMED"
     ACCOUNT_VERIFIED = "ACCOUNT_VERIFIED"
     FUNDRAISE_PAYOUT = "FUNDRAISE_PAYOUT"
+    PREREGISTRATION_UPDATE = "PREREGISTRATION_UPDATE"
     PUBLICATIONS_ADDED = "PUBLICATIONS_ADDED"
     """
     Used to indicate that a user's identity verification status has been updated.
@@ -60,6 +61,7 @@ class Notification(models.Model):
         (PUBLICATIONS_ADDED, PUBLICATIONS_ADDED),
         (IDENTITY_VERIFICATION_UPDATED, IDENTITY_VERIFICATION_UPDATED),
         (PAPER_CLAIM_PAYOUT, PAPER_CLAIM_PAYOUT),
+        (PREREGISTRATION_UPDATE, PREREGISTRATION_UPDATE),
     )
 
     notification_type = models.CharField(
