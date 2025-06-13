@@ -44,14 +44,19 @@ class DynamicPermissionSerializer(DynamicModelFieldSerializer):
         if not user:
             return None
 
-        # Prevent circular reference by excluding editor_of field
-        if "_exclude_fields" not in _context_fields:
-            _context_fields["_exclude_fields"] = ["editor_of"]
-        elif "editor_of" not in _context_fields["_exclude_fields"]:
-            if isinstance(_context_fields["_exclude_fields"], list):
-                _context_fields["_exclude_fields"].append("editor_of")
-            elif _context_fields["_exclude_fields"] != "__all__":
-                _context_fields["_exclude_fields"] = ["editor_of"]
+        # Prevent circular reference by always excluding editor_of field
+        _context_fields = dict(
+            _context_fields
+        )  # Make a copy to avoid modifying original
+        exclude_fields = _context_fields.get("_exclude_fields", [])
+
+        if exclude_fields != "__all__":
+            # Ensure it's a list and editor_of is in it
+            if not isinstance(exclude_fields, list):
+                exclude_fields = []
+            if "editor_of" not in exclude_fields:
+                exclude_fields.append("editor_of")
+            _context_fields["_exclude_fields"] = exclude_fields
 
         serializer = DynamicUserSerializer(user, context=context, **_context_fields)
         return serializer.data
