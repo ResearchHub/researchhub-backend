@@ -232,7 +232,6 @@ class RHCommentFilter(filters.FilterSet):
         elif value == REPLICABILITY_COMMENT:
             qs = qs.filter(thread__thread_type=REPLICABILITY_COMMENT)
         elif value == "AUTHOR_UPDATE":
-            # Map AUTHOR_UPDATE to SUMMARY for backward compatibility
             qs = qs.filter(thread__thread_type=AUTHOR_UPDATE)
 
         return qs
