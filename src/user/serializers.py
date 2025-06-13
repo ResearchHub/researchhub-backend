@@ -660,10 +660,7 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
         except User.author_profile.RelatedObjectDoesNotExist:
             # DATA INTEGRITY ISSUE: All users should have an author_profile
             error_msg = f"User {user.id} (email: {user.email}) missing author_profile"
-            sentry.log_error(
-                Exception(f"Missing author_profile: {error_msg}"),
-                extra_data={"user_id": user.id, "user_email": user.email},
-            )
+            sentry.log_error(Exception(f"Missing author_profile: {error_msg}"))
             return None
         except Exception as e:
             print(e)
@@ -753,11 +750,7 @@ class UserActions:
                     error_msg = f"User {recipient.id} (email: {recipient.email}) missing author_profile in Purchase action"
                     print(f"DATA INTEGRITY ERROR: {error_msg}")
                     sentry.log_error(
-                        Exception(f"Missing author_profile in Purchase: {error_msg}"),
-                        extra_data={
-                            "user_id": recipient.id,
-                            "user_email": recipient.email,
-                        },
+                        Exception(f"Missing author_profile in Purchase: {error_msg}")
                     )
                     author_id = None
 
