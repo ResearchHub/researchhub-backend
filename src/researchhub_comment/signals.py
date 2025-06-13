@@ -8,6 +8,7 @@ from notification.models import Notification
 from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
+from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.related_models.follow_model import Follow
 
 logger = Logger(__name__)
@@ -49,7 +50,11 @@ def create_author_update_notification(sender, instance, created, **kwargs):
         return
 
     document = instance.unified_document.get_document()
-    if document.document_type != PREREGISTRATION:
+
+    if not (
+        isinstance(document, ResearchhubPost)
+        and document.document_type == PREREGISTRATION
+    ):
         logger.debug("Not a preregistration")
         return
 
