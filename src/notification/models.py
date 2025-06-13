@@ -168,6 +168,29 @@ class Notification(models.Model):
         base_url = self.unified_document.frontend_view_link()
         return base_url
 
+    def _format_preregistration_update(self):
+        item = self.item
+        document = item.unified_document.get_document()
+        action_user = self.action_user
+        action_user_name = action_user.first_name
+        document_url = self._create_frontend_doc_link()
+
+        return [
+            {
+                "type": "link",
+                "value": f"{action_user_name}",
+                "extra": '["bold", "link"]',
+                "link": action_user.frontend_view_link(),
+            },
+            {"type": "text", "value": "updated the following preregistration: "},
+            {
+                "type": "link",
+                "value": document.title,
+                "link": document_url,
+                "extra": '["link"]',
+            },
+        ], document_url
+
     def _format_thread_on_doc(self):
         document = self.unified_document.get_document()
         action_user = self.action_user
