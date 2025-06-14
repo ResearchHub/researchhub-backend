@@ -649,15 +649,23 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
     def get_author_profile(self, user):
         context = self.context
         _context_fields = context.get("usr_dus_get_author_profile", {})
+
         try:
+            # Check if user has an author_profile
+            author_profile = user.author_profile
             serializer = DynamicAuthorSerializer(
-                user.author_profile, context=context, **_context_fields
+                author_profile, context=context, **_context_fields
             )
             return serializer.data
+        except User.author_profile.RelatedObjectDoesNotExist:
+            # DATA INTEGRITY ISSUE: All users should have an author_profile
+            error_msg = f"User {user.id} (email: {user.email}) missing author_profile"
+            sentry.log_error(Exception(f"Missing author_profile: {error_msg}"))
+            return None
         except Exception as e:
             print(e)
             sentry.log_error(e)
-            return {}
+            return None
 
     def get_rsc_earned(self, user):
         return getattr(user, "rsc_earned", None)
@@ -734,9 +742,21 @@ class UserActions:
             elif isinstance(item, Purchase):
                 recipient = action.user
                 data["amount"] = item.amount
+                author_id = None
+                try:
+                    author_id = recipient.author_profile.id
+                except User.author_profile.RelatedObjectDoesNotExist:
+                    # DATA INTEGRITY ISSUE: All users should have an author_profile
+                    error_msg = f"User {recipient.id} (email: {recipient.email}) missing author_profile in Purchase action"
+                    print(f"DATA INTEGRITY ERROR: {error_msg}")
+                    sentry.log_error(
+                        Exception(f"Missing author_profile in Purchase: {error_msg}")
+                    )
+                    author_id = None
+
                 data["recipient"] = {
                     "name": recipient.full_name(),
-                    "author_id": recipient.author_profile.id,
+                    "author_id": author_id,
                 }
                 data["sender"] = item.user.full_name()
                 data["support_type"] = item.content_type.model

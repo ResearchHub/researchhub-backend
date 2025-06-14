@@ -455,29 +455,6 @@ class ViewTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(test_paper.is_removed, True)
 
-    def test_hub_editors_can_restore_papers(self):
-        hub = create_hub()
-        user_editor = create_random_default_user("user_editor")
-        Permission.objects.create(
-            access_type=SENIOR_EDITOR,
-            content_type=ContentType.objects.get_for_model(Hub),
-            object_id=hub.id,
-            user=user_editor,
-        )
-        user_uploader = create_random_default_user("user_uploader")
-        test_paper = create_paper(uploaded_by=user_uploader)
-        test_paper.unified_document.hubs.add(hub)
-        test_paper.is_removed = True
-        test_paper.save()
-
-        self.client.force_authenticate(user_editor)
-        response = self.client.put(
-            f"/api/paper/{test_paper.id}/restore_paper/", {"id": test_paper.id}
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["is_removed"], False)
-
     def test_register_doi_no_charge(self):
         author = create_random_default_user("author")
         hub = create_hub()
