@@ -8,6 +8,7 @@ from django_filters import rest_framework as filters
 from reputation.models import Bounty
 from researchhub_access_group.constants import PRIVATE, PUBLIC, WORKSPACE
 from researchhub_comment.constants.rh_comment_thread_types import (
+    AUTHOR_UPDATE,
     GENERIC_COMMENT,
     INNER_CONTENT_COMMENT,
     RH_COMMENT_THREAD_TYPES,
@@ -46,6 +47,7 @@ FILTER_CHOICES = (
     (DISCUSSION, DISCUSSION),
     (REPLICABILITY_COMMENT, REPLICABILITY_COMMENT),
     (INNER_CONTENT_COMMENT, INNER_CONTENT_COMMENT),
+    (AUTHOR_UPDATE, AUTHOR_UPDATE),
 )
 
 
@@ -229,6 +231,8 @@ class RHCommentFilter(filters.FilterSet):
             )
         elif value == REPLICABILITY_COMMENT:
             qs = qs.filter(thread__thread_type=REPLICABILITY_COMMENT)
+        elif value == "AUTHOR_UPDATE":
+            qs = qs.filter(thread__thread_type=AUTHOR_UPDATE)
 
         return qs
 
@@ -277,7 +281,8 @@ class RHCommentFilter(filters.FilterSet):
 
             # Get all IDs from the current queryset
             ids = qs.values_list("id", flat=True)
-            # Return a queryset with all objects (including censored) filtered by these IDs and parent=None
+            # Return a queryset with all objects (including censored)
+            # filtered by these IDs and parent=None
             return RhCommentModel.all_objects.filter(id__in=ids, parent__isnull=True)
 
         return qs.filter(**{name: value})
