@@ -1,10 +1,14 @@
 from django.db import transaction
-from rest_framework import viewsets
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from purchase.models import Grant, GrantApplication
+from purchase.serializers.grant_application_serializer import (
+    GrantApplicationSerializer,
+    UpdateGrantApplicationStatusSerializer,
+)
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
@@ -24,10 +28,23 @@ class GrantViewSet(viewsets.ModelViewSet):
         """
         if self.action in ["create", "update", "partial_update", "destroy"]:
             return [IsModerator()]
+        elif self.action in ["applications", "application_status"]:
+            # Only moderators can update application status
+            if self.action == "application_status":
+                return [IsModerator()]
+            return [IsAuthenticated()]
         return super().get_permissions()
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
+        context["pch_dgs_get_applicant"] = {
+            "_include_fields": (
+                "id",
+                "author_profile",
+                "first_name",
+                "last_name",
+            )
+        }
         context["pch_dgs_get_created_by"] = {
             "_include_fields": (
                 "id",
@@ -87,7 +104,8 @@ class GrantViewSet(viewsets.ModelViewSet):
 
     def partial_update(self, request, *args, **kwargs):
         """
-        Partially update a grant. Only moderators and the grant creator can update grants.
+        Partially update a grant. Only moderators and the grant creator can
+        update grants.
         """
         grant = self.get_object()
 
@@ -125,7 +143,8 @@ class GrantViewSet(viewsets.ModelViewSet):
     )
     def complete(self, request, *args, **kwargs):
         """
-        Mark a grant as completed (set status to COMPLETED). Only moderators can complete grants.
+        Mark a grant as completed (set status to COMPLETED). Only moderators
+        can complete grants.
         """
         grant = self.get_object()
 
@@ -191,3 +210,68 @@ class GrantViewSet(viewsets.ModelViewSet):
             return Response({"message": "Application submitted"}, status=201)
         else:
             return Response({"message": "Already applied"}, status=200)
+
+    @action(detail=True, methods=["get"], permission_classes=[IsAuthenticated])
+    def applications(self, request, pk=None):
+        """
+        List all applications for a grant.
+        """
+        grant = self.get_object()
+        applications = grant.applications.select_related(
+            "applicant__author_profile", "preregistration_post"
+        ).all()
+
+        context = self.get_serializer_context()
+        serializer = GrantApplicationSerializer(
+            applications, many=True, context=context
+        )
+        return Response(serializer.data)
+
+    @action(
+        detail=False,
+        methods=["put", "post"],
+        permission_classes=[IsModerator],
+        url_path=r"(?P<grant_pk>[^/.]+)/applications/(?P<application_pk>[^/.]+)/status",
+        url_name="application_status",
+    )
+    def application_status(self, request, grant_pk=None, application_pk=None):
+        """
+        Update the status of a grant application.
+        Only moderators can update application status.
+        """
+        try:
+            grant = Grant.objects.get(pk=grant_pk)
+            application = GrantApplication.objects.get(pk=application_pk, grant=grant)
+        except Grant.DoesNotExist:
+            return Response(
+                {"error": "Grant not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+        except GrantApplication.DoesNotExist:
+            return Response(
+                {"error": "Application not found for this grant"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        serializer = UpdateGrantApplicationStatusSerializer(
+            application, data=request.data
+        )
+
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        old_status = application.status
+        serializer.save()
+
+        context = self.get_serializer_context()
+        response_serializer = GrantApplicationSerializer(application, context=context)
+
+        message = (
+            f"Application status updated from {old_status} to {application.status}"
+        )
+        return Response(
+            {
+                "message": message,
+                "application": response_serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
