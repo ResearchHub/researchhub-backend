@@ -903,7 +903,7 @@ class CommentViewTests(APITestCase):
         self.assertEqual(_discussion_count(), baseline_discussion_ct)
 
     def test_filter_by_author_update(self):
-        author_update_creator = self.user_1
+        author_update_creator = self.paper_uploader
         regular_creator = self.user_2
         self._create_paper_comment(
             self.paper.id,
