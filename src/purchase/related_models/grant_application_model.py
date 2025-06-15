@@ -1,7 +1,18 @@
 from django.db import models
 from django.db.models import CASCADE
+from django.utils.translation import gettext_lazy as _
 
 from utils.models import DefaultModel
+
+
+class GrantApplicationStatus(models.TextChoices):
+    """
+    The grant application status which can be pending, approved, or rejected.
+    """
+
+    PENDING = "PENDING", _("Pending")
+    APPROVED = "APPROVED", _("Approved")
+    REJECTED = "REJECTED", _("Rejected")
 
 
 class GrantApplication(DefaultModel):
@@ -19,6 +30,11 @@ class GrantApplication(DefaultModel):
 
     applicant = models.ForeignKey(
         "user.User", on_delete=CASCADE, related_name="grant_applications"
+    )
+
+    status = models.CharField(
+        choices=GrantApplicationStatus.choices,
+        default=GrantApplicationStatus.PENDING,
     )
 
     class Meta:
