@@ -42,6 +42,10 @@ def create_thread_notification(sender, instance, created, **kwargs):
     post_save, sender=RhCommentModel, dispatch_uid="create_author_update_notification"
 )
 def create_author_update_notification(sender, instance, created, **kwargs):
+    """
+    Signal handler for creating author update notifications when update comments
+    are created on preregistrations.
+    """
     if not created:
         logger.debug("Not a new comment")
         return
