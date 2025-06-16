@@ -1,7 +1,7 @@
 """
 Specialized feed view focused on papers published in the ResearchHub journal.
 This view returns papers based on their PaperVersion journal status and
-allows filtering by publication status (PREPRINT or PUBLISHED).
+allows filtering by publication status (PREPRINT or PUBLISHED) and journal inclusion.
 """
 
 from django.conf import settings
@@ -21,15 +21,20 @@ from .common import FeedPagination
 
 class JournalFeedViewSet(BaseFeedView):
     """
-    ViewSet for accessing papers published in the ResearchHub journal.
-    Provides a dedicated endpoint for clients to fetch and display journal papers.
+    ViewSet for accessing papers with optional filtering by ResearchHub journal status.
+    Provides a dedicated endpoint for clients to fetch and display papers.
 
     Query Parameters:
-    - publication_status: Filter by publication status
+    - publication_status: Filter by publication status (only applies to journal papers)
       Options:
         - PREPRINT: Only show preprints
         - PUBLISHED: Only show published papers
         - ALL: Show all papers (default)
+    - journal_status: Filter by journal inclusion
+      Options:
+        - IN_JOURNAL: Only show papers in the ResearchHub journal (default)
+        - NOT_IN_JOURNAL: Only show papers not in any journal
+        - ALL: Show all papers regardless of journal status
     """
 
     serializer_class = FeedEntrySerializer
@@ -45,7 +50,10 @@ class JournalFeedViewSet(BaseFeedView):
         page = request.query_params.get("page", "1")
         page_num = int(page)
         publication_status = request.query_params.get("publication_status", "ALL")
-        cache_key = self.get_cache_key(request, f"journal_{publication_status.lower()}")
+        journal_status = request.query_params.get("journal_status", "IN_JOURNAL")
+        cache_key = self.get_cache_key(
+            request, f"journal_{publication_status.lower()}_{journal_status.lower()}"
+        )
         use_cache = page_num < 4 and not settings.STAGING
 
         if use_cache:
@@ -90,19 +98,13 @@ class JournalFeedViewSet(BaseFeedView):
 
     def get_queryset(self):
         """
-        Filter to only include papers published in the ResearchHub journal.
-        Additionally filter by publication status if specified.
-        Returns only one paper per base_doi.
+        Filter papers based on journal status and publication status.
+        Returns only one paper per base_doi for journal papers.
         """
         publication_status = self.request.query_params.get("publication_status", "ALL")
+        journal_status = self.request.query_params.get("journal_status", "IN_JOURNAL")
 
-        # Get latest paper per base_doi
-        latest_versions = (
-            PaperVersion.objects.filter(base_doi=OuterRef("version__base_doi"))
-            .order_by("-created_date")
-            .values("paper_id")[:1]
-        )
-
+        # Base queryset for all papers
         queryset = (
             Paper.objects.all()
             .select_related(
@@ -114,19 +116,34 @@ class JournalFeedViewSet(BaseFeedView):
             .prefetch_related(
                 "unified_document__hubs",
             )
-            .filter(version__journal=PaperVersion.RESEARCHHUB)
             .filter(
                 is_removed=False,
                 is_removed_by_user=False,
                 is_public=True,
             )
-            # Only include papers where the version's base_doi is not null
-            .filter(version__base_doi__isnull=False)
-            # Use a subquery to only include the latest paper per base_doi
-            .filter(id=Subquery(latest_versions))
         )
 
-        # Apply publication status filter
+        # Apply journal status filter
+        if journal_status.upper() == "IN_JOURNAL":
+            # Only papers in the ResearchHub journal
+            queryset = queryset.filter(version__journal=PaperVersion.RESEARCHHUB)
+
+            # For journal papers, apply base_doi deduplication
+            latest_versions = (
+                PaperVersion.objects.filter(base_doi=OuterRef("version__base_doi"))
+                .order_by("-created_date")
+                .values("paper_id")[:1]
+            )
+
+            queryset = queryset.filter(
+                version__base_doi__isnull=False, id=Subquery(latest_versions)
+            )
+
+        elif journal_status.upper() == "NOT_IN_JOURNAL":
+            # Only papers not in any journal (version__journal is None)
+            queryset = queryset.filter(version__journal__isnull=True)
+
+        # Apply publication status filter to all papers (regardless of journal status)
         if publication_status.upper() == "PREPRINT":
             queryset = queryset.filter(
                 version__publication_status=PaperVersion.PREPRINT
