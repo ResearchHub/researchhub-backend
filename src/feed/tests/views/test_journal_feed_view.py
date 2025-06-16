@@ -102,6 +102,14 @@ class JournalFeedViewSetTests(TestCase):
             created_date=timezone.now(),
         )
 
+        # Create PaperVersion for non-journal paper (journal=None)
+        self.non_journal_version = PaperVersion.objects.create(
+            paper=self.non_journal_paper,
+            journal=None,  # Not in any journal
+            publication_status=PaperVersion.PREPRINT,  # Set publication status
+            version=1,
+        )
+
         # Removed journal paper (should not appear in feed)
         self.removed_unified_document = ResearchhubUnifiedDocument.objects.create(
             document_type="PAPER"
@@ -129,26 +137,130 @@ class JournalFeedViewSetTests(TestCase):
         cache.clear()
 
     def test_list_journal_feed(self):
-        """Test that journal feed returns all papers in the ResearchHub journal"""
+        """Test that only journal papers appear in the default feed"""
         url = reverse("journal_feed-list")
         response = self.client.get(url)
 
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 2)  # preprint + published
 
-        # Should include all non-removed journal papers (2 papers)
-        self.assertEqual(len(response.data["results"]), 2)
+        # Check that returned papers are journal papers
+        titles = [item["content_object"]["title"] for item in response.data["results"]]
+        self.assertIn("Preprint Paper", titles)
+        self.assertIn("Published Paper", titles)
+        self.assertNotIn("Non-Journal Paper", titles)
+        self.assertNotIn("Removed Journal Paper", titles)
 
-        # Verify the papers are in the response
-        paper_ids = []
-        for item in response.data["results"]:
-            paper_ids.append(item["content_object"]["id"])
+    def test_filter_by_journal_status_in_journal(self):
+        """Test filtering by journal_status=IN_JOURNAL"""
+        url = reverse("journal_feed-list")
+        response = self.client.get(url, {"journal_status": "IN_JOURNAL"})
 
-        self.assertIn(self.preprint_paper.id, paper_ids)
-        self.assertIn(self.published_paper.id, paper_ids)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 2)  # preprint + published
 
-        # Verify non-journal and removed papers are not included
-        self.assertNotIn(self.non_journal_paper.id, paper_ids)
-        self.assertNotIn(self.removed_paper.id, paper_ids)
+        # Check that returned papers are journal papers
+        titles = [item["content_object"]["title"] for item in response.data["results"]]
+        self.assertIn("Preprint Paper", titles)
+        self.assertIn("Published Paper", titles)
+        self.assertNotIn("Non-Journal Paper", titles)
+
+    def test_filter_by_journal_status_not_in_journal(self):
+        """Test filtering by journal_status=NOT_IN_JOURNAL"""
+        url = reverse("journal_feed-list")
+        response = self.client.get(url, {"journal_status": "NOT_IN_JOURNAL"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)  # only non-journal paper
+
+        # Check that returned paper is not a journal paper
+        titles = [item["content_object"]["title"] for item in response.data["results"]]
+        self.assertIn("Non-Journal Paper", titles)
+        self.assertNotIn("Preprint Paper", titles)
+        self.assertNotIn("Published Paper", titles)
+
+    def test_filter_by_journal_status_all(self):
+        """Test filtering by journal_status=ALL"""
+        url = reverse("journal_feed-list")
+        response = self.client.get(url, {"journal_status": "ALL"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 3)  # all papers except removed
+
+        # Check that all public, non-removed papers are returned
+        titles = [item["content_object"]["title"] for item in response.data["results"]]
+        self.assertIn("Preprint Paper", titles)
+        self.assertIn("Published Paper", titles)
+        self.assertIn("Non-Journal Paper", titles)
+        self.assertNotIn("Removed Journal Paper", titles)
+
+    def test_combined_journal_and_publication_status_filters(self):
+        """Test combining journal_status and publication_status filters"""
+        url = reverse("journal_feed-list")
+
+        # Test IN_JOURNAL + PREPRINT
+        response = self.client.get(
+            url, {"journal_status": "IN_JOURNAL", "publication_status": "PREPRINT"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        titles = [item["content_object"]["title"] for item in response.data["results"]]
+        self.assertIn("Preprint Paper", titles)
+        self.assertNotIn("Published Paper", titles)
+
+        # Test IN_JOURNAL + PUBLISHED
+        response = self.client.get(
+            url, {"journal_status": "IN_JOURNAL", "publication_status": "PUBLISHED"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        titles = [item["content_object"]["title"] for item in response.data["results"]]
+        self.assertIn("Published Paper", titles)
+        self.assertNotIn("Preprint Paper", titles)
+
+    def test_publication_status_applies_to_non_journal_papers(self):
+        """Test that publication_status filter applies to non-journal papers too"""
+        url = reverse("journal_feed-list")
+
+        # Create a non-journal paper with PUBLISHED status
+        published_non_journal_unified_document = (
+            ResearchhubUnifiedDocument.objects.create(document_type="PAPER")
+        )
+        published_non_journal_paper = Paper.objects.create(
+            title="Published Non-Journal Paper",
+            uploaded_by=self.user,
+            is_public=True,
+            is_removed=False,
+            is_removed_by_user=False,
+            unified_document=published_non_journal_unified_document,
+            created_date=timezone.now(),
+        )
+        PaperVersion.objects.create(
+            paper=published_non_journal_paper,
+            journal=None,  # Not in any journal
+            publication_status=PaperVersion.PUBLISHED,
+            version=1,
+        )
+
+        # Test NOT_IN_JOURNAL + PUBLISHED should return the published non-journal paper
+        response = self.client.get(
+            url, {"journal_status": "NOT_IN_JOURNAL", "publication_status": "PUBLISHED"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        titles = [item["content_object"]["title"] for item in response.data["results"]]
+        self.assertIn("Published Non-Journal Paper", titles)
+        self.assertNotIn("Non-Journal Paper", titles)  # PREPRINT status
+
+        # Test NOT_IN_JOURNAL + PREPRINT should return the original non-journal paper
+        response = self.client.get(
+            url, {"journal_status": "NOT_IN_JOURNAL", "publication_status": "PREPRINT"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["results"]), 1)
+        titles = [item["content_object"]["title"] for item in response.data["results"]]
+        self.assertIn("Non-Journal Paper", titles)  # PREPRINT status
+        self.assertNotIn("Published Non-Journal Paper", titles)
 
     def test_filter_by_preprint_status(self):
         """Test filtering by PREPRINT publication status"""
