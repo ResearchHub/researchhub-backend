@@ -7,6 +7,7 @@ from django.dispatch import receiver
 from notification.models import Notification
 from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
 from researchhub_comment.models import RhCommentModel
+from researchhub_comment.tasks import send_author_update_email_notifications
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.related_models.follow_model import Follow
@@ -58,6 +59,7 @@ def create_author_update_notification(sender, instance, created, **kwargs):
         logger.debug("Not a preregistration")
         return
 
+    follower_user_ids = []
     follows = Follow.objects.filter(
         content_type=ContentType.objects.get_for_model(document),
         object_id=document.id,
@@ -71,3 +73,7 @@ def create_author_update_notification(sender, instance, created, **kwargs):
             action_user=instance.created_by,
         )
         notification.send_notification()
+        follower_user_ids.append(follow.user.id)
+
+    if follower_user_ids:
+        send_author_update_email_notifications.delay(instance.id, follower_user_ids)
