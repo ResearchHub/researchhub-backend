@@ -896,7 +896,7 @@ class CommentViewTests(APITestCase):
         censor_res = self.client.delete(
             f"/api/paper/{self.paper.id}/comments/{comment_id}/censor/"
         )
-        # Using censor instead of destroy; expect success
+        # Using censor instead of destroy; expect success.
         self.assertEqual(censor_res.status_code, 200)
 
         # Count should revert to baseline
