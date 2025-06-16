@@ -226,6 +226,12 @@ class ContributionViewSet(viewsets.ReadOnlyModelViewSet):
             "rhc_dcs_get_thread": {
                 "_include_fields": ["content_object", "thread_type", "anchor"]
             },
+            "rhc_dcs_get_review": {
+                "_include_fields": [
+                    "id",
+                    "score",
+                ]
+            },
             "rhc_dts_get_content_object": {
                 "_include_fields": [
                     "id",
