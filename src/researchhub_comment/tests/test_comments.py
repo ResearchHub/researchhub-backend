@@ -902,12 +902,11 @@ class CommentViewTests(APITestCase):
         # Count should revert to baseline
         self.assertEqual(_discussion_count(), baseline_discussion_ct)
 
-    def test_filter_by_author_update(self):
-        author_update_creator = self.paper_uploader
+        author_update_creator = self.paper.created_by
         regular_creator = self.user_2
         self._create_paper_comment(
             self.paper.id,
-            author_update_creator,
+            created_by=author_update_creator,
             thread_type="AUTHOR_UPDATE",
             comment_type="AUTHOR_UPDATE",
         )

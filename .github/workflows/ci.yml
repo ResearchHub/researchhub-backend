@@ -3,7 +3,7 @@ name: Continuous Integration
 on:
   workflow_run:
     workflows: ["Automated Tests"]
-    branches: [master]
+    branches: [main]
     types:
       - completed
   workflow_dispatch:
@@ -19,7 +19,7 @@ on:
       git_ref:
         description: "Enter Git hash or branch"
         required: false
-        default: master
+        default: main
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.inputs.deploy_env }}
