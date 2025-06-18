@@ -11,7 +11,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.validators import URLValidator
 from django.db import IntegrityError, transaction
-from django.db.models import Count, F, IntegerField, Q, Sum, Value
+from django.db.models import F, IntegerField, Q, Sum, Value
 from django.db.models.functions import Cast, Coalesce
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
@@ -30,7 +30,6 @@ from analytics.amplitude import track_event
 from discussion.reaction_models import Vote as GrmVote
 from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
 from discussion.reaction_views import ReactionViewActionMixin
-from hub.models import Hub
 from hub.permissions import IsModerator
 from paper.exceptions import DOINotFoundError, PaperSerializerError
 from paper.filters import PaperFilter
