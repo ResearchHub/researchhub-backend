@@ -449,10 +449,6 @@ class Paper(AbstractGenericReactionModel):
         return users
 
     @property
-    def children(self):
-        return self.threads.all()
-
-    @property
     def raw_authors_indexing(self):
         authors = []
         if isinstance(self.raw_authors, list) is False:
