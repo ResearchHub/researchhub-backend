@@ -152,8 +152,7 @@ def get_discussion_vote_item_distribution(instance):
 
     elif vote_type == GrmVote.DOWNVOTE:
         if isinstance(item, RhCommentModel):
-            vote_type = distributions.RhCommentDownvoted
-            return distributions.ThreadDownvoted
+            return distributions.RhCommentDownvoted
         elif isinstance(item, ResearchhubPost):
             return distributions.ResearchhubPostDownvoted
         elif isinstance(item, Paper):
