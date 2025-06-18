@@ -1301,22 +1301,7 @@ class PaperViewSet(
                 .order_by("-total_score")
             )
         elif "discussed" in ordering:
-            threads_count = Count("threads")
-            comments_count = Count("threads__comments")
-
-            order_papers = (
-                papers.filter(
-                    Q(threads__source="researchhub")
-                    | Q(threads__comments__source="researchhub"),
-                    Q(threads__created_date__range=[start_date, end_date])
-                    | Q(threads__comments__created_date__range=[start_date, end_date]),
-                )
-                .annotate(
-                    discussed=threads_count + comments_count,
-                    discussed_secondary=F("discussion_count"),
-                )
-                .order_by(ordering, ordering + "_secondary")
-            )
+            order_papers = papers.order_by("-discussion_count")
         elif "removed" in ordering:
             order_papers = papers.order_by("-created_date")
         elif "user-uploaded" in ordering:
