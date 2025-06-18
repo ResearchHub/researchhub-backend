@@ -531,11 +531,6 @@ class Paper(AbstractGenericReactionModel):
     def get_hub_names(self):
         return ",".join(self.hubs.values_list("name", flat=True))
 
-    def get_accepted_answer(self):
-        return self.threads.filter(
-            is_accepted_answer=True, discussion_post_type="ANSWER"
-        ).first()
-
     def get_promoted_score(paper):
         purchases = paper.purchases.filter(
             paid_status=Purchase.PAID, amount__gt=0, boost_time__gt=0
