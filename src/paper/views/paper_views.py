@@ -11,7 +11,7 @@ from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
 from django.core.validators import URLValidator
 from django.db import IntegrityError, transaction
-from django.db.models import Count, F, IntegerField, Q, Sum, Value
+from django.db.models import F, IntegerField, Q, Sum, Value
 from django.db.models.functions import Cast, Coalesce
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
@@ -30,7 +30,6 @@ from analytics.amplitude import track_event
 from discussion.reaction_models import Vote as GrmVote
 from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
 from discussion.reaction_views import ReactionViewActionMixin
-from hub.models import Hub
 from hub.permissions import IsModerator
 from paper.exceptions import DOINotFoundError, PaperSerializerError
 from paper.filters import PaperFilter
@@ -107,8 +106,6 @@ class PaperViewSet(
             "flags",
             "peer_reviews",
             "purchases",
-            "threads",
-            "threads__comments",
             "figures",
         )
 
@@ -1301,22 +1298,7 @@ class PaperViewSet(
                 .order_by("-total_score")
             )
         elif "discussed" in ordering:
-            threads_count = Count("threads")
-            comments_count = Count("threads__comments")
-
-            order_papers = (
-                papers.filter(
-                    Q(threads__source="researchhub")
-                    | Q(threads__comments__source="researchhub"),
-                    Q(threads__created_date__range=[start_date, end_date])
-                    | Q(threads__comments__created_date__range=[start_date, end_date]),
-                )
-                .annotate(
-                    discussed=threads_count + comments_count,
-                    discussed_secondary=F("discussion_count"),
-                )
-                .order_by(ordering, ordering + "_secondary")
-            )
+            order_papers = papers.order_by("-discussion_count")
         elif "removed" in ordering:
             order_papers = papers.order_by("-created_date")
         elif "user-uploaded" in ordering:
