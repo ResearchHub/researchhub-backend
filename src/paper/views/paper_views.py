@@ -98,6 +98,7 @@ class PaperViewSet(
             "uploaded_by__subscribed_hubs",
             "authors",
             "authors__user",
+            "authors__user__userverification",
             "moderators",
             "unified_document",
             "unified_document__hubs",
