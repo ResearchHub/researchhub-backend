@@ -145,8 +145,10 @@ class AuthorSerializer(ModelSerializer):
         if obj.user is None:
             return False
 
-        user_verification = UserVerification.objects.filter(user=obj.user).last()
-        return user_verification.is_verified if user_verification else False
+        try:
+            return obj.user.userverification.is_verified
+        except UserVerification.DoesNotExist:
+            return False
 
     def get_reputation_v2(self, author):
         score = Score.objects.filter(author=author).order_by("-score").first()
@@ -1099,9 +1101,10 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
             return None
 
         is_verified = False
-        user_verification = UserVerification.objects.filter(user=user).first()
-        if user_verification:
-            is_verified = user_verification.is_verified
+        try:
+            is_verified = user.userverification.is_verified
+        except UserVerification.DoesNotExist:
+            is_verified = False
 
         return {
             "id": user.id,

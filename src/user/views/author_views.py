@@ -50,7 +50,10 @@ from utils.throttles import THROTTLE_CLASSES
 
 
 class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
-    queryset = Author.objects.all()
+    queryset = Author.objects.select_related(
+        "user",
+        "user__userverification",
+    )
     serializer_class = AuthorSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     filterset_class = AuthorFilter
