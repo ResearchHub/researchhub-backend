@@ -55,7 +55,9 @@ from utils.sentry import log_info
 
 
 class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
-    queryset = User.objects.filter(is_suspended=False)
+    queryset = User.objects.select_related(
+        "userverification",
+    ).filter(is_suspended=False)
     serializer_class = UserEditableSerializer
     permission_classes = [IsAuthenticatedOrReadOnly, DeleteUserPermission]
     filter_backends = (DjangoFilterBackend,)
