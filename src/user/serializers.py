@@ -66,10 +66,9 @@ class ModeratorUserSerializer(ModelSerializer):
         ]
 
     def get_verification(self, user):
-
-        user_verification = UserVerification.objects.filter(user=user).last()
-
-        if user_verification is None:
+        try:
+            user_verification = user.userverification
+        except UserVerification.DoesNotExist:
             return None
 
         return {
