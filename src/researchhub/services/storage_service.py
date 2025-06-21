@@ -78,6 +78,8 @@ class S3StorageService(StorageService):
     def _sanitize_filename(self, filename: str) -> str:
         """
         Sanitize filename for the S3 metadata `file-name` field.
+
+        See: https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html
         """
         name = unicodedata.normalize("NFKD", filename)
         name = name.encode("ascii", "ignore").decode("ascii")
