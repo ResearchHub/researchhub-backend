@@ -30,12 +30,6 @@ CENSOR_RSC = -0.02
 FlagPaper = Distribution("FLAG_PAPER", FLAG_RSC, give_rep=True, reputation=-1)
 
 
-CreateBulletPoint = Distribution("CREATE_BULLET_POINT", 1, give_rep=True, reputation=1)
-BulletPointCensored = Distribution(
-    "BULLET_POINT_CENSORED", CENSOR_RSC, give_rep=True, reputation=-2
-)
-
-
 RhCommentCensored = Distribution(
     "RhCOMMENT_CENSORED", CENSOR_RSC, give_rep=True, reputation=-2
 )
@@ -126,14 +120,12 @@ def create_paper_reward_distribution(amount):
 
 DISTRIBUTION_TYPE_CHOICES = [
     (FlagPaper.name, FlagPaper.name),
-    (CreateBulletPoint.name, CreateBulletPoint.name),
     (CommentCensored.name, CommentCensored.name),
     (CommentFlagged.name, CommentFlagged.name),
     (ReplyCensored.name, ReplyCensored.name),
     (ReplyFlagged.name, ReplyFlagged.name),
     (ThreadCensored.name, ThreadCensored.name),
     (ThreadFlagged.name, ThreadFlagged.name),
-    ("UPVOTE_RSC_POT", "UPVOTE_RSC_POT"),
     ("STORED_PAPER_POT", "STORED_PAPER_POT"),
     ("PAPER_REWARD", "PAPER_REWARD"),
     ("REWARD", "REWARD"),
