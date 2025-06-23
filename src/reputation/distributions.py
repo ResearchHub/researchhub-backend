@@ -22,41 +22,9 @@ class Distribution:
         return self._give_rep
 
 
-UPVOTE_RSC = 0.01
-DOWNVOTE_RSC = -0.01
 FLAG_RSC = -0.02
-CENSOR_RSC = -0.02
 
 FlagPaper = Distribution("FLAG_PAPER", FLAG_RSC, give_rep=True, reputation=-1)
-
-
-RhCommentCensored = Distribution(
-    "RhCOMMENT_CENSORED", CENSOR_RSC, give_rep=True, reputation=-2
-)
-RhCommentFlagged = Distribution(
-    "RhCOMMENT_FLAGGED", FLAG_RSC, give_rep=True, reputation=-2
-)
-
-
-CommentCensored = Distribution(
-    "COMMENT_CENSORED", CENSOR_RSC, give_rep=True, reputation=-2
-)
-CommentFlagged = Distribution("COMMENT_FLAGGED", FLAG_RSC, give_rep=True, reputation=-2)
-
-
-ReplyCensored = Distribution("REPLY_CENSORED", CENSOR_RSC, give_rep=True, reputation=-2)
-ReplyFlagged = Distribution("REPLY_FLAGGED", FLAG_RSC, give_rep=True, reputation=-2)
-
-
-ThreadCensored = Distribution(
-    "THREAD_CENSORED", CENSOR_RSC, give_rep=True, reputation=-2
-)
-ThreadFlagged = Distribution("THREAD_FLAGGED", FLAG_RSC, give_rep=True, reputation=-2)
-
-
-ResearchhubPostCensored = Distribution(
-    "RESEARCHHUB_POST_CENSORED", CENSOR_RSC, give_rep=True, reputation=-2
-)
 
 
 def create_purchase_distribution(user, amount):
@@ -120,12 +88,6 @@ def create_paper_reward_distribution(amount):
 
 DISTRIBUTION_TYPE_CHOICES = [
     (FlagPaper.name, FlagPaper.name),
-    (CommentCensored.name, CommentCensored.name),
-    (CommentFlagged.name, CommentFlagged.name),
-    (ReplyCensored.name, ReplyCensored.name),
-    (ReplyFlagged.name, ReplyFlagged.name),
-    (ThreadCensored.name, ThreadCensored.name),
-    (ThreadFlagged.name, ThreadFlagged.name),
     ("STORED_PAPER_POT", "STORED_PAPER_POT"),
     ("PAPER_REWARD", "PAPER_REWARD"),
     ("REWARD", "REWARD"),
