@@ -1,18 +1,14 @@
 from time import time
 
 from django.contrib.admin.options import get_content_type_for_model
-from django.db.models.signals import m2m_changed, post_delete, post_save
+from django.db.models.signals import m2m_changed, post_delete
 from django.dispatch import receiver
 
 import reputation.distributions as distributions
-from discussion.reaction_models import Vote as GrmVote
 from paper.models import Paper
 from reputation.distributor import Distributor
-from reputation.exceptions import ReputationSignalError
 from reputation.models import Distribution
-from researchhub_comment.models import RhCommentModel
-from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
-from utils import sentry
+from researchhub_document.models import ResearchhubUnifiedDocument
 
 NEW_USER_BONUS_REPUTATION_LIMIT = 200
 NEW_USER_BONUS_DAYS_LIMIT = 30
@@ -54,114 +50,13 @@ def distribute_for_censor_paper(sender, instance, using, **kwargs):
                 instance.created_by,
                 instance.hubs.all(),
             )
-            record = distributor.distribute()
-
-
-@receiver(post_save, sender=GrmVote, dispatch_uid="discussion_vote")
-def distribute_for_discussion_vote(sender, instance, created, update_fields, **kwargs):
-    """Distributes reputation to the creator of the item voted on."""
-    timestamp = time()
-    distributor = None
-    try:
-        instance_item = instance.item
-        if isinstance(instance_item, Paper):
-            return
-        else:
-            recipient = instance.item.created_by
-    except Exception as e:
-        error = ReputationSignalError(e, "Invalid recipient")
-        sentry.log_error(e)
-        return
-
-    voter = instance.created_by
-    if (
-        created or vote_type_updated(update_fields)
-    ) and is_eligible_for_discussion_vote(recipient, voter):
-        hubs = None
-        item = instance.item
-        if isinstance(item, RhCommentModel):
-            hubs = item.thread.content_object.unified_document.hubs
-        elif isinstance(item, Paper):
-            hubs = item.hubs
-        elif isinstance(item, ResearchhubPost):
-            hubs = item.unified_document.hubs
-
-        # TODO: This needs to be altered so that if the vote changes the
-        # original distribution is deleted if not yet withdrawn
-
-        if created:
-            try:
-                # NOTE: Only comment seems to be supporting distribution
-                distribution = get_discussion_vote_item_distribution(instance)
-                distributor = Distributor(
-                    distribution,
-                    recipient,
-                    instance,
-                    timestamp,
-                    instance.created_by,
-                    hubs.all(),
-                )
-            except TypeError as e:
-                error = ReputationSignalError(
-                    e, "Failed to distribute for reaction vote"
-                )
-                sentry.log_error(error)
-
-    if distributor is not None and recipient != instance.created_by:
-        record = distributor.distribute()
-
-
-def is_eligible_for_discussion_vote(recipient, voter):
-    """
-    Returns True if the recipient is eligible to receive an award.
-
-    Checks to ensure recipient is not also the voter.
-    """
-    if voter is None:
-        return True
-    return (recipient != voter) and is_eligible_user(recipient)
+            distributor.distribute()
 
 
 def is_eligible_user(user):
     if user is not None:
         return user.is_active and not user.is_suspended
     return False
-
-
-def vote_type_updated(update_fields):
-    if update_fields is not None:
-        return "vote_type" in update_fields
-    return False
-
-
-def get_discussion_vote_item_distribution(instance):
-    vote_type = instance.vote_type
-    item = instance.item
-    item_type = type(item)
-
-    error = TypeError(f"Instance of type {item_type} is not supported")
-    if vote_type == GrmVote.UPVOTE:
-        if isinstance(item, RhCommentModel):
-            return distributions.RhCommentUpvoted
-        elif isinstance(item, ResearchhubPost):
-            return distributions.ResearchhubPostUpvoted
-        elif isinstance(item, Paper):
-            return distributions.PaperUpvoted
-        else:
-            raise error
-
-    elif vote_type == GrmVote.DOWNVOTE:
-        if isinstance(item, RhCommentModel):
-            vote_type = distributions.RhCommentDownvoted
-            return distributions.ThreadDownvoted
-        elif isinstance(item, ResearchhubPost):
-            return distributions.ResearchhubPostDownvoted
-        elif isinstance(item, Paper):
-            return distributions.PaperDownvoted
-        else:
-            raise error
-    elif vote_type == GrmVote.NEUTRAL:
-        return distributions.NeutralVote
 
 
 @receiver(post_delete, sender=Distribution, dispatch_uid="delete_distribution")
