@@ -19,6 +19,8 @@ class SiftWebhookView(APIView):
 
     This view handles incoming POST requests from Sift.
     Authentication is handled by validating the signature from the incoming request.
+
+    Also see: https://developers.sift.com/docs/curl/decisions-api/decision-webhooks/
     """
 
     permission_classes = [AllowAny]
