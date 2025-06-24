@@ -527,32 +527,32 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         h = hmac.new(key, postback_body, sha1)
         verification_signature = "sha1={}".format(h.hexdigest())
 
-        if verification_signature == postback_signature:
-            # Custom logic here
-            decision_id = request.data["decision"]["id"]
-            user_id = request.data["entity"]["id"]
-            user = User.objects.get(id=user_id)
-
-            if (
-                not user.moderator or user.email not in EMAIL_WHITELIST
-            ) and user.id not in SIFT_MODERATION_WHITELIST:
-                if "mark_as_probable_spammer_content_abuse" in decision_id:
-                    log_info(
-                        f"Possible Spammer - {user.id}: {user.first_name} {user.last_name} - {decision_id}"
-                    )
-                    user.set_probable_spammer()
-                elif "suspend_user_content_abuse" in decision_id:
-                    log_info(
-                        f"Suspending User - {user.id}: {user.first_name} {user.last_name} - {decision_id}"
-                    )
-                    user.set_suspended(is_manual=False)
-                    user.is_active = False
-                    user.save()
-
-            serialized = UserSerializer(user)
-            return Response(serialized.data, status=200)
-        else:
+        if verification_signature != postback_signature:
             return Response({"message:": "Unauthorized"}, status=401)
+
+        # Custom logic here
+        decision_id = request.data["decision"]["id"]
+        user_id = request.data["entity"]["id"]
+        user = User.objects.get(id=user_id)
+
+        if (
+            not user.moderator or user.email not in EMAIL_WHITELIST
+        ) and user.id not in SIFT_MODERATION_WHITELIST:
+            if "mark_as_probable_spammer_content_abuse" in decision_id:
+                log_info(
+                    f"Possible Spammer - {user.id}: {user.first_name} {user.last_name} - {decision_id}"
+                )
+                user.set_probable_spammer()
+            elif "suspend_user_content_abuse" in decision_id:
+                log_info(
+                    f"Suspending User - {user.id}: {user.first_name} {user.last_name} - {decision_id}"
+                )
+                user.set_suspended(is_manual=False)
+                user.is_active = False
+                user.save()
+
+        serialized = UserSerializer(user)
+        return Response(serialized.data, status=200)
 
 
 @api_view([RequestMethods.GET])
