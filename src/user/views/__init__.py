@@ -8,5 +8,6 @@ from user.views.leaderboard_views import LeaderboardViewSet
 from user.views.moderator_view import *
 from user.views.organization_view import OrganizationViewSet
 from user.views.persona_webhook_view import *
+from user.views.sift_webhook_view import *
 from user.views.user_api_token_view import UserApiTokenViewSet
 from user.views.user_views import *
