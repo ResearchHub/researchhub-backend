@@ -551,8 +551,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
                 user.is_active = False
                 user.save()
 
-        serialized = UserSerializer(user)
-        return Response(serialized.data, status=200)
+        return Response({"message:": "Webhook successfully processed"}, status=200)
 
 
 @api_view([RequestMethods.GET])
