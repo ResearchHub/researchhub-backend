@@ -309,3 +309,55 @@ class SiftWebhookViewTests(APITestCase):
 
         # Assert
         self.assertEqual(response.status_code, 200)
+
+    @override_settings(SIFT_WEBHOOK_SECRET_KEY=webhook_secret)
+    def test_webhook_with_missing_decision_id_returns_400(self):
+        """
+        Test webhook with missing decision ID returns 400
+        """
+        # Arrange
+        payload = {
+            "entity": {"id": str(self.user.id)}
+            # Missing "decision" key
+        }
+
+        body = json.dumps(payload)
+        signature = self.create_signature(body, self.webhook_secret)
+
+        # Act
+        response = self.client.post(
+            "/webhooks/sift/",
+            body,
+            content_type="application/json",
+            headers={"X-Sift-Science-Signature": signature},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {"message": "Invalid payload"})
+
+    @override_settings(SIFT_WEBHOOK_SECRET_KEY=webhook_secret)
+    def test_webhook_with_missing_entity_id_returns_400(self):
+        """
+        Test webhook with missing entity ID returns 400
+        """
+        # Arrange
+        payload = {
+            "decision": {"id": "mark_as_probable_spammer_content_abuse_123"}
+            # Missing "entity" key
+        }
+
+        body = json.dumps(payload)
+        signature = self.create_signature(body, self.webhook_secret)
+
+        # Act
+        response = self.client.post(
+            "/webhooks/sift/",
+            body,
+            content_type="application/json",
+            headers={"X-Sift-Science-Signature": signature},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {"message": "Invalid payload"})

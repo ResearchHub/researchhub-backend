@@ -29,14 +29,17 @@ class SiftWebhookView(APIView):
         if not postback_signature or not self._validate_signature(request):
             return Response({"message:": "Unauthorized"}, status=401)
 
-        decision_id = request.data["decision"]["id"]
-        user_id = request.data["entity"]["id"]
+        try:
+            decision_id = request.data["decision"]["id"]
+            user_id = request.data["entity"]["id"]
+        except KeyError as e:
+            logger.error(f"Missing required field in Sift webhook payload: {e}")
+            return Response({"message": "Invalid payload"}, status=400)
 
         try:
             user = User.objects.get(id=user_id)
         except User.DoesNotExist:
             logger.warning(f"User id={user_id} not found for Sift webhook")
-            # Handle gracefully to avoid retries
             return Response({"message:": "Webhook successfully processed"}, status=200)
 
         if (
