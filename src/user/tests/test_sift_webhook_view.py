@@ -283,3 +283,29 @@ class SiftWebhookViewTests(APITestCase):
             # User in SIFT_MODERATION_WHITELIST should not be flagged as probable
             # spammer
             self.assertFalse(whitelisted_user.probable_spammer)
+
+    @override_settings(SIFT_WEBHOOK_SECRET_KEY=webhook_secret)
+    def test_webhook_with_nonexistent_user_returns_200(self):
+        """
+        Test webhook with non-existent user ID returns 200.
+        This case should be handled gracefully.
+        """
+        # Arrange
+        payload = {
+            "decision": {"id": "mark_as_probable_spammer_content_abuse_123"},
+            "entity": {"id": "-99999"},
+        }
+
+        body = json.dumps(payload)
+        signature = self.create_signature(body, self.webhook_secret)
+
+        # Act
+        response = self.client.post(
+            "/webhooks/sift/",
+            body,
+            content_type="application/json",
+            headers={"X-Sift-Science-Signature": signature},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, 200)

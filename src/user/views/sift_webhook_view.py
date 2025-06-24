@@ -32,7 +32,12 @@ class SiftWebhookView(APIView):
         decision_id = request.data["decision"]["id"]
         user_id = request.data["entity"]["id"]
 
-        user = User.objects.get(id=user_id)
+        try:
+            user = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            logger.warning(f"User id={user_id} not found for Sift webhook")
+            # Handle gracefully to avoid retries
+            return Response({"message:": "Webhook successfully processed"}, status=200)
 
         if (
             user.moderator
