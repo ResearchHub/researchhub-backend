@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from hashlib import sha1
 
 from allauth.account.models import EmailAddress
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import F, Q, Sum
 from django.db.models.functions import Coalesce
@@ -30,11 +31,6 @@ from reputation.serializers import (
     DynamicBountySolutionSerializer,
 )
 from reputation.views import BountyViewSet
-from researchhub.settings import (
-    EMAIL_WHITELIST,
-    SIFT_MODERATION_WHITELIST,
-    SIFT_WEBHOOK_SECRET_KEY,
-)
 from user.filters import UserFilter
 from user.models import Author, Major, University, User
 from user.permissions import Censor, DeleteUserPermission, RequestorIsOwnUser
@@ -508,6 +504,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         detail=False,
         methods=[RequestMethods.POST],
         permission_classes=[AllowAny],
+        throttle_classes=[],
     )
     def sift_check_user_content(self, request):
         # https://sift.com/developers/docs/python/decisions-api/decision-webhooks/authentication
@@ -516,39 +513,45 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         # First let's grab the signature from the postback's headers
         postback_signature = request.headers.get("X-Sift-Science-Signature")
 
+        if not postback_signature:
+            return Response({"message:": "Unauthorized"}, status=401)
+
         # Next, let's try to assemble the signature on our side to verify
-        key = SIFT_WEBHOOK_SECRET_KEY.encode("utf-8")
+        key = settings.SIFT_WEBHOOK_SECRET_KEY.encode("utf-8")
         postback_body = request.body
 
         h = hmac.new(key, postback_body, sha1)
         verification_signature = "sha1={}".format(h.hexdigest())
 
-        if verification_signature == postback_signature:
-            # Custom logic here
-            decision_id = request.data["decision"]["id"]
-            user_id = request.data["entity"]["id"]
-            user = User.objects.get(id=user_id)
+        if verification_signature != postback_signature:
+            return Response({"message:": "Unauthorized"}, status=401)
 
-            if (
-                not user.moderator or user.email not in EMAIL_WHITELIST
-            ) and user.id not in SIFT_MODERATION_WHITELIST:
-                if "mark_as_probable_spammer_content_abuse" in decision_id:
-                    log_info(
-                        f"Possible Spammer - {user.id}: {user.first_name} {user.last_name} - {decision_id}"
-                    )
-                    user.set_probable_spammer()
-                elif "suspend_user_content_abuse" in decision_id:
-                    log_info(
-                        f"Suspending User - {user.id}: {user.first_name} {user.last_name} - {decision_id}"
-                    )
-                    user.set_suspended(is_manual=False)
-                    user.is_active = False
-                    user.save()
+        # Custom logic here
+        decision_id = request.data["decision"]["id"]
+        user_id = request.data["entity"]["id"]
+        user = User.objects.get(id=user_id)
 
-            serialized = UserSerializer(user)
-            return Response(serialized.data, status=200)
+        if (
+            user.moderator
+            or user.email in settings.EMAIL_WHITELIST
+            or user.id in settings.SIFT_MODERATION_WHITELIST
+        ):
+            log_info(f"Skipping moderation for whitelisted user id={user.id}")
         else:
-            raise Exception("Sift verification signature mismatch")
+            if "mark_as_probable_spammer_content_abuse" in decision_id:
+                log_info(
+                    f"Possible Spammer - {user.id}: {user.first_name} {user.last_name} - {decision_id}"
+                )
+                user.set_probable_spammer()
+            elif "suspend_user_content_abuse" in decision_id:
+                log_info(
+                    f"Suspending User - {user.id}: {user.first_name} {user.last_name} - {decision_id}"
+                )
+                user.set_suspended(is_manual=False)
+                user.is_active = False
+                user.save(update_fields=["is_active"])
+
+        return Response({"message:": "Webhook successfully processed"}, status=200)
 
 
 @api_view([RequestMethods.GET])
