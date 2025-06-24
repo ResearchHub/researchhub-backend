@@ -1,5 +1,6 @@
 import hmac
 import json
+import logging
 
 from django.conf import settings
 from rest_framework import status
@@ -11,6 +12,8 @@ from rest_framework.views import APIView
 from notification.models import Notification
 from user.models import User, UserVerification
 from utils.siftscience import events_api, update_user_risk_score
+
+logger = logging.getLogger(__name__)
 
 
 class PersonaWebhookView(APIView):
@@ -41,7 +44,7 @@ class PersonaWebhookView(APIView):
 
             self._process_payload(request)
         except Exception as e:
-            print("Failed to process webhook payload", e)
+            logger.error(f"Failed to process webhook payload: {e}")
             return Response(
                 {"message": "Failed to process webhook"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
