@@ -1,6 +1,4 @@
-import hmac
 from datetime import datetime, timedelta
-from hashlib import sha1
 
 from allauth.account.models import EmailAddress
 from django.contrib.contenttypes.models import ContentType
@@ -30,11 +28,6 @@ from reputation.serializers import (
     DynamicBountySolutionSerializer,
 )
 from reputation.views import BountyViewSet
-from researchhub.settings import (
-    EMAIL_WHITELIST,
-    SIFT_MODERATION_WHITELIST,
-    SIFT_WEBHOOK_SECRET_KEY,
-)
 from user.filters import UserFilter
 from user.models import Author, Major, University, User
 from user.permissions import Censor, DeleteUserPermission, RequestorIsOwnUser
@@ -51,7 +44,6 @@ from user.tasks import handle_spam_user_task, reinstate_user_task
 from user.utils import calculate_show_referral
 from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.http import POST, RequestMethods
-from utils.sentry import log_info
 
 
 class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
@@ -503,52 +495,6 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         reinstate_user_task(user.id)
         serialized = UserSerializer(user)
         return Response(serialized.data, status=200)
-
-    @action(
-        detail=False,
-        methods=[RequestMethods.POST],
-        permission_classes=[AllowAny],
-    )
-    def sift_check_user_content(self, request):
-        # https://sift.com/developers/docs/python/decisions-api/decision-webhooks/authentication
-
-        # Let's check whether this webhook actually came from Sift!
-        # First let's grab the signature from the postback's headers
-        postback_signature = request.headers.get("X-Sift-Science-Signature")
-
-        # Next, let's try to assemble the signature on our side to verify
-        key = SIFT_WEBHOOK_SECRET_KEY.encode("utf-8")
-        postback_body = request.body
-
-        h = hmac.new(key, postback_body, sha1)
-        verification_signature = "sha1={}".format(h.hexdigest())
-
-        if verification_signature == postback_signature:
-            # Custom logic here
-            decision_id = request.data["decision"]["id"]
-            user_id = request.data["entity"]["id"]
-            user = User.objects.get(id=user_id)
-
-            if (
-                not user.moderator or user.email not in EMAIL_WHITELIST
-            ) and user.id not in SIFT_MODERATION_WHITELIST:
-                if "mark_as_probable_spammer_content_abuse" in decision_id:
-                    log_info(
-                        f"Possible Spammer - {user.id}: {user.first_name} {user.last_name} - {decision_id}"
-                    )
-                    user.set_probable_spammer()
-                elif "suspend_user_content_abuse" in decision_id:
-                    log_info(
-                        f"Suspending User - {user.id}: {user.first_name} {user.last_name} - {decision_id}"
-                    )
-                    user.set_suspended(is_manual=False)
-                    user.is_active = False
-                    user.save()
-
-            serialized = UserSerializer(user)
-            return Response(serialized.data, status=200)
-        else:
-            raise Exception("Sift verification signature mismatch")
 
 
 @api_view([RequestMethods.GET])
