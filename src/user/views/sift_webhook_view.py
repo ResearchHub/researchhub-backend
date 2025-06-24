@@ -22,6 +22,7 @@ class SiftWebhookView(APIView):
     """
 
     permission_classes = [AllowAny]
+    throttle_classes = []
 
     def post(self, request: Request, *args, **kwargs) -> Response:
         postback_signature = request.headers.get("X-Sift-Science-Signature")
