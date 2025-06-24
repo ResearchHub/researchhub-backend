@@ -1206,34 +1206,14 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
         _context_fields = context.get("author_profile::get_coauthors", {})
 
         coauthors = (
-            CoAuthor.objects.filter(author=author)
-            .values(
-                "coauthor",
-                "coauthor__first_name",
-                "coauthor__last_name",
-                "coauthor__is_verified",
-                "coauthor__headline",
-                "coauthor__description",
-            )
-            .annotate(count=Count("coauthor"))
+            Author.objects.filter(coauthored_with__author=author)
+            .annotate(count=Count("coauthored_with"))
+            .select_related("user__userverification")
             .order_by("-count")[:10]
         )
 
-        coauthor_data = [
-            {
-                "id": co["coauthor"],
-                "first_name": co["coauthor__first_name"],
-                "last_name": co["coauthor__last_name"],
-                "is_verified": co["coauthor__is_verified"],
-                "headline": co["coauthor__headline"],
-                "description": co["coauthor__description"],
-                "count": co["count"],
-            }
-            for co in coauthors
-        ]
-
         serializer = DynamicAuthorSerializer(
-            coauthor_data,
+            coauthors,
             context=context,
             many=True,
             **_context_fields,
