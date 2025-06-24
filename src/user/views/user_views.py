@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from hashlib import sha1
 
 from allauth.account.models import EmailAddress
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import F, Q, Sum
 from django.db.models.functions import Coalesce
@@ -30,11 +31,6 @@ from reputation.serializers import (
     DynamicBountySolutionSerializer,
 )
 from reputation.views import BountyViewSet
-from researchhub.settings import (
-    EMAIL_WHITELIST,
-    SIFT_MODERATION_WHITELIST,
-    SIFT_WEBHOOK_SECRET_KEY,
-)
 from user.filters import UserFilter
 from user.models import Author, Major, University, User
 from user.permissions import Censor, DeleteUserPermission, RequestorIsOwnUser
@@ -521,7 +517,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
             return Response({"message:": "Unauthorized"}, status=401)
 
         # Next, let's try to assemble the signature on our side to verify
-        key = SIFT_WEBHOOK_SECRET_KEY.encode("utf-8")
+        key = settings.SIFT_WEBHOOK_SECRET_KEY.encode("utf-8")
         postback_body = request.body
 
         h = hmac.new(key, postback_body, sha1)
@@ -536,8 +532,8 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         user = User.objects.get(id=user_id)
 
         if (
-            not user.moderator or user.email not in EMAIL_WHITELIST
-        ) and user.id not in SIFT_MODERATION_WHITELIST:
+            not user.moderator or user.email not in settings.EMAIL_WHITELIST
+        ) and user.id not in settings.SIFT_MODERATION_WHITELIST:
             if "mark_as_probable_spammer_content_abuse" in decision_id:
                 log_info(
                     f"Possible Spammer - {user.id}: {user.first_name} {user.last_name} - {decision_id}"
