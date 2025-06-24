@@ -86,12 +86,19 @@ def create_paper_reward_distribution(amount):
     return distribution
 
 
+def create_locked_balance_distribution(amount):
+    """Create a distribution for locking user balance for fundraise contributions"""
+    distribution = Distribution("LOCKED_BALANCE", amount, give_rep=False)
+    return distribution
+
+
 DISTRIBUTION_TYPE_CHOICES = [
     (FlagPaper.name, FlagPaper.name),
     ("STORED_PAPER_POT", "STORED_PAPER_POT"),
     ("PAPER_REWARD", "PAPER_REWARD"),
     ("REWARD", "REWARD"),
     ("PURCHASE", "PURCHASE"),
+    ("LOCKED_BALANCE", "LOCKED_BALANCE"),
     (
         "EDITOR_COMPENSATION",
         "EDITOR_COMPENSATION",

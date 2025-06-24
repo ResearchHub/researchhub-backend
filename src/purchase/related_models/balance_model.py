@@ -4,31 +4,6 @@ from django.db import models
 
 
 class Balance(models.Model):
-
-    @classmethod
-    def create_locked_balance(
-        cls, user, amount, lock_type="FUNDRAISE_CONTRIBUTION", source=None
-    ):
-        """Create a locked balance entry for the user"""
-        from user.related_models.user_model import User
-
-        # Use User model as default content_type if no source provided
-        if source is None:
-            content_type = ContentType.objects.get_for_model(User)
-            object_id = user.pk
-        else:
-            content_type = ContentType.objects.get_for_model(source)
-            object_id = source.pk
-
-        return cls.objects.create(
-            user=user,
-            amount=str(amount),
-            content_type=content_type,
-            object_id=object_id,
-            is_locked=True,
-            lock_type=lock_type,
-        )
-
     user = models.ForeignKey(
         "user.User", on_delete=models.CASCADE, related_name="balances"
     )
@@ -53,3 +28,34 @@ class Balance(models.Model):
 
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
+
+    @classmethod
+    def create_locked_balance(
+        cls, user, amount, lock_type="FUNDRAISE_CONTRIBUTION", source=None
+    ):
+        """Create a locked balance entry for the user using the distributor"""
+        from django.utils import timezone
+
+        from reputation.distributions import create_locked_balance_distribution
+        from reputation.distributor import Distributor
+
+        # Create distribution for locked balance
+        distribution = create_locked_balance_distribution(amount)
+
+        # Use the distributor to create the locked balance record
+        distributor = Distributor(
+            distribution=distribution,
+            recipient=user,
+            db_record=source or user,  # Use source if provided, otherwise user
+            timestamp=timezone.now().isoformat(),  # Convert to string for JSON serialization
+        )
+
+        # Distribute the locked balance
+        distribution_record = distributor.distribute_locked_balance(lock_type=lock_type)
+
+        # Return the created balance record
+        return cls.objects.get(
+            content_type=ContentType.objects.get_for_model(distribution_record),
+            object_id=distribution_record.id,
+            user=user,
+        )

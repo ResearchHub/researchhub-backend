@@ -109,11 +109,36 @@ class Distributor:
                 users.update(reputation=models.F("reputation") + rep)
             self._record_balance(record)
 
-    def _record_balance(self, distribution):
+    def _record_balance(self, distribution, is_locked=False, lock_type=None):
         content_type = ContentType.objects.get_for_model(distribution)
         Balance.objects.create(
             user=self.recipient,
             content_type=content_type,
             object_id=distribution.id,
             amount=self.distribution.amount,  # db converts integer to string
+            is_locked=is_locked,
+            lock_type=lock_type,
         )
+
+    def distribute_locked_balance(self, lock_type="FUNDRAISE_CONTRIBUTION"):
+        """
+        Creates a locked balance distribution record without distributing reputation.
+        Used for locking user funds for specific purposes like fundraise contributions.
+        """
+        with transaction.atomic():
+            record = Distribution.objects.create(
+                distribution_type=self.distribution.name,
+                amount=self.distribution.amount,
+                recipient=self.recipient,
+                proof=self.proof,
+                giver=self.giver,
+                reputation_amount=0,  # No reputation given for locked balances
+            )
+
+            if self.hubs:
+                record.hubs.set(self.hubs)
+
+            # Record the locked balance
+            self._record_balance(record, is_locked=True, lock_type=lock_type)
+
+            return record
