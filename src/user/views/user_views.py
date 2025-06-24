@@ -508,6 +508,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         detail=False,
         methods=[RequestMethods.POST],
         permission_classes=[AllowAny],
+        throttle_classes=[],
     )
     def sift_check_user_content(self, request):
         # https://sift.com/developers/docs/python/decisions-api/decision-webhooks/authentication
