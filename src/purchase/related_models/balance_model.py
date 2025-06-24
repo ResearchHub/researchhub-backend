@@ -10,13 +10,21 @@ class Balance(models.Model):
         cls, user, amount, lock_type="FUNDRAISE_CONTRIBUTION", source=None
     ):
         """Create a locked balance entry for the user"""
+        from user.related_models.user_model import User
+
+        # Use User model as default content_type if no source provided
+        if source is None:
+            content_type = ContentType.objects.get_for_model(User)
+            object_id = user.pk
+        else:
+            content_type = ContentType.objects.get_for_model(source)
+            object_id = source.pk
+
         return cls.objects.create(
             user=user,
             amount=str(amount),
-            content_type=(
-                None if source is None else ContentType.objects.get_for_model(source)
-            ),
-            object_id=None if source is None else source.pk,
+            content_type=content_type,
+            object_id=object_id,
             is_locked=True,
             lock_type=lock_type,
         )

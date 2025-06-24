@@ -224,14 +224,14 @@ class User(AbstractUser):
 
         # Exclude locked balances from available balance
         available_queryset = queryset.filter(is_locked=False)
-        return self.get_balance(queryset=available_queryset)
+        return self.get_balance(queryset=available_queryset, include_locked=True)
 
     def get_locked_balance(self, lock_type=None):
         """Returns total locked balance amount, optionally filtered by lock_type"""
         locked_queryset = self.get_balance_qs().filter(is_locked=True)
         if lock_type:
             locked_queryset = locked_queryset.filter(lock_type=lock_type)
-        return self.get_balance(queryset=locked_queryset)
+        return self.get_balance(queryset=locked_queryset, include_locked=True)
 
     def notify_inactivity(self, paper_count=0, comment_count=0):
         recipient = [self.email]
