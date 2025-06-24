@@ -211,7 +211,7 @@ class FundraiseViewTests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
 
-    def test_create_contribution_fulfills_goal(self):
+    def test_create_contribution_exceeds_goal(self):
         fundraise = self._create_fundraise(self.post.id, goal_amount=100)
         fundraise_id = fundraise.data["id"]
 
@@ -225,11 +225,13 @@ class FundraiseViewTests(APITestCase):
 
         updated_fundraise = response.data
         self.assertEqual(updated_fundraise["amount_raised"]["rsc"], 200)
-        self.assertEqual(float(updated_fundraise["escrow"]["amount_holding"]), 0.0)
-        self.assertEqual(float(updated_fundraise["escrow"]["amount_paid"]), 200.0)
-        self.assertEqual(updated_fundraise["status"], "COMPLETED")
+        self.assertEqual(float(updated_fundraise["escrow"]["amount_holding"]), 200.0)
+        self.assertEqual(float(updated_fundraise["escrow"]["amount_paid"]), 0.0)
+        self.assertEqual(
+            updated_fundraise["status"], "OPEN"
+        )  # Should remain open until manually completed
 
-        # there should be two balance objects for the user, one for the '100', and one for fees
+        # there should be two balance objects for the user, one for the contribution and one for fees
         amount_balance = Balance.objects.filter(
             user=user, content_type=ContentType.objects.get_for_model(Purchase)
         )
@@ -241,10 +243,9 @@ class FundraiseViewTests(APITestCase):
         self.assertEqual(fee_balance.count(), 1)
         self.assertEqual(float(fee_balance.first().amount), -18.0)
 
-        # check that the owner was paid out
+        # check that the owner has NOT been paid out yet (no automatic payout)
         owner_balance = Balance.objects.filter(user=self.user)
-        self.assertEqual(owner_balance.count(), 1)
-        self.assertEqual(float(owner_balance.first().amount), 200.0)
+        self.assertEqual(owner_balance.count(), 0)
 
     def test_create_contribution_expired_fundraise(self):
         fundraise = self._create_fundraise(self.post.id, goal_amount=100)
@@ -689,3 +690,84 @@ class FundraiseViewTests(APITestCase):
         regular_fee_balance = fee_balances.filter(is_locked=False).first()
         self.assertIsNotNone(regular_fee_balance)
         self.assertEqual(float(regular_fee_balance.amount), -9.0)
+
+    def test_complete_fundraise(self):
+        """Test that a fundraise can be completed via the API by a moderator"""
+        # Create a fundraise
+        fundraise = self._create_fundraise(self.post.id, goal_amount=100)
+        fundraise_id = fundraise.data["id"]
+
+        # Create a contributor
+        contributor = create_random_authenticated_user("fundraise_contributor")
+        self._give_user_balance(contributor, 1000)
+
+        # Make a contribution that meets the goal
+        self._create_contribution(fundraise_id, contributor, amount=200)
+
+        # Verify fundraise is still open
+        fundraise_obj = Fundraise.objects.get(id=fundraise_id)
+        self.assertEqual(fundraise_obj.status, Fundraise.OPEN)
+
+        # Call complete endpoint as moderator
+        self.client.force_authenticate(self.user)  # Need moderator permissions
+        response = self.client.post(f"/api/fundraise/{fundraise_id}/complete/")
+
+        self.assertEqual(response.status_code, 200)
+
+        # Verify fundraise is now completed
+        fundraise_obj.refresh_from_db()
+        self.assertEqual(fundraise_obj.status, Fundraise.COMPLETED)
+
+        # Verify funds were paid out
+        self.assertEqual(float(fundraise_obj.escrow.amount_holding), 0.0)
+        self.assertEqual(float(fundraise_obj.escrow.amount_paid), 200.0)
+
+        # Check that the owner was paid out
+        owner_balance = Balance.objects.filter(user=self.user)
+        self.assertEqual(owner_balance.count(), 1)
+        self.assertEqual(float(owner_balance.first().amount), 200.0)
+
+    def test_complete_fundraise_not_moderator(self):
+        """Test that only moderators can complete a fundraise"""
+        # Create a fundraise
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        # Try to complete with non-moderator
+        regular_user = create_random_authenticated_user("regular_user")
+        self.client.force_authenticate(regular_user)
+        response = self.client.post(f"/api/fundraise/{fundraise_id}/complete/")
+
+        # Should get 403 Forbidden
+        self.assertEqual(response.status_code, 403)
+
+    def test_complete_fundraise_already_completed(self):
+        """Test that a fundraise that's already completed can't be completed again"""
+        # Create a fundraise
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        # Set fundraise status to completed
+        fundraise_obj = Fundraise.objects.get(id=fundraise_id)
+        fundraise_obj.status = Fundraise.COMPLETED
+        fundraise_obj.save()
+
+        # Try to complete
+        self.client.force_authenticate(self.user)
+        response = self.client.post(f"/api/fundraise/{fundraise_id}/complete/")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("not open", response.data["message"])
+
+    def test_complete_fundraise_no_funds(self):
+        """Test that a fundraise with no funds can't be completed"""
+        # Create a fundraise
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        # Try to complete without any contributions
+        self.client.force_authenticate(self.user)
+        response = self.client.post(f"/api/fundraise/{fundraise_id}/complete/")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("no funds to payout", response.data["message"])

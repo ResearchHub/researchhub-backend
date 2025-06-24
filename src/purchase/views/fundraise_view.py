@@ -177,10 +177,6 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         # Check if fundraise is open
         if fundraise.status != Fundraise.OPEN:
             return Response({"message": "Fundraise is not open"}, status=400)
-        # Check if fundraise is not already fulfilled
-        raised_amount = fundraise.get_amount_raised(fundraise.goal_currency)
-        if raised_amount >= fundraise.goal_amount:
-            return Response({"message": "Fundraise is already fulfilled"}, status=400)
         # Check if fundraise is not expired
         if fundraise.is_expired():
             # TODO: We don't account for this case yet, because the initial MVP implementation
@@ -297,25 +293,6 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             fundraise.escrow.amount_holding += amount
             fundraise.escrow.save()
 
-        # If fundraise is fulfilled, update status to closed
-        # and trigger escrow payout
-        fundraise.refresh_from_db()
-        raised_amount = fundraise.get_amount_raised(fundraise.goal_currency)
-        if raised_amount >= fundraise.goal_amount:
-            # the escrow payout functions creates + sends a notification
-            did_payout = fundraise.payout_funds()
-            if did_payout:
-                fundraise.status = Fundraise.COMPLETED
-                fundraise.save()
-
-                # Process referral bonuses for completed fundraise
-                try:
-                    self.referral_bonus_service.process_fundraise_completion(fundraise)
-                except Exception as e:
-                    log_error(e, message="Failed to process referral bonuses")
-            else:
-                return Response({"message": "Failed to payout funds"}, status=500)
-
         # return updated fundraise object
         context = self.get_serializer_context()
         serializer = self.get_serializer(fundraise, context=context)
@@ -342,6 +319,48 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         context = self._purchase_serializer_context()
         serializer = DynamicPurchaseSerializer(purchases, context=context, many=True)
         return Response(serializer.data)
+
+    @action(
+        methods=["POST"],
+        detail=True,
+        permission_classes=[IsModerator],
+    )
+    def complete(self, request, *args, **kwargs):
+        """
+        Complete a fundraise and payout funds to the recipient.
+        Only works if the fundraise is in OPEN status and has escrow funds.
+        Only accessible to moderators.
+        """
+        fundraise_id = kwargs.get("pk", None)
+
+        # Get fundraise object
+        try:
+            fundraise = Fundraise.objects.get(id=fundraise_id)
+            if fundraise is None:
+                return Response({"message": "Fundraise does not exist"}, status=400)
+        except Fundraise.DoesNotExist:
+            return Response({"message": "Fundraise does not exist"}, status=400)
+
+        # Check if fundraise is open
+        if fundraise.status != Fundraise.OPEN:
+            return Response({"message": "Fundraise is not open"}, status=400)
+
+        # Check if fundraise has funds to payout
+        if not fundraise.escrow or fundraise.escrow.amount_holding <= 0:
+            return Response({"message": "Fundraise has no funds to payout"}, status=400)
+
+        # Payout the funds
+        did_payout = fundraise.payout_funds()
+        if did_payout:
+            fundraise.status = Fundraise.COMPLETED
+            fundraise.save()
+
+            # Return updated fundraise object
+            context = self.get_serializer_context()
+            serializer = self.get_serializer(fundraise, context=context)
+            return Response(serializer.data)
+        else:
+            return Response({"message": "Failed to payout funds"}, status=500)
 
     @action(
         methods=["POST"],
