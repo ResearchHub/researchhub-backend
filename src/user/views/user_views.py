@@ -517,6 +517,9 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         # First let's grab the signature from the postback's headers
         postback_signature = request.headers.get("X-Sift-Science-Signature")
 
+        if not postback_signature:
+            return Response({"message:": "Unauthorized"}, status=401)
+
         # Next, let's try to assemble the signature on our side to verify
         key = SIFT_WEBHOOK_SECRET_KEY.encode("utf-8")
         postback_body = request.body
