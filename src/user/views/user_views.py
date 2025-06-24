@@ -552,7 +552,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
             serialized = UserSerializer(user)
             return Response(serialized.data, status=200)
         else:
-            raise Exception("Sift verification signature mismatch")
+            return Response({"message:": "Unauthorized"}, status=401)
 
 
 @api_view([RequestMethods.GET])
