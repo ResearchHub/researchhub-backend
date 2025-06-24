@@ -24,6 +24,7 @@ from utils.throttles import UserSustainedRateThrottle
 FOUNDATION_EMAIL = "main@researchhub.foundation"
 FOUNDATION_REVENUE_EMAIL = "revenue1@researchhub.foundation"
 
+
 class UserManager(UserManager):
     def editors(self):
         editors = self.filter(
@@ -63,6 +64,8 @@ class UserManager(UserManager):
             return user.first()
 
         return self._get_default_account()
+
+
 """
 User objects have the following fields by default:
     https://docs.djangoproject.com/en/2.2/ref/contrib/auth/#django.contrib.auth.models.User
@@ -195,9 +198,13 @@ class User(AbstractUser):
         )
         return balance
 
-    def get_balance(self, queryset=None):
+    def get_balance(self, queryset=None, include_locked=False):
         if queryset is None:
             queryset = self.get_balance_qs()
+
+        # By default, exclude locked funds unless explicitly requested
+        if not include_locked:
+            queryset = queryset.filter(is_locked=False)
 
         balance = queryset.aggregate(
             total_balance=Coalesce(
@@ -209,6 +216,22 @@ class User(AbstractUser):
         total_balance = balance.get("total_balance", 0) or 0
 
         return total_balance
+
+    def get_available_balance(self, queryset=None):
+        """Returns balance excluding locked amounts"""
+        if queryset is None:
+            queryset = self.get_balance_qs()
+
+        # Exclude locked balances from available balance
+        available_queryset = queryset.filter(is_locked=False)
+        return self.get_balance(queryset=available_queryset)
+
+    def get_locked_balance(self, lock_type=None):
+        """Returns total locked balance amount, optionally filtered by lock_type"""
+        locked_queryset = self.get_balance_qs().filter(is_locked=True)
+        if lock_type:
+            locked_queryset = locked_queryset.filter(lock_type=lock_type)
+        return self.get_balance(queryset=locked_queryset)
 
     def notify_inactivity(self, paper_count=0, comment_count=0):
         recipient = [self.email]
