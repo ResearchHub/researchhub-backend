@@ -532,8 +532,12 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         user = User.objects.get(id=user_id)
 
         if (
-            not user.moderator or user.email not in settings.EMAIL_WHITELIST
-        ) and user.id not in settings.SIFT_MODERATION_WHITELIST:
+            user.moderator
+            or user.email in settings.EMAIL_WHITELIST
+            or user.id in settings.SIFT_MODERATION_WHITELIST
+        ):
+            log_info(f"Skipping moderation for whitelisted user id={user.id}")
+        else:
             if "mark_as_probable_spammer_content_abuse" in decision_id:
                 log_info(
                     f"Possible Spammer - {user.id}: {user.first_name} {user.last_name} - {decision_id}"
