@@ -73,7 +73,7 @@ class SiftWebhookView(APIView):
         key = settings.SIFT_WEBHOOK_SECRET_KEY.encode("utf-8")
         postback_body = request.body
 
-        h = hmac.new(key, postback_body, sha1)
+        h = hmac.new(key, postback_body, sha1)  # NOSONAR: sha1 is required by Sift
         verification_signature = "sha1={}".format(h.hexdigest())
 
         return verification_signature == postback_signature

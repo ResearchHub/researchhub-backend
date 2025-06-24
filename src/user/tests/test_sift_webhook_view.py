@@ -40,7 +40,7 @@ class SiftWebhookViewTests(APITestCase):
         key = secret_key.encode("utf-8")
         if isinstance(body, str):
             body = body.encode("utf-8")
-        h = hmac.new(key, body, sha1)
+        h = hmac.new(key, body, sha1)  # NOSONAR: sha1 is required by Sift
         return f"sha1={h.hexdigest()}"
 
     @override_settings(SIFT_WEBHOOK_SECRET_KEY=webhook_secret)
