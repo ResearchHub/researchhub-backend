@@ -545,7 +545,7 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
                 )
                 user.set_suspended(is_manual=False)
                 user.is_active = False
-                user.save()
+                user.save(update_fields=["is_active"])
 
         return Response({"message:": "Webhook successfully processed"}, status=200)
 
