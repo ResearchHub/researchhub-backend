@@ -161,7 +161,10 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         ):
             return Response(
                 {
-                    "message": f"Invalid amount. Minimum is {MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC}"
+                    "message": (
+                        f"Invalid amount. Minimum is "
+                        f"{MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC}"
+                    )
                 },
                 status=400,
             )
@@ -179,9 +182,6 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             return Response({"message": "Fundraise is not open"}, status=400)
         # Check if fundraise is not expired
         if fundraise.is_expired():
-            # TODO: We don't account for this case yet, because the initial MVP implementation
-            # won't ever encounter this case. But this code is here just in case.
-            # We should implement this in the future.
             return Response({"message": "Fundraise is expired"}, status=400)
 
         # Check if user created the fundraise
@@ -203,7 +203,8 @@ class FundraiseViewSet(viewsets.ModelViewSet):
                 return Response({"message": "Insufficient balance"}, status=400)
 
             # Create purchase object
-            # In the future, we may want to have the user POST /purchases and then call this EP with an ID.
+            # In the future, we may want to have the user POST /purchases and then call
+            # this EP with an ID.
             # Especially for on-chain purchases.
             purchase = Purchase.objects.create(
                 user=user,
@@ -393,7 +394,10 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         else:
             return Response(
                 {
-                    "message": "Failed to close fundraise. It may already be closed or have no funds to refund."
+                    "message": (
+                        "Failed to close fundraise. It may already be closed or "
+                        "have no funds to refund."
+                    )
                 },
                 status=400,
             )
