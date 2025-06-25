@@ -1,13 +1,12 @@
 import csv
-from io import StringIO
 from decimal import Decimal
+from io import StringIO
 
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.test import APITestCase
 
 from purchase.related_models.balance_model import Balance
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
-from reputation.models import Withdrawal
 from user.tests.helpers import create_random_authenticated_user
 
 
@@ -16,8 +15,8 @@ class BalanceViewTests(APITestCase):
     def setUp(self):
         self.user = create_random_authenticated_user("balance_user")
         self.rsc_exchange_rate = RscExchangeRate.objects.create(
-            rate=Decimal('0.5'),
-            real_rate=Decimal('0.5'),
+            rate=Decimal("0.5"),
+            real_rate=Decimal("0.5"),
             price_source="COIN_GECKO",
             target_currency="USD",
         )
@@ -50,8 +49,7 @@ class BalanceViewTests(APITestCase):
             ["date", "rsc_amount", "rsc_to_usd", "usd_value", "description"],
             [
                 self.transaction.created_date.isoformat(
-                    timespec="microseconds",
-                    sep=" "
+                    timespec="microseconds", sep=" "
                 ),
                 str(self.transaction.amount),
                 str(self.rsc_exchange_rate.real_rate),
@@ -65,7 +63,7 @@ class BalanceViewTests(APITestCase):
     def test_turbotax_csv_export(self):
         # Arrange
         self.client.force_authenticate(self.user)
-        
+
         # Create additional test transactions with different types
         withdrawal_type = ContentType.objects.get_or_create(
             model="withdrawal", app_label="reputation"
@@ -81,31 +79,28 @@ class BalanceViewTests(APITestCase):
         Balance.objects.create(
             amount=-500,  # Negative amount for withdrawal
             user=self.user,
-            content_type=withdrawal_type
+            content_type=withdrawal_type,
         )
         Balance.objects.create(
             amount=200,  # Positive amount for deposit
             user=self.user,
-            content_type=deposit_type
+            content_type=deposit_type,
         )
         Balance.objects.create(
-            amount=-50,  # Negative amount for fee
-            user=self.user,
-            content_type=fee_type
+            amount=-50, user=self.user, content_type=fee_type  # Negative amount for fee
         )
-        
+
         # Create a failed withdrawal that should be excluded
         from reputation.models import Withdrawal
+
         failed_source = Withdrawal.objects.create(
-            amount=-300,
-            paid_status='FAILED',
-            user=self.user
+            amount=-300, paid_status="FAILED", user=self.user
         )
         failed_withdrawal = Balance.objects.create(
             amount=-300,
             user=self.user,
             content_type=withdrawal_type,
-            object_id=failed_source.id
+            object_id=failed_source.id,
         )
 
         # Act
@@ -116,7 +111,7 @@ class BalanceViewTests(APITestCase):
         self.assertEqual(response["Content-Type"], "text/csv")
         self.assertEqual(
             response["Content-Disposition"],
-            'attachment; filename="transactions_turbotax.csv"'
+            'attachment; filename="transactions_turbotax.csv"',
         )
 
         content = response.content.decode("utf-8")
@@ -126,10 +121,19 @@ class BalanceViewTests(APITestCase):
 
         # Verify header
         expected_header = [
-            "Date", "Type", "Sent Asset", "Sent Amount", "Received Asset",
-            "Received Amount", "Fee Asset", "Fee Amount",
-            "Market Value Currency", "Market Value", "Description",
-            "Transaction Hash", "Transaction ID"
+            "Date",
+            "Type",
+            "Sent Asset",
+            "Sent Amount",
+            "Received Asset",
+            "Received Amount",
+            "Fee Asset",
+            "Fee Amount",
+            "Market Value Currency",
+            "Market Value",
+            "Description",
+            "Transaction Hash",
+            "Transaction ID",
         ]
         self.assertEqual(rows[0], expected_header)
 
@@ -139,7 +143,7 @@ class BalanceViewTests(APITestCase):
         # Verify transaction types and ensure failed withdrawal is excluded
         transaction_types = [row[1] for row in rows[1:]]
         transaction_ids = [row[-1] for row in rows[1:]]
-        
+
         self.assertIn("Income", transaction_types)  # For positive amounts
         self.assertIn("Withdrawal", transaction_types)  # For withdrawal
         self.assertIn("Expense", transaction_types)  # For fee
@@ -149,21 +153,17 @@ class BalanceViewTests(APITestCase):
         for row in rows[1:]:
             # Check if required fields are present
             self.assertTrue(row[9])  # Market Value should not be empty
-            
+
             # Verify market value calculation
             if row[3]:  # Sent Amount
                 amount = Decimal(row[3])
                 market_value = Decimal(row[9])
                 self.assertAlmostEqual(
-                    market_value,
-                    amount * self.rsc_exchange_rate.real_rate,
-                    places=2
+                    market_value, amount * self.rsc_exchange_rate.real_rate, places=2
                 )
             elif row[5]:  # Received Amount
                 amount = Decimal(row[5])
                 market_value = Decimal(row[9])
                 self.assertAlmostEqual(
-                    market_value,
-                    amount * self.rsc_exchange_rate.real_rate,
-                    places=2
+                    market_value, amount * self.rsc_exchange_rate.real_rate, places=2
                 )
