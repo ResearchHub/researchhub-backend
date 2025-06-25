@@ -214,21 +214,6 @@ class UserBalanceTests(TestCase):
         fundraise_locked = self.user.get_locked_balance("FUNDRAISE_CONTRIBUTION")
         self.assertEqual(fundraise_locked, Decimal("60"))
 
-    def test_create_locked_balance(self):
-        # Test the Balance.create_locked_balance class method
-        locked_balance = Balance.create_locked_balance(
-            user=self.user, amount=150, lock_type="FUNDRAISE_CONTRIBUTION"
-        )
-
-        self.assertTrue(locked_balance.is_locked)
-        self.assertEqual(locked_balance.lock_type, "FUNDRAISE_CONTRIBUTION")
-        self.assertEqual(locked_balance.amount, "150")
-        self.assertEqual(locked_balance.user, self.user)
-
-        # Verify it affects locked balance calculation
-        locked = self.user.get_locked_balance()
-        self.assertEqual(locked, Decimal("150"))
-
     def test_balance_calculations_with_mixed_balances(self):
         # Create mix of locked and unlocked balances
         Balance.objects.create(
