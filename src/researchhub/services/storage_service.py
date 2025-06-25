@@ -6,6 +6,7 @@ from urllib.parse import quote
 from django.conf import settings
 
 from utils import aws as aws_utils
+from utils.sentry import log_error
 
 
 class PresignedUrl(NamedTuple):
@@ -53,27 +54,41 @@ class S3StorageService(StorageService):
 
         s3_filename = f"uploads/{entity}s/users/{user_id}/{uuid.uuid4()}/{filename}"
 
-        s3_client = aws_utils.create_client("s3")
+        try:
+            s3_client = aws_utils.create_client("s3")
 
-        url = s3_client.generate_presigned_url(
-            "put_object",
-            Params={
-                "Bucket": settings.AWS_STORAGE_BUCKET_NAME,
-                "Key": s3_filename,
-                "ContentType": content_type,
-                "Metadata": {
-                    "created-by-id": f"{user_id}",
-                    "file-name": self._sanitize_filename(filename),
+            url = s3_client.generate_presigned_url(
+                "put_object",
+                Params={
+                    "Bucket": settings.AWS_STORAGE_BUCKET_NAME,
+                    "Key": s3_filename,
+                    "ContentType": content_type,
+                    "Metadata": {
+                        "created-by-id": f"{user_id}",
+                        "file-name": self._sanitize_filename(filename),
+                    },
                 },
-            },
-            ExpiresIn=60 * valid_for_min,
-        )
+                ExpiresIn=60 * valid_for_min,
+            )
 
-        return PresignedUrl(
-            url=url,
-            object_key=s3_filename,
-            object_url=f"https://{settings.AWS_S3_CUSTOM_DOMAIN}/{s3_filename}",
-        )
+            return PresignedUrl(
+                url=url,
+                object_key=s3_filename,
+                object_url=f"https://{settings.AWS_S3_CUSTOM_DOMAIN}/{s3_filename}",
+            )
+        except Exception as e:
+            # Log any other unexpected errors
+            log_error(
+                e,
+                message="Unexpected error creating presigned URL",
+                extra_data={
+                    "entity": entity,
+                    "user_id": user_id,
+                    "filename": filename,
+                    "error_type": type(e).__name__,
+                },
+            )
+            raise
 
     def _sanitize_filename(self, filename: str) -> str:
         """

@@ -1,3 +1,4 @@
+from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -5,6 +6,7 @@ from rest_framework.views import APIView
 
 from paper.serializers.paper_upload_serializer import PaperUploadSerializer
 from researchhub.services.storage_service import S3StorageService
+from utils.sentry import log_error
 
 
 class PaperUploadView(APIView):
@@ -31,14 +33,31 @@ class PaperUploadView(APIView):
 
         filename = data.get("filename")
 
-        presigned_url = self.storage_service.create_presigned_url(
-            "paper", filename, user.id, "application/pdf"
-        )
+        try:
+            presigned_url = self.storage_service.create_presigned_url(
+                "paper", filename, user.id, "application/pdf"
+            )
 
-        return Response(
-            {
-                "presigned_url": presigned_url.url,
-                "object_key": presigned_url.object_key,
-                "object_url": presigned_url.object_url,
-            }
-        )
+            return Response(
+                {
+                    "presigned_url": presigned_url.url,
+                    "object_key": presigned_url.object_key,
+                    "object_url": presigned_url.object_url,
+                }
+            )
+        except Exception as e:
+            # Log the error with context for debugging
+            log_error(
+                e,
+                message="Failed to create presigned URL for paper upload",
+                extra_data={
+                    "user_id": user.id,
+                    "filename": filename,
+                    "error_type": type(e).__name__,
+                    "error_message": str(e),
+                },
+            )
+            return Response(
+                {"error": "Failed to create presigned URL. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
