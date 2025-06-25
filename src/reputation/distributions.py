@@ -92,6 +92,12 @@ def create_locked_balance_distribution(amount):
     return distribution
 
 
+def create_referral_bonus_distribution(amount):
+    """Create a distribution for referral bonus rewards"""
+    distribution = Distribution("REFERRAL_BONUS", amount, give_rep=False)
+    return distribution
+
+
 DISTRIBUTION_TYPE_CHOICES = [
     (FlagPaper.name, FlagPaper.name),
     ("STORED_PAPER_POT", "STORED_PAPER_POT"),
@@ -99,6 +105,7 @@ DISTRIBUTION_TYPE_CHOICES = [
     ("REWARD", "REWARD"),
     ("PURCHASE", "PURCHASE"),
     ("LOCKED_BALANCE", "LOCKED_BALANCE"),
+    ("REFERRAL_BONUS", "REFERRAL_BONUS"),
     (
         "EDITOR_COMPENSATION",
         "EDITOR_COMPENSATION",

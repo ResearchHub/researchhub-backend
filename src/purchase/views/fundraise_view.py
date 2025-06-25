@@ -18,6 +18,7 @@ from purchase.serializers.fundraise_create_serializer import FundraiseCreateSeri
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.purchase_serializer import DynamicPurchaseSerializer
 from purchase.services.fundraise_service import FundraiseService
+from referral.services.referral_bonus_service import ReferralBonusService
 from reputation.models import BountyFee
 from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
 from user.models import User
@@ -268,6 +269,13 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             if did_payout:
                 fundraise.status = Fundraise.COMPLETED
                 fundraise.save()
+
+                # Process referral bonuses for completed fundraise
+                try:
+                    ReferralBonusService.process_fundraise_completion(fundraise)
+                except Exception as e:
+                    log_error(e, message="Failed to process referral bonuses")
+                    # Don't fail the contribution if referral bonus processing fails
             else:
                 return Response({"message": "Failed to payout funds"}, status=500)
 
