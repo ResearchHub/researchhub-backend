@@ -149,7 +149,7 @@ class Fundraise(DefaultModel):
         """
         Close a fundraise and refund all contributions to their contributors.
         Also refunds the fees that were deducted when creating contributions.
-        Only works if the fundraise is in OPEN status and has escrow funds.
+        Only works if the fundraise is in OPEN status.
         Returns True if successful, False otherwise.
         """
         # Import inside method to avoid circular imports
@@ -159,8 +159,8 @@ class Fundraise(DefaultModel):
         from user.models import User
 
         with transaction.atomic():
-            # Check if fundraise can be refunded (is open and has escrow funds)
-            if self.status != self.OPEN or self.escrow.amount_holding <= 0:
+            # Check if fundraise can be closed (must be open)
+            if self.status != self.OPEN:
                 return False
 
             # Get all purchases (contributions) for this fundraise
