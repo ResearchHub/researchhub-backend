@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
@@ -80,7 +82,13 @@ class HandleSpamUserTaskTests(TestCase):
             object_id=self.paper.id,
         )
 
-    def test_handle_spam_user_task_without_requestor(self):
+    @patch("utils.siftscience.decisions_api.apply_bad_content_decision")
+    @patch("utils.siftscience.events_api.track_flag_content")
+    def test_handle_spam_user_task_without_requestor(
+        self,
+        track_flag_content_mock,
+        apply_bad_content_decision_mock,
+    ):
         """Test that the task properly marks content as removed without a requestor"""
         # Execute the task
         handle_spam_user_task(self.user.id)
@@ -108,7 +116,13 @@ class HandleSpamUserTaskTests(TestCase):
         # Comment should still be visible as there was no requestor to censor it
         self.assertFalse(self.comment.is_removed)
 
-    def test_handle_spam_user_task_with_requestor(self):
+    @patch("utils.siftscience.decisions_api.apply_bad_content_decision")
+    @patch("utils.siftscience.events_api.track_flag_content")
+    def test_handle_spam_user_task_with_requestor(
+        self,
+        track_flag_content_mock,
+        apply_bad_content_decision_mock,
+    ):
         """Test that the task properly marks content as removed with a requestor"""
         # Execute the task with a requestor
         handle_spam_user_task(self.user.id, self.moderator)
@@ -136,7 +150,13 @@ class HandleSpamUserTaskTests(TestCase):
         # Comment should be removed since there was a requestor to censor it
         self.assertTrue(self.comment.is_removed)
 
-    def test_handle_spam_user_task_with_multiple_contents(self):
+    @patch("utils.siftscience.decisions_api.apply_bad_content_decision")
+    @patch("utils.siftscience.events_api.track_flag_content")
+    def test_handle_spam_user_task_with_multiple_contents(
+        self,
+        track_flag_content_mock,
+        apply_bad_content_decision_mock,
+    ):
         """Test that the task handles multiple content items properly"""
         # Create additional papers, posts, and comments
         paper2 = create_paper(title="Second Test Paper", uploaded_by=self.user)
@@ -188,7 +208,13 @@ class HandleSpamUserTaskTests(TestCase):
         self.assertTrue(self.comment.is_removed)
         self.assertTrue(comment2.is_removed)
 
-    def test_reinstate_user_task(self):
+    @patch("utils.siftscience.decisions_api.apply_bad_content_decision")
+    @patch("utils.siftscience.events_api.track_flag_content")
+    def test_reinstate_user_task(
+        self,
+        track_flag_content_mock,
+        apply_bad_content_decision_mock,
+    ):
         """Test that reinstate_user_task properly restores user content"""
         # First, suspend the user to set up the test
         handle_spam_user_task(self.user.id, self.moderator)
@@ -220,7 +246,13 @@ class HandleSpamUserTaskTests(TestCase):
         # Check post's unified document is restored
         self.assertFalse(self.post.unified_document.is_removed)
 
-    def test_reinstate_user_task_with_multiple_content(self):
+    @patch("utils.siftscience.decisions_api.apply_bad_content_decision")
+    @patch("utils.siftscience.events_api.track_flag_content")
+    def test_reinstate_user_task_with_multiple_content(
+        self,
+        track_flag_content_mock,
+        apply_bad_content_decision_mock,
+    ):
         """Test reinstatement with multiple content items"""
         # Create additional papers and posts
         paper2 = create_paper(title="Second Test Paper", uploaded_by=self.user)
