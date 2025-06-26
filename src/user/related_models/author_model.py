@@ -159,6 +159,13 @@ class Author(models.Model):
         return self.first_name + " " + self.last_name
 
     @property
+    def is_verified_v2(self):
+        if self.user is None:
+            return False
+
+        return self.user.is_verified_v2
+
+    @property
     def profile_image_indexing(self):
         if self.profile_image is not None:
             try:
