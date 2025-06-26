@@ -81,12 +81,6 @@ class FeedEntryDocument(Document):
         if instance.user and hasattr(instance.user, "author_profile"):
             profile = instance.user.author_profile
 
-            # Need to safely check if userverification exists since we don't have
-            # a corresponding field or property in the user model yet.
-            # The existing `is_verified` field is the old verification status.
-            uv = getattr(instance.user, "userverification", None)
-            is_verified = uv.is_verified if uv and hasattr(uv, "is_verified") else False
-
             return {
                 "id": profile.id,
                 "first_name": profile.first_name,
@@ -106,7 +100,7 @@ class FeedEntryDocument(Document):
                     "first_name": instance.user.first_name,
                     "last_name": instance.user.last_name,
                     "email": instance.user.email,
-                    "is_verified": is_verified,
+                    "is_verified": instance.user.is_verified_v2,
                 },
             }
         return None
