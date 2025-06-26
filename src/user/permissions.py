@@ -126,8 +126,4 @@ class IsVerifiedUser(BasePermission):
         if user.is_anonymous:
             return False
 
-        user_verification = UserVerification.objects.filter(user=user).first()
-        if not user_verification:
-            return False
-
-        return user_verification.is_verified
+        return user.is_verified_v2
