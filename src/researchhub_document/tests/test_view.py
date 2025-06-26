@@ -1,6 +1,7 @@
 import time
 from datetime import datetime, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
@@ -432,7 +433,15 @@ class ViewTests(APITestCase):
 
         self.assertEqual(updated_response.status_code, 403)
 
-    def test_hub_editors_can_censor_papers(self):
+    @patch("utils.siftscience.decisions_api.apply_bad_user_decision")
+    @patch("utils.siftscience.decisions_api.apply_bad_content_decision")
+    @patch("utils.siftscience.events_api.track_flag_content")
+    def test_hub_editors_can_censor_papers(
+        self,
+        track_flag_content_mock,
+        apply_bad_content_decision_mock,
+        apply_bad_user_decision_mock,
+    ):
         hub = create_hub()
         user_editor = create_random_default_user("user_editor")
         Permission.objects.create(
