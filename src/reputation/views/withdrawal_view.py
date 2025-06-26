@@ -33,7 +33,6 @@ from reputation.models import Withdrawal
 from reputation.permissions import AllowWithdrawalIfNotSuspecious
 from reputation.serializers import WithdrawalSerializer
 from user.related_models.user_model import User
-from user.related_models.user_verification_model import UserVerification
 from user.serializers import UserSerializer
 from utils import sentry
 from utils.permissions import CreateOrReadOnly, CreateOrUpdateIfAllowed, UserNotSpammer
@@ -181,24 +180,17 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         if user.author_profile.get_rep_score() >= 10:
             return True
 
-        # ...or if the user's identity has been verified
-        user_verification = UserVerification.objects.filter(user=user).first()
-        if not user_verification:
-            return False
-
-        return user_verification.is_verified
+        return user.is_verified_v2
 
     def _min_time_between_withdrawals(self, user: User) -> timedelta:
-        user_verification = UserVerification.objects.filter(user=user).first()
-        if user_verification and user_verification.is_verified:
+        if user.is_verified_v2:
             # Verified users can withdraw every 24 hours
             return timedelta(days=1)
 
         return timedelta(weeks=2)
 
     def _min_time_between_withdrawals_message(self, user: User) -> str:
-        user_verification = UserVerification.objects.filter(user=user).first()
-        if user_verification and user_verification.is_verified:
+        if user.is_verified_v2:
             # Verified users can withdraw every 24 hours
             return "You're limited to 1 withdrawal a day."
 
@@ -320,10 +312,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
 
         user_two_weeks_delta = now - user.created_date
 
-        user_verification = UserVerification.objects.filter(user=user).first()
-        is_user_verified = user_verification and user_verification.is_verified
-
-        if user_two_weeks_delta < timedelta(days=14) and not is_user_verified:
+        if user_two_weeks_delta < timedelta(days=14) and not user.is_verified_v2:
             message = "You're account is new, please wait 2 weeks before withdrawing."
             return (False, message)
 
