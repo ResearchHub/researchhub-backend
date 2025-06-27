@@ -520,6 +520,7 @@ class MinimalUserSerializer(ModelSerializer):
 class UserEditableSerializer(ModelSerializer):
     author_profile = AuthorSerializer()
     balance = SerializerMethodField()
+    locked_balance = SerializerMethodField()
     balance_history = SerializerMethodField()
     email = SerializerMethodField()
     organization_slug = SerializerMethodField()
@@ -564,6 +565,13 @@ class UserEditableSerializer(ModelSerializer):
 
         if request_user and request_user == user:
             return user.get_balance()
+        return None
+
+    def get_locked_balance(self, user):
+        context = self.context
+        request_user = context.get("user", None)
+        if request_user and request_user == user:
+            return user.get_locked_balance()
         return None
 
     def get_balance_history(self, user):
