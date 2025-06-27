@@ -266,6 +266,7 @@ INSTALLED_APPS = [
     "oauth",
     "paper",
     "purchase",
+    "referral",
     "reputation",
     "researchhub",
     "researchhub_case",

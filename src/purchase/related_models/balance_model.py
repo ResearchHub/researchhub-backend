@@ -19,7 +19,7 @@ class Balance(models.Model):
     is_locked = models.BooleanField(default=False)
     lock_type = models.TextField(
         choices=[
-            ("FUNDRAISE_CONTRIBUTION", "Fundraise Contribution"),
+            ("REFERRAL_BONUS", "Referral Bonus"),
         ],
         null=True,
         blank=True,
