@@ -3,17 +3,19 @@ import json
 
 import sift.client
 from django.apps import apps
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from ipware import get_client_ip
 from rest_framework.request import Request
 
 from researchhub.celery import QUEUE_EXTERNAL_REPORTING, app
-from researchhub.settings import SIFT_ACCOUNT_ID, SIFT_REST_API_KEY
 from utils import sentry
 
 # https://sift.com/resources/guides/content-abuse
 
-client = sift.Client(api_key=SIFT_REST_API_KEY, account_id=SIFT_ACCOUNT_ID)
+client = sift.Client(
+    api_key=settings.SIFT_REST_API_KEY, account_id=settings.SIFT_ACCOUNT_ID
+)
 
 SIFT_COMMENT = "track_content_comment"
 SIFT_PAPER = "track_content_paper"
