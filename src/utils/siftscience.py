@@ -8,7 +8,7 @@ from ipware import get_client_ip
 from rest_framework.request import Request
 
 from researchhub.celery import QUEUE_EXTERNAL_REPORTING, app
-from researchhub.settings import DEVELOPMENT, SIFT_ACCOUNT_ID, SIFT_REST_API_KEY
+from researchhub.settings import SIFT_ACCOUNT_ID, SIFT_REST_API_KEY
 from utils import sentry
 
 # https://sift.com/resources/guides/content-abuse
