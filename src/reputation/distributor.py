@@ -120,7 +120,7 @@ class Distributor:
             lock_type=lock_type,
         )
 
-    def distribute_locked_balance(self, lock_type="REFERRAL_BONUS"):
+    def distribute_locked_balance(self, lock_type):
         """
         Creates a locked balance distribution record without distributing reputation.
         Used for locking user funds for specific purposes like referral bonuses.
