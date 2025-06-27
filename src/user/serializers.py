@@ -18,6 +18,7 @@ from hub.serializers import DynamicHubSerializer, HubSerializer, SimpleHubSerial
 from institution.serializers import DynamicInstitutionSerializer
 from paper.models import Paper, PaperSubmission
 from purchase.models import Purchase
+from referral.models import ReferralSignup
 from reputation.models import Bounty, Contribution, Score, Withdrawal
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import (
@@ -622,6 +623,7 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
 
     first_name = CharField(max_length=150, allow_blank=True, required=False)
     last_name = CharField(max_length=150, allow_blank=True, required=False)
+    referral_code = CharField(max_length=100, allow_blank=True, required=False)
 
     def validate_username(self, username):
         if username:
@@ -641,10 +643,26 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
             "email": self.validated_data.get("email", ""),
             "first_name": self.validated_data.get("first_name"),
             "last_name": self.validated_data.get("last_name"),
+            "referral_code": self.validated_data.get("referral_code"),
         }
 
     def save(self, request):
-        return super().save(request)
+        user = super().save(request)
+
+        # Handle referral signup creation
+        referral_code = self.validated_data.get("referral_code")
+        if referral_code and referral_code.strip():
+            try:
+                # Find the referrer by their referral code
+                referrer = User.objects.get(referral_code=referral_code.strip())
+                # Create the referral signup entry
+                ReferralSignup.objects.create(referrer=referrer, referred=user)
+            except User.DoesNotExist:
+                # Invalid referral code - silently ignore for now
+                # Could add validation or logging here if needed
+                pass
+
+        return user
 
 
 class DynamicUserSerializer(DynamicModelFieldSerializer):
