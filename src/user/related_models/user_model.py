@@ -311,6 +311,18 @@ class User(AbstractUser):
         return amount_funded
 
     @property
+    def is_verified_v2(self):
+        """
+        Check if the user account is verified via `UserVerification`.
+        Returns `False` if the user was not successfully verified or
+        if no verification record exists.
+        """
+        try:
+            return self.userverification.is_verified
+        except Exception:
+            return False
+
+    @property
     def peer_review_count(self):
         from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 

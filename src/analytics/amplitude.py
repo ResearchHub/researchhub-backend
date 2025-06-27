@@ -44,7 +44,7 @@ class Amplitude:
                 "probable_spammer": user.probable_spammer,
                 "invited_by_id": invited_by,
                 "is_hub_editor": user.is_hub_editor(),
-                "is_verified": user.is_verified,
+                "is_verified": user.is_verified_v2,
             }
             user_id = f"user: {user.email}_{user.id}"
         return user_id, user_properties
