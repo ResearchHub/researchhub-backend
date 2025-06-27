@@ -49,7 +49,7 @@ def check_user_risk(user):
     if (
         sift_risk_score
         and sift_risk_score > 90
-        and user.id not in (34581,)
+        and user.id not in settings.SIFT_MODERATION_WHITELIST
         and not user.is_verified
     ):
         user.set_suspended(is_manual=False)
