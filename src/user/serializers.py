@@ -658,8 +658,6 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
                 # Create the referral signup entry
                 ReferralSignup.objects.create(referrer=referrer, referred=user)
             except User.DoesNotExist:
-                # Invalid referral code - silently ignore for now
-                # Could add validation or logging here if needed
                 pass
 
         return user
