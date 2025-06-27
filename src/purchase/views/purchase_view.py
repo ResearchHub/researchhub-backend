@@ -31,7 +31,6 @@ from reputation.tasks import create_contribution
 from reputation.utils import calculate_support_fees, deduct_support_fees
 from researchhub.settings import BASE_FRONTEND_URL
 from researchhub_document.models import ResearchhubPost
-from researchhub_document.related_models.constants.filters import HOT
 from user.models import Action, User
 from utils.permissions import CreateOrReadOnly
 from utils.throttles import THROTTLE_CLASSES
@@ -65,7 +64,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         if user.probable_spammer:
             return Response(
                 {
-                    "detail": f"Account under review. Please contact support.",
+                    "detail": "Account under review. Please contact support.",
                 },
                 status=403,
             )
@@ -101,7 +100,10 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 ):
                     return Response(
                         {
-                            "detail": f"Invalid amount. Minimum of {MINIMUM_SUPPORT_AMOUNT_RSC} RSC.",
+                            "detail": (
+                                f"Invalid amount. Minimum of "
+                                f"{MINIMUM_SUPPORT_AMOUNT_RSC} RSC."
+                            ),
                         },
                         status=400,
                     )
