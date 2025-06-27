@@ -23,13 +23,6 @@ class ReferralSignup(DefaultModel):
         help_text="User who signed up via referral",
     )
 
-    bonus_percentage = models.DecimalField(
-        max_digits=5,
-        decimal_places=2,
-        default=0.00,
-        help_text="Bonus percentage for this referral (e.g., 10.00 for 10%)",
-    )
-
     signup_date = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -38,4 +31,4 @@ class ReferralSignup(DefaultModel):
         ]
 
     def __str__(self):
-        return f"{self.referrer.email} referred {self.referred.email} ({self.bonus_percentage}%)"
+        return f"{self.referrer.email} referred {self.referred.email}"
