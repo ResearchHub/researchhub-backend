@@ -1,5 +1,5 @@
 import functools
-import json
+import logging
 
 import sift.client
 from django.apps import apps
@@ -23,44 +23,7 @@ SIFT_POST = "track_content_post"
 SIFT_VOTE = "track_content_vote"
 
 
-def get_user_score(user_id):
-    try:
-        response = client.score(user_id)
-        out = json.dumps(response.body)
-        print(out)
-    except sift.client.ApiException as e:
-        sentry.log_error(e)
-        print(e.api_error_message)
-
-
-def label_bad_user(user_id, abuse_type, description=""):
-    # TODO: Finish this by determing how we plan to use it
-    try:
-        response = client.label(
-            user_id,
-            {
-                "$is_bad": True,
-                # optional fields
-                "$abuse_type": abuse_type,
-                "$description": description,
-                "$source": "django",
-                "$analyst": "dev@quantfive.org",
-            },
-        )
-        print(response.body)
-    except sift.client.ApiException as e:
-        sentry.log_error(e)
-        print(e.api_error_message)
-
-
-def unlabel_user(user_id):
-    # TODO: Finish this by determing how we plan to use it
-    try:
-        response = client.unlabel(user_id, abuse_type="content_abuse")
-        print(response.body)
-    except sift.client.ApiException as e:
-        sentry.log_error(e)
-        print(e.api_error_message)
+logger = logging.getLogger(__name__)
 
 
 def get_tracked_content_score(tracked_content):
