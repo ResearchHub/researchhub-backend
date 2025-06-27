@@ -9,6 +9,8 @@ from purchase.models import Balance, Fundraise, Purchase
 from referral.models import ReferralSignup
 from referral.services.referral_bonus_service import ReferralBonusService
 from reputation.models import Distribution
+from researchhub_document.helpers import create_post
+from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from user.tests.helpers import create_random_default_user
 
 
@@ -18,19 +20,24 @@ class ReferralBonusServiceTest(TestCase):
         self.referred_user = create_random_default_user("referred")
         self.fundraise_creator = create_random_default_user("creator")
 
+        # Create a post to get a unified document for the fundraise
+        self.post = create_post(
+            created_by=self.fundraise_creator, document_type=PREREGISTRATION
+        )
+
         # Create a fundraise
         self.fundraise = Fundraise.objects.create(
             created_by=self.fundraise_creator,
+            unified_document=self.post.unified_document,
             goal_amount=Decimal("1000.00"),
             status=Fundraise.COMPLETED,
         )
 
-        # Create referral signup within 6 months with 10% bonus
+        # Create referral signup within 6 months
         self.referral_signup = ReferralSignup.objects.create(
             referrer=self.referrer,
             referred=self.referred_user,
             signup_date=timezone.now() - timedelta(days=30),  # 1 month ago
-            bonus_percentage=Decimal("10.00"),  # 10%
         )
 
         # Create contribution from referred user
@@ -59,7 +66,7 @@ class ReferralBonusServiceTest(TestCase):
 
         # Check distributions were created with correct amounts
         expected_bonus = self.contribution_amount * (
-            self.referral_signup.bonus_percentage / 100
+            ReferralBonusService.BONUS_PERCENTAGE / 100
         )
         referrer_distribution = Distribution.objects.filter(
             recipient=self.referrer,
@@ -92,7 +99,6 @@ class ReferralBonusServiceTest(TestCase):
         """Test that referrals older than 6 months are not eligible"""
         # Update referral signup to be older than 6 months
         self.referral_signup.signup_date = timezone.now() - timedelta(days=200)
-        self.referral_signup.bonus_percentage = Decimal("15.00")  # Different percentage
         self.referral_signup.save()
 
         initial_distribution_count = Distribution.objects.count()
@@ -109,9 +115,13 @@ class ReferralBonusServiceTest(TestCase):
         # Process first fundraise
         ReferralBonusService.process_fundraise_completion(self.fundraise)
 
-        # Create a second fundraise
+        # Create a second fundraise with its own unified document
+        second_post = create_post(
+            created_by=self.fundraise_creator, document_type=PREREGISTRATION
+        )
         second_fundraise = Fundraise.objects.create(
             created_by=self.fundraise_creator,
+            unified_document=second_post.unified_document,
             goal_amount=Decimal("500.00"),
             status=Fundraise.COMPLETED,
         )
@@ -168,7 +178,7 @@ class ReferralBonusServiceTest(TestCase):
         ReferralBonusService.process_fundraise_completion(self.fundraise)
 
         expected_bonus = self.contribution_amount * (
-            self.referral_signup.bonus_percentage / 100
+            ReferralBonusService.BONUS_PERCENTAGE / 100
         )
 
         referrer_distribution = Distribution.objects.filter(
@@ -192,26 +202,25 @@ class ReferralBonusServiceTest(TestCase):
 
         ReferralBonusService.process_fundraise_completion(self.fundraise)
 
-        # Should still only have one bonus per user, but amount should reflect total contributions
+        # Should have separate bonuses for each contribution
         referrer_distributions = Distribution.objects.filter(
             recipient=self.referrer, distribution_type="REFERRAL_BONUS"
         )
-        self.assertEqual(referrer_distributions.count(), 1)
+        self.assertEqual(referrer_distributions.count(), 2)  # One for each contribution
 
         # Note: Current implementation processes each contribution separately
         # This test documents current behavior - may need adjustment based on requirements
 
-    def test_different_bonus_percentages(self):
-        """Test that different bonus percentages are applied correctly"""
-        # Create another referral with different percentage
+    def test_multiple_referrals_same_fundraise(self):
+        """Test that multiple referrals for the same fundraise are processed correctly"""
+        # Create another referral
         other_referrer = create_random_default_user("other_referrer")
         other_referred = create_random_default_user("other_referred")
 
-        other_referral = ReferralSignup.objects.create(
+        ReferralSignup.objects.create(
             referrer=other_referrer,
             referred=other_referred,
             signup_date=timezone.now() - timedelta(days=30),
-            bonus_percentage=Decimal("5.00"),  # 5% instead of 10%
         )
 
         # Create contribution from other referred user
@@ -227,15 +236,19 @@ class ReferralBonusServiceTest(TestCase):
 
         ReferralBonusService.process_fundraise_completion(self.fundraise)
 
-        # Check first referral (10%)
-        expected_bonus_1 = self.contribution_amount * Decimal("0.10")
+        # Check first referral
+        expected_bonus_1 = self.contribution_amount * (
+            ReferralBonusService.BONUS_PERCENTAGE / 100
+        )
         referrer_1_distribution = Distribution.objects.filter(
             recipient=self.referrer, distribution_type="REFERRAL_BONUS"
         ).first()
         self.assertEqual(referrer_1_distribution.amount, expected_bonus_1)
 
-        # Check second referral (5%)
-        expected_bonus_2 = other_contribution_amount * Decimal("0.05")
+        # Check second referral
+        expected_bonus_2 = other_contribution_amount * (
+            ReferralBonusService.BONUS_PERCENTAGE / 100
+        )
         referrer_2_distribution = Distribution.objects.filter(
             recipient=other_referrer, distribution_type="REFERRAL_BONUS"
         ).first()

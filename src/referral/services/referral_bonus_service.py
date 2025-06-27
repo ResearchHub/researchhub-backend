@@ -14,7 +14,7 @@ class ReferralBonusService:
     """Service for processing referral bonuses when fundraises complete."""
 
     REFERRAL_ELIGIBILITY_MONTHS = 6
-    BONUS_PERCENTAGE = 10.00
+    BONUS_PERCENTAGE = Decimal("10.00")
 
     @classmethod
     def process_fundraise_completion(cls, fundraise):
@@ -97,7 +97,7 @@ class ReferralBonusService:
         """
         # Convert percentage to decimal (e.g., 10.00 -> 0.10)
         bonus_percentage_decimal = cls.BONUS_PERCENTAGE / 100
-        bonus_amount = contribution_amount * bonus_percentage_decimal
+        bonus_amount = Decimal(contribution_amount) * bonus_percentage_decimal
         timestamp = timezone.now().timestamp()
 
         # Create bonus distribution for the referred user (contributor)
@@ -105,7 +105,7 @@ class ReferralBonusService:
         referred_distributor = Distributor(
             distribution=referred_distribution,
             recipient=referred_user,
-            proof_item=fundraise,
+            db_record=fundraise,
             timestamp=timestamp,
             giver=None,  # Platform gives the bonus
         )
@@ -116,7 +116,7 @@ class ReferralBonusService:
         referrer_distributor = Distributor(
             distribution=referrer_distribution,
             recipient=referrer_user,
-            proof_item=fundraise,
+            db_record=fundraise,
             timestamp=timestamp,
             giver=None,  # Platform gives the bonus
         )
