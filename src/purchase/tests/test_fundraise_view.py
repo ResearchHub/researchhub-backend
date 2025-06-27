@@ -7,7 +7,8 @@ from rest_framework.test import APITestCase
 from purchase.models import Balance, Fundraise, Purchase, RscExchangeRate
 from purchase.services.fundraise_service import FundraiseService
 from purchase.views import FundraiseViewSet
-from reputation.models import BountyFee
+from referral.models import ReferralSignup
+from reputation.models import BountyFee, Distribution
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -376,3 +377,172 @@ class FundraiseViewTests(APITestCase):
 
         # Should get 403 Forbidden
         self.assertEqual(response.status_code, 403)
+
+    def test_referral_bonuses_processed_on_fundraise_completion(self):
+        """Test that referral bonuses are processed when a fundraise completes"""
+        from referral.models import ReferralSignup
+        from referral.services.referral_bonus_service import ReferralBonusService
+        from reputation.models import Distribution
+
+        # Create a referrer and referred user
+        referrer = create_random_authenticated_user("referrer")
+        referred_user = create_random_authenticated_user("referred")
+
+        # Create referral signup within 6 months
+        referral_signup = ReferralSignup.objects.create(
+            referrer=referrer,
+            referred=referred_user,
+            signup_date=datetime.now(pytz.UTC) - timedelta(days=30),  # 1 month ago
+        )
+
+        # Create a fundraise with a goal
+        fundraise = self._create_fundraise(self.post.id, goal_amount=100)
+        fundraise_id = fundraise.data["id"]
+
+        # Give the referred user balance to contribute
+        self._give_user_balance(referred_user, 1000)
+
+        # Track initial distribution count
+        initial_distribution_count = Distribution.objects.count()
+
+        # Have the referred user contribute an amount that fulfills the goal
+        response = self._create_contribution(
+            fundraise_id, referred_user, amount=200  # 200 RSC = 100 USD, fulfills goal
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], "COMPLETED")
+
+        # Check that referral bonuses were created
+        # Should create 2 distributions (one for referrer, one for referred user)
+        # Note: Other distributions (fundraise payout, fees) are also created
+        referral_bonus_distributions = Distribution.objects.filter(
+            distribution_type="REFERRAL_BONUS",
+            created_date__gte=datetime.now(pytz.UTC) - timedelta(seconds=10),
+        )
+
+        self.assertEqual(referral_bonus_distributions.count(), 2)
+
+        # Check that both users received the correct bonus amount
+        from decimal import Decimal
+
+        expected_bonus = Decimal("200") * (ReferralBonusService.BONUS_PERCENTAGE / 100)
+
+        referrer_distribution = Distribution.objects.filter(
+            recipient=referrer,
+            distribution_type="REFERRAL_BONUS",
+            amount=expected_bonus,
+        ).first()
+        self.assertIsNotNone(referrer_distribution)
+
+        referred_distribution = Distribution.objects.filter(
+            recipient=referred_user,
+            distribution_type="REFERRAL_BONUS",
+            amount=expected_bonus,
+        ).first()
+        self.assertIsNotNone(referred_distribution)
+
+        # Check that locked balances were created
+        referrer_balance = Balance.objects.filter(
+            user=referrer, is_locked=True, lock_type="REFERRAL_BONUS"
+        ).first()
+        self.assertIsNotNone(referrer_balance)
+        self.assertEqual(float(referrer_balance.amount), expected_bonus)
+
+        referred_balance = Balance.objects.filter(
+            user=referred_user, is_locked=True, lock_type="REFERRAL_BONUS"
+        ).first()
+        self.assertIsNotNone(referred_balance)
+        self.assertEqual(float(referred_balance.amount), expected_bonus)
+
+    def test_referral_bonuses_not_processed_if_fundraise_not_completed(self):
+        """Test that referral bonuses are NOT processed if fundraise doesn't complete"""
+        from referral.models import ReferralSignup
+        from reputation.models import Distribution
+
+        # Create a referrer and referred user
+        referrer = create_random_authenticated_user("referrer2")
+        referred_user = create_random_authenticated_user("referred2")
+
+        # Create referral signup
+        ReferralSignup.objects.create(
+            referrer=referrer,
+            referred=referred_user,
+            signup_date=datetime.now(pytz.UTC) - timedelta(days=30),
+        )
+
+        # Create a fundraise with a high goal
+        fundraise = self._create_fundraise(self.post.id, goal_amount=1000)
+        fundraise_id = fundraise.data["id"]
+
+        # Give the referred user balance to contribute
+        self._give_user_balance(referred_user, 1000)
+
+        # Count initial referral bonus distributions
+        initial_referral_bonuses = Distribution.objects.filter(
+            distribution_type="REFERRAL_BONUS"
+        ).count()
+
+        # Have the referred user contribute an amount that does NOT fulfill the goal
+        response = self._create_contribution(
+            fundraise_id, referred_user, amount=50  # Not enough to complete fundraise
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotEqual(response.data["status"], "COMPLETED")
+
+        # Check that NO new referral bonuses were created
+        final_referral_bonuses = Distribution.objects.filter(
+            distribution_type="REFERRAL_BONUS"
+        ).count()
+
+        self.assertEqual(final_referral_bonuses, initial_referral_bonuses)
+
+        # No referral bonus distributions should exist for these users
+        new_referral_distributions = Distribution.objects.filter(
+            recipient__in=[referrer, referred_user],
+            distribution_type="REFERRAL_BONUS",
+            created_date__gte=datetime.now(pytz.UTC) - timedelta(seconds=10),
+        )
+        self.assertEqual(new_referral_distributions.count(), 0)
+
+    def test_non_referred_users_dont_generate_bonuses(self):
+        """Test that users without referrals don't generate bonuses on fundraise completion"""
+        from reputation.models import Distribution
+
+        # Create a user without any referral signup
+        non_referred_user = create_random_authenticated_user("non_referred")
+
+        # Create a fundraise
+        fundraise = self._create_fundraise(self.post.id, goal_amount=100)
+        fundraise_id = fundraise.data["id"]
+
+        # Give the user balance to contribute
+        self._give_user_balance(non_referred_user, 1000)
+
+        # Count initial referral bonus distributions
+        initial_referral_bonuses = Distribution.objects.filter(
+            distribution_type="REFERRAL_BONUS"
+        ).count()
+
+        # Have the user contribute and complete the fundraise
+        response = self._create_contribution(
+            fundraise_id, non_referred_user, amount=200  # Completes fundraise
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], "COMPLETED")
+
+        # Check that NO new referral bonuses were created
+        final_referral_bonuses = Distribution.objects.filter(
+            distribution_type="REFERRAL_BONUS"
+        ).count()
+
+        self.assertEqual(final_referral_bonuses, initial_referral_bonuses)
+
+        # No referral bonus distributions should exist for this contribution
+        new_bonus_distributions = Distribution.objects.filter(
+            distribution_type="REFERRAL_BONUS",
+            created_date__gte=datetime.now(pytz.UTC) - timedelta(seconds=10),
+        )
+        self.assertEqual(new_bonus_distributions.count(), 0)
