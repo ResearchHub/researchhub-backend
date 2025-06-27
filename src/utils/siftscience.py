@@ -71,7 +71,7 @@ class DecisionsApi:
             client.apply_user_decision(str(content_creator.id), applyDecisionRequest)
         except sift.client.ApiException as e:
             sentry.log_error(e)
-            print(e)
+            logger.error(f"Failed to apply bad user decision: {e}")
 
     def apply_bad_content_decision(
         self, content_creator, content_id, source="AUTOMATED_RULE", reporter=None
@@ -94,7 +94,7 @@ class DecisionsApi:
             )
         except sift.client.ApiException as e:
             sentry.log_error(e)
-            print(e)
+            logger.error(f"Failed to apply bad content decision: {e}")
 
 
 class EventsApi:
