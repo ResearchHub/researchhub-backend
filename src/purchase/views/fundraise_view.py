@@ -275,7 +275,6 @@ class FundraiseViewSet(viewsets.ModelViewSet):
                     ReferralBonusService.process_fundraise_completion(fundraise)
                 except Exception as e:
                     log_error(e, message="Failed to process referral bonuses")
-                    # Don't fail the contribution if referral bonus processing fails
             else:
                 return Response({"message": "Failed to payout funds"}, status=500)
 

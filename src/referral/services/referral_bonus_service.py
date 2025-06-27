@@ -14,7 +14,7 @@ class ReferralBonusService:
     """Service for processing referral bonuses when fundraises complete."""
 
     REFERRAL_ELIGIBILITY_MONTHS = 6
-    BONUS_PERCENTAGE = Decimal("10.00")  # 10% bonus hardcoded
+    BONUS_PERCENTAGE = 10.00
 
     @classmethod
     def process_fundraise_completion(cls, fundraise):
@@ -74,7 +74,6 @@ class ReferralBonusService:
                 )
 
             except ReferralSignup.DoesNotExist:
-                # User was not referred, skip
                 continue
 
         return eligible_referrals
@@ -122,5 +121,3 @@ class ReferralBonusService:
             giver=None,  # Platform gives the bonus
         )
         referrer_distributor.distribute_locked_balance(lock_type="REFERRAL_BONUS")
-
-        # Note: Bonuses can be applied multiple times for different fundraises
