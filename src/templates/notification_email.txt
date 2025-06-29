@@ -1,0 +1,12 @@
+Your Notifications
+
+{% for action in actions %}
+{{ action.item.created_by.author_profile.first_name }} {{ action.item.created_by.author_profile.last_name }} {{ action.label }}: {{ action.title }}
+
+{{ action.item.plain_text }}
+
+View: {{ action.frontend_view_link }}
+
+{% endfor %}
+
+Unsubscribe or change how frequently I get updated: {{opt_out}}

@@ -10,7 +10,9 @@
     <body>
       <div class="email-container">
         <div class="email-header">
-          <img class="img-logo" src="{{ assets_base_url }}/email_assets/ResearchHubLogo.png" />
+          <a href="https://researchhub.com" target="_blank" style="text-decoration: none;">
+            <img class="img-logo" src="{{ assets_base_url }}/email_assets/ResearchHubLogo.png" />
+          </a>
           <div class="header">
             Your Notifications
           </div>
@@ -18,25 +20,29 @@
         {% for action in actions %}
           <div class="content">
             <div class="meta">
-              <div class="avatar-wrapper">
-                {% if action.item.created_by.author_profile.profile_image %}
-                  <img
-                    class="author-avatar"
-                    src="{{ action.item.created_by.author_profile.profile_image|default:"https://lh5.googleusercontent.com/-17a1IzJomPE/AAAAAAAAAAI/AAAAAAAAAAA/ACHi3rdlSnx9v1y2976233QPpmGaCpMSXg/photo.jpg" }}"
-                    alt="{{ action.item.created_by.author_profile.profile_image }}"
-                  />
-                {% else %}
-                  <div class="initials">
-                    {{ action.initials }}
-                  </div>
-                {% endif %}
-              </div>
+              <a href="https://www.researchhub.com/author/{{ action.item.created_by.author_profile.id }}" target="_blank" style="text-decoration: none;">
+                <div class="avatar-wrapper">
+                  {% if action.item.created_by.author_profile.profile_image %}
+                    <img
+                      class="author-avatar"
+                      src="{{ action.item.created_by.author_profile.profile_image|default:"https://lh5.googleusercontent.com/-17a1IzJomPE/AAAAAAAAAAI/AAAAAAAAAAA/ACHi3rdlSnx9v1y2976233QPpmGaCpMSXg/photo.jpg" }}"
+                      alt="{{ action.item.created_by.author_profile.profile_image }}"
+                    />
+                  {% else %}
+                    <div class="initials">
+                      {{ action.initials }}
+                    </div>
+                  {% endif %}
+                </div>
+              </a>
               <div class="notification-wrapper">
                 <div class="notification-title">
                   <span class="first-line">
                     <b>
-                      {{ action.item.created_by.author_profile.first_name }}
-                       {{ action.item.created_by.author_profile.last_name }}
+                      <a href="https://www.researchhub.com/author/{{ action.item.created_by.author_profile.id }}" target="_blank" style="text-decoration: none; color: inherit;">
+                        {{ action.item.created_by.author_profile.first_name }}
+                        {{ action.item.created_by.author_profile.last_name }}
+                      </a>
                     </b> {{ action.label }}:
                   </span>
                   <div class="paper">
