@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
@@ -419,9 +420,10 @@ class FundraiseViewTests(APITestCase):
         self.assertEqual(referral_bonus_distributions.count(), 2)
 
         # Check that both users received the correct bonus amount
-        from decimal import Decimal
 
-        expected_bonus = Decimal("200") * (ReferralBonusService.BONUS_PERCENTAGE / 100)
+        expected_bonus = Decimal("200") * (
+            ReferralBonusService().bonus_percentage / 100
+        )
 
         referrer_distribution = Distribution.objects.filter(
             recipient=referrer,

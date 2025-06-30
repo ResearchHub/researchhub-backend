@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
 
 from django.db import transaction
@@ -13,11 +13,11 @@ from reputation.distributor import Distributor
 class ReferralBonusService:
     """Service for processing referral bonuses when fundraises complete."""
 
-    REFERRAL_ELIGIBILITY_MONTHS = 6
-    BONUS_PERCENTAGE = Decimal("10.00")
+    def __init__(self):
+        self.bonus_percentage = Decimal("10.00")
+        self.referral_eligibility_months = 6
 
-    @classmethod
-    def process_fundraise_completion(cls, fundraise):
+    def process_fundraise_completion(self, fundraise):
         """
         Process referral bonuses for a completed fundraise.
 
@@ -25,18 +25,17 @@ class ReferralBonusService:
             fundraise: The completed Fundraise instance
         """
         with transaction.atomic():
-            eligible_referrals = cls._get_eligible_referrals(fundraise)
+            eligible_referrals = self._get_eligible_referrals(fundraise)
 
             for referral_data in eligible_referrals:
-                cls._distribute_referral_bonus(
+                self._distribute_referral_bonus(
                     fundraise=fundraise,
                     referred_user=referral_data["referred_user"],
                     referrer_user=referral_data["referrer_user"],
                     contribution_amount=referral_data["contribution_amount"],
                 )
 
-    @classmethod
-    def _get_eligible_referrals(cls, fundraise):
+    def _get_eligible_referrals(self, fundraise):
         """
         Get all referrals eligible for bonuses for this fundraise.
 
@@ -44,7 +43,7 @@ class ReferralBonusService:
             List of dicts with referral data
         """
         cutoff_date = timezone.now() - timedelta(
-            days=30 * cls.REFERRAL_ELIGIBILITY_MONTHS
+            days=30 * self.referral_eligibility_months
         )
 
         # Get all contributions to this fundraise
@@ -78,9 +77,8 @@ class ReferralBonusService:
 
         return eligible_referrals
 
-    @classmethod
     def _distribute_referral_bonus(
-        cls,
+        self,
         fundraise,
         referred_user,
         referrer_user,
@@ -96,7 +94,7 @@ class ReferralBonusService:
             contribution_amount: Amount the referred user contributed
         """
         # Convert percentage to decimal (e.g., 10.00 -> 0.10)
-        bonus_percentage_decimal = cls.BONUS_PERCENTAGE / 100
+        bonus_percentage_decimal = self.bonus_percentage / 100
         bonus_amount = Decimal(contribution_amount) * bonus_percentage_decimal
         timestamp = timezone.now().timestamp()
 

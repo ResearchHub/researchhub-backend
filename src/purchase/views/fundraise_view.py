@@ -32,9 +32,12 @@ class FundraiseViewSet(viewsets.ModelViewSet):
     serializer_class = DynamicFundraiseSerializer
     permission_classes = [IsAuthenticated]
 
-    def __init__(self, *args, **kwargs):
+    def dispatch(self, request, *args, **kwargs):
         self.fundraise_service = kwargs.pop("fundraise_service", FundraiseService())
-        super().__init__(*args, **kwargs)
+        self.referral_bonus_service = kwargs.pop(
+            "referral_bonus_service", ReferralBonusService()
+        )
+        return super().dispatch(request, *args, **kwargs)
 
     def get_permissions(self):
         if self.action == "create":
@@ -272,7 +275,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
 
                 # Process referral bonuses for completed fundraise
                 try:
-                    ReferralBonusService.process_fundraise_completion(fundraise)
+                    self.referral_bonus_service.process_fundraise_completion(fundraise)
                 except Exception as e:
                     log_error(e, message="Failed to process referral bonuses")
             else:

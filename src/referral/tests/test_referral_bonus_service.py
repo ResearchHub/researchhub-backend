@@ -56,7 +56,7 @@ class ReferralBonusServiceTest(TestCase):
         initial_distribution_count = Distribution.objects.count()
         initial_balance_count = Balance.objects.count()
 
-        ReferralBonusService.process_fundraise_completion(self.fundraise)
+        ReferralBonusService().process_fundraise_completion(self.fundraise)
 
         # Should create 2 distributions (one for referrer, one for referred user)
         self.assertEqual(Distribution.objects.count(), initial_distribution_count + 2)
@@ -66,7 +66,7 @@ class ReferralBonusServiceTest(TestCase):
 
         # Check distributions were created with correct amounts
         expected_bonus = self.contribution_amount * (
-            ReferralBonusService.BONUS_PERCENTAGE / 100
+            ReferralBonusService().bonus_percentage / 100
         )
         referrer_distribution = Distribution.objects.filter(
             recipient=self.referrer,
@@ -103,7 +103,7 @@ class ReferralBonusServiceTest(TestCase):
 
         initial_distribution_count = Distribution.objects.count()
 
-        ReferralBonusService.process_fundraise_completion(self.fundraise)
+        ReferralBonusService().process_fundraise_completion(self.fundraise)
 
         # No distributions should be created
         self.assertEqual(Distribution.objects.count(), initial_distribution_count)
@@ -113,7 +113,7 @@ class ReferralBonusServiceTest(TestCase):
     def test_multiple_fundraise_bonuses(self):
         """Test that bonuses are applied for multiple fundraises"""
         # Process first fundraise
-        ReferralBonusService.process_fundraise_completion(self.fundraise)
+        ReferralBonusService().process_fundraise_completion(self.fundraise)
 
         # Create a second fundraise with its own unified document
         second_post = create_post(
@@ -140,7 +140,7 @@ class ReferralBonusServiceTest(TestCase):
         initial_distribution_count = Distribution.objects.count()
 
         # Process second fundraise - should create additional bonuses
-        ReferralBonusService.process_fundraise_completion(second_fundraise)
+        ReferralBonusService().process_fundraise_completion(second_fundraise)
 
         # Should create 2 more distributions (one for referrer, one for referred user)
         self.assertEqual(Distribution.objects.count(), initial_distribution_count + 2)
@@ -168,17 +168,17 @@ class ReferralBonusServiceTest(TestCase):
 
         initial_distribution_count = Distribution.objects.count()
 
-        ReferralBonusService.process_fundraise_completion(self.fundraise)
+        ReferralBonusService().process_fundraise_completion(self.fundraise)
 
         # Should only create 2 distributions for the referred user
         self.assertEqual(Distribution.objects.count(), initial_distribution_count + 2)
 
     def test_correct_bonus_calculation(self):
         """Test that bonus amounts are calculated correctly"""
-        ReferralBonusService.process_fundraise_completion(self.fundraise)
+        ReferralBonusService().process_fundraise_completion(self.fundraise)
 
         expected_bonus = self.contribution_amount * (
-            ReferralBonusService.BONUS_PERCENTAGE / 100
+            ReferralBonusService().bonus_percentage / 100
         )
 
         referrer_distribution = Distribution.objects.filter(
@@ -200,7 +200,7 @@ class ReferralBonusServiceTest(TestCase):
             amount=additional_amount,
         )
 
-        ReferralBonusService.process_fundraise_completion(self.fundraise)
+        ReferralBonusService().process_fundraise_completion(self.fundraise)
 
         # Should have separate bonuses for each contribution
         referrer_distributions = Distribution.objects.filter(
@@ -234,11 +234,11 @@ class ReferralBonusServiceTest(TestCase):
             amount=other_contribution_amount,
         )
 
-        ReferralBonusService.process_fundraise_completion(self.fundraise)
+        ReferralBonusService().process_fundraise_completion(self.fundraise)
 
         # Check first referral
         expected_bonus_1 = self.contribution_amount * (
-            ReferralBonusService.BONUS_PERCENTAGE / 100
+            ReferralBonusService().bonus_percentage / 100
         )
         referrer_1_distribution = Distribution.objects.filter(
             recipient=self.referrer, distribution_type="REFERRAL_BONUS"
@@ -247,7 +247,7 @@ class ReferralBonusServiceTest(TestCase):
 
         # Check second referral
         expected_bonus_2 = other_contribution_amount * (
-            ReferralBonusService.BONUS_PERCENTAGE / 100
+            ReferralBonusService().bonus_percentage / 100
         )
         referrer_2_distribution = Distribution.objects.filter(
             recipient=other_referrer, distribution_type="REFERRAL_BONUS"
