@@ -1,9 +1,14 @@
 from django.contrib.contenttypes.fields import GenericForeignKey
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
+from django.utils.translation import gettext_lazy as _
 
 
 class Balance(models.Model):
+
+    class LockType(models.TextChoices):
+        REFERRAL_BONUS = "REFERRAL_BONUS", _("Referral Bonus")
+
     user = models.ForeignKey(
         "user.User", on_delete=models.CASCADE, related_name="balances"
     )
@@ -18,9 +23,7 @@ class Balance(models.Model):
     # Balance locking fields
     is_locked = models.BooleanField(default=False)
     lock_type = models.TextField(
-        choices=[
-            ("FUNDRAISE_CONTRIBUTION", "Fundraise Contribution"),
-        ],
+        choices=LockType.choices,
         null=True,
         blank=True,
     )
