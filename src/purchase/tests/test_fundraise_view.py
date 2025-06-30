@@ -400,9 +400,6 @@ class FundraiseViewTests(APITestCase):
         # Give the referred user balance to contribute
         self._give_user_balance(referred_user, 1000)
 
-        # Track initial distribution count
-        Distribution.objects.count()
-
         # Have the referred user contribute an amount that fulfills the goal
         response = self._create_contribution(
             fundraise_id, referred_user, amount=200  # 200 RSC = 100 USD, fulfills goal
