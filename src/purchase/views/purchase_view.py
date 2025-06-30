@@ -106,7 +106,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                         status=400,
                     )
 
-                user_balance = user.get_balance()
+                user_balance = user.get_available_balance()
                 (
                     total_fee,
                     rh_fee,

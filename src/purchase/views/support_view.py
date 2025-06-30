@@ -78,7 +78,7 @@ class SupportViewSet(viewsets.ModelViewSet):
             sender = User.objects.select_for_update().get(id=sender.id)
             # Balance check
             if payment_type == Support.RSC_OFF_CHAIN:
-                sender_balance = sender.get_balance()
+                sender_balance = sender.get_available_balance()
                 decimal_amount = decimal.Decimal(amount)
                 if sender_balance - decimal_amount < 0:
                     return Response("Insufficient Funds", status=402)

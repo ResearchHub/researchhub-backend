@@ -201,7 +201,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             user = User.objects.select_for_update().get(id=user.id)
 
             # Check if user has enough balance in their wallet
-            user_balance = user.get_balance()
+            user_balance = user.get_available_balance()
             if user_balance - (amount + fee) < 0:
                 return Response({"message": "Insufficient balance"}, status=400)
 
