@@ -299,8 +299,8 @@ class BountyViewTests(APITestCase):
     def test_user_can_approve_partial_bounty(self):
         self.client.force_authenticate(self.user)
 
-        initial_user_balance = self.user.get_available_balance()
-        initial_recipient_balance = self.recipient.get_available_balance()
+        initial_user_balance = self.user.get_unlocked_balance()
+        initial_recipient_balance = self.recipient.get_unlocked_balance()
         bounty_1 = self.test_user_can_create_bounty()
         approve_bounty_res_1 = self.client.post(
             f"/api/bounty/{bounty_1.data['id']}/approve_bounty/",
@@ -327,8 +327,8 @@ class BountyViewTests(APITestCase):
                 }
             ],
         )
-        user_balance = self.user.get_available_balance()
-        recipient_balance = self.recipient.get_available_balance()
+        user_balance = self.user.get_unlocked_balance()
+        recipient_balance = self.recipient.get_unlocked_balance()
 
         self.assertEqual(approve_bounty_res_2.status_code, 200)
         self.assertGreater(recipient_balance, initial_recipient_balance)
@@ -338,15 +338,15 @@ class BountyViewTests(APITestCase):
         self.client.force_authenticate(self.user)
         amount = 600
         bounty = self.test_user_can_create_bounty(amount=amount)
-        initial_user_balance = self.user.get_available_balance()
+        initial_user_balance = self.user.get_unlocked_balance()
         initial_recipient_1_balance = (
-            self.child_comment_1.created_by.get_available_balance()
+            self.child_comment_1.created_by.get_unlocked_balance()
         )
         initial_recipient_2_balance = (
-            self.child_comment_2.created_by.get_available_balance()
+            self.child_comment_2.created_by.get_unlocked_balance()
         )
         initial_recipient_3_balance = (
-            self.child_comment_3.created_by.get_available_balance()
+            self.child_comment_3.created_by.get_unlocked_balance()
         )
         approve_bounty_res = self.client.post(
             f"/api/bounty/{bounty.data['id']}/approve_bounty/",
@@ -369,10 +369,10 @@ class BountyViewTests(APITestCase):
             ],
         )
 
-        user_balance = self.user.get_available_balance()
-        recipient_1_balance = self.child_comment_1.created_by.get_available_balance()
-        recipient_2_balance = self.child_comment_2.created_by.get_available_balance()
-        recipient_3_balance = self.child_comment_3.created_by.get_available_balance()
+        user_balance = self.user.get_unlocked_balance()
+        recipient_1_balance = self.child_comment_1.created_by.get_unlocked_balance()
+        recipient_2_balance = self.child_comment_2.created_by.get_unlocked_balance()
+        recipient_3_balance = self.child_comment_3.created_by.get_unlocked_balance()
 
         self.assertEqual(approve_bounty_res.status_code, 200)
         # This is because of the transaction fee
@@ -394,15 +394,15 @@ class BountyViewTests(APITestCase):
         self.client.force_authenticate(self.user)
         amount = 600
         bounty = self.test_user_can_create_bounty(amount=amount)
-        initial_user_balance = self.user.get_available_balance()
+        initial_user_balance = self.user.get_unlocked_balance()
         initial_recipient_1_balance = (
-            self.child_comment_1.created_by.get_available_balance()
+            self.child_comment_1.created_by.get_unlocked_balance()
         )
         initial_recipient_2_balance = (
-            self.child_comment_2.created_by.get_available_balance()
+            self.child_comment_2.created_by.get_unlocked_balance()
         )
         initial_recipient_3_balance = (
-            self.child_comment_3.created_by.get_available_balance()
+            self.child_comment_3.created_by.get_unlocked_balance()
         )
 
         approve_bounty_res = self.client.post(
@@ -425,10 +425,10 @@ class BountyViewTests(APITestCase):
                 },
             ],
         )
-        user_balance = self.user.get_available_balance()
-        recipient_1_balance = self.child_comment_1.created_by.get_available_balance()
-        recipient_2_balance = self.child_comment_2.created_by.get_available_balance()
-        recipient_3_balance = self.child_comment_3.created_by.get_available_balance()
+        user_balance = self.user.get_unlocked_balance()
+        recipient_1_balance = self.child_comment_1.created_by.get_unlocked_balance()
+        recipient_2_balance = self.child_comment_2.created_by.get_unlocked_balance()
+        recipient_3_balance = self.child_comment_3.created_by.get_unlocked_balance()
 
         self.assertEqual(approve_bounty_res.status_code, 200)
         self.assertEqual(user_balance, initial_user_balance + 300)
@@ -449,20 +449,16 @@ class BountyViewTests(APITestCase):
         bounty_1_created_by = User.objects.get(id=bounty_1.data["created_by"]["id"])
         bounty_2_created_by = User.objects.get(id=bounty_2.data["created_by"]["id"])
 
-        initial_bounty_1_created_by_balance = (
-            bounty_1_created_by.get_available_balance()
-        )
-        initial_bounty_2_created_by_balance = (
-            bounty_2_created_by.get_available_balance()
-        )
+        initial_bounty_1_created_by_balance = bounty_1_created_by.get_unlocked_balance()
+        initial_bounty_2_created_by_balance = bounty_2_created_by.get_unlocked_balance()
         initial_recipient_1_balance = (
-            self.child_comment_1.created_by.get_available_balance()
+            self.child_comment_1.created_by.get_unlocked_balance()
         )
         initial_recipient_2_balance = (
-            self.child_comment_2.created_by.get_available_balance()
+            self.child_comment_2.created_by.get_unlocked_balance()
         )
         initial_recipient_3_balance = (
-            self.child_comment_3.created_by.get_available_balance()
+            self.child_comment_3.created_by.get_unlocked_balance()
         )
 
         self.client.force_authenticate(self.user)
@@ -486,11 +482,11 @@ class BountyViewTests(APITestCase):
                 },
             ],
         )
-        bounty_1_created_by_balance = bounty_1_created_by.get_available_balance()
-        bounty_2_created_by_balance = bounty_2_created_by.get_available_balance()
-        recipient_1_balance = self.child_comment_1.created_by.get_available_balance()
-        recipient_2_balance = self.child_comment_2.created_by.get_available_balance()
-        recipient_3_balance = self.child_comment_3.created_by.get_available_balance()
+        bounty_1_created_by_balance = bounty_1_created_by.get_unlocked_balance()
+        bounty_2_created_by_balance = bounty_2_created_by.get_unlocked_balance()
+        recipient_1_balance = self.child_comment_1.created_by.get_unlocked_balance()
+        recipient_2_balance = self.child_comment_2.created_by.get_unlocked_balance()
+        recipient_3_balance = self.child_comment_3.created_by.get_unlocked_balance()
         self.assertEqual(approve_bounty_res.status_code, 200)
         self.assertEqual(
             recipient_1_balance,
@@ -607,7 +603,7 @@ class BountyViewTests(APITestCase):
                 "item_object_id": self.comment.id,
             },
         )
-        initial_user_1_balance = self.user.get_available_balance()
+        initial_user_1_balance = self.user.get_unlocked_balance()
         self.assertEqual(create_bounty_res_1.status_code, 201)
 
         self.client.force_authenticate(self.user_2)
@@ -619,7 +615,7 @@ class BountyViewTests(APITestCase):
                 "item_object_id": self.comment.id,
             },
         )
-        initial_user_2_balance = self.user_2.get_available_balance()
+        initial_user_2_balance = self.user_2.get_unlocked_balance()
         self.assertEqual(create_bounty_res_2.status_code, 201)
 
         self.client.force_authenticate(self.user_3)
@@ -631,16 +627,16 @@ class BountyViewTests(APITestCase):
                 "item_object_id": self.comment.id,
             },
         )
-        initial_user_3_balance = self.user_3.get_available_balance()
+        initial_user_3_balance = self.user_3.get_unlocked_balance()
         self.assertEqual(create_bounty_res_2.status_code, 201)
 
         self.client.force_authenticate(self.user)
         cancel_bounty_res_1 = self.client.post(
             f"/api/bounty/{create_bounty_res_1.data['id']}/cancel_bounty/",
         )
-        user_1_balance = self.user.get_available_balance()
-        user_2_balance = self.user_2.get_available_balance()
-        user_3_balance = self.user_3.get_available_balance()
+        user_1_balance = self.user.get_unlocked_balance()
+        user_2_balance = self.user_2.get_unlocked_balance()
+        user_3_balance = self.user_3.get_unlocked_balance()
 
         self.assertEqual(cancel_bounty_res_1.status_code, 200)
         self.assertEqual(initial_user_1_balance + 200, user_1_balance)
@@ -1085,12 +1081,12 @@ class BountyViewTests(APITestCase):
         bounty_id = bounty_res.data["id"]
         bounty = Bounty.objects.get(id=bounty_id)
 
-        initial_user_balance = self.user.get_available_balance()
+        initial_user_balance = self.user.get_unlocked_balance()
         initial_recipient_1_balance = (
-            self.child_comment_1.created_by.get_available_balance()
+            self.child_comment_1.created_by.get_unlocked_balance()
         )
         initial_recipient_2_balance = (
-            self.child_comment_2.created_by.get_available_balance()
+            self.child_comment_2.created_by.get_unlocked_balance()
         )
 
         approve_bounty_res = self.client.post(
@@ -1109,9 +1105,9 @@ class BountyViewTests(APITestCase):
             ],
         )
 
-        user_balance = self.user.get_available_balance()
-        recipient_1_balance = self.child_comment_1.created_by.get_available_balance()
-        recipient_2_balance = self.child_comment_2.created_by.get_available_balance()
+        user_balance = self.user.get_unlocked_balance()
+        recipient_1_balance = self.child_comment_1.created_by.get_unlocked_balance()
+        recipient_2_balance = self.child_comment_2.created_by.get_unlocked_balance()
         bounty.refresh_from_db()
 
         self.assertEqual(approve_bounty_res.status_code, 200)
@@ -1173,12 +1169,12 @@ class BountyViewTests(APITestCase):
         bounty_id = create_bounty_res.data["id"]
         bounty = Bounty.objects.get(id=bounty_id)
 
-        initial_user_balance = self.user.get_available_balance()
+        initial_user_balance = self.user.get_unlocked_balance()
         initial_recipient_1_balance = (
-            self.child_comment_1.created_by.get_available_balance()
+            self.child_comment_1.created_by.get_unlocked_balance()
         )
         initial_recipient_2_balance = (
-            self.child_comment_2.created_by.get_available_balance()
+            self.child_comment_2.created_by.get_unlocked_balance()
         )
 
         approve_bounty_res = self.client.post(
@@ -1197,9 +1193,9 @@ class BountyViewTests(APITestCase):
             ],
         )
 
-        user_balance = self.user.get_available_balance()
-        recipient_1_balance = self.child_comment_1.created_by.get_available_balance()
-        recipient_2_balance = self.child_comment_2.created_by.get_available_balance()
+        user_balance = self.user.get_unlocked_balance()
+        recipient_1_balance = self.child_comment_1.created_by.get_unlocked_balance()
+        recipient_2_balance = self.child_comment_2.created_by.get_unlocked_balance()
         bounty.refresh_from_db()
 
         self.assertEqual(approve_bounty_res.status_code, 200)
@@ -1253,12 +1249,12 @@ class BountyViewTests(APITestCase):
         bounty_res = self.test_user_can_create_bounty(amount=amount)
         bounty_id = bounty_res.data["id"]
 
-        initial_user_balance = self.user.get_available_balance()
+        initial_user_balance = self.user.get_unlocked_balance()
         initial_recipient_1_balance = (
-            self.child_comment_1.created_by.get_available_balance()
+            self.child_comment_1.created_by.get_unlocked_balance()
         )
         initial_recipient_2_balance = (
-            self.child_comment_2.created_by.get_available_balance()
+            self.child_comment_2.created_by.get_unlocked_balance()
         )
 
         approve_bounty_res = self.client.post(
@@ -1277,9 +1273,9 @@ class BountyViewTests(APITestCase):
             ],
         )
 
-        user_balance = self.user.get_available_balance()
-        recipient_1_balance = self.child_comment_1.created_by.get_available_balance()
-        recipient_2_balance = self.child_comment_2.created_by.get_available_balance()
+        user_balance = self.user.get_unlocked_balance()
+        recipient_1_balance = self.child_comment_1.created_by.get_unlocked_balance()
+        recipient_2_balance = self.child_comment_2.created_by.get_unlocked_balance()
 
         self.assertEqual(approve_bounty_res.status_code, 400)  # Expecting Bad Request
 
@@ -1294,9 +1290,9 @@ class BountyViewTests(APITestCase):
         bounty_res = self.test_user_can_create_bounty(amount=amount)
         bounty_id = bounty_res.data["id"]
 
-        initial_user_balance = self.user.get_available_balance()
+        initial_user_balance = self.user.get_unlocked_balance()
         initial_recipient_1_balance = (
-            self.child_comment_1.created_by.get_available_balance()
+            self.child_comment_1.created_by.get_unlocked_balance()
         )
 
         approve_bounty_res = self.client.post(
@@ -1316,8 +1312,8 @@ class BountyViewTests(APITestCase):
             ],
         )
 
-        user_balance = self.user.get_available_balance()
-        recipient_1_balance = self.child_comment_1.created_by.get_available_balance()
+        user_balance = self.user.get_unlocked_balance()
+        recipient_1_balance = self.child_comment_1.created_by.get_unlocked_balance()
 
         self.assertEqual(approve_bounty_res.status_code, 404)
 
@@ -1345,10 +1341,10 @@ class BountyViewTests(APITestCase):
         recipient_1 = self.child_comment_1.created_by
         recipient_2 = self.child_comment_2.created_by
 
-        initial_user_1_balance = user_1.get_available_balance()
-        initial_user_2_balance = user_2.get_available_balance()
-        initial_recipient_1_balance = recipient_1.get_available_balance()
-        initial_recipient_2_balance = recipient_2.get_available_balance()
+        initial_user_1_balance = user_1.get_unlocked_balance()
+        initial_user_2_balance = user_2.get_unlocked_balance()
+        initial_recipient_1_balance = recipient_1.get_unlocked_balance()
+        initial_recipient_2_balance = recipient_2.get_unlocked_balance()
 
         # Original creator (user_1) approves
         self.client.force_authenticate(user_1)
@@ -1368,10 +1364,10 @@ class BountyViewTests(APITestCase):
             ],
         )
 
-        user_1_balance = user_1.get_available_balance()
-        user_2_balance = user_2.get_available_balance()
-        recipient_1_balance = recipient_1.get_available_balance()
-        recipient_2_balance = recipient_2.get_available_balance()
+        user_1_balance = user_1.get_unlocked_balance()
+        user_2_balance = user_2.get_unlocked_balance()
+        recipient_1_balance = recipient_1.get_unlocked_balance()
+        recipient_2_balance = recipient_2.get_unlocked_balance()
         bounty.refresh_from_db()
 
         self.assertEqual(approve_bounty_res.status_code, 200)

@@ -426,7 +426,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         if net_amount < 0:
             return (False, "Invalid withdrawal", None)
 
-        if user and user.get_available_balance() < net_amount:
+        if user and user.get_unlocked_balance() < net_amount:
             return (False, "You do not have enough RSC to make this withdrawal", None)
 
         return True, None, net_amount

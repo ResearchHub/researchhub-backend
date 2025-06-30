@@ -91,9 +91,9 @@ class PayoutTests(APITestCase):
             distributor.distribute()
 
     def test_tiered_editors_payout(self):
-        assistant_balance = self.assistant_editor.get_available_balance()
-        associate_balance = self.associate_editor.get_available_balance()
-        senior_balance = self.senior_editor.get_available_balance()
+        assistant_balance = self.assistant_editor.get_unlocked_balance()
+        associate_balance = self.associate_editor.get_unlocked_balance()
+        senior_balance = self.senior_editor.get_unlocked_balance()
 
         self.assertGreater(associate_balance, assistant_balance)
         self.assertGreater(senior_balance, associate_balance)

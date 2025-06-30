@@ -44,9 +44,9 @@ class LockedBalanceTests(APITestCase, TestCase):
             self.user.get_balance(include_locked=True), 1500
         )  # Total balance including locked
         self.assertEqual(
-            self.user.get_available_balance(), 1000
+            self.user.get_unlocked_balance(), 1000
         )  # Default excludes locked
-        self.assertEqual(self.user.get_available_balance(), 1000)  # Available balance
+        self.assertEqual(self.user.get_unlocked_balance(), 1000)  # Available balance
         self.assertEqual(self.user.get_locked_balance(), 500)  # Locked balance
 
     def test_cannot_withdraw_locked_balance(self):
@@ -144,7 +144,7 @@ class LockedBalanceTests(APITestCase, TestCase):
         # Account for bounty fees (9% total)
         expected_remaining = 1000 - 500 - (500 * 0.09)
         self.assertAlmostEqual(
-            float(self.user.get_available_balance()),
+            float(self.user.get_unlocked_balance()),
             float(expected_remaining),
             places=2,
         )

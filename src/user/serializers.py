@@ -477,7 +477,7 @@ class UserSerializer(ModelSerializer):
             and self.context.get("user")
             and self.context["user"].id == obj.id
         ):
-            return obj.get_available_balance()
+            return obj.get_unlocked_balance()
 
     def get_subscribed(self, obj):
         if self.context.get("get_subscribed"):
@@ -565,7 +565,7 @@ class UserEditableSerializer(ModelSerializer):
         request_user = context.get("user", None)
 
         if request_user and request_user == user:
-            return user.get_available_balance()
+            return user.get_unlocked_balance()
         return None
 
     def get_locked_balance(self, user):
