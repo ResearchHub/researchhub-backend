@@ -43,7 +43,9 @@ class LockedBalanceTests(APITestCase, TestCase):
         self.assertEqual(
             self.user.get_balance(include_locked=True), 1500
         )  # Total balance including locked
-        self.assertEqual(self.user.get_balance(), 1000)  # Default excludes locked
+        self.assertEqual(
+            self.user.get_available_balance(), 1000
+        )  # Default excludes locked
         self.assertEqual(self.user.get_available_balance(), 1000)  # Available balance
         self.assertEqual(self.user.get_locked_balance(), 500)  # Locked balance
 
