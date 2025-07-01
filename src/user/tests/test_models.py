@@ -123,7 +123,7 @@ class UserBalanceTests(TestCase):
         )
 
         # Default behavior should exclude locked funds
-        balance = self.user.get_balance()
+        balance = self.user.get_unlocked_balance()
         self.assertEqual(balance, Decimal("100"))
 
     def test_get_balance_includes_locked_when_requested(self):
@@ -148,7 +148,7 @@ class UserBalanceTests(TestCase):
         balance = self.user.get_balance(include_locked=True)
         self.assertEqual(balance, Decimal("150"))
 
-    def test_get_available_balance(self):
+    def test_get_unlocked_balance(self):
         # Create regular balance
         Balance.objects.create(
             user=self.user,
@@ -167,7 +167,7 @@ class UserBalanceTests(TestCase):
         )
 
         # Should only return unlocked funds
-        available = self.user.get_available_balance()
+        available = self.user.get_unlocked_balance()
         self.assertEqual(available, Decimal("200"))
 
     def test_get_locked_balance_all(self):
@@ -240,9 +240,9 @@ class UserBalanceTests(TestCase):
 
         # Test all balance methods
         total_with_locked = self.user.get_balance(include_locked=True)
-        available = self.user.get_available_balance()
+        available = self.user.get_unlocked_balance()
         locked = self.user.get_locked_balance()
-        default_balance = self.user.get_balance()  # Should exclude locked
+        default_balance = self.user.get_unlocked_balance()  # Should exclude locked
 
         self.assertEqual(total_with_locked, Decimal("800"))
         self.assertEqual(available, Decimal("600"))

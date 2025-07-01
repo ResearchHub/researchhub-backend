@@ -217,7 +217,7 @@ class User(AbstractUser):
 
         return total_balance
 
-    def get_available_balance(self, queryset=None):
+    def get_unlocked_balance(self, queryset=None):
         """Returns balance excluding locked amounts"""
         if queryset is None:
             queryset = self.get_balance_qs()

@@ -162,7 +162,9 @@ class WithdrawalViewSetTests(APITestCase):
 
             # Check balance was updated
             expected_balance = deposit_amount - (WITHDRAWAL_MINIMUM + 10)
-            self.assertEqual(user.get_balance(), decimal.Decimal(expected_balance))
+            self.assertEqual(
+                user.get_unlocked_balance(), decimal.Decimal(expected_balance)
+            )
 
     def test_withdrawal_below_minimum(self):
         """Test that withdrawals below minimum amount are rejected."""

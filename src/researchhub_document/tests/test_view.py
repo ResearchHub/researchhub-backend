@@ -519,7 +519,7 @@ class ViewTests(APITestCase):
         self.assertEqual(doc_response.status_code, 200)
         self.assertIsNotNone(doc_response.data["doi"])
         # Balance should remain unchanged for all post types
-        self.assertEqual(int(author.get_balance()), initial_balance)
+        self.assertEqual(int(author.get_unlocked_balance()), initial_balance)
 
     def test_get_document_metadata(self):
         # Arrange
@@ -614,7 +614,7 @@ class ViewTests(APITestCase):
         self.assertEqual(doc_response.status_code, 200)
         self.assertIsNotNone(doc_response.data["doi"])
         # Balance should remain unchanged for preregistrations
-        self.assertEqual(int(author.get_balance()), initial_balance)
+        self.assertEqual(int(author.get_unlocked_balance()), initial_balance)
 
     def test_grant_created_when_grant_amount_provided(self):
         """Test that a grant is created when grant_amount is provided"""

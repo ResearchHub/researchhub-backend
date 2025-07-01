@@ -46,7 +46,7 @@ def _create_bounty_checks(user, amount, item_content_type, bypass_user_balance=F
         log_error(e)
         return Response({"detail": "Invalid amount"}, status=400)
 
-    user_balance = user.get_balance()
+    user_balance = user.get_unlocked_balance()
     fee_amount, rh_fee, dao_fee, current_bounty_fee = calculate_bounty_fees(amount)
     if (
         amount <= 0
