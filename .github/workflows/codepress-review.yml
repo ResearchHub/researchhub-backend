@@ -1,0 +1,25 @@
+name: CodePress Review
+
+on:
+  pull_request:
+    types: [opened, reopened, review_requested]
+  issue_comment:
+    types: [created]
+  workflow_dispatch: # Allow manual triggering
+
+permissions:
+  pull-requests: write
+  contents: read
+  issues: read
+
+jobs:
+  ai-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: CodePress Review
+        uses: quantfive/codepress-review@v2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          model_provider: "openai"
+          model_name: "o4-mini"
+          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
