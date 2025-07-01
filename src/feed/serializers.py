@@ -267,6 +267,25 @@ class PostSerializer(ContentObjectSerializer):
         ):
             fundraise = obj.unified_document.fundraises.first()
             context = getattr(self, "context", {})
+            # Prevent circular reference by limiting user serializer fields
+            context["pch_dfs_get_created_by"] = {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "profile_image",
+                    "author_profile",
+                ]
+            }
+            context["pch_dfs_get_contributors"] = {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "profile_image",
+                    "author_profile",
+                ]
+            }
             serializer = DynamicFundraiseSerializer(
                 fundraise,
                 context=context,
@@ -297,6 +316,25 @@ class PostSerializer(ContentObjectSerializer):
         ):
             grant = obj.unified_document.grants.first()
             context = getattr(self, "context", {})
+            # Prevent circular reference by limiting user serializer fields
+            context["pch_dgs_get_created_by"] = {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "profile_image",
+                    "author_profile",
+                ]
+            }
+            context["pch_dgs_get_contacts"] = {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "profile_image",
+                    "author_profile",
+                ]
+            }
             serializer = DynamicGrantSerializer(
                 grant,
                 context=context,
