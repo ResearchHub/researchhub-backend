@@ -453,3 +453,104 @@ class FundraiseViewTests(APITestCase):
         ).first()
         self.assertIsNotNone(referred_balance)
         self.assertEqual(float(referred_balance.amount), expected_bonus)
+
+    def test_create_contribution_with_locked_balance(self):
+        """
+        Test that locked balance can be used for fundraise contributions.
+        """
+        # Arrange
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        user = create_random_authenticated_user("fundraise_views")
+
+        # Regular balance (not enough for contribution + fees)
+        Balance.objects.create(
+            amount=50,
+            user=user,
+            content_type=ContentType.objects.get(model="distribution"),
+            is_locked=False,
+        )
+
+        # Locked balance (enough to cover the shortfall)
+        Balance.objects.create(
+            amount=100,
+            user=user,
+            content_type=ContentType.objects.get(model="distribution"),
+            is_locked=True,
+            lock_type=Balance.LockType.REFERRAL_BONUS,
+        )
+
+        # Verify user's balance situation
+        regular_balance = user.get_balance()  # Should be 50
+        total_balance = user.get_balance(include_locked=True)  # Should be 150
+        locked_balance = user.get_locked_balance()  # Should be 100
+
+        self.assertEqual(float(regular_balance), 50.0)
+        self.assertEqual(float(total_balance), 150.0)
+        self.assertEqual(float(locked_balance), 100.0)
+
+        # Act
+        # Try to contribute 100 RSC (which would cost 100 + 9 fees = 109 total)
+        # This should succeed because total balance (150) >= cost (109)
+        # even though unlocked balance (50) < cost (109)
+        response = self._create_contribution(fundraise_id, user, amount=100)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+
+        updated_fundraise = response.data
+        self.assertEqual(updated_fundraise["amount_raised"]["rsc"], 100)
+        self.assertEqual(float(updated_fundraise["escrow"]["amount_holding"]), 100.0)
+
+        # Verify balance objects were created for the purchase
+        amount_balance = Balance.objects.filter(
+            user=user, content_type=ContentType.objects.get_for_model(Purchase)
+        )
+        self.assertEqual(amount_balance.count(), 1)
+        self.assertEqual(float(amount_balance.first().amount), -100.0)
+
+        fee_balance = Balance.objects.filter(
+            user=user, content_type=ContentType.objects.get_for_model(BountyFee)
+        )
+        self.assertEqual(fee_balance.count(), 1)
+        self.assertEqual(float(fee_balance.first().amount), -9.0)
+
+    def test_create_contribution_insufficient_total_balance(self):
+        """
+        Test that contribution fails if total balance (including locked) is
+        insufficient.
+        """
+        # Arrange
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        user = create_random_authenticated_user("fundraise_views")
+
+        # Regular balance
+        Balance.objects.create(
+            amount=30,
+            user=user,
+            content_type=ContentType.objects.get(model="distribution"),
+            is_locked=False,
+        )
+
+        # Locked balance
+        Balance.objects.create(
+            amount=50,
+            user=user,
+            content_type=ContentType.objects.get(model="distribution"),
+            is_locked=True,
+            lock_type=Balance.LockType.REFERRAL_BONUS,
+        )
+
+        # Total balance is 80, but contribution of 100 + 9 fees = 109 total cost
+        total_balance = user.get_balance(include_locked=True)
+        self.assertEqual(float(total_balance), 80.0)
+
+        # Act
+        response = self._create_contribution(fundraise_id, user, amount=100)
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Insufficient balance", response.data["message"])
