@@ -18,6 +18,7 @@ from purchase.serializers.fundraise_create_serializer import FundraiseCreateSeri
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.purchase_serializer import DynamicPurchaseSerializer
 from purchase.services.fundraise_service import FundraiseService
+from referral.services.referral_bonus_service import ReferralBonusService
 from reputation.models import BountyFee
 from reputation.utils import calculate_bounty_fees, deduct_bounty_fees
 from user.models import User
@@ -31,9 +32,12 @@ class FundraiseViewSet(viewsets.ModelViewSet):
     serializer_class = DynamicFundraiseSerializer
     permission_classes = [IsAuthenticated]
 
-    def __init__(self, *args, **kwargs):
+    def dispatch(self, request, *args, **kwargs):
         self.fundraise_service = kwargs.pop("fundraise_service", FundraiseService())
-        super().__init__(*args, **kwargs)
+        self.referral_bonus_service = kwargs.pop(
+            "referral_bonus_service", ReferralBonusService()
+        )
+        return super().dispatch(request, *args, **kwargs)
 
     def get_permissions(self):
         if self.action == "create":
@@ -268,6 +272,12 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             if did_payout:
                 fundraise.status = Fundraise.COMPLETED
                 fundraise.save()
+
+                # Process referral bonuses for completed fundraise
+                try:
+                    self.referral_bonus_service.process_fundraise_completion(fundraise)
+                except Exception as e:
+                    log_error(e, message="Failed to process referral bonuses")
             else:
                 return Response({"message": "Failed to payout funds"}, status=500)
 

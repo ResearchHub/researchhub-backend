@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
@@ -7,7 +8,9 @@ from rest_framework.test import APITestCase
 from purchase.models import Balance, Fundraise, Purchase, RscExchangeRate
 from purchase.services.fundraise_service import FundraiseService
 from purchase.views import FundraiseViewSet
-from reputation.models import BountyFee
+from referral.models import ReferralSignup
+from referral.services.referral_bonus_service import ReferralBonusService
+from reputation.models import BountyFee, Distribution
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -376,3 +379,77 @@ class FundraiseViewTests(APITestCase):
 
         # Should get 403 Forbidden
         self.assertEqual(response.status_code, 403)
+
+    def test_referral_bonuses_processed_on_fundraise_completion(self):
+        """Test that referral bonuses are processed when a fundraise completes"""
+
+        # Create a referrer and referred user
+        referrer = create_random_authenticated_user("referrer")
+        referred_user = create_random_authenticated_user("referred")
+
+        # Create referral signup within 6 months
+        ReferralSignup.objects.create(
+            referrer=referrer,
+            referred=referred_user,
+            signup_date=datetime.now(pytz.UTC) - timedelta(days=30),  # 1 month ago
+        )
+
+        # Create a fundraise with a goal
+        fundraise = self._create_fundraise(self.post.id, goal_amount=100)
+        fundraise_id = fundraise.data["id"]
+
+        # Give the referred user balance to contribute
+        self._give_user_balance(referred_user, 1000)
+
+        # Have the referred user contribute an amount that fulfills the goal
+        response = self._create_contribution(
+            fundraise_id, referred_user, amount=200  # 200 RSC = 100 USD, fulfills goal
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], "COMPLETED")
+
+        # Check that referral bonuses were created
+        # Should create 2 distributions (one for referrer, one for referred user)
+        # Note: Other distributions (fundraise payout, fees) are also created
+        referral_bonus_distributions = Distribution.objects.filter(
+            distribution_type=Balance.LockType.REFERRAL_BONUS,
+            created_date__gte=datetime.now(pytz.UTC) - timedelta(seconds=10),
+        )
+
+        self.assertEqual(referral_bonus_distributions.count(), 2)
+
+        # Check that both users received the correct bonus amount
+
+        expected_bonus = Decimal("200") * (
+            ReferralBonusService().bonus_percentage / 100
+        )
+
+        referrer_distribution = Distribution.objects.filter(
+            recipient=referrer,
+            distribution_type=Balance.LockType.REFERRAL_BONUS,
+            amount=expected_bonus,
+        ).first()
+        self.assertIsNotNone(referrer_distribution)
+
+        referred_distribution = Distribution.objects.filter(
+            recipient=referred_user,
+            distribution_type=Balance.LockType.REFERRAL_BONUS,
+            amount=expected_bonus,
+        ).first()
+        self.assertIsNotNone(referred_distribution)
+
+        # Check that locked balances were created
+        referrer_balance = Balance.objects.filter(
+            user=referrer, is_locked=True, lock_type=Balance.LockType.REFERRAL_BONUS
+        ).first()
+        self.assertIsNotNone(referrer_balance)
+        self.assertEqual(float(referrer_balance.amount), expected_bonus)
+
+        referred_balance = Balance.objects.filter(
+            user=referred_user,
+            is_locked=True,
+            lock_type=Balance.LockType.REFERRAL_BONUS,
+        ).first()
+        self.assertIsNotNone(referred_balance)
+        self.assertEqual(float(referred_balance.amount), expected_bonus)
