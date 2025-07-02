@@ -8,6 +8,7 @@ from mailing_list.lib import base_email_context
 from paper.models import Paper
 from purchase.models import Fundraise, Purchase, Support
 from purchase.related_models.constants.currency import USD
+from referral.services.referral_bonus_service import ReferralBonusService
 from researchhub.celery import QUEUE_NOTIFICATION, QUEUE_PURCHASES, app
 from researchhub.settings import BASE_FRONTEND_URL
 from researchhub_document.models import ResearchhubPost
@@ -64,6 +65,18 @@ def complete_eligible_fundraises():
                         # Mark fundraise as completed
                         fundraise.status = Fundraise.COMPLETED
                         fundraise.save()
+
+                        # Process referral bonuses for completed fundraise
+                        try:
+                            referral_bonus_service = ReferralBonusService()
+                            referral_bonus_service.process_fundraise_completion(
+                                fundraise
+                            )
+                        except Exception as e:
+                            log_error(
+                                e,
+                                message=f"Failed to process referral bonuses for fundraise {fundraise.id}",
+                            )
 
                         completed_count += 1
                         log_info(f"Successfully completed fundraise {fundraise.id}")

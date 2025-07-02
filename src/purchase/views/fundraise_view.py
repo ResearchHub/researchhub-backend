@@ -356,6 +356,12 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             fundraise.status = Fundraise.COMPLETED
             fundraise.save()
 
+            # Process referral bonuses for completed fundraise
+            try:
+                self.referral_bonus_service.process_fundraise_completion(fundraise)
+            except Exception as e:
+                log_error(e, message="Failed to process referral bonuses")
+
             # Return updated fundraise object
             context = self.get_serializer_context()
             serializer = self.get_serializer(fundraise, context=context)

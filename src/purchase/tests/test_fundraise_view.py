@@ -408,6 +408,11 @@ class FundraiseViewTests(APITestCase):
         )
 
         self.assertEqual(response.status_code, 200)
+
+        # Manually complete the fundraise as a moderator
+        self.client.force_authenticate(self.user)  # self.user is a moderator
+        response = self.client.post(f"/api/fundraise/{fundraise_id}/complete/")
+        self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["status"], "COMPLETED")
 
         # Check that referral bonuses were created
