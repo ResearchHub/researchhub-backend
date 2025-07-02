@@ -779,7 +779,6 @@ class UserActions:
             is_removed = False
             paper = None
             post = None
-            discussion = None
             if isinstance(item, Paper):
                 paper = item
             else:
@@ -811,23 +810,7 @@ class UserActions:
                 data["post_title"] = post.title
                 data["slug"] = post.slug
 
-            if discussion:
-                data["plain_text"] = discussion.plain_text
-                paper = discussion.paper
-                post = discussion.post
-                if paper:
-                    data["parent_content_type"] = "paper"
-                    data["paper_id"] = paper.id
-                    data["paper_title"] = paper.title
-                    data["paper_official_title"] = paper.paper_title
-                    data["slug"] = paper.slug
-                elif post:
-                    data["parent_content_type"] = "post"
-                    data["post_id"] = post.id
-                    data["post_title"] = post.title
-                    data["slug"] = post.slug
-
-            elif isinstance(item, Paper):
+            if isinstance(item, Paper):
                 data["tip"] = item.tagline
 
             if not isinstance(item, Purchase):
