@@ -161,7 +161,10 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         ):
             return Response(
                 {
-                    "message": f"Invalid amount. Minimum is {MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC}"
+                    "message": (
+                        f"Invalid amount. Minimum is "
+                        f"{MINIMUM_FUNDRAISE_CONTRIBUTION_AMOUNT_RSC}"
+                    )
                 },
                 status=400,
             )
@@ -177,15 +180,8 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         # Check if fundraise is open
         if fundraise.status != Fundraise.OPEN:
             return Response({"message": "Fundraise is not open"}, status=400)
-        # Check if fundraise is not already fulfilled
-        raised_amount = fundraise.get_amount_raised(fundraise.goal_currency)
-        if raised_amount >= fundraise.goal_amount:
-            return Response({"message": "Fundraise is already fulfilled"}, status=400)
         # Check if fundraise is not expired
         if fundraise.is_expired():
-            # TODO: We don't account for this case yet, because the initial MVP implementation
-            # won't ever encounter this case. But this code is here just in case.
-            # We should implement this in the future.
             return Response({"message": "Fundraise is expired"}, status=400)
 
         # Check if user created the fundraise
@@ -207,7 +203,8 @@ class FundraiseViewSet(viewsets.ModelViewSet):
                 return Response({"message": "Insufficient balance"}, status=400)
 
             # Create purchase object
-            # In the future, we may want to have the user POST /purchases and then call this EP with an ID.
+            # In the future, we may want to have the user POST /purchases and then call
+            # this EP with an ID.
             # Especially for on-chain purchases.
             purchase = Purchase.objects.create(
                 user=user,
@@ -297,25 +294,6 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             fundraise.escrow.amount_holding += amount
             fundraise.escrow.save()
 
-        # If fundraise is fulfilled, update status to closed
-        # and trigger escrow payout
-        fundraise.refresh_from_db()
-        raised_amount = fundraise.get_amount_raised(fundraise.goal_currency)
-        if raised_amount >= fundraise.goal_amount:
-            # the escrow payout functions creates + sends a notification
-            did_payout = fundraise.payout_funds()
-            if did_payout:
-                fundraise.status = Fundraise.COMPLETED
-                fundraise.save()
-
-                # Process referral bonuses for completed fundraise
-                try:
-                    self.referral_bonus_service.process_fundraise_completion(fundraise)
-                except Exception as e:
-                    log_error(e, message="Failed to process referral bonuses")
-            else:
-                return Response({"message": "Failed to payout funds"}, status=500)
-
         # return updated fundraise object
         context = self.get_serializer_context()
         serializer = self.get_serializer(fundraise, context=context)
@@ -348,6 +326,54 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         detail=True,
         permission_classes=[IsModerator],
     )
+    def complete(self, request, *args, **kwargs):
+        """
+        Complete a fundraise and payout funds to the recipient.
+        Only works if the fundraise is in OPEN status and has escrow funds.
+        Only accessible to moderators.
+        """
+        fundraise_id = kwargs.get("pk", None)
+
+        # Get fundraise object
+        try:
+            fundraise = Fundraise.objects.get(id=fundraise_id)
+            if fundraise is None:
+                return Response({"message": "Fundraise does not exist"}, status=400)
+        except Fundraise.DoesNotExist:
+            return Response({"message": "Fundraise does not exist"}, status=400)
+
+        # Check if fundraise is open
+        if fundraise.status != Fundraise.OPEN:
+            return Response({"message": "Fundraise is not open"}, status=400)
+
+        # Check if fundraise has funds to payout
+        if not fundraise.escrow or fundraise.escrow.amount_holding <= 0:
+            return Response({"message": "Fundraise has no funds to payout"}, status=400)
+
+        # Payout the funds
+        did_payout = fundraise.payout_funds()
+        if did_payout:
+            fundraise.status = Fundraise.COMPLETED
+            fundraise.save()
+
+            # Process referral bonuses for completed fundraise
+            try:
+                self.referral_bonus_service.process_fundraise_completion(fundraise)
+            except Exception as e:
+                log_error(e, message="Failed to process referral bonuses")
+
+            # Return updated fundraise object
+            context = self.get_serializer_context()
+            serializer = self.get_serializer(fundraise, context=context)
+            return Response(serializer.data)
+        else:
+            return Response({"message": "Failed to payout funds"}, status=500)
+
+    @action(
+        methods=["POST"],
+        detail=True,
+        permission_classes=[IsModerator],
+    )
     def close(self, request, *args, **kwargs):
         """
         Close a fundraise and refund all contributions to their contributors.
@@ -374,7 +400,10 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         else:
             return Response(
                 {
-                    "message": "Failed to close fundraise. It may already be closed or have no funds to refund."
+                    "message": (
+                        "Failed to close fundraise. It may already be closed or "
+                        "have no funds to refund."
+                    )
                 },
                 status=400,
             )

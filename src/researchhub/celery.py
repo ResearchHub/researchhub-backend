@@ -118,6 +118,14 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PURCHASES,
         },
     },
+    "purchase_complete-eligible-fundraises": {
+        "task": "purchase.tasks.complete_eligible_fundraises",
+        "schedule": crontab(hour=12, minute=0),  # Run daily at 12:00 PM UTC
+        "options": {
+            "priority": 3,
+            "queue": QUEUE_PURCHASES,
+        },
+    },
     # Reputation
     "reputation_check-deposits": {
         "task": "reputation.tasks.check_deposits",

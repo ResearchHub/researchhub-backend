@@ -1,12 +1,19 @@
+from datetime import datetime, timedelta
+
+import pytz
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 
 from mailing_list.lib import base_email_context
 from paper.models import Paper
-from purchase.models import Purchase, Support
-from researchhub.celery import QUEUE_NOTIFICATION, app
+from purchase.models import Fundraise, Purchase, Support
+from purchase.related_models.constants.currency import USD
+from referral.services.referral_bonus_service import ReferralBonusService
+from researchhub.celery import QUEUE_NOTIFICATION, QUEUE_PURCHASES, app
 from researchhub.settings import BASE_FRONTEND_URL
 from researchhub_document.models import ResearchhubPost
 from utils.message import send_email_message
+from utils.sentry import log_error, log_info
 
 
 @app.task
@@ -15,6 +22,80 @@ def update_purchases():
     for purchase in purchases:
         purchase.boost_time = purchase.get_boost_time()
         purchase.save()
+
+
+@app.task(queue=QUEUE_PURCHASES)
+def complete_eligible_fundraises():
+    """
+    Automatically complete fundraises that have met their goal and are a week old.
+    This task checks for OPEN fundraises that:
+    1. Have raised funds equal to or greater than their goal amount
+    2. Are at least 7 days old (based on start_date)
+    3. Have escrow funds available to payout
+    """
+    log_info("Starting complete_eligible_fundraises task")
+
+    # Calculate the cutoff date (7 days ago)
+    cutoff_date = datetime.now(pytz.UTC) - timedelta(days=7)
+
+    # Get all open fundraises that are at least a week old
+    eligible_fundraises = Fundraise.objects.filter(
+        status=Fundraise.OPEN,
+        start_date__lte=cutoff_date,
+        escrow__isnull=False,
+        escrow__amount_holding__gt=0,
+    ).select_related("escrow")
+
+    completed_count = 0
+    error_count = 0
+
+    for fundraise in eligible_fundraises:
+        try:
+            # Check if the fundraise has met its goal
+            amount_raised_usd = fundraise.get_amount_raised(currency=USD)
+            goal_amount_usd = float(fundraise.goal_amount)
+
+            if amount_raised_usd >= goal_amount_usd:
+                # Use atomic transaction to ensure consistency
+                with transaction.atomic():
+                    # Payout the funds
+                    did_payout = fundraise.payout_funds()
+
+                    if did_payout:
+                        # Mark fundraise as completed
+                        fundraise.status = Fundraise.COMPLETED
+                        fundraise.save()
+
+                        # Process referral bonuses for completed fundraise
+                        try:
+                            referral_bonus_service = ReferralBonusService()
+                            referral_bonus_service.process_fundraise_completion(
+                                fundraise
+                            )
+                        except Exception as e:
+                            log_error(
+                                e,
+                                message=f"Failed to process referral bonuses for fundraise {fundraise.id}",
+                            )
+
+                        completed_count += 1
+                        log_info(f"Successfully completed fundraise {fundraise.id}")
+                    else:
+                        log_error(
+                            f"Failed to payout funds for fundraise {fundraise.id}"
+                        )
+                        error_count += 1
+
+        except Exception as e:
+            log_error(f"Error processing fundraise {fundraise.id}: {str(e)}")
+            error_count += 1
+
+    log_info(f"Completed {completed_count} fundraises, {error_count} errors")
+    return {
+        "completed_count": completed_count,
+        "error_count": error_count,
+        "processed_total": completed_count + error_count,
+    }
 
 
 @app.task(queue=QUEUE_NOTIFICATION)
