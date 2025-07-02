@@ -1,7 +1,6 @@
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import Q
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import CursorPagination
@@ -47,14 +46,8 @@ class AuditViewSet(viewsets.GenericViewSet):
 
     def get_queryset(self):
         if self.action == "flagged":
-            return (
-                Flag.objects.exclude(
-                    Q(content_type__model="thread")
-                    | Q(content_type__model="comment")
-                    | Q(content_type__model="reply")
-                )
-                .select_related("content_type")
-                .prefetch_related("verdict__created_by")
+            return Flag.objects.select_related("content_type").prefetch_related(
+                "verdict__created_by"
             )
         return super().get_queryset()
 
