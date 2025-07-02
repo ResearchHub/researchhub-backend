@@ -201,7 +201,8 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             user = User.objects.select_for_update().get(id=user.id)
 
             # Check if user has enough balance in their wallet
-            user_balance = user.get_balance()
+            # For fundraise contributions, we allow using locked balance
+            user_balance = user.get_balance(include_locked=True)
             if user_balance - (amount + fee) < 0:
                 return Response({"message": "Insufficient balance"}, status=400)
 
@@ -221,21 +222,55 @@ class FundraiseViewSet(viewsets.ModelViewSet):
             # Deduct fees
             deduct_bounty_fees(user, fee, rh_fee, dao_fee, fee_object)
 
-            # Create balance objects
-            amount_str = amount.to_eng_string()
-            fee_str = fee.to_eng_string()
-            Balance.objects.create(
-                user=user,
-                content_type=ContentType.objects.get_for_model(BountyFee),
-                object_id=fee_object.id,
-                amount=f"-{fee_str}",
-            )
-            Balance.objects.create(
-                user=user,
-                content_type=ContentType.objects.get_for_model(Purchase),
-                object_id=purchase.id,
-                amount=f"-{amount_str}",
-            )
+            # Get user's available locked balance
+            available_locked_balance = user.get_locked_balance()
+
+            # Determine how to split the contribution amount
+            locked_amount_used = min(available_locked_balance, amount)
+            regular_amount_used = amount - locked_amount_used
+
+            # Determine how to split the fees using remaining locked balance
+            remaining_locked_balance = available_locked_balance - locked_amount_used
+            locked_fee_used = min(remaining_locked_balance, fee)
+            regular_fee_used = fee - locked_fee_used
+
+            # Create balance records for the contribution amount
+            if locked_amount_used > 0:
+                Balance.objects.create(
+                    user=user,
+                    content_type=ContentType.objects.get_for_model(Purchase),
+                    object_id=purchase.id,
+                    amount=f"-{locked_amount_used.to_eng_string()}",
+                    is_locked=True,
+                    lock_type=Balance.LockType.REFERRAL_BONUS,
+                )
+
+            if regular_amount_used > 0:
+                Balance.objects.create(
+                    user=user,
+                    content_type=ContentType.objects.get_for_model(Purchase),
+                    object_id=purchase.id,
+                    amount=f"-{regular_amount_used.to_eng_string()}",
+                )
+
+            # Create balance records for the fees
+            if locked_fee_used > 0:
+                Balance.objects.create(
+                    user=user,
+                    content_type=ContentType.objects.get_for_model(BountyFee),
+                    object_id=fee_object.id,
+                    amount=f"-{locked_fee_used.to_eng_string()}",
+                    is_locked=True,
+                    lock_type=Balance.LockType.REFERRAL_BONUS,
+                )
+
+            if regular_fee_used > 0:
+                Balance.objects.create(
+                    user=user,
+                    content_type=ContentType.objects.get_for_model(BountyFee),
+                    object_id=fee_object.id,
+                    amount=f"-{regular_fee_used.to_eng_string()}",
+                )
 
             # Track in Amplitude
             rh_fee_str = rh_fee.to_eng_string()
