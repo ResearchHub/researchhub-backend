@@ -1,7 +1,4 @@
 import rest_framework.serializers as serializers
-
-# TODO: Make is_public editable for creator as a delete mechanism
-# TODO: undo
 from django.db.models import Count, Q
 from rest_framework.serializers import (
     ModelSerializer,
