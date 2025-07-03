@@ -65,6 +65,10 @@
 	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
 	// "remoteUser": "root"
 
+	"remoteEnv": {
+		"WORKSPACE_PATH": "${containerWorkspaceFolder}"
+	},
+
 	"mounts": [
 		"source=${localEnv:HOME}/.aws,target=/home/vscode/.aws,type=bind,readonly"
 	]
