@@ -12,7 +12,7 @@ from rest_framework.serializers import (
     SerializerMethodField,
 )
 
-from discussion.reaction_models import Vote as GrmVote
+from discussion.reaction_models import Vote
 from hub.models import Hub
 from hub.serializers import DynamicHubSerializer, HubSerializer, SimpleHubSerializer
 from institution.serializers import DynamicInstitutionSerializer
@@ -754,7 +754,7 @@ class UserActions:
 
             if isinstance(item, Paper):
                 pass
-            elif isinstance(item, GrmVote):
+            elif isinstance(item, Vote):
                 item = item.item
                 if isinstance(item, Paper):
                     data["content_type"] += "_paper"

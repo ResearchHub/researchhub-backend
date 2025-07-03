@@ -27,8 +27,8 @@ from rest_framework.permissions import (
 from rest_framework.response import Response
 
 from analytics.amplitude import track_event
-from discussion.reaction_models import Vote as GrmVote
-from discussion.reaction_serializers import VoteSerializer as GrmVoteSerializer
+from discussion.reaction_models import Vote
+from discussion.reaction_serializers import VoteSerializer
 from discussion.reaction_views import ReactionViewActionMixin
 from hub.permissions import IsModerator
 from paper.exceptions import DOINotFoundError, PaperSerializerError
@@ -993,7 +993,7 @@ class PaperViewSet(
         paper = self.get_object()
         user = request.user
         vote = retrieve_vote(user, paper)
-        serializer = GrmVoteSerializer(vote)
+        serializer = VoteSerializer(vote)
         return Response(serializer.data, status=200)
 
     @user_vote.mapping.delete
@@ -1018,7 +1018,7 @@ class PaperViewSet(
         response = {}
 
         if user.is_authenticated:
-            votes = GrmVote.objects.filter(
+            votes = Vote.objects.filter(
                 content_type=get_content_type_for_model(Paper),
                 object_id__in=paper_ids,
                 created_by=user,
@@ -1026,7 +1026,7 @@ class PaperViewSet(
 
             for vote in votes.iterator():
                 paper_id = vote.object_id
-                data = GrmVoteSerializer(instance=vote).data
+                data = VoteSerializer(instance=vote).data
                 response[paper_id] = data
 
         return Response(response, status=status.HTTP_200_OK)
@@ -1526,12 +1526,12 @@ class FigureViewSet(viewsets.ModelViewSet):
 
 def retrieve_vote(user, paper):
     try:
-        return GrmVote.objects.get(
+        return Vote.objects.get(
             content_type=get_content_type_for_model(paper),
             created_by=user,
             object_id=paper.id,
         )
-    except GrmVote.DoesNotExist:
+    except Vote.DoesNotExist:
         return None
 
 
