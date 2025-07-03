@@ -3,14 +3,21 @@ import rest_framework.serializers as serializers
 # TODO: Make is_public editable for creator as a delete mechanism
 # TODO: undo
 from django.db.models import Count, Q
+from rest_framework.serializers import (
+    ModelSerializer,
+    PrimaryKeyRelatedField,
+    SerializerMethodField,
+)
 
-from discussion.models import Flag, Vote
+from discussion.models import Endorsement, Flag, Vote
 from hub.serializers import DynamicHubSerializer
 from paper.models import Paper
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubPost
 from user.serializers import DynamicUserSerializer, DynamicVerdictSerializer
+from utils.http import get_user_from_request
+from utils.sentry import log_error
 
 ORDERING_SCORE_ANNOTATION = Count("id", filter=Q(votes__vote_type=Vote.UPVOTE)) - Count(
     "id", filter=Q(votes__vote_type=Vote.DOWNVOTE)
@@ -83,3 +90,132 @@ class DynamicFlagSerializer(DynamicModelFieldSerializer):
             verdict, context=context, **_context_fields
         )
         return serializer.data
+
+
+class EndorsementSerializer(ModelSerializer):
+    item = PrimaryKeyRelatedField(many=False, read_only=True)
+
+    class Meta:
+        fields = [
+            "content_type",
+            "created_by",
+            "created_date",
+            "item",
+        ]
+        model = Endorsement
+
+
+class FlagSerializer(ModelSerializer):
+    item = PrimaryKeyRelatedField(many=False, read_only=True)
+
+    class Meta:
+        fields = [
+            "content_type",
+            "created_by",
+            "created_date",
+            "id",
+            "item",
+            "reason",
+            "reason_choice",
+            "object_id",
+        ]
+        model = Flag
+
+
+class VoteSerializer(ModelSerializer):
+    item = PrimaryKeyRelatedField(many=False, read_only=True)
+
+    class Meta:
+        fields = [
+            "id",
+            "content_type",
+            "created_by",
+            "created_date",
+            "vote_type",
+            "item",
+        ]
+        model = Vote
+
+
+class DynamicVoteSerializer(DynamicModelFieldSerializer):
+    class Meta:
+        fields = "__all__"
+        model = Vote
+
+
+class GenericReactionSerializerMixin:
+    EXPOSABLE_FIELDS = [
+        "promoted",
+        "score",
+        "user_endorsement",
+        "user_flag",
+    ]
+    READ_ONLY_FIELDS = [
+        "promoted",
+        "score",
+        "user_endorsement",
+        "user_flag",
+    ]
+
+    def get_document_meta(self, obj):
+        paper = obj.paper
+        if paper:
+            data = {
+                "id": paper.id,
+                "title": paper.paper_title,
+                "slug": paper.slug,
+            }
+            return data
+
+        post = obj.post
+        if post:
+            data = {"id": post.id, "title": post.title, "slug": post.slug}
+            return data
+
+        return None
+
+    def get_user_endorsement(self, obj):
+        user = get_user_from_request(self.context)
+        if user:
+            try:
+                return EndorsementSerializer(
+                    obj.endorsements.get(created_by=user.id)
+                ).data
+            except Endorsement.DoesNotExist:
+                return None
+
+    def get_user_flag(self, obj):
+        flag = None
+        user = get_user_from_request(self.context)
+        if user:
+            try:
+                flag_created_by = obj.flag_created_by
+                if len(flag_created_by) == 0:
+                    return None
+                flag = FlagSerializer(flag_created_by).data
+            except AttributeError:
+                try:
+                    flag = obj.flags.get(created_by=user.id)
+                    flag = FlagSerializer(flag).data
+                except Flag.DoesNotExist:
+                    pass
+        return flag
+
+    def get_promoted(self, obj):
+        if self.context.get("exclude_promoted_score", False):
+            return None
+        try:
+            return obj.get_promoted_score()
+        except Exception as e:
+            log_error(e)
+            return None
+
+
+class GenericReactionSerializer(GenericReactionSerializerMixin, ModelSerializer):
+    class Meta:
+        abstract = True
+
+    promoted = SerializerMethodField()
+    user_endorsement = SerializerMethodField()
+    user_flag = SerializerMethodField()
+    user_vote = SerializerMethodField()

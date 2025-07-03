@@ -13,11 +13,7 @@ from discussion.permissions import CensorDiscussion as CensorDiscussionPermissio
 from discussion.permissions import EditorCensorDiscussion
 from discussion.permissions import Endorse as EndorsePermission
 from discussion.permissions import Vote as VotePermission
-from discussion.reaction_serializers import (
-    EndorsementSerializer,
-    FlagSerializer,
-    VoteSerializer,
-)
+from discussion.serializers import EndorsementSerializer, FlagSerializer, VoteSerializer
 from paper.models import Paper
 from purchase.models import RscExchangeRate
 from reputation.models import Contribution

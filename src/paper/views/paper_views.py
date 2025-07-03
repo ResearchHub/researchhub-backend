@@ -28,8 +28,8 @@ from rest_framework.response import Response
 
 from analytics.amplitude import track_event
 from discussion.models import Vote
-from discussion.reaction_serializers import VoteSerializer
 from discussion.reaction_views import ReactionViewActionMixin
+from discussion.serializers import VoteSerializer
 from hub.permissions import IsModerator
 from paper.exceptions import DOINotFoundError, PaperSerializerError
 from paper.filters import PaperFilter

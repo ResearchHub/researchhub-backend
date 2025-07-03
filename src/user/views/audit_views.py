@@ -8,9 +8,8 @@ from rest_framework.response import Response
 
 from discussion.constants.flag_reasons import FLAG_REASON_CHOICES, NOT_SPECIFIED
 from discussion.models import Flag
-from discussion.reaction_serializers import FlagSerializer
 from discussion.reaction_views import censor
-from discussion.serializers import DynamicFlagSerializer
+from discussion.serializers import DynamicFlagSerializer, FlagSerializer
 from mailing_list.lib import base_email_context
 from notification.models import Notification
 from researchhub.settings import EMAIL_DOMAIN

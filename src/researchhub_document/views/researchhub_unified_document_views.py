@@ -12,7 +12,7 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from discussion.models import Vote
-from discussion.reaction_serializers import VoteSerializer
+from discussion.serializers import VoteSerializer
 from paper.models import Paper
 from paper.utils import get_cache_key
 from researchhub_document.filters import UnifiedDocumentFilter
