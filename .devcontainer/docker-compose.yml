@@ -32,7 +32,7 @@ services:
       - researchhub
 
   kibana:
-    image: docker.elastic.co/kibana/kibana:7.10.1
+    image: docker.elastic.co/kibana/kibana:7.17.28
     environment:
       ELASTICSEARCH_HOSTS: http://elasticsearch:9200
     depends_on:
