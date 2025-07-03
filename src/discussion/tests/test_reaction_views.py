@@ -6,8 +6,8 @@ from rest_framework.test import APIClient
 from rest_framework.viewsets import GenericViewSet
 
 from discussion.constants.flag_reasons import NOT_SPECIFIED
-from discussion.reaction_views import ReactionViewActionMixin
 from discussion.serializers import FlagSerializer
+from discussion.views import ReactionViewActionMixin
 from paper.related_models.paper_model import Paper
 from user.related_models.user_model import User
 

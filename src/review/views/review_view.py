@@ -4,7 +4,7 @@ from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
-from discussion.reaction_views import ReactionViewActionMixin
+from discussion.views import ReactionViewActionMixin
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     FILTER_PEER_REVIEWED,

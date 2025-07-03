@@ -9,7 +9,7 @@ from rest_framework.viewsets import ModelViewSet
 
 from analytics.amplitude import track_event
 from analytics.tasks import track_revenue_event
-from discussion.reaction_views import ReactionViewActionMixin
+from discussion.views import ReactionViewActionMixin
 from hub.models import Hub
 from note.related_models.note_model import Note
 from purchase.models import Balance, Grant, Purchase
