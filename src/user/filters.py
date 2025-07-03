@@ -9,7 +9,7 @@ from discussion.constants.flag_reasons import (
     VERIDCT_APPROVED,
     VERIDCT_OPEN,
 )
-from discussion.reaction_models import Flag
+from discussion.models import Flag
 from user.models import Action, User
 from utils.filters import ListExcludeFilter
 

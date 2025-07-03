@@ -12,7 +12,7 @@ from django.test import Client
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient, APITestCase, ForceAuthClientHandler
 
-from discussion.reaction_models import Vote
+from discussion.models import Vote
 from hub.models import Hub
 from paper.models import Paper
 from user.models import Author, University, User

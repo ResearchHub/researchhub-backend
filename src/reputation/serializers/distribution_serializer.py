@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from discussion.reaction_models import Vote as DisVote
+from discussion.models import Vote as DisVote
 from discussion.reaction_serializers import VoteSerializer as DisVoteSerializer
 from paper.models import Paper
 from purchase.models import Purchase

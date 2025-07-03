@@ -283,7 +283,7 @@ class User(AbstractUser):
 
     @property
     def upvote_count(self):
-        from discussion.reaction_models import Vote
+        from discussion.models import Vote
 
         upvote_count = (
             Distribution.objects.filter(

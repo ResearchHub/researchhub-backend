@@ -7,7 +7,7 @@ from rest_framework.pagination import CursorPagination
 from rest_framework.response import Response
 
 from discussion.constants.flag_reasons import FLAG_REASON_CHOICES, NOT_SPECIFIED
-from discussion.reaction_models import Flag
+from discussion.models import Flag
 from discussion.reaction_serializers import FlagSerializer
 from discussion.reaction_views import censor
 from discussion.serializers import DynamicFlagSerializer

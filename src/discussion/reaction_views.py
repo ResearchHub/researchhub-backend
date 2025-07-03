@@ -8,11 +8,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from analytics.amplitude import track_event
+from discussion.models import Endorsement, Flag, Vote
 from discussion.permissions import CensorDiscussion as CensorDiscussionPermission
 from discussion.permissions import EditorCensorDiscussion
 from discussion.permissions import Endorse as EndorsePermission
 from discussion.permissions import Vote as VotePermission
-from discussion.reaction_models import Endorsement, Flag, Vote
 from discussion.reaction_serializers import (
     EndorsementSerializer,
     FlagSerializer,

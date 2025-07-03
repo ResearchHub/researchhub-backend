@@ -8,7 +8,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.management import call_command
 from django.test import TestCase
 
-from discussion.reaction_models import Vote
+from discussion.models import Vote
 from discussion.tests.helpers import create_vote
 from paper.models import Paper
 from paper.openalex_util import process_openalex_works

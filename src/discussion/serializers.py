@@ -4,7 +4,7 @@ import rest_framework.serializers as serializers
 # TODO: undo
 from django.db.models import Count, Q
 
-from discussion.reaction_models import Flag, Vote
+from discussion.models import Flag, Vote
 from hub.serializers import DynamicHubSerializer
 from paper.models import Paper
 from researchhub.serializers import DynamicModelFieldSerializer

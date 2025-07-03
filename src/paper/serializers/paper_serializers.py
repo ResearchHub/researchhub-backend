@@ -11,7 +11,7 @@ from django.http import QueryDict
 
 import utils.sentry as sentry
 from citation.constants import JOURNAL_ARTICLE
-from discussion.reaction_models import Flag, Vote
+from discussion.models import Flag, Vote
 from discussion.reaction_serializers import (
     DynamicVoteSerializer,
     GenericReactionSerializerMixin,

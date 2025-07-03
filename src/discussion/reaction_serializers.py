@@ -4,7 +4,7 @@ from rest_framework.serializers import (
     SerializerMethodField,
 )
 
-from discussion.reaction_models import Endorsement, Flag, Vote
+from discussion.models import Endorsement, Flag, Vote
 from researchhub.serializers import DynamicModelFieldSerializer
 from utils.http import get_user_from_request
 from utils.sentry import log_error

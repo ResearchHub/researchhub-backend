@@ -5,7 +5,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import models
 from django.db.models import JSONField
 
-from discussion.reaction_models import Vote
+from discussion.models import Vote
 from paper.related_models.citation_model import Citation
 from utils.models import DefaultModel
 
