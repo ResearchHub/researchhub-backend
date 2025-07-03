@@ -561,21 +561,11 @@ def update_or_create_vote(request, user, item, vote_type):
     if vote is not None:
         vote.vote_type = vote_type
         vote.save(update_fields=["updated_date", "vote_type"])
-        if has_unified_doc:
-            update_relavent_doc_caches_on_vote(
-                cache_filters_to_reset=cache_filters_to_reset,
-                target_vote=vote,
-            )
 
         return get_vote_response(vote, 200)
 
     """CREATE VOTE"""
     vote = create_vote(user, item, vote_type)
-    if has_unified_doc:
-        update_relavent_doc_caches_on_vote(
-            cache_filters_to_reset=cache_filters_to_reset,
-            target_vote=vote,
-        )
 
     app_label = item._meta.app_label
     model = item._meta.model.__name__.lower()
@@ -591,18 +581,6 @@ def update_or_create_vote(request, user, item, vote_type):
         countdown=10,
     )
     return get_vote_response(vote, 201)
-
-
-def update_relavent_doc_caches_on_vote(cache_filters_to_reset, target_vote):
-    # Kobe: This function would reset the unified document cache on every vote.
-    # This is not necessary and is a performance bottleneck. Stopping this temporarily in order to test performance impact.
-
-    pass
-    # item = target_vote.item
-    # doc_type = get_doc_type_key(item.unified_document)
-    # reset_unified_document_cache(
-    #     document_type=[doc_type, "all"], filters=cache_filters_to_reset
-    # )
 
 
 class CommentFileUpload(viewsets.ViewSet):
