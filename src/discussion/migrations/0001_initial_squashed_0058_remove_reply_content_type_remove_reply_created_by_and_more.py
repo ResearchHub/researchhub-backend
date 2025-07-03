@@ -33,34 +33,6 @@ class Migration(migrations.Migration):
 
     operations = [
         migrations.CreateModel(
-            name='Thread',
-            fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_date', models.DateTimeField(auto_now_add=True, db_index=True)),
-                ('updated_date', models.DateTimeField(auto_now=True)),
-                ('is_public', models.BooleanField(default=True, help_text='Hides the comment from the public.')),
-                ('is_removed', models.BooleanField(default=False, help_text='Hides the comment because it is not allowed.')),
-                ('ip_address', models.GenericIPAddressField(blank=True, null=True, unpack_ipv4=True)),
-                ('text', django.contrib.postgres.fields.jsonb.JSONField(blank=True, null=True)),
-                ('title', models.CharField(blank=True, max_length=255, null=True)),
-                ('created_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL)),
-                ('paper', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='threads', to='paper.paper')),
-                ('was_edited', models.BooleanField(default=False, help_text='True if the comment text was edited after first being created.')),
-                ('plain_text', models.TextField(blank=True, default='')),
-                ('external_metadata', django.contrib.postgres.fields.jsonb.JSONField(null=True)),
-                ('source', models.CharField(choices=[('citation_comment', 'Citation Comment'), ('inline_abstract', 'Inline Abstract'), ('inline_paper_body', 'Inline Paper Body'), ('researchhub', 'researchhub')], default='researchhub', max_length=32)),
-                ('created_location', models.CharField(blank=True, choices=[('PROGRESS', 'Progress')], default=None, max_length=255, null=True)),
-                ('block_key', models.CharField(blank=True, max_length=255, null=True)),
-                ('entity_key', models.CharField(blank=True, max_length=255, null=True)),
-                ('context_title', models.TextField(blank=True, help_text="For inline-comments, indicates what's highlighted", null=True)),
-                ('post', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='threads', to='researchhub_document.researchhubpost')),
-                ('review', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='thread', to='review.review')),
-            ],
-            options={
-                'abstract': False,
-            },
-        ),
-        migrations.CreateModel(
             name='Vote',
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
@@ -90,51 +62,6 @@ class Migration(migrations.Migration):
             },
         ),
         migrations.CreateModel(
-            name='Comment',
-            fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_date', models.DateTimeField(auto_now_add=True, db_index=True)),
-                ('updated_date', models.DateTimeField(auto_now=True)),
-                ('is_public', models.BooleanField(default=True, help_text='Hides the comment from the public.')),
-                ('is_removed', models.BooleanField(default=False, help_text='Hides the comment because it is not allowed.')),
-                ('ip_address', models.GenericIPAddressField(blank=True, null=True, unpack_ipv4=True)),
-                ('text', django.contrib.postgres.fields.jsonb.JSONField(blank=True, null=True)),
-                ('created_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL)),
-                ('parent', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='comments', to='discussion.thread')),
-                ('was_edited', models.BooleanField(default=False, help_text='True if the comment text was edited after first being created.')),
-                ('plain_text', models.TextField(blank=True, default='')),
-                ('external_metadata', django.contrib.postgres.fields.jsonb.JSONField(null=True)),
-                ('source', models.CharField(default='researchhub', max_length=32, null=True)),
-                ('created_location', models.CharField(blank=True, choices=[('PROGRESS', 'Progress')], default=None, max_length=255, null=True)),
-            ],
-            options={
-                'abstract': False,
-            },
-        ),
-        migrations.CreateModel(
-            name='Reply',
-            fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_date', models.DateTimeField(auto_now_add=True, db_index=True)),
-                ('updated_date', models.DateTimeField(auto_now=True)),
-                ('is_public', models.BooleanField(default=True, help_text='Hides the comment from the public.')),
-                ('is_removed', models.BooleanField(default=False, help_text='Hides the comment because it is not allowed.')),
-                ('ip_address', models.GenericIPAddressField(blank=True, null=True, unpack_ipv4=True)),
-                ('text', django.contrib.postgres.fields.jsonb.JSONField(blank=True, null=True)),
-                ('object_id', models.PositiveIntegerField()),
-                ('content_type', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to='contenttypes.contenttype')),
-                ('created_by', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL)),
-                ('was_edited', models.BooleanField(default=False, help_text='True if the comment text was edited after first being created.')),
-                ('plain_text', models.TextField(blank=True, default='')),
-                ('external_metadata', django.contrib.postgres.fields.jsonb.JSONField(null=True)),
-                ('source', models.CharField(default='researchhub', max_length=32, null=True)),
-                ('created_location', models.CharField(blank=True, choices=[('PROGRESS', 'Progress')], default=None, max_length=255, null=True)),
-            ],
-            options={
-                'abstract': False,
-            },
-        ),
-        migrations.CreateModel(
             name='Flag',
             fields=[
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
@@ -154,108 +81,5 @@ class Migration(migrations.Migration):
         ),
         migrations.RunPython(
             code=add_post_slugs,
-        ),
-        migrations.AddField(
-            model_name='comment',
-            name='discussion_post_type',
-            field=models.CharField(choices=[('DISCUSSION', 'DISCUSSION'), ('SUMMARY', 'SUMMARY'), ('REVIEW', 'REVIEW'), ('ANSWER', 'ANSWER')], default='DISCUSSION', max_length=16),
-        ),
-        migrations.AddField(
-            model_name='reply',
-            name='discussion_post_type',
-            field=models.CharField(choices=[('DISCUSSION', 'DISCUSSION'), ('SUMMARY', 'SUMMARY'), ('REVIEW', 'REVIEW'), ('ANSWER', 'ANSWER')], default='DISCUSSION', max_length=16),
-        ),
-        migrations.AddField(
-            model_name='thread',
-            name='discussion_post_type',
-            field=models.CharField(choices=[('DISCUSSION', 'DISCUSSION'), ('SUMMARY', 'SUMMARY'), ('REVIEW', 'REVIEW'), ('ANSWER', 'ANSWER')], default='DISCUSSION', max_length=16),
-        ),
-        migrations.AddField(
-            model_name='thread',
-            name='is_accepted_answer',
-            field=models.BooleanField(blank=True, default=None, help_text="Used to indicate that this thread is a O/P's selected answer for bounties & Questions.             Empty field implies that related document is irrelevant to this field", null=True),
-        ),
-        migrations.AddField(
-            model_name='comment',
-            name='is_accepted_answer',
-            field=models.BooleanField(blank=True, default=None, help_text="Used to indicate that this thread is a O/P's selected answer for bounties & Questions.             Empty field implies that related document is irrelevant to this field", null=True),
-        ),
-        migrations.AlterField(
-            model_name='comment',
-            name='external_metadata',
-            field=models.JSONField(null=True),
-        ),
-        migrations.AlterField(
-            model_name='comment',
-            name='text',
-            field=models.JSONField(blank=True, null=True),
-        ),
-        migrations.AlterField(
-            model_name='reply',
-            name='external_metadata',
-            field=models.JSONField(null=True),
-        ),
-        migrations.AlterField(
-            model_name='reply',
-            name='text',
-            field=models.JSONField(blank=True, null=True),
-        ),
-        migrations.AlterField(
-            model_name='thread',
-            name='external_metadata',
-            field=models.JSONField(null=True),
-        ),
-        migrations.AlterField(
-            model_name='thread',
-            name='text',
-            field=models.JSONField(blank=True, null=True),
-        ),
-        migrations.AddField(
-            model_name='comment',
-            name='score',
-            field=models.IntegerField(default=0),
-        ),
-        migrations.AddField(
-            model_name='reply',
-            name='score',
-            field=models.IntegerField(default=0),
-        ),
-        migrations.AddField(
-            model_name='thread',
-            name='score',
-            field=models.IntegerField(default=0),
-        ),
-        migrations.RemoveField(
-            model_name='reply',
-            name='content_type',
-        ),
-        migrations.RemoveField(
-            model_name='reply',
-            name='created_by',
-        ),
-        migrations.RemoveField(
-            model_name='thread',
-            name='created_by',
-        ),
-        migrations.RemoveField(
-            model_name='thread',
-            name='paper',
-        ),
-        migrations.RemoveField(
-            model_name='thread',
-            name='post',
-        ),
-        migrations.RemoveField(
-            model_name='thread',
-            name='review',
-        ),
-        migrations.DeleteModel(
-            name='Comment',
-        ),
-        migrations.DeleteModel(
-            name='Reply',
-        ),
-        migrations.DeleteModel(
-            name='Thread',
         ),
     ]
