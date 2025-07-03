@@ -6,10 +6,15 @@ from django.conf import settings
 from django.db import migrations, models
 
 
-# Functions from the following migrations need manual copying.
-# Move them and any dependencies into this file, then update the
-# RunPython operations to refer to the local versions:
-# discussion.migrations.0049_auto_20220524_2238
+def add_post_slugs(apps, schema_editor):
+    Flag = apps.get_model('discussion', 'flag')
+
+    for flag in Flag.objects.all().iterator():
+        if hasattr(flag, 'verdict'):
+            veridct = flag.verdict
+            flag.verdict_created_date = veridct.created_date
+            flag.save()
+
 
 class Migration(migrations.Migration):
 
@@ -148,7 +153,7 @@ class Migration(migrations.Migration):
             },
         ),
         migrations.RunPython(
-            code=discussion.migrations.0049_auto_20220524_2238.add_post_slugs,
+            code=add_post_slugs,
         ),
         migrations.AddField(
             model_name='comment',
