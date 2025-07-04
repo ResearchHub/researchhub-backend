@@ -50,7 +50,7 @@ def check_user_risk(user):
         sift_risk_score
         and sift_risk_score > 90
         and user.id not in settings.SIFT_MODERATION_WHITELIST
-        and not user.is_verified
+        and not user.is_verified_v2
     ):
         user.set_suspended(is_manual=False)
 
@@ -122,7 +122,7 @@ class EventsApi:
             "$name": f"{user.first_name} {user.last_name}",
             "$social_sign_on_type": "$google",
             "author_id": str(user.author_profile.id),
-            "is_verified": user.is_verified,
+            "is_verified": user.is_verified_v2,
             "profile_url": f"https://www.researchhub.com/user/{str(user.author_profile.id)}",
             "created_date": user.created_date.isoformat(),
             "reputation": user.reputation,
