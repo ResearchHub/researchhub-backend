@@ -2,7 +2,7 @@ from django.db.models import DecimalField, Sum
 from django.db.models.functions import Coalesce
 from rest_framework import serializers
 
-from discussion.reaction_serializers import VoteSerializer
+from discussion.serializers import VoteSerializer
 from reputation.models import Bounty, BountySolution
 from reputation.serializers.escrow_serializer import DynamicEscrowSerializer
 from researchhub.serializers import DynamicModelFieldSerializer

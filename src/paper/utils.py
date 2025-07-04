@@ -16,7 +16,7 @@ from django.db.models import Count, Q
 from habanero import Crossref
 from manubot.cite.csl_item import CSL_Item
 
-from discussion.reaction_models import Vote
+from discussion.models import Vote
 from paper.exceptions import ManubotProcessingError
 from paper.lib import (
     journal_hosts,

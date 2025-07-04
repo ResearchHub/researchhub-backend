@@ -6,11 +6,11 @@ from rest_framework.serializers import (
     SerializerMethodField,
 )
 
-from discussion.reaction_models import Vote
-from discussion.reaction_serializers import (
+from discussion.models import Vote
+from discussion.serializers import (
     DynamicVoteSerializer,  # Import is needed for discussion serializer imports
 )
-from discussion.reaction_serializers import GenericReactionSerializerMixin
+from discussion.serializers import GenericReactionSerializerMixin
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from purchase.models import Purchase
 from researchhub.serializers import DynamicModelFieldSerializer

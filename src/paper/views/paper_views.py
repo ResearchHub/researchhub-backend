@@ -27,9 +27,9 @@ from rest_framework.permissions import (
 from rest_framework.response import Response
 
 from analytics.amplitude import track_event
-from discussion.reaction_models import Vote
-from discussion.reaction_serializers import VoteSerializer
-from discussion.reaction_views import ReactionViewActionMixin
+from discussion.models import Vote
+from discussion.serializers import VoteSerializer
+from discussion.views import ReactionViewActionMixin
 from hub.permissions import IsModerator
 from paper.exceptions import DOINotFoundError, PaperSerializerError
 from paper.filters import PaperFilter

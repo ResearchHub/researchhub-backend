@@ -1,4 +1,4 @@
-from discussion.reaction_models import Vote
+from discussion.models import Vote
 from paper.tests.helpers import create_paper
 from user.tests.helpers import create_random_default_user
 

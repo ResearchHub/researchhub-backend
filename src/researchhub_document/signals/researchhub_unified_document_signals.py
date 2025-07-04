@@ -2,7 +2,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from discussion.reaction_models import Vote
+from discussion.models import Vote
 from paper.models import Paper
 from reputation.related_models.bounty import Bounty
 from reputation.related_models.contribution import Contribution

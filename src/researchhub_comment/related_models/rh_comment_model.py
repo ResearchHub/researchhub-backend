@@ -12,7 +12,7 @@ from django.db.models import (
     TextField,
 )
 
-from discussion.reaction_models import AbstractGenericReactionModel
+from discussion.models import AbstractGenericReactionModel
 from purchase.models import Purchase
 from researchhub_comment.constants.rh_comment_content_types import (
     QUILL_EDITOR,

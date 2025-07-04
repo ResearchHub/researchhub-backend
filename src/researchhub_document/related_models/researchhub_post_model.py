@@ -3,7 +3,7 @@ from django.db import models
 from django.db.models import IntegerField, Sum
 from django.db.models.functions import Cast
 
-from discussion.reaction_models import AbstractGenericReactionModel, Vote
+from discussion.models import AbstractGenericReactionModel, Vote
 from hub.serializers import DynamicHubSerializer
 from purchase.models import Purchase
 from researchhub_comment.models import RhCommentThreadModel

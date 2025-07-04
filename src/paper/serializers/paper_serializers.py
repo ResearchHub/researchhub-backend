@@ -11,12 +11,12 @@ from django.http import QueryDict
 
 import utils.sentry as sentry
 from citation.constants import JOURNAL_ARTICLE
-from discussion.reaction_models import Flag, Vote
-from discussion.reaction_serializers import (
+from discussion.models import Flag, Vote
+from discussion.serializers import (
+    DynamicFlagSerializer,
     DynamicVoteSerializer,
     GenericReactionSerializerMixin,
 )
-from discussion.serializers import DynamicFlagSerializer
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from paper.exceptions import PaperSerializerError
 from paper.lib import journal_hosts

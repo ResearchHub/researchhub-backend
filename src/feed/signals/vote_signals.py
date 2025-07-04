@@ -3,7 +3,7 @@ import logging
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from discussion.reaction_models import Vote
+from discussion.models import Vote
 from feed.serializers import serialize_feed_metrics
 from feed.tasks import update_feed_metrics
 

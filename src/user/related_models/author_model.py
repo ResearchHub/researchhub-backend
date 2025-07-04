@@ -5,7 +5,7 @@ from django.db import models, transaction
 from django.db.models import JSONField, Sum
 from django.db.models.deletion import SET_NULL
 
-from discussion.reaction_models import Vote
+from discussion.models import Vote
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
 from paper.utils import PAPER_SCORE_Q_ANNOTATION

@@ -12,7 +12,7 @@ from rest_framework.serializers import (
     SerializerMethodField,
 )
 
-from discussion.reaction_models import Vote
+from discussion.models import Vote
 from hub.models import Hub
 from hub.serializers import DynamicHubSerializer, HubSerializer, SimpleHubSerializer
 from institution.serializers import DynamicInstitutionSerializer

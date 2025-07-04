@@ -7,10 +7,9 @@ from rest_framework.pagination import CursorPagination
 from rest_framework.response import Response
 
 from discussion.constants.flag_reasons import FLAG_REASON_CHOICES, NOT_SPECIFIED
-from discussion.reaction_models import Flag
-from discussion.reaction_serializers import FlagSerializer
-from discussion.reaction_views import censor
-from discussion.serializers import DynamicFlagSerializer
+from discussion.models import Flag
+from discussion.serializers import DynamicFlagSerializer, FlagSerializer
+from discussion.views import censor
 from mailing_list.lib import base_email_context
 from notification.models import Notification
 from researchhub.settings import EMAIL_DOMAIN

@@ -10,7 +10,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from discussion.reaction_models import Vote
+from discussion.models import Vote
 from feed.models import FeedEntry, FeedEntryLatest, FeedEntryPopular
 from hub.models import Hub
 from paper.models import Paper

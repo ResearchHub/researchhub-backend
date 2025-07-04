@@ -14,7 +14,7 @@ from manubot.cite.doi import get_doi_csl_item
 from manubot.cite.unpaywall import Unpaywall
 
 import utils.sentry as sentry
-from discussion.reaction_models import AbstractGenericReactionModel, Vote
+from discussion.models import AbstractGenericReactionModel, Vote
 from hub.models import Hub
 from hub.serializers import DynamicHubSerializer
 from paper.lib import journal_hosts

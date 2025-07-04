@@ -2,7 +2,7 @@ from django.contrib.contenttypes.models import ContentType
 from rest_framework import viewsets
 from rest_framework.request import Request
 
-from discussion.reaction_serializers import VoteSerializer
+from discussion.serializers import VoteSerializer
 from feed.views.common import FeedPagination
 from hub.models import Hub
 from paper.related_models.paper_model import Paper

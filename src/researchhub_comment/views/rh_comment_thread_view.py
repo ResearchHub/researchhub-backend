@@ -9,7 +9,7 @@ from rest_framework.permissions import (
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
-from discussion.reaction_views import ReactionViewActionMixin
+from discussion.views import ReactionViewActionMixin
 from researchhub_comment.models import RhCommentModel, RhCommentThreadModel
 from researchhub_comment.serializers import RhCommentThreadSerializer
 

@@ -3,7 +3,7 @@ import json
 import requests
 from django.core.management.base import BaseCommand
 
-from discussion.reaction_models import Vote
+from discussion.models import Vote
 from paper.models import Paper
 from purchase.models import Purchase
 from reputation.models import Bounty

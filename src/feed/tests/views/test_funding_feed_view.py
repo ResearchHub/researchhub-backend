@@ -11,7 +11,7 @@ from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.test import APIClient, APIRequestFactory
 
-from discussion.reaction_models import Vote
+from discussion.models import Vote
 from hub.models import Hub
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.constants.rsc_exchange_currency import MORALIS

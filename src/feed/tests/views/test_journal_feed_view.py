@@ -12,7 +12,7 @@ from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.test import APIClient, APIRequestFactory
 
-from discussion.reaction_models import Vote
+from discussion.models import Vote
 from feed.views.journal_feed_view import JournalFeedViewSet
 from hub.models import Hub
 from paper.related_models.paper_model import Paper
