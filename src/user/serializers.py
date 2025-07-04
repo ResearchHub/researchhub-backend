@@ -142,13 +142,7 @@ class AuthorSerializer(ModelSerializer):
         return obj.user.reputation
 
     def get_is_verified_v2(self, obj):
-        if obj.user is None:
-            return False
-
-        try:
-            return obj.user.userverification.is_verified
-        except UserVerification.DoesNotExist:
-            return False
+        return obj.is_verified_v2
 
     def get_reputation_v2(self, author):
         score = Score.objects.filter(author=author).order_by("-score").first()
@@ -589,10 +583,7 @@ class UserEditableSerializer(ModelSerializer):
 
     # FIXME: is_verified_v2 should be available on user model and not on author. This is a shim for legacy reasons.
     def get_is_verified_v2(self, user):
-        try:
-            return user.userverification.is_verified
-        except UserVerification.DoesNotExist:
-            return False
+        return user.is_verified_v2
 
     def get_organization_slug(self, user):
         try:
@@ -1106,16 +1097,10 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
         if user is None:
             return None
 
-        is_verified = False
-        try:
-            is_verified = user.userverification.is_verified
-        except UserVerification.DoesNotExist:
-            is_verified = False
-
         return {
             "id": user.id,
             "created_date": user.created_date,
-            "is_verified": is_verified,
+            "is_verified": user.is_verified_v2,
             "is_suspended": user.is_suspended,
             "probable_spammer": user.probable_spammer,
             "sift_url": f"https://console.sift.com/users/{user.id}?abuse_type=content_abuse",
