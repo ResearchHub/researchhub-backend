@@ -2,7 +2,7 @@ import decimal
 import re
 import time
 from datetime import datetime, timedelta
-from unittest import mock, skip
+from unittest import mock
 
 import requests_mock
 from django.contrib.admin.models import LogEntry
@@ -395,20 +395,6 @@ class ReputationViewsTests(APITestCase):
             )
 
             self.assertEqual(response.status_code, 201)
-
-    @skip
-    def test_user_can_only_see_own_withdrawals(self):
-        user = create_random_authenticated_user("rep_user")
-        user_withdrawals = user.withdrawals.count()
-        response = self.get_withdrawals_get_response(user)
-        self.assertGreater(self.all_withdrawals, user_withdrawals)
-        self.assertContains(response, '"results":[]', status_code=200)
-
-    @skip
-    def test_user_can_NOT_withdraw_below_minimum(self):
-        user = create_random_authenticated_user("new_user")
-        response = self.get_withdrawals_post_response(user)
-        self.assertContains(response, "25", status_code=400)
 
     def test_user_can_NOT_withdraw_with_switch_on(self):
         moderator = user = create_random_authenticated_user("moderator", moderator=True)
