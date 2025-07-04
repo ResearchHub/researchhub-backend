@@ -283,12 +283,12 @@ class User(AbstractUser):
 
     @property
     def upvote_count(self):
-        from discussion.reaction_models import Vote as GrmVote
+        from discussion.reaction_models import Vote
 
         upvote_count = (
             Distribution.objects.filter(
                 recipient=self,
-                proof_item_content_type=ContentType.objects.get_for_model(GrmVote),
+                proof_item_content_type=ContentType.objects.get_for_model(Vote),
                 reputation_amount=1,
             ).aggregate(count=Count("id"))["count"]
             or 0

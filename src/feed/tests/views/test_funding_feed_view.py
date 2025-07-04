@@ -11,7 +11,7 @@ from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.test import APIClient, APIRequestFactory
 
-from discussion.reaction_models import Vote as GrmVote
+from discussion.reaction_models import Vote
 from hub.models import Hub
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.constants.rsc_exchange_currency import MORALIS
@@ -204,11 +204,11 @@ class FundingFeedViewSetTests(TestCase):
         """Test that user votes and metrics are added to response data"""
         # Create a vote for the post
         post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
-        vote = GrmVote.objects.create(
+        vote = Vote.objects.create(
             created_by=self.user,
             object_id=self.post.id,
             content_type=post_content_type,
-            vote_type=GrmVote.UPVOTE,
+            vote_type=Vote.UPVOTE,
         )
 
         url = reverse("funding_feed-list")
@@ -239,11 +239,11 @@ class FundingFeedViewSetTests(TestCase):
         """Test that user votes are added even with cached response"""
         # Create a vote for the post
         post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
-        vote = GrmVote.objects.create(
+        vote = Vote.objects.create(
             created_by=self.user,
             object_id=self.post.id,
             content_type=post_content_type,
-            vote_type=GrmVote.UPVOTE,
+            vote_type=Vote.UPVOTE,
         )
 
         # Create a mock cached response without votes

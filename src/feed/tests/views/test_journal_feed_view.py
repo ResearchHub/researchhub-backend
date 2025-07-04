@@ -12,7 +12,7 @@ from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.test import APIClient, APIRequestFactory
 
-from discussion.reaction_models import Vote as GrmVote
+from discussion.reaction_models import Vote
 from feed.views.journal_feed_view import JournalFeedViewSet
 from hub.models import Hub
 from paper.related_models.paper_model import Paper
@@ -334,11 +334,11 @@ class JournalFeedViewSetTests(TestCase):
         """Test that user votes and metrics are added to response data"""
         # Create a vote for the paper
         paper_content_type = ContentType.objects.get_for_model(Paper)
-        vote = GrmVote.objects.create(
+        vote = Vote.objects.create(
             created_by=self.user,
             object_id=self.preprint_paper.id,
             content_type=paper_content_type,
-            vote_type=GrmVote.UPVOTE,
+            vote_type=Vote.UPVOTE,
         )
 
         url = reverse("journal_feed-list")
@@ -366,11 +366,11 @@ class JournalFeedViewSetTests(TestCase):
         """Test that user votes are added even with cached response"""
         # Create a vote for the paper
         paper_content_type = ContentType.objects.get_for_model(Paper)
-        vote = GrmVote.objects.create(
+        vote = Vote.objects.create(
             created_by=self.user,
             object_id=self.preprint_paper.id,
             content_type=paper_content_type,
-            vote_type=GrmVote.UPVOTE,
+            vote_type=Vote.UPVOTE,
         )
 
         # Create a mock cached response without votes

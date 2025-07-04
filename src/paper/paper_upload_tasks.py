@@ -596,13 +596,13 @@ def celery_create_paper(self, celery_data):
         uploaded_by = paper_submission.uploaded_by
 
         if uploaded_by:
-            from discussion.reaction_models import Vote as GrmVote
+            from discussion.reaction_models import Vote
 
-            GrmVote.objects.create(
+            Vote.objects.create(
                 content_type=get_content_type_for_model(paper),
                 created_by=uploaded_by,
                 object_id=paper.id,
-                vote_type=GrmVote.UPVOTE,
+                vote_type=Vote.UPVOTE,
             )
         paper.unified_document.update_filter(FILTER_OPEN_ACCESS)
         download_pdf.apply_async((paper_id,), priority=3, countdown=5)
