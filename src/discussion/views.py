@@ -33,7 +33,6 @@ from researchhub_document.related_models.constants.document_type import (
     SORT_DISCUSSED,
     SORT_UPVOTED,
 )
-from researchhub_document.related_models.constants.filters import HOT, UPVOTED
 from user.models import User
 from utils.models import SoftDeletableModel
 from utils.permissions import CreateOrUpdateIfAllowed
@@ -528,13 +527,6 @@ def create_automated_bounty(item):
 
 @sift_track(SIFT_VOTE)
 def update_or_create_vote(request, user, item, vote_type):
-    cache_filters_to_reset = [UPVOTED, HOT]
-    if isinstance(item, RhCommentModel):
-        cache_filters_to_reset = [HOT]
-
-    # NOTE: Hypothesis citations do not have a unified document attached
-    has_unified_doc = hasattr(item, "unified_document")
-
     """UPDATE VOTE"""
     vote = retrieve_vote(user, item)
     if vote_type == Vote.UPVOTE and vote and vote.vote_type == vote.DOWNVOTE:
