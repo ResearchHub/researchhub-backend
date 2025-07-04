@@ -160,6 +160,7 @@ class PaperViewSet(
             print("EXCEPTION: ", e)
             return Response(str(e), status=status.HTTP_400_BAD_REQUEST)
 
+    @track_event
     @action(
         detail=False,
         methods=["post"],
