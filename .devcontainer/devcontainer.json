@@ -34,7 +34,8 @@
 				"ms-python.black-formatter",
 				"ms-python.debugpy",
 				"ms-python.flake8",
-				"ms-python.isort"
+				"ms-python.isort",
+				"Anthropic.claude-code"
 			],
 			"settings": {
 				"[python]": {
@@ -68,10 +69,15 @@
 	// "remoteUser": "root"
 
 	"remoteEnv": {
-		"WORKSPACE_PATH": "${containerWorkspaceFolder}"
+		"WORKSPACE_PATH": "${containerWorkspaceFolder}",
+		"CLAUDE_AVAILABLE": "true"
 	},
 
 	"mounts": [
-		"source=${localEnv:HOME}/.aws,target=/home/vscode/.aws,type=bind,readonly"
-	]
+		"source=${localEnv:HOME}/.aws,target=/home/vscode/.aws,type=bind,readonly",
+		"source=${localEnv:HOME}/.anthropic,target=/home/vscode/.anthropic,type=bind,readonly"
+	],
+
+	// Add capabilities for Claude Code
+	"capAdd": ["SYS_PTRACE"]
 }

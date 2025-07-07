@@ -8,6 +8,12 @@ ENV PYTHONUNBUFFERED 1
 #    && rm -rf /tmp/pip-tmp
 
 RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
-    && apt-get -y install --no-install-recommends redis-tools
+    && apt-get -y install --no-install-recommends redis-tools curl \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN pip --no-cache-dir install --upgrade pip poetry
+
+# Install Claude CLI
+RUN npm install -g @anthropic-ai/claude-code
