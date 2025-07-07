@@ -1,6 +1,3 @@
-import copy
-import json
-
 from django_elasticsearch_dsl import Document, fields
 from django_elasticsearch_dsl.registries import registry
 
@@ -17,7 +14,12 @@ class FeedEntryDocument(Document):
         }
     )
     object_id = fields.IntegerField()
-    content = fields.ObjectField(properties={})
+    content = fields.ObjectField(
+        properties={
+            # Disable comment_content_json field for now
+            "comment_content_json": fields.ObjectField(enabled=False),
+        }
+    )
     hot_score = fields.IntegerField()
     metrics = fields.ObjectField(properties={})
     action = fields.KeywordField()
@@ -104,27 +106,3 @@ class FeedEntryDocument(Document):
                 },
             }
         return None
-
-    def prepare_content(self, instance):
-        # Deep copy and sanitize dict inserts in comment_content_json.ops
-        content = instance.content or {}
-        content_copy = copy.deepcopy(content)
-
-        def sanitize(obj):
-            if isinstance(obj, dict):
-                # if this dict contains Quill ops element, sanitize inserts
-                ccj = obj.get("comment_content_json")
-                if isinstance(ccj, dict) and isinstance(ccj.get("ops"), list):
-                    for op in ccj["ops"]:
-                        ins = op.get("insert")
-                        if isinstance(ins, dict):
-                            op["insert"] = json.dumps(ins)
-                # recurse into nested values
-                for v in obj.values():
-                    sanitize(v)
-            elif isinstance(obj, list):
-                for item in obj:
-                    sanitize(item)
-
-        sanitize(content_copy)
-        return content_copy
