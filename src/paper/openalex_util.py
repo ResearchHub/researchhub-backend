@@ -632,8 +632,6 @@ def _get_or_create_journal_hub(external_source: str):
     This function also considers the managed mapping of OpenAlex sources to journal hubs
     in `OPENALEX_SOURCES_TO_JOURNAL_HUBS`.
     """
-    from hub.models import Hub
-
     journal_hub = None
 
     if external_source in OPENALEX_SOURCES_TO_JOURNAL_HUBS.keys():
@@ -653,8 +651,6 @@ def _get_or_create_journal_hub(external_source: str):
 
 
 def _get_journal_hub(journal: str):
-    from hub.models import Hub
-
     return Hub.objects.filter(
         name__iexact=journal,
         namespace=Hub.Namespace.JOURNAL,
