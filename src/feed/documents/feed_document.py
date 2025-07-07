@@ -21,7 +21,15 @@ class FeedEntryDocument(Document):
         }
     )
     hot_score = fields.IntegerField()
-    metrics = fields.ObjectField(properties={})
+    metrics = fields.ObjectField(
+        properties={
+            "review_metrics": fields.ObjectField(
+                properties={
+                    "avg": fields.FloatField(),
+                }
+            ),
+        }
+    )
     action = fields.KeywordField()
     action_date = fields.DateField()
     created_date = fields.DateField()
