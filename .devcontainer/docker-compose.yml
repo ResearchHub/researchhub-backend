@@ -53,7 +53,7 @@ services:
       - researchhub
 
   redis:
-    image: redis:6.2-alpine
+    image: redis:7.2-alpine
     restart: unless-stopped
     networks:
       - researchhub
