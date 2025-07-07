@@ -7,10 +7,10 @@ from hub.models import Hub
 from paper.models import Paper
 from paper.openalex_util import (
     OPENALEX_SOURCES_TO_JOURNAL_HUBS,
+    _get_or_create_journal_hub,
     clean_url,
     process_openalex_works,
 )
-from paper.paper_upload_tasks import _get_or_create_journal_hub
 from paper.related_models.citation_model import Citation
 from user.related_models.author_model import Author
 from utils.openalex import OpenAlex

@@ -9,8 +9,11 @@ from django.db import IntegrityError, transaction
 from django.db.models import Q
 
 import utils.sentry as sentry
+from hub.models import Hub
 from institution.models import Institution
 from paper.related_models.citation_model import Citation, Source
+from tag.models import Concept
+from topic.models import Topic, UnifiedDocumentTopics
 from user.related_models.author_contribution_summary_model import (
     AuthorContributionSummary,
 )
@@ -555,10 +558,6 @@ def merge_openalex_author_with_researchhub_author(openalex_author, researchhub_a
 
 
 def create_paper_related_tags(paper, openalex_concepts=[], openalex_topics=[]):
-    from hub.models import Hub
-    from tag.models import Concept
-    from topic.models import Topic, UnifiedDocumentTopics
-
     # Process topics
     sorted_topics = sorted(openalex_topics, key=lambda x: x["score"], reverse=True)
     topic_ids = []
