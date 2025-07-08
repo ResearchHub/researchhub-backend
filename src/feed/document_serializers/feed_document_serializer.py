@@ -1,18 +1,21 @@
 import json
 
 from django_elasticsearch_dsl_drf.serializers import DocumentSerializer
+from rest_framework import serializers
 
 from feed.documents.feed_document import FeedEntryDocument
 
 
 class FeedEntryDocumentSerializer(DocumentSerializer):
+    content_object = serializers.SerializerMethodField()
+
     class Meta:
         document = FeedEntryDocument
         fields = (
             "id",
             "content_type",
             "object_id",
-            "content",
+            "content_object",
             "hot_score",
             "metrics",
             "action",
@@ -24,17 +27,27 @@ class FeedEntryDocumentSerializer(DocumentSerializer):
             "user",
         )
 
-    def to_representation(self, instance):
+    def get_content_object(self, obj):
         """
-        Convert JSON strings back to objects for API response.
+        Get the content field and process JSON strings back to objects.
         """
-        data = super().to_representation(instance)
+        content = getattr(obj, "content", None)
+        if not content:
+            return content
 
-        # Process the content field if it exists
-        if "content" in data and data["content"]:
-            data["content"] = self._deserialize_json_fields(data["content"])
+        # Convert AttrDict to regular dict first
+        if hasattr(content, "to_dict"):
+            content_dict = content.to_dict()
+        elif hasattr(content, "__dict__"):
+            content_dict = dict(content)
+        else:
+            content_dict = content
 
-        return data
+        # Now process JSON fields
+        if content_dict and isinstance(content_dict, dict):
+            return self._deserialize_json_fields(content_dict)
+
+        return content_dict
 
     def _deserialize_json_fields(self, data, json_field_names=None):
         """
