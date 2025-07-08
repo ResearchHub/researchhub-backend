@@ -8,6 +8,7 @@ from feed.documents.feed_document import FeedEntryDocument
 
 class FeedEntryDocumentSerializer(DocumentSerializer):
     content_object = serializers.SerializerMethodField()
+    content_type = serializers.SerializerMethodField()
 
     class Meta:
         document = FeedEntryDocument
@@ -48,6 +49,9 @@ class FeedEntryDocumentSerializer(DocumentSerializer):
             return self._deserialize_json_fields(content_dict)
 
         return content_dict
+
+    def get_content_type(self, obj):
+        return obj.content_type.model.upper()
 
     def _deserialize_json_fields(self, data, json_field_names=None):
         """
