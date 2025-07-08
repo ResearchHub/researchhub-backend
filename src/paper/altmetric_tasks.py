@@ -17,7 +17,7 @@ def extract_relevant_altmetric_fields(altmetric_data):
     Extract only count, score, and percentile fields from Altmetric data.
     """
     if not altmetric_data:
-        return None
+        return {}
 
     relevant_fields = {
         # Core score
@@ -85,7 +85,7 @@ def enrich_papers_with_altmetric_data(self, retry=0):
     logger.info("Starting Altmetric enrichment for papers from the last day")
 
     # Get papers created in the last day that have DOIs
-    date_threshold = timezone.now() - timedelta(days=100)
+    date_threshold = timezone.now() - timedelta(days=1)
     papers = (
         Paper.objects.filter(created_date__gte=date_threshold, doi__isnull=False)
         .exclude(doi="")
