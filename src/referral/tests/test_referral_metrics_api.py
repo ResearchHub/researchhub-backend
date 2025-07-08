@@ -1,3 +1,4 @@
+import uuid
 from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
@@ -24,19 +25,19 @@ class ReferralMetricsAPITest(TestCase):
 
         # Create test users
         self.referrer = User.objects.create_user(
-            username="referrer", email="referrer@test.com", password="testpass123"
+            username="referrer", email="referrer@test.com", password=uuid.uuid4().hex
         )
 
         self.referred_user1 = User.objects.create_user(
-            username="referred1", email="referred1@test.com", password="testpass123"
+            username="referred1", email="referred1@test.com", password=uuid.uuid4().hex
         )
 
         self.referred_user2 = User.objects.create_user(
-            username="referred2", email="referred2@test.com", password="testpass123"
+            username="referred2", email="referred2@test.com", password=uuid.uuid4().hex
         )
 
         self.admin_user = User.objects.create_superuser(
-            username="admin", email="admin@test.com", password="adminpass123"
+            username="admin", email="admin@test.com", password=uuid.uuid4().hex
         )
 
         # Create referral signups
