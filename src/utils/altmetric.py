@@ -69,31 +69,3 @@ class Altmetric:
                 f"Error fetching Altmetric data for DOI {doi}: {str(e)}", exc_info=True
             )
             return None
-
-    def batch_get_altmetric_data(
-        self, dois: list, delay: float = 0.5
-    ) -> Dict[str, Optional[Dict]]:
-        """
-        Fetch Altmetric data for multiple DOIs with a delay between requests.
-
-        Args:
-            dois: List of DOIs to fetch data for
-            delay: Delay in seconds between requests (default 0.5s)
-
-        Returns:
-            Dict mapping DOI to Altmetric data (or None if not found)
-        """
-        results = {}
-
-        for i, doi in enumerate(dois):
-            if i > 0:
-                # Add delay between requests to be respectful of the API
-                time.sleep(delay)
-
-            results[doi] = self.get_altmetric_data(doi)
-
-            # Log progress every 10 papers
-            if (i + 1) % 10 == 0:
-                logger.info(f"Processed {i + 1}/{len(dois)} papers for Altmetric data")
-
-        return results
