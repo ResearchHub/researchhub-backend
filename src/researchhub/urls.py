@@ -238,6 +238,8 @@ urlpatterns = [
     ),
     path("api/permissions/", researchhub.views.permissions, name="permissions"),
     path("api/search/", include(search.urls)),
+    # Referral endpoints
+    path("api/referral/", include("referral.urls")),
     # Organization endpoints
     path(
         "api/organizations/non-profit/search/",
