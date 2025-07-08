@@ -205,13 +205,16 @@ router.register(r"grant", purchase.views.GrantViewSet, basename="grant")
 
 router.register(r"feed", FeedViewSet, basename="feed")
 
-router.register(r"feed_v2", FeedV2ViewSet, basename="feed_v2")
-
 router.register(r"funding_feed", FundingFeedViewSet, basename="funding_feed")
 
 router.register(r"grant_feed", GrantFeedViewSet, basename="grant_feed")
 
 router.register(r"journal_feed", JournalFeedViewSet, basename="journal_feed")
+
+# V2 API
+router_v2 = routers.DefaultRouter()
+
+router_v2.register(r"feed", FeedV2ViewSet, basename="feed_v2")
 
 urlpatterns = [
     # Health check
@@ -221,6 +224,8 @@ urlpatterns = [
         include("health_check.urls"),
     ),
     re_path(r"^api/", include(router.urls)),
+    # v2 endpoints
+    re_path(r"^api/v2/", include(router_v2.urls)),
     # TODO: calvinhlee - consolidate all mod views into 1 set
     path("api/get_hub_active_contributors/", editor_views.get_hub_active_contributors),
     path(
