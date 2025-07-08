@@ -1,3 +1,5 @@
+import json
+
 from django_elasticsearch_dsl import Document, fields
 from django_elasticsearch_dsl.registries import registry
 
@@ -16,9 +18,10 @@ class FeedEntryDocument(Document):
     object_id = fields.IntegerField()
     content = fields.ObjectField(
         properties={
-            # Disable comment_content_json field for now
-            "comment_content_json": fields.ObjectField(enabled=False),
-        }
+            # Store problematic fields as JSON strings to avoid schema conflicts
+            "comment_content_json": fields.TextField(),
+            "parent_comment": fields.TextField(),
+        },
     )
     hot_score = fields.IntegerField()
     metrics = fields.ObjectField(
@@ -114,3 +117,26 @@ class FeedEntryDocument(Document):
                 },
             }
         return None
+
+    def prepare_content(self, instance):
+        if not instance.content:
+            return None
+
+        content_copy = dict(instance.content)
+
+        if content_copy:
+            # Convert problematic fields to JSON strings to avoid schema conflicts
+            # Only convert to JSON if they're not already strings
+            if "comment_content_json" in content_copy:
+                if not isinstance(content_copy["comment_content_json"], str):
+                    content_copy["comment_content_json"] = json.dumps(
+                        content_copy["comment_content_json"]
+                    )
+
+            if "parent_comment" in content_copy:
+                if not isinstance(content_copy["parent_comment"], str):
+                    content_copy["parent_comment"] = json.dumps(
+                        content_copy["parent_comment"]
+                    )
+
+            return content_copy
