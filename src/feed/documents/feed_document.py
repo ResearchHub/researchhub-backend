@@ -20,7 +20,11 @@ class FeedEntryDocument(Document):
         properties={
             # Store problematic fields as JSON strings to avoid schema conflicts
             "comment_content_json": fields.TextField(),
-            "parent_comment": fields.TextField(),
+            "parent_comment": fields.ObjectField(
+                properties={
+                    "comment_content_json": fields.TextField(),
+                }
+            ),
         },
     )
     hot_score = fields.IntegerField()
@@ -123,20 +127,30 @@ class FeedEntryDocument(Document):
             return None
 
         content_copy = dict(instance.content)
+        return self._serialize_json_fields(content_copy)
 
-        if content_copy:
-            # Convert problematic fields to JSON strings to avoid schema conflicts
-            # Only convert to JSON if they're not already strings
-            if "comment_content_json" in content_copy:
-                if not isinstance(content_copy["comment_content_json"], str):
-                    content_copy["comment_content_json"] = json.dumps(
-                        content_copy["comment_content_json"]
-                    )
+    def _serialize_json_fields(self, data, json_field_names=None):
+        """
+        Recursively convert specified fields to JSON strings in nested structures.
+        """
+        if json_field_names is None:
+            json_field_names = ["comment_content_json"]
 
-            if "parent_comment" in content_copy:
-                if not isinstance(content_copy["parent_comment"], str):
-                    content_copy["parent_comment"] = json.dumps(
-                        content_copy["parent_comment"]
-                    )
-
-            return content_copy
+        if isinstance(data, dict):
+            result = {}
+            for key, value in data.items():
+                if key in json_field_names and not isinstance(value, str):
+                    # Convert to JSON string
+                    result[key] = json.dumps(value)
+                elif isinstance(value, (dict, list)):
+                    # Recursively process nested structures
+                    result[key] = self._serialize_json_fields(value, json_field_names)
+                else:
+                    result[key] = value
+            return result
+        elif isinstance(data, list):
+            return [
+                self._serialize_json_fields(item, json_field_names) for item in data
+            ]
+        else:
+            return data

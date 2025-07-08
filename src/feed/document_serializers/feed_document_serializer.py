@@ -30,28 +30,37 @@ class FeedEntryDocumentSerializer(DocumentSerializer):
         """
         data = super().to_representation(instance)
 
-        # Parse JSON strings back to objects in the content field
-        if "content" in data and isinstance(data["content"], dict):
-            content = data["content"]
-
-            # Parse `comment_content_json` if it's a string
-            if "comment_content_json" in content and isinstance(
-                content["comment_content_json"], str
-            ):
-                try:
-                    content["comment_content_json"] = json.loads(
-                        content["comment_content_json"]
-                    )
-                except (json.JSONDecodeError, TypeError):
-                    pass  # leave as-is
-
-            # Parse parent_comment if it's a string
-            if "parent_comment" in content and isinstance(
-                content["parent_comment"], str
-            ):
-                try:
-                    content["parent_comment"] = json.loads(content["parent_comment"])
-                except (json.JSONDecodeError, TypeError):
-                    pass  # leave as-is
+        # Process the content field if it exists
+        if "content" in data and data["content"]:
+            data["content"] = self._deserialize_json_fields(data["content"])
 
         return data
+
+    def _deserialize_json_fields(self, data, json_field_names=None):
+        """
+        Recursively convert JSON strings back to objects in nested structures.
+        """
+        if json_field_names is None:
+            json_field_names = ["comment_content_json"]
+
+        if isinstance(data, dict):
+            result = {}
+            for key, value in data.items():
+                if key in json_field_names and isinstance(value, str):
+                    # Convert from JSON string back to object
+                    try:
+                        result[key] = json.loads(value)
+                    except (json.JSONDecodeError, TypeError):
+                        result[key] = value  # leave as-is if parsing fails
+                elif isinstance(value, (dict, list)):
+                    # Recursively process nested structures
+                    result[key] = self._deserialize_json_fields(value, json_field_names)
+                else:
+                    result[key] = value
+            return result
+        elif isinstance(data, list):
+            return [
+                self._deserialize_json_fields(item, json_field_names) for item in data
+            ]
+        else:
+            return data
