@@ -173,7 +173,7 @@ class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
 
     def get_reviews(self, unified_doc):
         if not unified_doc.reviews.exists():
-            return {"avg": 0, "count": 0}
+            return {"avg": 0.0, "count": 0}
         return unified_doc.get_review_details()
 
     def get_concepts(self, unified_doc):
