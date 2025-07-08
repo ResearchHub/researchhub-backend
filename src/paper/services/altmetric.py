@@ -17,7 +17,7 @@ class Altmetric:
         self.base_url = "https://api.altmetric.com/v1"
         self.timeout = timeout
         self.base_headers = {
-            "User-Agent": "ResearchHub/1.0 (hello@researchhub.com)",
+            "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/115.0",
             "Accept": "application/json",
         }
 
