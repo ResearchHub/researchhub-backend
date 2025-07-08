@@ -2,14 +2,14 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
-from utils.altmetric import Altmetric
+from paper.services.altmetric import Altmetric
 
 
 class TestAltmetric(TestCase):
     def setUp(self):
         self.altmetric = Altmetric()
 
-    @patch("utils.altmetric.retryable_requests_session")
+    @patch("paper.services.altmetric.retryable_requests_session")
     def test_get_altmetric_data_success(self, mock_session):
         """Test successful Altmetric data retrieval."""
         mock_response = MagicMock()
@@ -37,7 +37,7 @@ class TestAltmetric(TestCase):
             timeout=10,
         )
 
-    @patch("utils.altmetric.retryable_requests_session")
+    @patch("paper.services.altmetric.retryable_requests_session")
     def test_get_altmetric_data_not_found(self, mock_session):
         """Test when DOI is not found in Altmetric."""
         mock_response = MagicMock()
@@ -51,7 +51,7 @@ class TestAltmetric(TestCase):
 
         self.assertIsNone(result)
 
-    @patch("utils.altmetric.retryable_requests_session")
+    @patch("paper.services.altmetric.retryable_requests_session")
     def test_get_altmetric_data_rate_limited(self, mock_session):
         """Test rate limiting triggers retry."""
         mock_response = MagicMock()
@@ -67,7 +67,7 @@ class TestAltmetric(TestCase):
         self.assertIsNone(result)
         mock_response.raise_for_status.assert_called_once()
 
-    @patch("utils.altmetric.retryable_requests_session")
+    @patch("paper.services.altmetric.retryable_requests_session")
     def test_get_altmetric_data_server_error(self, mock_session):
         """Test handling of unexpected server errors."""
         mock_response = MagicMock()
@@ -91,7 +91,9 @@ class TestAltmetric(TestCase):
 
     def test_clean_doi_with_url_prefix(self):
         """Test DOI cleaning when URL prefix is present."""
-        with patch("utils.altmetric.retryable_requests_session") as mock_session:
+        with patch(
+            "paper.services.altmetric.retryable_requests_session"
+        ) as mock_session:
             mock_response = MagicMock()
             mock_response.status_code = 200
             mock_response.json.return_value = {"score": 100}
@@ -101,9 +103,7 @@ class TestAltmetric(TestCase):
             mock_session.return_value.__enter__.return_value = mock_session_instance
 
             # Test with full URL
-            result = self.altmetric.get_altmetric_data(
-                "https://doi.org/10.1038/nature12373"
-            )
+            self.altmetric.get_altmetric_data("https://doi.org/10.1038/nature12373")
 
             # Check that the DOI was cleaned
             mock_session_instance.get.assert_called_with(
@@ -112,7 +112,7 @@ class TestAltmetric(TestCase):
                 timeout=10,
             )
 
-    @patch("utils.altmetric.retryable_requests_session")
+    @patch("paper.services.altmetric.retryable_requests_session")
     def test_get_altmetric_data_network_error(self, mock_session):
         """Test handling of network errors."""
         mock_session_instance = MagicMock()

@@ -5,9 +5,9 @@ from celery.exceptions import MaxRetriesExceededError
 from django.utils import timezone
 
 from paper.models import Paper
+from paper.services.altmetric import Altmetric
 from researchhub.celery import QUEUE_PAPER_MISC, app
 from utils import sentry
-from utils.altmetric import Altmetric
 
 logger = logging.getLogger(__name__)
 
