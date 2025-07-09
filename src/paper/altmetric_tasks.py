@@ -134,6 +134,19 @@ def enrich_papers_with_altmetric_data(self, retry=0):
                     logger.debug(
                         f"Successfully enriched paper {paper_id} with Altmetric data"
                     )
+
+                    # Refresh feed entries to include the new Altmetric data
+                    from django.contrib.contenttypes.models import ContentType
+
+                    from feed.models import FeedEntry
+                    from feed.tasks import refresh_feed_entry
+
+                    paper_content_type = ContentType.objects.get_for_model(Paper)
+                    feed_entries = FeedEntry.objects.filter(
+                        object_id=paper_id, content_type=paper_content_type
+                    )
+                    for feed_entry in feed_entries:
+                        refresh_feed_entry.delay(feed_entry.id)
                 else:
                     not_found_count += 1
                     logger.debug(
@@ -209,6 +222,20 @@ def enrich_single_paper_with_altmetric(paper_id: int):
             paper.save(update_fields=["external_metadata"])
 
             logger.info(f"Successfully enriched paper {paper_id} with Altmetric data")
+
+            # Refresh feed entries to include the new Altmetric data
+            from django.contrib.contenttypes.models import ContentType
+
+            from feed.models import FeedEntry
+            from feed.tasks import refresh_feed_entry
+
+            paper_content_type = ContentType.objects.get_for_model(Paper)
+            feed_entries = FeedEntry.objects.filter(
+                object_id=paper_id, content_type=paper_content_type
+            )
+            for feed_entry in feed_entries:
+                refresh_feed_entry.delay(feed_entry.id)
+
             return {"status": "success", "altmetric_score": altmetric_data.get("score")}
         else:
             logger.info(f"No Altmetric data found for paper {paper_id}")

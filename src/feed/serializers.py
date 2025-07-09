@@ -612,6 +612,41 @@ def serialize_feed_metrics(item, item_content_type):
         if hasattr(item, "citations"):
             metrics["citations"] = item.citations
 
+        # Add Altmetric data for Papers
+        if item_content_type == ContentType.objects.get_for_model(Paper):
+            if hasattr(item, "external_metadata") and item.external_metadata:
+                altmetric_data = item.external_metadata.get("altmetric", {})
+                if altmetric_data:
+                    # Include key Altmetric metrics
+                    metrics["altmetric"] = {
+                        "score": altmetric_data.get("score"),
+                        "cited_by_posts_count": altmetric_data.get(
+                            "cited_by_posts_count"
+                        ),
+                        "cited_by_accounts_count": altmetric_data.get(
+                            "cited_by_accounts_count"
+                        ),
+                        "cited_by_tweeters_count": altmetric_data.get(
+                            "cited_by_tweeters_count"
+                        ),
+                        "cited_by_fbwalls_count": altmetric_data.get(
+                            "cited_by_fbwalls_count"
+                        ),
+                        "cited_by_wikipedia_count": altmetric_data.get(
+                            "cited_by_wikipedia_count"
+                        ),
+                        "cited_by_msm_count": altmetric_data.get("cited_by_msm_count"),
+                        "readers_count": altmetric_data.get("readers_count"),
+                        "context_all_pct": altmetric_data.get("context_all_pct"),
+                        "updated_at": item.external_metadata.get(
+                            "altmetric_updated_at"
+                        ),
+                    }
+                    # Remove None values to save space
+                    metrics["altmetric"] = {
+                        k: v for k, v in metrics["altmetric"].items() if v is not None
+                    }
+
     return metrics
 
 
