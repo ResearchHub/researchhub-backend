@@ -177,3 +177,17 @@ class FeedViewMixin:
         source_part = f"{source}" if source else "all"
 
         return f"{feed_type_part}feed:{feed_view}:{hub_part}:{source_part}:{user_part}:{pagination_part}{status_part}"
+
+    def get_followed_hub_ids(self):
+        """
+        Get IDs of hubs followed by the current user.
+        Returns empty list if user is not authenticated.
+        """
+        if not self.request.user.is_authenticated:
+            return []
+
+        return list(
+            self.request.user.following.filter(
+                content_type=self._hub_content_type
+            ).values_list("object_id", flat=True)
+        )

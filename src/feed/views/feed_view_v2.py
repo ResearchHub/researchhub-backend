@@ -81,14 +81,10 @@ class FeedV2ViewSet(FeedViewMixin, DocumentViewSet):
         if hub_slug:
             query &= Q("term", **{"hubs.slug": hub_slug})
 
-        # Apply following filter if feed_view is 'following' and user is authenticated
-        if feed_view == "following" and self.request.user.is_authenticated:
-            followed_hub_ids = self.request.user.following.filter(
-                content_type=self._hub_content_type
-            ).values_list("object_id", flat=True)
-
-            if followed_hub_ids:
-                query &= Q("terms", **{"hubs.id": list(followed_hub_ids)})
+        # Apply following filter
+        followed_hub_ids = self.get_followed_hub_ids()
+        if followed_hub_ids:
+            query &= Q("terms", **{"hubs.id": list(followed_hub_ids)})
 
         if feed_view == "popular":
             # Only show papers and posts
