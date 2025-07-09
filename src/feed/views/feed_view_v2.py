@@ -76,12 +76,18 @@ class FeedV2ViewSet(FeedViewMixin, DocumentViewSet):
             query &= ~Q("term", **{"content_type.id": self._paper_content_type.id})
 
         if hub_slug:
-            query &= Q("term", **{"hubs.slug": hub_slug})
+            query &= Q(
+                "nested", path="hubs", query=Q("term", **{"hubs.slug": hub_slug})
+            )
 
         # Apply following filter
         followed_hub_ids = self.get_followed_hub_ids()
         if followed_hub_ids:
-            query &= Q("terms", **{"hubs.id": list(followed_hub_ids)})
+            query &= Q(
+                "nested",
+                path="hubs",
+                query=Q("terms", **{"hubs.id": list(followed_hub_ids)}),
+            )
 
         if feed_view == "popular":
             # Only show papers and posts
