@@ -1,5 +1,4 @@
 from django.contrib.contenttypes.models import ContentType
-from rest_framework import viewsets
 from rest_framework.request import Request
 
 from discussion.serializers import VoteSerializer
@@ -11,9 +10,9 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.views.researchhub_unified_document_views import get_user_votes
 
 
-class BaseFeedView(viewsets.ModelViewSet):
+class FeedViewMixin:
     """
-    Base class for feed-related viewsets.
+    Mixin for feed-related viewsets.
     """
 
     # Cache timeout (30 minutes)
