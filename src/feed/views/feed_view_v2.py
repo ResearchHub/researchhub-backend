@@ -19,9 +19,6 @@ class FeedV2ViewSet(FeedViewMixin, DocumentViewSet):
     """
     ViewSet for accessing the main feed of ResearchHub activities using Elasticsearch.
     Supports filtering by hub, following status, source, and sorting by popularity.
-
-    This view combines the common functionality from BaseFeedView with
-    Elasticsearch document search capabilities from DocumentViewSet.
     """
 
     document = FeedEntryDocument
@@ -76,7 +73,7 @@ class FeedV2ViewSet(FeedViewMixin, DocumentViewSet):
         # a simplified heuristic is to filter out papers (papers are ingested via
         # OpenAlex and do not originate on ResearchHub).
         if source == "researchhub":
-            query &= ~Q("term", **{"content_type.model": "paper"})
+            query &= ~Q("term", **{"content_type.id": self._paper_content_type.id})
 
         if hub_slug:
             query &= Q("term", **{"hubs.slug": hub_slug})
@@ -88,7 +85,15 @@ class FeedV2ViewSet(FeedViewMixin, DocumentViewSet):
 
         if feed_view == "popular":
             # Only show papers and posts
-            query &= Q("terms", **{"content_type.model": ["paper", "researchhubpost"]})
+            query &= Q(
+                "terms",
+                **{
+                    "content_type.id": [
+                        self._paper_content_type.id,
+                        self._post_content_type.id,
+                    ]
+                },
+            )
 
         # Apply query
         if query:
