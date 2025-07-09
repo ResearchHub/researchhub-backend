@@ -1,4 +1,8 @@
+import logging
+from datetime import timedelta
+
 from django.db.models import Count, Q, Sum
+from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
@@ -7,12 +11,16 @@ from rest_framework.response import Response
 from purchase.models import Purchase
 from referral.models import ReferralSignup
 from referral.serializers import (
+    AddReferralCodeSerializer,
     ReferralMetricsSerializer,
     ReferralNetworkDetailSerializer,
+    ReferralSignupSerializer,
 )
 from referral.services.referral_metrics_service import ReferralMetricsService
 from reputation.related_models.distribution import Distribution
 from user.models import User
+
+logger = logging.getLogger(__name__)
 
 
 class ReferralMetricsViewSet(viewsets.ViewSet):
@@ -160,3 +168,94 @@ class AggregateReferralMetricsViewSet(viewsets.ViewSet):
                 "top_referrers": list(top_referrers),
             }
         )
+
+
+class ReferralAssignmentViewSet(viewsets.ViewSet):
+    """
+    ViewSet for assigning referral codes to users.
+
+    Allows adding referral codes to users who signed up recently (within the last hour)
+    or retroactively for moderators.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=["post"])
+    def add_referral_code(self, request):
+        """
+        Add a referral code to a user.
+
+        For regular users:
+        - Can only add referral codes to their own account
+        - Can only add if they signed up within the last hour
+
+        For moderators/admins:
+        - Can add referral codes to any user
+        - No time restrictions (can add retroactively)
+
+        Request body:
+        {
+            "user_id": 123,
+            "referral_code": "abc123..."
+        }
+        """
+        serializer = AddReferralCodeSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        user_id = serializer.validated_data["user_id"]
+        referral_code = serializer.validated_data["referral_code"]
+
+        try:
+            referred_user = User.objects.get(id=user_id)
+            referrer_user = User.objects.get(referral_code=referral_code)
+
+            # Check if non-moderator is trying to add referral code for someone else
+            if not request.user.is_staff and not request.user.moderator:
+                if request.user.id != user_id:
+                    return Response(
+                        {
+                            "detail": "You can only add referral codes to your own account."
+                        },
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+
+                # Check time constraint for non-moderators
+                one_hour_ago = timezone.now() - timedelta(hours=1)
+                if referred_user.date_joined < one_hour_ago:
+                    return Response(
+                        {
+                            "detail": "Can only add referral codes to users who joined within the last hour."
+                        },
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+
+            # Create the referral signup
+            referral_signup = ReferralSignup.objects.create(
+                referrer=referrer_user, referred=referred_user
+            )
+
+            # Also update the invited_by field if not already set
+            if not referred_user.invited_by:
+                referred_user.invited_by = referrer_user
+                referred_user.save()
+
+            # Serialize and return the created referral signup
+            response_serializer = ReferralSignupSerializer(referral_signup)
+            return Response(
+                {
+                    "message": "Referral code successfully added.",
+                    "referral_signup": response_serializer.data,
+                },
+                status=status.HTTP_201_CREATED,
+            )
+
+        except Exception as e:
+            logger.error(f"Error adding referral code: {e}")
+            return Response(
+                {
+                    "detail": "An error occurred while adding the referral code. Please try again later."
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
