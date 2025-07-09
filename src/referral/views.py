@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 
 from django.db.models import Count, Q, Sum
@@ -18,6 +19,8 @@ from referral.serializers import (
 from referral.services.referral_metrics_service import ReferralMetricsService
 from reputation.related_models.distribution import Distribution
 from user.models import User
+
+logger = logging.getLogger(__name__)
 
 
 class ReferralMetricsViewSet(viewsets.ViewSet):
@@ -249,6 +252,10 @@ class ReferralAssignmentViewSet(viewsets.ViewSet):
             )
 
         except Exception as e:
+            logger.error(f"Error adding referral code: {e}")
             return Response(
-                {"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {
+                    "detail": "An error occurred while adding the referral code. Please try again later."
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
