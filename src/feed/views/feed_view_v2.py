@@ -11,8 +11,8 @@ from feed.document_serializers.feed_document_serializer import (
     FeedEntryDocumentSerializer,
 )
 from feed.documents.feed_document import FeedEntryDocument
-from feed.views.base_feed_view import FeedViewMixin
 from feed.views.common import FeedPagination
+from feed.views.feed_view_mixin import FeedViewMixin
 
 
 class FeedV2ViewSet(FeedViewMixin, DocumentViewSet):

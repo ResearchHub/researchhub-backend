@@ -9,7 +9,7 @@ from django.db.models import Subquery
 from rest_framework import status, viewsets
 from rest_framework.response import Response
 
-from feed.views.base_feed_view import FeedViewMixin
+from feed.views.feed_view_mixin import FeedViewMixin
 from hub.models import Hub
 
 from ..models import FeedEntryLatest, FeedEntryPopular
