@@ -101,12 +101,13 @@ class FeedViewSet(FeedViewMixin, ModelViewSet):
         if source == "researchhub":
             queryset = queryset.exclude(content_type=self._paper_content_type)
 
-        # Apply following filter
-        followed_hub_ids = self.get_followed_hub_ids()
-        if followed_hub_ids:
-            queryset = queryset.filter(
-                hubs__id__in=followed_hub_ids,
-            )
+        # Apply following filter only for "following" view
+        if feed_view == "following":
+            followed_hub_ids = self.get_followed_hub_ids()
+            if followed_hub_ids:
+                queryset = queryset.filter(
+                    hubs__id__in=followed_hub_ids,
+                )
 
         if feed_view == "popular":
             # Only show paper and post
