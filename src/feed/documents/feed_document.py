@@ -30,9 +30,65 @@ class FeedEntryDocument(Document):
     hot_score = fields.IntegerField()
     metrics = fields.ObjectField(
         properties={
+            "votes": fields.IntegerField(),
+            "replies": fields.IntegerField(),
+            "citations": fields.IntegerField(),
             "review_metrics": fields.ObjectField(
                 properties={
                     "avg": fields.FloatField(),
+                }
+            ),
+            "altmetric": fields.ObjectField(
+                properties={
+                    # Core metrics
+                    "score": fields.FloatField(),
+                    # History scores
+                    "history_1d": fields.FloatField(),
+                    "history_1w": fields.FloatField(),
+                    "history_1m": fields.FloatField(),
+                    "history_3m": fields.FloatField(),
+                    "history_6m": fields.FloatField(),
+                    "history_1y": fields.FloatField(),
+                    "history_at": fields.FloatField(),
+                    # Citation counts
+                    "cited_by_posts_count": fields.IntegerField(),
+                    "cited_by_accounts_count": fields.IntegerField(),
+                    "cited_by_tweeters_count": fields.IntegerField(),
+                    "cited_by_fbwalls_count": fields.IntegerField(),
+                    "cited_by_wikipedia_count": fields.IntegerField(),
+                    "cited_by_msm_count": fields.IntegerField(),
+                    "cited_by_feeds_count": fields.IntegerField(),
+                    "cited_by_patents_count": fields.IntegerField(),
+                    "cited_by_gplus_count": fields.IntegerField(),
+                    "cited_by_bluesky_count": fields.IntegerField(),
+                    # Reader counts
+                    "readers_count": fields.IntegerField(),
+                    "readers_mendeley": fields.TextField(),
+                    "readers_citeulike": fields.TextField(),
+                    "readers_connotea": fields.TextField(),
+                    # Context percentiles and ranks
+                    "context_all_pct": fields.IntegerField(),
+                    "context_all_rank": fields.IntegerField(),
+                    "context_all_count": fields.IntegerField(),
+                    "context_all_higher_than": fields.IntegerField(),
+                    "context_journal_pct": fields.IntegerField(),
+                    "context_journal_rank": fields.IntegerField(),
+                    "context_journal_count": fields.IntegerField(),
+                    "context_journal_higher_than": fields.IntegerField(),
+                    "context_similar_age_3m_pct": fields.IntegerField(),
+                    "context_similar_age_3m_rank": fields.IntegerField(),
+                    "context_similar_age_3m_count": fields.IntegerField(),
+                    "context_similar_age_3m_higher_than": fields.IntegerField(),
+                    "context_similar_age_journal_3m_pct": fields.IntegerField(),
+                    "context_similar_age_journal_3m_rank": fields.IntegerField(),
+                    "context_similar_age_journal_3m_count": fields.IntegerField(),
+                    "context_similar_age_journal_3m_higher_than": fields.IntegerField(),
+                    # Cohorts
+                    "cohorts_pub": fields.IntegerField(),
+                    "cohorts_sci": fields.IntegerField(),
+                    "cohorts_com": fields.IntegerField(),
+                    # Timestamp
+                    "updated_at": fields.TextField(),
                 }
             ),
         }
