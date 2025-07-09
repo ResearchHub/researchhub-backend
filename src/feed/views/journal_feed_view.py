@@ -8,6 +8,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.db.models import OuterRef, Subquery
 from rest_framework.response import Response
+from rest_framework.viewsets import ModelViewSet
 
 from feed.models import FeedEntry
 from feed.serializers import FeedEntrySerializer
@@ -19,7 +20,7 @@ from ..serializers import serialize_feed_metrics
 from .common import FeedPagination
 
 
-class JournalFeedViewSet(FeedViewMixin):
+class JournalFeedViewSet(FeedViewMixin, ModelViewSet):
     """
     ViewSet for accessing papers with optional filtering by ResearchHub journal status.
     Provides a dedicated endpoint for clients to fetch and display papers.

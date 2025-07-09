@@ -6,8 +6,9 @@ from django.conf import settings
 from django.core.cache import cache
 from django.db import models
 from django.db.models import Subquery
-from rest_framework import status, viewsets
+from rest_framework import status
 from rest_framework.response import Response
+from rest_framework.viewsets import ModelViewSet
 
 from feed.views.feed_view_mixin import FeedViewMixin
 from hub.models import Hub
@@ -17,7 +18,7 @@ from ..serializers import FeedEntrySerializer
 from .common import FeedPagination
 
 
-class FeedViewSet(FeedViewMixin, viewsets.ModelViewSet):
+class FeedViewSet(FeedViewMixin, ModelViewSet):
     """
     ViewSet for accessing the main feed of ResearchHub activities.
     Supports filtering by hub, following status, and sorting by popularity.

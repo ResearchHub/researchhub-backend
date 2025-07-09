@@ -5,8 +5,9 @@ and research grant postings.
 """
 
 from django.core.cache import cache
-from django.db.models import BooleanField, Case, DateTimeField, F, Q, Value, When
+from django.db.models import BooleanField, Case, F, Value, When
 from rest_framework.response import Response
+from rest_framework.viewsets import ModelViewSet
 
 from feed.models import FeedEntry
 from feed.serializers import GrantFeedEntrySerializer
@@ -19,7 +20,7 @@ from ..serializers import PostSerializer, serialize_feed_metrics
 from .common import FeedPagination
 
 
-class GrantFeedViewSet(FeedViewMixin):
+class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     """
     ViewSet for accessing entries specifically related to grant documents.
     This provides a dedicated endpoint for clients to fetch and display grant
