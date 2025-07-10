@@ -141,4 +141,7 @@ class Distributor:
             # Record the locked balance
             self._record_balance(record, is_locked=True, lock_type=lock_type)
 
+            # Set the distribution status to DISTRIBUTED
+            record.set_distributed()
+
             return record
