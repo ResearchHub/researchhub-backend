@@ -10,7 +10,6 @@ from rest_framework import serializers
 from analytics.models import WebsiteVisits
 from oauth.exceptions import LoginError
 from oauth.helpers import complete_social_login
-from referral.models import ReferralSignup
 from user.models import User
 from utils import sentry
 from utils.siftscience import events_api, update_user_risk_score
@@ -232,9 +231,6 @@ class SocialLoginSerializer(serializers.Serializer):
                 if invited_by_flag_not_set:
                     user.invited_by = referral_user
                     user.save()
-
-                # Create the referral signup entry
-                ReferralSignup.objects.create(referrer=referral_user, referred=user)
         except Exception as e:
             sentry.log_error(e)
             pass
