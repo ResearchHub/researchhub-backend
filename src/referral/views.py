@@ -5,6 +5,7 @@ from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 
@@ -21,6 +22,12 @@ from reputation.related_models.distribution import Distribution
 from user.models import User
 
 logger = logging.getLogger(__name__)
+
+
+class ReferralPagination(PageNumberPagination):
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
 
 
 class ReferralMetricsViewSet(viewsets.ViewSet):
@@ -66,7 +73,7 @@ class ReferralMetricsViewSet(viewsets.ViewSet):
         """
         Get detailed information about each referred user in the network.
 
-        Returns list of referred users with:
+        Returns paginated list of referred users with:
             - User information
             - Total funded amount
             - Referral bonuses earned
@@ -76,8 +83,12 @@ class ReferralMetricsViewSet(viewsets.ViewSet):
         service = ReferralMetricsService(user)
         network_details = service.get_referral_network_details()
 
-        serializer = ReferralNetworkDetailSerializer(network_details, many=True)
-        return Response(serializer.data)
+        # Paginate results
+        paginator = ReferralPagination()
+        paginated_results = paginator.paginate_queryset(network_details, request)
+
+        serializer = ReferralNetworkDetailSerializer(paginated_results, many=True)
+        return paginator.get_paginated_response(serializer.data)
 
     @action(detail=True, methods=["get"], permission_classes=[IsAdminUser])
     def user_metrics(self, request, pk=None):
