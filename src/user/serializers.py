@@ -450,7 +450,6 @@ class UserSerializer(ModelSerializer):
             "upload_tutorial_complete",
             "hub_rep",
             "time_rep",
-            "probable_spammer",
         ]
         read_only_fields = [
             "id",
