@@ -48,6 +48,8 @@ class ReferralNetworkDetailSerializer(serializers.Serializer):
 
     user_id = serializers.IntegerField()
     username = serializers.CharField()
+    full_name = serializers.CharField()
+    profile_image = serializers.URLField(allow_null=True)
     signup_date = serializers.DateTimeField()
     total_funded = serializers.FloatField()
     referral_bonus_earned = serializers.FloatField()

@@ -271,7 +271,7 @@ class ReferralMetricsService:
         """
         referred_signups = (
             ReferralSignup.objects.filter(referrer=self.user)
-            .select_related("referred")
+            .select_related("referred", "referred__author_profile")
             .order_by("-signup_date")
         )
 
@@ -280,6 +280,8 @@ class ReferralMetricsService:
             user_data = {
                 "user_id": signup.referred.id,
                 "username": signup.referred.username,
+                "full_name": signup.referred.full_name(),
+                "profile_image": self._get_user_profile_image(signup.referred),
                 "signup_date": signup.signup_date,
                 "total_funded": self._get_user_total_funded(signup.referred),
                 "referral_bonus_earned": self._get_user_referral_bonus(signup.referred),
@@ -326,3 +328,13 @@ class ReferralMetricsService:
             purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
             paid_status=Purchase.PAID,
         ).exists()
+
+    def _get_user_profile_image(self, user):
+        """Get the profile image URL for a user."""
+        if (
+            hasattr(user, "author_profile")
+            and user.author_profile
+            and user.author_profile.profile_image
+        ):
+            return user.author_profile.profile_image.url
+        return None

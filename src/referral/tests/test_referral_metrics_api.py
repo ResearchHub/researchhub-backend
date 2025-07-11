@@ -185,6 +185,12 @@ class ReferralMetricsAPITest(TestCase):
         self.assertEqual(user1_data["referral_bonus_earned"], 100.0)
         self.assertTrue(user1_data["is_active_funder"])
 
+        # Check new fields
+        self.assertIn("full_name", user1_data)
+        self.assertIn("profile_image", user1_data)
+        self.assertEqual(user1_data["full_name"], self.referred_user1.full_name())
+        self.assertIsNone(user1_data["profile_image"])  # No profile image set in test
+
     def test_get_network_details_with_pagination(self):
         """
         Test network details endpoint with pagination parameters.
