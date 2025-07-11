@@ -256,7 +256,7 @@ class AuthorSerializer(ModelSerializer):
         user = author.user
         if user:
             return user.is_hub_editor()
-    
+
     def get_is_verified(self, author):
         # FIXME: Replace with author.is_verified() after field removal.
         return author.is_verified_v2
@@ -697,7 +697,7 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
             permissions, many=True, context=context, **_context_fields
         )
         return serializer.data
-    
+
     def get_is_verified(self, user):
         # FIXME: Replace with user.is_verified() after field removal.
         return user.is_verified_v2
