@@ -18,7 +18,7 @@ from feed.serializers import (
     SimpleReviewSerializer,
     SimpleUserSerializer,
 )
-from feed.views.base_feed_view import BaseFeedView
+from feed.views.feed_view_mixin import FeedViewMixin
 from hub.models import Hub
 from hub.serializers import SimpleHubSerializer
 from hub.tests.helpers import create_hub
@@ -413,7 +413,7 @@ class PostSerializerTests(TestCase):
         )
 
         # Get the context with the field specifications
-        context = BaseFeedView().get_common_serializer_context()
+        context = FeedViewMixin().get_common_serializer_context()
 
         # Mock the RscExchangeRate.usd_to_rsc method to avoid database dependency
         with patch.object(
@@ -628,7 +628,7 @@ class PostSerializerTests(TestCase):
         grant.contacts.add(contact_user)
 
         # Get the context with the field specifications like in the real implementation
-        context = BaseFeedView().get_common_serializer_context()
+        context = FeedViewMixin().get_common_serializer_context()
 
         # Serialize the grant post
         serializer = PostSerializer(grant_post, context=context)
@@ -752,7 +752,7 @@ class PostSerializerTests(TestCase):
         )
 
         # Get the context
-        context = BaseFeedView().get_common_serializer_context()
+        context = FeedViewMixin().get_common_serializer_context()
 
         # Serialize the grant post
         serializer = PostSerializer(grant_post, context=context)
@@ -853,7 +853,7 @@ class PostSerializerTests(TestCase):
         )
 
         # Get the context
-        context = BaseFeedView().get_common_serializer_context()
+        context = FeedViewMixin().get_common_serializer_context()
 
         # Serialize the grant post
         serializer = PostSerializer(grant_post, context=context)

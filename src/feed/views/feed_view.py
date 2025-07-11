@@ -8,8 +8,9 @@ from django.db import models
 from django.db.models import Subquery
 from rest_framework import status
 from rest_framework.response import Response
+from rest_framework.viewsets import ModelViewSet
 
-from feed.views.base_feed_view import BaseFeedView
+from feed.views.feed_view_mixin import FeedViewMixin
 from hub.models import Hub
 
 from ..models import FeedEntryLatest, FeedEntryPopular
@@ -17,7 +18,7 @@ from ..serializers import FeedEntrySerializer
 from .common import FeedPagination
 
 
-class FeedViewSet(BaseFeedView):
+class FeedViewSet(FeedViewMixin, ModelViewSet):
     """
     ViewSet for accessing the main feed of ResearchHub activities.
     Supports filtering by hub, following status, and sorting by popularity.
@@ -100,11 +101,9 @@ class FeedViewSet(BaseFeedView):
         if source == "researchhub":
             queryset = queryset.exclude(content_type=self._paper_content_type)
 
-        # Apply following filter if feed_view is 'following' and user is authenticated
-        if feed_view == "following" and self.request.user.is_authenticated:
-            followed_hub_ids = self.request.user.following.filter(
-                content_type=self._hub_content_type
-            ).values_list("object_id", flat=True)
+        # Apply following filter only for "following" view
+        if feed_view == "following":
+            followed_hub_ids = self.get_followed_hub_ids()
             if followed_hub_ids:
                 queryset = queryset.filter(
                     hubs__id__in=followed_hub_ids,

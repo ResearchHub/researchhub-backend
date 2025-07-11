@@ -11,10 +11,11 @@ This is done for three reasons:
 from django.core.cache import cache
 from django.db.models import BooleanField, Case, F, Value, When
 from rest_framework.response import Response
+from rest_framework.viewsets import ModelViewSet
 
 from feed.models import FeedEntry
 from feed.serializers import FundingFeedEntrySerializer
-from feed.views.base_feed_view import BaseFeedView
+from feed.views.feed_view_mixin import FeedViewMixin
 from purchase.related_models.fundraise_model import Fundraise
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -23,7 +24,7 @@ from ..serializers import PostSerializer, serialize_feed_metrics
 from .common import FeedPagination
 
 
-class FundingFeedViewSet(BaseFeedView):
+class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
     """
     ViewSet for accessing entries specifically related to preregistration documents.
     This provides a dedicated endpoint for clients to fetch and display preregistration

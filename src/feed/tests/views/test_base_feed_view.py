@@ -2,14 +2,14 @@ from unittest.mock import Mock
 
 from django.test import TestCase
 
-from feed.views.base_feed_view import BaseFeedView
+from feed.views.feed_view_mixin import FeedViewMixin
 
 
-class BaseFeedViewTests(TestCase):
+class FeedViewMixinTests(TestCase):
     def test_get_cache_key(self):
         """Test cache key generation method with various inputs"""
         # Arrange
-        view = BaseFeedView()
+        view = FeedViewMixin()
 
         test_cases = [
             # (query_params, is_authenticated, user_id, expected_key)
