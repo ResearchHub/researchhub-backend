@@ -284,10 +284,14 @@ class UserApiTokenSerializer(ModelSerializer):
 
 class DynamicAuthorSerializer(DynamicModelFieldSerializer):
     count = IntegerField(read_only=True)
+    is_verified = SerializerMethodField()
 
     class Meta:
         model = Author
         fields = "__all__"
+
+    def get_is_verified(self, obj):
+        return obj.is_verified
 
 
 class AuthorEditableSerializer(ModelSerializer):
