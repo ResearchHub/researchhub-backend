@@ -530,6 +530,7 @@ class UserEditableSerializer(ModelSerializer):
     organization_slug = SerializerMethodField()
     subscribed = SerializerMethodField()
     auth_provider = SerializerMethodField()
+    is_verified = SerializerMethodField()
     is_verified_v2 = SerializerMethodField()
 
     class Meta:
@@ -589,6 +590,9 @@ class UserEditableSerializer(ModelSerializer):
             balance = user.get_balance(balances)
             return balance
         return None
+
+    def get_is_verified(self, user):
+        return user.is_verified
 
     # FIXME: is_verified_v2 should be available on user model and not on author. This is a shim for legacy reasons.
     def get_is_verified_v2(self, user):
