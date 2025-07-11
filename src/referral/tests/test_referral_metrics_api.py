@@ -168,13 +168,49 @@ class ReferralMetricsAPITest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
 
-        self.assertEqual(len(data), 2)
+        # Check pagination structure
+        self.assertIn("count", data)
+        self.assertIn("next", data)
+        self.assertIn("previous", data)
+        self.assertIn("results", data)
+
+        self.assertEqual(data["count"], 2)
+        self.assertEqual(len(data["results"]), 2)
 
         # Find referred_user1 in the response
-        user1_data = next(d for d in data if d["user_id"] == self.referred_user1.id)
+        user1_data = next(
+            d for d in data["results"] if d["user_id"] == self.referred_user1.id
+        )
         self.assertEqual(user1_data["total_funded"], 1000.0)
         self.assertEqual(user1_data["referral_bonus_earned"], 100.0)
         self.assertTrue(user1_data["is_active_funder"])
+
+    def test_get_network_details_with_pagination(self):
+        """
+        Test network details endpoint with pagination parameters.
+        """
+        # Arrange
+        self.client.force_authenticate(user=self.referrer)
+
+        # Test with page_size=1
+        url = reverse("referral:referral-metrics-network-details")
+        response = self.client.get(url, {"page_size": 1})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+
+        self.assertEqual(data["count"], 2)
+        self.assertEqual(len(data["results"]), 1)
+        self.assertIsNotNone(data["next"])
+        self.assertIsNone(data["previous"])
+
+        # Test page 2
+        response = self.client.get(url, {"page": 2, "page_size": 1})
+        data = response.json()
+
+        self.assertEqual(len(data["results"]), 1)
+        self.assertIsNone(data["next"])
+        self.assertIsNotNone(data["previous"])
 
     def test_admin_can_view_other_user_metrics(self):
         """Test that admin can view any user's referral metrics."""
