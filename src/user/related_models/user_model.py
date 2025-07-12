@@ -87,10 +87,6 @@ class User(AbstractUser):
         "self", related_name="invitee", on_delete=models.SET_NULL, null=True, blank=True
     )
     is_suspended = models.BooleanField(default=False)
-    is_verified = models.BooleanField(default=False)
-    """
-    The old verification status that is being replaced by `UserVerification`.
-    """
     moderator = models.BooleanField(default=False)
     probable_spammer = models.BooleanField(default=False)
     referral_code = models.CharField(max_length=36, default=uuid.uuid4, unique=True)
@@ -176,12 +172,6 @@ class User(AbstractUser):
         if is_suspended:
             source = "MANUAL_REVIEW" if is_manual else "AUTOMATED_RULE"
             decisions_api.apply_bad_user_decision(self, source)
-
-    def set_verified(self, is_verified=True):
-        self.is_verified = is_verified
-        self.author_profile.is_verified = is_verified
-        self.author_profile.save(update_fields=["is_verified"])
-        self.save(update_fields=["is_verified"])
 
     def get_balance_qs(self):
         user_balance = self.balances.all()
@@ -309,6 +299,15 @@ class User(AbstractUser):
         )
 
         return amount_funded
+
+    @property
+    def is_verified(self):
+        """
+        Check if the user account is verified.
+        Returns `False` if the user was not successfully verified or
+        if no verification record exists.
+        """
+        return self.is_verified_v2
 
     @property
     def is_verified_v2(self):

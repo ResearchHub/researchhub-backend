@@ -102,6 +102,7 @@ class AuthorSerializer(ModelSerializer):
     wallet = SerializerMethodField()
     suspended_status = SerializerMethodField()
     is_verified_v2 = SerializerMethodField()
+    is_verified = SerializerMethodField()
 
     class Meta:
         model = Author
@@ -256,6 +257,10 @@ class AuthorSerializer(ModelSerializer):
         if user:
             return user.is_hub_editor()
 
+    def get_is_verified(self, author):
+        # FIXME: Replace with author.is_verified() after field removal.
+        return author.is_verified_v2
+
 
 class MajorSerializer(ModelSerializer):
     class Meta:
@@ -279,10 +284,14 @@ class UserApiTokenSerializer(ModelSerializer):
 
 class DynamicAuthorSerializer(DynamicModelFieldSerializer):
     count = IntegerField(read_only=True)
+    is_verified = SerializerMethodField()
 
     class Meta:
         model = Author
         fields = "__all__"
+
+    def get_is_verified(self, obj):
+        return obj.is_verified
 
 
 class AuthorEditableSerializer(ModelSerializer):
@@ -424,6 +433,7 @@ class UserSerializer(ModelSerializer):
     subscribed = SerializerMethodField(read_only=True)
     hub_rep = SerializerMethodField()
     time_rep = SerializerMethodField()
+    is_verified = SerializerMethodField()
 
     class Meta:
         model = User
@@ -444,7 +454,6 @@ class UserSerializer(ModelSerializer):
             "upload_tutorial_complete",
             "hub_rep",
             "time_rep",
-            "probable_spammer",
         ]
         read_only_fields = [
             "id",
@@ -490,6 +499,10 @@ class UserSerializer(ModelSerializer):
         time_rep = getattr(obj, "time_rep", None)
         return time_rep
 
+    def get_is_verified(self, obj):
+        # FIXME: Replace with obj.is_verified() after field removal.
+        return obj.is_verified_v2
+
 
 class MinimalUserSerializer(ModelSerializer):
     author_profile = SerializerMethodField()
@@ -520,6 +533,7 @@ class UserEditableSerializer(ModelSerializer):
     organization_slug = SerializerMethodField()
     subscribed = SerializerMethodField()
     auth_provider = SerializerMethodField()
+    is_verified = SerializerMethodField()
     is_verified_v2 = SerializerMethodField()
 
     class Meta:
@@ -579,6 +593,9 @@ class UserEditableSerializer(ModelSerializer):
             balance = user.get_balance(balances)
             return balance
         return None
+
+    def get_is_verified(self, user):
+        return user.is_verified
 
     # FIXME: is_verified_v2 should be available on user model and not on author. This is a shim for legacy reasons.
     def get_is_verified_v2(self, user):
@@ -646,6 +663,7 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
     rsc_earned = SerializerMethodField()
     benefits_expire_on = SerializerMethodField()
     editor_of = SerializerMethodField()
+    is_verified = SerializerMethodField()
 
     class Meta:
         model = User
@@ -687,6 +705,10 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
             permissions, many=True, context=context, **_context_fields
         )
         return serializer.data
+
+    def get_is_verified(self, user):
+        # FIXME: Replace with user.is_verified() after field removal.
+        return user.is_verified_v2
 
 
 class UserActions:
