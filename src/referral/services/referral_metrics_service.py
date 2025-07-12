@@ -281,6 +281,7 @@ class ReferralMetricsService:
                 "user_id": signup.referred.id,
                 "username": signup.referred.username,
                 "full_name": signup.referred.full_name(),
+                "author_id": self._get_author_id(signup.referred),
                 "profile_image": self._get_user_profile_image(signup.referred),
                 "signup_date": signup.signup_date,
                 "total_funded": self._get_user_total_funded(signup.referred),
@@ -337,4 +338,10 @@ class ReferralMetricsService:
             and user.author_profile.profile_image
         ):
             return user.author_profile.profile_image.url
+        return None
+
+    def _get_author_id(self, user):
+        """Get the author ID for a user."""
+        if hasattr(user, "author_profile") and user.author_profile:
+            return user.author_profile.id
         return None
