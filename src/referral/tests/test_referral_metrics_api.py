@@ -187,8 +187,11 @@ class ReferralMetricsAPITest(TestCase):
 
         # Check new fields
         self.assertIn("full_name", user1_data)
+        self.assertIn("author_id", user1_data)
         self.assertIn("profile_image", user1_data)
         self.assertEqual(user1_data["full_name"], self.referred_user1.full_name())
+        # Author profile may exist or not depending on test database state
+        self.assertTrue("author_id" in user1_data)
         self.assertIsNone(user1_data["profile_image"])  # No profile image set in test
 
     def test_get_network_details_with_pagination(self):
