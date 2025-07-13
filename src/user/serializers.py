@@ -18,6 +18,7 @@ from hub.serializers import DynamicHubSerializer, HubSerializer, SimpleHubSerial
 from institution.serializers import DynamicInstitutionSerializer
 from paper.models import Paper, PaperSubmission
 from purchase.models import Purchase
+from referral.models import ReferralSignup
 from reputation.models import Bounty, Contribution, Score, Withdrawal
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import (
@@ -638,6 +639,18 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
 
     def save(self, request):
         user = super().save(request)
+
+        # Handle referral signup creation
+        referral_code = self.validated_data.get("referral_code")
+        if referral_code and referral_code.strip():
+            try:
+                # Find the referrer by their referral code
+                referrer = User.objects.get(referral_code=referral_code.strip())
+                # Create the referral signup entry
+                ReferralSignup.objects.create(referrer=referrer, referred=user)
+            except User.DoesNotExist:
+                pass
+
         return user
 
 
