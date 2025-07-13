@@ -14,8 +14,8 @@ class ReferralRegistrationTest(TestCase):
         self.referrer = create_random_default_user("referrer")
         self.referrer_code = self.referrer.referral_code
 
-    def test_user_registration_with_referral_code_does_not_create_signup(self):
-        """Test that registering with a valid referral code no longer creates ReferralSignup"""
+    def test_user_registration_with_referral_code_creates_signup(self):
+        """Test that registering with a valid referral code creates ReferralSignup"""
         registration_data = {
             "email": "newuser@example.com",
             "password1": "testpassword123!",
@@ -33,11 +33,11 @@ class ReferralRegistrationTest(TestCase):
         new_user = User.objects.get(email="newuser@example.com")
         self.assertIsNotNone(new_user)
 
-        # Check that no referral signup was created
-        referral_signup_count = ReferralSignup.objects.filter(
+        # Check that referral signup was created
+        referral_signup = ReferralSignup.objects.filter(
             referrer=self.referrer, referred=new_user
-        ).count()
-        self.assertEqual(referral_signup_count, 0)
+        ).first()
+        self.assertIsNotNone(referral_signup)
 
     def test_user_registration_with_invalid_referral_code_ignores_silently(self):
         """Test that registering with invalid referral code still works but no signup created"""
