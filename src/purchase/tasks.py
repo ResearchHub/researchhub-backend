@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
@@ -68,7 +69,10 @@ def complete_eligible_fundraises():
 
                         # Process referral bonuses for completed fundraise
                         try:
-                            referral_bonus_service = ReferralBonusService()
+                            referral_bonus_service = ReferralBonusService(
+                                bonus_percentage=Decimal("10.00"),
+                                referral_eligibility_months=6,
+                            )
                             referral_bonus_service.process_fundraise_completion(
                                 fundraise
                             )
