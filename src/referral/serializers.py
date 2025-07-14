@@ -34,6 +34,15 @@ class NetworkEarnedCreditsSerializer(serializers.Serializer):
     by_referred_users = serializers.FloatField()
 
 
+class UserReferralInfoSerializer(serializers.Serializer):
+    """Serializer for user's own referral information."""
+
+    referrer_username = serializers.CharField()
+    referral_signup_date = serializers.DateTimeField()
+    referral_bonus_expiration_date = serializers.DateTimeField()
+    is_referral_bonus_expired = serializers.BooleanField()
+
+
 class ReferralMetricsSerializer(serializers.Serializer):
     """Main serializer for comprehensive referral metrics."""
 
@@ -41,6 +50,7 @@ class ReferralMetricsSerializer(serializers.Serializer):
     referral_activity = ReferralActivitySerializer()
     your_funding_credits = FundingCreditsSerializer()
     network_earned_credits = NetworkEarnedCreditsSerializer()
+    your_referral_info = UserReferralInfoSerializer(required=False, allow_null=True)
 
 
 class ReferralNetworkDetailSerializer(serializers.Serializer):
@@ -52,6 +62,8 @@ class ReferralNetworkDetailSerializer(serializers.Serializer):
     author_id = serializers.IntegerField(allow_null=True)
     profile_image = serializers.URLField(allow_null=True)
     signup_date = serializers.DateTimeField()
+    referral_bonus_expiration_date = serializers.DateTimeField()
+    is_referral_bonus_expired = serializers.BooleanField()
     total_funded = serializers.FloatField()
     referral_bonus_earned = serializers.FloatField()
     is_active_funder = serializers.BooleanField()
