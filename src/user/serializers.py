@@ -220,14 +220,35 @@ class AuthorSerializer(ModelSerializer):
         if user is None:
             return None
 
-        hub_content_type = ContentType.objects.get_for_model(Hub)
-        editor_permissions = user.permissions.filter(
-            access_type=EDITOR, content_type=hub_content_type
-        ).order_by("created_date")
+        # Cache the content type to avoid repeated queries
+        if not hasattr(self, "_hub_content_type"):
+            self._hub_content_type = ContentType.objects.get_for_model(Hub)
 
-        if editor_permissions.exists():
-            editor = editor_permissions.first()
-            return editor.created_date
+        # Use prefetched permissions if available
+        if (
+            hasattr(user, "_prefetched_objects_cache")
+            and "permissions" in user._prefetched_objects_cache
+        ):
+            # Filter the prefetched permissions in Python to avoid extra queries
+            editor_permissions = [
+                p
+                for p in user.permissions.all()
+                if p.access_type == EDITOR
+                and p.content_type_id == self._hub_content_type.id
+            ]
+            if editor_permissions:
+                # Sort by created_date and return the first one
+                editor_permissions.sort(key=lambda p: p.created_date)
+                return editor_permissions[0].created_date
+        else:
+            # Fallback to database query if not prefetched
+            editor_permissions = user.permissions.filter(
+                access_type=EDITOR, content_type=self._hub_content_type
+            ).order_by("created_date")
+
+            if editor_permissions.exists():
+                editor = editor_permissions.first()
+                return editor.created_date
 
         return None
 
@@ -236,25 +257,69 @@ class AuthorSerializer(ModelSerializer):
         if user is None:
             return []
 
-        hub_content_type = ContentType.objects.get_for_model(Hub)
-        target_permissions = user.permissions.filter(
-            (
-                Q(access_type=ASSISTANT_EDITOR)
-                | Q(access_type=ASSOCIATE_EDITOR)
-                | Q(access_type=SENIOR_EDITOR)
-            ),
-            content_type=hub_content_type,
-        )
+        # Cache the content type to avoid repeated queries
+        if not hasattr(self, "_hub_content_type"):
+            self._hub_content_type = ContentType.objects.get_for_model(Hub)
+
+        # Use prefetched permissions if available
         target_hub_ids = []
-        for permission in target_permissions:
-            target_hub_ids.append(permission.object_id)
-        return SimpleHubSerializer(
-            Hub.objects.filter(id__in=target_hub_ids), many=True
-        ).data
+        if (
+            hasattr(user, "_prefetched_objects_cache")
+            and "permissions" in user._prefetched_objects_cache
+        ):
+            # Filter the prefetched permissions in Python
+            target_permissions = [
+                p
+                for p in user.permissions.all()
+                if p.content_type_id == self._hub_content_type.id
+                and p.access_type in [ASSISTANT_EDITOR, ASSOCIATE_EDITOR, SENIOR_EDITOR]
+            ]
+            target_hub_ids = [p.object_id for p in target_permissions]
+        else:
+            # Fallback to database query if not prefetched
+            target_permissions = user.permissions.filter(
+                (
+                    Q(access_type=ASSISTANT_EDITOR)
+                    | Q(access_type=ASSOCIATE_EDITOR)
+                    | Q(access_type=SENIOR_EDITOR)
+                ),
+                content_type=self._hub_content_type,
+            )
+            target_hub_ids = list(
+                target_permissions.values_list("object_id", flat=True)
+            )
+
+        if target_hub_ids:
+            return SimpleHubSerializer(
+                Hub.objects.filter(id__in=target_hub_ids), many=True
+            ).data
+        return []
 
     def get_is_hub_editor(self, author):
         user = author.user
-        if user:
+        if not user:
+            return False
+
+        # Cache the content type to avoid repeated queries
+        if not hasattr(self, "_hub_content_type"):
+            self._hub_content_type = ContentType.objects.get_for_model(Hub)
+
+        # Use prefetched permissions if available
+        if (
+            hasattr(user, "_prefetched_objects_cache")
+            and "permissions" in user._prefetched_objects_cache
+        ):
+            # Check in prefetched permissions
+            for permission in user.permissions.all():
+                if (
+                    permission.content_type_id == self._hub_content_type.id
+                    and permission.access_type
+                    in [ASSISTANT_EDITOR, ASSOCIATE_EDITOR, SENIOR_EDITOR]
+                ):
+                    return True
+            return False
+        else:
+            # Fallback to the user method if not prefetched
             return user.is_hub_editor()
 
 

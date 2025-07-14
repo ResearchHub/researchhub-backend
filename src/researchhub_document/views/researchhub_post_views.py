@@ -75,7 +75,16 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
     def get_queryset(self):
         request = self.request
         try:
-            query_set = ResearchhubPost.objects.all()
+            # Optimize query with prefetch_related to avoid N+1 queries
+            query_set = ResearchhubPost.objects.select_related(
+                "created_by", "created_by__author_profile", "unified_document"
+            ).prefetch_related(
+                # Prefetch authors with their related user and permissions
+                "authors__user__permissions",
+                "authors__user",
+                "unified_document__hubs",
+            )
+
             query_params = request.query_params
             created_by_id = query_params.get("created_by")
             post_id = query_params.get("post_id")
