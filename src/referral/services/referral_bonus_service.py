@@ -43,10 +43,6 @@ class ReferralBonusService:
         Returns:
             List of dicts with referral data
         """
-        cutoff_date = timezone.now() - timedelta(
-            days=30 * self.referral_eligibility_months
-        )
-
         # Get all contributions to this fundraise
         contributions = Purchase.objects.filter(
             purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
@@ -62,7 +58,13 @@ class ReferralBonusService:
                 # Check if this user was referred within eligibility period
                 referral_signup = ReferralSignup.objects.select_related(
                     "referrer", "referred"
-                ).get(referred=contribution.user, signup_date__gte=cutoff_date)
+                ).get(referred=contribution.user)
+
+                cutoff_date = referral_signup.signup_date + timedelta(
+                    days=30 * self.referral_eligibility_months
+                )
+                if contribution.created_date > cutoff_date:
+                    continue
 
                 eligible_referrals.append(
                     {

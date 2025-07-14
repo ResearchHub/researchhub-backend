@@ -316,3 +316,169 @@ class ReferralBonusServiceTest(TestCase):
             expected_bonus,
             "Network details should show correct credits earned for referred user",
         )
+
+    def test_contribution_before_referral_expired_and_fundraise_completed_after_referral_expired(
+        self,
+    ):
+        """Test that only contributions within referral period are eligible for bonuses"""
+        # Set referral signup to be ~6 months ago (just before expiration)
+        six_months_ago = timezone.now() - timedelta(days=6 * 30)
+        self.referral_signup.signup_date = six_months_ago - timedelta(days=1)
+        self.referral_signup.save()
+
+        # Update the original contribution date to be within the referral window
+        self.purchase.created_date = six_months_ago + timedelta(
+            days=30
+        )  # 1 month after signup
+        self.purchase.save()
+
+        # Create two additional contributions:
+        # 1. One within the referral bonus period (should get bonus)
+        eligible_contribution_amount = Decimal("150.12")
+        eligible_contribution = Purchase.objects.create(
+            user=self.referred_user,
+            content_type=ContentType.objects.get_for_model(Fundraise),
+            object_id=self.fundraise.id,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            paid_status=Purchase.PAID,
+            amount=eligible_contribution_amount,
+        )
+        # Set date to 7 days ago - within the 6 month referral window
+        eligible_contribution.created_date = timezone.now() - timedelta(days=7)
+        eligible_contribution.save()
+
+        # 2. One after the referral bonus period expires (should NOT get bonus)
+        ineligible_contribution_amount = Decimal("200.00")
+        ineligible_contribution = Purchase.objects.create(
+            user=self.referred_user,
+            content_type=ContentType.objects.get_for_model(Fundraise),
+            object_id=self.fundraise.id,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            paid_status=Purchase.PAID,
+            amount=ineligible_contribution_amount,
+        )
+        # Leave at current date - after the 6 month window
+        # Note: This contribution happens after referral expires but before fundraise completes
+
+        # Process fundraise completion (happens after referral expiration)
+        ReferralBonusService().process_fundraise_completion(self.fundraise)
+
+        # Verify that only the eligible contribution created a bonus
+        distributions = Distribution.objects.filter(
+            recipient=self.referrer,
+            distribution_type="REFERRAL_BONUS",
+        )
+
+        # Should have 2 distributions: 1 for original setup contribution + 1 for eligible contribution
+        self.assertEqual(
+            distributions.count(),
+            2,
+            "Should have bonuses for original contribution and eligible contribution only",
+        )
+
+        # Verify the bonus amounts
+        expected_original_bonus = self.contribution_amount * (
+            ReferralBonusService().bonus_percentage / 100
+        )
+        expected_eligible_bonus = eligible_contribution_amount * (
+            ReferralBonusService().bonus_percentage / 100
+        )
+
+        total_bonus = sum(d.amount for d in distributions)
+        expected_total = expected_original_bonus + expected_eligible_bonus
+
+        self.assertEqual(
+            total_bonus,
+            expected_total,
+            f"Total bonus should be {expected_total} (original: {expected_original_bonus} + "
+            f"eligible: {expected_eligible_bonus})",
+        )
+
+        # Verify no bonus was created for the ineligible contribution
+        # Check that referred user also got correct bonuses
+        referred_distributions = Distribution.objects.filter(
+            recipient=self.referred_user,
+            distribution_type="REFERRAL_BONUS",
+        )
+        self.assertEqual(
+            referred_distributions.count(),
+            2,
+            "Referred user should also have 2 bonuses",
+        )
+
+    def test_contribution_on_referral_expiration_boundary(self):
+        """Test edge cases around the exact referral expiration date"""
+        # Set referral signup to exactly 6 months ago
+        six_months_ago = timezone.now() - timedelta(days=6 * 30)
+        self.referral_signup.signup_date = six_months_ago
+        self.referral_signup.save()
+
+        # Delete the original contribution to have clean test
+        self.purchase.delete()
+
+        # Create contribution just before expiration (1 second before)
+        before_expiry_contribution = Purchase.objects.create(
+            user=self.referred_user,
+            content_type=ContentType.objects.get_for_model(Fundraise),
+            object_id=self.fundraise.id,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            paid_status=Purchase.PAID,
+            amount=Decimal("100.00"),
+        )
+        before_expiry_contribution.created_date = (
+            six_months_ago + timedelta(days=6 * 30) - timedelta(seconds=1)
+        )
+        before_expiry_contribution.save()
+
+        # Create contribution exactly at expiration
+        at_expiry_contribution = Purchase.objects.create(
+            user=self.referred_user,
+            content_type=ContentType.objects.get_for_model(Fundraise),
+            object_id=self.fundraise.id,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            paid_status=Purchase.PAID,
+            amount=Decimal("100.00"),
+        )
+        at_expiry_contribution.created_date = six_months_ago + timedelta(days=6 * 30)
+        at_expiry_contribution.save()
+
+        # Create contribution just after expiration (1 second after)
+        after_expiry_contribution = Purchase.objects.create(
+            user=self.referred_user,
+            content_type=ContentType.objects.get_for_model(Fundraise),
+            object_id=self.fundraise.id,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            paid_status=Purchase.PAID,
+            amount=Decimal("100.00"),
+        )
+        after_expiry_contribution.created_date = (
+            six_months_ago + timedelta(days=6 * 30) + timedelta(seconds=1)
+        )
+        after_expiry_contribution.save()
+
+        ReferralBonusService().process_fundraise_completion(self.fundraise)
+
+        # Check distributions - should have bonuses for contributions before and at expiry
+        distributions = Distribution.objects.filter(
+            recipient=self.referrer,
+            distribution_type="REFERRAL_BONUS",
+        )
+
+        # Contributions before and at expiry should get bonuses (using > not >= in service)
+        self.assertEqual(
+            distributions.count(),
+            2,
+            "Should have bonuses for contributions before and at expiration time",
+        )
+
+        # Verify the total amount (2 contributions of 100 each)
+        expected_bonus_per_contribution = Decimal("100.00") * (
+            ReferralBonusService().bonus_percentage / 100
+        )
+        total_expected = expected_bonus_per_contribution * 2
+        total_actual = sum(d.amount for d in distributions)
+        self.assertEqual(
+            total_actual,
+            total_expected,
+            f"Total bonus should be {total_expected} for 2 eligible contributions",
+        )
