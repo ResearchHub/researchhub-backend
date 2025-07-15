@@ -1,0 +1,183 @@
+import uuid
+from datetime import timedelta
+from decimal import Decimal
+
+from django.test import TestCase
+from django.utils import timezone
+
+from referral.models import ReferralSignup
+from referral.services.referral_metrics_service import ReferralMetricsService
+from user.models import User
+
+
+class ReferralMetricsServiceTest(TestCase):
+    """Test cases for ReferralMetricsService methods."""
+
+    def setUp(self):
+        # Create test users
+        self.referrer = User.objects.create_user(
+            username="referrer", email="referrer@test.com", password=uuid.uuid4().hex
+        )
+
+        self.referred = User.objects.create_user(
+            username="referred", email="referred@test.com", password=uuid.uuid4().hex
+        )
+
+        # Create service instance
+        self.service = ReferralMetricsService(self.referrer)
+
+    def test_calculate_expiration_date(self):
+        """Test expiration date calculation is 6 months from signup."""
+        signup_date = timezone.now()
+        expiration_date = self.service._calculate_expiration_date(signup_date)
+
+        expected_expiration = signup_date + timedelta(days=30 * 6)
+
+        # Allow small time difference for test execution
+        self.assertAlmostEqual(
+            expiration_date.timestamp(),
+            expected_expiration.timestamp(),
+            delta=1,  # 1 second tolerance
+        )
+
+    def test_is_referral_expired_recent_signup(self):
+        """Test that recent signups are not marked as expired."""
+        # Recent signup (1 day ago)
+        recent_signup_date = timezone.now() - timedelta(days=1)
+        is_expired = self.service._is_referral_expired(recent_signup_date)
+
+        self.assertFalse(is_expired)
+
+    def test_is_referral_expired_old_signup(self):
+        """Test that old signups are marked as expired."""
+        # Old signup (7 months ago)
+        old_signup_date = timezone.now() - timedelta(days=30 * 7)
+        is_expired = self.service._is_referral_expired(old_signup_date)
+
+        self.assertTrue(is_expired)
+
+    def test_is_referral_expired_exact_boundary(self):
+        """Test expiration at exactly 6 months."""
+        # Exactly 6 months ago (plus 1 minute to ensure it's expired)
+        boundary_date = timezone.now() - timedelta(days=30 * 6, minutes=1)
+        is_expired = self.service._is_referral_expired(boundary_date)
+
+        self.assertTrue(is_expired)
+
+        # Just under 6 months ago
+        not_quite_expired = timezone.now() - timedelta(days=30 * 6 - 1)
+        is_expired = self.service._is_referral_expired(not_quite_expired)
+
+        self.assertFalse(is_expired)
+
+    def test_get_user_referral_info_when_referred(self):
+        """Test getting user's own referral info when they were referred."""
+        # Create referral relationship
+        referral = ReferralSignup.objects.create(
+            referrer=self.referrer, referred=self.referred
+        )
+
+        # Test with referred user
+        referred_service = ReferralMetricsService(self.referred)
+        referral_info = referred_service._get_user_referral_info()
+
+        self.assertIsNotNone(referral_info)
+        self.assertIn("referrer", referral_info)
+        self.assertEqual(referral_info["referrer"]["username"], self.referrer.username)
+        self.assertIn("referral_signup_date", referral_info)
+        self.assertIn("referral_bonus_expiration_date", referral_info)
+        self.assertIn("is_referral_bonus_expired", referral_info)
+        self.assertFalse(referral_info["is_referral_bonus_expired"])
+
+    def test_get_user_referral_info_when_not_referred(self):
+        """Test getting user's referral info when they weren't referred."""
+        # User with no referral
+        independent_user = User.objects.create_user(
+            username="independent",
+            email="independent@test.com",
+            password=uuid.uuid4().hex,
+        )
+
+        independent_service = ReferralMetricsService(independent_user)
+        referral_info = independent_service._get_user_referral_info()
+
+        self.assertIsNone(referral_info)
+
+    def test_get_user_referral_info_with_expired_bonus(self):
+        """Test referral info for expired bonus period."""
+        # Create old referral
+        referral = ReferralSignup.objects.create(
+            referrer=self.referrer, referred=self.referred
+        )
+
+        # Update signup date to be old
+        old_date = timezone.now() - timedelta(days=30 * 7)
+        ReferralSignup.objects.filter(id=referral.id).update(signup_date=old_date)
+
+        referred_service = ReferralMetricsService(self.referred)
+        referral_info = referred_service._get_user_referral_info()
+
+        self.assertIsNotNone(referral_info)
+        self.assertTrue(referral_info["is_referral_bonus_expired"])
+
+        # Check expiration date is in the past
+        expiration_date = referral_info["referral_bonus_expiration_date"]
+        self.assertTrue(timezone.now() > expiration_date)
+
+    def test_comprehensive_metrics_includes_referral_info(self):
+        """Test that comprehensive metrics include user's referral info when applicable."""
+        # Create referral for the user
+        referring_user = User.objects.create_user(
+            username="referring", email="referring@test.com", password=uuid.uuid4().hex
+        )
+
+        ReferralSignup.objects.create(referrer=referring_user, referred=self.referrer)
+
+        metrics = self.service.get_comprehensive_metrics()
+
+        # Should include referral info
+        self.assertIn("your_referral_info", metrics)
+        self.assertIn("referrer", metrics["your_referral_info"])
+        self.assertEqual(
+            metrics["your_referral_info"]["referrer"]["username"],
+            referring_user.username,
+        )
+
+    def test_comprehensive_metrics_no_referral_info(self):
+        """Test that comprehensive metrics don't include referral info when not referred."""
+        # User not referred by anyone
+        metrics = self.service.get_comprehensive_metrics()
+
+        # Should not include referral info
+        self.assertNotIn("your_referral_info", metrics)
+
+    def test_network_details_includes_expiration_dates(self):
+        """Test that network details include expiration dates for each referred user."""
+        # Create some referrals
+        for i in range(3):
+            referred_user = User.objects.create_user(
+                username=f"referred_{i}",
+                email=f"referred_{i}@test.com",
+                password=uuid.uuid4().hex,
+            )
+            ReferralSignup.objects.create(
+                referrer=self.referrer, referred=referred_user
+            )
+
+        network_details = self.service.get_referral_network_details()
+
+        self.assertEqual(len(network_details), 3)
+
+        for user_detail in network_details:
+            self.assertIn("referral_bonus_expiration_date", user_detail)
+            self.assertIn("is_referral_bonus_expired", user_detail)
+            self.assertIn("signup_date", user_detail)
+
+            # Verify expiration is 6 months after signup
+            signup_date = user_detail["signup_date"]
+            expiration_date = user_detail["referral_bonus_expiration_date"]
+            expected_expiration = signup_date + timedelta(days=30 * 6)
+
+            self.assertAlmostEqual(
+                expiration_date.timestamp(), expected_expiration.timestamp(), delta=1
+            )

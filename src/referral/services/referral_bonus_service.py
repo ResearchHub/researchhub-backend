@@ -5,6 +5,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from purchase.models import Purchase
+from referral.constants import REFERRAL_BONUS_PERCENTAGE, REFERRAL_ELIGIBILITY_MONTHS
 from referral.models import ReferralSignup
 from reputation.distributions import create_referral_bonus_distribution
 from reputation.distributor import Distributor
@@ -14,8 +15,8 @@ class ReferralBonusService:
     """Service for processing referral bonuses when fundraises complete."""
 
     def __init__(self):
-        self.bonus_percentage = Decimal("10.00")
-        self.referral_eligibility_months = 6
+        self.bonus_percentage = REFERRAL_BONUS_PERCENTAGE
+        self.referral_eligibility_months = REFERRAL_ELIGIBILITY_MONTHS
 
     def process_fundraise_completion(self, fundraise):
         """

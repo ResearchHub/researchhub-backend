@@ -1,10 +1,13 @@
+from datetime import timedelta
 from decimal import Decimal
 
 from django.db.models import DecimalField, Sum
 from django.db.models.functions import Cast
+from django.utils import timezone
 
 from purchase.models import Purchase
 from purchase.related_models.balance_model import Balance
+from referral.constants import REFERRAL_BONUS_PERCENTAGE, REFERRAL_ELIGIBILITY_MONTHS
 from referral.models import ReferralSignup
 from reputation.related_models.distribution import Distribution
 
@@ -14,7 +17,8 @@ class ReferralMetricsService:
 
     def __init__(self, user):
         self.user = user
-        self.bonus_percentage = Decimal("10.00")
+        self.bonus_percentage = REFERRAL_BONUS_PERCENTAGE
+        self.referral_eligibility_months = REFERRAL_ELIGIBILITY_MONTHS
 
     def get_comprehensive_metrics(self):
         """
@@ -23,6 +27,7 @@ class ReferralMetricsService:
         - Referral activity
         - Funding credits
         - Network earned credits
+        - User's referral bonus expiration (if they were referred)
         """
         metrics = {
             "network_funding_power": self._calculate_network_funding_power(),
@@ -30,6 +35,12 @@ class ReferralMetricsService:
             "your_funding_credits": self._calculate_user_funding_credits(),
             "network_earned_credits": self._calculate_network_earned_credits(),
         }
+
+        # Add user's own referral expiration info if they were referred
+        referral_info = self._get_user_referral_info()
+        if referral_info:
+            metrics["your_referral_info"] = referral_info
+
         return metrics
 
     def _calculate_network_funding_power(self):
@@ -277,6 +288,9 @@ class ReferralMetricsService:
 
         network_details = []
         for signup in referred_signups:
+            expiration_date = self._calculate_expiration_date(signup.signup_date)
+            is_expired = self._is_referral_expired(signup.signup_date)
+
             user_data = {
                 "user_id": signup.referred.id,
                 "username": signup.referred.username,
@@ -284,6 +298,8 @@ class ReferralMetricsService:
                 "author_id": self._get_author_id(signup.referred),
                 "profile_image": self._get_user_profile_image(signup.referred),
                 "signup_date": signup.signup_date,
+                "referral_bonus_expiration_date": expiration_date,
+                "is_referral_bonus_expired": is_expired,
                 "total_funded": self._get_user_total_funded(signup.referred),
                 "referral_bonus_earned": self._get_user_referral_bonus(signup.referred),
                 "is_active_funder": self._is_active_funder(signup.referred),
@@ -345,3 +361,48 @@ class ReferralMetricsService:
         if hasattr(user, "author_profile") and user.author_profile:
             return user.author_profile.id
         return None
+
+    def _calculate_expiration_date(self, signup_date):
+        """Calculate when the referral bonus expires (6 months from signup)."""
+        return signup_date + timedelta(days=30 * self.referral_eligibility_months)
+
+    def _is_referral_expired(self, signup_date):
+        """Check if the referral bonus period has expired."""
+        expiration_date = self._calculate_expiration_date(signup_date)
+        return timezone.now() > expiration_date
+
+    def _get_user_referral_info(self):
+        """Get the user's own referral information if they were referred."""
+        try:
+            referral_signup = ReferralSignup.objects.select_related(
+                "referrer", "referrer__author_profile"
+            ).get(referred=self.user)
+            expiration_date = self._calculate_expiration_date(
+                referral_signup.signup_date
+            )
+            is_expired = self._is_referral_expired(referral_signup.signup_date)
+
+            # Get full referrer details
+            referrer = referral_signup.referrer
+            referrer_details = {
+                "user_id": referrer.id,
+                "username": referrer.username,
+                "full_name": referrer.full_name(),
+                "author_id": self._get_author_id(referrer),
+                "profile_image": self._get_user_profile_image(referrer),
+                "signup_date": referral_signup.signup_date,  # When current user was referred
+                "referral_bonus_expiration_date": expiration_date,
+                "is_referral_bonus_expired": is_expired,
+                "total_funded": self._get_user_total_funded(referrer),
+                "referral_bonus_earned": self._get_user_referral_bonus(referrer),
+                "is_active_funder": self._is_active_funder(referrer),
+            }
+
+            return {
+                "referrer": referrer_details,
+                "referral_signup_date": referral_signup.signup_date,
+                "referral_bonus_expiration_date": expiration_date,
+                "is_referral_bonus_expired": is_expired,
+            }
+        except ReferralSignup.DoesNotExist:
+            return None
