@@ -339,7 +339,21 @@ class ReferralMetricsAPITest(TestCase):
         self.assertIn("your_referral_info", data)
         referral_info = data["your_referral_info"]
 
-        self.assertEqual(referral_info["referrer_username"], referring_user.username)
+        # Check that referrer details are included
+        self.assertIn("referrer", referral_info)
+        referrer_details = referral_info["referrer"]
+
+        # Check referrer fields
+        self.assertEqual(referrer_details["username"], referring_user.username)
+        self.assertEqual(referrer_details["user_id"], referring_user.id)
+        self.assertIn("full_name", referrer_details)
+        self.assertIn("author_id", referrer_details)
+        self.assertIn("profile_image", referrer_details)
+        self.assertIn("total_funded", referrer_details)
+        self.assertIn("referral_bonus_earned", referrer_details)
+        self.assertIn("is_active_funder", referrer_details)
+
+        # Check referral timing fields
         self.assertIn("referral_signup_date", referral_info)
         self.assertIn("referral_bonus_expiration_date", referral_info)
         self.assertIn("is_referral_bonus_expired", referral_info)
@@ -374,8 +388,9 @@ class ReferralMetricsAPITest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         data = response.json()
 
-        # Check that referral info is not included
-        self.assertNotIn("your_referral_info", data)
+        # Check that referral info is None when user wasn't referred
+        self.assertIn("your_referral_info", data)
+        self.assertIsNone(data["your_referral_info"])
 
     def test_expired_referral_bonus_calculation(self):
         """Test that expired referral bonuses are correctly identified."""

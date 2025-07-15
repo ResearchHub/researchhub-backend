@@ -7,6 +7,7 @@ from django.utils import timezone
 
 from purchase.models import Purchase
 from purchase.related_models.balance_model import Balance
+from referral.constants import REFERRAL_BONUS_PERCENTAGE, REFERRAL_ELIGIBILITY_MONTHS
 from referral.models import ReferralSignup
 from reputation.related_models.distribution import Distribution
 
@@ -16,8 +17,8 @@ class ReferralMetricsService:
 
     def __init__(self, user):
         self.user = user
-        self.bonus_percentage = Decimal("10.00")
-        self.referral_eligibility_months = 6
+        self.bonus_percentage = REFERRAL_BONUS_PERCENTAGE
+        self.referral_eligibility_months = REFERRAL_ELIGIBILITY_MONTHS
 
     def get_comprehensive_metrics(self):
         """
@@ -373,14 +374,32 @@ class ReferralMetricsService:
     def _get_user_referral_info(self):
         """Get the user's own referral information if they were referred."""
         try:
-            referral_signup = ReferralSignup.objects.get(referred=self.user)
+            referral_signup = ReferralSignup.objects.select_related(
+                "referrer", "referrer__author_profile"
+            ).get(referred=self.user)
             expiration_date = self._calculate_expiration_date(
                 referral_signup.signup_date
             )
             is_expired = self._is_referral_expired(referral_signup.signup_date)
 
+            # Get full referrer details
+            referrer = referral_signup.referrer
+            referrer_details = {
+                "user_id": referrer.id,
+                "username": referrer.username,
+                "full_name": referrer.full_name(),
+                "author_id": self._get_author_id(referrer),
+                "profile_image": self._get_user_profile_image(referrer),
+                "signup_date": referral_signup.signup_date,  # When current user was referred
+                "referral_bonus_expiration_date": expiration_date,
+                "is_referral_bonus_expired": is_expired,
+                "total_funded": self._get_user_total_funded(referrer),
+                "referral_bonus_earned": self._get_user_referral_bonus(referrer),
+                "is_active_funder": self._is_active_funder(referrer),
+            }
+
             return {
-                "referrer_username": referral_signup.referrer.username,
+                "referrer": referrer_details,
                 "referral_signup_date": referral_signup.signup_date,
                 "referral_bonus_expiration_date": expiration_date,
                 "is_referral_bonus_expired": is_expired,

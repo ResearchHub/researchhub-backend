@@ -34,25 +34,6 @@ class NetworkEarnedCreditsSerializer(serializers.Serializer):
     by_referred_users = serializers.FloatField()
 
 
-class UserReferralInfoSerializer(serializers.Serializer):
-    """Serializer for user's own referral information."""
-
-    referrer_username = serializers.CharField()
-    referral_signup_date = serializers.DateTimeField()
-    referral_bonus_expiration_date = serializers.DateTimeField()
-    is_referral_bonus_expired = serializers.BooleanField()
-
-
-class ReferralMetricsSerializer(serializers.Serializer):
-    """Main serializer for comprehensive referral metrics."""
-
-    network_funding_power = NetworkFundingPowerSerializer()
-    referral_activity = ReferralActivitySerializer()
-    your_funding_credits = FundingCreditsSerializer()
-    network_earned_credits = NetworkEarnedCreditsSerializer()
-    your_referral_info = UserReferralInfoSerializer(required=False, allow_null=True)
-
-
 class ReferralNetworkDetailSerializer(serializers.Serializer):
     """Serializer for individual referred user details."""
 
@@ -67,6 +48,25 @@ class ReferralNetworkDetailSerializer(serializers.Serializer):
     total_funded = serializers.FloatField()
     referral_bonus_earned = serializers.FloatField()
     is_active_funder = serializers.BooleanField()
+
+
+class UserReferralInfoSerializer(serializers.Serializer):
+    """Serializer for user's own referral information."""
+
+    referrer = ReferralNetworkDetailSerializer()
+    referral_signup_date = serializers.DateTimeField()
+    referral_bonus_expiration_date = serializers.DateTimeField()
+    is_referral_bonus_expired = serializers.BooleanField()
+
+
+class ReferralMetricsSerializer(serializers.Serializer):
+    """Main serializer for comprehensive referral metrics."""
+
+    network_funding_power = NetworkFundingPowerSerializer()
+    referral_activity = ReferralActivitySerializer()
+    your_funding_credits = FundingCreditsSerializer()
+    network_earned_credits = NetworkEarnedCreditsSerializer()
+    your_referral_info = UserReferralInfoSerializer(required=False, allow_null=True)
 
 
 class ReferralSignupSerializer(serializers.ModelSerializer):
