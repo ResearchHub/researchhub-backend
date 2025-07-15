@@ -37,6 +37,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         - CLOSED: Only show posts with completed fundraises
     - grant_id: Filter by grant applications
       (show only posts that applied to specific grant)
+    - created_by: Filter by user ID who created the funding post
     - ordering: Sort order when grant_id is provided
       Options:
         - newest (default): Sort by creation date (newest first)
@@ -57,8 +58,9 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         page = request.query_params.get("page", "1")
         page_num = int(page)
         grant_id = request.query_params.get("grant_id", None)
+        created_by = request.query_params.get("created_by", None)
         cache_key = self.get_cache_key(request, "funding")
-        use_cache = page_num < 4 and grant_id is None
+        use_cache = page_num < 4 and grant_id is None and created_by is None
 
         if use_cache:
             # try to get cached response
@@ -103,10 +105,11 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
     def get_queryset(self):
         """
         Filter to only include posts that are preregistrations.
-        Additionally filter by fundraise status and/or grant applications if specified.
+        Additionally filter by fundraise status, grant applications, and/or created_by if specified.
         """
         fundraise_status = self.request.query_params.get("fundraise_status", None)
         grant_id = self.request.query_params.get("grant_id", None)
+        created_by = self.request.query_params.get("created_by", None)
 
         queryset = (
             ResearchhubPost.objects.all()
@@ -122,6 +125,10 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             .filter(document_type=PREREGISTRATION)
             .filter(unified_document__is_removed=False)
         )
+
+        # Filter by created_by if provided
+        if created_by:
+            queryset = queryset.filter(created_by__id=created_by)
 
         # Filter by grant applications if grant_id is provided
         if grant_id:
