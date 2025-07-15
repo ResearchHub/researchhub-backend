@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 import pytz
 from django.contrib.contenttypes.models import ContentType

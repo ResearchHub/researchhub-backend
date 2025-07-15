@@ -35,7 +35,8 @@ class FundraiseViewSet(viewsets.ModelViewSet):
     def dispatch(self, request, *args, **kwargs):
         self.fundraise_service = kwargs.pop("fundraise_service", FundraiseService())
         self.referral_bonus_service = kwargs.pop(
-            "referral_bonus_service", ReferralBonusService()
+            "referral_bonus_service",
+            ReferralBonusService(),
         )
         return super().dispatch(request, *args, **kwargs)
 

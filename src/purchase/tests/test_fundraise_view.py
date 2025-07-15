@@ -427,9 +427,8 @@ class FundraiseViewTests(APITestCase):
 
         # Check that both users received the correct bonus amount
 
-        expected_bonus = Decimal("200") * (
-            ReferralBonusService().bonus_percentage / 100
-        )
+        service = ReferralBonusService()
+        expected_bonus = Decimal("200") * (service.bonus_percentage / 100)
 
         referrer_distribution = Distribution.objects.filter(
             recipient=referrer,
