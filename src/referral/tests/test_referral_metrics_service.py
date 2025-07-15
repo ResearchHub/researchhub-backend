@@ -82,7 +82,8 @@ class ReferralMetricsServiceTest(TestCase):
         referral_info = referred_service._get_user_referral_info()
 
         self.assertIsNotNone(referral_info)
-        self.assertEqual(referral_info["referrer_username"], self.referrer.username)
+        self.assertIn("referrer", referral_info)
+        self.assertEqual(referral_info["referrer"]["username"], self.referrer.username)
         self.assertIn("referral_signup_date", referral_info)
         self.assertIn("referral_bonus_expiration_date", referral_info)
         self.assertIn("is_referral_bonus_expired", referral_info)
@@ -136,8 +137,10 @@ class ReferralMetricsServiceTest(TestCase):
 
         # Should include referral info
         self.assertIn("your_referral_info", metrics)
+        self.assertIn("referrer", metrics["your_referral_info"])
         self.assertEqual(
-            metrics["your_referral_info"]["referrer_username"], referring_user.username
+            metrics["your_referral_info"]["referrer"]["username"],
+            referring_user.username,
         )
 
     def test_comprehensive_metrics_no_referral_info(self):
