@@ -53,9 +53,7 @@ class ReferralBonusServiceTest(TestCase):
         )
 
         # Initialize the service with default parameters
-        self.service = ReferralBonusService(
-            bonus_percentage=Decimal("10.00"), referral_eligibility_months=6
-        )
+        self.service = ReferralBonusService()
 
     def test_process_fundraise_completion_creates_bonuses(self):
         """Test that referral bonuses are created for eligible referrals"""

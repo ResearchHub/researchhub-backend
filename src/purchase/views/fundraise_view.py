@@ -36,9 +36,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         self.fundraise_service = kwargs.pop("fundraise_service", FundraiseService())
         self.referral_bonus_service = kwargs.pop(
             "referral_bonus_service",
-            ReferralBonusService(
-                bonus_percentage=decimal.Decimal("10.00"), referral_eligibility_months=6
-            ),
+            ReferralBonusService(),
         )
         return super().dispatch(request, *args, **kwargs)
 
