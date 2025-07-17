@@ -1,4 +1,3 @@
-import copy
 import json
 
 from django_elasticsearch_dsl import Document, fields
@@ -17,9 +16,27 @@ class FeedEntryDocument(Document):
         }
     )
     object_id = fields.IntegerField()
-    content = fields.ObjectField(properties={})
+    content = fields.ObjectField(
+        properties={
+            # Store problematic fields as JSON strings to avoid schema conflicts
+            "comment_content_json": fields.TextField(),
+            "parent_comment": fields.ObjectField(
+                properties={
+                    "comment_content_json": fields.TextField(),
+                }
+            ),
+        },
+    )
     hot_score = fields.IntegerField()
-    metrics = fields.ObjectField(properties={})
+    metrics = fields.ObjectField(
+        properties={
+            "review_metrics": fields.ObjectField(
+                properties={
+                    "avg": fields.FloatField(),
+                }
+            ),
+        }
+    )
     action = fields.KeywordField()
     action_date = fields.DateField()
     created_date = fields.DateField()
@@ -81,12 +98,6 @@ class FeedEntryDocument(Document):
         if instance.user and hasattr(instance.user, "author_profile"):
             profile = instance.user.author_profile
 
-            # Need to safely check if userverification exists since we don't have
-            # a corresponding field or property in the user model yet.
-            # The existing `is_verified` field is the old verification status.
-            uv = getattr(instance.user, "userverification", None)
-            is_verified = uv.is_verified if uv and hasattr(uv, "is_verified") else False
-
             return {
                 "id": profile.id,
                 "first_name": profile.first_name,
@@ -106,31 +117,40 @@ class FeedEntryDocument(Document):
                     "first_name": instance.user.first_name,
                     "last_name": instance.user.last_name,
                     "email": instance.user.email,
-                    "is_verified": is_verified,
+                    "is_verified": instance.user.is_verified_v2,
                 },
             }
         return None
 
     def prepare_content(self, instance):
-        # Deep copy and sanitize dict inserts in comment_content_json.ops
-        content = instance.content or {}
-        content_copy = copy.deepcopy(content)
+        if not instance.content:
+            return None
 
-        def sanitize(obj):
-            if isinstance(obj, dict):
-                # if this dict contains Quill ops element, sanitize inserts
-                ccj = obj.get("comment_content_json")
-                if isinstance(ccj, dict) and isinstance(ccj.get("ops"), list):
-                    for op in ccj["ops"]:
-                        ins = op.get("insert")
-                        if isinstance(ins, dict):
-                            op["insert"] = json.dumps(ins)
-                # recurse into nested values
-                for v in obj.values():
-                    sanitize(v)
-            elif isinstance(obj, list):
-                for item in obj:
-                    sanitize(item)
+        content_copy = dict(instance.content)
+        return self._serialize_json_fields(content_copy)
 
-        sanitize(content_copy)
-        return content_copy
+    def _serialize_json_fields(self, data, json_field_names=None):
+        """
+        Recursively convert specified fields to JSON strings in nested structures.
+        """
+        if json_field_names is None:
+            json_field_names = ["comment_content_json"]
+
+        if isinstance(data, dict):
+            result = {}
+            for key, value in data.items():
+                if key in json_field_names and not isinstance(value, str):
+                    # Convert to JSON string
+                    result[key] = json.dumps(value)
+                elif isinstance(value, (dict, list)):
+                    # Recursively process nested structures
+                    result[key] = self._serialize_json_fields(value, json_field_names)
+                else:
+                    result[key] = value
+            return result
+        elif isinstance(data, list):
+            return [
+                self._serialize_json_fields(item, json_field_names) for item in data
+            ]
+        else:
+            return data

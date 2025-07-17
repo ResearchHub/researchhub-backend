@@ -18,7 +18,7 @@ from rest_framework.viewsets import ModelViewSet
 
 from analytics.amplitude import track_event
 from discussion.permissions import EditorCensorDiscussion
-from discussion.reaction_views import ReactionViewActionMixin
+from discussion.views import ReactionViewActionMixin
 from reputation.models import Bounty, Contribution
 from reputation.tasks import create_contribution, find_qualified_users_and_notify
 from reputation.utils import deduct_bounty_fees

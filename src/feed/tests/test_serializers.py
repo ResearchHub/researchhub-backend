@@ -18,7 +18,7 @@ from feed.serializers import (
     SimpleReviewSerializer,
     SimpleUserSerializer,
 )
-from feed.views.base_feed_view import BaseFeedView
+from feed.views.feed_view_mixin import FeedViewMixin
 from hub.models import Hub
 from hub.serializers import SimpleHubSerializer
 from hub.tests.helpers import create_hub
@@ -29,6 +29,7 @@ from purchase.models import Fundraise, Grant, GrantApplication, Purchase
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Bounty, Escrow
+from researchhub_access_group.models import Permission
 from researchhub_comment.constants import rh_comment_thread_types
 from researchhub_comment.constants.rh_comment_content_types import QUILL_EDITOR
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
@@ -36,6 +37,10 @@ from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
 from researchhub_document.related_models.constants import document_type
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -408,7 +413,7 @@ class PostSerializerTests(TestCase):
         )
 
         # Get the context with the field specifications
-        context = BaseFeedView().get_common_serializer_context()
+        context = FeedViewMixin().get_common_serializer_context()
 
         # Mock the RscExchangeRate.usd_to_rsc method to avoid database dependency
         with patch.object(
@@ -623,7 +628,7 @@ class PostSerializerTests(TestCase):
         grant.contacts.add(contact_user)
 
         # Get the context with the field specifications like in the real implementation
-        context = BaseFeedView().get_common_serializer_context()
+        context = FeedViewMixin().get_common_serializer_context()
 
         # Serialize the grant post
         serializer = PostSerializer(grant_post, context=context)
@@ -747,7 +752,7 @@ class PostSerializerTests(TestCase):
         )
 
         # Get the context
-        context = BaseFeedView().get_common_serializer_context()
+        context = FeedViewMixin().get_common_serializer_context()
 
         # Serialize the grant post
         serializer = PostSerializer(grant_post, context=context)
@@ -848,7 +853,7 @@ class PostSerializerTests(TestCase):
         )
 
         # Get the context
-        context = BaseFeedView().get_common_serializer_context()
+        context = FeedViewMixin().get_common_serializer_context()
 
         # Serialize the grant post
         serializer = PostSerializer(grant_post, context=context)
@@ -859,6 +864,163 @@ class PostSerializerTests(TestCase):
         self.assertEqual(grant_data["id"], grant.id)
         self.assertTrue(grant_data["is_expired"])
         self.assertFalse(grant_data["is_active"])
+
+    def test_post_with_fundraise_no_user_recursion(self):
+        """Test that posts with fundraises don't cause user serializer recursion"""
+        # Create exchange rate for fundraise
+        RscExchangeRate.objects.create(
+            rate=0.01,
+            real_rate=0.01,
+        )
+
+        # Create user with editor permissions
+        editor_user = create_random_default_user("editor")
+
+        # Create a hub and give editor permissions to the user
+        hub = create_hub(name="Test Hub")
+        hub_content_type = ContentType.objects.get_for_model(Hub)
+        Permission.objects.create(
+            user=editor_user,
+            content_type=hub_content_type,
+            object_id=hub.id,
+            access_type="EDITOR",
+        )
+
+        # Create preregistration post
+        preregistration_post = ResearchhubPost.objects.create(
+            title="Test Preregistration with Fundraise",
+            document_type=PREREGISTRATION,
+            created_by=editor_user,
+            unified_document=self.unified_document,
+            renderable_text="Test content",
+        )
+
+        # Create fundraise
+        fundraise = Fundraise.objects.create(
+            unified_document=self.unified_document,
+            created_by=editor_user,
+            goal_amount=10000,
+            goal_currency=USD,
+            status="OPEN",
+        )
+
+        # Add contributor
+        fundraise.purchases.create(
+            user=self.user,
+            amount=100,
+            purchase_type="BOOST",
+        )
+
+        try:
+            serializer = PostSerializer(preregistration_post)
+            data = serializer.data
+
+            # Verify fundraise data
+            self.assertIn("fundraise", data)
+            self.assertIsNotNone(data["fundraise"])
+
+            # Verify user fields are limited (no editor_of)
+            created_by = data["fundraise"]["created_by"]
+            self.assertIn("id", created_by)
+            self.assertIn("first_name", created_by)
+            self.assertNotIn(
+                "editor_of",
+                created_by,
+                "User should not have editor_of field to prevent recursion",
+            )
+
+            # Check contributors
+            contributors = data["fundraise"]["contributors"]
+            self.assertIsInstance(contributors, dict)
+            self.assertIn("top", contributors)
+            if contributors["top"]:
+                contributor = contributors["top"][0]
+                self.assertNotIn(
+                    "editor_of",
+                    contributor,
+                    "Contributor should not have editor_of field",
+                )
+
+        except RecursionError:
+            self.fail(
+                "RecursionError was raised - user serializer circular reference fix failed"
+            )
+
+    def test_grant_post_no_user_recursion(self):
+        """Test that grant posts don't cause user serializer recursion"""
+        # Create exchange rate for grant
+        RscExchangeRate.objects.create(
+            rate=0.01,
+            real_rate=0.01,
+        )
+
+        # Create user with editor permissions
+        editor_user = create_random_default_user("grant_editor")
+
+        # Create a hub and give editor permissions to the user
+        hub = create_hub(name="Grant Hub")
+        hub_content_type = ContentType.objects.get_for_model(Hub)
+        Permission.objects.create(
+            user=editor_user,
+            content_type=hub_content_type,
+            object_id=hub.id,
+            access_type="EDITOR",
+        )
+
+        # Create grant post
+        grant_post = ResearchhubPost.objects.create(
+            title="Test Grant",
+            document_type=GRANT,
+            created_by=editor_user,
+            unified_document=self.unified_document,
+            renderable_text="Test grant content",
+        )
+
+        # Create grant
+        grant = Grant.objects.create(
+            unified_document=self.unified_document,
+            created_by=editor_user,
+            amount=50000,
+            currency=USD,
+            status="ACTIVE",
+            organization="Test Foundation",
+        )
+        grant.contacts.add(editor_user)  # Add editor as contact
+
+        try:
+            serializer = PostSerializer(grant_post)
+            data = serializer.data
+
+            # Verify grant data
+            self.assertIn("grant", data)
+            self.assertIsNotNone(data["grant"])
+
+            # Verify created_by user fields are limited (no editor_of)
+            created_by = data["grant"]["created_by"]
+            self.assertIn("id", created_by)
+            self.assertIn("first_name", created_by)
+            self.assertNotIn(
+                "editor_of",
+                created_by,
+                "Created by user should not have editor_of field to prevent recursion",
+            )
+
+            # Check contacts
+            contacts = data["grant"]["contacts"]
+            self.assertTrue(contacts)  # Should have at least one contact
+            contact = contacts[0]
+            self.assertIn("id", contact)
+            self.assertIn("first_name", contact)
+            self.assertNotIn(
+                "editor_of",
+                contact,
+                "Contact user should not have editor_of field to prevent recursion",
+            )
+
+        except RecursionError:
+            self.fail(
+                "RecursionError was raised - grant user serializer circular reference fix failed"
+            )
 
 
 class CommentSerializerTests(TestCase):

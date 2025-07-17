@@ -1,9 +1,12 @@
+from decimal import Decimal
+
 from django.contrib.contenttypes.models import ContentType
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
+from purchase.related_models.balance_model import Balance
 from user.related_models.follow_model import Follow
 from user.related_models.user_model import User
 from user.tests.helpers import create_user
@@ -90,3 +93,161 @@ class FollowModelTests(TestCase):
                 content_type=ContentType.objects.get_for_model(Authorship),
                 object_id=1,
             )
+
+
+class UserBalanceTests(TestCase):
+    def setUp(self):
+        self.user = create_user(
+            email="balance@test.com",
+            first_name="Balance",
+            last_name="Test",
+        )
+        self.content_type = ContentType.objects.get_for_model(Paper)
+
+    def test_get_balance_excludes_locked_by_default(self):
+        # Create regular balance
+        Balance.objects.create(
+            user=self.user,
+            amount="100",
+            content_type=self.content_type,
+            is_locked=False,
+        )
+
+        # Create locked balance
+        Balance.objects.create(
+            user=self.user,
+            amount="50",
+            content_type=self.content_type,
+            is_locked=True,
+            lock_type="FUNDRAISE_CONTRIBUTION",
+        )
+
+        # Default behavior should exclude locked funds
+        balance = self.user.get_balance()
+        self.assertEqual(balance, Decimal("100"))
+
+    def test_get_balance_includes_locked_when_requested(self):
+        # Create regular balance
+        Balance.objects.create(
+            user=self.user,
+            amount="100",
+            content_type=self.content_type,
+            is_locked=False,
+        )
+
+        # Create locked balance
+        Balance.objects.create(
+            user=self.user,
+            amount="50",
+            content_type=self.content_type,
+            is_locked=True,
+            lock_type="FUNDRAISE_CONTRIBUTION",
+        )
+
+        # When include_locked=True, should include all funds
+        balance = self.user.get_balance(include_locked=True)
+        self.assertEqual(balance, Decimal("150"))
+
+    def test_get_available_balance(self):
+        # Create regular balance
+        Balance.objects.create(
+            user=self.user,
+            amount="200",
+            content_type=self.content_type,
+            is_locked=False,
+        )
+
+        # Create locked balance
+        Balance.objects.create(
+            user=self.user,
+            amount="75",
+            content_type=self.content_type,
+            is_locked=True,
+            lock_type="FUNDRAISE_CONTRIBUTION",
+        )
+
+        # Should only return unlocked funds
+        available = self.user.get_available_balance()
+        self.assertEqual(available, Decimal("200"))
+
+    def test_get_locked_balance_all(self):
+        # Create regular balance
+        Balance.objects.create(
+            user=self.user,
+            amount="300",
+            content_type=self.content_type,
+            is_locked=False,
+        )
+
+        # Create locked balances
+        Balance.objects.create(
+            user=self.user,
+            amount="100",
+            content_type=self.content_type,
+            is_locked=True,
+            lock_type="FUNDRAISE_CONTRIBUTION",
+        )
+
+        Balance.objects.create(
+            user=self.user,
+            amount="25",
+            content_type=self.content_type,
+            is_locked=True,
+            lock_type="FUNDRAISE_CONTRIBUTION",
+        )
+
+        # Should return total locked funds
+        locked = self.user.get_locked_balance()
+        self.assertEqual(locked, Decimal("125"))
+
+    def test_get_locked_balance_by_type(self):
+        # Create locked balances of different types
+        Balance.objects.create(
+            user=self.user,
+            amount="60",
+            content_type=self.content_type,
+            is_locked=True,
+            lock_type="FUNDRAISE_CONTRIBUTION",
+        )
+
+        # Should return only the specified lock type
+        fundraise_locked = self.user.get_locked_balance("FUNDRAISE_CONTRIBUTION")
+        self.assertEqual(fundraise_locked, Decimal("60"))
+
+    def test_balance_calculations_with_mixed_balances(self):
+        # Create mix of locked and unlocked balances
+        Balance.objects.create(
+            user=self.user,
+            amount="500",
+            content_type=self.content_type,
+            is_locked=False,
+        )
+
+        Balance.objects.create(
+            user=self.user,
+            amount="200",
+            content_type=self.content_type,
+            is_locked=True,
+            lock_type="FUNDRAISE_CONTRIBUTION",
+        )
+
+        Balance.objects.create(
+            user=self.user,
+            amount="100",
+            content_type=self.content_type,
+            is_locked=False,
+        )
+
+        # Test all balance methods
+        total_with_locked = self.user.get_balance(include_locked=True)
+        available = self.user.get_available_balance()
+        locked = self.user.get_locked_balance()
+        default_balance = self.user.get_balance()  # Should exclude locked
+
+        self.assertEqual(total_with_locked, Decimal("800"))
+        self.assertEqual(available, Decimal("600"))
+        self.assertEqual(locked, Decimal("200"))
+        self.assertEqual(default_balance, Decimal("600"))  # Same as available
+
+        # Verify math: available + locked = total
+        self.assertEqual(available + locked, total_with_locked)

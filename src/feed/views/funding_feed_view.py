@@ -11,10 +11,11 @@ This is done for three reasons:
 from django.core.cache import cache
 from django.db.models import BooleanField, Case, F, Value, When
 from rest_framework.response import Response
+from rest_framework.viewsets import ModelViewSet
 
 from feed.models import FeedEntry
 from feed.serializers import FundingFeedEntrySerializer
-from feed.views.base_feed_view import BaseFeedView
+from feed.views.feed_view_mixin import FeedViewMixin
 from purchase.related_models.fundraise_model import Fundraise
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -23,7 +24,7 @@ from ..serializers import PostSerializer, serialize_feed_metrics
 from .common import FeedPagination
 
 
-class FundingFeedViewSet(BaseFeedView):
+class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
     """
     ViewSet for accessing entries specifically related to preregistration documents.
     This provides a dedicated endpoint for clients to fetch and display preregistration
@@ -36,6 +37,7 @@ class FundingFeedViewSet(BaseFeedView):
         - CLOSED: Only show posts with completed fundraises
     - grant_id: Filter by grant applications
       (show only posts that applied to specific grant)
+    - created_by: Filter by user ID who created the funding post
     - ordering: Sort order when grant_id is provided
       Options:
         - newest (default): Sort by creation date (newest first)
@@ -56,8 +58,9 @@ class FundingFeedViewSet(BaseFeedView):
         page = request.query_params.get("page", "1")
         page_num = int(page)
         grant_id = request.query_params.get("grant_id", None)
+        created_by = request.query_params.get("created_by", None)
         cache_key = self.get_cache_key(request, "funding")
-        use_cache = page_num < 4 and grant_id is None
+        use_cache = page_num < 4 and grant_id is None and created_by is None
 
         if use_cache:
             # try to get cached response
@@ -102,10 +105,11 @@ class FundingFeedViewSet(BaseFeedView):
     def get_queryset(self):
         """
         Filter to only include posts that are preregistrations.
-        Additionally filter by fundraise status and/or grant applications if specified.
+        Additionally filter by fundraise status, grant applications, and/or created_by if specified.
         """
         fundraise_status = self.request.query_params.get("fundraise_status", None)
         grant_id = self.request.query_params.get("grant_id", None)
+        created_by = self.request.query_params.get("created_by", None)
 
         queryset = (
             ResearchhubPost.objects.all()
@@ -121,6 +125,10 @@ class FundingFeedViewSet(BaseFeedView):
             .filter(document_type=PREREGISTRATION)
             .filter(unified_document__is_removed=False)
         )
+
+        # Filter by created_by if provided
+        if created_by:
+            queryset = queryset.filter(created_by__id=created_by)
 
         # Filter by grant applications if grant_id is provided
         if grant_id:

@@ -1,8 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
-from rest_framework import viewsets
 from rest_framework.request import Request
 
-from discussion.reaction_serializers import VoteSerializer
+from discussion.serializers import VoteSerializer
 from feed.views.common import FeedPagination
 from hub.models import Hub
 from paper.related_models.paper_model import Paper
@@ -11,9 +10,9 @@ from researchhub_document.related_models.researchhub_post_model import Researchh
 from researchhub_document.views.researchhub_unified_document_views import get_user_votes
 
 
-class BaseFeedView(viewsets.ModelViewSet):
+class FeedViewMixin:
     """
-    Base class for feed-related viewsets.
+    Mixin for feed-related viewsets.
     """
 
     # Cache timeout (30 minutes)
@@ -178,3 +177,17 @@ class BaseFeedView(viewsets.ModelViewSet):
         source_part = f"{source}" if source else "all"
 
         return f"{feed_type_part}feed:{feed_view}:{hub_part}:{source_part}:{user_part}:{pagination_part}{status_part}"
+
+    def get_followed_hub_ids(self):
+        """
+        Get IDs of hubs followed by the current user.
+        Returns empty list if user is not authenticated.
+        """
+        if not self.request.user.is_authenticated:
+            return []
+
+        return list(
+            self.request.user.following.filter(
+                content_type=self._hub_content_type
+            ).values_list("object_id", flat=True)
+        )

@@ -5,7 +5,7 @@ from django.db import models, transaction
 from django.db.models import JSONField, Sum
 from django.db.models.deletion import SET_NULL
 
-from discussion.reaction_models import Vote
+from discussion.models import Vote
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
 from paper.utils import PAPER_SCORE_Q_ANNOTATION
@@ -157,6 +157,19 @@ class Author(models.Model):
     @property
     def full_name(self):
         return self.first_name + " " + self.last_name
+
+    @property
+    def is_verified_v2(self):
+        """
+        Check if the user account is verified via `UserVerification`.
+        Returns `False` if no user is associated with this author or
+        if the user was not successfully verified or
+        if no verification record exists.
+        """
+        if self.user is None:
+            return False
+
+        return self.user.is_verified_v2
 
     @property
     def profile_image_indexing(self):

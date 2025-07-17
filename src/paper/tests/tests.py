@@ -1,7 +1,5 @@
-from unittest import skip
-
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase, tag
+from django.test import TestCase
 
 from paper.serializers import DynamicPaperSerializer
 from paper.utils import (
@@ -9,7 +7,7 @@ from paper.utils import (
     convert_pdf_url_to_journal_url,
     pdf_copyright_allows_display,
 )
-from utils.test_helpers import IntegrationTestHelper, TestHelper, get_user_from_response
+from utils.test_helpers import IntegrationTestHelper, TestHelper
 
 
 class PaperIntegrationTests(TestCase, TestHelper, IntegrationTestHelper):
@@ -18,21 +16,6 @@ class PaperIntegrationTests(TestCase, TestHelper, IntegrationTestHelper):
     def test_get_base_route(self):
         response = self.get_get_response(self.base_url)
         self.assertEqual(response.status_code, 200)
-
-    @skip
-    @tag("aws")
-    def test_upload_paper(self):
-        response = self.submit_paper_form()
-        text = "The Simple Paper"
-        self.assertContains(response, text, status_code=201)
-
-    @skip
-    @tag("aws")
-    def test_paper_uploaded_by_request_user(self):
-        response = self.submit_paper_form()
-        user = get_user_from_response(response)
-        text = '"uploaded_by":{"id":%d' % user.id
-        self.assertContains(response, text, status_code=201)
 
     def submit_paper_form(self):
         client = self.get_default_authenticated_client()

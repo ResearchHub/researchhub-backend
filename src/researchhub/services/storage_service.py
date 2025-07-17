@@ -1,5 +1,7 @@
+import unicodedata
 import uuid
 from typing import NamedTuple
+from urllib.parse import quote
 
 from django.conf import settings
 
@@ -61,7 +63,7 @@ class S3StorageService(StorageService):
                 "ContentType": content_type,
                 "Metadata": {
                     "created-by-id": f"{user_id}",
-                    "file-name": filename,
+                    "file-name": self._sanitize_filename(filename),
                 },
             },
             ExpiresIn=60 * valid_for_min,
@@ -72,3 +74,14 @@ class S3StorageService(StorageService):
             object_key=s3_filename,
             object_url=f"https://{settings.AWS_S3_CUSTOM_DOMAIN}/{s3_filename}",
         )
+
+    def _sanitize_filename(self, filename: str) -> str:
+        """
+        Sanitize filename for the S3 metadata `file-name` field.
+
+        See: https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-keys.html
+        """
+        name = unicodedata.normalize("NFKD", filename)
+        name = name.encode("ascii", "ignore").decode("ascii")
+        name = quote(name, safe="!-_.*'()")
+        return name

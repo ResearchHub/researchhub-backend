@@ -187,13 +187,12 @@ CORS_ORIGIN_WHITELIST = [
     "https://researchhub.com",
     "https://staging.researchhub.com",
     "https://www.staging.researchhub.com",
+    "https://experiment.staging.researchhub.com",
+    "https://www.experiment.staging.researchhub.com",
     "https://old.staging.researchhub.com",
     "https://www.old.staging.researchhub.com",
-    "https://v2.staging.researchhub.com",
-    "https://www.v2.staging.researchhub.com",
     "http://127.0.0.1:3000",
     "https://word.researchhub.com",
-    "https://web-v2-eight.vercel.app",
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
@@ -267,6 +266,7 @@ INSTALLED_APPS = [
     "oauth",
     "paper",
     "purchase",
+    "referral",
     "reputation",
     "researchhub",
     "researchhub_case",
@@ -601,7 +601,10 @@ EMAIL_WHITELIST = [
     for email in os.environ.get("EMAIL_WHITELIST", keys.EMAIL_WHITELIST).split(",")
 ]
 
-SIFT_MODERATION_WHITELIST = [35747, 34581, 36837, 35436, 14, 33287, 34416]
+SIFT_MODERATION_WHITELIST = [
+    user_id.strip()
+    for user_id in os.environ.get("SIFT_MODERATION_WHITELIST", "").split(",")
+]
 
 # Persona
 PERSONA_WEBHOOK_SECRET = os.environ.get(

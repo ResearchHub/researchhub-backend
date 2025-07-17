@@ -10,7 +10,7 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from discussion.reaction_models import Vote as GrmVote
+from discussion.models import Vote
 from feed.models import FeedEntry, FeedEntryLatest, FeedEntryPopular
 from hub.models import Hub
 from paper.models import Paper
@@ -431,32 +431,32 @@ class FeedViewSetTests(TestCase):
             unified_document=self.unified_document,
         )
 
-        GrmVote.objects.create(
+        Vote.objects.create(
             content_type=self.paper_content_type,
             object_id=self.paper.id,
             created_by=self.user,
-            vote_type=GrmVote.UPVOTE,
+            vote_type=Vote.UPVOTE,
         )
 
-        GrmVote.objects.create(
+        Vote.objects.create(
             content_type=ContentType.objects.get_for_model(ResearchhubPost),
             object_id=post.id,
             created_by=self.user,
-            vote_type=GrmVote.UPVOTE,
+            vote_type=Vote.UPVOTE,
         )
 
-        GrmVote.objects.create(
+        Vote.objects.create(
             content_type=ContentType.objects.get_for_model(RhCommentModel),
             object_id=comment.id,
             created_by=self.user,
-            vote_type=GrmVote.UPVOTE,
+            vote_type=Vote.UPVOTE,
         )
 
-        GrmVote.objects.create(
+        Vote.objects.create(
             content_type=ContentType.objects.get_for_model(ResearchhubPost),
             object_id=self.post.id,
             created_by=self.user,
-            vote_type=GrmVote.UPVOTE,
+            vote_type=Vote.UPVOTE,
         )
 
         feed_entries = FeedEntry.objects.all()
@@ -514,11 +514,11 @@ class FeedViewSetTests(TestCase):
         )
 
         # Create a vote for the post by the test user
-        post_vote = GrmVote.objects.create(
+        post_vote = Vote.objects.create(
             content_type=ContentType.objects.get_for_model(ResearchhubPost),
             object_id=post.id,
             created_by=test_user,
-            vote_type=GrmVote.UPVOTE,
+            vote_type=Vote.UPVOTE,
         )
 
         # First request - no cache
@@ -544,13 +544,13 @@ class FeedViewSetTests(TestCase):
 
         # Verify the vote data is correct
         user_vote = post_item["user_vote"]
-        self.assertEqual(user_vote["vote_type"], GrmVote.UPVOTE)
+        self.assertEqual(user_vote["vote_type"], Vote.UPVOTE)
 
         # Store what was cached (should be without votes)
         cached_data = mock_cache.set.call_args[0][1]
 
         # Update the vote to verify fresh votes are fetched
-        post_vote.vote_type = GrmVote.DOWNVOTE  # Change from upvote to downvote
+        post_vote.vote_type = Vote.DOWNVOTE  # Change from upvote to downvote
         post_vote.save()
 
         # Second request - use cached response
@@ -576,7 +576,7 @@ class FeedViewSetTests(TestCase):
 
         # Verify the vote data is updated (should be a downvote now)
         user_vote = post_item["user_vote"]
-        self.assertEqual(user_vote["vote_type"], GrmVote.DOWNVOTE)
+        self.assertEqual(user_vote["vote_type"], Vote.DOWNVOTE)
 
         # Verify cache was used but not updated
         self.assertTrue(mock_cache.get.called)

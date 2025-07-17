@@ -22,6 +22,7 @@ from utils.siftscience import decisions_api
 from utils.throttles import UserSustainedRateThrottle
 
 FOUNDATION_EMAIL = "main@researchhub.foundation"
+FOUNDATION_REVENUE_EMAIL = "revenue1@researchhub.foundation"
 
 
 class UserManager(UserManager):
@@ -52,6 +53,13 @@ class UserManager(UserManager):
 
     def get_community_account(self):
         user = User.objects.filter(email=FOUNDATION_EMAIL)
+        if user.exists():
+            return user.first()
+
+        return self._get_default_account()
+
+    def get_community_revenue_account(self):
+        user = User.objects.filter(email=FOUNDATION_REVENUE_EMAIL)
         if user.exists():
             return user.first()
 
@@ -169,12 +177,6 @@ class User(AbstractUser):
             source = "MANUAL_REVIEW" if is_manual else "AUTOMATED_RULE"
             decisions_api.apply_bad_user_decision(self, source)
 
-    def set_verified(self, is_verified=True):
-        self.is_verified = is_verified
-        self.author_profile.is_verified = is_verified
-        self.author_profile.save(update_fields=["is_verified"])
-        self.save(update_fields=["is_verified"])
-
     def get_balance_qs(self):
         user_balance = self.balances.all()
         if not user_balance:
@@ -190,9 +192,13 @@ class User(AbstractUser):
         )
         return balance
 
-    def get_balance(self, queryset=None):
+    def get_balance(self, queryset=None, include_locked=False):
         if queryset is None:
             queryset = self.get_balance_qs()
+
+        # By default, exclude locked funds unless explicitly requested
+        if not include_locked:
+            queryset = queryset.filter(is_locked=False)
 
         balance = queryset.aggregate(
             total_balance=Coalesce(
@@ -204,6 +210,22 @@ class User(AbstractUser):
         total_balance = balance.get("total_balance", 0) or 0
 
         return total_balance
+
+    def get_available_balance(self, queryset=None):
+        """Returns balance excluding locked amounts"""
+        if queryset is None:
+            queryset = self.get_balance_qs()
+
+        # Exclude locked balances from available balance
+        available_queryset = queryset.filter(is_locked=False)
+        return self.get_balance(queryset=available_queryset, include_locked=True)
+
+    def get_locked_balance(self, lock_type=None):
+        """Returns total locked balance amount, optionally filtered by lock_type"""
+        locked_queryset = self.get_balance_qs().filter(is_locked=True)
+        if lock_type:
+            locked_queryset = locked_queryset.filter(lock_type=lock_type)
+        return self.get_balance(queryset=locked_queryset, include_locked=True)
 
     def notify_inactivity(self, paper_count=0, comment_count=0):
         recipient = [self.email]
@@ -255,12 +277,12 @@ class User(AbstractUser):
 
     @property
     def upvote_count(self):
-        from discussion.reaction_models import Vote as GrmVote
+        from discussion.models import Vote
 
         upvote_count = (
             Distribution.objects.filter(
                 recipient=self,
-                proof_item_content_type=ContentType.objects.get_for_model(GrmVote),
+                proof_item_content_type=ContentType.objects.get_for_model(Vote),
                 reputation_amount=1,
             ).aggregate(count=Count("id"))["count"]
             or 0
@@ -281,6 +303,18 @@ class User(AbstractUser):
         )
 
         return amount_funded
+
+    @property
+    def is_verified_v2(self):
+        """
+        Check if the user account is verified via `UserVerification`.
+        Returns `False` if the user was not successfully verified or
+        if no verification record exists.
+        """
+        try:
+            return self.userverification.is_verified
+        except Exception:
+            return False
 
     @property
     def peer_review_count(self):

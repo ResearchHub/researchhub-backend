@@ -2,7 +2,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from discussion.reaction_models import Vote as GrmVote
+from discussion.models import Vote
 from paper.models import Paper
 from reputation.related_models.bounty import Bounty
 from reputation.related_models.contribution import Contribution
@@ -11,7 +11,7 @@ from researchhub_document.tasks import recalc_hot_score_task
 from utils import sentry
 
 
-@receiver(post_save, sender=GrmVote, dispatch_uid="recalc_hot_score_on_vote")
+@receiver(post_save, sender=Vote, dispatch_uid="recalc_hot_score_on_vote")
 def recalc_hot_score(instance, sender, **kwargs):
     try:
         recalc_hot_score_task.apply_async(
@@ -60,11 +60,11 @@ def sync_is_removed_from_paper(instance, **kwargs):
 
 @receiver(
     post_save,
-    sender=GrmVote,
+    sender=Vote,
     dispatch_uid="rh_unified_doc_sync_score_vote",
 )
 def rh_unified_doc_sync_score_on_related_docs(instance, sender, **kwargs):
-    if not isinstance(instance, (GrmVote)):
+    if not isinstance(instance, (Vote)):
         return
 
     unified_document = instance.unified_document

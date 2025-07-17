@@ -11,13 +11,12 @@ from django.http import QueryDict
 
 import utils.sentry as sentry
 from citation.constants import JOURNAL_ARTICLE
-from discussion.reaction_models import Flag as GrmFlag
-from discussion.reaction_models import Vote as GrmVote
-from discussion.reaction_serializers import (
-    DynamicVoteSerializer as DynamicGrmVoteSerializer,
+from discussion.models import Flag, Vote
+from discussion.serializers import (
+    DynamicFlagSerializer,
+    DynamicVoteSerializer,
+    GenericReactionSerializerMixin,
 )
-from discussion.reaction_serializers import GenericReactionSerializerMixin
-from discussion.serializers import DynamicFlagSerializer
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from paper.exceptions import PaperSerializerError
 from paper.lib import journal_hosts
@@ -69,7 +68,7 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
     first_preview = serializers.SerializerMethodField()
     hubs = serializers.SerializerMethodField()
     promoted = serializers.SerializerMethodField()
-    score = serializers.ReadOnlyField()  # GRM
+    score = serializers.ReadOnlyField()
     unified_document = serializers.SerializerMethodField()
     unified_document_id = serializers.SerializerMethodField()
     uploaded_by = UserSerializer(read_only=True)
@@ -201,7 +200,7 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
             try:
                 flag = paper.flags.get(created_by=user.id)
                 flag = DynamicFlagSerializer(flag).data
-            except GrmFlag.DoesNotExist:
+            except Flag.DoesNotExist:
                 pass
         return flag
 
@@ -211,8 +210,8 @@ class BasePaperSerializer(serializers.ModelSerializer, GenericReactionSerializer
         if user:
             try:
                 vote = paper.votes.get(created_by=user.id)
-                vote = DynamicGrmVoteSerializer(vote).data
-            except GrmVote.DoesNotExist:
+                vote = DynamicVoteSerializer(vote).data
+            except Vote.DoesNotExist:
                 pass
         return vote
 
@@ -372,7 +371,7 @@ class ContributionPaperSerializer(BasePaperSerializer):
 
 class PaperSerializer(BasePaperSerializer):
     authors = serializers.SerializerMethodField()
-    uploaded_date = serializers.ReadOnlyField()  # GRM
+    uploaded_date = serializers.ReadOnlyField()
 
     class Meta:
         exclude = ["references"]
@@ -453,11 +452,11 @@ class PaperSerializer(BasePaperSerializer):
                 unified_doc_id = paper.unified_document.id
                 paper_id = paper.id
                 # NOTE: calvinhlee - This is an antipattern. Look into changing
-                GrmVote.objects.create(
+                Vote.objects.create(
                     content_type=get_content_type_for_model(paper),
                     created_by=user,
                     object_id=paper.id,
-                    vote_type=GrmVote.UPVOTE,
+                    vote_type=Vote.UPVOTE,
                 )
 
                 # Now add m2m values properly
@@ -864,13 +863,13 @@ class DynamicPaperSerializer(
         if user:
             try:
                 vote = paper.votes.get(created_by=user.id)
-                vote = DynamicGrmVoteSerializer(
+                vote = DynamicVoteSerializer(
                     vote,
                     context=self.context,
                     **_context_fields,
                 ).data
 
-            except GrmVote.DoesNotExist:
+            except Vote.DoesNotExist:
                 pass
 
         return vote

@@ -6,11 +6,11 @@ from rest_framework.serializers import (
     SerializerMethodField,
 )
 
-from discussion.reaction_models import Vote
-from discussion.reaction_serializers import (
+from discussion.models import Vote
+from discussion.serializers import (
     DynamicVoteSerializer,  # Import is needed for discussion serializer imports
 )
-from discussion.reaction_serializers import GenericReactionSerializerMixin
+from discussion.serializers import GenericReactionSerializerMixin
 from hub.serializers import DynamicHubSerializer, SimpleHubSerializer
 from purchase.models import Purchase
 from researchhub.serializers import DynamicModelFieldSerializer
@@ -42,7 +42,6 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
             "doi",
             "editor_type",
             "full_markdown",
-            "has_accepted_answer",
             "hubs",
             "id",
             "image",
@@ -91,7 +90,6 @@ class ResearchhubPostSerializer(ModelSerializer, GenericReactionSerializerMixin)
     authors = SerializerMethodField()
     created_by = SerializerMethodField(method_name="get_created_by")
     full_markdown = SerializerMethodField(method_name="get_full_markdown")
-    has_accepted_answer = ReadOnlyField()  # @property
     hubs = SerializerMethodField(method_name="get_hubs")
     image = CharField(write_only=True, required=False, allow_null=True)
     image_url = SerializerMethodField()
@@ -223,7 +221,6 @@ class DynamicPostSerializer(DynamicModelFieldSerializer):
     created_by = SerializerMethodField()
     discussions = SerializerMethodField()
     discussion_aggregates = SerializerMethodField()
-    has_accepted_answer = ReadOnlyField()  # @property
     hubs = SerializerMethodField()
     note = SerializerMethodField()
     purchases = SerializerMethodField()

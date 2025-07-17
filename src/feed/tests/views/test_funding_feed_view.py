@@ -11,7 +11,7 @@ from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.test import APIClient, APIRequestFactory
 
-from discussion.reaction_models import Vote as GrmVote
+from discussion.models import Vote
 from hub.models import Hub
 from purchase.related_models.constants.currency import USD
 from purchase.related_models.constants.rsc_exchange_currency import MORALIS
@@ -204,11 +204,11 @@ class FundingFeedViewSetTests(TestCase):
         """Test that user votes and metrics are added to response data"""
         # Create a vote for the post
         post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
-        vote = GrmVote.objects.create(
+        vote = Vote.objects.create(
             created_by=self.user,
             object_id=self.post.id,
             content_type=post_content_type,
-            vote_type=GrmVote.UPVOTE,
+            vote_type=Vote.UPVOTE,
         )
 
         url = reverse("funding_feed-list")
@@ -239,11 +239,11 @@ class FundingFeedViewSetTests(TestCase):
         """Test that user votes are added even with cached response"""
         # Create a vote for the post
         post_content_type = ContentType.objects.get_for_model(ResearchhubPost)
-        vote = GrmVote.objects.create(
+        vote = Vote.objects.create(
             created_by=self.user,
             object_id=self.post.id,
             content_type=post_content_type,
-            vote_type=GrmVote.UPVOTE,
+            vote_type=Vote.UPVOTE,
         )
 
         # Create a mock cached response without votes
@@ -1058,3 +1058,181 @@ class FundingFeedViewSetTests(TestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 0)
+
+    def test_created_by_filter(self):
+        """Test filtering funding feed by created_by parameter"""
+        # Create a third user and their preregistration post
+        third_user = User.objects.create_user(
+            username="thirduser", password=uuid.uuid4().hex
+        )
+        third_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        third_post = ResearchhubPost.objects.create(
+            title="Third User Preregistration",
+            created_by=third_user,
+            document_type=PREREGISTRATION,
+            renderable_text="Post by third user",
+            slug="third-user-preregistration",
+            unified_document=third_doc,
+            created_date=timezone.now(),
+        )
+
+        # Test filtering by first user's ID
+        url = reverse("funding_feed-list") + f"?created_by={self.user.id}"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should only return posts created by self.user
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(
+            response.data["results"][0]["content_object"]["id"], self.post.id
+        )
+
+        # Test filtering by other_user's ID
+        url = reverse("funding_feed-list") + f"?created_by={self.other_user.id}"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should only return posts created by other_user
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(
+            response.data["results"][0]["content_object"]["id"], self.other_post.id
+        )
+
+        # Test filtering by third_user's ID
+        url = reverse("funding_feed-list") + f"?created_by={third_user.id}"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should only return posts created by third_user
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(
+            response.data["results"][0]["content_object"]["id"], third_post.id
+        )
+
+    def test_created_by_filter_disables_caching(self):
+        """Test that created_by filter disables caching"""
+        # Clear cache before test
+        cache.clear()
+
+        # Make request with created_by filter
+        url = reverse("funding_feed-list") + f"?created_by={self.user.id}&page=1"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify that cache was not used for this request
+        # The view should not cache responses when created_by is provided
+        cache_key = "funding_feed:latest:all:all:none:1-20"
+        cached_response = cache.get(cache_key)
+
+        # Cache should be None since created_by disables caching
+        self.assertIsNone(cached_response)
+
+    def test_created_by_filter_with_fundraise_status(self):
+        """Test created_by filter combined with fundraise_status filter"""
+        # Create another user with posts and fundraises
+        fourth_user = User.objects.create_user(
+            username="fourthuser", password=uuid.uuid4().hex
+        )
+
+        # Create an open fundraise post for fourth_user
+        fourth_doc_open = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        fourth_post_open = ResearchhubPost.objects.create(
+            title="Fourth User Open Fundraise",
+            created_by=fourth_user,
+            document_type=PREREGISTRATION,
+            renderable_text="Open fundraise by fourth user",
+            slug="fourth-user-open-fundraise",
+            unified_document=fourth_doc_open,
+            created_date=timezone.now(),
+        )
+
+        escrow_fourth_open = Escrow.objects.create(
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=fourth_user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=fourth_doc_open.id,
+        )
+        Fundraise.objects.create(
+            created_by=fourth_user,
+            unified_document=fourth_doc_open,
+            escrow=escrow_fourth_open,
+            status=Fundraise.OPEN,
+            goal_amount=100,
+        )
+
+        # Create a closed fundraise post for fourth_user
+        fourth_doc_closed = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        fourth_post_closed = ResearchhubPost.objects.create(
+            title="Fourth User Closed Fundraise",
+            created_by=fourth_user,
+            document_type=PREREGISTRATION,
+            renderable_text="Closed fundraise by fourth user",
+            slug="fourth-user-closed-fundraise",
+            unified_document=fourth_doc_closed,
+            created_date=timezone.now(),
+        )
+
+        escrow_fourth_closed = Escrow.objects.create(
+            amount_holding=0,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=fourth_user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=fourth_doc_closed.id,
+        )
+        Fundraise.objects.create(
+            created_by=fourth_user,
+            unified_document=fourth_doc_closed,
+            escrow=escrow_fourth_closed,
+            status=Fundraise.COMPLETED,
+            goal_amount=100,
+        )
+
+        # Test created_by + OPEN fundraise_status
+        url = (
+            reverse("funding_feed-list")
+            + f"?created_by={fourth_user.id}&fundraise_status=OPEN"
+        )
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should only return OPEN fundraises created by fourth_user
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(
+            response.data["results"][0]["content_object"]["id"], fourth_post_open.id
+        )
+
+        # Test created_by + CLOSED fundraise_status
+        url = (
+            reverse("funding_feed-list")
+            + f"?created_by={fourth_user.id}&fundraise_status=CLOSED"
+        )
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should only return CLOSED fundraises created by fourth_user
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(
+            response.data["results"][0]["content_object"]["id"], fourth_post_closed.id
+        )
+
+        # Test created_by filter for different user
+        url = (
+            reverse("funding_feed-list")
+            + f"?created_by={self.user.id}&fundraise_status=OPEN"
+        )
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should only return OPEN fundraises created by self.user
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(
+            response.data["results"][0]["content_object"]["id"], self.post.id
+        )

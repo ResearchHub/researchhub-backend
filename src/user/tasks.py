@@ -2,7 +2,7 @@ from django.apps import apps
 from django.core.cache import cache
 from django_elasticsearch_dsl.registries import registry
 
-from discussion.reaction_models import Vote as GrmVote
+from discussion.models import Vote
 from paper.models import Paper
 from researchhub.celery import QUEUE_ELASTIC_SEARCH, app
 from researchhub.settings import APP_ENV
@@ -36,7 +36,7 @@ def handle_spam_user_task(user_id, requestor=None):
         for comment in comments.iterator():
             remove_bounties(comment)
             if requestor:
-                from discussion.reaction_views import censor
+                from discussion.views import censor
 
                 censor(requestor, comment)
                 comment.refresh_related_discussion_count()
@@ -78,7 +78,7 @@ def get_authored_paper_updates(author, latest_actions):
     for action in latest_actions:
         item = action.item
 
-        if isinstance(item, GrmVote):
+        if isinstance(item, Vote):
             if item.item.paper in papers:
                 updates.append(action)
         else:

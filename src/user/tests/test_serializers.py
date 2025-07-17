@@ -4,7 +4,7 @@ import time
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-from discussion.reaction_models import Vote as GrmVote
+from discussion.models import Vote
 from hub.models import Hub
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_model import Paper
@@ -49,7 +49,7 @@ class UserSerializersTests(TestCase):
         for i in range(50):
             Distribution.objects.create(
                 recipient=self.user,
-                proof_item_content_type=ContentType.objects.get_for_model(GrmVote),
+                proof_item_content_type=ContentType.objects.get_for_model(Vote),
                 reputation_amount=1,
             )
             thread = RhCommentThreadModel.objects.create(

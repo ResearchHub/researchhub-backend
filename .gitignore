@@ -47,3 +47,6 @@ coverage.xml
 
 # Uploads from some paper tests
 uploads/
+
+# Claude Code instructions
+CLAUDE.md

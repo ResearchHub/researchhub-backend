@@ -1,17 +1,15 @@
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
-from django.db.models import Q
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.pagination import CursorPagination
 from rest_framework.response import Response
 
 from discussion.constants.flag_reasons import FLAG_REASON_CHOICES, NOT_SPECIFIED
-from discussion.reaction_models import Flag
-from discussion.reaction_serializers import FlagSerializer
-from discussion.reaction_views import censor
-from discussion.serializers import DynamicFlagSerializer
+from discussion.models import Flag
+from discussion.serializers import DynamicFlagSerializer, FlagSerializer
+from discussion.views import censor
 from mailing_list.lib import base_email_context
 from notification.models import Notification
 from researchhub.settings import EMAIL_DOMAIN
@@ -47,14 +45,8 @@ class AuditViewSet(viewsets.GenericViewSet):
 
     def get_queryset(self):
         if self.action == "flagged":
-            return (
-                Flag.objects.exclude(
-                    Q(content_type__model="thread")
-                    | Q(content_type__model="comment")
-                    | Q(content_type__model="reply")
-                )
-                .select_related("content_type")
-                .prefetch_related("verdict__created_by")
+            return Flag.objects.select_related("content_type").prefetch_related(
+                "verdict__created_by"
             )
         return super().get_queryset()
 

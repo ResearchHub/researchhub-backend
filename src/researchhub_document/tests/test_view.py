@@ -1,6 +1,7 @@
 import time
 from datetime import datetime, timedelta
 from decimal import Decimal
+from unittest.mock import patch
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
@@ -432,7 +433,15 @@ class ViewTests(APITestCase):
 
         self.assertEqual(updated_response.status_code, 403)
 
-    def test_hub_editors_can_censor_papers(self):
+    @patch("utils.siftscience.decisions_api.apply_bad_user_decision")
+    @patch("utils.siftscience.decisions_api.apply_bad_content_decision")
+    @patch("utils.siftscience.events_api.track_flag_content")
+    def test_hub_editors_can_censor_papers(
+        self,
+        track_flag_content_mock,
+        apply_bad_content_decision_mock,
+        apply_bad_user_decision_mock,
+    ):
         hub = create_hub()
         user_editor = create_random_default_user("user_editor")
         Permission.objects.create(
@@ -454,6 +463,29 @@ class ViewTests(APITestCase):
         test_paper.refresh_from_db()
         self.assertEqual(response.status_code, 200)
         self.assertEqual(test_paper.is_removed, True)
+
+    def test_hub_editors_can_restore_papers(self):
+        hub = create_hub()
+        user_editor = create_random_default_user("user_editor")
+        Permission.objects.create(
+            access_type=SENIOR_EDITOR,
+            content_type=ContentType.objects.get_for_model(Hub),
+            object_id=hub.id,
+            user=user_editor,
+        )
+        user_uploader = create_random_default_user("user_uploader")
+        test_paper = create_paper(uploaded_by=user_uploader)
+        test_paper.unified_document.hubs.add(hub)
+        test_paper.is_removed = True
+        test_paper.save()
+
+        self.client.force_authenticate(user_editor)
+        response = self.client.put(
+            f"/api/paper/{test_paper.id}/restore_paper/", {"id": test_paper.id}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["is_removed"], False)
 
     def test_register_doi_no_charge(self):
         author = create_random_default_user("author")

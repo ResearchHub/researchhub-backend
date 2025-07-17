@@ -8,7 +8,7 @@ from django.utils.crypto import get_random_string
 from django.utils.text import slugify
 
 from citation.models import CitationProject
-from discussion.reaction_models import Vote as GrmVote
+from discussion.models import Vote
 from mailing_list.tasks import build_notification_context
 from paper.models import Paper, PaperSubmission
 from purchase.models import Wallet
@@ -44,7 +44,7 @@ def doi_updated(update_fields):
 
 @receiver(post_save, sender=RhCommentModel, dispatch_uid="creation_rh_comment")
 @receiver(post_save, sender=Paper, dispatch_uid="paper_upload_action")
-@receiver(post_save, sender=GrmVote, dispatch_uid="discussion_vote_action")
+@receiver(post_save, sender=Vote, dispatch_uid="discussion_vote_action")
 @receiver(post_save, sender=ResearchhubPost, dispatch_uid="researchhubpost_action")
 @receiver(post_save, sender=PaperSubmission, dispatch_uid="create_submission_action")
 @receiver(post_save, sender=Bounty, dispatch_uid="create_bounty_action")
@@ -67,14 +67,14 @@ def create_action(sender, instance, created, **kwargs):
                     )
             user = instance.created_by
 
-        vote_types = [GrmVote]
+        vote_types = [Vote]
         display = (
             False
             if (
                 sender in vote_types
                 or sender == PaperSubmission
                 or (
-                    sender != GrmVote
+                    sender != Vote
                     and (hasattr(instance, "is_removed") and instance.is_removed)
                 )
                 or (sender == RhCommentModel and not instance.is_public)

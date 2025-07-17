@@ -1,6 +1,5 @@
 {
 	"recommendations": [
-		"eamodio.gitlens",
         "github.vscode-github-actions"
 	]
 }

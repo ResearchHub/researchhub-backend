@@ -7,6 +7,7 @@ from django.dispatch import receiver
 from notification.models import Notification
 from researchhub_comment.constants.rh_comment_thread_types import AUTHOR_UPDATE
 from researchhub_comment.models import RhCommentModel
+from researchhub_comment.tasks import send_author_update_email_notifications
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from user.related_models.follow_model import Follow
@@ -41,6 +42,10 @@ def create_thread_notification(sender, instance, created, **kwargs):
     post_save, sender=RhCommentModel, dispatch_uid="create_author_update_notification"
 )
 def create_author_update_notification(sender, instance, created, **kwargs):
+    """
+    Signal handler for creating author update notifications when update comments
+    are created on preregistrations.
+    """
     if not created:
         logger.debug("Not a new comment")
         return
@@ -49,7 +54,14 @@ def create_author_update_notification(sender, instance, created, **kwargs):
         logger.debug("Not an author update thread")
         return
 
-    document = instance.unified_document.get_document()
+    try:
+        _create_author_update_notification(instance)
+    except Exception as e:
+        logger.error(f"Failed to create author update notification: {e}")
+
+
+def _create_author_update_notification(comment: RhCommentModel):
+    document = comment.unified_document.get_document()
 
     if not (
         isinstance(document, ResearchhubPost)
@@ -58,16 +70,21 @@ def create_author_update_notification(sender, instance, created, **kwargs):
         logger.debug("Not a preregistration")
         return
 
+    follower_user_ids = []
     follows = Follow.objects.filter(
         content_type=ContentType.objects.get_for_model(document),
         object_id=document.id,
     )
     for follow in follows:
         notification = Notification.objects.create(
-            item=instance,
-            unified_document=instance.unified_document,
+            item=comment,
+            unified_document=comment.unified_document,
             notification_type=Notification.PREREGISTRATION_UPDATE,
             recipient=follow.user,
-            action_user=instance.created_by,
+            action_user=comment.created_by,
         )
         notification.send_notification()
+        follower_user_ids.append(follow.user.id)
+
+    if follower_user_ids:
+        send_author_update_email_notifications.delay(comment.id, follower_user_ids)

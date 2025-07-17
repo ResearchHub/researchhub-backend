@@ -12,7 +12,7 @@ from django.test import Client
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient, APITestCase, ForceAuthClientHandler
 
-from discussion.reaction_models import Vote as GrmVote
+from discussion.models import Vote
 from hub.models import Hub
 from paper.models import Paper
 from user.models import Author, University, User
@@ -152,19 +152,19 @@ class TestHelper:
         return Hub.objects.create(name=name)
 
     def create_upvote(self, user, paper):
-        return GrmVote.objects.create(
+        return Vote.objects.create(
             content_type=get_content_type_for_model(paper),
             created_by=user,
             object_id=paper.id,
-            vote_type=GrmVote.UPVOTE,
+            vote_type=Vote.UPVOTE,
         )
 
     def create_downvote(self, user, paper):
-        return GrmVote.objects.create(
+        return Vote.objects.create(
             content_type=get_content_type_for_model(paper),
             created_by=user,
             object_id=paper.id,
-            vote_type=GrmVote.DOWNVOTE,
+            vote_type=Vote.DOWNVOTE,
         )
 
 

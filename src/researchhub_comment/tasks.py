@@ -1,4 +1,5 @@
 import json
+import logging
 
 from django.apps import apps
 from django.contrib.contenttypes.models import ContentType
@@ -7,6 +8,8 @@ from django.core.files.base import ContentFile
 from mailing_list.lib import base_email_context
 from researchhub.celery import QUEUE_NOTIFICATION, app
 from utils.message import send_email_message
+
+logger = logging.getLogger(__name__)
 
 
 @app.task()
@@ -71,3 +74,52 @@ def celery_create_mention_notification(comment_id, recipients):
                 context,
                 html_template="general_email_message.html",
             )
+
+
+@app.task(queue=QUEUE_NOTIFICATION)
+def send_author_update_email_notifications(comment_id, follower_user_ids):
+    """
+    Send email notifications to followers about preregistration author updates.
+    This runs asynchronously to avoid blocking the main transaction.
+    """
+    RhCommentModel = apps.get_model("researchhub_comment.RhCommentModel")
+    User = apps.get_model("user.User")
+
+    try:
+        comment = RhCommentModel.objects.get(id=comment_id)
+        document = comment.unified_document.get_document()
+        author = comment.created_by
+
+        context = {**base_email_context}
+        context["action"] = {
+            "message": f"{author.first_name} {author.last_name} posted an update to a preregistration you're following",
+            "frontend_view_link": comment.unified_document.frontend_view_link(),
+        }
+        context["document_title"] = document.title
+        context["author_name"] = author.full_name()
+
+        subject = "Update on Preregistration You're Following"
+
+        for user_id in follower_user_ids:
+            try:
+                user = User.objects.get(id=user_id)
+                # Check if user wants to receive emails (following existing patterns)
+                email_recipient = getattr(user, "emailrecipient", None)
+                if email_recipient and email_recipient.receives_notifications:
+                    send_email_message(
+                        [user.email],
+                        "general_email_message.txt",
+                        subject,
+                        context,
+                        html_template="general_email_message.html",
+                    )
+            except Exception as e:
+                # Log individual user failures but continue with others
+                logger.error(
+                    f"Failed to send author update email to user {user_id}: {e}"
+                )
+
+    except Exception as e:
+        logger.error(
+            f"Failed to send author update emails for comment {comment_id}: {e}"
+        )

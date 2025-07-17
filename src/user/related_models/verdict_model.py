@@ -1,7 +1,7 @@
 from django.db import models
 
 from discussion.constants.flag_reasons import VERDICT_REASON_CHOICES
-from discussion.reaction_models import Flag
+from discussion.models import Flag
 from utils.models import DefaultModel
 
 

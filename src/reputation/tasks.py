@@ -138,24 +138,73 @@ def get_contract(w3, token_address):
 
 
 def evaluate_transaction(transaction_hash, w3, token_address):
-    """Evaluate transaction details using provided Web3 instance."""
+    """
+    Evaluate transaction details using provided Web3 instance.
+
+    This function analyzes ERC20 token transactions by examining the transaction logs
+    rather than the transaction input. This approach supports both:
+    1. Direct calls to ERC20 contracts (traditional wallets)
+    2. Smart wallet transactions where the ERC20 transfer happens through
+       internal transactions logged as events
+
+    Smart wallets (like Coinbase Smart Wallet, Safe, etc.) execute transactions
+    through their own contract logic, so the actual ERC20 transfer appears in the
+    transaction logs as Transfer events, not in the main transaction input.
+
+    Args:
+        transaction_hash: The hash of the transaction to evaluate
+        w3: Web3 instance connected to the blockchain
+        token_address: Address of the ERC20 token contract
+
+    Returns:
+        tuple: (is_valid_and_recent, deposit_amount)
+            - is_valid_and_recent: Boolean indicating if transaction is valid and recent
+            - deposit_amount: Amount transferred in human-readable format (not wei)
+    """
     tx = get_transaction(transaction_hash, w3)
     block = get_block(tx["blockNumber"], w3)
+    receipt = get_transaction_receipt(transaction_hash, w3)
 
     contract = get_contract(w3, token_address)
 
-    func_name, func_params = contract.decode_function_input(tx["input"])
-    is_transfer = func_name.fn_name == "transfer"
-    is_correct_to_address = func_params["_to"] == settings.WEB3_WALLET_ADDRESS
     block_timestamp = datetime.fromtimestamp(block["timestamp"])
     is_recent_transaction = block_timestamp > datetime.now() - timedelta(
         seconds=PENDING_TRANSACTION_TTL
     )
 
-    return (
-        is_transfer and is_correct_to_address and is_recent_transaction,
-        func_params["_amount"] / (10**18),  # Convert from smallest denomination
-    )
+    # Look for Transfer events in the transaction logs
+    # This approach supports both direct calls and smart wallet transactions
+    transfer_events = []
+    for log_entry in receipt["logs"]:
+        try:
+            # Check if this log is from our token contract
+            if (
+                log_entry.address.lower()
+                == Web3.to_checksum_address(token_address).lower()
+            ):
+                # Try to decode the log as a Transfer event
+                decoded_log = contract.events.Transfer().process_log(log_entry)
+                transfer_events.append(decoded_log)
+        except Exception:
+            # Skip logs that can't be decoded as Transfer events
+            continue
+
+    # Find transfers to our wallet address
+    valid_transfers = []
+    for event in transfer_events:
+        if event.args.get("_to", "").lower() == settings.WEB3_WALLET_ADDRESS.lower():
+            valid_transfers.append(event)
+
+    if not valid_transfers:
+        return False, 0
+
+    # Sum up all valid transfers (in case there are multiple in one transaction)
+    total_amount = sum(event.args.get("_amount", 0) for event in valid_transfers)
+
+    # Convert from smallest denomination (wei equivalent)
+    deposit_amount = total_amount / (10**18)
+
+    return is_recent_transaction and len(valid_transfers) > 0, deposit_amount
 
 
 @app.task
@@ -174,9 +223,9 @@ def check_deposits():
 
 def _check_deposits():
     logger.info("Starting check deposits task")
-    # Sort by created date to ensure a malicious user doesn't attempt to take credit for
-    # a deposit made by another user. This is a temporary solution until we add signed messages
-    # to validate users own wallets.
+    # Sort by created date to ensure a malicious user doesn't attempt to take
+    # credit for a deposit made by another user. This is a temporary solution
+    # until we add signed messages to validate users own wallets.
     deposits = Deposit.objects.filter(
         Q(paid_status=None) | Q(paid_status="PENDING")
     ).order_by("created_date")
@@ -350,7 +399,8 @@ def find_qualified_users_and_notify(
     # Combine bounty_hub_ids with explicitly specified target_hubs
     combined_hub_ids = bounty_hub_ids + target_hubs
 
-    # Subquery to get the highest score and corresponding hub_id for each author in the bounty's hubs
+    # Subquery to get the highest score and corresponding hub_id for each
+    # author in the bounty's hubs
     max_score_subquery = (
         Score.objects.filter(author_id=OuterRef("id"), hub_id__in=combined_hub_ids)
         .order_by("-score")
@@ -358,7 +408,8 @@ def find_qualified_users_and_notify(
     )
 
     # Get qualified authors and annotate with hub and max score id.
-    # For example, if users have multiple matching hubs and score, we annotate with the highest score and hub_id
+    # For example, if users have multiple matching hubs and score, we annotate
+    # with the highest score and hub_id
     qualified_authors = (
         Author.objects.filter(score__hub_id__in=combined_hub_ids)
         .exclude(user_id__isnull=True)  # Exclude authors without a user_id

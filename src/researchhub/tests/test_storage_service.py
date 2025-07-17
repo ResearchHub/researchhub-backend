@@ -69,3 +69,12 @@ class StorageServiceTest(TestCase):
             S3StorageService().create_presigned_url(
                 "paper", "file1.pdf", "userId1", "UNSUPPORTED", valid_for_min=3
             )
+
+    def test_sanitize_filename(self):
+        # Arrange
+        s = S3StorageService()
+
+        # Act & Assert
+        self.assertEqual(s._sanitize_filename("file1.pdf"), "file1.pdf")
+        self.assertEqual(s._sanitize_filename("f(|@äöü).pdf"), "f(%7C%40aou).pdf")
+        self.assertEqual(s._sanitize_filename("Żurowski.pdf"), "Zurowski.pdf")

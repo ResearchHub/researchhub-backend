@@ -48,10 +48,15 @@ from researchhub.views import asset_upload_view
 from researchhub_comment.views.rh_comment_view import RhCommentViewSet
 from review.views.peer_review_view import PeerReviewViewSet
 from review.views.review_view import ReviewViewSet
-from user.views import author_views, editor_views, moderator_view, persona_webhook_view
-from user_saved.views import UserSavedView
+from user.views import (
+    author_views,
+    editor_views,
+    moderator_view,
+    persona_webhook_view,
+    sift_webhook_view,
+)
 from user.views.custom_verify_email_view import CustomVerifyEmailView
-
+from user_saved.views import UserSavedView
 
 router = routers.DefaultRouter()
 
@@ -200,13 +205,16 @@ router.register(r"grant", purchase.views.GrantViewSet, basename="grant")
 
 router.register(r"feed", FeedViewSet, basename="feed")
 
-router.register(r"feed_v2", FeedV2ViewSet, basename="feed_v2")
-
 router.register(r"funding_feed", FundingFeedViewSet, basename="funding_feed")
 
 router.register(r"grant_feed", GrantFeedViewSet, basename="grant_feed")
 
 router.register(r"journal_feed", JournalFeedViewSet, basename="journal_feed")
+
+# V2 API
+router_v2 = routers.DefaultRouter()
+
+router_v2.register(r"feed", FeedV2ViewSet, basename="feed_v2")
 
 urlpatterns = [
     # Health check
@@ -216,6 +224,8 @@ urlpatterns = [
         include("health_check.urls"),
     ),
     re_path(r"^api/", include(router.urls)),
+    # v2 endpoints
+    re_path(r"^api/v2/", include(router_v2.urls)),
     # TODO: calvinhlee - consolidate all mod views into 1 set
     path("api/get_hub_active_contributors/", editor_views.get_hub_active_contributors),
     path(
@@ -228,6 +238,8 @@ urlpatterns = [
     ),
     path("api/permissions/", researchhub.views.permissions, name="permissions"),
     path("api/search/", include(search.urls)),
+    # Referral endpoints
+    path("api/referral/", include("referral.urls")),
     # Organization endpoints
     path(
         "api/organizations/non-profit/search/",
@@ -325,6 +337,11 @@ urlpatterns = [
         "webhooks/persona/",
         persona_webhook_view.PersonaWebhookView.as_view(),
         name="persona_webhook",
+    ),
+    path(
+        "webhooks/sift/",
+        sift_webhook_view.SiftWebhookView.as_view(),
+        name="sift_webhook",
     ),
     path(
         "webhooks/stripe/",

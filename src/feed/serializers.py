@@ -23,9 +23,7 @@ from .models import FeedEntry
 class SimpleUserSerializer(serializers.ModelSerializer):
     """Minimal user serializer with just essential fields"""
 
-    is_verified = serializers.BooleanField(
-        source="userverification.is_verified", default=False
-    )
+    is_verified = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -36,6 +34,9 @@ class SimpleUserSerializer(serializers.ModelSerializer):
             "email",
             "is_verified",
         ]
+
+    def get_is_verified(self, obj):
+        return obj.is_verified_v2
 
 
 class SimpleAuthorSerializer(serializers.ModelSerializer):
@@ -267,6 +268,25 @@ class PostSerializer(ContentObjectSerializer):
         ):
             fundraise = obj.unified_document.fundraises.first()
             context = getattr(self, "context", {})
+            # Prevent circular reference by limiting user serializer fields
+            context["pch_dfs_get_created_by"] = {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "profile_image",
+                    "author_profile",
+                ]
+            }
+            context["pch_dfs_get_contributors"] = {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "profile_image",
+                    "author_profile",
+                ]
+            }
             serializer = DynamicFundraiseSerializer(
                 fundraise,
                 context=context,
@@ -297,6 +317,25 @@ class PostSerializer(ContentObjectSerializer):
         ):
             grant = obj.unified_document.grants.first()
             context = getattr(self, "context", {})
+            # Prevent circular reference by limiting user serializer fields
+            context["pch_dgs_get_created_by"] = {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "profile_image",
+                    "author_profile",
+                ]
+            }
+            context["pch_dgs_get_contacts"] = {
+                "_include_fields": [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "profile_image",
+                    "author_profile",
+                ]
+            }
             serializer = DynamicGrantSerializer(
                 grant,
                 context=context,

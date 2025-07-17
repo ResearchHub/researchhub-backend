@@ -1,10 +1,8 @@
 import random
-from unittest import skip
 
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase, tag
+from django.test import TestCase
 
-from user.models import Author
 from utils.test_helpers import (
     IntegrationTestHelper,
     TestHelper,
@@ -40,12 +38,6 @@ class PaperPermissionsIntegrationTests(TestCase, BaseIntegrationMixin):
         self.paper = create_paper()
         self.flag_reason = "Inappropriate"
 
-    @tag("aws")
-    @skip
-    def test_can_post_paper_with_minimum_reputation(self):
-        reputation = 1
-        self.assertPostWithReputationResponds(reputation, 201)
-
     def test_can_NOT_post_paper_below_minimum_reputation(self):
         reputation = -1
         self.assertPostWithReputationResponds(reputation, 403)
@@ -54,36 +46,6 @@ class PaperPermissionsIntegrationTests(TestCase, BaseIntegrationMixin):
         user = self.create_user_with_reputation(50)
         response = self.get_flag_response(user)
         self.assertContains(response, self.flag_reason, status_code=201)
-
-    # def test_can_NOT_flag_paper_below_minimum_reputation(self):
-    #     user = self.create_user_with_reputation(49)
-    #     response = self.get_flag_response(user)
-    #     self.assertEqual(response.status_code, 403)
-
-    @tag("aws")
-    @skip
-    def test_author_can_update_paper(self):
-        user = self.create_random_authenticated_user("author")
-        author = Author.objects.get(user=user)
-        paper = self.create_paper_with_authors([author.id])
-
-        response = self.get_patch_response(user, paper)
-        self.assertEqual(response.status_code, 200)
-
-        response = self.get_put_response(user, paper)
-        self.assertEqual(response.status_code, 200)
-
-    @tag("aws")
-    @skip
-    def test_moderator_can_update_paper(self):
-        moderator = self.create_random_authenticated_user("moderator")
-        paper = self.create_paper_with_moderators([moderator.id])
-
-        response = self.get_patch_response(moderator, paper)
-        self.assertEqual(response.status_code, 200)
-
-        response = self.get_put_response(moderator, paper)
-        self.assertEqual(response.status_code, 200)
 
     def test_can_update_paper_with_minimum_reputation(self):
         user = self.create_user_with_reputation(1)
@@ -100,29 +62,10 @@ class PaperPermissionsIntegrationTests(TestCase, BaseIntegrationMixin):
         response = self.get_upvote_response(user)
         self.assertEqual(response.status_code, 201)
 
-    # TODO - calvinhlee handle this at the GRMVoteView
-    # def test_can_NOT_upvote_paper_below_minimum_reputation(self):
-    #     user = self.create_user_with_reputation(0)
-    #     response = self.get_upvote_response(user)
-    #     self.assertEqual(response.status_code, 403)
-
     def test_can_downvote_paper_with_minimum_reputation(self):
         user = self.create_user_with_reputation(25)
         response = self.get_downvote_response(user)
         self.assertEqual(response.status_code, 201)
-
-    # TODO - calvinhlee handle this at the GRMVoteView
-    # def test_can_NOT_downvote_paper_below_minimum_reputation(self):
-    #     user = self.create_user_with_reputation(24)
-    #     response = self.get_downvote_response(user)
-    #     self.assertEqual(response.status_code, 403)
-
-    @skip
-    def test_author_can_assign_moderator(self):
-        author = self.create_random_authenticated_user("author1")
-        paper = self.create_paper_with_authors([author.id])
-        response = self.get_assign_moderator_response(author, paper)
-        self.assertEqual(response.status_code, 200)
 
     def test_moderator_can_NOT_assign_moderator(self):
         moderator = self.create_random_authenticated_user("moderator1")

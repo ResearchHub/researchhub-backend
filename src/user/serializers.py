@@ -12,12 +12,13 @@ from rest_framework.serializers import (
     SerializerMethodField,
 )
 
-from discussion.reaction_models import Vote as GrmVote
+from discussion.models import Vote
 from hub.models import Hub
 from hub.serializers import DynamicHubSerializer, HubSerializer, SimpleHubSerializer
 from institution.serializers import DynamicInstitutionSerializer
 from paper.models import Paper, PaperSubmission
 from purchase.models import Purchase
+from referral.models import ReferralSignup
 from reputation.models import Bounty, Contribution, Score, Withdrawal
 from researchhub.serializers import DynamicModelFieldSerializer
 from researchhub_access_group.constants import (
@@ -66,10 +67,9 @@ class ModeratorUserSerializer(ModelSerializer):
         ]
 
     def get_verification(self, user):
-
-        user_verification = UserVerification.objects.filter(user=user).last()
-
-        if user_verification is None:
+        try:
+            user_verification = user.userverification
+        except UserVerification.DoesNotExist:
             return None
 
         return {
@@ -142,11 +142,7 @@ class AuthorSerializer(ModelSerializer):
         return obj.user.reputation
 
     def get_is_verified_v2(self, obj):
-        if obj.user is None:
-            return False
-
-        user_verification = UserVerification.objects.filter(user=obj.user).last()
-        return user_verification.is_verified if user_verification else False
+        return obj.is_verified_v2
 
     def get_reputation_v2(self, author):
         score = Score.objects.filter(author=author).order_by("-score").first()
@@ -519,6 +515,7 @@ class MinimalUserSerializer(ModelSerializer):
 class UserEditableSerializer(ModelSerializer):
     author_profile = AuthorSerializer()
     balance = SerializerMethodField()
+    locked_balance = SerializerMethodField()
     balance_history = SerializerMethodField()
     email = SerializerMethodField()
     organization_slug = SerializerMethodField()
@@ -565,6 +562,13 @@ class UserEditableSerializer(ModelSerializer):
             return user.get_balance()
         return None
 
+    def get_locked_balance(self, user):
+        context = self.context
+        request_user = context.get("user", None)
+        if request_user and request_user == user:
+            return user.get_locked_balance()
+        return None
+
     def get_balance_history(self, user):
         context = self.context
         request_user = context.get("user", None)
@@ -579,8 +583,7 @@ class UserEditableSerializer(ModelSerializer):
 
     # FIXME: is_verified_v2 should be available on user model and not on author. This is a shim for legacy reasons.
     def get_is_verified_v2(self, user):
-        user_verification = UserVerification.objects.filter(user=user).first()
-        return user_verification.is_verified if user_verification else False
+        return user.is_verified_v2
 
     def get_organization_slug(self, user):
         try:
@@ -611,6 +614,7 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
 
     first_name = CharField(max_length=150, allow_blank=True, required=False)
     last_name = CharField(max_length=150, allow_blank=True, required=False)
+    referral_code = CharField(max_length=100, allow_blank=True, required=False)
 
     def validate_username(self, username):
         if username:
@@ -630,10 +634,24 @@ class RegisterSerializer(rest_auth_serializers.RegisterSerializer):
             "email": self.validated_data.get("email", ""),
             "first_name": self.validated_data.get("first_name"),
             "last_name": self.validated_data.get("last_name"),
+            "referral_code": self.validated_data.get("referral_code"),
         }
 
     def save(self, request):
-        return super().save(request)
+        user = super().save(request)
+
+        # Handle referral signup creation
+        referral_code = self.validated_data.get("referral_code")
+        if referral_code and referral_code.strip():
+            try:
+                # Find the referrer by their referral code
+                referrer = User.objects.get(referral_code=referral_code.strip())
+                # Create the referral signup entry
+                ReferralSignup.objects.create(referrer=referrer, referred=user)
+            except User.DoesNotExist:
+                pass
+
+        return user
 
 
 class DynamicUserSerializer(DynamicModelFieldSerializer):
@@ -649,23 +667,15 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
     def get_author_profile(self, user):
         context = self.context
         _context_fields = context.get("usr_dus_get_author_profile", {})
-
         try:
-            # Check if user has an author_profile
-            author_profile = user.author_profile
             serializer = DynamicAuthorSerializer(
-                author_profile, context=context, **_context_fields
+                user.author_profile, context=context, **_context_fields
             )
             return serializer.data
-        except User.author_profile.RelatedObjectDoesNotExist:
-            # DATA INTEGRITY ISSUE: All users should have an author_profile
-            error_msg = f"User {user.id} (email: {user.email}) missing author_profile"
-            sentry.log_error(Exception(f"Missing author_profile: {error_msg}"))
-            return None
         except Exception as e:
             print(e)
             sentry.log_error(e)
-            return None
+            return {}
 
     def get_rsc_earned(self, user):
         return getattr(user, "rsc_earned", None)
@@ -735,28 +745,16 @@ class UserActions:
 
             if isinstance(item, Paper):
                 pass
-            elif isinstance(item, GrmVote):
+            elif isinstance(item, Vote):
                 item = item.item
                 if isinstance(item, Paper):
                     data["content_type"] += "_paper"
             elif isinstance(item, Purchase):
                 recipient = action.user
                 data["amount"] = item.amount
-                author_id = None
-                try:
-                    author_id = recipient.author_profile.id
-                except User.author_profile.RelatedObjectDoesNotExist:
-                    # DATA INTEGRITY ISSUE: All users should have an author_profile
-                    error_msg = f"User {recipient.id} (email: {recipient.email}) missing author_profile in Purchase action"
-                    print(f"DATA INTEGRITY ERROR: {error_msg}")
-                    sentry.log_error(
-                        Exception(f"Missing author_profile in Purchase: {error_msg}")
-                    )
-                    author_id = None
-
                 data["recipient"] = {
                     "name": recipient.full_name(),
-                    "author_id": author_id,
+                    "author_id": recipient.author_profile.id,
                 }
                 data["sender"] = item.user.full_name()
                 data["support_type"] = item.content_type.model
@@ -772,7 +770,6 @@ class UserActions:
             is_removed = False
             paper = None
             post = None
-            discussion = None
             if isinstance(item, Paper):
                 paper = item
             else:
@@ -804,23 +801,7 @@ class UserActions:
                 data["post_title"] = post.title
                 data["slug"] = post.slug
 
-            if discussion:
-                data["plain_text"] = discussion.plain_text
-                paper = discussion.paper
-                post = discussion.post
-                if paper:
-                    data["parent_content_type"] = "paper"
-                    data["paper_id"] = paper.id
-                    data["paper_title"] = paper.title
-                    data["paper_official_title"] = paper.paper_title
-                    data["slug"] = paper.slug
-                elif post:
-                    data["parent_content_type"] = "post"
-                    data["post_id"] = post.id
-                    data["post_title"] = post.title
-                    data["slug"] = post.slug
-
-            elif isinstance(item, Paper):
+            if isinstance(item, Paper):
                 data["tip"] = item.tagline
 
             if not isinstance(item, Purchase):
@@ -1116,15 +1097,10 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
         if user is None:
             return None
 
-        is_verified = False
-        user_verification = UserVerification.objects.filter(user=user).first()
-        if user_verification:
-            is_verified = user_verification.is_verified
-
         return {
             "id": user.id,
             "created_date": user.created_date,
-            "is_verified": is_verified,
+            "is_verified": user.is_verified_v2,
             "is_suspended": user.is_suspended,
             "probable_spammer": user.probable_spammer,
             "sift_url": f"https://console.sift.com/users/{user.id}?abuse_type=content_abuse",
@@ -1222,34 +1198,14 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
         _context_fields = context.get("author_profile::get_coauthors", {})
 
         coauthors = (
-            CoAuthor.objects.filter(author=author)
-            .values(
-                "coauthor",
-                "coauthor__first_name",
-                "coauthor__last_name",
-                "coauthor__is_verified",
-                "coauthor__headline",
-                "coauthor__description",
-            )
-            .annotate(count=Count("coauthor"))
+            Author.objects.filter(coauthored_with__author=author)
+            .annotate(count=Count("coauthored_with"))
+            .select_related("user__userverification")
             .order_by("-count")[:10]
         )
 
-        coauthor_data = [
-            {
-                "id": co["coauthor"],
-                "first_name": co["coauthor__first_name"],
-                "last_name": co["coauthor__last_name"],
-                "is_verified": co["coauthor__is_verified"],
-                "headline": co["coauthor__headline"],
-                "description": co["coauthor__description"],
-                "count": co["count"],
-            }
-            for co in coauthors
-        ]
-
         serializer = DynamicAuthorSerializer(
-            coauthor_data,
+            coauthors,
             context=context,
             many=True,
             **_context_fields,

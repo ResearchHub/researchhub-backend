@@ -219,8 +219,8 @@ class SocialLoginSerializer(serializers.Serializer):
     def handle_referral(self, attrs):
         try:
             referral_code = attrs.get("referral_code")
-            if referral_code:
-                referral_user = User.objects.get(referral_code=referral_code)
+            if referral_code and referral_code.strip():
+                referral_user = User.objects.get(referral_code=referral_code.strip())
                 user = attrs["user"]
 
                 invited_by_flag_not_set = (

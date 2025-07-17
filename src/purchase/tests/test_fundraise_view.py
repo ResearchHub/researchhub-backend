@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 import pytz
 from django.contrib.contenttypes.models import ContentType
@@ -7,7 +8,9 @@ from rest_framework.test import APITestCase
 from purchase.models import Balance, Fundraise, Purchase, RscExchangeRate
 from purchase.services.fundraise_service import FundraiseService
 from purchase.views import FundraiseViewSet
-from reputation.models import BountyFee
+from referral.models import ReferralSignup
+from referral.services.referral_bonus_service import ReferralBonusService
+from reputation.models import BountyFee, Distribution
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -208,7 +211,7 @@ class FundraiseViewTests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
 
-    def test_create_contribution_fulfills_goal(self):
+    def test_create_contribution_exceeds_goal(self):
         fundraise = self._create_fundraise(self.post.id, goal_amount=100)
         fundraise_id = fundraise.data["id"]
 
@@ -222,11 +225,13 @@ class FundraiseViewTests(APITestCase):
 
         updated_fundraise = response.data
         self.assertEqual(updated_fundraise["amount_raised"]["rsc"], 200)
-        self.assertEqual(float(updated_fundraise["escrow"]["amount_holding"]), 0.0)
-        self.assertEqual(float(updated_fundraise["escrow"]["amount_paid"]), 200.0)
-        self.assertEqual(updated_fundraise["status"], "COMPLETED")
+        self.assertEqual(float(updated_fundraise["escrow"]["amount_holding"]), 200.0)
+        self.assertEqual(float(updated_fundraise["escrow"]["amount_paid"]), 0.0)
+        self.assertEqual(
+            updated_fundraise["status"], "OPEN"
+        )  # Should remain open until manually completed
 
-        # there should be two balance objects for the user, one for the '100', and one for fees
+        # there should be two balance objects for the user, one for the contribution and one for fees
         amount_balance = Balance.objects.filter(
             user=user, content_type=ContentType.objects.get_for_model(Purchase)
         )
@@ -238,10 +243,9 @@ class FundraiseViewTests(APITestCase):
         self.assertEqual(fee_balance.count(), 1)
         self.assertEqual(float(fee_balance.first().amount), -18.0)
 
-        # check that the owner was paid out
+        # check that the owner has NOT been paid out yet (no automatic payout)
         owner_balance = Balance.objects.filter(user=self.user)
-        self.assertEqual(owner_balance.count(), 1)
-        self.assertEqual(float(owner_balance.first().amount), 200.0)
+        self.assertEqual(owner_balance.count(), 0)
 
     def test_create_contribution_expired_fundraise(self):
         fundraise = self._create_fundraise(self.post.id, goal_amount=100)
@@ -376,3 +380,398 @@ class FundraiseViewTests(APITestCase):
 
         # Should get 403 Forbidden
         self.assertEqual(response.status_code, 403)
+
+    def test_referral_bonuses_processed_on_fundraise_completion(self):
+        """Test that referral bonuses are processed when a fundraise completes"""
+
+        # Create a referrer and referred user
+        referrer = create_random_authenticated_user("referrer")
+        referred_user = create_random_authenticated_user("referred")
+
+        # Create referral signup within 6 months
+        ReferralSignup.objects.create(
+            referrer=referrer,
+            referred=referred_user,
+            signup_date=datetime.now(pytz.UTC) - timedelta(days=30),  # 1 month ago
+        )
+
+        # Create a fundraise with a goal
+        fundraise = self._create_fundraise(self.post.id, goal_amount=100)
+        fundraise_id = fundraise.data["id"]
+
+        # Give the referred user balance to contribute
+        self._give_user_balance(referred_user, 1000)
+
+        # Have the referred user contribute an amount that fulfills the goal
+        response = self._create_contribution(
+            fundraise_id, referred_user, amount=200  # 200 RSC = 100 USD, fulfills goal
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        # Manually complete the fundraise as a moderator
+        self.client.force_authenticate(self.user)  # self.user is a moderator
+        response = self.client.post(f"/api/fundraise/{fundraise_id}/complete/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["status"], "COMPLETED")
+
+        # Check that referral bonuses were created
+        # Should create 2 distributions (one for referrer, one for referred user)
+        # Note: Other distributions (fundraise payout, fees) are also created
+        referral_bonus_distributions = Distribution.objects.filter(
+            distribution_type=Balance.LockType.REFERRAL_BONUS,
+            created_date__gte=datetime.now(pytz.UTC) - timedelta(seconds=10),
+        )
+
+        self.assertEqual(referral_bonus_distributions.count(), 2)
+
+        # Check that both users received the correct bonus amount
+
+        service = ReferralBonusService()
+        expected_bonus = Decimal("200") * (service.bonus_percentage / 100)
+
+        referrer_distribution = Distribution.objects.filter(
+            recipient=referrer,
+            distribution_type=Balance.LockType.REFERRAL_BONUS,
+            amount=expected_bonus,
+        ).first()
+        self.assertIsNotNone(referrer_distribution)
+
+        referred_distribution = Distribution.objects.filter(
+            recipient=referred_user,
+            distribution_type=Balance.LockType.REFERRAL_BONUS,
+            amount=expected_bonus,
+        ).first()
+        self.assertIsNotNone(referred_distribution)
+
+        # Check that locked balances were created
+        referrer_balance = Balance.objects.filter(
+            user=referrer, is_locked=True, lock_type=Balance.LockType.REFERRAL_BONUS
+        ).first()
+        self.assertIsNotNone(referrer_balance)
+        self.assertEqual(float(referrer_balance.amount), expected_bonus)
+
+        referred_balance = Balance.objects.filter(
+            user=referred_user,
+            is_locked=True,
+            lock_type=Balance.LockType.REFERRAL_BONUS,
+        ).first()
+        self.assertIsNotNone(referred_balance)
+        self.assertEqual(float(referred_balance.amount), expected_bonus)
+
+    def test_create_contribution_with_locked_balance(self):
+        """
+        Test that locked balance can be used for fundraise contributions.
+        """
+        # Arrange
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        user = create_random_authenticated_user("fundraise_views")
+
+        # Regular balance (not enough for contribution + fees)
+        Balance.objects.create(
+            amount=50,
+            user=user,
+            content_type=ContentType.objects.get(model="distribution"),
+            is_locked=False,
+        )
+
+        # Locked balance (enough to cover the shortfall)
+        Balance.objects.create(
+            amount=100,
+            user=user,
+            content_type=ContentType.objects.get(model="distribution"),
+            is_locked=True,
+            lock_type=Balance.LockType.REFERRAL_BONUS,
+        )
+
+        # Verify user's balance situation
+        regular_balance = user.get_balance()  # Should be 50
+        total_balance = user.get_balance(include_locked=True)  # Should be 150
+        locked_balance = user.get_locked_balance()  # Should be 100
+
+        self.assertEqual(float(regular_balance), 50.0)
+        self.assertEqual(float(total_balance), 150.0)
+        self.assertEqual(float(locked_balance), 100.0)
+
+        # Act
+        # Try to contribute 100 RSC (which would cost 100 + 9 fees = 109 total)
+        # This should succeed because total balance (150) >= cost (109)
+        # even though unlocked balance (50) < cost (109)
+        response = self._create_contribution(fundraise_id, user, amount=100)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+
+        updated_fundraise = response.data
+        self.assertEqual(updated_fundraise["amount_raised"]["rsc"], 100)
+        self.assertEqual(float(updated_fundraise["escrow"]["amount_holding"]), 100.0)
+
+        # Verify balance objects were created with proper locked/unlocked split
+        purchase_content_type = ContentType.objects.get_for_model(Purchase)
+        fee_content_type = ContentType.objects.get_for_model(BountyFee)
+
+        # Should have 1 amount balance record: 100 from locked (locked used first)
+        amount_balances = Balance.objects.filter(
+            user=user, content_type=purchase_content_type
+        )
+        self.assertEqual(amount_balances.count(), 1)
+
+        # Check locked amount balance (should be -100, all from locked)
+        locked_amount_balance = amount_balances.filter(is_locked=True).first()
+        self.assertIsNotNone(locked_amount_balance)
+        self.assertEqual(float(locked_amount_balance.amount), -100.0)
+        self.assertEqual(
+            locked_amount_balance.lock_type, Balance.LockType.REFERRAL_BONUS
+        )
+
+        # Should have 1 fee balance record: 9 from regular (no locked left)
+        fee_balances = Balance.objects.filter(user=user, content_type=fee_content_type)
+        self.assertEqual(fee_balances.count(), 1)
+
+        # Check regular fee balance (should be -9, from regular balance)
+        regular_fee_balance = fee_balances.filter(is_locked=False).first()
+        self.assertIsNotNone(regular_fee_balance)
+        self.assertEqual(float(regular_fee_balance.amount), -9.0)
+
+    def test_create_contribution_insufficient_total_balance(self):
+        """
+        Test that contribution fails if total balance (including locked) is
+        insufficient.
+        """
+        # Arrange
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        user = create_random_authenticated_user("fundraise_views")
+
+        # Regular balance
+        Balance.objects.create(
+            amount=30,
+            user=user,
+            content_type=ContentType.objects.get(model="distribution"),
+            is_locked=False,
+        )
+
+        # Locked balance
+        Balance.objects.create(
+            amount=50,
+            user=user,
+            content_type=ContentType.objects.get(model="distribution"),
+            is_locked=True,
+            lock_type=Balance.LockType.REFERRAL_BONUS,
+        )
+
+        # Total balance is 80, but contribution of 100 + 9 fees = 109 total cost
+        total_balance = user.get_balance(include_locked=True)
+        self.assertEqual(float(total_balance), 80.0)
+
+        # Act
+        response = self._create_contribution(fundraise_id, user, amount=100)
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Insufficient balance", response.data["message"])
+
+    def test_create_contribution_all_locked_balance(self):
+        """
+        Test contribution when all funds come from locked balance only.
+        """
+        # Arrange
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        user = create_random_authenticated_user("fundraise_views")
+
+        # Give user only locked balance (enough for contribution + fees)
+        Balance.objects.create(
+            amount=200,
+            user=user,
+            content_type=ContentType.objects.get(model="distribution"),
+            is_locked=True,
+            lock_type=Balance.LockType.REFERRAL_BONUS,
+        )
+
+        # Verify user's balance situation
+        regular_balance = user.get_balance()  # Should be 0
+        total_balance = user.get_balance(include_locked=True)  # Should be 200
+        locked_balance = user.get_locked_balance()  # Should be 200
+
+        self.assertEqual(float(regular_balance), 0.0)
+        self.assertEqual(float(total_balance), 200.0)
+        self.assertEqual(float(locked_balance), 200.0)
+
+        # Act
+        response = self._create_contribution(fundraise_id, user, amount=100)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+
+        # Verify balance objects - should only have locked balance records
+        purchase_content_type = ContentType.objects.get_for_model(Purchase)
+        fee_content_type = ContentType.objects.get_for_model(BountyFee)
+
+        # Should have 1 amount balance record: 100 from locked only
+        amount_balances = Balance.objects.filter(
+            user=user, content_type=purchase_content_type
+        )
+        self.assertEqual(amount_balances.count(), 1)
+
+        locked_amount_balance = amount_balances.filter(is_locked=True).first()
+        self.assertIsNotNone(locked_amount_balance)
+        self.assertEqual(float(locked_amount_balance.amount), -100.0)
+
+        # Should have 1 fee balance record: 9 from locked only
+        fee_balances = Balance.objects.filter(user=user, content_type=fee_content_type)
+        self.assertEqual(fee_balances.count(), 1)
+
+        locked_fee_balance = fee_balances.filter(is_locked=True).first()
+        self.assertIsNotNone(locked_fee_balance)
+        self.assertEqual(float(locked_fee_balance.amount), -9.0)
+
+    def test_create_contribution_mixed_balance_split(self):
+        """
+        Test contribution when locked balance is insufficient, forcing a split.
+        """
+        # Arrange
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        user = create_random_authenticated_user("fundraise_views")
+
+        # Give user partial locked balance (insufficient for full contribution)
+        Balance.objects.create(
+            amount=60,  # Less than 100 RSC contribution
+            user=user,
+            content_type=ContentType.objects.get(model="distribution"),
+            is_locked=True,
+            lock_type=Balance.LockType.REFERRAL_BONUS,
+        )
+
+        # Give user regular balance to cover the rest
+        Balance.objects.create(
+            amount=60,  # Enough to cover remaining amount + fees
+            user=user,
+            content_type=ContentType.objects.get(model="distribution"),
+            is_locked=False,
+        )
+
+        # Total: 120 RSC (60 locked + 60 regular)
+        # Need: 109 RSC (100 contribution + 9 fees)
+
+        # Act
+        response = self._create_contribution(fundraise_id, user, amount=100)
+
+        # Assert
+        self.assertEqual(response.status_code, 200)
+
+        # Verify balance objects show proper split
+        purchase_content_type = ContentType.objects.get_for_model(Purchase)
+        fee_content_type = ContentType.objects.get_for_model(BountyFee)
+
+        # Should have 2 amount balance records: 60 locked + 40 regular
+        amount_balances = Balance.objects.filter(
+            user=user, content_type=purchase_content_type
+        )
+        self.assertEqual(amount_balances.count(), 2)
+
+        # Check locked amount balance (should be -60)
+        locked_amount_balance = amount_balances.filter(is_locked=True).first()
+        self.assertIsNotNone(locked_amount_balance)
+        self.assertEqual(float(locked_amount_balance.amount), -60.0)
+
+        # Check regular amount balance (should be -40)
+        regular_amount_balance = amount_balances.filter(is_locked=False).first()
+        self.assertIsNotNone(regular_amount_balance)
+        self.assertEqual(float(regular_amount_balance.amount), -40.0)
+
+        # Should have 1 fee balance record: 9 from regular (no locked left)
+        fee_balances = Balance.objects.filter(user=user, content_type=fee_content_type)
+        self.assertEqual(fee_balances.count(), 1)
+
+        # Check regular fee balance (should be -9)
+        regular_fee_balance = fee_balances.filter(is_locked=False).first()
+        self.assertIsNotNone(regular_fee_balance)
+        self.assertEqual(float(regular_fee_balance.amount), -9.0)
+
+    def test_complete_fundraise(self):
+        """Test that a fundraise can be completed via the API by a moderator"""
+        # Create a fundraise
+        fundraise = self._create_fundraise(self.post.id, goal_amount=100)
+        fundraise_id = fundraise.data["id"]
+
+        # Create a contributor
+        contributor = create_random_authenticated_user("fundraise_contributor")
+        self._give_user_balance(contributor, 1000)
+
+        # Make a contribution that meets the goal
+        self._create_contribution(fundraise_id, contributor, amount=200)
+
+        # Verify fundraise is still open
+        fundraise_obj = Fundraise.objects.get(id=fundraise_id)
+        self.assertEqual(fundraise_obj.status, Fundraise.OPEN)
+
+        # Call complete endpoint as moderator
+        self.client.force_authenticate(self.user)  # Need moderator permissions
+        response = self.client.post(f"/api/fundraise/{fundraise_id}/complete/")
+
+        self.assertEqual(response.status_code, 200)
+
+        # Verify fundraise is now completed
+        fundraise_obj.refresh_from_db()
+        self.assertEqual(fundraise_obj.status, Fundraise.COMPLETED)
+
+        # Verify funds were paid out
+        self.assertEqual(float(fundraise_obj.escrow.amount_holding), 0.0)
+        self.assertEqual(float(fundraise_obj.escrow.amount_paid), 200.0)
+
+        # Check that the owner was paid out
+        owner_balance = Balance.objects.filter(user=self.user)
+        self.assertEqual(owner_balance.count(), 1)
+        self.assertEqual(float(owner_balance.first().amount), 200.0)
+
+    def test_complete_fundraise_not_moderator(self):
+        """Test that only moderators can complete a fundraise"""
+        # Create a fundraise
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        # Try to complete with non-moderator
+        regular_user = create_random_authenticated_user("regular_user")
+        self.client.force_authenticate(regular_user)
+        response = self.client.post(f"/api/fundraise/{fundraise_id}/complete/")
+
+        # Should get 403 Forbidden
+        self.assertEqual(response.status_code, 403)
+
+    def test_complete_fundraise_already_completed(self):
+        """Test that a fundraise that's already completed can't be completed again"""
+        # Create a fundraise
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        # Set fundraise status to completed
+        fundraise_obj = Fundraise.objects.get(id=fundraise_id)
+        fundraise_obj.status = Fundraise.COMPLETED
+        fundraise_obj.save()
+
+        # Try to complete
+        self.client.force_authenticate(self.user)
+        response = self.client.post(f"/api/fundraise/{fundraise_id}/complete/")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("not open", response.data["message"])
+
+    def test_complete_fundraise_no_funds(self):
+        """Test that a fundraise with no funds can't be completed"""
+        # Create a fundraise
+        fundraise = self._create_fundraise(self.post.id)
+        fundraise_id = fundraise.data["id"]
+
+        # Try to complete without any contributions
+        self.client.force_authenticate(self.user)
+        response = self.client.post(f"/api/fundraise/{fundraise_id}/complete/")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("no funds to payout", response.data["message"])

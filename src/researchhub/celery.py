@@ -109,10 +109,26 @@ app.conf.beat_schedule = {
             "queue": QUEUE_PULL_PAPERS,
         },
     },
+    "paper_enrich-altmetric-daily": {
+        "task": "paper.altmetric_tasks.enrich_papers_with_altmetric_data",
+        "schedule": crontab(minute=0, hour=8),  # Run at 8 AM, 2 hours after OpenAlex
+        "options": {
+            "priority": 3,
+            "queue": QUEUE_PAPER_MISC,
+        },
+    },
     # Purchase
     "purchase_update-purchases": {
         "task": "purchase.tasks.update_purchases",
         "schedule": crontab(minute="*/30"),
+        "options": {
+            "priority": 3,
+            "queue": QUEUE_PURCHASES,
+        },
+    },
+    "purchase_complete-eligible-fundraises": {
+        "task": "purchase.tasks.complete_eligible_fundraises",
+        "schedule": crontab(hour=12, minute=0),  # Run daily at 12:00 PM UTC
         "options": {
             "priority": 3,
             "queue": QUEUE_PURCHASES,

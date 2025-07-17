@@ -1,19 +1,21 @@
 import functools
-import json
+import logging
 
 import sift.client
 from django.apps import apps
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from ipware import get_client_ip
 from rest_framework.request import Request
 
 from researchhub.celery import QUEUE_EXTERNAL_REPORTING, app
-from researchhub.settings import DEVELOPMENT, SIFT_ACCOUNT_ID, SIFT_REST_API_KEY
 from utils import sentry
 
 # https://sift.com/resources/guides/content-abuse
 
-client = sift.Client(api_key=SIFT_REST_API_KEY, account_id=SIFT_ACCOUNT_ID)
+client = sift.Client(
+    api_key=settings.SIFT_REST_API_KEY, account_id=settings.SIFT_ACCOUNT_ID
+)
 
 SIFT_COMMENT = "track_content_comment"
 SIFT_PAPER = "track_content_paper"
@@ -21,44 +23,7 @@ SIFT_POST = "track_content_post"
 SIFT_VOTE = "track_content_vote"
 
 
-def get_user_score(user_id):
-    try:
-        response = client.score(user_id)
-        out = json.dumps(response.body)
-        print(out)
-    except sift.client.ApiException as e:
-        sentry.log_error(e)
-        print(e.api_error_message)
-
-
-def label_bad_user(user_id, abuse_type, description=""):
-    # TODO: Finish this by determing how we plan to use it
-    try:
-        response = client.label(
-            user_id,
-            {
-                "$is_bad": True,
-                # optional fields
-                "$abuse_type": abuse_type,
-                "$description": description,
-                "$source": "django",
-                "$analyst": "dev@quantfive.org",
-            },
-        )
-        print(response.body)
-    except sift.client.ApiException as e:
-        sentry.log_error(e)
-        print(e.api_error_message)
-
-
-def unlabel_user(user_id):
-    # TODO: Finish this by determing how we plan to use it
-    try:
-        response = client.unlabel(user_id, abuse_type="content_abuse")
-        print(response.body)
-    except sift.client.ApiException as e:
-        sentry.log_error(e)
-        print(e.api_error_message)
+logger = logging.getLogger(__name__)
 
 
 def get_tracked_content_score(tracked_content):
@@ -84,8 +49,8 @@ def check_user_risk(user):
     if (
         sift_risk_score
         and sift_risk_score > 90
-        and user.id not in (34581,)
-        and not user.is_verified
+        and user.id not in settings.SIFT_MODERATION_WHITELIST
+        and not user.is_verified_v2
     ):
         user.set_suspended(is_manual=False)
 
@@ -106,7 +71,7 @@ class DecisionsApi:
             client.apply_user_decision(str(content_creator.id), applyDecisionRequest)
         except sift.client.ApiException as e:
             sentry.log_error(e)
-            print(e)
+            logger.error(f"Failed to apply bad user decision: {e}")
 
     def apply_bad_content_decision(
         self, content_creator, content_id, source="AUTOMATED_RULE", reporter=None
@@ -129,7 +94,7 @@ class DecisionsApi:
             )
         except sift.client.ApiException as e:
             sentry.log_error(e)
-            print(e)
+            logger.error(f"Failed to apply bad content decision: {e}")
 
 
 class EventsApi:
@@ -157,7 +122,7 @@ class EventsApi:
             "$name": f"{user.first_name} {user.last_name}",
             "$social_sign_on_type": "$google",
             "author_id": str(user.author_profile.id),
-            "is_verified": user.is_verified,
+            "is_verified": user.is_verified_v2,
             "profile_url": f"https://www.researchhub.com/user/{str(user.author_profile.id)}",
             "created_date": user.created_date.isoformat(),
             "reputation": user.reputation,

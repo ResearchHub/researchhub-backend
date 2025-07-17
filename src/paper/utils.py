@@ -16,7 +16,7 @@ from django.db.models import Count, Q
 from habanero import Crossref
 from manubot.cite.csl_item import CSL_Item
 
-from discussion.reaction_models import Vote as GrmVote
+from discussion.models import Vote
 from paper.exceptions import ManubotProcessingError
 from paper.lib import (
     journal_hosts,
@@ -30,9 +30,9 @@ from utils.http import RequestMethods as methods
 from utils.http import check_url_contains_pdf, http_request
 
 DOI_REGEX = r"10.\d{4,9}\/[-._;()\/:a-zA-Z0-9]+?(?=[\";%<>\?#&])"
-PAPER_SCORE_Q_ANNOTATION = Count(
-    "id", filter=Q(votes__vote_type=GrmVote.UPVOTE)
-) - Count("id", filter=Q(votes__vote_type=GrmVote.DOWNVOTE))
+PAPER_SCORE_Q_ANNOTATION = Count("id", filter=Q(votes__vote_type=Vote.UPVOTE)) - Count(
+    "id", filter=Q(votes__vote_type=Vote.DOWNVOTE)
+)
 
 CACHE_TOP_RATED_DATES = (
     "-score_today",

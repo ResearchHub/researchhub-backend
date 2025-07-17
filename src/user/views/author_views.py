@@ -50,7 +50,10 @@ from utils.throttles import THROTTLE_CLASSES
 
 
 class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
-    queryset = Author.objects.all()
+    queryset = Author.objects.select_related(
+        "user",
+        "user__userverification",
+    )
     serializer_class = AuthorSerializer
     filter_backends = (SearchFilter, DjangoFilterBackend, OrderingFilter)
     filterset_class = AuthorFilter
@@ -432,7 +435,6 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
                     "created_location",
                     "external_metadata",
                     "id",
-                    "is_created_by_editor",
                     "is_public",
                     "is_removed",
                     "paper_id",
@@ -455,7 +457,6 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
                     "created_by",
                     "created_location",
                     "id",
-                    "is_created_by_editor",
                     "is_public",
                     "is_removed",
                     "paper_id",
@@ -565,7 +566,6 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
                     "created_location",
                     "external_metadata",
                     "id",
-                    "is_created_by_editor",
                     "is_public",
                     "is_removed",
                     "paper_id",
@@ -595,7 +595,6 @@ class AuthorViewSet(viewsets.ModelViewSet, FollowViewActionMixin):
                     "created_location",
                     "external_metadata",
                     "id",
-                    "is_created_by_editor",
                     "is_public",
                     "is_removed",
                     "paper_id",

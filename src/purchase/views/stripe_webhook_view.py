@@ -8,6 +8,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from analytics.amplitude import track_event
 from paper.related_models.paper_model import Paper
 from purchase.related_models.payment_model import Payment, PaymentProcessor
 
@@ -25,6 +26,7 @@ class StripeWebhookView(APIView):
 
     permission_classes = [AllowAny]
 
+    @track_event
     def post(self, request, *args, **kwargs):
         """
         Process incoming webhook from Stripe.

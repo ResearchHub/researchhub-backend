@@ -158,7 +158,7 @@ class FundraiseModelTests(TestCase):
         self.assertFalse(result)
 
     def test_close_fundraise_no_escrow_funds(self):
-        """Test that a fundraise with no escrow funds can't be closed"""
+        """Test that a fundraise with no escrow funds can be closed"""
         # Set escrow amount to 0
         self.fundraise.escrow.amount_holding = 0
         self.fundraise.escrow.save()
@@ -166,8 +166,11 @@ class FundraiseModelTests(TestCase):
         # Attempt to close
         result = self.fundraise.close_fundraise()
 
-        # Check it failed
-        self.assertFalse(result)
+        # Check it succeeded
+        self.assertTrue(result)
+        # Verify status changed to CLOSED
+        self.fundraise.refresh_from_db()
+        self.assertEqual(self.fundraise.status, self.fundraise.CLOSED)
 
     def test_close_fundraise_refunds_fees(self):
         """Test that closing a fundraise also refunds the fees that were deducted"""
