@@ -50,6 +50,7 @@ class SuggestView(APIView):
                 "profile_image": result.get("_source", {}).get("profile_image"),
                 "headline": result.get("_source", {}).get("headline", {}),
                 "created_date": result.get("_source", {}).get("created_date"),
+                "user_id": result.get("_source", {}).get("user_id"),
                 "source": "researchhub",
                 "_score": result.get("_score", 1.0),
             },
@@ -61,6 +62,10 @@ class SuggestView(APIView):
                 "id": result.get("_source", {}).get("id"),
                 "display_name": result.get("_source", {}).get("full_name", ""),
                 "created_date": result.get("_source", {}).get("created_date"),
+                "profile_image": result.get("_source", {}).get("profile_img")
+                or result.get("_source", {})
+                .get("author_profile", {})
+                .get("profile_image"),
                 "source": "researchhub",
                 "author_profile": result.get("_source", {}).get("author_profile", {}),
                 "_score": result.get("_score", 1.0),
