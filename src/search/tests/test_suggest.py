@@ -1271,3 +1271,62 @@ class SuggestViewTests(TestCase):
         self.assertEqual(result["headline"], {"title": "Test Headline"})
         self.assertEqual(result["created_date"], "2023-01-01")
         self.assertEqual(result["source"], "researchhub")
+
+    @patch("utils.openalex.OpenAlex.autocomplete_works")
+    @patch("elasticsearch_dsl.Search.execute")
+    def test_user_entity_includes_profile_image(self, mock_es_execute, mock_openalex):
+        """Test that user entities from user index include profile_image field"""
+        # Mock empty OpenAlex response since we're not using it for user index
+        mock_openalex.return_value = {"results": []}
+
+        # Mock Elasticsearch response for user index
+        user_options = [
+            {
+                "_score": 1.0,
+                "_source": {
+                    "id": 789,
+                    "full_name": "Test User",
+                    "created_date": "2023-01-01",
+                    "profile_img": "https://example.com/user-profile.jpg",
+                    "author_profile": {
+                        "id": 456,
+                        "headline": {"title": "Test User Headline"},
+                        "profile_image": "https://example.com/author-profile.jpg",
+                    },
+                },
+            }
+        ]
+
+        class MockSuggest:
+            def to_dict(self):
+                return {"suggestions": [{"options": user_options}]}
+
+        class MockResponse:
+            suggest = MockSuggest()
+
+        mock_es_execute.return_value = MockResponse()
+
+        # Test searching user index
+        response = self.client.get(self.url + "?q=test&index=user")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify we got the expected results
+        self.assertEqual(len(response.data), 1)
+        result = response.data[0]
+
+        # Verify it's a user entity
+        self.assertEqual(result["entity_type"], "user")
+
+        # Verify the profile_image field is included (should prefer profile_img over
+        # author_profile.profile_image)
+        self.assertIn("profile_image", result)
+        self.assertEqual(
+            result["profile_image"], "https://example.com/user-profile.jpg"
+        )
+
+        # Verify other expected fields are present
+        self.assertEqual(result["id"], 789)
+        self.assertEqual(result["display_name"], "Test User")
+        self.assertEqual(result["created_date"], "2023-01-01")
+        self.assertEqual(result["source"], "researchhub")
+        self.assertIn("author_profile", result)
