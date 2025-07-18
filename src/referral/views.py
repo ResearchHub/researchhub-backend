@@ -1,7 +1,9 @@
 import logging
 from datetime import timedelta
+from decimal import Decimal
 
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, DecimalField, Q, Sum
+from django.db.models.functions import Cast
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -10,10 +12,12 @@ from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 
 from purchase.models import Purchase
+from referral.constants import REFERRAL_ELIGIBILITY_MONTHS
 from referral.models import ReferralSignup
 from referral.serializers import (
     AddReferralCodeSerializer,
     ReferralMetricsSerializer,
+    ReferralMonitoringSerializer,
     ReferralNetworkDetailSerializer,
     ReferralSignupSerializer,
 )
@@ -270,3 +274,161 @@ class ReferralAssignmentViewSet(viewsets.ViewSet):
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+
+class ReferralMonitoringViewSet(viewsets.ViewSet):
+    """
+    ViewSet for moderators to monitor all referrals on the platform.
+
+    Provides a comprehensive view of:
+    - All referred users
+    - Who referred them
+    - Total amount funded
+    - Credits earned from referrals
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @action(detail=False, methods=["get"])
+    def monitor(self, request):
+        """
+        Get all referrals data for monitoring purposes.
+
+        Returns paginated list with:
+        - Referred user information
+        - Referrer information
+        - Total funded amount by referred user
+        - Credits earned by both referrer and referred
+        - Referral signup date
+        - Bonus expiration status
+        """
+        # Check if user is moderator or admin
+        if not (request.user.is_staff or request.user.moderator):
+            return Response(
+                {"detail": "You do not have permission to access this resource."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        # Get all referral signups with related user data
+        referrals = ReferralSignup.objects.select_related(
+            "referred",
+            "referred__author_profile",
+            "referrer",
+            "referrer__author_profile",
+        ).order_by("-signup_date")
+
+        # Build monitoring data
+        monitoring_data = []
+        for referral in referrals:
+            # Calculate expiration info
+            expiration_date = referral.signup_date + timedelta(
+                days=30 * REFERRAL_ELIGIBILITY_MONTHS
+            )
+            is_expired = timezone.now() > expiration_date
+
+            # Get funded amount by referred user
+            referred_funding = Purchase.objects.filter(
+                user=referral.referred,
+                purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+                paid_status=Purchase.PAID,
+            ).aggregate(
+                total=Sum(Cast("amount", DecimalField(max_digits=19, decimal_places=8)))
+            )[
+                "total"
+            ] or Decimal(
+                "0"
+            )
+
+            # Get credits earned by referred user
+            referred_credits = Distribution.objects.filter(
+                recipient=referral.referred,
+                distribution_type="REFERRAL_BONUS",
+                distributed_status=Distribution.DISTRIBUTED,
+            ).aggregate(
+                total=Sum(Cast("amount", DecimalField(max_digits=19, decimal_places=8)))
+            )[
+                "total"
+            ] or Decimal(
+                "0"
+            )
+
+            # Get credits earned by referrer from this specific referral
+            # (This requires tracking which distributions came from which referrals,
+            # for now we'll calculate total credits earned by referrer)
+            referrer_credits = Distribution.objects.filter(
+                recipient=referral.referrer,
+                distribution_type="REFERRAL_BONUS",
+                distributed_status=Distribution.DISTRIBUTED,
+            ).aggregate(
+                total=Sum(Cast("amount", DecimalField(max_digits=19, decimal_places=8)))
+            )[
+                "total"
+            ] or Decimal(
+                "0"
+            )
+
+            monitoring_item = {
+                "id": referral.id,
+                "signup_date": referral.signup_date,
+                "referral_bonus_expiration_date": expiration_date,
+                "is_referral_bonus_expired": is_expired,
+                "referred_user": {
+                    "id": referral.referred.id,
+                    "username": referral.referred.username,
+                    "full_name": referral.referred.full_name(),
+                    "email": referral.referred.email,
+                    "date_joined": referral.referred.date_joined,
+                    "author_id": (
+                        getattr(referral.referred.author_profile, "id", None)
+                        if hasattr(referral.referred, "author_profile")
+                        else None
+                    ),
+                    "profile_image": (
+                        getattr(
+                            referral.referred.author_profile.profile_image, "url", None
+                        )
+                        if hasattr(referral.referred, "author_profile")
+                        and referral.referred.author_profile
+                        and hasattr(referral.referred.author_profile, "profile_image")
+                        and referral.referred.author_profile.profile_image
+                        else None
+                    ),
+                    "total_funded": float(referred_funding),
+                    "credits_earned": float(referred_credits),
+                    "is_active_funder": Purchase.objects.filter(
+                        user=referral.referred,
+                        purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+                        paid_status=Purchase.PAID,
+                    ).exists(),
+                },
+                "referrer": {
+                    "id": referral.referrer.id,
+                    "username": referral.referrer.username,
+                    "full_name": referral.referrer.full_name(),
+                    "email": referral.referrer.email,
+                    "author_id": (
+                        getattr(referral.referrer.author_profile, "id", None)
+                        if hasattr(referral.referrer, "author_profile")
+                        else None
+                    ),
+                    "profile_image": (
+                        getattr(
+                            referral.referrer.author_profile.profile_image, "url", None
+                        )
+                        if hasattr(referral.referrer, "author_profile")
+                        and referral.referrer.author_profile
+                        and hasattr(referral.referrer.author_profile, "profile_image")
+                        and referral.referrer.author_profile.profile_image
+                        else None
+                    ),
+                    "total_credits_earned": float(referrer_credits),
+                },
+            }
+            monitoring_data.append(monitoring_item)
+
+        # Paginate results
+        paginator = ReferralPagination()
+        paginated_results = paginator.paginate_queryset(monitoring_data, request)
+
+        serializer = ReferralMonitoringSerializer(paginated_results, many=True)
+        return paginator.get_paginated_response(serializer.data)

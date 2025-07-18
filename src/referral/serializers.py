@@ -137,3 +137,41 @@ class AddReferralCodeSerializer(serializers.Serializer):
             pass  # Already handled in field validators
 
         return attrs
+
+
+class ReferredUserSerializer(serializers.Serializer):
+    """Serializer for referred user information in monitoring."""
+
+    id = serializers.IntegerField()
+    username = serializers.CharField()
+    full_name = serializers.CharField()
+    email = serializers.EmailField()
+    date_joined = serializers.DateTimeField()
+    author_id = serializers.IntegerField(allow_null=True)
+    profile_image = serializers.URLField(allow_null=True)
+    total_funded = serializers.FloatField()
+    credits_earned = serializers.FloatField()
+    is_active_funder = serializers.BooleanField()
+
+
+class ReferrerSerializer(serializers.Serializer):
+    """Serializer for referrer information in monitoring."""
+
+    id = serializers.IntegerField()
+    username = serializers.CharField()
+    full_name = serializers.CharField()
+    email = serializers.EmailField()
+    author_id = serializers.IntegerField(allow_null=True)
+    profile_image = serializers.URLField(allow_null=True)
+    total_credits_earned = serializers.FloatField()
+
+
+class ReferralMonitoringSerializer(serializers.Serializer):
+    """Serializer for referral monitoring data."""
+
+    id = serializers.IntegerField()
+    signup_date = serializers.DateTimeField()
+    referral_bonus_expiration_date = serializers.DateTimeField()
+    is_referral_bonus_expired = serializers.BooleanField()
+    referred_user = ReferredUserSerializer()
+    referrer = ReferrerSerializer()
