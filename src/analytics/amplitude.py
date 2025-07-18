@@ -128,7 +128,7 @@ def track_event(func):
                 amp = Amplitude()
                 amp.build_hit(res, *args, **kwargs)
         except Exception as e:
-            log_info(e, getattr(amp, "hit", None))
+            log_info(f"Failed to track amplitude event: {e}", getattr(amp, "hit", None))
         return res
 
     return inner
