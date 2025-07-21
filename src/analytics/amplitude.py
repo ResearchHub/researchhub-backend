@@ -5,7 +5,7 @@ import requests
 
 from researchhub.settings import AMPLITUDE_API_KEY, DEVELOPMENT
 from utils.parsers import json_serial
-from utils.sentry import log_info
+from utils.sentry import log_error, log_info
 
 
 class Amplitude:
@@ -128,7 +128,11 @@ def track_event(func):
                 amp = Amplitude()
                 amp.build_hit(res, *args, **kwargs)
         except Exception as e:
-            log_info(f"Failed to track amplitude event: {e}", getattr(amp, "hit", None))
+            log_error(
+                e,
+                message="Failed to track amplitude event",
+                json_data={"amp_hit": getattr(amp, "hit", None)},
+            )
         return res
 
     return inner
