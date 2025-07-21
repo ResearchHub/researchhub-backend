@@ -435,3 +435,193 @@ class ReferralMetricsAPITest(TestCase):
             old_user_data["referral_bonus_expiration_date"].replace("Z", "+00:00")
         )
         self.assertTrue(timezone.now() > expiration_date)
+
+    def test_monitoring_endpoint_moderator_access(self):
+        """Test that moderators can access the monitoring endpoint."""
+        # Create a moderator user
+        moderator = User.objects.create_user(
+            username="moderator",
+            email="moderator@test.com",
+            password=uuid.uuid4().hex,
+        )
+        moderator.moderator = True
+        moderator.save()
+
+        self.client.force_authenticate(user=moderator)
+
+        url = reverse("referral:referral-monitoring-monitor")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+
+        # Check pagination structure
+        self.assertIn("count", data)
+        self.assertIn("results", data)
+        self.assertEqual(data["count"], 2)  # Should have 2 referrals from setUp
+
+        # Check first referral structure
+        referral = data["results"][0]
+        self.assertIn("id", referral)
+        self.assertIn("signup_date", referral)
+        self.assertIn("referral_bonus_expiration_date", referral)
+        self.assertIn("is_referral_bonus_expired", referral)
+        self.assertIn("referred_user", referral)
+        self.assertIn("referrer", referral)
+
+        # Check referred_user fields
+        referred_user = referral["referred_user"]
+        self.assertIn("user_id", referred_user)
+        self.assertIn("username", referred_user)
+        self.assertIn("full_name", referred_user)
+        self.assertIn("author_id", referred_user)
+        self.assertIn("profile_image", referred_user)
+        self.assertIn("signup_date", referred_user)
+        self.assertIn("referral_bonus_expiration_date", referred_user)
+        self.assertIn("is_referral_bonus_expired", referred_user)
+        self.assertIn("total_funded", referred_user)
+        self.assertIn("referral_bonus_earned", referred_user)
+        self.assertIn("is_active_funder", referred_user)
+
+        # Check referrer fields
+        referrer = referral["referrer"]
+        self.assertIn("id", referrer)
+        self.assertIn("username", referrer)
+        self.assertIn("full_name", referrer)
+        self.assertIn("email", referrer)
+        self.assertIn("author_id", referrer)
+        self.assertIn("profile_image", referrer)
+        self.assertIn("total_credits_earned", referrer)
+
+    def test_monitoring_endpoint_admin_access(self):
+        """Test that admins can access the monitoring endpoint."""
+        self.client.force_authenticate(user=self.admin_user)
+
+        url = reverse("referral:referral-monitoring-monitor")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+    def test_monitoring_endpoint_regular_user_denied(self):
+        """Test that regular users cannot access the monitoring endpoint."""
+        self.client.force_authenticate(user=self.referrer)
+
+        url = reverse("referral:referral-monitoring-monitor")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            response.json()["detail"],
+            "You do not have permission to access this resource.",
+        )
+
+    def test_monitoring_endpoint_unauthenticated_denied(self):
+        """Test that unauthenticated users cannot access the monitoring endpoint."""
+        url = reverse("referral:referral-monitoring-monitor")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_monitoring_endpoint_expiration_dates(self):
+        """Test that monitoring endpoint correctly calculates expiration dates."""
+        moderator = User.objects.create_user(
+            username="moderator2",
+            email="moderator2@test.com",
+            password=uuid.uuid4().hex,
+        )
+        moderator.moderator = True
+        moderator.save()
+
+        self.client.force_authenticate(user=moderator)
+
+        url = reverse("referral:referral-monitoring-monitor")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+
+        for referral in data["results"]:
+            # Check expiration date is 6 months after signup
+            signup_date = timezone.datetime.fromisoformat(
+                referral["signup_date"].replace("Z", "+00:00")
+            )
+            expiration_date = timezone.datetime.fromisoformat(
+                referral["referral_bonus_expiration_date"].replace("Z", "+00:00")
+            )
+
+            expected_expiration = signup_date + timedelta(days=30 * 6)
+            self.assertAlmostEqual(
+                expiration_date.timestamp(), expected_expiration.timestamp(), delta=60
+            )
+
+            # Check expired status
+            is_expired = timezone.now() > expiration_date
+            self.assertEqual(referral["is_referral_bonus_expired"], is_expired)
+
+    def test_monitoring_endpoint_data_accuracy(self):
+        """Test that monitoring endpoint returns accurate financial data."""
+        moderator = User.objects.create_user(
+            username="moderator3",
+            email="moderator3@test.com",
+            password=uuid.uuid4().hex,
+        )
+        moderator.moderator = True
+        moderator.save()
+
+        self.client.force_authenticate(user=moderator)
+
+        url = reverse("referral:referral-monitoring-monitor")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+
+        # Find the referral for referred_user1
+        referral1_data = next(
+            r
+            for r in data["results"]
+            if r["referred_user"]["user_id"] == self.referred_user1.id
+        )
+
+        # Check referred user data
+        self.assertEqual(referral1_data["referred_user"]["total_funded"], 1000.0)
+        self.assertEqual(
+            referral1_data["referred_user"]["referral_bonus_earned"], 100.0
+        )
+        self.assertTrue(referral1_data["referred_user"]["is_active_funder"])
+
+        # Check referrer data
+        self.assertEqual(referral1_data["referrer"]["id"], self.referrer.id)
+        self.assertEqual(referral1_data["referrer"]["total_credits_earned"], 100.0)
+
+    def test_monitoring_endpoint_pagination(self):
+        """Test that monitoring endpoint pagination works correctly."""
+        moderator = User.objects.create_user(
+            username="moderator4",
+            email="moderator4@test.com",
+            password=uuid.uuid4().hex,
+        )
+        moderator.moderator = True
+        moderator.save()
+
+        self.client.force_authenticate(user=moderator)
+
+        # Test with page_size=1
+        url = reverse("referral:referral-monitoring-monitor")
+        response = self.client.get(url, {"page_size": 1})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+
+        self.assertEqual(data["count"], 2)
+        self.assertEqual(len(data["results"]), 1)
+        self.assertIsNotNone(data["next"])
+        self.assertIsNone(data["previous"])
+
+        # Test page 2
+        response = self.client.get(url, {"page": 2, "page_size": 1})
+        data = response.json()
+
+        self.assertEqual(len(data["results"]), 1)
+        self.assertIsNone(data["next"])
+        self.assertIsNotNone(data["previous"])
