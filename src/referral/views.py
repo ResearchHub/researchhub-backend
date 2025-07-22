@@ -21,6 +21,7 @@ from referral.serializers import (
 from referral.services.referral_metrics_service import ReferralMetricsService
 from reputation.related_models.distribution import Distribution
 from user.models import User
+from user.permissions import IsModerator
 
 logger = logging.getLogger(__name__)
 
@@ -284,7 +285,7 @@ class ReferralMonitoringViewSet(viewsets.ViewSet):
     - Credits earned from referrals
     """
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsModerator]
 
     @action(detail=False, methods=["get"])
     def monitor(self, request):
@@ -300,13 +301,6 @@ class ReferralMonitoringViewSet(viewsets.ViewSet):
         - Referral bonus expiration date
         - Bonus expiration status (is_referral_bonus_expired)
         """
-        # Check if user is moderator or admin
-        if not (request.user.is_staff or request.user.moderator):
-            return Response(
-                {"detail": "You do not have permission to access this resource."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
-
         # Get all referral signups with related user data
         referrals = ReferralSignup.objects.select_related(
             "referred",

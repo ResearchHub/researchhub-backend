@@ -441,10 +441,6 @@ class ReferralMetricsAPITest(TestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
-        self.assertEqual(
-            response.json()["detail"],
-            "You do not have permission to access this resource.",
-        )
 
     def test_monitoring_endpoint_data_structure(self):
         """Test that monitoring endpoint returns data with correct structure."""
