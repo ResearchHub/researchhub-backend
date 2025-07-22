@@ -3,7 +3,7 @@ set -e
 
 # Install dependencies
 poetry install --directory=src
-pip install --upgrade pip
+pip install --upgrade pip pkginfo
 pip install -r src/requirements.txt --no-deps
 
 cd src
