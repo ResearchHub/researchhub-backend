@@ -14,12 +14,14 @@ from referral.models import ReferralSignup
 from referral.serializers import (
     AddReferralCodeSerializer,
     ReferralMetricsSerializer,
+    ReferralMonitoringSerializer,
     ReferralNetworkDetailSerializer,
     ReferralSignupSerializer,
 )
 from referral.services.referral_metrics_service import ReferralMetricsService
 from reputation.related_models.distribution import Distribution
 from user.models import User
+from user.permissions import IsModerator
 
 logger = logging.getLogger(__name__)
 
@@ -270,3 +272,55 @@ class ReferralAssignmentViewSet(viewsets.ViewSet):
                 },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+
+class ReferralMonitoringViewSet(viewsets.ViewSet):
+    """
+    ViewSet for moderators to monitor all referrals on the platform.
+
+    Provides a comprehensive view of:
+    - All referred users
+    - Who referred them
+    - Total amount funded
+    - Credits earned from referrals
+    """
+
+    permission_classes = [IsModerator]
+
+    @action(detail=False, methods=["get"])
+    def monitor(self, request):
+        """
+        Get all referrals data for monitoring purposes.
+
+        Returns paginated list with:
+        - Referred user information
+        - Referrer information
+        - Total funded amount by referred user
+        - Credits earned by both referrer and referred
+        - Referral signup date
+        - Referral bonus expiration date
+        - Bonus expiration status (is_referral_bonus_expired)
+        """
+        # Get all referral signups with related user data
+        referrals = ReferralSignup.objects.select_related(
+            "referred",
+            "referred__author_profile",
+            "referrer",
+            "referrer__author_profile",
+        ).order_by("-signup_date")
+
+        # Paginate results
+        paginator = ReferralPagination()
+        paginated_results = paginator.paginate_queryset(referrals, request)
+
+        monitoring_data = []
+        for referral in paginated_results:
+            # Use any user for the service since we're not using user-specific methods
+            service = ReferralMetricsService(user=request.user)
+            referral_data = service.prepare_monitoring_data(referral)
+            monitoring_data.append(referral_data)
+
+        serializer = ReferralMonitoringSerializer(
+            monitoring_data, many=True, context={"request": request}
+        )
+        return paginator.get_paginated_response(serializer.data)

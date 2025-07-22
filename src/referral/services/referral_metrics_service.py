@@ -406,3 +406,54 @@ class ReferralMetricsService:
             }
         except ReferralSignup.DoesNotExist:
             return None
+
+    def prepare_monitoring_data(self, referral_signup):
+        """
+        Prepare monitoring data for a single referral signup.
+        Used by moderators/admins to monitor all referrals.
+        """
+        expiration_date = self._calculate_expiration_date(referral_signup.signup_date)
+        is_expired = self._is_referral_expired(referral_signup.signup_date)
+
+        # Get referrer data with total credits earned
+        referrer = referral_signup.referrer
+        referrer_bonus_earned = self._get_user_referral_bonus(referrer)
+
+        referrer_data = {
+            "id": referrer.id,
+            "username": referrer.username,
+            "full_name": referrer.full_name(),
+            "email": referrer.email,
+            "author_id": self._get_author_id(referrer),
+            "profile_image": self._get_user_profile_image(referrer),
+            "total_credits_earned": referrer_bonus_earned,
+        }
+
+        # Get referred user data
+        referred = referral_signup.referred
+        referred_total_funded = self._get_user_total_funded(referred)
+        referred_bonus_earned = self._get_user_referral_bonus(referred)
+        is_active_funder = self._is_active_funder(referred)
+
+        referred_user_data = {
+            "user_id": referred.id,
+            "username": referred.username,
+            "full_name": referred.full_name(),
+            "author_id": self._get_author_id(referred),
+            "profile_image": self._get_user_profile_image(referred),
+            "signup_date": referred.date_joined,
+            "referral_bonus_expiration_date": expiration_date,
+            "is_referral_bonus_expired": is_expired,
+            "total_funded": referred_total_funded,
+            "referral_bonus_earned": referred_bonus_earned,
+            "is_active_funder": is_active_funder,
+        }
+
+        return {
+            "id": referral_signup.id,
+            "signup_date": referral_signup.signup_date,
+            "referral_bonus_expiration_date": expiration_date,
+            "is_referral_bonus_expired": is_expired,
+            "referred_user": referred_user_data,
+            "referrer": referrer_data,
+        }

@@ -2,11 +2,18 @@ import uuid
 from datetime import timedelta
 from decimal import Decimal
 
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.utils import timezone
 
+from hub.models import Hub
+from purchase.models import Purchase
+from purchase.related_models.balance_model import Balance
+from purchase.related_models.fundraise_model import Fundraise
 from referral.models import ReferralSignup
 from referral.services.referral_metrics_service import ReferralMetricsService
+from reputation.related_models.distribution import Distribution
+from researchhub_document.models import ResearchhubUnifiedDocument
 from user.models import User
 
 
@@ -181,3 +188,124 @@ class ReferralMetricsServiceTest(TestCase):
             self.assertAlmostEqual(
                 expiration_date.timestamp(), expected_expiration.timestamp(), delta=1
             )
+
+    def test_prepare_monitoring_data_accuracy(self):
+        """Test that prepare_monitoring_data returns accurate financial data."""
+
+        # Create test data
+        referred_user = User.objects.create_user(
+            username="test_referred",
+            email="test_referred@test.com",
+            password=uuid.uuid4().hex,
+        )
+
+        referral_signup = ReferralSignup.objects.create(
+            referrer=self.referrer, referred=referred_user
+        )
+
+        # Create test hub and unified document for fundraise
+        hub = Hub.objects.create(name="Test Hub")
+        unified_document = ResearchhubUnifiedDocument.objects.create(
+            document_type="PAPER"
+        )
+        unified_document.hubs.add(hub)
+
+        # Create a fundraise
+        fundraise = Fundraise.objects.create(
+            created_by=self.referrer,
+            unified_document=unified_document,
+            goal_amount=10000,
+            goal_currency="USD",
+            status="OPEN",
+        )
+
+        # Create purchases
+        fundraise_content_type = ContentType.objects.get_for_model(Fundraise)
+
+        Purchase.objects.create(
+            user=referred_user,
+            content_type=fundraise_content_type,
+            object_id=fundraise.id,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            purchase_method=Purchase.OFF_CHAIN,
+            paid_status=Purchase.PAID,
+            amount="1000",
+        )
+
+        # Create referral bonus distributions
+        distribution_referrer = Distribution.objects.create(
+            recipient=self.referrer,
+            distribution_type="REFERRAL_BONUS",
+            amount=Decimal("100"),
+            distributed_status=Distribution.DISTRIBUTED,
+        )
+
+        distribution_referred = Distribution.objects.create(
+            recipient=referred_user,
+            distribution_type="REFERRAL_BONUS",
+            amount=Decimal("50"),
+            distributed_status=Distribution.DISTRIBUTED,
+        )
+
+        # Test prepare_monitoring_data
+        monitoring_data = self.service.prepare_monitoring_data(referral_signup)
+
+        # Check structure
+        self.assertIn("id", monitoring_data)
+        self.assertIn("signup_date", monitoring_data)
+        self.assertIn("referral_bonus_expiration_date", monitoring_data)
+        self.assertIn("is_referral_bonus_expired", monitoring_data)
+        self.assertIn("referred_user", monitoring_data)
+        self.assertIn("referrer", monitoring_data)
+
+        # Check referred user data accuracy
+        referred_data = monitoring_data["referred_user"]
+        self.assertEqual(referred_data["user_id"], referred_user.id)
+        self.assertEqual(referred_data["username"], referred_user.username)
+        self.assertEqual(referred_data["total_funded"], 1000.0)
+        self.assertEqual(referred_data["referral_bonus_earned"], 50.0)
+        self.assertTrue(referred_data["is_active_funder"])
+
+        # Check referrer data accuracy
+        referrer_data = monitoring_data["referrer"]
+        self.assertEqual(referrer_data["id"], self.referrer.id)
+        self.assertEqual(referrer_data["username"], self.referrer.username)
+        self.assertEqual(referrer_data["total_credits_earned"], 100.0)
+
+        # Check expiration date calculation
+        expiration_date = monitoring_data["referral_bonus_expiration_date"]
+        expected_expiration = referral_signup.signup_date + timedelta(days=30 * 6)
+        self.assertAlmostEqual(
+            expiration_date.timestamp(),
+            expected_expiration.timestamp(),
+            delta=1,
+        )
+
+    def test_prepare_monitoring_data_with_expired_referral(self):
+        """Test monitoring data for expired referrals."""
+        # Create a referral that's over 6 months old
+        old_referred = User.objects.create_user(
+            username="old_referred",
+            email="old_referred@test.com",
+            password=uuid.uuid4().hex,
+        )
+
+        old_referral = ReferralSignup.objects.create(
+            referrer=self.referrer, referred=old_referred
+        )
+
+        # Manually update the signup date to be 7 months ago
+        old_date = timezone.now() - timedelta(days=30 * 7)
+        ReferralSignup.objects.filter(id=old_referral.id).update(signup_date=old_date)
+        old_referral.refresh_from_db()
+
+        # Test monitoring data
+        monitoring_data = self.service.prepare_monitoring_data(old_referral)
+
+        # Should be marked as expired
+        self.assertTrue(monitoring_data["is_referral_bonus_expired"])
+        self.assertTrue(monitoring_data["referred_user"]["is_referral_bonus_expired"])
+
+        # Check that the expiration date is in the past
+        expiration_date = monitoring_data["referral_bonus_expiration_date"]
+        self.assertTrue(timezone.now() > expiration_date)

@@ -5,6 +5,7 @@ from referral.views import (
     AggregateReferralMetricsViewSet,
     ReferralAssignmentViewSet,
     ReferralMetricsViewSet,
+    ReferralMonitoringViewSet,
 )
 
 router = DefaultRouter()
@@ -16,6 +17,9 @@ router.register(
 )
 router.register(
     r"assignment", ReferralAssignmentViewSet, basename="referral-assignment"
+)
+router.register(
+    r"monitoring", ReferralMonitoringViewSet, basename="referral-monitoring"
 )
 
 app_name = "referral"
