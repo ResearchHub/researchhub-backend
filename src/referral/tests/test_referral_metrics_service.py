@@ -2,11 +2,18 @@ import uuid
 from datetime import timedelta
 from decimal import Decimal
 
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 from django.utils import timezone
 
+from hub.models import Hub
+from purchase.models import Purchase
+from purchase.related_models.balance_model import Balance
+from purchase.related_models.fundraise_model import Fundraise
 from referral.models import ReferralSignup
 from referral.services.referral_metrics_service import ReferralMetricsService
+from reputation.related_models.distribution import Distribution
+from researchhub_document.models import ResearchhubUnifiedDocument
 from user.models import User
 
 
@@ -184,14 +191,6 @@ class ReferralMetricsServiceTest(TestCase):
 
     def test_prepare_monitoring_data_accuracy(self):
         """Test that prepare_monitoring_data returns accurate financial data."""
-        from django.contrib.contenttypes.models import ContentType
-
-        from hub.models import Hub
-        from purchase.models import Purchase
-        from purchase.related_models.balance_model import Balance
-        from purchase.related_models.fundraise_model import Fundraise
-        from reputation.related_models.distribution import Distribution
-        from researchhub_document.models import ResearchhubUnifiedDocument
 
         # Create test data
         referred_user = User.objects.create_user(
@@ -284,14 +283,6 @@ class ReferralMetricsServiceTest(TestCase):
 
     def test_prepare_monitoring_data_with_expired_referral(self):
         """Test monitoring data for expired referrals."""
-        from django.contrib.contenttypes.models import ContentType
-
-        from hub.models import Hub
-        from purchase.models import Purchase
-        from purchase.related_models.fundraise_model import Fundraise
-        from reputation.related_models.distribution import Distribution
-        from researchhub_document.models import ResearchhubUnifiedDocument
-
         # Create a referral that's over 6 months old
         old_referred = User.objects.create_user(
             username="old_referred",
