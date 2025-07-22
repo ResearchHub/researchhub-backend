@@ -50,3 +50,6 @@ uploads/
 
 # Claude Code instructions
 CLAUDE.md
+
+# Custom post create scripts
+.devcontainer/post-create-*.sh
