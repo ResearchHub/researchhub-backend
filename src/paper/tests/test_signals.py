@@ -105,7 +105,7 @@ class UpdatePaperJournalStatusSignalTest(TransactionTestCase):
 
             # Verify an error was logged
             mock_log_error.assert_called_once()
-            error_msg = mock_log_error.call_args[0][0]
+            error_msg = mock_log_error.call_args[0][1]
             self.assertIn(f"No PaperVersion found for paper {self.paper.id}", error_msg)
 
     def test_update_existing_paper_version(self):
@@ -223,7 +223,7 @@ class UpdatePaperJournalStatusSignalTest(TransactionTestCase):
 
         # Verify error was logged for failed DOI registration
         mock_log_error.assert_called()
-        error_calls = [call[0][0] for call in mock_log_error.call_args_list]
+        error_calls = [call[0][1] for call in mock_log_error.call_args_list]
         self.assertTrue(any("Failed to register DOI" in call for call in error_calls))
 
         # Verify the paper and paper version were NOT updated with DOI
