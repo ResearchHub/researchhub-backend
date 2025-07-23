@@ -10,7 +10,7 @@ from researchhub_document.related_models.constants.document_type import (
     PAPER as PAPER_DOC_TYPE,
 )
 from utils.doi import DOI
-from utils.sentry import log_error
+from utils.sentry import log_error, log_info
 
 from .models import Paper
 from .related_models.paper_version import PaperVersion
@@ -106,13 +106,12 @@ def update_paper_journal_status(sender, instance, created, **kwargs):
                     paper_version.base_doi = doi.base_doi
                     paper_version.save()
 
-                    log_error(
-                        f"Successfully created DOI {doi.doi} for paper {paper_id}"
-                    )
+                    log_info(f"Successfully created DOI {doi.doi} for paper {paper_id}")
                 else:
                     log_error(
+                        Exception(f"Failed to register DOI for paper {paper_id}"),
                         f"Failed to register DOI for paper {paper_id}: "
-                        f"Crossref returned status {crossref_response.status_code}"
+                        f"Crossref returned status {crossref_response.status_code}",
                     )
 
                 # Add paper to ResearchHub journal hub
@@ -121,9 +120,10 @@ def update_paper_journal_status(sender, instance, created, **kwargs):
 
             except PaperVersion.DoesNotExist:
                 log_error(
+                    Exception(f"No PaperVersion found for paper {paper_id}"),
                     f"No PaperVersion found for paper {paper_id}, "
-                    f"skipping journal update"
+                    f"skipping journal update",
                 )
 
     except Exception as e:
-        log_error(f"Error updating paper journal status: {e}")
+        log_error(e, message="Error updating paper journal status")
