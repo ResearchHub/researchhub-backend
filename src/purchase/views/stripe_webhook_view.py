@@ -26,6 +26,12 @@ class StripeWebhookView(APIView):
 
     permission_classes = [AllowAny]
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Set attributes for Amplitude tracking
+        self.basename = "stripe_webhook"
+        self.action = "process"
+
     @track_event
     def post(self, request, *args, **kwargs):
         """
