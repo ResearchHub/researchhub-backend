@@ -122,6 +122,10 @@ router.register(
 
 router.register(r"purchase", purchase.views.PurchaseViewSet, basename="purchase")
 
+router.register(
+    r"rsc-purchase", purchase.views.RscPurchaseViewSet, basename="rsc-purchase"
+)
+
 router.register(r"transactions", purchase.views.BalanceViewSet, basename="transactions")
 
 router.register(r"user", user.views.UserViewSet)
