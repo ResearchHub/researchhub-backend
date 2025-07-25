@@ -1,5 +1,7 @@
+import logging
 from decimal import Decimal
 
+import stripe
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.decorators import action
@@ -8,10 +10,9 @@ from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
 from purchase.models import RscExchangeRate
-from purchase.serializers import (
-    RscPurchaseCheckoutSerializer,
-    RscPurchasePreviewSerializer,
-)
+from purchase.serializers import RscPurchasePreviewSerializer
+
+logger = logging.getLogger(__name__)
 
 
 class RscPurchaseViewSet(GenericViewSet):
