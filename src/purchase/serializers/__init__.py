@@ -9,5 +9,9 @@ from .purchase_serializer import (
     PurchaseSerializer,
 )
 from .rsc_exchange_serializer import RscExchangeRateSerializer
+from .rsc_purchase_serializer import (
+    RscPurchaseCheckoutSerializer,
+    RscPurchasePreviewSerializer,
+)
 from .support_serializer import SupportSerializer
 from .wallet_serializer import WalletSerializer
