@@ -47,11 +47,11 @@ class CheckoutSessionViewTest(APITestCase):
                 "url": "https://checkout.stripe.com/session/sessionId1",
             },
         )
-        
+
         # Verify the payment service was called correctly
         mock_payment_service.create_checkout_session.assert_called_once_with(
             user_id=self.user.id,
-            purpose=PaymentPurpose.APC,
+            purpose=PaymentPurpose.APC.value,
             amount=None,
             paper_id=paper.id,
             success_url="https://researchhub.com/success",
@@ -65,7 +65,7 @@ class CheckoutSessionViewTest(APITestCase):
         # Arrange
         mock_payment_service = MagicMock()
         mock_payment_service_class.return_value = mock_payment_service
-        
+
         data = {
             # purpose is missing!
             "success_url": "https://researchhub.com/success",
@@ -94,7 +94,7 @@ class CheckoutSessionViewTest(APITestCase):
         # Arrange
         mock_payment_service = MagicMock()
         mock_payment_service_class.return_value = mock_payment_service
-        
+
         data = {
             "purpose": PaymentPurpose.APC.value,
             "success_url": "https://researchhub.com/success",
@@ -122,7 +122,9 @@ class CheckoutSessionViewTest(APITestCase):
         # Arrange
         mock_payment_service = MagicMock()
         mock_payment_service_class.return_value = mock_payment_service
-        mock_payment_service.create_checkout_session.side_effect = Exception("Payment service error")
+        mock_payment_service.create_checkout_session.side_effect = Exception(
+            "Payment service error"
+        )
 
         paper = Paper.objects.create(title="title1")
 

@@ -150,9 +150,9 @@ class PaymentServiceTest(TestCase):
         self.assertEqual(payment.currency, "USD")
         self.assertEqual(payment.external_payment_id, "pi_123456")
         self.assertEqual(payment.payment_processor, PaymentProcessor.STRIPE)
-        self.assertEqual(payment.object_id, self.paper.id)
+        self.assertEqual(payment.object_id, str(self.paper.id))
         self.assertEqual(payment.content_type, ContentType.objects.get_for_model(Paper))
-        self.assertEqual(payment.user_id, self.user.id)
+        self.assertEqual(payment.user_id, str(self.user.id))
 
     def test_insert_payment_from_checkout_session_missing_paper_id(self):
         # Arrange
