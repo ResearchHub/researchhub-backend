@@ -1,5 +1,5 @@
 import json
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import stripe
 from django.test import TestCase
@@ -16,11 +16,24 @@ class StripeWebhookTestCase(TestCase):
         self.url = reverse("stripe_webhook")
         self.valid_signature = "valid-signature"
 
+    @patch("purchase.views.stripe_webhook_view.PaymentService")
     @patch("stripe.Webhook.construct_event")
-    def test_webhook_with_checkout_session_completed(self, mock_construct_event):
+    def test_webhook_with_checkout_session_completed(self, mock_construct_event, mock_payment_service_class):
         # Arrange
         paper = Paper.objects.create()
         user = User.objects.create()
+        
+        mock_payment_service = MagicMock()
+        mock_payment_service_class.return_value = mock_payment_service
+        
+        # Mock the payment creation
+        mock_payment = Payment(
+            id=1,
+            amount=1000,
+            currency="USD",
+            external_payment_id="paymentIntentId1"
+        )
+        mock_payment_service.insert_payment_from_checkout_session.return_value = mock_payment
 
         event_data = {
             "type": "checkout.session.completed",
@@ -50,14 +63,21 @@ class StripeWebhookTestCase(TestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, {"message": "Webhook successfully processed"})
+        
+        # Verify the payment service was called
+        mock_payment_service.insert_payment_from_checkout_session.assert_called_once_with(
+            event_data["data"]["object"]
+        )
 
-        payment = Payment.objects.get(external_payment_id="paymentIntentId1")
-        self.assertIsNotNone(payment)
-
+    @patch("purchase.views.stripe_webhook_view.PaymentService")
     @patch("stripe.Webhook.construct_event")
-    def test_webhook_with_checkout_session_missing_metadata(self, mock_construct_event):
+    def test_webhook_with_checkout_session_missing_metadata(self, mock_construct_event, mock_payment_service_class):
         # Arrange
         user = User.objects.create()
+        
+        mock_payment_service = MagicMock()
+        mock_payment_service_class.return_value = mock_payment_service
+        mock_payment_service.insert_payment_from_checkout_session.side_effect = ValueError("Missing paper_id in Stripe metadata")
 
         event_data = {
             "type": "checkout.session.completed",

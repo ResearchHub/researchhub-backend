@@ -1,2 +1,0 @@
-from .test_fundraise_view import FundraiseViewTests
-from .test_send_rsc import SendRSCTest
