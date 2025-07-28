@@ -4,7 +4,7 @@ from django.urls import reverse
 from rest_framework.test import APITestCase
 
 from paper.related_models.paper_model import Paper
-from purchase.related_models.payment_model import Payment, PaymentPurpose
+from purchase.related_models.payment_model import PaymentPurpose
 from user.tests.helpers import create_user
 
 
@@ -36,6 +36,7 @@ class CheckoutSessionViewTest(APITestCase):
         response = self.client.post(self.url, data=data)
 
         # Assert
+        print(response.data)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.data,
