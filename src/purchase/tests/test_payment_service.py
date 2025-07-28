@@ -1,0 +1,228 @@
+from unittest.mock import patch
+
+from django.contrib.contenttypes.models import ContentType
+from django.test import TestCase
+
+from paper.related_models.paper_model import Paper
+from purchase.related_models.payment_model import (
+    Payment,
+    PaymentProcessor,
+    PaymentPurpose,
+)
+from purchase.services.payment_service import PaymentService
+from user.tests.helpers import create_user
+
+
+class PaymentServiceTest(TestCase):
+    def setUp(self):
+        self.service = PaymentService()
+        self.user = create_user()
+        self.paper = Paper.objects.create(title="Test Paper")
+
+    @patch("stripe.checkout.Session.create")
+    def test_create_checkout_session_apc_success(self, mock_stripe_session_create):
+        # Arrange
+        mock_stripe_session_create.return_value = {
+            "id": "sessionId1",
+            "url": "https://checkout.stripe.com/session/sessionId1",
+        }
+
+        # Act
+        result = self.service.create_checkout_session(
+            user_id=self.user.id,
+            purpose=PaymentPurpose.APC,
+            paper_id=self.paper.id,
+            success_url="https://researchhub.com/success",
+            cancel_url="https://researchhub.com/failure",
+        )
+
+        # Assert
+        self.assertEqual(result["id"], "sessionId1")
+        self.assertEqual(
+            result["url"], "https://checkout.stripe.com/session/sessionId1"
+        )
+
+        # Verify Stripe was called with correct parameters
+        mock_stripe_session_create.assert_called_once_with(
+            payment_method_types=["card"],
+            line_items=[
+                {
+                    "price_data": {
+                        "currency": "usd",
+                        "product_data": {
+                            "name": "Article Processing Charge",
+                        },
+                        "unit_amount": 30000,  # APC is hardcoded to $300
+                    },
+                    "quantity": 1,
+                },
+            ],
+            mode="payment",
+            success_url="https://researchhub.com/success",
+            cancel_url="https://researchhub.com/failure",
+            metadata={
+                "user_id": str(self.user.id),
+                "paper_id": str(self.paper.id),
+            },
+        )
+
+    @patch("stripe.checkout.Session.create")
+    def test_create_checkout_session_rsc_purchase_success(
+        self, mock_stripe_session_create
+    ):
+        # Arrange
+        mock_stripe_session_create.return_value = {
+            "id": "sessionId2",
+            "url": "https://checkout.stripe.com/session/sessionId2",
+        }
+
+        # Act
+        result = self.service.create_checkout_session(
+            user_id=self.user.id,
+            purpose=PaymentPurpose.RSC_PURCHASE,
+            amount=50000,
+            success_url="https://researchhub.com/success",
+            cancel_url="https://researchhub.com/failure",
+        )
+
+        # Assert
+        self.assertEqual(result["id"], "sessionId2")
+        self.assertEqual(
+            result["url"], "https://checkout.stripe.com/session/sessionId2"
+        )
+
+        # Verify Stripe was called with correct parameters
+        mock_stripe_session_create.assert_called_once_with(
+            payment_method_types=["card"],
+            line_items=[
+                {
+                    "price_data": {
+                        "currency": "usd",
+                        "product_data": {
+                            "name": "ResearchCoin (RSC) Purchase",
+                        },
+                        "unit_amount": 50000,
+                    },
+                    "quantity": 1,
+                },
+            ],
+            mode="payment",
+            success_url="https://researchhub.com/success",
+            cancel_url="https://researchhub.com/failure",
+            metadata={
+                "user_id": str(self.user.id),
+            },
+        )
+
+    @patch("stripe.checkout.Session.create")
+    def test_create_checkout_session_stripe_error(self, mock_stripe_session_create):
+        # Arrange
+        mock_stripe_session_create.side_effect = Exception("Stripe error")
+
+        # Act & Assert
+        with self.assertRaises(Exception) as context:
+            self.service.create_checkout_session(
+                user_id=self.user.id,
+                purpose=PaymentPurpose.APC,
+                paper_id=self.paper.id,
+            )
+
+        self.assertEqual(str(context.exception), "Stripe error")
+
+    def test_insert_payment_from_checkout_session_success(self):
+        # Arrange
+        checkout_session = {
+            "amount_total": 30000,
+            "currency": "usd",
+            "payment_intent": "pi_123456",
+            "metadata": {
+                "user_id": str(self.user.id),
+                "paper_id": str(self.paper.id),
+            },
+        }
+
+        # Act
+        payment = self.service.insert_payment_from_checkout_session(checkout_session)
+
+        # Assert
+        self.assertIsInstance(payment, Payment)
+        self.assertEqual(payment.amount, 30000)
+        self.assertEqual(payment.currency, "USD")
+        self.assertEqual(payment.external_payment_id, "pi_123456")
+        self.assertEqual(payment.payment_processor, PaymentProcessor.STRIPE)
+        self.assertEqual(payment.object_id, self.paper.id)
+        self.assertEqual(payment.content_type, ContentType.objects.get_for_model(Paper))
+        self.assertEqual(payment.user_id, self.user.id)
+
+    def test_insert_payment_from_checkout_session_missing_paper_id(self):
+        # Arrange
+        checkout_session = {
+            "amount_total": 30000,
+            "currency": "usd",
+            "payment_intent": "pi_123456",
+            "metadata": {
+                "user_id": str(self.user.id),
+                # paper_id is missing
+            },
+        }
+
+        # Act & Assert
+        with self.assertRaises(ValueError) as context:
+            self.service.insert_payment_from_checkout_session(checkout_session)
+
+        self.assertEqual(str(context.exception), "Missing paper_id in Stripe metadata")
+
+    def test_insert_payment_from_checkout_session_missing_user_id(self):
+        # Arrange
+        checkout_session = {
+            "amount_total": 30000,
+            "currency": "usd",
+            "payment_intent": "pi_123456",
+            "metadata": {
+                "paper_id": str(self.paper.id),
+                # user_id is missing
+            },
+        }
+
+        # Act & Assert
+        with self.assertRaises(ValueError) as context:
+            self.service.insert_payment_from_checkout_session(checkout_session)
+
+        self.assertEqual(str(context.exception), "Missing user_id in Stripe metadata")
+
+    def test_get_name_for_purpose(self):
+        # Test APC
+        self.assertEqual(
+            self.service.get_name_for_purpose(PaymentPurpose.APC),
+            "Article Processing Charge",
+        )
+
+        # Test RSC Purchase
+        self.assertEqual(
+            self.service.get_name_for_purpose(PaymentPurpose.RSC_PURCHASE),
+            "ResearchCoin (RSC) Purchase",
+        )
+
+        # Test unknown purpose
+        self.assertEqual(
+            self.service.get_name_for_purpose("UNKNOWN"), "Unknown Purpose"
+        )
+
+    def test_get_amount_for_purpose(self):
+        # Test APC (hardcoded amount)
+        self.assertEqual(self.service.get_amount_for_purpose("APC"), 30000)
+        self.assertEqual(
+            self.service.get_amount_for_purpose("APC", 50000),  # Amount ignored for APC
+            30000,
+        )
+
+        # Test RSC Purchase (uses provided amount)
+        self.assertEqual(
+            self.service.get_amount_for_purpose(PaymentPurpose.RSC_PURCHASE, 50000),
+            50000,
+        )
+
+        # Test RSC Purchase with no amount
+        self.assertEqual(
+            self.service.get_amount_for_purpose(PaymentPurpose.RSC_PURCHASE), 0
+        )
