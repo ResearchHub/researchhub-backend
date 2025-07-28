@@ -2,15 +2,13 @@ import logging
 
 import stripe
 from django.conf import settings
-from django.contrib.contenttypes.models import ContentType
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from analytics.amplitude import track_event
-from paper.related_models.paper_model import Paper
-from purchase.related_models.payment_model import Payment, PaymentProcessor
+from purchase.services.payment_service import PaymentService
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +59,9 @@ class StripeWebhookView(APIView):
             match event_type:
                 case "checkout.session.completed":
                     checkout_session = event["data"]["object"]
-                    self.insertPayment(checkout_session)
+                    PaymentService().insert_payment_from_checkout_session(
+                        checkout_session
+                    )
                     logger.info(
                         "Completed checkout session ID=%s processed",
                         checkout_session["id"],
@@ -85,26 +85,4 @@ class StripeWebhookView(APIView):
 
         return Response(
             {"message": "Webhook successfully processed"}, status=status.HTTP_200_OK
-        )
-
-    def insertPayment(self, checkout_session):
-        """
-        Insert payment record into the database.
-        """
-        if "paper_id" not in checkout_session["metadata"]:
-            raise ValueError("Missing paper_id in Stripe metadata")
-        if "user_id" not in checkout_session["metadata"]:
-            raise ValueError("Missing user_id in Stripe metadata")
-
-        user_id = checkout_session["metadata"]["user_id"]
-        paper_id = checkout_session["metadata"]["paper_id"]
-
-        Payment.objects.create(
-            amount=checkout_session["amount_total"],
-            currency=checkout_session["currency"].upper(),
-            external_payment_id=checkout_session["payment_intent"],
-            payment_processor=PaymentProcessor.STRIPE,
-            object_id=paper_id,
-            content_type=ContentType.objects.get_for_model(Paper),
-            user_id=user_id,
         )
