@@ -19,6 +19,10 @@ class CheckoutView(APIView):
     permission_classes = [IsAuthenticated]
     serializer_class = CheckoutSerializer
 
+    def __init__(self, payment_service: PaymentService = None, **kwargs):
+        super().__init__(**kwargs)
+        self.payment_service = payment_service or PaymentService()
+
     def post(self, request, *args, **kwargs):
         user_id = request.user.id
         serializer = CheckoutSerializer(data=request.data)
@@ -30,7 +34,7 @@ class CheckoutView(APIView):
         purpose = data.get("purpose")
 
         try:
-            session_data = PaymentService().create_checkout_session(
+            session_data = self.payment_service.create_checkout_session(
                 user_id=user_id,
                 purpose=purpose,
                 amount=amount,

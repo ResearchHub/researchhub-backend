@@ -24,11 +24,12 @@ class StripeWebhookView(APIView):
 
     permission_classes = [AllowAny]
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, payment_service: PaymentService = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Set attributes for Amplitude tracking
         self.basename = "stripe_webhook"
         self.action = "process"
+        self.payment_service = payment_service or PaymentService()
 
     @track_event
     def post(self, request, *args, **kwargs):
@@ -59,7 +60,7 @@ class StripeWebhookView(APIView):
             match event_type:
                 case "checkout.session.completed":
                     checkout_session = event["data"]["object"]
-                    PaymentService().insert_payment_from_checkout_session(
+                    self.payment_service.insert_payment_from_checkout_session(
                         checkout_session
                     )
                     logger.info(
