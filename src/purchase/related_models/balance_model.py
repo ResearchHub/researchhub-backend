@@ -8,6 +8,7 @@ class Balance(models.Model):
 
     class LockType(models.TextChoices):
         REFERRAL_BONUS = "REFERRAL_BONUS", _("Referral Bonus")
+        RSC_PURCHASE = "RSC_PURCHASE", _("RSC Purchase")
 
     user = models.ForeignKey(
         "user.User", on_delete=models.CASCADE, related_name="balances"

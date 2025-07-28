@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional
 
 import stripe
 from django.contrib.contenttypes.models import ContentType
+from django.utils import timezone
 
 from paper.related_models.paper_model import Paper
 from purchase.related_models.balance_model import Balance
@@ -12,6 +13,8 @@ from purchase.related_models.payment_model import (
     PaymentPurpose,
 )
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from reputation.distributions import create_purchase_distribution
+from reputation.distributor import Distributor
 
 logger = logging.getLogger(__name__)
 
@@ -120,15 +123,28 @@ class PaymentService:
                 content_type=ContentType.objects.get(app_label="user", model="user"),
             )
 
-            # Credit the user's RSC balance
+            # Credit the user's RSC balance using distribution
             # Convert cents to dollars, then USD to RSC
             usd_amount = checkout_session["amount_total"] / 100
             rsc_amount = RscExchangeRate.usd_to_rsc(usd_amount)
-            Balance.objects.create(
-                user_id=int(user_id),
-                amount=str(rsc_amount),
-                content_type=ContentType.objects.get_for_model(Payment),
-                object_id=payment.id,
+            print(f"RSC amount to credit: {rsc_amount}")
+            print(f"total amount: {checkout_session['amount_total']}")
+
+            # Create a purchase distribution
+            purchase_distribution = create_purchase_distribution(
+                user=payment.user, amount=rsc_amount
+            )
+
+            # Use distributor to create locked balance
+            distributor = Distributor(
+                distribution=purchase_distribution,
+                recipient=payment.user,
+                db_record=payment,
+                timestamp=timezone.now().timestamp(),
+                giver=None,  # Platform gives the RSC
+            )
+            distributor.distribute_locked_balance(
+                lock_type=Balance.LockType.RSC_PURCHASE
             )
 
             return payment

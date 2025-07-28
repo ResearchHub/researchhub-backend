@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from django.contrib.contenttypes.models import ContentType
+from django.core.cache import cache
 from django.test import TestCase
 
 from paper.related_models.paper_model import Paper
@@ -12,11 +13,13 @@ from purchase.related_models.payment_model import (
 )
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.services.payment_service import APC_AMOUNT_CENTS, PaymentService
+from reputation.related_models.distribution import Distribution
 from user.tests.helpers import create_user
 
 
 class PaymentServiceTest(TestCase):
     def setUp(self):
+        cache.clear()
         self.service = PaymentService()
         self.user = create_user()
         self.paper = Paper.objects.create(title="Test Paper")
@@ -216,6 +219,14 @@ class PaymentServiceTest(TestCase):
         # Act
         payment = self.service.insert_payment_from_checkout_session(checkout_session)
 
+        # Debug: Check what distributions exist
+        all_distributions = Distribution.objects.all()
+        print(f"Total distributions: {all_distributions.count()}")
+        for dist in all_distributions:
+            print(
+                f"Distribution: type={dist.distribution_type}, recipient={dist.recipient}, amount={dist.amount}"
+            )
+
         # Assert payment was created correctly
         self.assertIsInstance(payment, Payment)
         self.assertEqual(payment.amount, 10000)
@@ -230,15 +241,23 @@ class PaymentServiceTest(TestCase):
         )
         self.assertEqual(payment.user.id, self.user.id)
 
-        # Assert balance was created with proper conversion
-        # $100 USD / $2 per RSC = 50 RSC
+        # Assert distribution was created
+        distribution = Distribution.objects.get(
+            recipient=self.user,
+        )
+        self.assertEqual(distribution.distribution_type, "PURCHASE")
+        self.assertEqual(float(distribution.amount), 50.0)
+
+        # Assert locked balance was created with proper conversion
         balance = Balance.objects.get(
             user=self.user,
-            content_type=ContentType.objects.get_for_model(Payment),
-            object_id=payment.id,
+            content_type=ContentType.objects.get_for_model(Distribution),
+            object_id=distribution.id,
         )
-        self.assertEqual(balance.amount, "200.0")  # 50 RSC at $2.00 per RSC
+        self.assertEqual(balance.amount, "50.0")
         self.assertEqual(balance.user_id, self.user.id)
+        self.assertTrue(balance.is_locked)
+        self.assertEqual(balance.lock_type, Balance.LockType.RSC_PURCHASE)
 
     def test_get_name_for_purpose(self):
         # Test APC
