@@ -13,6 +13,9 @@ from purchase.related_models.payment_model import (
 
 logger = logging.getLogger(__name__)
 
+# The amount for Article Processing Charge (APC) in cents
+APC_AMOUNT_CENTS = 300 * 100  # $300
+
 
 class PaymentService:
     """Service for handling payment-related business logic."""
@@ -41,7 +44,7 @@ class PaymentService:
             Dict containing session ID and URL
         """
         product_name = self.get_name_for_purpose(purpose)
-        unit_amount = self.get_amount_for_purpose(purpose, amount)
+        unit_amount = APC_AMOUNT_CENTS if purpose == PaymentPurpose.APC else amount
 
         try:
             session = stripe.checkout.Session.create(
@@ -129,19 +132,3 @@ class PaymentService:
             return "ResearchCoin (RSC) Purchase"
         else:
             return "Unknown Purpose"
-
-    def get_amount_for_purpose(self, purpose: str, amount: Optional[int] = None) -> int:
-        """
-        Get the amount for a payment purpose.
-
-        Args:
-            purpose: Payment purpose
-            amount: Optional amount (used for non-APC payments)
-
-        Returns:
-            Amount in cents
-        """
-        if purpose == "APC":
-            return 30000
-        else:
-            return amount if amount else 0

@@ -9,7 +9,7 @@ from purchase.related_models.payment_model import (
     PaymentProcessor,
     PaymentPurpose,
 )
-from purchase.services.payment_service import PaymentService
+from purchase.services.payment_service import APC_AMOUNT_CENTS, PaymentService
 from user.tests.helpers import create_user
 
 
@@ -52,7 +52,7 @@ class PaymentServiceTest(TestCase):
                         "product_data": {
                             "name": "Article Processing Charge",
                         },
-                        "unit_amount": 30000,  # APC is hardcoded to $300
+                        "unit_amount": APC_AMOUNT_CENTS,
                     },
                     "quantity": 1,
                 },
@@ -132,7 +132,7 @@ class PaymentServiceTest(TestCase):
     def test_insert_payment_from_checkout_session_success(self):
         # Arrange
         checkout_session = {
-            "amount_total": 30000,
+            "amount_total": APC_AMOUNT_CENTS,
             "currency": "usd",
             "payment_intent": "pi_123456",
             "metadata": {
@@ -146,7 +146,7 @@ class PaymentServiceTest(TestCase):
 
         # Assert
         self.assertIsInstance(payment, Payment)
-        self.assertEqual(payment.amount, 30000)
+        self.assertEqual(payment.amount, APC_AMOUNT_CENTS)
         self.assertEqual(payment.currency, "USD")
         self.assertEqual(payment.external_payment_id, "pi_123456")
         self.assertEqual(payment.payment_processor, PaymentProcessor.STRIPE)
@@ -157,7 +157,7 @@ class PaymentServiceTest(TestCase):
     def test_insert_payment_from_checkout_session_missing_paper_id(self):
         # Arrange
         checkout_session = {
-            "amount_total": 30000,
+            "amount_total": APC_AMOUNT_CENTS,
             "currency": "usd",
             "payment_intent": "pi_123456",
             "metadata": {
@@ -175,7 +175,7 @@ class PaymentServiceTest(TestCase):
     def test_insert_payment_from_checkout_session_missing_user_id(self):
         # Arrange
         checkout_session = {
-            "amount_total": 30000,
+            "amount_total": APC_AMOUNT_CENTS,
             "currency": "usd",
             "payment_intent": "pi_123456",
             "metadata": {
@@ -206,23 +206,4 @@ class PaymentServiceTest(TestCase):
         # Test unknown purpose
         self.assertEqual(
             self.service.get_name_for_purpose("UNKNOWN"), "Unknown Purpose"
-        )
-
-    def test_get_amount_for_purpose(self):
-        # Test APC (hardcoded amount)
-        self.assertEqual(self.service.get_amount_for_purpose("APC"), 30000)
-        self.assertEqual(
-            self.service.get_amount_for_purpose("APC", 50000),  # Amount ignored for APC
-            30000,
-        )
-
-        # Test RSC Purchase (uses provided amount)
-        self.assertEqual(
-            self.service.get_amount_for_purpose(PaymentPurpose.RSC_PURCHASE, 50000),
-            50000,
-        )
-
-        # Test RSC Purchase with no amount
-        self.assertEqual(
-            self.service.get_amount_for_purpose(PaymentPurpose.RSC_PURCHASE), 0
         )
