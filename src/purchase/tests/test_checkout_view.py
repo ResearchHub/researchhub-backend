@@ -4,6 +4,7 @@ from django.urls import reverse
 from rest_framework.test import APITestCase
 
 from paper.related_models.paper_model import Paper
+from purchase.related_models.payment_model import Payment, PaymentPurpose
 from user.tests.helpers import create_user
 
 
@@ -24,6 +25,7 @@ class CheckoutSessionViewTest(APITestCase):
 
         data = {
             "paper": paper.id,
+            "purpose": PaymentPurpose.APC,
             "success_url": "https://researchhub.com/success",
             "failure_url": "https://researchhub.com/failure",
         }
@@ -49,7 +51,7 @@ class CheckoutSessionViewTest(APITestCase):
     ):
         # Arrange
         data = {
-            # paper is missing!
+            # purpose is missing!
             "success_url": "https://researchhub.com/success",
             "failure_url": "https://researchhub.com/failure",
         }
@@ -64,7 +66,34 @@ class CheckoutSessionViewTest(APITestCase):
         self.assertEqual(
             response.data,
             {
-                "paper": ["This field is required."],
+                "purpose": ["This field is required."],
+            },
+        )
+        mock_stripe_session_create.assert_not_called()
+
+    @patch("stripe.checkout.Session.create")
+    def test_create_checkout_session_apc_without_paper(
+        self, mock_stripe_session_create
+    ):
+        # Arrange
+        data = {
+            "purpose": PaymentPurpose.APC.value,
+            "success_url": "https://researchhub.com/success",
+            "failure_url": "https://researchhub.com/failure",
+            # paper is missing for APC purpose!
+        }
+
+        self.client.force_authenticate(user=self.user)
+
+        # Act
+        response = self.client.post(self.url, data=data)
+
+        # Assert
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.data,
+            {
+                "paper": ["Paper is required when purpose is APC."],
             },
         )
         mock_stripe_session_create.assert_not_called()
@@ -78,6 +107,7 @@ class CheckoutSessionViewTest(APITestCase):
 
         data = {
             "paper": paper.id,
+            "purpose": PaymentPurpose.APC,
             "success_url": "https://researchhub.com/success",
             "failure_url": "https://researchhub.com/failure",
         }
