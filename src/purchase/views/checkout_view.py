@@ -30,7 +30,7 @@ class CheckoutView(APIView):
 
         data = serializer.validated_data
         amount = data.get("amount", None)
-        paper_id = data.get("paper", None)
+        paper = data.get("paper", None)
         purpose = data.get("purpose")
 
         try:
@@ -38,7 +38,7 @@ class CheckoutView(APIView):
                 user_id=user_id,
                 purpose=purpose,
                 amount=amount,
-                paper_id=paper_id,
+                paper_id=paper.id if paper else None,
                 success_url=data.get("success_url", None),
                 cancel_url=data.get("failure_url", None),
             )
