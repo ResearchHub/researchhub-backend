@@ -5,11 +5,13 @@ import stripe
 from django.contrib.contenttypes.models import ContentType
 
 from paper.related_models.paper_model import Paper
+from purchase.related_models.balance_model import Balance
 from purchase.related_models.payment_model import (
     Payment,
     PaymentProcessor,
     PaymentPurpose,
 )
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +68,7 @@ class PaymentService:
                 cancel_url=cancel_url,
                 metadata={
                     "user_id": str(user_id),
+                    "purpose": purpose,
                     **(
                         # Include paper_id only if purpose is APC
                         {"paper_id": str(paper_id)}
@@ -98,23 +101,58 @@ class PaymentService:
         Raises:
             ValueError: If required metadata is missing
         """
-        if "paper_id" not in checkout_session["metadata"]:
-            raise ValueError("Missing paper_id in Stripe metadata")
         if "user_id" not in checkout_session["metadata"]:
             raise ValueError("Missing user_id in Stripe metadata")
 
         user_id = checkout_session["metadata"]["user_id"]
-        paper_id = checkout_session["metadata"]["paper_id"]
+        purpose = checkout_session["metadata"].get("purpose", PaymentPurpose.APC)
 
-        return Payment.objects.create(
-            amount=checkout_session["amount_total"],
-            currency=checkout_session["currency"].upper(),
-            external_payment_id=checkout_session["payment_intent"],
-            payment_processor=PaymentProcessor.STRIPE,
-            object_id=paper_id,
-            content_type=ContentType.objects.get_for_model(Paper),
-            user_id=user_id,
-        )
+        if purpose == PaymentPurpose.RSC_PURCHASE:
+            # Handle RSC_PURCHASE
+            payment = Payment.objects.create(
+                amount=checkout_session["amount_total"],
+                currency=checkout_session["currency"].upper(),
+                external_payment_id=checkout_session["payment_intent"],
+                payment_processor=PaymentProcessor.STRIPE,
+                purpose=purpose,
+                user_id=int(user_id),
+                object_id=int(user_id),  # For RSC purchases, reference the user
+                content_type=ContentType.objects.get(app_label="user", model="user"),
+            )
+
+            # Credit the user's RSC balance
+            # Convert cents to dollars, then USD to RSC
+            usd_amount = checkout_session["amount_total"] / 100
+            rsc_amount = RscExchangeRate.usd_to_rsc(usd_amount)
+            Balance.objects.create(
+                user_id=int(user_id),
+                amount=str(rsc_amount),
+                content_type=ContentType.objects.get_for_model(Payment),
+                object_id=payment.id,
+            )
+
+            return payment
+
+        elif purpose == PaymentPurpose.APC:
+            # Handle APC
+            if "paper_id" not in checkout_session["metadata"]:
+                raise ValueError("Missing paper_id in Stripe metadata")
+
+            paper_id = checkout_session["metadata"]["paper_id"]
+
+            return Payment.objects.create(
+                amount=checkout_session["amount_total"],
+                currency=checkout_session["currency"].upper(),
+                external_payment_id=checkout_session["payment_intent"],
+                payment_processor=PaymentProcessor.STRIPE,
+                purpose=purpose,
+                object_id=paper_id,
+                content_type=ContentType.objects.get_for_model(Paper),
+                user_id=int(user_id),
+            )
+
+        else:
+            raise ValueError(f"Unknown payment purpose: {purpose}")
 
     def get_name_for_purpose(self, purpose: str) -> str:
         """

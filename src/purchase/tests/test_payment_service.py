@@ -4,11 +4,13 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
 from paper.related_models.paper_model import Paper
+from purchase.related_models.balance_model import Balance
 from purchase.related_models.payment_model import (
     Payment,
     PaymentProcessor,
     PaymentPurpose,
 )
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from purchase.services.payment_service import APC_AMOUNT_CENTS, PaymentService
 from user.tests.helpers import create_user
 
@@ -62,6 +64,7 @@ class PaymentServiceTest(TestCase):
             cancel_url="https://researchhub.com/failure",
             metadata={
                 "user_id": str(self.user.id),
+                "purpose": PaymentPurpose.APC,
                 "paper_id": str(self.paper.id),
             },
         )
@@ -111,6 +114,7 @@ class PaymentServiceTest(TestCase):
             cancel_url="https://researchhub.com/failure",
             metadata={
                 "user_id": str(self.user.id),
+                "purpose": PaymentPurpose.RSC_PURCHASE,
             },
         )
 
@@ -152,7 +156,7 @@ class PaymentServiceTest(TestCase):
         self.assertEqual(payment.payment_processor, PaymentProcessor.STRIPE)
         self.assertEqual(payment.object_id, str(self.paper.id))
         self.assertEqual(payment.content_type, ContentType.objects.get_for_model(Paper))
-        self.assertEqual(payment.user_id, str(self.user.id))
+        self.assertEqual(payment.user.id, self.user.id)
 
     def test_insert_payment_from_checkout_session_missing_paper_id(self):
         # Arrange
@@ -189,6 +193,52 @@ class PaymentServiceTest(TestCase):
             self.service.insert_payment_from_checkout_session(checkout_session)
 
         self.assertEqual(str(context.exception), "Missing user_id in Stripe metadata")
+
+    def test_insert_payment_from_checkout_session_rsc_purchase_success(self):
+        # Arrange
+        # Create an exchange rate: 1 RSC = $2.00
+        RscExchangeRate.objects.create(
+            rate=2.0,
+            real_rate=2.0,
+            target_currency="USD",
+        )
+
+        checkout_session = {
+            "amount_total": 10000,  # $100.00
+            "currency": "usd",
+            "payment_intent": "pi_rsc_123456",
+            "metadata": {
+                "user_id": str(self.user.id),
+                "purpose": PaymentPurpose.RSC_PURCHASE,
+            },
+        }
+
+        # Act
+        payment = self.service.insert_payment_from_checkout_session(checkout_session)
+
+        # Assert payment was created correctly
+        self.assertIsInstance(payment, Payment)
+        self.assertEqual(payment.amount, 10000)
+        self.assertEqual(payment.currency, "USD")
+        self.assertEqual(payment.external_payment_id, "pi_rsc_123456")
+        self.assertEqual(payment.payment_processor, PaymentProcessor.STRIPE)
+        self.assertEqual(payment.purpose, PaymentPurpose.RSC_PURCHASE)
+        self.assertEqual(payment.object_id, int(self.user.id))
+        self.assertEqual(
+            payment.content_type,
+            ContentType.objects.get(app_label="user", model="user"),
+        )
+        self.assertEqual(payment.user.id, self.user.id)
+
+        # Assert balance was created with proper conversion
+        # $100 USD / $2 per RSC = 50 RSC
+        balance = Balance.objects.get(
+            user=self.user,
+            content_type=ContentType.objects.get_for_model(Payment),
+            object_id=payment.id,
+        )
+        self.assertEqual(balance.amount, "200.0")  # 50 RSC at $2.00 per RSC
+        self.assertEqual(balance.user_id, self.user.id)
 
     def test_get_name_for_purpose(self):
         # Test APC
