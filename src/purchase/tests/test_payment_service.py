@@ -219,14 +219,6 @@ class PaymentServiceTest(TestCase):
         # Act
         payment = self.service.insert_payment_from_checkout_session(checkout_session)
 
-        # Debug: Check what distributions exist
-        all_distributions = Distribution.objects.all()
-        print(f"Total distributions: {all_distributions.count()}")
-        for dist in all_distributions:
-            print(
-                f"Distribution: type={dist.distribution_type}, recipient={dist.recipient}, amount={dist.amount}"
-            )
-
         # Assert payment was created correctly
         self.assertIsInstance(payment, Payment)
         self.assertEqual(payment.amount, 10000)

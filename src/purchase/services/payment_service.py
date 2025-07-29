@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional
 
 import stripe
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from django.utils import timezone
 
 from paper.related_models.paper_model import Paper
@@ -89,6 +90,53 @@ class PaymentService:
             logger.error("Error creating checkout session: %s", e)
             raise
 
+    @transaction.atomic
+    def _process_rsc_purchase(
+        self, checkout_session: stripe.checkout.Session, user_id: int
+    ) -> Payment:
+        """
+        Process an RSC purchase payment.
+
+        Args:
+            checkout_session: Stripe checkout session object
+            user_id: ID of the user making the purchase
+
+        Returns:
+            Created Payment instance
+        """
+        # Create payment record
+        payment = Payment.objects.create(
+            amount=checkout_session["amount_total"],
+            currency=checkout_session["currency"].upper(),
+            external_payment_id=checkout_session["payment_intent"],
+            payment_processor=PaymentProcessor.STRIPE,
+            purpose=PaymentPurpose.RSC_PURCHASE,
+            user_id=user_id,
+            object_id=user_id,  # For RSC purchases, reference the user
+            content_type=ContentType.objects.get(app_label="user", model="user"),
+        )
+
+        # Convert cents to dollars, then USD to RSC
+        usd_amount = checkout_session["amount_total"] / 100
+        rsc_amount = RscExchangeRate.usd_to_rsc(usd_amount)
+
+        # Create a purchase distribution
+        purchase_distribution = create_purchase_distribution(
+            user=payment.user, amount=rsc_amount
+        )
+
+        # Use distributor to create locked balance
+        distributor = Distributor(
+            distribution=purchase_distribution,
+            recipient=payment.user,
+            db_record=payment,
+            timestamp=timezone.now().timestamp(),
+            giver=None,  # Platform gives the RSC
+        )
+        distributor.distribute_locked_balance(lock_type=Balance.LockType.RSC_PURCHASE)
+
+        return payment
+
     def insert_payment_from_checkout_session(
         self, checkout_session: stripe.checkout.Session
     ) -> Payment:
@@ -111,43 +159,7 @@ class PaymentService:
         purpose = checkout_session["metadata"].get("purpose", PaymentPurpose.APC)
 
         if purpose == PaymentPurpose.RSC_PURCHASE:
-            # Handle RSC_PURCHASE
-            payment = Payment.objects.create(
-                amount=checkout_session["amount_total"],
-                currency=checkout_session["currency"].upper(),
-                external_payment_id=checkout_session["payment_intent"],
-                payment_processor=PaymentProcessor.STRIPE,
-                purpose=purpose,
-                user_id=int(user_id),
-                object_id=int(user_id),  # For RSC purchases, reference the user
-                content_type=ContentType.objects.get(app_label="user", model="user"),
-            )
-
-            # Credit the user's RSC balance using distribution
-            # Convert cents to dollars, then USD to RSC
-            usd_amount = checkout_session["amount_total"] / 100
-            rsc_amount = RscExchangeRate.usd_to_rsc(usd_amount)
-            print(f"RSC amount to credit: {rsc_amount}")
-            print(f"total amount: {checkout_session['amount_total']}")
-
-            # Create a purchase distribution
-            purchase_distribution = create_purchase_distribution(
-                user=payment.user, amount=rsc_amount
-            )
-
-            # Use distributor to create locked balance
-            distributor = Distributor(
-                distribution=purchase_distribution,
-                recipient=payment.user,
-                db_record=payment,
-                timestamp=timezone.now().timestamp(),
-                giver=None,  # Platform gives the RSC
-            )
-            distributor.distribute_locked_balance(
-                lock_type=Balance.LockType.RSC_PURCHASE
-            )
-
-            return payment
+            return self._process_rsc_purchase(checkout_session, int(user_id))
 
         elif purpose == PaymentPurpose.APC:
             # Handle APC
