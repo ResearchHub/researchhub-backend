@@ -4,6 +4,21 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 
+class BalanceManager(models.Manager):
+    def create(self, **kwargs):
+        raise NotImplementedError(
+            "Direct creation of Balance objects is not allowed. "
+            "Use create_for_distribution() method instead."
+        )
+
+    def create_for_distribution(self, **kwargs):
+        """
+        Create a Balance object for distribution system.
+        This method should only be called from the distribution system.
+        """
+        return super().create(**kwargs)
+
+
 class Balance(models.Model):
 
     class LockType(models.TextChoices):
@@ -31,3 +46,5 @@ class Balance(models.Model):
 
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
+
+    objects = BalanceManager()

@@ -111,7 +111,7 @@ class Distributor:
 
     def _record_balance(self, distribution, is_locked=False, lock_type=None):
         content_type = ContentType.objects.get_for_model(distribution)
-        Balance.objects.create(
+        Balance.objects.create_for_distribution(
             user=self.recipient,
             content_type=content_type,
             object_id=distribution.id,
