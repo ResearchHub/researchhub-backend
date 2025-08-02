@@ -639,6 +639,17 @@ STRIPE_WEBHOOK_SIGNING_SECRET = os.environ.get(
 stripe.api_key = STRIPE_SECRET_KEY
 stripe.api_version = "2024-09-30.acacia"
 
+# Coinbase
+COINBASE_API_KEY_NAME = os.environ.get(
+    "COINBASE_API_KEY_NAME", getattr(keys, "COINBASE_API_KEY_NAME", None)
+)
+COINBASE_API_KEY_SECRET = os.environ.get(
+    "COINBASE_API_KEY_SECRET", getattr(keys, "COINBASE_API_KEY_SECRET", None)
+)
+COINBASE_API_URL = os.environ.get(
+    "COINBASE_API_URL", "https://api.developer.coinbase.com"
+)
+
 # Search (Elastic)
 
 ELASTICSEARCH_HOST = os.environ.get("ELASTICSEARCH_HOST", keys.ELASTICSEARCH_HOST)

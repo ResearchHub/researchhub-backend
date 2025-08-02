@@ -353,6 +353,11 @@ urlpatterns = [
         purchase.views.CheckoutView.as_view(),
         name="payment_view",
     ),
+    path(
+        "api/payment/coinbase-session/",
+        purchase.views.CoinbaseSessionView.as_view(),
+        name="coinbase_session_view",
+    ),
     path("user_saved/", UserSavedView.as_view(), name="user_saved"),
 ]
 
