@@ -668,12 +668,13 @@ zstd = ["zstandard (==0.23.0)"]
 
 [[package]]
 name = "celery-redbeat"
-version = "2.2.0"
+version = "2.3.3"
 description = "A Celery Beat Scheduler using Redis for persistent storage"
 optional = false
-python-versions = "*"
+python-versions = ">=3.8"
 files = [
-    {file = "celery-redbeat-2.2.0.tar.gz", hash = "sha256:71104729380d4eaefd91a9b7d270ba7851bfff9ad55a43ac8365acbb0c608b77"},
+    {file = "celery_redbeat-2.3.3-py2.py3-none-any.whl", hash = "sha256:0d6da101c46c0147b88f3ae2bfaed42548545934263a31d325a8b0e6585c3fb1"},
+    {file = "celery_redbeat-2.3.3.tar.gz", hash = "sha256:f52664b490b2923a787d9f348f291243601430bf8ec383b6e79870a1731ee92a"},
 ]
 
 [package.dependencies]
@@ -6131,4 +6132,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "9d731abf2523db4edf46d6b3e44a558909e3f2cdb4e9ef6625daac44bb11c871"
+content-hash = "ba6a485d0c0168cf0103b6ce45d10a2d84f801c241947474781af903f1aa3573"
