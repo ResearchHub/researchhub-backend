@@ -1239,9 +1239,6 @@ mailchimp-marketing==3.0.80 ; python_version >= "3.12" and python_version < "4.0
 manubot==0.5.3 ; python_version >= "3.12" and python_version < "4.0" \
     --hash=sha256:c3c9de141098ef0bad61159d83203ee5c3142187080f3182e58459adbcb7001b \
     --hash=sha256:e125b2496583203f15b8ff4f68b7e10187e7664719c7da9634eac0f57ea62868
-markdown==3.7 ; python_version >= "3.12" and python_version < "4.0" \
-    --hash=sha256:2ae2471477cfd02dbbf038d5d9bc226d40def84b4fe2986e49b59b6b472bbed2 \
-    --hash=sha256:7eb6df5690b81a1d7942992c97fad2938e956e79df20cbc6186e9c3a77b1c803
 markupsafe==3.0.2 ; python_version >= "3.12" and python_version < "4.0" \
     --hash=sha256:0bff5e0ae4ef2e1ae4fdf2dfd5b76c75e5c2fa4132d05fc1b0dabcd20c7e28c4 \
     --hash=sha256:0f4ca02bea9a23221c0182836703cbf8930c5e9454bacce27e767509fa286a30 \
