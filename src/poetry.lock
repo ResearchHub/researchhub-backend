@@ -1486,23 +1486,6 @@ requests = "*"
 requests-oauthlib = ">=0.3.0"
 
 [[package]]
-name = "django-celery-beat"
-version = "2.0.0"
-description = "Database-backed Periodic Tasks."
-optional = false
-python-versions = "*"
-files = [
-    {file = "django-celery-beat-2.0.0.tar.gz", hash = "sha256:fdf1255eecfbeb770c6521fe3e69989dfc6373cd5a7f0fe62038d37f80f47e48"},
-    {file = "django_celery_beat-2.0.0-py2.py3-none-any.whl", hash = "sha256:fe0b2a1b31d4a6234fea4b31986ddfd4644a48fab216ce1843f3ed0ddd2e9097"},
-]
-
-[package.dependencies]
-celery = "*"
-Django = ">=1.11.17"
-django-timezone-field = ">=4.0,<5.0"
-python-crontab = ">=2.3.4"
-
-[[package]]
 name = "django-celery-results"
 version = "2.5.1"
 description = "Celery result backends for Django."
@@ -1780,24 +1763,6 @@ dropbox = ["dropbox (>=7.2.1)"]
 google = ["google-cloud-storage (>=1.15.0)"]
 libcloud = ["apache-libcloud"]
 sftp = ["paramiko"]
-
-[[package]]
-name = "django-timezone-field"
-version = "4.2.3"
-description = "A Django app providing database and form fields for pytz timezone objects."
-optional = false
-python-versions = ">=3.5"
-files = [
-    {file = "django-timezone-field-4.2.3.tar.gz", hash = "sha256:5dd5bd9249382bef8847d3e7e4c32b7be182a4b538f354130d1252ed228892f8"},
-    {file = "django_timezone_field-4.2.3-py3-none-any.whl", hash = "sha256:7552d2b0f145684b7de3fb5046101c7efd600cc6ba951b15c630fa1e1b83558e"},
-]
-
-[package.dependencies]
-django = ">=2.2"
-pytz = "*"
-
-[package.extras]
-rest-framework = ["djangorestframework (>=3.0.0)"]
 
 [[package]]
 name = "djangorestframework"
@@ -4530,24 +4495,6 @@ files = [
 ]
 
 [[package]]
-name = "python-crontab"
-version = "3.2.0"
-description = "Python Crontab API"
-optional = false
-python-versions = "*"
-files = [
-    {file = "python_crontab-3.2.0-py3-none-any.whl", hash = "sha256:82cb9b6a312d41ff66fd3caf3eed7115c28c195bfb50711bc2b4b9592feb9fe5"},
-    {file = "python_crontab-3.2.0.tar.gz", hash = "sha256:40067d1dd39ade3460b2ad8557c7651514cd3851deffff61c5c60e1227c5c36b"},
-]
-
-[package.dependencies]
-python-dateutil = "*"
-
-[package.extras]
-cron-description = ["cron-descriptor"]
-cron-schedule = ["croniter"]
-
-[[package]]
 name = "python-dateutil"
 version = "2.9.0.post0"
 description = "Extensions to the standard Python datetime module"
@@ -6132,4 +6079,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "ba6a485d0c0168cf0103b6ce45d10a2d84f801c241947474781af903f1aa3573"
+content-hash = "e168a27549d41cd81855c4fe2ce8a27c307396d087f542a2e6902cb8e5147241"
