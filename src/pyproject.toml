@@ -10,7 +10,7 @@ beautifulsoup4 = "4.12.2"
 bibtexparser = {version = "^2.0.0b3", allow-prereleases = true}
 black = "24.4.2"
 boto3 = "1.34.69"
-celery = "5.4.0"
+celery = "5.5.3"
 celery-redbeat = "2.2.0"
 channels = "^4.1.0"
 channels-redis = "^4.2.0"
