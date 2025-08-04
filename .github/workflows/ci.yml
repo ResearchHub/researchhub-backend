@@ -94,14 +94,19 @@ jobs:
           role_arn=$(eval echo \$$role_arn_name)
           echo "role_arn=$role_arn" >> "$GITHUB_OUTPUT"
 
-      - name: Configure AWS credentials with assume role
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_GITHUB_ACTIONS_ROLE }}
+          aws-region: us-east-1
+
+      - name: Assume role
         id: aws_credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           role-to-assume: ${{ steps.get-role-arn.outputs.role_arn }}
           role-session-name: github-actions-beanstalk-session
+          role-chaining: true
           role-duration-seconds: 3600
           role-skip-session-tagging: true
           aws-region: us-west-2
