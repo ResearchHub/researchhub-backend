@@ -772,8 +772,6 @@ django-filter==24.3 ; python_version >= "3.12" and python_version < "4.0" \
 django-health-check==3.18.3 ; python_version >= "3.12" and python_version < "4.0" \
     --hash=sha256:18b75daca4551c69a43f804f9e41e23f5f5fb9efd06cf6a313b3d5031bb87bd0 \
     --hash=sha256:f5f58762b80bdf7b12fad724761993d6e83540f97e2c95c42978f187e452fa07
-django-ipware==3.0.1 ; python_version >= "3.12" and python_version < "4.0" \
-    --hash=sha256:73a640a5bff00aa7503a35e92e462001cfabb07d73d649c262f117423beee953
 django-mjml==1.4 ; python_version >= "3.12" and python_version < "4.0" \
     --hash=sha256:09dc440fcec64f3656b17646439336e6c15c5987103dfb6fe23eb1f1bf734d11 \
     --hash=sha256:a805b3721de92a4972bb6bd4a3bffa91579420e48297a55f3ffef6d8e926b0b4
