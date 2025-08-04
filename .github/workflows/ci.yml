@@ -110,6 +110,7 @@ jobs:
           role-duration-seconds: 3600
           role-skip-session-tagging: true
           aws-region: us-west-2
+          retry-max-attempts: 3
           output-credentials: true
 
       - name: Deploy ${{ env.DEPLOY_ENV }} Backend - API
