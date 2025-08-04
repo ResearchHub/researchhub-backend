@@ -14,7 +14,6 @@ import os
 import sys
 
 import requests
-import segment.analytics as analytics
 import sentry_sdk
 import stripe
 from corsheaders.defaults import default_headers
@@ -862,10 +861,6 @@ ETHERSCAN_API_KEY = os.environ.get("ETHERSCAN_API_KEY", keys.ETHERSCAN_API_KEY)
 
 # CoinGecko API Key
 COIN_GECKO_API_KEY = os.environ.get("COIN_GECKO_API_KEY", keys.COIN_GECKO_API_KEY)
-
-
-# Segment analytics
-analytics.write_key = os.environ.get("SEGMENT_WRITE_KEY", keys.SEGMENT_WRITE_KEY)
 
 # Endaoment Account ID
 ENDAOMENT_ACCOUNT_ID = os.environ.get("ENDAOMENT_ACCOUNT_ID", keys.ENDAOMENT_ACCOUNT_ID)
