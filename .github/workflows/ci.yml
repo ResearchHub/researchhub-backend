@@ -25,6 +25,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.inputs.deploy_env }}
   cancel-in-progress: false
 
+permissions:
+  contents: read
+  id-token: write # required for requesting JWT token from AWS
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
