@@ -13,7 +13,7 @@ from django.db.models.functions import Cast
 from web3 import Web3
 
 import utils.locking as lock
-from ethereum.lib import RSC_CONTRACT_ADDRESS
+from ethereum.lib import RSC_CONTRACT_ADDRESS, execute_erc20_transfer, get_private_key
 from hub.models import Hub
 from mailing_list.lib import base_email_context
 from notification.models import Notification
@@ -23,7 +23,7 @@ from reputation.lib import check_hotwallet, check_pending_withdrawal, contract_a
 from reputation.models import Bounty, Contribution, Deposit
 from reputation.related_models.bounty import AnnotatedBounty
 from reputation.related_models.score import Score
-from researchhub.celery import QUEUE_CONTRIBUTIONS, app
+from researchhub.celery import QUEUE_CONTRIBUTIONS, QUEUE_PURCHASES, app
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_EXPIRED,
@@ -510,3 +510,92 @@ def recalc_hot_score_for_open_bounties():
 
     for bounty in open_bounties:
         bounty.unified_document.calculate_hot_score(should_save=True)
+
+
+NULL_ADDRESS = "0x0000000000000000000000000000000000000000"
+
+
+@app.task(queue=QUEUE_PURCHASES)
+def burn_revenue_rsc():
+    """
+    Weekly task to burn ResearchCoin from the revenue account.
+
+    This task:
+    1. Gets the current balance of revenue1@researchhub.foundation
+    2. Creates negative balance records to zero out the account
+    3. Transfers the same amount from hot wallet to null address (burning)
+    """
+    log_info("Starting weekly RSC burning task")
+
+    try:
+        # Get the revenue account
+        revenue_account = User.objects.get_community_revenue_account()
+
+        # Get current balance (excluding locked funds)
+        current_balance = revenue_account.get_balance()
+
+        if current_balance <= 0:
+            log_info(f"Revenue account has no balance to burn: {current_balance}")
+            return
+
+        log_info(f"Revenue account balance to burn: {current_balance}")
+
+        # Step 1: Create negative balance records to zero out the account
+        _zero_out_revenue_account(revenue_account, current_balance)
+
+        # Step 2: Burn tokens from hot wallet
+        _burn_tokens_from_hot_wallet(current_balance)
+
+        log_info(f"Successfully burned {current_balance} RSC from revenue account")
+
+    except Exception as e:
+        log_error(e, "Failed to burn revenue RSC")
+        raise
+
+
+def _zero_out_revenue_account(revenue_account, amount):
+    """
+    Creates negative balance records to zero out the revenue account.
+    """
+    from reputation.distributions import Distribution
+
+    # Create a distribution for the burning operation
+    distribution = Distribution("RSC_BURN", -amount, give_rep=False)
+
+    # Use the revenue account as both recipient and giver
+    distributor = Distributor(
+        distribution, revenue_account, revenue_account, time.time(), revenue_account
+    )
+
+    # This will create a negative balance record
+    distributor.distribute()
+
+
+def _burn_tokens_from_hot_wallet(amount):
+    """
+    Transfers tokens from hot wallet to null address (burning them).
+    """
+    try:
+        # Get the contract for the main network (Ethereum)
+        w3 = web3_provider.ethereum
+        contract = w3.eth.contract(
+            abi=contract_abi, address=Web3.to_checksum_address(RSC_CONTRACT_ADDRESS)
+        )
+
+        # Execute the transfer to null address
+        tx_hash = execute_erc20_transfer(
+            w3=w3,
+            sender=settings.WEB3_WALLET_ADDRESS,
+            sender_signing_key=get_private_key(),
+            contract=contract,
+            to=NULL_ADDRESS,
+            amount=amount,
+            network="ETHEREUM",
+        )
+
+        log_info(f"Burning transaction submitted: {tx_hash}")
+        return tx_hash
+
+    except Exception as e:
+        log_error(e, f"Failed to burn {amount} RSC from hot wallet")
+        raise
