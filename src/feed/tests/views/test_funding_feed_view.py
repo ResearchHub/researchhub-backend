@@ -1014,6 +1014,119 @@ class FundingFeedViewSetTests(TestCase):
         self.assertEqual(first_post_id, high_score_post.id)
         self.assertEqual(second_post_id, low_score_post.id)
 
+    def test_grant_id_filter_with_ordering_amount_raised(self):
+        """Test grant_id filter with ordering by amount_raised"""
+        from researchhub_document.related_models.constants.document_type import GRANT
+
+        grant_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        grant = Grant.objects.create(
+            created_by=self.user,
+            unified_document=grant_doc,
+            amount=50000.00,
+            currency="USD",
+            organization="Amount Raised Foundation",
+            description="Test grant for amount_raised ordering",
+            status=Grant.OPEN,
+        )
+
+        # Create posts with different amounts raised
+        # High amount
+        high_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        high_post = ResearchhubPost.objects.create(
+            title="High Amount Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=high_doc,
+        )
+        high_escrow = Escrow.objects.create(
+            amount_holding=1000,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=high_doc.id,
+        )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=high_doc,
+            escrow=high_escrow,
+            status=Fundraise.OPEN,
+        )
+
+        # Low amount
+        low_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        low_post = ResearchhubPost.objects.create(
+            title="Low Amount Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=low_doc,
+        )
+        low_escrow = Escrow.objects.create(
+            amount_holding=100,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=low_doc.id,
+        )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=low_doc,
+            escrow=low_escrow,
+            status=Fundraise.OPEN,
+        )
+
+        # Another post not associated with the grant
+        unrelated_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        ResearchhubPost.objects.create(
+            title="Unrelated Amount Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=unrelated_doc,
+        )
+        unrelated_escrow = Escrow.objects.create(
+            amount_holding=5000,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=unrelated_doc.id,
+        )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=unrelated_doc,
+            escrow=unrelated_escrow,
+            status=Fundraise.OPEN,
+        )
+
+        # Create grant applications for both posts
+        GrantApplication.objects.create(
+            grant=grant, preregistration_post=low_post, applicant=self.user
+        )
+        GrantApplication.objects.create(
+            grant=grant, preregistration_post=high_post, applicant=self.user
+        )
+
+        # Test ordering by amount_raised
+        url = (
+            reverse("funding_feed-list")
+            + f"?grant_id={grant.id}&ordering=amount_raised"
+        )
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 2)
+
+        # High amount post should come first
+        first_post_id = response.data["results"][0]["content_object"]["id"]
+        second_post_id = response.data["results"][1]["content_object"]["id"]
+
+        self.assertEqual(first_post_id, high_post.id)
+        self.assertEqual(second_post_id, low_post.id)
+
     def test_grant_id_filter_disables_caching(self):
         """Test that grant_id filter disables caching"""
         from researchhub_document.related_models.constants.document_type import GRANT
@@ -1236,3 +1349,45 @@ class FundingFeedViewSetTests(TestCase):
         self.assertEqual(
             response.data["results"][0]["content_object"]["id"], self.post.id
         )
+
+    def test_ordering_by_amount_raised(self):
+        """Test ordering by amount raised (highest first)"""
+        # Create a post with a higher amount raised
+        high_amount_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        high_amount_post = ResearchhubPost.objects.create(
+            title="High Amount Raised Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=high_amount_doc,
+        )
+        high_amount_escrow = Escrow.objects.create(
+            amount_holding=1000,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=high_amount_doc.id,
+        )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=high_amount_doc,
+            escrow=high_amount_escrow,
+            status=Fundraise.OPEN,
+        )
+
+        # A post with a lower amount raised (from setUp)
+        # self.post has a fundraise with 0 amount_holding
+
+        url = reverse("funding_feed-list") + "?ordering=amount_raised"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        results = response.data["results"]
+        # There are more than 2 posts, but we only care about the order of these two
+        self.assertGreater(len(results), 1)
+
+        # The post with the higher amount raised should be first
+        first_post_id = results[0]["content_object"]["id"]
+        self.assertEqual(first_post_id, high_amount_post.id)
