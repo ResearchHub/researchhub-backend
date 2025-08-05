@@ -637,62 +637,6 @@ def _burn_tokens_from_hot_wallet(amount, network="ETHEREUM"):
         raise
 
 
-def _monitor_burn_transaction(tx_hash, network, max_attempts=10):
-    """
-    Monitor the burn transaction to ensure it was successful.
-    """
-    if network == "BASE":
-        w3 = web3_provider.base
-    else:
-        w3 = web3_provider.ethereum
-
-    for attempt in range(max_attempts):
-        try:
-            receipt = w3.eth.get_transaction_receipt(tx_hash)
-            if receipt and receipt["status"] == 1:
-                log_info(f"Burn transaction {tx_hash} confirmed successfully")
-                return True
-            elif receipt and receipt["status"] == 0:
-                raise Exception(f"Burn transaction {tx_hash} failed on chain")
-        except Exception as e:
-            if "not found" in str(e).lower():
-                log_info(
-                    f"Transaction {tx_hash} not yet mined, attempt {attempt + 1}/{max_attempts}"
-                )
-                time.sleep(30)  # Wait 30 seconds before retrying
-            else:
-                raise
-
-    raise Exception(
-        f"Burn transaction {tx_hash} not confirmed after {max_attempts} attempts"
-    )
-
-
-def _send_burn_failure_alert(network, amount, error):
-    """
-    Send alert for failed burning attempts.
-    """
-    try:
-        # subject = f"RSC Burning Failed - {network}"
-        message = f"""
-        RSC Burning Task Failed
-        
-        Network: {network}
-        Amount: {amount}
-        Error: {error}
-        Time: {datetime.now()}
-        
-        Please investigate immediately.
-        """
-
-        # You can implement your preferred alerting mechanism here
-        # For example, send email, Slack notification, etc.
-        log_error(Exception(error), f"BURN_ALERT: {message}")
-
-    except Exception as e:
-        log_error(e, "Failed to send burn failure alert")
-
-
 @app.task(queue=QUEUE_PURCHASES)
 def check_hot_wallet_health():
     """
