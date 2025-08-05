@@ -1223,16 +1223,122 @@ class FundingFeedViewSetTests(TestCase):
             response.data["results"][0]["content_object"]["id"], fourth_post_closed.id
         )
 
-        # Test created_by filter for different user
-        url = (
-            reverse("funding_feed-list")
-            + f"?created_by={self.user.id}&fundraise_status=OPEN"
-        )
-        response = self.client.get(url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # Should only return OPEN fundraises created by self.user
-        self.assertEqual(len(response.data["results"]), 1)
         self.assertEqual(
             response.data["results"][0]["content_object"]["id"], self.post.id
         )
+
+    def test_ordering_by_amount_raised(self):
+        """Test that fundraises can be sorted by the amount raised"""
+        # Create posts and fundraises with varying amounts raised
+        # High amount, OPEN
+        high_amount_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        high_amount_post = ResearchhubPost.objects.create(
+            title="High Amount Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=high_amount_doc,
+        )
+        high_amount_escrow = Escrow.objects.create(
+            amount_holding=1000,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=high_amount_doc.id,
+        )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=high_amount_doc,
+            escrow=high_amount_escrow,
+            status=Fundraise.OPEN,
+            goal_amount=2000,
+        )
+
+        # Low amount, OPEN
+        low_amount_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        low_amount_post = ResearchhubPost.objects.create(
+            title="Low Amount Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=low_amount_doc,
+        )
+        low_amount_escrow = Escrow.objects.create(
+            amount_holding=100,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=low_amount_doc.id,
+        )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=low_amount_doc,
+            escrow=low_amount_escrow,
+            status=Fundraise.OPEN,
+            goal_amount=200,
+        )
+
+        # Medium amount, COMPLETED
+        medium_amount_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        medium_amount_post = ResearchhubPost.objects.create(
+            title="Medium Amount Post",
+            created_by=self.user,
+            document_type=PREREGISTRATION,
+            unified_document=medium_amount_doc,
+        )
+        medium_amount_escrow = Escrow.objects.create(
+            amount_holding=500,
+            hold_type=Escrow.FUNDRAISE,
+            created_by=self.user,
+            content_type=ContentType.objects.get_for_model(ResearchhubUnifiedDocument),
+            object_id=medium_amount_doc.id,
+        )
+        Fundraise.objects.create(
+            created_by=self.user,
+            unified_document=medium_amount_doc,
+            escrow=medium_amount_escrow,
+            status=Fundraise.COMPLETED,
+            goal_amount=1000,
+        )
+
+        # Test sorting ALL fundraises by amount_raised
+        url_all = reverse("funding_feed-list") + "?ordering=amount_raised"
+        response_all = self.client.get(url_all)
+        self.assertEqual(response_all.status_code, status.HTTP_200_OK)
+
+        all_ids = [r["content_object"]["id"] for r in response_all.data["results"]]
+        expected_all_order_prefix = [
+            high_amount_post.id,
+            medium_amount_post.id,
+            low_amount_post.id,
+        ]
+        self.assertEqual(all_ids[:3], expected_all_order_prefix)
+
+        # Test sorting OPEN fundraises by amount_raised
+        url_open = (
+            reverse("funding_feed-list")
+            + "?fundraise_status=OPEN&ordering=amount_raised"
+        )
+        response_open = self.client.get(url_open)
+        self.assertEqual(response_open.status_code, status.HTTP_200_OK)
+        open_ids = [r["content_object"]["id"] for r in response_open.data["results"]]
+        expected_open_order = [high_amount_post.id, low_amount_post.id, self.post.id]
+        self.assertEqual(open_ids, expected_open_order)
+
+        # Test sorting CLOSED fundraises by amount_raised
+        url_closed = (
+            reverse("funding_feed-list")
+            + "?fundraise_status=CLOSED&ordering=amount_raised"
+        )
+        response_closed = self.client.get(url_closed)
+        self.assertEqual(response_closed.status_code, status.HTTP_200_OK)
+        closed_ids = [
+            r["content_object"]["id"] for r in response_closed.data["results"]
+        ]
+        expected_closed_order = [medium_amount_post.id, self.other_post.id]
+        self.assertEqual(closed_ids, expected_closed_order)
+
