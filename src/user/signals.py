@@ -7,7 +7,6 @@ from django.dispatch import receiver
 from django.utils.crypto import get_random_string
 from django.utils.text import slugify
 
-from citation.models import CitationProject
 from discussion.models import Vote
 from mailing_list.tasks import build_notification_context
 from paper.models import Paper, PaperSubmission
@@ -181,16 +180,6 @@ def create_user_organization(sender, instance, created, **kwargs):
             organization=org,
             user=instance,
         )
-
-        project = CitationProject.objects.create(
-            is_public=True,
-            slug="my-library",
-            project_name="My Library",
-            parent_names={"names": ["My Library"], "slugs": ["my-library"]},
-            organization=org,
-            created_by=instance,
-        )
-        project.set_creator_as_admin()
 
         profile_image = instance.author_profile.profile_image
         try:
