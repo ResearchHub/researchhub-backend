@@ -13,19 +13,10 @@ from paper.models import Paper
 from researchhub_document.filters import UnifiedDocumentFilter
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.permissions import HasDocumentCensorPermission
-from researchhub_document.related_models.constants.filters import (
-    DISCUSSED,
-    EXPIRING_SOON,
-    HOT,
-    MOST_RSC,
-    NEW,
-    UPVOTED,
-)
 from researchhub_document.serializers import (
     DynamicUnifiedDocumentSerializer,
     ResearchhubUnifiedDocumentSerializer,
 )
-from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
 from utils.permissions import ReadOnly
 
 
@@ -81,11 +72,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             action.display = False
             action.save()
 
-        doc_type = get_doc_type_key(doc)
-        reset_unified_document_cache(
-            document_type=[doc_type, "all"],
-            filters=[NEW, UPVOTED, HOT, DISCUSSED, MOST_RSC, EXPIRING_SOON],
-        )
         return Response(self.get_serializer(instance=doc).data, status=200)
 
     @action(

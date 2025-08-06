@@ -21,30 +21,16 @@ from researchhub.settings import TESTING
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.permissions import HasDocumentEditingPermission
 from researchhub_document.related_models.constants.document_type import (
-    ALL,
-    BOUNTY,
     FILTER_BOUNTY_OPEN,
     FILTER_HAS_BOUNTY,
-    GRANT,
-    POSTS,
-    PREREGISTRATION,
-    QUESTION,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
     SORT_BOUNTY_EXPIRATION_DATE,
     SORT_BOUNTY_TOTAL_AMOUNT,
 )
 from researchhub_document.related_models.constants.editor_type import CK_EDITOR
-from researchhub_document.related_models.constants.filters import (
-    DISCUSSED,
-    HOT,
-    MOST_RSC,
-    NEW,
-    UPVOTED,
-)
 from researchhub_document.serializers.researchhub_post_serializer import (
     ResearchhubPostSerializer,
 )
-from researchhub_document.utils import reset_unified_document_cache
 from user.models import User
 from user.related_models.author_model import Author
 from utils.doi import DOI
@@ -259,18 +245,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     if crossref_response.status_code != 200:
                         return Response("Crossref API Failure", status=400)
 
-                reset_unified_document_cache(
-                    document_type=[
-                        ALL.lower(),
-                        POSTS.lower(),
-                        PREREGISTRATION.lower(),
-                        GRANT.lower(),
-                        QUESTION.lower(),
-                        BOUNTY.lower(),
-                    ],
-                    filters=[NEW, MOST_RSC],
-                )
-
                 unified_document.update_filters(
                     (
                         FILTER_BOUNTY_OPEN,
@@ -415,17 +389,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             if type(hubs) is list:
                 unified_doc = post.unified_document
                 unified_doc.hubs.set(hubs)
-
-            reset_unified_document_cache(
-                document_type=[
-                    ALL.lower(),
-                    POSTS.lower(),
-                    PREREGISTRATION.lower(),
-                    GRANT.lower(),
-                    QUESTION.lower(),
-                ],
-                filters=[NEW, DISCUSSED, UPVOTED, HOT],
-            )
 
             if assign_doi:
                 crossref_response = doi.register_doi_for_post(
