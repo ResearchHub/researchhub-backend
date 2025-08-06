@@ -264,14 +264,14 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         if user.is_authenticated:
             # TODO: Refactor below
             if paper_ids:
-                paper_votes = get_user_votes(
+                paper_votes = _get_user_votes(
                     user, paper_ids, ContentType.objects.get_for_model(Paper)
                 )
                 for vote in paper_votes.iterator():
                     paper_id = vote.object_id
                     response["paper"][paper_id] = VoteSerializer(instance=vote).data
             if post_ids:
-                post_votes = get_user_votes(
+                post_votes = _get_user_votes(
                     user, post_ids, ContentType.objects.get_for_model(ResearchhubPost)
                 )
                 for vote in post_votes.iterator():
@@ -412,7 +412,7 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         return Response(serializer_data, status=status.HTTP_200_OK)
 
 
-def get_user_votes(created_by, doc_ids, reaction_content_type):
+def _get_user_votes(created_by, doc_ids, reaction_content_type):
     return Vote.objects.filter(
         content_type=reaction_content_type, object_id__in=doc_ids, created_by=created_by
     )
