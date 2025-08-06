@@ -1,16 +1,18 @@
 """
-Overriding django-elasticsearch-dsl-drf multi match query backend 
+Overriding django-elasticsearch-dsl-drf multi match query backend
 in order to support RH's use case. Changes highlighted below.
 """
 
-from django_elasticsearch_dsl_drf.filter_backends.search.query_backends import BaseSearchQueryBackend
-from elasticsearch_dsl import Q
 import copy
+
+from elasticsearch_dsl import Q
+
+from search.base.query_backends import BaseSearchQueryBackend
 
 
 class MultiMatchQueryBackend(BaseSearchQueryBackend):
 
-    query_type = 'multi_match'
+    query_type = "multi_match"
 
     """
     Perform prefix phrase match if greater than or equal to length specified.
@@ -18,11 +20,11 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
     min_len_for_phrase_match_query = 6
     """
     Add additional weight to exact matches
-    """    
+    """
     boost_for_phrase_query = 2
     """
     If score_field is specified on view, control how much weight the field should have
-    """    
+    """
     factor_for_function_score = 1.4
 
     @classmethod
@@ -36,18 +38,15 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
         if not options:
             options = {}
 
-        field_name = options['field'] \
-            if 'field' in options \
-            else field
+        field_name = options["field"] if "field" in options else field
 
-        if 'boost' in options:
-            return '{}^{}'.format(field_name, options['boost'])
+        if "boost" in options:
+            return "{}^{}".format(field_name, options["boost"])
         return field_name
-
 
     @classmethod
     def get_query_options(cls, request, view, search_backend):
-        query_options = getattr(view, 'multi_match_options', {})
+        query_options = getattr(view, "multi_match_options", {})
 
         return query_options
 
@@ -55,86 +54,89 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
     def construct_query(cls, request, view, query_fields, search_term, query_opts):
         score_field = None
         try:
-            score_field = getattr(view, 'score_field')
+            score_field = getattr(view, "score_field")
         except:
             pass
 
         if score_field is not None:
-            return (
-                Q(
-                    'function_score',
-                    query={
-                        'multi_match': {
-                            'query': search_term,
-                            'fields': query_fields,
-                            **query_opts
-                        }
-                    },
-                    field_value_factor= {
-                        "field": score_field,
-                        "factor": cls.factor_for_function_score,
-                        "modifier": "sqrt",
-                        "missing": 1
+            return Q(
+                "function_score",
+                query={
+                    "multi_match": {
+                        "query": search_term,
+                        "fields": query_fields,
+                        **query_opts,
                     }
-
-                )
+                },
+                field_value_factor={
+                    "field": score_field,
+                    "factor": cls.factor_for_function_score,
+                    "modifier": "sqrt",
+                    "missing": 1,
+                },
             )
         else:
-            return (
-                Q(
-                    cls.query_type,
-                    query=search_term,
-                    fields=query_fields,
-                    **query_opts
-                )
+            return Q(
+                cls.query_type, query=search_term, fields=query_fields, **query_opts
             )
 
-
     @classmethod
-    def construct_phrase_query(cls, request, view, query_fields, search_term, query_opts):
+    def construct_phrase_query(
+        cls, request, view, query_fields, search_term, query_opts
+    ):
         phrase_query_opts = copy.deepcopy(query_opts)
-        phrase_query_opts['type'] = 'phrase_prefix'
-        phrase_query_opts['boost'] = cls.boost_for_phrase_query
+        phrase_query_opts["type"] = "phrase_prefix"
+        phrase_query_opts["boost"] = cls.boost_for_phrase_query
 
         # Fuzziness not allowed in phrases
-        if 'fuzziness' in phrase_query_opts:
-            del phrase_query_opts['fuzziness']
+        if "fuzziness" in phrase_query_opts:
+            del phrase_query_opts["fuzziness"]
 
-        return cls.construct_query(request, view, query_fields, search_term, phrase_query_opts)
+        return cls.construct_query(
+            request, view, query_fields, search_term, phrase_query_opts
+        )
 
     @classmethod
-    def construct_complex_query(cls, request, view, field, search_term, query_opts, field_opts):
+    def construct_complex_query(
+        cls, request, view, field, search_term, query_opts, field_opts
+    ):
         complex_query_opts = {**copy.deepcopy(query_opts), **field_opts}
-        return cls.construct_query(request, view, [field], search_term, complex_query_opts)
-
+        return cls.construct_query(
+            request, view, [field], search_term, complex_query_opts
+        )
 
     """
     Returns all fields that do not have "options" key
     specified on a per-field basis.
     """
+
     @classmethod
     def get_simple_search_fields(cls, query_fields):
         simple_fields = {}
         for field in query_fields:
-            if 'options' not in query_fields[field]:
+            if "options" not in query_fields[field]:
                 simple_fields[field] = query_fields[field]
 
         return simple_fields
-
 
     """
     Returns all fields that have "options" key
     specified on per-field basis.
     """
+
     @classmethod
     def get_complex_search_fields(cls, query_fields):
         complex_fields = []
         for field in query_fields:
-            if 'options' in query_fields[field]:
-                if 'condition' in query_fields[field]:
-                    f = (field, query_fields[field]['options'], query_fields[field]['condition'])
+            if "options" in query_fields[field]:
+                if "condition" in query_fields[field]:
+                    f = (
+                        field,
+                        query_fields[field]["options"],
+                        query_fields[field]["condition"],
+                    )
                 else:
-                    f = (field, query_fields[field]['options'], None)                                    
+                    f = (field, query_fields[field]["options"], None)
 
                 complex_fields.append(f)
 
@@ -185,13 +187,12 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
         :param search_backend:
         :return:
         """
-        if hasattr(view, 'multi_match_search_fields'):
+        if hasattr(view, "multi_match_search_fields"):
             view_search_fields = copy.deepcopy(
-                getattr(view, 'multi_match_search_fields')
+                getattr(view, "multi_match_search_fields")
             )
         else:
             view_search_fields = copy.deepcopy(view.search_fields)
-
 
         simple_fields = cls.get_simple_search_fields(view_search_fields)
         complex_fields = cls.get_complex_search_fields(view_search_fields)
@@ -214,9 +215,7 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
             if __len_values > 1:
                 _field, value = __values
                 __search_term = value
-                fields = search_backend.split_lookup_complex_multiple_value(
-                    _field
-                )
+                fields = search_backend.split_lookup_complex_multiple_value(_field)
                 for field in fields:
                     if field in simple_fields:
                         if __is_complex:
@@ -233,17 +232,16 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
                 # It's a dict, see example 1 (complex)
                 if __is_complex:
                     for field, options in simple_fields.items():
-                        query_fields.append(
-                            cls.get_field(field, options)
-                        )
+                        query_fields.append(cls.get_field(field, options))
 
                 # It's a list, see example 2 (simple)
                 else:
                     query_fields = copy.deepcopy(simple_fields)
 
-
             query_opts = cls.get_query_options(request, view, search_backend)
-            q = cls.construct_query(request, view, query_fields, __search_term, query_opts)
+            q = cls.construct_query(
+                request, view, query_fields, __search_term, query_opts
+            )
             __queries.append(q)
 
             """
@@ -254,9 +252,13 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
             """
             for field_tuple in complex_fields:
                 field, field_opts, condition = field_tuple
-                complex_q = cls.construct_complex_query(request, view, field, __search_term, query_opts, field_opts)
+                complex_q = cls.construct_complex_query(
+                    request, view, field, __search_term, query_opts, field_opts
+                )
 
-                if condition is None or (callable(condition) and condition(search_term)):
+                if condition is None or (
+                    callable(condition) and condition(search_term)
+                ):
                     __queries.append(complex_q)
 
             """
@@ -264,9 +266,51 @@ class MultiMatchQueryBackend(BaseSearchQueryBackend):
             the goal of which is to boost exact phrases requested.
             """
             if len(__search_term) >= cls.min_len_for_phrase_match_query:
-                phrase_q = cls.construct_phrase_query(request, view, query_fields, __search_term, query_opts)
+                phrase_q = cls.construct_phrase_query(
+                    request, view, query_fields, __search_term, query_opts
+                )
                 __queries.append(phrase_q)
-
 
         return __queries
 
+    def filter(self, queryset, query_string, fields=None, options=None):
+        """
+        Apply multi-match query to queryset.
+        """
+
+        # Create a mock request and view to work with existing logic
+        class MockRequest:
+            def __init__(self, query_string):
+                self.query_params = {"search_multi_match": query_string}
+
+        class MockView:
+            def __init__(self, fields):
+                self.search_fields = fields
+                self.multi_match_search_fields = fields
+
+        class MockBackend:
+            @staticmethod
+            def get_search_query_params(request):
+                return [request.query_params.get("search_multi_match", "")]
+
+            @staticmethod
+            def split_lookup_name(value, maxsplit=-1):
+                return [value]
+
+            @staticmethod
+            def split_lookup_complex_multiple_value(value):
+                return value.split(",")
+
+        request = MockRequest(query_string)
+        view = MockView(fields or {})
+        search_backend = MockBackend()
+
+        queries = self.construct_search(request, view, search_backend)
+
+        if queries:
+            combined_query = queries[0]
+            for query in queries[1:]:
+                combined_query = combined_query | query
+            return queryset.query(combined_query)
+
+        return queryset
