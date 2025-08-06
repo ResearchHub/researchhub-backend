@@ -1,4 +1,3 @@
-from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.db import transaction
 from django.utils.text import slugify
@@ -8,18 +7,17 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from analytics.amplitude import track_event
-from analytics.tasks import track_revenue_event
 from discussion.views import ReactionViewActionMixin
 from hub.models import Hub
 from note.related_models.note_model import Note
-from purchase.models import Balance, Grant, Purchase
+from purchase.models import Grant
 from purchase.related_models.constants.currency import USD
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
 from purchase.services.fundraise_service import FundraiseService
-from researchhub.settings import CROSSREF_DOI_RSC_FEE, TESTING
+from researchhub.settings import TESTING
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.permissions import HasDocumentEditingPermission
 from researchhub_document.related_models.constants.document_type import (
@@ -565,33 +563,3 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             return uni_doc
         except (KeyError, TypeError) as exception:
             print("create_unified_doc: ", exception)
-
-
-def charge_doi_fee(created_by, rh_post):
-    purchase = Purchase.objects.create(
-        user=created_by,
-        content_type=ContentType.objects.get(model="researchhubpost"),
-        object_id=rh_post.id,
-        purchase_method=Purchase.OFF_CHAIN,
-        purchase_type=Purchase.DOI,
-        amount=CROSSREF_DOI_RSC_FEE,
-        paid_status=Purchase.PAID,
-    )
-    Balance.objects.create(
-        user=created_by,
-        content_type=ContentType.objects.get_for_model(purchase),
-        object_id=purchase.id,
-        amount=-CROSSREF_DOI_RSC_FEE,
-    )
-
-    # Track in Amplitude
-    track_revenue_event.apply_async(
-        (
-            created_by.id,
-            "DOI_FEE",
-            str(CROSSREF_DOI_RSC_FEE),
-            None,
-            "OFF_CHAIN",
-        ),
-        priority=1,
-    )
