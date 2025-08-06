@@ -1,9 +1,5 @@
-from urllib.parse import urlencode
-
 from django.contrib.contenttypes.models import ContentType
-from django.core.cache import cache
 from django.shortcuts import get_object_or_404
-from django.urls import reverse
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status
 from rest_framework.decorators import action
@@ -14,14 +10,9 @@ from rest_framework.viewsets import ModelViewSet
 from discussion.models import Vote
 from discussion.serializers import VoteSerializer
 from paper.models import Paper
-from paper.utils import get_cache_key
 from researchhub_document.filters import UnifiedDocumentFilter
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.permissions import HasDocumentCensorPermission
-from researchhub_document.related_models.constants.document_type import (
-    FILTER_EXCLUDED_IN_FEED,
-    FILTER_INCLUDED_IN_FEED,
-)
 from researchhub_document.related_models.constants.filters import (
     DISCUSSED,
     EXPIRING_SOON,
@@ -35,10 +26,6 @@ from researchhub_document.serializers import (
     ResearchhubUnifiedDocumentSerializer,
 )
 from researchhub_document.utils import get_doc_type_key, reset_unified_document_cache
-from researchhub_document.views.custom.unified_document_pagination import (
-    UNIFIED_DOC_PAGE_SIZE,
-)
-from user.permissions import IsModerator
 from utils.permissions import ReadOnly
 
 
