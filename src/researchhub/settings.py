@@ -174,23 +174,15 @@ CORS_ALLOW_HEADERS = (
 # Cors
 CORS_ORIGIN_WHITELIST = [
     "http://localhost:3000",
-    "http://localhost:3003",
-    "http://localhost:3005",
     "https://localhost:3000",
     "https://dev.researchhub.com",
-    "https://old.researchhub.com",
-    "https://www.old.researchhub.com",
-    "https://researchnow.researchhub.com",
     "https://www.researchhub.com",
     "https://researchhub.com",
     "https://staging.researchhub.com",
     "https://www.staging.researchhub.com",
     "https://experiment.staging.researchhub.com",
     "https://www.experiment.staging.researchhub.com",
-    "https://old.staging.researchhub.com",
-    "https://www.old.staging.researchhub.com",
     "http://127.0.0.1:3000",
-    "https://word.researchhub.com",
 ]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
