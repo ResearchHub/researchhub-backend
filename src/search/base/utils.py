@@ -28,35 +28,6 @@ class DictObject:
         return self.__dict__.copy()
 
 
-def dict_to_obj(d):
-    """
-    Convert a dictionary to an object with attribute access.
-    Replaces django_elasticsearch_dsl_drf.wrappers.dict_to_obj
-
-    Args:
-        d (dict): Dictionary to convert
-
-    Returns:
-        DictObject: Object with attributes matching dict keys
-    """
-    if not isinstance(d, dict):
-        return d
-
-    # Recursively convert nested dicts
-    result = {}
-    for key, value in d.items():
-        if isinstance(value, dict):
-            result[key] = dict_to_obj(value)
-        elif isinstance(value, list):
-            result[key] = [
-                dict_to_obj(item) if isinstance(item, dict) else item for item in value
-            ]
-        else:
-            result[key] = value
-
-    return DictObject(result)
-
-
 def obj_to_dict(obj):
     """
     Convert an object back to a dictionary.

@@ -9,7 +9,6 @@ from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.db.models import Func, Index, IntegerField, JSONField, Sum
 from django.db.models.functions import Cast
-from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 from manubot.cite.doi import get_doi_csl_item
 from manubot.cite.unpaywall import Unpaywall
 
@@ -508,13 +507,6 @@ class Paper(AbstractGenericReactionModel):
             return self.score
         return self.unified_document.hot_score
 
-    @property
-    def votes_indexing(self):
-        all_votes = self.votes.all()
-        if len(all_votes) > 0:
-            return [self.get_vote_for_index(vote) for vote in all_votes]
-        return {}
-
     def raw_author_count(self):
         raw_author_count = 0
 
@@ -634,16 +626,6 @@ class Paper(AbstractGenericReactionModel):
             )
         else:
             celery_extract_meta_data(self.id, title, check_title)
-
-    def get_vote_for_index(self, vote):
-        wrapper = dict_to_obj(
-            {
-                "vote_type": vote.vote_type,
-                "updated_date": vote.updated_date,
-            }
-        )
-
-        return wrapper
 
     def get_boost_amount(self):
         purchases = self.purchases.filter(

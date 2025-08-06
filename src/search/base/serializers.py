@@ -55,7 +55,3 @@ class ElasticsearchListSerializer(serializers.ListSerializer):
 
         # Otherwise treat as iterable
         return [self.child.to_representation(item) for item in data]
-
-
-# Alias for compatibility with django_elasticsearch_dsl_drf
-DocumentSerializer = ElasticsearchSerializer
