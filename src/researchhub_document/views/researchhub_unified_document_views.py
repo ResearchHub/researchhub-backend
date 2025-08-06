@@ -16,11 +16,7 @@ from discussion.serializers import VoteSerializer
 from paper.models import Paper
 from paper.utils import get_cache_key
 from researchhub_document.filters import UnifiedDocumentFilter
-from researchhub_document.models import (
-    FeaturedContent,
-    ResearchhubPost,
-    ResearchhubUnifiedDocument,
-)
+from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.permissions import HasDocumentCensorPermission
 from researchhub_document.related_models.constants.document_type import (
     FILTER_EXCLUDED_IN_FEED,
@@ -262,11 +258,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         }
         return context
 
-    def _get_featured_documents_queryset(self):
-        featured_content = FeaturedContent.objects.all().values_list("unified_document")
-        qs = self.get_queryset().filter(id__in=featured_content)
-        return qs
-
     def get_filtered_queryset(self):
         qs = self.get_queryset()
         qs = self.filter_queryset(qs)
@@ -407,33 +398,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
         }
 
         return Response(response_data)
-
-    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
-    def get_featured_documents(self, request):
-        featured_documents = self._get_featured_documents_queryset()
-        context = self._get_serializer_context()
-        page = self.paginate_queryset(featured_documents)
-        serializer = self.dynamic_serializer_class(
-            page,
-            _include_fields=[
-                "id",
-                "created_date",
-                "documents",
-                "document_type",
-                "hot_score",
-                "hubs",
-                "reviews",
-                "score",
-                "bounties",
-                "fundraise",
-                "grant",
-            ],
-            many=True,
-            context=context,
-        )
-        serializer_data = serializer.data
-
-        return self.get_paginated_response(serializer_data)
 
     def _cache_hit_with_latest_metadata(self, cache_hit):
         ids = [d["id"] for d in cache_hit["results"]]
