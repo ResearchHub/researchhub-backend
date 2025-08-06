@@ -76,33 +76,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             return ResearchhubUnifiedDocument.all_objects.all()
         return super().get_queryset()
 
-    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
-    def recommendations(self, request, *args, **kwargs):
-        qs = self.get_queryset().order_by("-hot_score")[:20]
-        page = self.paginate_queryset(qs)
-        context = self._get_serializer_context()
-        serializer = self.dynamic_serializer_class(
-            page,
-            _include_fields=[
-                "id",
-                "created_date",
-                "documents",
-                "document_filter",
-                "document_type",
-                "hot_score",
-                "hubs",
-                "reviews",
-                "score",
-                "fundraise",
-                "grant",
-            ],
-            many=True,
-            context=context,
-        )
-
-        serializer_data = serializer.data
-        return self.get_paginated_response(serializer_data)
-
     @action(
         detail=True,
         methods=["put", "patch", "delete"],
