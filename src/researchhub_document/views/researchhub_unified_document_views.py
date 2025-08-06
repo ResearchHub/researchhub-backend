@@ -429,12 +429,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
 
         return Response(status=status.HTTP_200_OK)
 
-    @action(detail=True, methods=["post"], permission_classes=[IsModerator])
-    def include_in_feed(self, request, pk=None):
-        unified_document = self.get_object()
-        unified_document.update_filter(FILTER_INCLUDED_IN_FEED)
-        return Response(status=status.HTTP_200_OK)
-
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def check_user_vote(self, request):
         paper_ids = request.query_params.get("paper_ids", "")
