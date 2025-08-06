@@ -276,41 +276,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
             return cache_hit
         return None
 
-    @action(detail=False, methods=["get"], permission_classes=[IsModerator])
-    def test_get_unified_documents(self, request):
-        # This method is loads the feed without the cache
-        query_params = request.query_params
-        hub_id = query_params.get("hub_id", 0) or 0
-
-        documents = self.get_filtered_queryset()
-        context = self._get_serializer_context()
-        context["hub_id"] = hub_id
-        page = self.paginate_queryset(documents)
-        _include_fields = [
-            "id",
-            "created_date",
-            "documents",
-            "document_filter",
-            "document_type",
-            "hot_score",
-            "hubs",
-            "reviews",
-            "score",
-            "fundraise",
-            "grant",
-        ]
-
-        serializer = self.dynamic_serializer_class(
-            page,
-            _include_fields=_include_fields,
-            many=True,
-            context=context,
-        )
-
-        serializer_data = serializer.data
-
-        return self.get_paginated_response(serializer_data)
-
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def get_unified_documents(self, request):
 
