@@ -145,21 +145,3 @@ def preload_trending_documents(
 @app.task(queue=QUEUE_ELASTIC_SEARCH)
 def update_elastic_registry(post):
     registry.update(post)
-
-
-@app.task(queue=QUEUE_CACHES)
-def reset_homepage_cache():
-    from researchhub_document.utils import reset_unified_document_cache
-
-    reset_unified_document_cache(
-        document_type=[
-            ALL.lower(),
-            GRANT.lower(),
-            POSTS.lower(),
-            PREREGISTRATION.lower(),
-            PAPER.lower(),
-            QUESTION.lower(),
-        ],
-        filters=[DISCUSSED, HOT, NEW, UPVOTED],
-        date_ranges=["today"],
-    ),
