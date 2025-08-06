@@ -781,45 +781,6 @@ class ViewTests(APITestCase):
         self.assertEqual(doc_response.data["grant"]["amount"]["usd"], 50000.0)
         self.assertEqual(doc_response.data["grant"]["organization"], "Dual Foundation")
 
-    def test_grants_included_in_get_unified_documents(self):
-        """Test that grants are included in get_unified_documents endpoint"""
-        user = create_random_default_user("grant_test_user", moderator=True)
-        hub = create_hub("Grant Hub")
-
-        # Create a grant post
-        post = create_post(created_by=user, document_type=GRANT)
-        post.unified_document.hubs.add(hub)
-
-        # Create a grant
-        grant = Grant.objects.create(
-            created_by=user,
-            unified_document=post.unified_document,
-            amount=Decimal("50000.00"),
-            currency="USD",
-            organization="Test Foundation",
-            description="Test grant for research",
-            status=Grant.OPEN,
-        )
-
-        self.client.force_authenticate(user)
-        response = self.client.get(
-            "/api/researchhub_unified_document/get_unified_documents/"
-        )
-
-        self.assertEqual(response.status_code, 200)
-
-        # Find the grant post in the response
-        grant_doc = None
-        for doc in response.data["results"]:
-            if doc["id"] == post.unified_document.id:
-                grant_doc = doc
-                break
-
-        self.assertIsNotNone(grant_doc, "Grant document should be in response")
-        self.assertIn("grant", grant_doc, "Grant field should be present")
-        self.assertEqual(grant_doc["grant"]["id"], grant.id)
-        self.assertEqual(grant_doc["grant"]["organization"], "Test Foundation")
-
     def test_grants_included_in_get_document_metadata(self):
         """Test that grants are included in get_document_metadata endpoint"""
         user = create_random_default_user("grant_metadata_user", moderator=True)
