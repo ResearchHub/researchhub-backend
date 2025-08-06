@@ -416,19 +416,6 @@ class ResearchhubUnifiedDocumentViewSet(ModelViewSet):
                     documents["score"] = docs_to_score_map[doc["id"]]
         return cache_hit
 
-    @action(detail=True, methods=["post"], permission_classes=[IsModerator])
-    def exclude_from_feed(self, request, pk=None):
-        unified_document = self.get_object()
-        unified_document.update_filter(FILTER_EXCLUDED_IN_FEED)
-
-        doc_type = get_doc_type_key(unified_document)
-        reset_unified_document_cache(
-            document_type=["all", doc_type],
-            filters=[UPVOTED, HOT, DISCUSSED],
-        )
-
-        return Response(status=status.HTTP_200_OK)
-
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def check_user_vote(self, request):
         paper_ids = request.query_params.get("paper_ids", "")
