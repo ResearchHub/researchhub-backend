@@ -3,9 +3,8 @@ from datetime import datetime
 import pytz
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
-from django.db import models, transaction
-from django.db.models import Case, Count, F, Q, Sum, Value, When
-from django.http import Http404
+from django.db import transaction
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import viewsets
@@ -13,7 +12,6 @@ from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from citation.models import CitationProject
 from invite.models import OrganizationInvitation
 from invite.serializers import DynamicOrganizationInvitationSerializer
 from note.models import Note, NoteTemplate
@@ -87,15 +85,6 @@ class OrganizationViewSet(viewsets.ModelViewSet):
                 description=description,
                 name=name,
             )
-            project = CitationProject.objects.create(
-                is_public=True,
-                slug="my-library",
-                project_name="My Library",
-                parent_names={"names": ["My Library"], "slugs": ["my-library"]},
-                organization=organization,
-                created_by=user,
-            )
-            project.set_creator_as_admin()
             self._create_permissions(user, organization)
 
             if image:
