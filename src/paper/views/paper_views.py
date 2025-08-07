@@ -975,19 +975,6 @@ class PaperViewSet(
 
         return Response(self.get_serializer(instance=paper).data, status=200)
 
-    @action(
-        detail=True, methods=["post", "put", "patch"], permission_classes=[IsAuthor]
-    )
-    def assign_moderator(self, request, pk=None):
-        """Assign users as paper moderators"""
-        paper = self.get_object()
-        moderators = request.data.get("moderators")
-        if not isinstance(moderators, list):
-            moderators = [moderators]
-        paper.moderators.add(*moderators)
-        paper.save()
-        return Response(PaperSerializer(paper).data)
-
     @action(detail=True, methods=["get"])
     def user_vote(self, request, pk=None):
         paper = self.get_object()
