@@ -848,12 +848,6 @@ class PaperViewsTests(TestCase):
         result = response.data
         self.assertEqual(result["base_rewards"], 100)
 
-    def test_search_by_url_bad(self):
-        url = self.base_url + "search_by_url/"
-        data = {"url": "org/this-is-a-bad-url"}
-        response = get_authenticated_post_response(self.user, url, data)
-        self.assertContains(response, "Double check that URL", status_code=400)
-
 
 class PaperDOITests(APITestCase):
     def setUp(self):

@@ -7,15 +7,12 @@ from django.conf import settings
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.postgres.search import SearchQuery
 from django.core.cache import cache
-from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
-from django.core.validators import URLValidator
 from django.db import IntegrityError, transaction
 from django.db.models import F, IntegerField, Q, Sum, Value
 from django.db.models.functions import Cast, Coalesce
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
-from elasticsearch.exceptions import ConnectionError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -45,12 +42,7 @@ from paper.serializers import (
     PaperSubmissionSerializer,
 )
 from paper.tasks import censored_paper_cleanup
-from paper.utils import (
-    clean_abstract,
-    get_cache_key,
-    get_csl_item,
-    get_pdf_location_for_csl_item,
-)
+from paper.utils import get_cache_key
 from purchase.models import Purchase
 from reputation.models import Contribution
 from reputation.related_models.paper_reward import (
@@ -1083,94 +1075,6 @@ class PaperViewSet(
             query |= Q("match", doi=csl_item["DOI"])
         search.query(query)
         return search
-
-    @action(detail=False, methods=["post"])
-    def search_by_url(self, request):
-        # TODO: Ensure we are saving data from here, license, title,
-        # publish date, authors, pdf
-        # handle pdf url, journal url, or pdf upload
-        # TODO: Refactor
-        """
-        Retrieve bibliographic metadata and potential paper matches
-        from the database for `url` (specified via request post data).
-        """
-        url = request.data.get("url").strip()
-        data = {"url": url}
-
-        if not url:
-            return Response(
-                "search_by_url requests must specify 'url'",
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        try:
-            URLValidator()(url)
-        except (ValidationError, Exception) as e:
-            print(e)
-            return Response(
-                f"Double check that URL is valid: {url}",
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        url_is_pdf = check_url_contains_pdf(url)
-        data["url_is_pdf"] = url_is_pdf
-
-        duplicate_papers = Paper.objects.filter(
-            Q(url__icontains=url) | Q(pdf_url__icontains=url)
-        )
-        if duplicate_papers.exists():
-            duplicate_paper = duplicate_papers.first()
-            serializer_data = self.serializer_class(
-                duplicate_paper, context={"purchase_minimal_serialization": True}
-            ).data
-            data = {"key": "url", "results": serializer_data}
-            return Response(data, status=status.HTTP_403_FORBIDDEN)
-
-        try:
-            csl_item = get_csl_item(url)
-        except Exception as error:
-            data["warning"] = f"Generating csl_item failed with:\n{error}"
-            log_error(error)
-            csl_item = None
-
-        if csl_item:
-            # Cleaning csl data
-            cleaned_title = csl_item.get("title", "").strip()
-            csl_item["title"] = cleaned_title
-            abstract = csl_item.get("abstract", "")
-            cleaned_abstract = clean_abstract(abstract)
-            csl_item["abstract"] = cleaned_abstract
-
-            url_is_unsupported_pdf = url_is_pdf and csl_item.get("URL") == url
-            data["url_is_unsupported_pdf"] = url_is_unsupported_pdf
-            csl_item.url_is_unsupported_pdf = url_is_unsupported_pdf
-            data["csl_item"] = csl_item
-            data["oa_pdf_location"] = get_pdf_location_for_csl_item(csl_item)
-            doi = csl_item.get("DOI", None)
-
-            duplicate_papers = Paper.objects.exclude(doi=None).filter(doi=doi)
-            if duplicate_papers.exists():
-                duplicate_paper = duplicate_papers.first()
-                serializer_data = self.serializer_class(
-                    duplicate_paper, context={"purchase_minimal_serialization": True}
-                ).data
-                data = {"key": "doi", "results": serializer_data}
-                return Response(data, status=status.HTTP_403_FORBIDDEN)
-
-            data["paper_publish_date"] = csl_item.get_date("issued", fill=True)
-
-        if csl_item and request.data.get("search", False):
-            # search existing papers
-            search = self.search_by_csl_item(csl_item)
-            try:
-                search = search.execute()
-            except ConnectionError:
-                return Response(
-                    "Search failed due to an elasticsearch ConnectionError.",
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
-            data["search"] = [hit.to_dict() for hit in search.hits]
-
-        return Response(data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def doi_search_via_openalex(self, request):
