@@ -1060,22 +1060,6 @@ class PaperViewSet(
         }
         return Response(summary, status=200)
 
-    @staticmethod
-    def search_by_csl_item(csl_item):
-        """
-        Perform an elasticsearch query for papers matching
-        the input CSL_Item.
-        """
-        from elasticsearch_dsl import Q, Search
-
-        search = Search(index="paper")
-        title = csl_item.get("title", "")
-        query = Q("match", title=title) | Q("match", paper_title=title)
-        if csl_item.get("DOI"):
-            query |= Q("match", doi=csl_item["DOI"])
-        search.query(query)
-        return search
-
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def doi_search_via_openalex(self, request):
         doi_string = request.query_params.get("doi", None)
