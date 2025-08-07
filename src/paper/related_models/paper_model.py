@@ -376,17 +376,6 @@ class Paper(AbstractGenericReactionModel):
         return self.title or self.paper_title
 
     @property
-    def citation_percentile(self):
-        open_alex_data = self.open_alex_raw_json
-        citation_percentile = 0
-        try:
-            citation_percentile = open_alex_data["cited_by_percentile_year"]["min"]
-        except Exception:
-            pass
-
-        return citation_percentile
-
-    @property
     def uploaded_date(self):
         return self.created_date
 
