@@ -61,6 +61,7 @@
 				"python.analysis.autoImportCompletions": true,
 				"python.analysis.indexing": true,
 				"python.terminal.activateEnvironment": true,
+				"python.useEnvironmentsExtension": true,
 				"remote.autoForwardPorts": false
 			}
 		}
