@@ -51,29 +51,27 @@ jobs:
       - name: Check out sources
         uses: actions/checkout@v4
       
-      - name: Install poetry
-        run: pipx install poetry
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
         with:
-          python-version: "3.12"
-          cache: 'poetry'
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Set up Python
+        run: uv python install 3.12
 
       - name: Install Dependencies
-        working-directory: ./src
-        run: |
-          poetry install
+        run: uv sync --dev
 
       - name: Run Tests
         working-directory: ./src
         run: |
           cp config/ci/* config
-          poetry run python manage.py migrate
-          poetry run python manage.py collectstatic --noinput
-          poetry run python manage.py search_index --rebuild -f
-          poetry run coverage run manage.py test --verbosity=2
-          poetry run coverage xml -o coverage.xml
+          uv run python manage.py migrate
+          uv run python manage.py collectstatic --noinput
+          uv run python manage.py search_index --rebuild -f
+          uv run coverage run manage.py test --verbosity=2
+          uv run coverage xml -o coverage.xml
 
       - name: Upload Coverage Report to Codecov
         uses: codecov/codecov-action@v4
