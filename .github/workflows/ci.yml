@@ -87,12 +87,11 @@ jobs:
 
       - name: Generate requirements.txt from uv.lock
         run: |
-          uv export --frozen --no-dev > requirements.txt
+          uv export --frozen --no-dev > src/requirements.txt
 
       - name: Generate Beanstalk deployment package
         run: |
           mkdir -p target
-          cp requirements.txt src
           cd src
           zip -r ../target/deploy.zip . -x '*.git*'
 
