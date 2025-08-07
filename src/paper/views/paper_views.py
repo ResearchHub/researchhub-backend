@@ -99,7 +99,6 @@ class PaperViewSet(
             "authors",
             "authors__user",
             "authors__user__userverification",
-            "moderators",
             "unified_document",
             "unified_document__hubs",
             "unified_document__hubs__subscribers",
