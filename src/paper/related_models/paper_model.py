@@ -424,11 +424,6 @@ class Paper(AbstractGenericReactionModel):
         return (not self.is_public) or self.is_removed or self.is_removed_by_user
 
     @property
-    def owners(self):
-        authors = list(self.authors.all())
-        return authors
-
-    @property
     def users_to_notify(self):
         users = []
         paper_authors = self.authors.all()
