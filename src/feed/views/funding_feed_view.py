@@ -9,7 +9,16 @@ This is done for three reasons:
 """
 
 from django.core.cache import cache
-from django.db.models import BooleanField, Case, F, Value, When
+from django.db.models import (
+    BooleanField,
+    Case,
+    DecimalField,
+    F,
+    Sum,
+    Value,
+    When,
+)
+from django.db.models.functions import Coalesce
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
@@ -43,11 +52,22 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         - newest (default): Sort by creation date (newest first)
         - hot_score: Sort by hot score (most popular first)
         - upvotes: Sort by score (most upvoted first)
+        - amount_raised: Sort by amount raised (highest first)
     """
 
     serializer_class = PostSerializer
     permission_classes = []
     pagination_class = FeedPagination
+
+    def _order_by_amount_raised(self, queryset):
+        return queryset.annotate(
+            amount_raised=Coalesce(
+                Sum("unified_document__fundraises__escrow__amount_holding")
+                + Sum("unified_document__fundraises__escrow__amount_paid"),
+                0,
+                output_field=DecimalField(),
+            )
+        ).order_by("-amount_raised")
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -140,6 +160,8 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
                 queryset = queryset.order_by("-unified_document__hot_score")
             elif ordering == "upvotes":
                 queryset = queryset.order_by("-score")
+            elif ordering == "amount_raised":
+                queryset = self._order_by_amount_raised(queryset)
             else:  # newest (default)
                 queryset = queryset.order_by("-created_date")
 
@@ -188,5 +210,9 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
                     default=None,
                 ).desc(),
             )
+
+        ordering = self.request.query_params.get("ordering")
+        if ordering == "amount_raised":
+            queryset = self._order_by_amount_raised(queryset)
 
         return queryset
