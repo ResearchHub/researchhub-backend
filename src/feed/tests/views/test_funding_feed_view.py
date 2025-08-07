@@ -20,7 +20,7 @@ from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Escrow
-from researchhub_document.related_models.constants.document_type import PREREGISTRATION
+from researchhub_document.related_models.constants.document_type import GRANT, PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -1016,7 +1016,6 @@ class FundingFeedViewSetTests(TestCase):
 
     def test_grant_id_filter_with_ordering_amount_raised(self):
         """Test grant_id filter with ordering by amount_raised"""
-        from researchhub_document.related_models.constants.document_type import GRANT
 
         grant_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
         grant = Grant.objects.create(
