@@ -79,6 +79,16 @@ jobs:
             researchhub-internal-utils/deploy/backend/config/Procfile \
             src
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+
+      - name: Generate requirements.txt from uv.lock
+        run: |
+          uv export --frozen --no-dev > src/requirements.txt
+
       - name: Generate Beanstalk deployment package
         run: |
           mkdir -p target

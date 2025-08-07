@@ -34,7 +34,8 @@
 				"ms-python.black-formatter",
 				"ms-python.debugpy",
 				"ms-python.flake8",
-				"ms-python.isort"
+				"ms-python.isort",
+				"ms-python.vscode-python-envs"
 			],
 			"settings": {
 				"[python]": {
@@ -59,6 +60,8 @@
 				"isort.args":["--profile", "black"],
 				"python.analysis.autoImportCompletions": true,
 				"python.analysis.indexing": true,
+				"python.terminal.activateEnvironment": true,
+				"python.useEnvironmentsExtension": true,
 				"remote.autoForwardPorts": false
 			}
 		}

@@ -1,21 +1,18 @@
 #!/usr/bin/env bash
 set -e
 
-# Install dependencies
-poetry install --directory=src
-pip install --upgrade pip pkginfo
-pip install -r src/requirements.txt --no-deps
 
-cd src
+# Install dependencies with uv
+uv sync --dev
+
 # Apply database migrations
-python manage.py makemigrations
-python manage.py migrate
+uv run --active src/manage.py makemigrations
+uv run --active src/manage.py migrate
 # Copy static conent
-python manage.py collectstatic --no-input
-cd -
+uv run --active src/manage.py collectstatic --no-input
 
 # Add Django manage.py alias to .bashrc
-echo "alias dj='python ${WORKSPACE_PATH}/src/manage.py'" >> ~/.bashrc
+echo "alias dj='uv run ${WORKSPACE_PATH}/src/manage.py'" >> ~/.bashrc
 
 # Execute any custom post-create scripts if they exist
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"

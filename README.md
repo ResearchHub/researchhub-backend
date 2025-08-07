@@ -91,90 +91,7 @@ Alternatively, debugging of the application is possible with the following launc
 }
 ```
 
-## Native install (Slower, recommended for development)
-
-### Prerequisites
-1. Docker
-2. pyenv
-3. redis
-4. Install the `flake8` linter in your IDE:
-   - [vscode](https://code.visualstudio.com/docs/python/linting#_specific-linters)
-   - [Sublime](https://github.com/SublimeLinter/SublimeLinter-flake8)
-   - [flake8](http://flake8.pycqa.org/en/latest/index.html)
-
-### General setup 
-
-* Create a fork of the repository in your GitHub account, and clone it.
-
-* Prepare the database:
-
-    Create a db file in config
-
-    ```shell
-    touch src/config/db.py
-    ```
-
-    Add the following:
-
-    ```python
-    NAME = 'researchhub'
-    HOST = 'localhost'
-    PORT = 5432
-    USER = 'rh_developer'  # replace as needed
-    PASS = 'not_secure'  # replace as needed
-    ```
-
- * Use [posgres.app](https://postgres.app/) to install Posgres DB. The latest available DB version should be fine.
-
-
-  > Good UI tool for interacting with PostgreSQ: [Postico](https://eggerapps.at/postico2/)
-
-* The project virtual environment is managed using [Poetry](https://python-poetry.org/docs/).
-  ```shell
-  pip3 install poetry
-  ```
-
-* Go to the [`src`](src) directory and run the following commands in order to activate the virtual environment:
-    ```shell
-    cd src
-
-    # activates a Python virtual environment and enters shell
-    poetry shell
-
-    # installs the project virtual environment and packages
-    poetry install
-    ```
-
-> The following commands should all be run in the virtual environment (`poetry shell`), in the [`src`](src) folder:
-
-* Install python dependencies stored in `requirements.txt`:
-  ```shell
-  pip3 install -r requirements.txt --no-deps
-  ```
-
-* Create the database schema:
-
-  ```shell
-  python manage.py makemigrations
-  python manage.py migrate
-  ```
-
-* The backend worker queue is managed using `redis`. Before you start the backend, in a separate terminal, run `redis-server`:
-  ```shell
-  brew install redis
-  redis-server
-  ```
-
-* Start `celery`, the tool that runs the worker via `redis`. In a separate terminal:
-
-  ```shell
-  # celery: in poetry shell, run:
-  cd src
-  ./start-celery.sh
-  ```
-  > Celery may need to be added to your env PATH manually.
-
-### Seed the database
+## Seed the database
 
 * In order for the UI to work properly, some data needs to be seeded into the database. Seed category data:
 
@@ -211,20 +128,14 @@ hubs = [Hub(**row.to_dict()) for _, row in hub_df.iterrows()]
 Hub.objects.bulk_create(hubs)
 ```
 
-### Run the development server:
-
-```shell
-python manage.py runserver
-```
+## Useful stuff
 
 ### Ensure pre-commit hooks are set up
 ```
 pre-commit install
 ```
 
-## Useful stuff
-
-#### Create a superuser in order to get data from the API
+### Create a superuser in order to get data from the API
 
 ```shell
 # create a superuser and retrieve an authentication token
@@ -233,7 +144,7 @@ python manage.py createsuperuser --username=florin --email=florin@researchhub.co
 python manage.py drf_create_token florin@researchhub.com
 ```
 
-#### Query the API using the Auth token 
+### Query the API using the Auth token 
 
 > Note that for paths under `/api`, e.g. `/api/hub/`, you don't need a token.
 
@@ -243,7 +154,7 @@ curl --silent \
 http://localhost:8000/api/
 ```
 
-#### Sending API requests via vscode
+### Sending API requests via vscode
 
 * Install the [REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client) extension.
 
@@ -257,7 +168,7 @@ http://localhost:8000/api/
 
    Then press `Send Request` in vscode, above the text.
 
-#### Seed paper data. 
+### Seed paper data. 
 
 > For this to work, the celery worker needs to be running (see above). This calls two methods that are temporarily disabled, in [`src/paper/tasks.py`](src/paper/tasks.py): `pull_crossref_papers()` and `pull_papers()`. First, comment the first line of the methods, that cause the methods to be disabled. Then, change the `while` loops to finish after pulling a small number of papers (enough to populate local environment):
 
@@ -279,7 +190,7 @@ def pull_crossref_papers(start=0, force=False):
 
 Then, run:
 ```shell
-python manage.py shell_plus # enters Python shell within poetry shell
+python manage.py shell_plus
 ```
 
 ```python
@@ -290,38 +201,12 @@ pull_papers(force=True)
 
 > **Make sure to revert that file once you're done seeding the local environment.**
 
-#### Adding new packages
+### Adding new packages
 
 ```shell
 # add a package to the project environment
-poetry add package_name
-
-# update requirements.txt which is used by elastic beanstalk
-poetry export -f requirements.txt --output requirements.txt
+uv add package_name
 ```
-
-### ELASTICSEARCH (Optional)
-
-In a new shell, run this Docker image script (make sure Redis is running in the background `redis-server`)
-
-```
- # Let this run for ~30 minutes in the background before terminating, be patient :)
-./start-es.sh
-```
-
-Back in the python virtual environment, build the indices
-
-```
-python manage.py search_index --rebuild
-```
-
-Optionally, start Kibana for Elastic dev tools
-
-```
-./start-kibana.sh
-```
-
-To view elastic queries via the API, add `DEBUG_TOOLBAR = True` to `keys.py`. Then, visit an API url such as [http://localhost:8000/api/search/paper/?publish_date\_\_gte=2022-01-01](http://localhost:8000/api/search/paper/?publish_date__gte=2022-01-01)
 
 ### ETHEREUM (Optional)
 
@@ -377,7 +262,7 @@ Both celery commands in one (for development only)
 celery -A researchhub worker -l info -B
 ```
 
-#### Google Auth
+### Google Auth
 
 Ask somebody to provide you with `CLIENT_ID` and `SECRET` config, and run this SQL query (with updated configs) to seed the right data for Google login to work:
 
