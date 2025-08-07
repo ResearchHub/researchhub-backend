@@ -51,7 +51,6 @@ def index_papers_in_bulk(es, from_id, to_id, max_attempts=5):
                         paper
                     )
                     or False,
-                    "citation_percentile": paper.citation_percentile or 0,
                     "citations": paper.citations or 0,
                     "completeness_status": paper.get_paper_completeness(),
                     "discussion_count": paper.discussion_count or 0,
