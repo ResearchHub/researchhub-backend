@@ -27,7 +27,6 @@ dependencies = [
     "django-debug-toolbar==4.2",
     "django-elasticsearch-debug-toolbar==2.0.0",
     "django-elasticsearch-dsl==7.3.0",
-    "django-elasticsearch-dsl-drf==0.22.5",
     "django-extensions==3.0.9",
     "django-filter>=24.3,<25.0",
     "django-health-check>=3.18.3,<4.0.0",

@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.12"
 resolution-markers = [
     "implementation_name == 'cpython'",
@@ -883,23 +883,6 @@ wheels = [
 ]
 
 [[package]]
-name = "django-elasticsearch-dsl-drf"
-version = "0.22.5"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "django-elasticsearch-dsl" },
-    { name = "django-nine" },
-    { name = "djangorestframework" },
-    { name = "elasticsearch" },
-    { name = "elasticsearch-dsl" },
-    { name = "six" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/0a/b1/5a6366036349d384ae7fa1a9cd589b921419213ae504f7924c3363a7b239/django-elasticsearch-dsl-drf-0.22.5.tar.gz", hash = "sha256:b444f168535ff99244cc995ec354a31abcbf3fc03bd7b11ec1a3f43c7208f63a", size = 99055, upload-time = "2022-07-03T22:17:12.364Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/54/4d/4432adbe667791a621b0dc5421c9d32817f010b22e53656038f427eca5c0/django_elasticsearch_dsl_drf-0.22.5-py2.py3-none-any.whl", hash = "sha256:fc0b3960e16f6c06de4f2ca4daf1134376fce4d496c1ddc218c23daddf6bcaa0", size = 151890, upload-time = "2022-07-03T22:17:09.717Z" },
-]
-
-[[package]]
 name = "django-extensions"
 version = "3.0.9"
 source = { registry = "https://pypi.org/simple" }
@@ -942,19 +925,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/29/bb/681fe51fd595d0058cbae186d06b4cd2238708da48e013bd24931a9d9cde/django_mjml-1.4.tar.gz", hash = "sha256:a805b3721de92a4972bb6bd4a3bffa91579420e48297a55f3ffef6d8e926b0b4", size = 8561, upload-time = "2025-04-05T22:07:34.193Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/bd/71/03c2d5bdeb156a557c14eef35fad799df9cb4fee8a64ac7b02d0ddbbd4b4/django_mjml-1.4-py3-none-any.whl", hash = "sha256:09dc440fcec64f3656b17646439336e6c15c5987103dfb6fe23eb1f1bf734d11", size = 7994, upload-time = "2025-04-05T22:07:32.812Z" },
-]
-
-[[package]]
-name = "django-nine"
-version = "0.2.7"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "django" },
-    { name = "packaging" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/54/15/6e2a72c1c08f4a7e57c931632853aaf2659b9dc4a9906e887a2743b241e0/django-nine-0.2.7.tar.gz", hash = "sha256:304e0f83cea5a35359375fc919d00f9917b655c1d388244cbfc7363f59489177", size = 20827, upload-time = "2022-12-05T20:57:43.684Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c1/a8/8188786f7922cc47f394572eff37b4fd2202e0a75bcb9c15dd9234b0ccd8/django_nine-0.2.7-py2.py3-none-any.whl", hash = "sha256:4d93208ca5bb4a63bf65cf098a82ee469127b04ebde698d72fe12d258b73c291", size = 25355, upload-time = "2022-12-05T20:57:41.53Z" },
 ]
 
 [[package]]
@@ -2903,7 +2873,6 @@ dependencies = [
     { name = "django-debug-toolbar" },
     { name = "django-elasticsearch-debug-toolbar" },
     { name = "django-elasticsearch-dsl" },
-    { name = "django-elasticsearch-dsl-drf" },
     { name = "django-extensions" },
     { name = "django-filter" },
     { name = "django-health-check" },
@@ -2977,7 +2946,6 @@ requires-dist = [
     { name = "django-debug-toolbar", specifier = "==4.2" },
     { name = "django-elasticsearch-debug-toolbar", specifier = "==2.0.0" },
     { name = "django-elasticsearch-dsl", specifier = "==7.3.0" },
-    { name = "django-elasticsearch-dsl-drf", specifier = "==0.22.5" },
     { name = "django-extensions", specifier = "==3.0.9" },
     { name = "django-filter", specifier = ">=24.3,<25.0" },
     { name = "django-health-check", specifier = ">=3.18.3,<4.0.0" },
