@@ -1636,16 +1636,6 @@ docs = ["sphinx"]
 test = ["boto3", "celery", "django-storages", "pytest", "pytest-cov", "pytest-django", "redis"]
 
 [[package]]
-name = "django-ipware"
-version = "3.0.1"
-description = "A Django utility application that returns client's real IP address"
-optional = false
-python-versions = "*"
-files = [
-    {file = "django-ipware-3.0.1.tar.gz", hash = "sha256:73a640a5bff00aa7503a35e92e462001cfabb07d73d649c262f117423beee953"},
-]
-
-[[package]]
 name = "django-mjml"
 version = "1.4"
 description = "Use MJML in Django templates"
@@ -5985,4 +5975,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "e0220618e1234e487fae546f4c765dfeb2e31198e3555dee1f306c687c1bfc93"
+content-hash = "8699373bea1c858aeeb84f74d6e4b044924962d41123b5e824cb2b20c1fa4060"
