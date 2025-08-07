@@ -1,12 +1,12 @@
 import json
 
-from django_elasticsearch_dsl_drf.serializers import DocumentSerializer
 from rest_framework import serializers
 
 from feed.documents.feed_document import FeedEntryDocument
+from search.base.serializers import ElasticsearchSerializer
 
 
-class FeedEntryDocumentSerializer(DocumentSerializer):
+class FeedEntryDocumentSerializer(ElasticsearchSerializer):
     content_object = serializers.SerializerMethodField()
     content_type = serializers.SerializerMethodField()
 
