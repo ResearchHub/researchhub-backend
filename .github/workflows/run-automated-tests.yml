@@ -61,7 +61,7 @@ jobs:
         run: uv python install 3.12
 
       - name: Install Dependencies
-        run: uv sync --dev
+        run: uv sync --all-extras
 
       - name: Run Tests
         working-directory: ./src
