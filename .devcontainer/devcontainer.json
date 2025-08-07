@@ -60,6 +60,7 @@
 				"isort.args":["--profile", "black"],
 				"python.analysis.autoImportCompletions": true,
 				"python.analysis.indexing": true,
+				"python.terminal.activateEnvironment": true,
 				"remote.autoForwardPorts": false
 			}
 		}
