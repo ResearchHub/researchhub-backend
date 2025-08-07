@@ -9,8 +9,7 @@ from django.contrib.postgres.search import SearchQuery
 from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.db import IntegrityError, transaction
-from django.db.models import F, IntegerField, Q, Sum, Value
-from django.db.models.functions import Cast, Coalesce
+from django.db.models import Q
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
@@ -43,7 +42,6 @@ from paper.serializers import (
 )
 from paper.tasks import censored_paper_cleanup
 from paper.utils import get_cache_key
-from purchase.models import Purchase
 from reputation.models import Contribution
 from reputation.related_models.paper_reward import (
     OPEN_ACCESS_MULTIPLIER,
@@ -1163,42 +1161,6 @@ class PaperViewSet(
             filter(lambda work: work["id"] not in claimed_works, openalex_works)
         )
         return unclaimed_works
-
-    def calculate_paper_ordering(self, papers, ordering, start_date, end_date):
-        if "hot_score" in ordering:
-            order_papers = papers.order_by(ordering)
-        elif "score" in ordering:
-            boost_amount = Coalesce(
-                Sum(
-                    Cast("purchases__amount", output_field=IntegerField()),
-                    filter=Q(
-                        purchases__paid_status=Purchase.PAID,
-                        purchases__user__moderator=True,
-                        purchases__amount__gt=0,
-                        purchases__boost_time__gt=0,
-                    ),
-                ),
-                Value(0),
-            )
-            order_papers = (
-                papers.filter(
-                    created_date__range=[start_date, end_date],
-                )
-                .annotate(total_score=boost_amount + F("score"))
-                .order_by("-total_score")
-            )
-        elif "discussed" in ordering:
-            order_papers = papers.order_by("-discussion_count")
-        elif "removed" in ordering:
-            order_papers = papers.order_by("-created_date")
-        elif "user-uploaded" in ordering:
-            order_papers = papers.filter(created_date__gte=start_date).order_by(
-                "-created_date"
-            )
-        else:
-            order_papers = papers.order_by(ordering)
-
-        return order_papers
 
     @action(
         detail=True, methods=["get"], permission_classes=[IsAuthenticatedOrReadOnly]
