@@ -35,7 +35,7 @@ SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
 
 APM_URL = os.environ.get("APM_URL", "")
 
-ELASTICSEARCH_HOST = os.environ.get("ELASTICSEARCH_HOST", "")
+OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", "")
 
 CKEDITOR_CLOUD_ACCESS_KEY = os.environ.get("CKEDITOR_CLOUD_ACCESS_KEY", "")
 CKEDITOR_CLOUD_ENVIRONMENT_ID = os.environ.get("CKEDITOR_CLOUD_ENVIRONMENT_ID", "")
