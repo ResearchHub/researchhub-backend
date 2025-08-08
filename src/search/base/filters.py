@@ -1,4 +1,4 @@
-from elasticsearch_dsl import A, Q
+from opensearchpy import Q
 from rest_framework.filters import BaseFilterBackend
 
 

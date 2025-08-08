@@ -5,7 +5,7 @@ in order to support RH's use case. Changes highlighted below.
 
 import copy
 
-from elasticsearch_dsl import Q
+from opensearchpy import Q
 
 from search.base.query_backends import BaseSearchQueryBackend
 

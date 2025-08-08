@@ -1,4 +1,4 @@
-from elasticsearch_dsl import analyzer, token_filter
+from opensearchpy import analyzer, token_filter
 
 delimeter_filter = token_filter(
     "word_delimiter_graph", "word_delimiter", split_on_case_change=False
