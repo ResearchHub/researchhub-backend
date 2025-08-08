@@ -91,10 +91,6 @@ class Paper(AbstractGenericReactionModel):
     open_alex_raw_json = models.JSONField(null=True, blank=True)
     automated_bounty_created = models.BooleanField(default=False)
 
-    # Moderators are obsolete, in favor of super mods on the user
-    moderators = models.ManyToManyField(
-        "user.User", related_name="moderated_papers", blank=True
-    )
     authors = models.ManyToManyField(
         "user.Author",
         through="Authorship",
@@ -399,14 +395,8 @@ class Paper(AbstractGenericReactionModel):
         return (not self.is_public) or self.is_removed or self.is_removed_by_user
 
     @property
-    def owners(self):
-        mods = list(self.moderators.all())
-        authors = list(self.authors.all())
-        return mods + authors
-
-    @property
     def users_to_notify(self):
-        users = list(self.moderators.all())
+        users = []
         paper_authors = self.authors.all()
         for author in paper_authors:
             if (

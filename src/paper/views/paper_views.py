@@ -89,7 +89,6 @@ class PaperViewSet(
             "authors",
             "authors__user",
             "authors__user__userverification",
-            "moderators",
             "unified_document",
             "unified_document__hubs",
             "unified_document__hubs__subscribers",
@@ -931,19 +930,6 @@ class PaperViewSet(
         decisions_api.apply_bad_user_decision(content_creator, "MANUAL_REVIEW", user)
 
         return Response(self.get_serializer(instance=paper).data, status=200)
-
-    @action(
-        detail=True, methods=["post", "put", "patch"], permission_classes=[IsAuthor]
-    )
-    def assign_moderator(self, request, pk=None):
-        """Assign users as paper moderators"""
-        paper = self.get_object()
-        moderators = request.data.get("moderators")
-        if not isinstance(moderators, list):
-            moderators = [moderators]
-        paper.moderators.add(*moderators)
-        paper.save()
-        return Response(PaperSerializer(paper).data)
 
     @action(detail=True, methods=["get"])
     def user_vote(self, request, pk=None):
