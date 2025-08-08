@@ -103,6 +103,7 @@ class AuthorSerializer(ModelSerializer):
     wallet = SerializerMethodField()
     suspended_status = SerializerMethodField()
     is_verified_v2 = SerializerMethodField()
+    is_verified = SerializerMethodField()
 
     class Meta:
         model = Author
@@ -256,6 +257,10 @@ class AuthorSerializer(ModelSerializer):
         user = author.user
         if user:
             return user.is_hub_editor()
+
+    def get_is_verified(self, author):
+        # FIXME: Replace with author.is_verified() after field removal.
+        return author.is_verified_v2
 
 
 class MajorSerializer(ModelSerializer):
@@ -425,6 +430,7 @@ class UserSerializer(ModelSerializer):
     subscribed = SerializerMethodField(read_only=True)
     hub_rep = SerializerMethodField()
     time_rep = SerializerMethodField()
+    is_verified = SerializerMethodField()
 
     class Meta:
         model = User
@@ -445,7 +451,6 @@ class UserSerializer(ModelSerializer):
             "upload_tutorial_complete",
             "hub_rep",
             "time_rep",
-            "probable_spammer",
         ]
         read_only_fields = [
             "id",
@@ -490,6 +495,10 @@ class UserSerializer(ModelSerializer):
     def get_time_rep(self, obj):
         time_rep = getattr(obj, "time_rep", None)
         return time_rep
+
+    def get_is_verified(self, obj):
+        # FIXME: Replace with obj.is_verified() after field removal.
+        return obj.is_verified_v2
 
 
 class MinimalUserSerializer(ModelSerializer):
@@ -659,6 +668,7 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
     rsc_earned = SerializerMethodField()
     benefits_expire_on = SerializerMethodField()
     editor_of = SerializerMethodField()
+    is_verified = SerializerMethodField()
 
     class Meta:
         model = User
@@ -700,6 +710,10 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
             permissions, many=True, context=context, **_context_fields
         )
         return serializer.data
+
+    def get_is_verified(self, user):
+        # FIXME: Replace with user.is_verified() after field removal.
+        return user.is_verified_v2
 
 
 class UserActions:
