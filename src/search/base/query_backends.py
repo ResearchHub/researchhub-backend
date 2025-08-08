@@ -2,8 +2,6 @@
 Base query backend classes for custom search implementations.
 """
 
-from elasticsearch_dsl import Q
-
 
 class BaseSearchQueryBackend:
     """
