@@ -26,7 +26,7 @@ class InstitutionDocument(BaseDocument):
     two_year_mean_citedness = es_fields.FloatField()
     i10_index = es_fields.FloatField()
     h_index = es_fields.FloatField()
-    suggestion_phrases = es_fields.Completion()
+    suggestion_phrases = es_fields.CompletionField()
     works_count = es_fields.IntegerField()
 
     class Index:
