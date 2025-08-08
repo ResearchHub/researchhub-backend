@@ -1,7 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
 from django.http.request import HttpRequest, QueryDict
-from django_elasticsearch_dsl.registries import registry
+from django_opensearch_dsl.registries import registry
 from rest_framework.request import Request
 
 from paper.utils import get_cache_key

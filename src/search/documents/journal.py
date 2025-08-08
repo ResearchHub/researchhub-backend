@@ -1,9 +1,9 @@
 import logging
 import re
 
-from django_elasticsearch_dsl import fields as es_fields
-from django_elasticsearch_dsl.registries import registry
-from elasticsearch_dsl import analyzer, token_filter
+from django_opensearch_dsl import fields as es_fields
+from django_opensearch_dsl.registries import registry
+from opensearchpy import analyzer, token_filter
 
 from hub.models import Hub
 from search.analyzers import content_analyzer

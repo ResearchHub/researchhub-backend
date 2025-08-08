@@ -1,11 +1,11 @@
 import sys
 import time
 
-import elasticsearch
+import opensearchpy
 from django.core.management.base import BaseCommand
 from django.db.models import Q
-from elasticsearch.helpers import bulk
-from elasticsearch_dsl.connections import connections
+from opensearchpy.connection import connections
+from opensearchpy.helpers import bulk
 
 from paper.models import Paper
 from search.documents.paper import PaperDocument
@@ -95,8 +95,8 @@ def index_papers_in_bulk(es, from_id, to_id, max_attempts=5):
                 current_id += batch_size
                 break  # Break out of the retry loop on success
             except (
-                elasticsearch.exceptions.TransportError,
-                elasticsearch.exceptions.ConnectionTimeout,
+                opensearchpy.exceptions.TransportError,
+                opensearchpy.exceptions.ConnectionTimeout,
             ) as e:
                 if attempt == max_attempts:
                     print(
