@@ -50,7 +50,6 @@ dependencies = [
     "pandas>=2.2.3,<3.0.0",
     "Pillow==10.4.0",
     "psycopg[binary,pool]>=3.2.3,<4.0.0",
-    "PyJWT==2.8.0",
     "PyMuPDF>=1.24.13,<2.0.0",
     "pyyaml==6.0.1",
     "q5-django-inlinecss==0.0.2",
@@ -60,6 +59,8 @@ dependencies = [
     "Sift>=5.6.1,<6.0.0",
     "stripe>=11.2.0,<12.0.0",
     "web3[tester]==6.17.1",
+    "pyjwt==2.10.1",
+    "cdp-sdk==1.29.0",
 ]
 
 [dependency-groups]
