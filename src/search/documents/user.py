@@ -28,7 +28,7 @@ edge_ngram_analyzer = analyzer(
 class UserDocument(BaseDocument):
     auto_refresh = True
     profile_img = es_fields.TextField()
-    full_name_suggest = es_fields.Completion()
+    full_name_suggest = es_fields.CompletionField()
     full_name = es_fields.TextField(
         analyzer=edge_ngram_analyzer,
         search_analyzer="standard",

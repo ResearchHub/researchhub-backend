@@ -31,7 +31,7 @@ class JournalDocument(BaseDocument):
     auto_refresh = True
     queryset_pagination = 250
     description = es_fields.TextField(attr="description", analyzer=content_analyzer)
-    name_suggest = es_fields.Completion()
+    name_suggest = es_fields.CompletionField()
     name = es_fields.TextField(
         analyzer=edge_ngram_analyzer,
         search_analyzer="standard",
