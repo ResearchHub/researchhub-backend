@@ -69,7 +69,7 @@ jobs:
           cp config/ci/* config
           uv run python manage.py migrate
           uv run python manage.py collectstatic --noinput
-          uv run python manage.py search_index --rebuild -f
+          uv run python manage.py opensearch index rebuild --force
           uv run coverage run manage.py test --verbosity=2
           uv run coverage xml -o coverage.xml
 
