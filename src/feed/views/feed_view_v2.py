@@ -1,4 +1,4 @@
-from elasticsearch_dsl import Q
+from opensearchpy import Q
 
 from feed.document_serializers.feed_document_serializer import (
     FeedEntryDocumentSerializer,
