@@ -229,7 +229,7 @@ INSTALLED_APPS = [
     # Storage
     "storages",
     # Search
-    "django_elasticsearch_dsl",
+    "django_opensearch_dsl",
     # Emails
     "django_ses",
     "django_inlinecss",
