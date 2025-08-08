@@ -1,6 +1,5 @@
 from django.core.exceptions import ImproperlyConfigured
-from elasticsearch import NotFoundError
-from elasticsearch_dsl import Search
+from opensearchpy import NotFoundError
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet

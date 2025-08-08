@@ -1,7 +1,7 @@
 import logging
 
-from django_elasticsearch_dsl import fields as es_fields
-from django_elasticsearch_dsl.registries import registry
+from django_opensearch_dsl import fields as es_fields
+from django_opensearch_dsl.registries import registry
 
 from institution.models import Institution
 

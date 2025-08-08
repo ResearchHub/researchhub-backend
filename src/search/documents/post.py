@@ -1,8 +1,8 @@
 import logging
 import math
 
-from django_elasticsearch_dsl import fields as es_fields
-from django_elasticsearch_dsl.registries import registry
+from django_opensearch_dsl import fields as es_fields
+from django_opensearch_dsl.registries import registry
 
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from search.analyzers import content_analyzer, title_analyzer

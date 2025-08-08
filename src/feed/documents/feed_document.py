@@ -1,7 +1,7 @@
 import json
 
-from django_elasticsearch_dsl import Document, fields
-from django_elasticsearch_dsl.registries import registry
+from django_opensearch_dsl import Document, fields
+from django_opensearch_dsl.registries import registry
 
 from feed.models import FeedEntry
 

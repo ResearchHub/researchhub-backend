@@ -1,7 +1,7 @@
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
-from django_elasticsearch_dsl.registries import registry
+from django_opensearch_dsl.registries import registry
 
 from search.celery import (  # Replace `search.celery` with the actual module name
     DEBOUNCE_PERIOD,
