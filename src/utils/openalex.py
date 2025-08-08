@@ -7,7 +7,6 @@ from django.utils.timezone import get_current_timezone, is_aware, make_aware
 from paper.exceptions import DOINotFoundError
 from paper.utils import format_raw_authors
 from researchhub.settings import OPENALEX_KEY
-from utils.aws import download_pdf
 from utils.parsers import rebuild_sentence_from_inverted_index
 from utils.retryable_requests import retryable_requests_session
 
@@ -69,60 +68,6 @@ class OpenAlex:
                 response.raise_for_status()
                 data["works"] = response.json().get("results", [])
         return data
-
-    def map_to_csl_format(self, input_json, mapping=None):
-        """
-        Maps fields in the input_json based on the given mapping.
-
-        Args:
-            input_json (dict): JSON whose fields need to be mapped.
-            mapping (dict): Mapping of fields in input_json to desired fields.
-
-        Returns:
-            dict: JSON with mapped fields.
-        """
-        from citation.schema import OPENALEX_TO_CSL_FORMAT
-
-        output_json = {}
-        if not mapping:
-            mapping = OPENALEX_TO_CSL_FORMAT
-
-        for key, value in input_json.items():
-            # Check if the current key is in the mapping
-            if key in mapping:
-                mapped_key = mapping[key]
-
-                # If the mapped key is a dictionary, recursively apply mapping to the input JSON value
-                if isinstance(mapped_key, dict) and isinstance(value, dict):
-                    output_json.update(self.map_to_csl_format(value, mapped_key))
-                elif "." in mapped_key:
-                    # Split on the '.' and assign to a nested dictionary
-                    outer_key, inner_key = mapped_key.split(".")
-                    if outer_key not in output_json:
-                        output_json[outer_key] = {}
-
-                    if key == "pdf_url":
-                        urls = download_pdf(value)
-
-                    if urls:
-                        output_json[outer_key][inner_key] = urls.get("url")
-                        output_json["signed_pdf_url"] = urls.get("signed_url")
-
-                    output_json[outer_key][inner_key] = value
-                else:
-                    if key == "abstract_inverted_index" or key == "abstract":
-                        if isinstance(value, str):
-                            output_json[mapped_key] = value
-                        else:
-                            output_json[mapped_key] = (
-                                rebuild_sentence_from_inverted_index(value)
-                            )
-                    else:
-                        output_json[mapped_key] = value
-            else:
-                output_json[key] = value
-
-        return output_json
 
     def build_paper_from_openalex_work(self, work):
         doi = work.get("doi", work.get("ids", {}).get("doi", ""))

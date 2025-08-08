@@ -33,7 +33,6 @@ from researchhub_comment.constants.rh_comment_thread_types import (
     GENERIC_COMMENT,
 )
 from researchhub_comment.constants.rh_comment_view_constants import (
-    CITATION_ENTRY,
     HYPOTHESIS,
     PAPER,
     RESEARCHHUB_POST,
@@ -121,12 +120,11 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
         ThreadViewingPermissions,
     ]
     throttle_classes = THROTTLE_CLASSES
-    _ALLOWED_MODEL_NAMES = (PAPER, RESEARCHHUB_POST, HYPOTHESIS, CITATION_ENTRY)
+    _ALLOWED_MODEL_NAMES = (PAPER, RESEARCHHUB_POST, HYPOTHESIS)
     _CONTENT_TYPE_MAPPINGS = {
         PAPER: "paper",
         RESEARCHHUB_POST: "researchhubpost",
         HYPOTHESIS: "hypothesis",
-        CITATION_ENTRY: "citationentry",
     }
     _ALLOWED_UPDATE_FIELDS = set(
         ["comment_content_type", "comment_content_json", "context_title", "mentions"]
@@ -388,21 +386,20 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             )
             rh_comment, _ = RhCommentModel.create_from_data(data)
 
-            if model != CITATION_ENTRY:
-                unified_document = rh_comment.unified_document
-                self.add_upvote(user, rh_comment)
-                self._create_mention_notifications_from_request(request, rh_comment.id)
-                create_contribution.apply_async(
-                    (
-                        Contribution.COMMENTER,
-                        {"app_label": "researchhub_comment", "model": "rhcommentmodel"},
-                        request.user.id,
-                        unified_document.id,
-                        rh_comment.id,
-                    ),
-                    priority=1,
-                    countdown=10,
-                )
+            unified_document = rh_comment.unified_document
+            self.add_upvote(user, rh_comment)
+            self._create_mention_notifications_from_request(request, rh_comment.id)
+            create_contribution.apply_async(
+                (
+                    Contribution.COMMENTER,
+                    {"app_label": "researchhub_comment", "model": "rhcommentmodel"},
+                    request.user.id,
+                    unified_document.id,
+                    rh_comment.id,
+                ),
+                priority=1,
+                countdown=10,
+            )
 
             context = self._get_retrieve_context()
             serializer_data = DynamicRhCommentSerializer(
@@ -1043,13 +1040,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     serializer.is_valid(raise_exception=True)
                     instance = serializer.save()
 
-                    # Ensure private/workspace comments can only be created within citation endpoint
-                    model = self._get_model_name()
-                    if model == CITATION_ENTRY:
-                        if privacy_type == PRIVATE:
-                            self._create_thread_permission(user, instance, None)
-                        elif privacy_type == WORKSPACE:
-                            self._create_thread_permission(user, instance, organization)
                     return instance, None
 
         except Exception as error:
