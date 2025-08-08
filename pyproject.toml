@@ -55,7 +55,6 @@ dependencies = [
     "Pillow==10.4.0",
     "pre-commit==2.17.0",
     "psycopg[binary,pool]>=3.2.3,<4.0.0",
-    "PyJWT==2.8.0",
     "PyMuPDF>=1.24.13,<2.0.0",
     "pyyaml==6.0.1",
     "q5-django-inlinecss==0.0.2",
@@ -65,8 +64,10 @@ dependencies = [
     "setuptools>=78.1.1",
     "Sift>=5.6.1,<6.0.0",
     "stripe>=11.2.0,<12.0.0",
-    "web3[tester]==6.17.1",
+    "web3[tester]==7.10.0",
     "humanize>=4.12.2,<5.0.0",
+    "pyjwt==2.10.1",
+    "cdp-sdk==1.29.0",
 ]
 
 [project.optional-dependencies]
