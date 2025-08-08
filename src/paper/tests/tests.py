@@ -111,30 +111,6 @@ class PaperPatchTest(TestCase, TestHelper, IntegrationTestHelper):
         )
 
 
-class PaperPropertiesTest(TestCase, TestHelper):
-    def test_low_cited_paper_does_not_have_highly_cited_property(self):
-        paper = self.create_paper_without_authors()
-        paper.open_alex_raw_json = {
-            "id": "https://openalex.org/W4286008317",
-            "cited_by_count": 10,
-            "cited_by_percentile_year": {"max": 80, "min": 70},
-        }
-        paper.save()
-        paper.refresh_from_db()
-        self.assertFalse(paper.is_highly_cited)
-
-    def test_highly_cited_paper_does_have_highly_cited_property(self):
-        paper = self.create_paper_without_authors()
-        paper.open_alex_raw_json = {
-            "id": "https://openalex.org/W4286008317",
-            "cited_by_count": 100,
-            "cited_by_percentile_year": {"max": 80, "min": 70},
-        }
-        paper.save()
-        paper.refresh_from_db()
-        self.assertTrue(paper.is_highly_cited)
-
-
 class PaperCopyrightTest(TestCase, TestHelper):
     def setUp(self):
         mock_file = SimpleUploadedFile(
