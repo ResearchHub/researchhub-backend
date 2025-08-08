@@ -31,7 +31,7 @@ class PersonDocument(BaseDocument):
             "name": es_fields.TextField(),
         },
     )
-    suggestion_phrases = es_fields.Completion()
+    suggestion_phrases = es_fields.CompletionField()
     user_id = es_fields.IntegerField(attr="user_id")
     reputation_hubs = es_fields.KeywordField()
     education = es_fields.KeywordField()

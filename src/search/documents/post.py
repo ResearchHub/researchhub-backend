@@ -44,7 +44,7 @@ class PostDocument(BaseDocument):
             "slug": es_fields.TextField(),
         },
     )
-    suggestion_phrases = es_fields.Completion()
+    suggestion_phrases = es_fields.CompletionField()
     title = es_fields.TextField(
         analyzer=title_analyzer,
     )
