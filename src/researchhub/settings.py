@@ -629,7 +629,7 @@ stripe.api_version = "2024-09-30.acacia"
 
 # Search (Elastic)
 
-OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", keys.ELASTICSEARCH_HOST)
+OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", keys.OPENSEARCH_HOST)
 
 OPENSEARCH_DSL = {
     "default": {
