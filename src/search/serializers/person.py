@@ -1,4 +1,4 @@
-from elasticsearch_dsl.utils import AttrList
+from opensearchpy.helpers.utils import AttrList
 from rest_framework import serializers
 
 from user.models import Author

@@ -1,7 +1,7 @@
 import logging
 import math
 
-from elasticsearch_dsl import Search
+from opensearchpy import Search
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.renderers import JSONRenderer
