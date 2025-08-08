@@ -40,8 +40,8 @@ jobs:
           --health-retries 5
         ports:
           - 6379:6379
-      elasticsearch:
-        image: elasticsearch:7.10.1
+      opensearch:
+        image: opensearchproject/opensearch:3.1.0
         env:
           discovery.type: single-node
         ports:
