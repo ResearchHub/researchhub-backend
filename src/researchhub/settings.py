@@ -629,19 +629,19 @@ stripe.api_version = "2024-09-30.acacia"
 
 # Search (Elastic)
 
-ELASTICSEARCH_HOST = os.environ.get("ELASTICSEARCH_HOST", keys.ELASTICSEARCH_HOST)
+OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", keys.ELASTICSEARCH_HOST)
 
-ELASTICSEARCH_DSL = {
+OPENSEARCH_DSL = {
     "default": {
-        "hosts": ELASTICSEARCH_HOST if ELASTICSEARCH_HOST else "http://localhost:9200",
+        "hosts": OPENSEARCH_HOST if OPENSEARCH_HOST else "http://localhost:9200",
         "timeout": 30,
     },
 }
 
 if PRODUCTION:
-    ELASTICSEARCH_DSL = {
+    OPENSEARCH_DSL = {
         "default": {
-            "hosts": ELASTICSEARCH_HOST,  # noqa: E501
+            "hosts": OPENSEARCH_HOST,  # noqa: E501
             "port": 443,
             "use_ssl": True,
             "max_retries": 5,
@@ -649,9 +649,9 @@ if PRODUCTION:
     }
 
 if STAGING:
-    ELASTICSEARCH_DSL = {
+    OPENSEARCH_DSL = {
         "default": {
-            "hosts": ELASTICSEARCH_HOST,  # noqa: E501
+            "hosts": OPENSEARCH_HOST,  # noqa: E501
             "port": 443,
             "use_ssl": True,
             "max_retries": 5,
@@ -659,9 +659,9 @@ if STAGING:
     }
 
 
-ELASTICSEARCH_AUTO_REINDEX = True
-ELASTICSEARCH_DSL_PARALLEL = True
-ELASTICSEARCH_DSL_SIGNAL_PROCESSOR = "search.celery.CelerySignalProcessor"
+OPENSEARCH_DSL_AUTO_REFRESH = True
+OPENSEARCH_DSL_PARALLEL = True
+OPENSEARCH_DSL_SIGNAL_PROCESSOR = "search.celery.CelerySignalProcessor"
 
 
 # Web3
