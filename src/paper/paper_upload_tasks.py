@@ -20,7 +20,6 @@ from django.db.utils import IntegrityError
 from habanero import Crossref
 from requests.exceptions import HTTPError
 
-from citation.models import CitationEntry
 from hub.models import Hub
 from paper.exceptions import (
     DOINotFoundError,
@@ -65,15 +64,11 @@ def celery_process_paper(self, submission_id):
         uploaded_by_id = paper_submission.uploaded_by.id
     url = paper_submission.url
     doi = paper_submission.doi
-    citation = paper_submission.citation
-
     celery_data = {
         "url": url,
         "uploaded_by_id": uploaded_by_id,
         "submission_id": submission_id,
     }
-    if citation is not None:
-        celery_data["citation_id"] = citation.id
     args = (celery_data, submission_id)
 
     apis = []
@@ -546,14 +541,14 @@ def celery_combine_paper_data(self, celery_data):
         self.request.args = (celery_data, submission_id)
         raise DOINotFoundError("Unable to find article")
 
-    return (data, submission_id, combined_data.get("citation_id", None))
+    return (data, submission_id)
 
 
 @app.task(bind=True, queue=QUEUE_PAPER_METADATA, ignore_result=False)
 def celery_create_paper(self, celery_data):
     from reputation.tasks import create_contribution
 
-    paper_data, submission_id, citation_id = celery_data
+    paper_data, submission_id = celery_data
 
     Paper = apps.get_model("paper.Paper")
     PaperSubmission = apps.get_model("paper.PaperSubmission")
@@ -587,11 +582,6 @@ def celery_create_paper(self, celery_data):
         paper_submission.set_complete_status(save=False)
         paper_submission.paper = paper
         paper_submission.save()
-
-        if citation_id:
-            citation = CitationEntry.objects.get(id=citation_id)
-            citation.related_unified_doc = paper.unified_document
-            citation.save()
 
         uploaded_by = paper_submission.uploaded_by
 
