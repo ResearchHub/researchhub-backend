@@ -15,28 +15,31 @@ services:
       DB_HOST: postgres
       DB_USER: researchhub
       DB_PASS: researchhub
-      ELASTICSEARCH_HOST: http://elasticsearch:9200
+      OPENSEARCH_HOST: http://opensearch:9200
       REDIS_HOST: redis
       REDIS_PORT: 6379
     networks:
       - researchhub
 
-  elasticsearch:
+  opensearch:
     build:
       context: .
-      dockerfile: Dockerfile.elasticsearch
+      dockerfile: Dockerfile.opensearch
     restart: unless-stopped
     environment:
       discovery.type: single-node
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
     networks:
       - researchhub
 
-  kibana:
-    image: docker.elastic.co/kibana/kibana:7.17.28
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.11.1
     environment:
-      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      OPENSEARCH_HOSTS: '["http://opensearch:9200"]'
+      DISABLE_SECURITY_DASHBOARDS_PLUGIN: "true"
     depends_on:
-      - elasticsearch
+      - opensearch
     networks:
       - researchhub
 

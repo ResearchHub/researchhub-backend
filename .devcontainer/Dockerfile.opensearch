@@ -1,0 +1,4 @@
+FROM opensearchproject/opensearch:3.1.0
+
+# Install ingest-attachment plugin for OpenSearch
+RUN /usr/share/opensearch/bin/opensearch-plugin install --batch ingest-attachment
