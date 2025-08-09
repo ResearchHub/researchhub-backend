@@ -13,12 +13,7 @@ from django.db.models.functions import Cast
 from web3 import Web3
 
 import utils.locking as lock
-from ethereum.lib import (
-    RSC_CONTRACT_ADDRESS,
-    execute_erc20_transfer,
-    get_gas_estimate,
-    get_private_key,
-)
+from ethereum.lib import RSC_CONTRACT_ADDRESS
 from hub.models import Hub
 from mailing_list.lib import base_email_context
 from notification.models import Notification
@@ -28,6 +23,7 @@ from reputation.lib import check_hotwallet, check_pending_withdrawal, contract_a
 from reputation.models import Bounty, Contribution, Deposit
 from reputation.related_models.bounty import AnnotatedBounty
 from reputation.related_models.score import Score
+from reputation.services.wallet import WalletService
 from researchhub.celery import QUEUE_CONTRIBUTIONS, QUEUE_PURCHASES, app
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
@@ -517,175 +513,9 @@ def recalc_hot_score_for_open_bounties():
         bounty.unified_document.calculate_hot_score(should_save=True)
 
 
-NULL_ADDRESS = "0x0000000000000000000000000000000000000000"
-
-
 @app.task(queue=QUEUE_PURCHASES)
-def burn_revenue_rsc(network="ETHEREUM"):
+def burn_revenue_rsc(network="BASE"):
     """
     Weekly task to burn ResearchCoin from the revenue account.
-
-    This task:
-    1. Gets the current balance of revenue1@researchhub.foundation
-    2. Creates negative balance records to zero out the account
-    3. Transfers the same amount from hot wallet to null address (burning)
-    Args:
-        network: "ETHEREUM" or "BASE" - which network to burn on
     """
-    log_info(f"Starting weekly RSC burning task on {network}")
-
-    try:
-        # Get the revenue account
-        revenue_account = User.objects.get_community_revenue_account()
-
-        # Get current balance (excluding locked funds)
-        current_balance = revenue_account.get_balance()
-
-        if current_balance <= 0:
-            log_info(f"Revenue account has no balance to burn: {current_balance}")
-            return
-
-        log_info(f"Revenue account balance to burn: {current_balance}")
-
-        # Step 1: Create negative balance records to zero out the account
-        _zero_out_revenue_account(revenue_account, current_balance)
-
-        # Step 2: Burn tokens from hot wallet
-        _burn_tokens_from_hot_wallet(current_balance, network)
-
-        log_info(
-            f"Successfully burned {current_balance} RSC from revenue account on {network}"
-        )
-
-    except Exception as e:
-        log_error(e, f"Failed to burn revenue RSC on {network}")
-        raise
-
-
-def _zero_out_revenue_account(revenue_account, amount):
-    """
-    Creates negative balance records to zero out the revenue account.
-    """
-    from reputation.distributions import Distribution
-
-    # Create a distribution for the burning operation
-    distribution = Distribution("RSC_BURN", -amount, give_rep=False)
-
-    # Use the revenue account as both recipient and giver
-    distributor = Distributor(
-        distribution, revenue_account, revenue_account, time.time(), revenue_account
-    )
-
-    # This will create a negative balance record
-    distributor.distribute()
-
-
-def _burn_tokens_from_hot_wallet(amount, network="ETHEREUM"):
-    """
-    Transfers tokens from hot wallet to null address (burning them).
-    """
-    try:
-        # Get the appropriate web3 provider and contract address
-        if network == "BASE":
-            w3 = web3_provider.base
-            contract_address = settings.WEB3_BASE_RSC_ADDRESS
-        else:
-            w3 = web3_provider.ethereum
-            contract_address = RSC_CONTRACT_ADDRESS
-
-        contract = w3.eth.contract(
-            abi=contract_abi, address=Web3.to_checksum_address(contract_address)
-        )
-
-        # Estimate gas cost before proceeding
-        gas_estimate = get_gas_estimate(
-            contract.functions.transfer(NULL_ADDRESS, int(amount * 10**18))
-        )
-        gas_price = w3.eth.generate_gas_price()
-        estimated_cost_wei = gas_estimate * gas_price
-        estimated_cost_eth = estimated_cost_wei / 10**18
-
-        log_info(
-            f"Estimated gas cost for burning {amount} RSC: {estimated_cost_eth} ETH"
-        )
-
-        # Check hot wallet ETH balance
-        eth_balance = w3.eth.get_balance(settings.WEB3_WALLET_ADDRESS)
-        eth_balance_eth = eth_balance / 10**18
-
-        if eth_balance < estimated_cost_wei * 1.2:  # 20% buffer
-            error_msg = f"Insufficient ETH in hot wallet. Need ~{estimated_cost_eth} ETH, have {eth_balance_eth} ETH"
-            log_error(Exception(error_msg), error_msg)
-            raise Exception(error_msg)
-
-        # Execute the transfer to null address
-        tx_hash = execute_erc20_transfer(
-            w3=w3,
-            sender=settings.WEB3_WALLET_ADDRESS,
-            sender_signing_key=get_private_key(),
-            contract=contract,
-            to=NULL_ADDRESS,
-            amount=amount,
-            network="ETHEREUM",
-        )
-
-        log_info(f"Burning transaction submitted: {tx_hash}")
-        return tx_hash
-
-    except Exception as e:
-        log_error(e, f"Failed to burn {amount} RSC from hot wallet")
-        raise
-
-
-@app.task(queue=QUEUE_PURCHASES)
-def check_hot_wallet_health():
-    """
-    Check if hot wallet has sufficient funds for operations.
-    """
-    try:
-        # Check Ethereum mainnet
-        eth_w3 = web3_provider.ethereum
-        eth_balance = eth_w3.eth.get_balance(settings.WEB3_WALLET_ADDRESS)
-        eth_balance_eth = eth_balance / 10**18
-
-        eth_contract = eth_w3.eth.contract(
-            abi=contract_abi, address=Web3.to_checksum_address(RSC_CONTRACT_ADDRESS)
-        )
-        eth_rsc_balance = eth_contract.functions.balanceOf(
-            settings.WEB3_WALLET_ADDRESS
-        ).call()
-        eth_rsc_balance_human = eth_rsc_balance / 10**18
-
-        # Check Base network
-        base_w3 = web3_provider.base
-        base_balance = base_w3.eth.get_balance(settings.WEB3_WALLET_ADDRESS)
-        base_balance_eth = base_balance / 10**18
-
-        base_contract = base_w3.eth.contract(
-            abi=contract_abi,
-            address=Web3.to_checksum_address(settings.WEB3_BASE_RSC_ADDRESS),
-        )
-        base_rsc_balance = base_contract.functions.balanceOf(
-            settings.WEB3_WALLET_ADDRESS
-        ).call()
-        base_rsc_balance_human = base_rsc_balance / 10**18
-
-        log_info(
-            f"Hot wallet health check - ETH: {eth_balance_eth:.4f} ETH, {eth_rsc_balance_human:.2f} RSC | Base: {base_balance_eth:.4f} ETH, {base_rsc_balance_human:.2f} RSC"
-        )
-
-        # Alert if balances are low
-        if eth_balance_eth < 0.1:  # Less than 0.1 ETH
-            log_error(
-                Exception("Low ETH balance"),
-                f"Hot wallet ETH balance is low: {eth_balance_eth} ETH",
-            )
-
-        if base_balance_eth < 0.01:  # Less than 0.01 ETH on Base
-            log_error(
-                Exception("Low Base ETH balance"),
-                f"Hot wallet Base ETH balance is low: {base_balance_eth} ETH",
-            )
-
-    except Exception as e:
-        log_error(e, "Failed to check hot wallet health")
+    return WalletService.burn_revenue_rsc(network)
