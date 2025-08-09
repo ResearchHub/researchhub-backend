@@ -4,7 +4,6 @@ from allauth.utils import email_address_exists, get_user_model
 from django.http import HttpRequest
 from django.urls.exceptions import NoReverseMatch
 from django.utils.translation import gettext_lazy as _
-from elasticsearch.exceptions import ConnectionTimeout
 from rest_framework import serializers
 
 from analytics.models import WebsiteVisits
@@ -163,8 +162,6 @@ class SocialLoginSerializer(serializers.Serializer):
                 access_token if is_yolo else social_token,
             )
             complete_social_login(request, social_login)
-        except ConnectionTimeout:
-            pass
         except NoReverseMatch as e:
             if "account_inactive" in str(e):
                 login_user = social_login.account.user
