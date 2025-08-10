@@ -123,8 +123,11 @@ class Amplitude:
             additional_properties: Additional properties to include in the event
         """
         user_id, user_properties = self._build_user_properties(user)
+
+        valid_user_id = _ensure_valid_user_id(user_id)
+
         data = {
-            "user_id": user_id,
+            "user_id": valid_user_id,
             "event_type": "user_activity",
             "user_properties": user_properties,
             "event_properties": {
@@ -207,3 +210,24 @@ def track_user_activity(user, activity_type: str, additional_properties: dict = 
                 "additional_properties": additional_properties,
             },
         )
+
+
+def _ensure_valid_user_id(user_id):
+    """
+    Ensure user ID meets Amplitude's minimum 6 character requirement.
+
+    Args:
+        user_id: Original user ID (can be int or str)
+
+    Returns:
+        str: User ID padded to at least 6 characters
+    """
+    user_id_str = str(user_id)
+
+    # If already 6+ characters, return as is
+    if len(user_id_str) >= 6:
+        return user_id_str
+
+    # Pad with leading zeros to reach 6 characters
+    # e.g., 123 -> "000123", 45 -> "000045"
+    return user_id_str.zfill(6)
