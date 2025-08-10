@@ -108,6 +108,37 @@ class Amplitude:
         hit = json.dumps(hit, default=json_serial)
         return self.forward_event(hit)
 
+    def _track_user_activity_event(
+        self,
+        user,
+        activity_type: str,
+        additional_properties: dict = {},
+    ):
+        """
+        Track user activity events for analytics funnel.
+
+        Args:
+            user: User instance
+            activity_type: Type of activity (upvote, comment, peer_review, fund, tip, journal_submission)
+            additional_properties: Additional properties to include in the event
+        """
+        user_id, user_properties = self._build_user_properties(user)
+        data = {
+            "user_id": user_id,
+            "event_type": "user_activity",
+            "user_properties": user_properties,
+            "event_properties": {
+                "activity_type": activity_type,
+                **additional_properties,
+            },
+        }
+        hit = {
+            "api_key": self.api_key,
+            "events": [data],
+        }
+        hit = json.dumps(hit, default=json_serial)
+        return self.forward_event(hit)
+
     def forward_event(self, hit):
         headers = {"Content-Type": "application/json", "Accept": "*/*"}
         request = requests.post(self.api_url, data=hit, headers=headers)
@@ -136,3 +167,43 @@ def track_event(func):
         return res
 
     return inner
+
+
+class UserActivityTypes:
+    UPVOTE = "upvote"
+    COMMENT = "comment"
+    PEER_REVIEW = "peer_review"
+    FUND = "fund"
+    TIP = "tip"
+    JOURNAL_SUBMISSION = "journal_submission"
+
+
+def track_user_activity(user, activity_type: str, additional_properties: dict = None):
+    """
+    Track user activity
+
+    Args:
+        user: User instance
+        activity_type: Type of activity from UserActivityTypes
+        additional_properties: Additional properties to include in the event
+    """
+    if not user or user.is_anonymous:
+        return
+
+    if additional_properties is None:
+        additional_properties = {}
+
+    try:
+        if not DEVELOPMENT:
+            amp = Amplitude()
+            amp._track_user_activity_event(user, activity_type, additional_properties)
+    except Exception as e:
+        log_error(
+            e,
+            message="Failed to track user activity event",
+            json_data={
+                "user_id": user.id,
+                "activity_type": activity_type,
+                "additional_properties": additional_properties,
+            },
+        )
