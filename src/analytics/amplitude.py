@@ -30,7 +30,7 @@ class Amplitude:
                 "is_hub_editor": False,
                 "is_verified": False,
             }
-            user_id = "_Anonymous_"
+            user_id = ""
         else:
             invited_by = user.invited_by
             if invited_by:
@@ -46,7 +46,7 @@ class Amplitude:
                 "is_hub_editor": user.is_hub_editor(),
                 "is_verified": user.is_verified_v2,
             }
-            user_id = f"user: {user.email}_{user.id}"
+            user_id = f"{user.id:0>6}"
         return user_id, user_properties
 
     def build_hit(self, res, view, request, *args, **kwargs):
