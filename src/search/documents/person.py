@@ -48,9 +48,6 @@ class PersonDocument(BaseDocument):
             "last_name",
         ]
 
-    def should_remove_from_index(self, obj):
-        return False
-
     def prepare_headline(self, instance):
         return instance.build_headline()
 
