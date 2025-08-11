@@ -36,9 +36,6 @@ class InstitutionDocument(BaseDocument):
     class Django:
         model = Institution
 
-    def should_remove_from_index(self, obj):
-        return False
-
     def prepare_suggestion_phrases(self, instance):
         suggestions = []
 
