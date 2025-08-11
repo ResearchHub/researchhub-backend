@@ -1,11 +1,11 @@
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AnonymousUser
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-# Import the function but don't call it directly in tests
-from analytics.amplitude import UserActivityTypes
+from analytics.amplitude import Amplitude, UserActivityTypes
 from discussion.models import Vote
 from paper.related_models.paper_model import Paper
 from researchhub_comment.related_models.rh_comment_thread_model import (
@@ -16,12 +16,14 @@ from review.models.review_model import Review
 User = get_user_model()
 
 
-class UserActivityTrackingTestCase(TestCase):
+class AmplitudeTests(TestCase):
     def setUp(self):
         """Set up test data"""
         self.user = User.objects.create_user(
             username="testuser", email="test@example.com", password="testpass"
         )
+
+        self.amplitude = Amplitude()
 
         # Create a paper for content objects - use only required fields
         self.paper = Paper.objects.create(
@@ -223,3 +225,51 @@ class UserActivityTrackingTestCase(TestCase):
         for activity_type in expected_types:
             self.assertTrue(hasattr(UserActivityTypes, activity_type))
             self.assertIsInstance(getattr(UserActivityTypes, activity_type), str)
+
+    def test_build_user_properties_anonymous_user(self):
+        """Test _build_user_properties with an anonymous user."""
+        # Arrange
+        anonymous_user = AnonymousUser()
+
+        # Act
+        user_id, user_properties = self.amplitude._build_user_properties(anonymous_user)
+
+        # Assert
+        self.assertEqual(user_id, "")
+        self.assertEqual(user_properties["email"], "")
+        self.assertEqual(user_properties["first_name"], "Anonymous")
+        self.assertEqual(user_properties["last_name"], "Anonymous")
+        self.assertEqual(user_properties["reputation"], 0)
+        self.assertFalse(user_properties["is_suspended"])
+        self.assertFalse(user_properties["probable_spammer"])
+        self.assertEqual(user_properties["invited_by_id"], 0)
+        self.assertFalse(user_properties["is_hub_editor"])
+        self.assertFalse(user_properties["is_verified"])
+
+    def test_build_user_properties_authenticated_user(self):
+        """Test _build_user_properties with an authenticated user."""
+        # Arrange
+        user = User.objects.create(
+            first_name="firstName1",
+            last_name="lastName1",
+            email="email1@researchhub.com",
+        )
+        user.reputation = 500
+        user.is_suspended = False
+        user.probable_spammer = False
+        user.save()
+
+        # Act
+        user_id, user_properties = self.amplitude._build_user_properties(user)
+
+        # Assert
+        self.assertEqual(user_id, f"{user.id:0>6}")
+        self.assertEqual(user_properties["email"], "email1@researchhub.com")
+        self.assertEqual(user_properties["first_name"], "firstName1")
+        self.assertEqual(user_properties["last_name"], "lastName1")
+        self.assertEqual(user_properties["reputation"], 500)
+        self.assertFalse(user_properties["is_suspended"])
+        self.assertFalse(user_properties["probable_spammer"])
+        self.assertIsNone(user_properties["invited_by_id"])
+        self.assertFalse(user_properties["is_hub_editor"])
+        self.assertFalse(user_properties["is_verified"])
