@@ -50,15 +50,11 @@ class AmplitudeTests(TestCase):
         track_user_activity(
             user=self.user,
             activity_type=UserActivityTypes.UPVOTE,
-            content_type=self.paper_content_type,
-            object_id=self.paper.id,
         )
 
         mock_track.assert_called_once_with(
             user=self.user,
             activity_type=UserActivityTypes.UPVOTE,
-            content_type=self.paper_content_type,
-            object_id=self.paper.id,
         )
 
     @patch("analytics.amplitude.track_user_activity")
@@ -79,15 +75,11 @@ class AmplitudeTests(TestCase):
         track_user_activity(
             user=self.user,
             activity_type=UserActivityTypes.UPVOTE,
-            content_type=self.paper_content_type,
-            object_id=self.paper.id,
         )
 
         mock_track.assert_called_once_with(
             user=self.user,
             activity_type=UserActivityTypes.UPVOTE,
-            content_type=self.paper_content_type,
-            object_id=self.paper.id,
         )
 
     @patch("analytics.amplitude.track_user_activity")
@@ -102,15 +94,11 @@ class AmplitudeTests(TestCase):
         track_user_activity(
             user=self.user,
             activity_type=UserActivityTypes.COMMENT,
-            content_type=self.paper_content_type,
-            object_id=self.paper.id,
         )
 
         mock_track.assert_called_once_with(
             user=self.user,
             activity_type=UserActivityTypes.COMMENT,
-            content_type=self.paper_content_type,
-            object_id=self.paper.id,
         )
 
     @patch("analytics.amplitude.track_user_activity")
@@ -131,15 +119,11 @@ class AmplitudeTests(TestCase):
         track_user_activity(
             user=self.user,
             activity_type=UserActivityTypes.PEER_REVIEW,
-            content_type=self.paper_content_type,
-            object_id=self.paper.id,
         )
 
         mock_track.assert_called_once_with(
             user=self.user,
             activity_type=UserActivityTypes.PEER_REVIEW,
-            content_type=self.paper_content_type,
-            object_id=self.paper.id,
         )
 
     @patch("analytics.amplitude.track_user_activity")
@@ -154,15 +138,11 @@ class AmplitudeTests(TestCase):
         track_user_activity(
             user=self.user,
             activity_type=UserActivityTypes.FUND,
-            content_type=self.paper_content_type,
-            object_id=self.paper.id,
         )
 
         mock_track.assert_called_once_with(
             user=self.user,
             activity_type=UserActivityTypes.FUND,
-            content_type=self.paper_content_type,
-            object_id=self.paper.id,
         )
 
     @patch("analytics.amplitude.track_user_activity")
@@ -177,15 +157,11 @@ class AmplitudeTests(TestCase):
         track_user_activity(
             user=self.user,
             activity_type=UserActivityTypes.TIP,
-            content_type=self.paper_content_type,
-            object_id=self.paper.id,
         )
 
         mock_track.assert_called_once_with(
             user=self.user,
             activity_type=UserActivityTypes.TIP,
-            content_type=self.paper_content_type,
-            object_id=self.paper.id,
         )
 
     @patch("analytics.amplitude.track_user_activity")
@@ -200,15 +176,11 @@ class AmplitudeTests(TestCase):
         track_user_activity(
             user=self.user,
             activity_type=UserActivityTypes.JOURNAL_SUBMISSION,
-            content_type=self.paper_content_type,
-            object_id=self.paper.id,
         )
 
         mock_track.assert_called_once_with(
             user=self.user,
             activity_type=UserActivityTypes.JOURNAL_SUBMISSION,
-            content_type=self.paper_content_type,
-            object_id=self.paper.id,
         )
 
     def test_user_activity_types(self):
