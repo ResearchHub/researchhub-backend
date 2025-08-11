@@ -20,7 +20,7 @@ class AmplitudeTests(TestCase):
         user_id, user_properties = self.amplitude._build_user_properties(anonymous_user)
 
         # Assert
-        self.assertEqual(user_id, "_Anonymous_")
+        self.assertEqual(user_id, "")
         self.assertEqual(user_properties["email"], "")
         self.assertEqual(user_properties["first_name"], "Anonymous")
         self.assertEqual(user_properties["last_name"], "Anonymous")

@@ -30,7 +30,7 @@ class Amplitude:
                 "is_hub_editor": False,
                 "is_verified": False,
             }
-            user_id = "_Anonymous_"
+            user_id = ""
         else:
             invited_by = user.invited_by
             if invited_by:
