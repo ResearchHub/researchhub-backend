@@ -72,7 +72,6 @@ class Author(models.Model):
         max_length=255, default=None, null=True, blank=True
     )
     claimed = models.BooleanField(default=True, null=True, blank=True)
-    is_verified = models.BooleanField(default=False)
     country_code = models.CharField(
         blank=True,
         null=True,
@@ -157,6 +156,15 @@ class Author(models.Model):
     @property
     def full_name(self):
         return self.first_name + " " + self.last_name
+
+    @property
+    def is_verified(self):
+        """
+        Check if the user account is verified.
+        Returns `False` if the user was not successfully verified or
+        if no verification record exists.
+        """
+        return self.is_verified_v2
 
     @property
     def is_verified_v2(self):
