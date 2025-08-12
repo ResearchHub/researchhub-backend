@@ -30,19 +30,21 @@ class BaseDocument(Document):
                 objects_to_index.append(obj)
 
         try:
-            self._bulk(
+            index_result = self._bulk(
                 self._get_actions(objects_to_index, action="index"),
                 parallel=parallel,
                 **kwargs,
             )
-            self._bulk(
+            delete_result = self._bulk(
                 self._get_actions(objects_to_remove, action="delete"),
                 parallel=parallel,
                 **kwargs,
             )
+            return (index_result[0] + delete_result[0], index_result[1] + delete_result[1])
         except ConnectionError as e:
             sentry.log_info(e)
+            return (0, 0)
         except Exception as e:
             # The likely scenario is the result of removing objects
             # that do not exist in elastic search - 404s
-            pass
+            return (0, 0)
