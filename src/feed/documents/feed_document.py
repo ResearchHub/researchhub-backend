@@ -117,7 +117,7 @@ class FeedEntryDocument(Document):
                     "first_name": instance.user.first_name,
                     "last_name": instance.user.last_name,
                     "email": instance.user.email,
-                    "is_verified": instance.user.is_verified_v2,
+                    "is_verified": instance.user.is_verified,
                 },
             }
         return None

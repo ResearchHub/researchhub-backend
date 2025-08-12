@@ -126,4 +126,4 @@ class IsVerifiedUser(BasePermission):
         if user.is_anonymous:
             return False
 
-        return user.is_verified_v2
+        return user.is_verified

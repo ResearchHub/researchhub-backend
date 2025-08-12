@@ -36,7 +36,7 @@ class SimpleUserSerializer(serializers.ModelSerializer):
         ]
 
     def get_is_verified(self, obj):
-        return obj.is_verified_v2
+        return obj.is_verified
 
 
 class SimpleAuthorSerializer(serializers.ModelSerializer):
