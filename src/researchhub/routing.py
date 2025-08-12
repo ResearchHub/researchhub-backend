@@ -3,7 +3,6 @@
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.security.websocket import AllowedHostsOriginValidator
 
-import citation.routing
 import note.routing
 import notification.routing
 import user.routing
@@ -19,7 +18,6 @@ application = ProtocolTypeRouter(
                         *note.routing.websocket_urlpatterns,
                         *notification.routing.websocket_urlpatterns,
                         *user.routing.websocket_urlpatterns,
-                        *citation.routing.websocket_urlpatterns,
                     ]
                 )
             )
