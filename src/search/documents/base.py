@@ -5,16 +5,16 @@ import utils.sentry as sentry
 
 
 class BaseDocument(Document):
-    """
-    Overriding parent method to include an additional bulk
-    operation for removing objects from elastic who are removed
-    """
-    def update(self, thing, refresh=None, action='index', parallel=False, **kwargs):
+    def update(self, thing, refresh=None, action="index", parallel=False, **kwargs):
+        """
+        Overriding parent method to include an additional bulk
+        operation for removing objects from the index that are soft-deleted.
+        """
 
         if refresh is not None:
-            kwargs['refresh'] = refresh
+            kwargs["refresh"] = refresh
         elif self.django.auto_refresh:
-            kwargs['refresh'] = self.django.auto_refresh
+            kwargs["refresh"] = self.django.auto_refresh
 
         if isinstance(thing, models.Model):
             object_list = [thing]
@@ -31,14 +31,14 @@ class BaseDocument(Document):
 
         try:
             self._bulk(
-                self._get_actions(objects_to_index, action='index'),
+                self._get_actions(objects_to_index, action="index"),
                 parallel=parallel,
-                **kwargs
+                **kwargs,
             )
             self._bulk(
-                self._get_actions(objects_to_remove, action='delete'),
+                self._get_actions(objects_to_remove, action="delete"),
                 parallel=parallel,
-                **kwargs
+                **kwargs,
             )
         except ConnectionError as e:
             sentry.log_info(e)
