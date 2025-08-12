@@ -17,7 +17,6 @@ from utils import sentry
 
 class PurchaseSerializer(serializers.ModelSerializer):
     source = serializers.SerializerMethodField()
-    end_date = serializers.SerializerMethodField()
 
     class Meta:
         model = Purchase
@@ -51,18 +50,6 @@ class PurchaseSerializer(serializers.ModelSerializer):
             return serializer.data
 
         return None
-
-    def get_end_date(self, purchase):
-        status = purchase.paid_status
-        purchase_method = purchase.purchase_method
-
-        if purchase_method == Purchase.ON_CHAIN and status != Purchase.PAID:
-            return None
-
-        created_date = purchase.created_date
-        timedelta = datetime.timedelta(days=int(purchase.amount))
-        end_date = created_date + timedelta
-        return end_date.isoformat()
 
 
 class DynamicPurchaseSerializer(DynamicModelFieldSerializer):
@@ -115,18 +102,6 @@ class DynamicPurchaseSerializer(DynamicModelFieldSerializer):
             purchase.user, context=context, **_context_fields
         )
         return serializer.data
-
-    def get_end_date(self, purchase):
-        status = purchase.paid_status
-        purchase_method = purchase.purchase_method
-
-        if purchase_method == Purchase.ON_CHAIN and status != Purchase.PAID:
-            return None
-
-        created_date = purchase.created_date
-        timedelta = datetime.timedelta(days=int(purchase.amount))
-        end_date = created_date + timedelta
-        return end_date.isoformat()
 
     def get_content_type(self, purchase):
         content = purchase.content_type
