@@ -5,14 +5,6 @@ import utils.sentry as sentry
 
 
 class BaseDocument(Document):
-
-    """
-    Override and add conditions for when object should be removed
-    from index
-    """
-    def should_remove_from_index(self, obj):
-        return False
-
     """
     Overriding parent method to include an additional bulk
     operation for removing objects from elastic who are removed
@@ -32,7 +24,7 @@ class BaseDocument(Document):
         objects_to_remove = []
         objects_to_index = []
         for obj in object_list:
-            if self.should_remove_from_index(obj):
+            if not self.should_index_object(obj):
                 objects_to_remove.append(obj)
             else:
                 objects_to_index.append(obj)
