@@ -2,8 +2,6 @@ from django.db import models
 from django_opensearch_dsl import Document
 from django_opensearch_dsl.apps import DODConfig
 
-import utils.sentry as sentry
-
 
 class BaseDocument(Document):
 
@@ -33,29 +31,21 @@ class BaseDocument(Document):
             else:
                 objects_to_index.append(obj)
 
-        try:
-            index_result = self._bulk(
-                self._get_actions(objects_to_index, action="index"),
-                *args,
-                refresh=refresh,
-                using=using,
-                **kwargs,
-            )
-            delete_result = self._bulk(
-                self._get_actions(objects_to_remove, action="delete"),
-                *args,
-                refresh=refresh,
-                using=using,
-                **kwargs,
-            )
-            return (
-                index_result[0] + delete_result[0],
-                index_result[1] + delete_result[1],
-            )
-        except ConnectionError as e:
-            sentry.log_info(e)
-            return (0, 0)
-        except Exception:
-            # The likely scenario is the result of removing objects
-            # that do not exist in elastic search - 404s
-            return (0, 0)
+        index_result = self._bulk(
+            self._get_actions(objects_to_index, action="index"),
+            *args,
+            refresh=refresh,
+            using=using,
+            **kwargs,
+        )
+        delete_result = self._bulk(
+            self._get_actions(objects_to_remove, action="delete"),
+            *args,
+            refresh=refresh,
+            using=using,
+            **kwargs,
+        )
+        return (
+            index_result[0] + delete_result[0],
+            index_result[1] + delete_result[1],
+        )
