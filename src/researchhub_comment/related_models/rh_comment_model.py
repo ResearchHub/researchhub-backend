@@ -116,12 +116,6 @@ class RhCommentModel(
         return self.thread.unified_document
 
     @property
-    def is_public_comment(self):
-        from citation.models import CitationEntry
-
-        return not isinstance(self.thread.content_object, CitationEntry)
-
-    @property
     def plain_text(self):
         """Return the raw text contained in the comment body.
 
@@ -244,24 +238,14 @@ class RhCommentModel(
         )
 
     def _update_related_discussion_count(self, amount):
-        from citation.models import CitationEntry
-
         thread = self.thread
-        if isinstance(self.thread.content_object, CitationEntry):
-            return
-
         related_document = thread.unified_document.get_document()
         if hasattr(related_document, "discussion_count"):
             related_document.discussion_count += amount
             related_document.save(update_fields=["discussion_count"])
 
     def refresh_related_discussion_count(self):
-        from citation.models import CitationEntry
-
         thread = self.thread
-        if isinstance(self.thread.content_object, CitationEntry):
-            return
-
         related_document = thread.unified_document.get_document()
 
         # Ensure the document has the `rh_threads` relation which provides the

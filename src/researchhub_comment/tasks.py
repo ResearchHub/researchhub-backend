@@ -28,15 +28,11 @@ def celery_create_comment_content_src(comment_id, comment_content):
 
 @app.task(queue=QUEUE_NOTIFICATION)
 def celery_create_mention_notification(comment_id, recipients):
-    CitationEntry = apps.get_model("citation.CitationEntry")
     RhCommentModel = apps.get_model("researchhub_comment.RhCommentModel")
     Notification = apps.get_model("notification.Notification")
 
     comment = RhCommentModel.objects.get(id=comment_id)
     thread = comment.thread
-    if isinstance(thread.content_object, CitationEntry):
-        # Disabling mentions for citation entries
-        return
 
     unified_document = thread.unified_document
     for recipient in recipients:

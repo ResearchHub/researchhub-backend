@@ -67,24 +67,6 @@ class PaperPermissionsIntegrationTests(TestCase, BaseIntegrationMixin):
         response = self.get_downvote_response(user)
         self.assertEqual(response.status_code, 201)
 
-    def test_moderator_can_NOT_assign_moderator(self):
-        moderator = self.create_random_authenticated_user("moderator1")
-        paper = self.create_paper_with_moderators([moderator.id])
-        response = self.get_assign_moderator_response(moderator, paper)
-        self.assertEqual(response.status_code, 403)
-
-    def test_uploader_can_NOT_assign_moderator(self):
-        uploader = self.create_random_authenticated_user("uploader1")
-        paper = create_paper(uploaded_by=uploader)
-        response = self.get_assign_moderator_response(uploader, paper)
-        self.assertEqual(response.status_code, 403)
-
-    def test_can_NOT_assign_moderator_unless_author(self):
-        random_user = self.create_random_authenticated_user("random1")
-        paper = create_paper(title="Title For Test Can Not Assign Moderator")
-        response = self.get_assign_moderator_response(random_user, paper)
-        self.assertEqual(response.status_code, 403)
-
     def post_with_reputation(self, reputation):
         user = self.create_user_with_reputation(reputation)
         response = self.get_paper_submission_response(user)
@@ -118,15 +100,6 @@ class PaperPermissionsIntegrationTests(TestCase, BaseIntegrationMixin):
         )
         return response
 
-    def get_assign_moderator_response(self, user, paper):
-        url = self.base_url + f"{paper.id}/assign_moderator/"
-        random_user = self.create_random_authenticated_user("random")
-        data = {"moderators": random_user.id}
-        response = get_authenticated_post_response(
-            user, url, data, content_type="application/json"
-        )
-        return response
-
     def build_paper_form(self):
         file = SimpleUploadedFile("../config/paper.pdf", b"file_content")
         hub = self.create_hub("Cryptography")
@@ -146,12 +119,6 @@ class PaperPermissionsIntegrationTests(TestCase, BaseIntegrationMixin):
     def create_paper_with_authors(self, author_ids):
         paper = create_paper(title="Authored Paper")
         paper.authors.add(*author_ids)
-        paper.save()
-        return paper
-
-    def create_paper_with_moderators(self, moderator_ids):
-        paper = create_paper(title="Moderated Paper")
-        paper.moderators.add(*moderator_ids)
         paper.save()
         return paper
 

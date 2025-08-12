@@ -9,7 +9,6 @@ from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.db.models import Func, Index, IntegerField, JSONField, Sum
 from django.db.models.functions import Cast
-from django_elasticsearch_dsl_drf.wrappers import dict_to_obj
 from manubot.cite.doi import get_doi_csl_item
 from manubot.cite.unpaywall import Unpaywall
 
@@ -92,10 +91,6 @@ class Paper(AbstractGenericReactionModel):
     open_alex_raw_json = models.JSONField(null=True, blank=True)
     automated_bounty_created = models.BooleanField(default=False)
 
-    # Moderators are obsolete, in favor of super mods on the user
-    moderators = models.ManyToManyField(
-        "user.User", related_name="moderated_papers", blank=True
-    )
     authors = models.ManyToManyField(
         "user.Author",
         through="Authorship",
@@ -377,46 +372,6 @@ class Paper(AbstractGenericReactionModel):
         return self.title or self.paper_title
 
     @property
-    def is_highly_cited(self):
-        is_highly_cited = False
-        MIN_CITATIONS_FOR_HIGHLY_CITED_ACROSS_ALL_FIELDS = 80
-        MIN_CITATIONS_FOR_HIGHLY_CITED_ACROSS_LESS_CITED_FIELDS = 40
-        MIN_PERCENTILE_FOR_HIGHLY_CITED_ACROSS_LESS_CITED_FIELDS = 90
-
-        try:
-            open_alex_data = self.open_alex_raw_json
-            cited_by_count = open_alex_data["cited_by_count"] or 0
-            citation_percentile = open_alex_data["cited_by_percentile_year"]["min"]
-
-            # Somewhat arbitrary formula but seems to work for most OpenAlex cases
-            # Papers > MIN_CITATIONS_FOR_HIGHLY_CITED_ACROSS_ALL_FIELDS are always considered highly cited.
-            # Since some scientific areas are less cited, we consider papers with less citations but high percentile as highly cited.
-            is_highly_cited = (
-                cited_by_count > MIN_CITATIONS_FOR_HIGHLY_CITED_ACROSS_ALL_FIELDS
-                or (
-                    cited_by_count
-                    > MIN_CITATIONS_FOR_HIGHLY_CITED_ACROSS_LESS_CITED_FIELDS
-                    and citation_percentile
-                    > MIN_PERCENTILE_FOR_HIGHLY_CITED_ACROSS_LESS_CITED_FIELDS
-                )
-            )
-        except Exception:
-            pass
-
-        return is_highly_cited
-
-    @property
-    def citation_percentile(self):
-        open_alex_data = self.open_alex_raw_json
-        citation_percentile = 0
-        try:
-            citation_percentile = open_alex_data["cited_by_percentile_year"]["min"]
-        except Exception:
-            pass
-
-        return citation_percentile
-
-    @property
     def uploaded_date(self):
         return self.created_date
 
@@ -429,14 +384,8 @@ class Paper(AbstractGenericReactionModel):
         return (not self.is_public) or self.is_removed or self.is_removed_by_user
 
     @property
-    def owners(self):
-        mods = list(self.moderators.all())
-        authors = list(self.authors.all())
-        return mods + authors
-
-    @property
     def users_to_notify(self):
-        users = list(self.moderators.all())
+        users = []
         paper_authors = self.authors.all()
         for author in paper_authors:
             if (
@@ -507,13 +456,6 @@ class Paper(AbstractGenericReactionModel):
         if self.unified_document is None:
             return self.score
         return self.unified_document.hot_score
-
-    @property
-    def votes_indexing(self):
-        all_votes = self.votes.all()
-        if len(all_votes) > 0:
-            return [self.get_vote_for_index(vote) for vote in all_votes]
-        return {}
 
     def raw_author_count(self):
         raw_author_count = 0
@@ -634,16 +576,6 @@ class Paper(AbstractGenericReactionModel):
             )
         else:
             celery_extract_meta_data(self.id, title, check_title)
-
-    def get_vote_for_index(self, vote):
-        wrapper = dict_to_obj(
-            {
-                "vote_type": vote.vote_type,
-                "updated_date": vote.updated_date,
-            }
-        )
-
-        return wrapper
 
     def get_boost_amount(self):
         purchases = self.purchases.filter(

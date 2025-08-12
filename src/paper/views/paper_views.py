@@ -7,15 +7,11 @@ from django.conf import settings
 from django.contrib.admin.options import get_content_type_for_model
 from django.contrib.postgres.search import SearchQuery
 from django.core.cache import cache
-from django.core.exceptions import ValidationError
 from django.core.files.base import ContentFile
-from django.core.validators import URLValidator
 from django.db import IntegrityError, transaction
-from django.db.models import F, IntegerField, Q, Sum, Value
-from django.db.models.functions import Cast, Coalesce
+from django.db.models import Q
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
-from elasticsearch.exceptions import ConnectionError
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter, SearchFilter
@@ -45,13 +41,7 @@ from paper.serializers import (
     PaperSubmissionSerializer,
 )
 from paper.tasks import censored_paper_cleanup
-from paper.utils import (
-    clean_abstract,
-    get_cache_key,
-    get_csl_item,
-    get_pdf_location_for_csl_item,
-)
-from purchase.models import Purchase
+from paper.utils import get_cache_key
 from reputation.models import Contribution
 from reputation.related_models.paper_reward import (
     OPEN_ACCESS_MULTIPLIER,
@@ -99,7 +89,6 @@ class PaperViewSet(
             "authors",
             "authors__user",
             "authors__user__userverification",
-            "moderators",
             "unified_document",
             "unified_document__hubs",
             "unified_document__hubs__subscribers",
@@ -901,40 +890,6 @@ class PaperViewSet(
         return Response("Paper was deleted.", status=200)
 
     @action(
-        detail=False,
-        methods=["get"],
-    )
-    def pdf_coverage(self, request, pk=None):
-        date = request.GET.get("date", None)
-        paper_query = Paper.objects.all()
-        if date:
-            paper_query = paper_query.filter(created_date__gte=date)
-
-        paper_count = paper_query.count()
-        papers_with_pdfs = paper_query.filter(Q(file="") | Q(file__isnull=True)).count()
-
-        open_access_count = paper_query.filter(is_open_access=True).count()
-        open_access_papers_with_pdf = paper_query.filter(
-            Q(file="") | Q(file__isnull=True), is_open_access=True
-        ).count()
-
-        return Response(
-            {
-                "paper_count": paper_count,
-                "internal_pdf_count": papers_with_pdfs,
-                "internal_coverage_percentage": "{}%".format(
-                    round(papers_with_pdfs / paper_count, 2) * 100
-                ),
-                "open_access_count": open_access_count,
-                "open_access_pdf_count": open_access_papers_with_pdf,
-                "open_access_pdf_percentage": "{}%".format(
-                    round(open_access_papers_with_pdf / open_access_count, 2) * 100
-                ),
-            },
-            status=200,
-        )
-
-    @action(
         detail=True,
         methods=["put", "patch", "delete"],
         permission_classes=[HasDocumentCensorPermission],
@@ -975,19 +930,6 @@ class PaperViewSet(
         decisions_api.apply_bad_user_decision(content_creator, "MANUAL_REVIEW", user)
 
         return Response(self.get_serializer(instance=paper).data, status=200)
-
-    @action(
-        detail=True, methods=["post", "put", "patch"], permission_classes=[IsAuthor]
-    )
-    def assign_moderator(self, request, pk=None):
-        """Assign users as paper moderators"""
-        paper = self.get_object()
-        moderators = request.data.get("moderators")
-        if not isinstance(moderators, list):
-            moderators = [moderators]
-        paper.moderators.add(*moderators)
-        paper.save()
-        return Response(PaperSerializer(paper).data)
 
     @action(detail=True, methods=["get"])
     def user_vote(self, request, pk=None):
@@ -1067,110 +1009,6 @@ class PaperViewSet(
             "preregistration_multiplier": PREREGISTERED_MULTIPLIER,
         }
         return Response(summary, status=200)
-
-    @staticmethod
-    def search_by_csl_item(csl_item):
-        """
-        Perform an elasticsearch query for papers matching
-        the input CSL_Item.
-        """
-        from elasticsearch_dsl import Q, Search
-
-        search = Search(index="paper")
-        title = csl_item.get("title", "")
-        query = Q("match", title=title) | Q("match", paper_title=title)
-        if csl_item.get("DOI"):
-            query |= Q("match", doi=csl_item["DOI"])
-        search.query(query)
-        return search
-
-    @action(detail=False, methods=["post"])
-    def search_by_url(self, request):
-        # TODO: Ensure we are saving data from here, license, title,
-        # publish date, authors, pdf
-        # handle pdf url, journal url, or pdf upload
-        # TODO: Refactor
-        """
-        Retrieve bibliographic metadata and potential paper matches
-        from the database for `url` (specified via request post data).
-        """
-        url = request.data.get("url").strip()
-        data = {"url": url}
-
-        if not url:
-            return Response(
-                "search_by_url requests must specify 'url'",
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        try:
-            URLValidator()(url)
-        except (ValidationError, Exception) as e:
-            print(e)
-            return Response(
-                f"Double check that URL is valid: {url}",
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        url_is_pdf = check_url_contains_pdf(url)
-        data["url_is_pdf"] = url_is_pdf
-
-        duplicate_papers = Paper.objects.filter(
-            Q(url__icontains=url) | Q(pdf_url__icontains=url)
-        )
-        if duplicate_papers.exists():
-            duplicate_paper = duplicate_papers.first()
-            serializer_data = self.serializer_class(
-                duplicate_paper, context={"purchase_minimal_serialization": True}
-            ).data
-            data = {"key": "url", "results": serializer_data}
-            return Response(data, status=status.HTTP_403_FORBIDDEN)
-
-        try:
-            csl_item = get_csl_item(url)
-        except Exception as error:
-            data["warning"] = f"Generating csl_item failed with:\n{error}"
-            log_error(error)
-            csl_item = None
-
-        if csl_item:
-            # Cleaning csl data
-            cleaned_title = csl_item.get("title", "").strip()
-            csl_item["title"] = cleaned_title
-            abstract = csl_item.get("abstract", "")
-            cleaned_abstract = clean_abstract(abstract)
-            csl_item["abstract"] = cleaned_abstract
-
-            url_is_unsupported_pdf = url_is_pdf and csl_item.get("URL") == url
-            data["url_is_unsupported_pdf"] = url_is_unsupported_pdf
-            csl_item.url_is_unsupported_pdf = url_is_unsupported_pdf
-            data["csl_item"] = csl_item
-            data["oa_pdf_location"] = get_pdf_location_for_csl_item(csl_item)
-            doi = csl_item.get("DOI", None)
-
-            duplicate_papers = Paper.objects.exclude(doi=None).filter(doi=doi)
-            if duplicate_papers.exists():
-                duplicate_paper = duplicate_papers.first()
-                serializer_data = self.serializer_class(
-                    duplicate_paper, context={"purchase_minimal_serialization": True}
-                ).data
-                data = {"key": "doi", "results": serializer_data}
-                return Response(data, status=status.HTTP_403_FORBIDDEN)
-
-            data["paper_publish_date"] = csl_item.get_date("issued", fill=True)
-
-        if csl_item and request.data.get("search", False):
-            # search existing papers
-            search = self.search_by_csl_item(csl_item)
-            try:
-                search = search.execute()
-            except ConnectionError:
-                return Response(
-                    "Search failed due to an elasticsearch ConnectionError.",
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
-            data["search"] = [hit.to_dict() for hit in search.hits]
-
-        return Response(data, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=["get"], permission_classes=[AllowAny])
     def doi_search_via_openalex(self, request):
@@ -1275,42 +1113,6 @@ class PaperViewSet(
             filter(lambda work: work["id"] not in claimed_works, openalex_works)
         )
         return unclaimed_works
-
-    def calculate_paper_ordering(self, papers, ordering, start_date, end_date):
-        if "hot_score" in ordering:
-            order_papers = papers.order_by(ordering)
-        elif "score" in ordering:
-            boost_amount = Coalesce(
-                Sum(
-                    Cast("purchases__amount", output_field=IntegerField()),
-                    filter=Q(
-                        purchases__paid_status=Purchase.PAID,
-                        purchases__user__moderator=True,
-                        purchases__amount__gt=0,
-                        purchases__boost_time__gt=0,
-                    ),
-                ),
-                Value(0),
-            )
-            order_papers = (
-                papers.filter(
-                    created_date__range=[start_date, end_date],
-                )
-                .annotate(total_score=boost_amount + F("score"))
-                .order_by("-total_score")
-            )
-        elif "discussed" in ordering:
-            order_papers = papers.order_by("-discussion_count")
-        elif "removed" in ordering:
-            order_papers = papers.order_by("-created_date")
-        elif "user-uploaded" in ordering:
-            order_papers = papers.filter(created_date__gte=start_date).order_by(
-                "-created_date"
-            )
-        else:
-            order_papers = papers.order_by(ordering)
-
-        return order_papers
 
     @action(
         detail=True, methods=["get"], permission_classes=[IsAuthenticatedOrReadOnly]

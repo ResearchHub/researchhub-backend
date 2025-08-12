@@ -1,10 +1,3 @@
-from django_elasticsearch_dsl_drf.filter_backends import (
-    DefaultOrderingFilterBackend,
-    FilteringFilterBackend,
-    OrderingFilterBackend,
-    SearchFilterBackend,
-)
-from django_elasticsearch_dsl_drf.viewsets import DocumentViewSet
 from elasticsearch_dsl import Q
 
 from feed.document_serializers.feed_document_serializer import (
@@ -13,9 +6,16 @@ from feed.document_serializers.feed_document_serializer import (
 from feed.documents.feed_document import FeedEntryDocument
 from feed.views.common import FeedPagination
 from feed.views.feed_view_mixin import FeedViewMixin
+from search.base.filters import (
+    DefaultOrderingFilterBackend,
+    FilteringFilterBackend,
+    OrderingFilterBackend,
+    SearchFilterBackend,
+)
+from search.base.viewsets import ElasticsearchViewSet
 
 
-class FeedV2ViewSet(FeedViewMixin, DocumentViewSet):
+class FeedV2ViewSet(FeedViewMixin, ElasticsearchViewSet):
     """
     ViewSet for accessing the main feed of ResearchHub activities using Elasticsearch.
     Supports filtering by hub, following status, source, and sorting by popularity.

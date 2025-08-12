@@ -5,11 +5,11 @@ import sift.client
 from django.apps import apps
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
-from ipware import get_client_ip
 from rest_framework.request import Request
 
 from researchhub.celery import QUEUE_EXTERNAL_REPORTING, app
 from utils import sentry
+from utils.http import get_client_ip
 
 # https://sift.com/resources/guides/content-abuse
 
@@ -50,7 +50,7 @@ def check_user_risk(user):
         sift_risk_score
         and sift_risk_score > 90
         and user.id not in settings.SIFT_MODERATION_WHITELIST
-        and not user.is_verified_v2
+        and not user.is_verified
     ):
         user.set_suspended(is_manual=False)
 
@@ -103,7 +103,7 @@ class EventsApi:
         properties = {"$browser": {"$user_agent": user_agent}}
 
         if not exclude_ip:
-            ip, is_routable = get_client_ip(request)
+            ip = get_client_ip(request)
             if ip:
                 properties["ip"] = ip
         return properties
@@ -122,7 +122,7 @@ class EventsApi:
             "$name": f"{user.first_name} {user.last_name}",
             "$social_sign_on_type": "$google",
             "author_id": str(user.author_profile.id),
-            "is_verified": user.is_verified_v2,
+            "is_verified": user.is_verified,
             "profile_url": f"https://www.researchhub.com/user/{str(user.author_profile.id)}",
             "created_date": user.created_date.isoformat(),
             "reputation": user.reputation,
