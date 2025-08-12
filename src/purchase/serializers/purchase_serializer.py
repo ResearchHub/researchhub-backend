@@ -17,7 +17,6 @@ from utils import sentry
 
 class PurchaseSerializer(serializers.ModelSerializer):
     source = serializers.SerializerMethodField()
-    end_date = serializers.SerializerMethodField()
 
     class Meta:
         model = Purchase
