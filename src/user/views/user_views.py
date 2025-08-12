@@ -570,47 +570,6 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
         return Response({"message:": "Webhook successfully processed"}, status=200)
 
 
-@api_view([RequestMethods.GET])
-@permission_classes([AllowAny])
-def get_user_popover(request, user_id=None):
-    user = get_object_or_404(User, pk=user_id)
-    user = User.objects.get(id=user_id)
-    context = {
-        "usr_dus_get_author_profile": {
-            "_include_fields": (
-                "id",
-                "first_name",
-                "last_name",
-                "university",
-                "facebook",
-                "linkedin",
-                "twitter",
-                "google_scholar",
-                "description",
-                "education",
-                "headline",
-                "profile_image",
-            )
-        },
-        "usr_dus_get_editor_of": {"_include_fields": ("source",)},
-        "rag_dps_get_source": {"_include_fields": ("id", "name", "slug")},
-    }
-    serializer = DynamicUserSerializer(
-        user,
-        context=context,
-        _include_fields=(
-            "id",
-            "author_profile",
-            "editor_of",
-            "first_name",
-            "last_name",
-            "reputation",
-            "created_date",
-        ),
-    )
-    return Response(serializer.data, status=200)
-
-
 class UniversityViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = University.objects.all()
     serializer_class = UniversitySerializer
