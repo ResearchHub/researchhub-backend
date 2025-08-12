@@ -164,20 +164,10 @@ class Author(models.Model):
         Returns `False` if the user was not successfully verified or
         if no verification record exists.
         """
-        return self.is_verified_v2
-
-    @property
-    def is_verified_v2(self):
-        """
-        Check if the user account is verified via `UserVerification`.
-        Returns `False` if no user is associated with this author or
-        if the user was not successfully verified or
-        if no verification record exists.
-        """
         if self.user is None:
             return False
 
-        return self.user.is_verified_v2
+        return self.user.is_verified
 
     @property
     def profile_image_indexing(self):
