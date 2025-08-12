@@ -102,7 +102,6 @@ class AuthorSerializer(ModelSerializer):
     university = UniversitySerializer(required=False)
     wallet = SerializerMethodField()
     suspended_status = SerializerMethodField()
-    is_verified_v2 = SerializerMethodField()
     is_verified = SerializerMethodField()
 
     class Meta:
@@ -124,7 +123,6 @@ class AuthorSerializer(ModelSerializer):
             "university",
             "wallet",
             "is_verified",
-            "is_verified_v2",
         ]
         read_only_fields = [
             "added_as_editor_date",
@@ -134,7 +132,6 @@ class AuthorSerializer(ModelSerializer):
             "num_posts",
             "merged_with",
             "is_verified",
-            "is_verified_v2",
         ]
 
     def get_reputation(self, obj):
@@ -142,8 +139,8 @@ class AuthorSerializer(ModelSerializer):
             return 0
         return obj.user.reputation
 
-    def get_is_verified_v2(self, obj):
-        return obj.is_verified_v2
+    def get_is_verified(self, obj):
+        return obj.is_verified
 
     def get_reputation_v2(self, author):
         score = Score.objects.filter(author=author).order_by("-score").first()
@@ -257,10 +254,6 @@ class AuthorSerializer(ModelSerializer):
         user = author.user
         if user:
             return user.is_hub_editor()
-
-    def get_is_verified(self, author):
-        # FIXME: Replace with author.is_verified() after field removal.
-        return author.is_verified_v2
 
 
 class MajorSerializer(ModelSerializer):
@@ -501,8 +494,7 @@ class UserSerializer(ModelSerializer):
         return time_rep
 
     def get_is_verified(self, obj):
-        # FIXME: Replace with obj.is_verified() after field removal.
-        return obj.is_verified_v2
+        return obj.is_verified
 
 
 class MinimalUserSerializer(ModelSerializer):
@@ -535,7 +527,6 @@ class UserEditableSerializer(ModelSerializer):
     subscribed = SerializerMethodField()
     auth_provider = SerializerMethodField()
     is_verified = SerializerMethodField()
-    is_verified_v2 = SerializerMethodField()
 
     class Meta:
         model = User
@@ -597,10 +588,6 @@ class UserEditableSerializer(ModelSerializer):
 
     def get_is_verified(self, user):
         return user.is_verified
-
-    # FIXME: is_verified_v2 should be available on user model and not on author. This is a shim for legacy reasons.
-    def get_is_verified_v2(self, user):
-        return user.is_verified_v2
 
     def get_organization_slug(self, user):
         try:
@@ -720,8 +707,7 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
         return serializer.data
 
     def get_is_verified(self, user):
-        # FIXME: Replace with user.is_verified() after field removal.
-        return user.is_verified_v2
+        return user.is_verified
 
 
 class UserActions:
@@ -1122,7 +1108,7 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
         return {
             "id": user.id,
             "created_date": user.created_date,
-            "is_verified": user.is_verified_v2,
+            "is_verified": user.is_verified,
             "is_suspended": user.is_suspended,
             "probable_spammer": user.probable_spammer,
             "sift_url": f"https://console.sift.com/users/{user.id}?abuse_type=content_abuse",
