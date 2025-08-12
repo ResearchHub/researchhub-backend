@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
-from django.test import TestCase, override_settings
+from django.test import TestCase
 from rest_framework import status
 from rest_framework.response import Response
 
@@ -75,7 +75,7 @@ class TrackEventDecoratorTests(TestCase):
         # Mock view and request objects
         self.mock_view = MagicMock()
         self.mock_view.__class__.__name__ = "PaperViewSet"
-        self.mock_view.basename = "papers"
+        self.mock_view.basename = "paper"
         self.mock_view.action = "upvote"
         self.mock_view.queryset = MagicMock()
         self.mock_view.queryset.model._meta.model_name = "paper"
@@ -121,7 +121,7 @@ class TrackEventDecoratorTests(TestCase):
         # Arrange
         mock_view = MagicMock()
         mock_view.__class__.__name__ = "RhCommentViewSet"
-        mock_view.basename = "rhcomments"
+        mock_view.basename = "rh_comments"
         mock_view.action = "create_rh_comment"
 
         mock_response = Response(
@@ -163,7 +163,7 @@ class TrackEventDecoratorTests(TestCase):
         # Arrange
         mock_view = MagicMock()
         mock_view.__class__.__name__ = "RhCommentViewSet"
-        mock_view.basename = "rhcomments"
+        mock_view.basename = "rh_comments"
         mock_view.action = "create_rh_comment"
 
         mock_response = Response(
@@ -202,7 +202,7 @@ class TrackEventDecoratorTests(TestCase):
         # Arrange
         mock_view = MagicMock()
         mock_view.__class__.__name__ = "ReviewViewSet"
-        mock_view.basename = "reviews"
+        mock_view.basename = "review"
         mock_view.action = "create"
 
         mock_response = Response(
@@ -248,7 +248,7 @@ class TrackEventDecoratorTests(TestCase):
         # Arrange
         mock_view = MagicMock()
         mock_view.__class__.__name__ = "FundraiseViewSet"
-        mock_view.basename = "fundraises"
+        mock_view.basename = "fundraise"
         mock_view.action = "create_contribution"
 
         mock_response = Response(
@@ -288,7 +288,7 @@ class TrackEventDecoratorTests(TestCase):
         # Arrange
         mock_view = MagicMock()
         mock_view.__class__.__name__ = "PurchaseViewSet"
-        mock_view.basename = "purchases"
+        mock_view.basename = "purchase"
         mock_view.action = "create"
 
         mock_response = Response(
@@ -336,7 +336,7 @@ class TrackEventDecoratorTests(TestCase):
         # Arrange
         mock_view = MagicMock()
         mock_view.__class__.__name__ = "PurchaseViewSet"
-        mock_view.basename = "purchases"
+        mock_view.basename = "purchase"
         mock_view.action = "create"
 
         mock_response = Response(
@@ -375,7 +375,7 @@ class TrackEventDecoratorTests(TestCase):
         # Arrange
         mock_view = MagicMock()
         mock_view.__class__.__name__ = "PaperSubmissionViewSet"
-        mock_view.basename = "papersubmissions"
+        mock_view.basename = "papersubmission"
         mock_view.action = "create"
 
         mock_response = Response(

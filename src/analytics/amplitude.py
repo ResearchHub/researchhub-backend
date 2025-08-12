@@ -197,28 +197,28 @@ def _auto_track_user_activity_by_event_type(res, *args, **kwargs):
     # Define event type to user activity mapping
     event_to_activity_mapping = {
         # Upvotes
-        "papers_upvote": {
+        "paper_upvote": {
             "activity_type": UserActivityTypes.UPVOTE,
             "properties": lambda: {
                 "content_type": "paper",
                 "object_id": _get_object_id_from_response(res),
             },
         },
-        "rhcomments_upvote": {
+        "rh_comments_upvote": {
             "activity_type": UserActivityTypes.UPVOTE,
             "properties": lambda: {
                 "content_type": "rhcommentmodel",
                 "object_id": _get_object_id_from_response(res),
             },
         },
-        "reviews_upvote": {
+        "review_upvote": {
             "activity_type": UserActivityTypes.UPVOTE,
             "properties": lambda: {
                 "content_type": "review",
                 "object_id": _get_object_id_from_response(res),
             },
         },
-        "researchhubposts_upvote": {
+        "researchhubpost_upvote": {
             "activity_type": UserActivityTypes.UPVOTE,
             "properties": lambda: {
                 "content_type": "researchhubpost",
@@ -226,7 +226,7 @@ def _auto_track_user_activity_by_event_type(res, *args, **kwargs):
             },
         },
         # Comments (excluding peer review comments)
-        "rhcomments_create_rh_comment": {
+        "rh_comments_create_rh_comment": {
             "activity_type": UserActivityTypes.COMMENT,
             "condition": lambda: _is_public_comment(res),
             "properties": lambda: {
@@ -236,7 +236,7 @@ def _auto_track_user_activity_by_event_type(res, *args, **kwargs):
             },
         },
         # Reviews
-        "reviews_create": {
+        "review_create": {
             "activity_type": UserActivityTypes.PEER_REVIEW,
             "properties": lambda: {
                 "review_id": res.data.get("id"),
@@ -246,7 +246,7 @@ def _auto_track_user_activity_by_event_type(res, *args, **kwargs):
             },
         },
         # Paper submissions
-        "papersubmissions_create": {
+        "papersubmission_create": {
             "activity_type": UserActivityTypes.JOURNAL_SUBMISSION,
             "properties": lambda: {
                 "submission_id": res.data.get("id"),
@@ -256,7 +256,7 @@ def _auto_track_user_activity_by_event_type(res, *args, **kwargs):
             },
         },
         # ResearchHub paper creation
-        "papers_create_researchhub_paper": {
+        "paper_create_researchhub_paper": {
             "activity_type": UserActivityTypes.JOURNAL_SUBMISSION,
             "properties": lambda: {
                 "submission_id": res.data.get("id"),
@@ -265,7 +265,7 @@ def _auto_track_user_activity_by_event_type(res, *args, **kwargs):
             },
         },
         # Fundraise contributions
-        "fundraises_create_contribution": {
+        "fundraise_create_contribution": {
             "activity_type": UserActivityTypes.FUND,
             "properties": lambda: {
                 "purchase_id": _get_purchase_id_from_response(res),
@@ -275,7 +275,7 @@ def _auto_track_user_activity_by_event_type(res, *args, **kwargs):
             },
         },
         # Tips/Boosts (Purchase with BOOST type)
-        "purchases_create": {
+        "purchase_create": {
             "activity_type": UserActivityTypes.TIP,
             "condition": lambda: _is_boost_purchase(res),
             "properties": lambda: {
