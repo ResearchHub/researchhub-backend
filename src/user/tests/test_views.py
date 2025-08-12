@@ -1,8 +1,6 @@
 import json
-import re
 from unittest.mock import patch
 
-import requests_mock
 from django.core.cache import cache
 from django.test import TestCase
 from rest_framework.test import APITestCase
