@@ -2,6 +2,7 @@ import logging
 import time
 from decimal import Decimal
 from typing import Optional
+from unittest.mock import Mock
 
 from django.conf import settings
 from web3 import Web3
@@ -159,9 +160,68 @@ class WalletService:
             contract = w3.eth.contract(
                 abi=contract_abi, address=Web3.to_checksum_address(contract_address)
             )
-            rsc_balance = contract.functions.balanceOf(
-                settings.WEB3_WALLET_ADDRESS
-            ).call()
+
+            # Add comprehensive debug logging
+            logger.info(f"Contract: {contract}")
+            logger.info(f"Contract functions: {contract.functions}")
+            logger.info(f"BalanceOf function: {contract.functions.balanceOf}")
+
+            # Log what happens when we call balanceOf with the address
+            balance_of_call = contract.functions.balanceOf(settings.WEB3_WALLET_ADDRESS)
+            logger.info(f"BalanceOf call result: {balance_of_call}")
+            logger.info(f"BalanceOf call result type: {type(balance_of_call)}")
+            logger.info(
+                f"BalanceOf call result has call method: {hasattr(balance_of_call, 'call')}"
+            )
+
+            # Add more detailed logging about the mock
+            logger.info(
+                f"BalanceOf call result is Mock: {isinstance(balance_of_call, Mock)}"
+            )
+            if isinstance(balance_of_call, Mock):
+                logger.info(
+                    f"BalanceOf call result return_value: {balance_of_call.return_value}"
+                )
+                logger.info(
+                    f"BalanceOf call result side_effect: {balance_of_call.side_effect}"
+                )
+                logger.info(f"BalanceOf call result called: {balance_of_call.called}")
+                logger.info(
+                    f"BalanceOf call result call_args: {balance_of_call.call_args}"
+                )
+                logger.info(
+                    f"BalanceOf call result call_args_list: {balance_of_call.call_args_list}"
+                )
+
+                # Check if it has a call attribute
+                if hasattr(balance_of_call, "call"):
+                    logger.info(
+                        f"BalanceOf call.call is Mock: {isinstance(balance_of_call.call, Mock)}"
+                    )
+                    if isinstance(balance_of_call.call, Mock):
+                        logger.info(
+                            f"BalanceOf call.call return_value: {balance_of_call.call.return_value}"
+                        )
+                        logger.info(
+                            f"BalanceOf call.call side_effect: {balance_of_call.call.side_effect}"
+                        )
+                        logger.info(
+                            f"BalanceOf call.call called: {balance_of_call.call.called}"
+                        )
+
+            rsc_balance = balance_of_call.call()
+            logger.info(f"RSC balance raw: {rsc_balance}")
+            logger.info(f"RSC balance type: {type(rsc_balance)}")
+            logger.info(f"RSC balance is Mock: {isinstance(rsc_balance, Mock)}")
+
+            # Try to get the actual value if it's a mock
+            if isinstance(rsc_balance, Mock):
+                logger.info(f"Mock return value: {rsc_balance.return_value}")
+                logger.info(f"Mock side effect: {rsc_balance.side_effect}")
+                logger.info(f"Mock called: {rsc_balance.called}")
+                logger.info(f"Mock call args: {rsc_balance.call_args}")
+                logger.info(f"Mock call args list: {rsc_balance.call_args_list}")
+
             rsc_balance_human = rsc_balance / 10**18
 
             return {
