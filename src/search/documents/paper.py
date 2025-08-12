@@ -77,11 +77,8 @@ class PaperDocument(BaseDocument):
         queryset_pagination = 250
         fields = ["id"]
 
-    def should_remove_from_index(self, obj):
-        if obj.is_removed:
-            return True
-
-        return False
+    def should_index_object(self, obj):
+        return not obj.is_removed
 
     # Used specifically for "autocomplete" style suggest feature.
     # Includes a bunch of phrases the user may search by.

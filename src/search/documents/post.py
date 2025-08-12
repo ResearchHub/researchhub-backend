@@ -122,8 +122,5 @@ class PostDocument(BaseDocument):
 
         return data
 
-    def should_remove_from_index(self, obj):
-        if obj.is_removed:
-            return True
-
-        return False
+    def should_index_object(self, obj):
+        return not obj.is_removed
