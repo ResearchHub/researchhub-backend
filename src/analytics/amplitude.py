@@ -310,11 +310,11 @@ def _track_activity(user, activity_type, properties):
 
 
 def _is_public_comment(res):
-    """Check if comment is public (not peer review)"""
+    """Check if comment is public (not peer review or review)"""
     return (
         res.data.get("is_public", True)
         and not res.data.get("is_removed", False)
-        and res.data.get("comment_type") != "PEER_REVIEW"
+        and res.data.get("comment_type") not in ["PEER_REVIEW", "REVIEW"]
     )
 
 

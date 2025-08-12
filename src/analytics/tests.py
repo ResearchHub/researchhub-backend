@@ -195,6 +195,45 @@ class TrackEventDecoratorTests(TestCase):
     @patch("analytics.amplitude.DEVELOPMENT", False)
     @patch("analytics.amplitude.Amplitude.build_hit")
     @patch("analytics.amplitude.track_user_activity")
+    def test_track_event_review_comment_not_tracked(
+        self, mock_track_activity, mock_build_hit
+    ):
+        """Test that review comments are not tracked as COMMENT user activity."""
+        # Arrange
+        mock_view = MagicMock()
+        mock_view.__class__.__name__ = "RhCommentViewSet"
+        mock_view.basename = "rh_comments"
+        mock_view.action = "create_rh_comment"
+
+        mock_response = Response(
+            {
+                "id": 456,
+                "comment_type": "REVIEW",
+                "thread": 789,
+                "is_public": True,
+                "is_removed": False,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+        mock_build_hit.return_value = None
+
+        @track_event
+        def create_rh_comment_method(self, request, *args, **kwargs):
+            return mock_response
+
+        # Act
+        result = create_rh_comment_method(mock_view, self.mock_request)
+
+        # Assert
+        self.assertEqual(result, mock_response)
+        mock_build_hit.assert_called_once()
+        # Should not call track_user_activity for review comments
+        mock_track_activity.assert_not_called()
+
+    @patch("analytics.amplitude.DEVELOPMENT", False)
+    @patch("analytics.amplitude.Amplitude.build_hit")
+    @patch("analytics.amplitude.track_user_activity")
     def test_track_event_review_create_triggers_user_activity(
         self, mock_track_activity, mock_build_hit
     ):
@@ -343,7 +382,7 @@ class TrackEventDecoratorTests(TestCase):
             {
                 "id": 505,
                 "amount": "50.00",
-                "purchase_type": "DOI",  # Not BOOST
+                "purchase_type": "DOI",
                 "content_type": "paper",
                 "object_id": 606,
             },
