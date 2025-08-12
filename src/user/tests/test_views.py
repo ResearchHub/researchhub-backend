@@ -527,3 +527,57 @@ class UserPopoverTests(APITestCase):
     def test_popover_for_invalid_id(self):
         res = self.client.get("/api/popover/INVALID/get_user/")
         self.assertEqual(res.status_code, 404)
+
+
+class UserModerationTests(APITestCase):
+    def setUp(self):
+        from user.tests.helpers import (
+            create_random_authenticated_user,
+            create_random_default_user,
+        )
+
+        self.moderator = create_random_authenticated_user("mod", moderator=True)
+        self.target_user = create_random_authenticated_user("target_user")
+        self.create_random_default_user = create_random_default_user
+
+    def test_mark_probable_spammer_success(self):
+        from utils.test_helpers import get_authenticated_post_response
+
+        url = "/api/user/mark_probable_spammer/"
+        data = {"authorId": self.target_user.author_profile.id}
+        response = get_authenticated_post_response(self.moderator, url, data)
+
+        self.assertEqual(response.status_code, 200)
+        self.target_user.refresh_from_db()
+        self.assertTrue(self.target_user.probable_spammer)
+        self.assertFalse(self.target_user.is_suspended)
+        self.assertTrue(self.target_user.is_active)
+
+    def test_mark_probable_spammer_requires_moderator(self):
+        from utils.test_helpers import get_authenticated_post_response
+
+        non_mod = self.target_user
+        another_user = self.create_random_default_user("another_user")
+        url = "/api/user/mark_probable_spammer/"
+        data = {"authorId": another_user.author_profile.id}
+        response = get_authenticated_post_response(non_mod, url, data)
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_mark_probable_spammer_missing_author_id(self):
+        from utils.test_helpers import get_authenticated_post_response
+
+        url = "/api/user/mark_probable_spammer/"
+        data = {}
+        response = get_authenticated_post_response(self.moderator, url, data)
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_mark_probable_spammer_user_not_found(self):
+        from utils.test_helpers import get_authenticated_post_response
+
+        url = "/api/user/mark_probable_spammer/"
+        data = {"authorId": -1}
+        response = get_authenticated_post_response(self.moderator, url, data)
+
+        self.assertEqual(response.status_code, 404)
