@@ -102,7 +102,7 @@ class AuthorSerializer(ModelSerializer):
     university = UniversitySerializer(required=False)
     wallet = SerializerMethodField()
     suspended_status = SerializerMethodField()
-    is_verified_v2 = SerializerMethodField()
+    is_verified = SerializerMethodField()
 
     class Meta:
         model = Author
@@ -123,7 +123,6 @@ class AuthorSerializer(ModelSerializer):
             "university",
             "wallet",
             "is_verified",
-            "is_verified_v2",
         ]
         read_only_fields = [
             "added_as_editor_date",
@@ -133,7 +132,6 @@ class AuthorSerializer(ModelSerializer):
             "num_posts",
             "merged_with",
             "is_verified",
-            "is_verified_v2",
         ]
 
     def get_reputation(self, obj):
@@ -141,8 +139,8 @@ class AuthorSerializer(ModelSerializer):
             return 0
         return obj.user.reputation
 
-    def get_is_verified_v2(self, obj):
-        return obj.is_verified_v2
+    def get_is_verified(self, obj):
+        return obj.is_verified
 
     def get_reputation_v2(self, author):
         score = Score.objects.filter(author=author).order_by("-score").first()
@@ -280,10 +278,14 @@ class UserApiTokenSerializer(ModelSerializer):
 
 class DynamicAuthorSerializer(DynamicModelFieldSerializer):
     count = IntegerField(read_only=True)
+    is_verified = SerializerMethodField()
 
     class Meta:
         model = Author
         fields = "__all__"
+
+    def get_is_verified(self, obj):
+        return obj.is_verified
 
 
 class AuthorEditableSerializer(ModelSerializer):
@@ -425,6 +427,7 @@ class UserSerializer(ModelSerializer):
     subscribed = SerializerMethodField(read_only=True)
     hub_rep = SerializerMethodField()
     time_rep = SerializerMethodField()
+    is_verified = SerializerMethodField()
 
     class Meta:
         model = User
@@ -445,7 +448,6 @@ class UserSerializer(ModelSerializer):
             "upload_tutorial_complete",
             "hub_rep",
             "time_rep",
-            "probable_spammer",
         ]
         read_only_fields = [
             "id",
@@ -491,6 +493,9 @@ class UserSerializer(ModelSerializer):
         time_rep = getattr(obj, "time_rep", None)
         return time_rep
 
+    def get_is_verified(self, obj):
+        return obj.is_verified
+
 
 class MinimalUserSerializer(ModelSerializer):
     author_profile = SerializerMethodField()
@@ -521,7 +526,7 @@ class UserEditableSerializer(ModelSerializer):
     organization_slug = SerializerMethodField()
     subscribed = SerializerMethodField()
     auth_provider = SerializerMethodField()
-    is_verified_v2 = SerializerMethodField()
+    is_verified = SerializerMethodField()
 
     class Meta:
         model = User
@@ -581,9 +586,8 @@ class UserEditableSerializer(ModelSerializer):
             return balance
         return None
 
-    # FIXME: is_verified_v2 should be available on user model and not on author. This is a shim for legacy reasons.
-    def get_is_verified_v2(self, user):
-        return user.is_verified_v2
+    def get_is_verified(self, user):
+        return user.is_verified
 
     def get_organization_slug(self, user):
         try:
@@ -659,6 +663,7 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
     rsc_earned = SerializerMethodField()
     benefits_expire_on = SerializerMethodField()
     editor_of = SerializerMethodField()
+    is_verified = SerializerMethodField()
 
     class Meta:
         model = User
@@ -700,6 +705,9 @@ class DynamicUserSerializer(DynamicModelFieldSerializer):
             permissions, many=True, context=context, **_context_fields
         )
         return serializer.data
+
+    def get_is_verified(self, user):
+        return user.is_verified
 
 
 class UserActions:
@@ -1100,7 +1108,7 @@ class DynamicAuthorProfileSerializer(DynamicModelFieldSerializer):
         return {
             "id": user.id,
             "created_date": user.created_date,
-            "is_verified": user.is_verified_v2,
+            "is_verified": user.is_verified,
             "is_suspended": user.is_suspended,
             "probable_spammer": user.probable_spammer,
             "sift_url": f"https://console.sift.com/users/{user.id}?abuse_type=content_abuse",

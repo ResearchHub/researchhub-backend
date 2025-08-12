@@ -72,7 +72,6 @@ class Author(models.Model):
         max_length=255, default=None, null=True, blank=True
     )
     claimed = models.BooleanField(default=True, null=True, blank=True)
-    is_verified = models.BooleanField(default=False)
     country_code = models.CharField(
         blank=True,
         null=True,
@@ -159,17 +158,16 @@ class Author(models.Model):
         return self.first_name + " " + self.last_name
 
     @property
-    def is_verified_v2(self):
+    def is_verified(self):
         """
-        Check if the user account is verified via `UserVerification`.
-        Returns `False` if no user is associated with this author or
-        if the user was not successfully verified or
+        Check if the user account is verified.
+        Returns `False` if the user was not successfully verified or
         if no verification record exists.
         """
         if self.user is None:
             return False
 
-        return self.user.is_verified_v2
+        return self.user.is_verified
 
     @property
     def profile_image_indexing(self):

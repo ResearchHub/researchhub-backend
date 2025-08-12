@@ -169,7 +169,6 @@ class UnifiedDocumentFilter(filters.FilterSet):
             "posts__created_by",
             "posts__created_by__author_profile",
             "posts__purchases",
-            "posts__threads",
             Prefetch("reviews", queryset=Review.objects.filter(is_removed=False)),
             "related_bounties",
         )
