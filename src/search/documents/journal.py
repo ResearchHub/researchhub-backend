@@ -50,7 +50,11 @@ class JournalDocument(BaseDocument):
         ]
 
     def get_queryset(self, filter_=None, exclude=None, count=None):
-        return super().get_queryset(filter_=filter_, exclude=exclude, count=count).filter(namespace="journal")
+        return (
+            super()
+            .get_queryset(filter_=filter_, exclude=exclude, count=count)
+            .filter(namespace="journal")
+        )
 
     # Used specifically for "autocomplete" style suggest feature
     def prepare_name_suggest(self, instance):
@@ -79,8 +83,5 @@ class JournalDocument(BaseDocument):
 
         return data
 
-    def should_remove_from_index(self, obj):
-        if obj.is_removed:
-            return True
-
-        return False
+    def should_index_object(self, obj):
+        return not obj.is_removed
