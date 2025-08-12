@@ -1,3 +1,4 @@
+import logging
 import time
 from decimal import Decimal
 from typing import Optional
@@ -15,9 +16,10 @@ from reputation.distributions import Distribution
 from reputation.distributor import Distributor
 from reputation.lib import contract_abi
 from user.models import User
-from utils.sentry import log_error, log_info
+from utils.sentry import log_error
 from utils.web3_utils import web3_provider
 
+logger = logging.getLogger(__name__)
 NULL_ADDRESS = "0x0000000000000000000000000000000000000000"
 
 
@@ -35,7 +37,7 @@ class WalletService:
         Returns:
             Transaction hash if successful, None if no balance to burn
         """
-        log_info(f"Starting RSC burning on {network}")
+        logger.info(f"Starting RSC burning on {network}")
 
         try:
             # Get the revenue account
@@ -45,10 +47,12 @@ class WalletService:
             current_balance = revenue_account.get_balance()
 
             if current_balance <= 0:
-                log_info(f"Revenue account has no balance to burn: {current_balance}")
+                logger.info(
+                    f"Revenue account has no balance to burn: {current_balance}"
+                )
                 return None
 
-            log_info(f"Revenue account balance to burn: {current_balance}")
+            logger.info(f"Revenue account balance to burn: {current_balance}")
 
             # Step 1: Create negative balance records to zero out the account
             WalletService._zero_out_revenue_account(revenue_account, current_balance)
@@ -58,7 +62,7 @@ class WalletService:
                 current_balance, network
             )
 
-            log_info(
+            logger.info(
                 f"Successfully burned {current_balance} RSC from revenue account "
                 f"on {network}"
             )
@@ -104,7 +108,7 @@ class WalletService:
             estimated_cost_wei = gas_estimate * gas_price
             estimated_cost_eth = estimated_cost_wei / 10**18
 
-            log_info(
+            logger.info(
                 f"Estimated gas cost for burning {amount} RSC: {estimated_cost_eth} ETH"
             )
 
@@ -131,7 +135,7 @@ class WalletService:
                 network=network,
             )
 
-            log_info(f"Burning transaction submitted: {tx_hash}")
+            logger.info(f"Burning transaction submitted: {tx_hash}")
             return tx_hash
 
         except Exception as e:
