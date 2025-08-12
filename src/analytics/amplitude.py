@@ -161,6 +161,9 @@ def track_event(func):
             if res.status_code >= 200 and res.status_code <= 299 and not DEVELOPMENT:
                 amp = Amplitude()
                 amp.build_hit(res, *args, **kwargs)
+
+                # Auto-detect and track user activities based on event type
+                _auto_track_user_activity_by_event_type(res, *args, **kwargs)
         except Exception as e:
             log_error(
                 e,
@@ -170,6 +173,170 @@ def track_event(func):
         return res
 
     return inner
+
+
+def _auto_track_user_activity_by_event_type(res, *args, **kwargs):
+    """
+    Automatically detect and track user activities based on generated event type.
+    """
+    if len(args) < 2:  # Need at least self and request
+        return
+
+    view = args[0]  # self
+    request = args[1]  # request
+
+    if not hasattr(request, "user") or request.user.is_anonymous:
+        return
+
+    user = request.user
+
+    # Generate event type using existing logic
+    amp = Amplitude()
+    event_type = amp._build_event_properties(view)
+
+    # Define event type to user activity mapping
+    event_to_activity_mapping = {
+        # Upvotes
+        "papers_upvote": {
+            "activity_type": UserActivityTypes.UPVOTE,
+            "properties": lambda: {
+                "content_type": "paper",
+                "object_id": _get_object_id_from_response(res),
+            },
+        },
+        "rhcomments_upvote": {
+            "activity_type": UserActivityTypes.UPVOTE,
+            "properties": lambda: {
+                "content_type": "rhcommentmodel",
+                "object_id": _get_object_id_from_response(res),
+            },
+        },
+        "reviews_upvote": {
+            "activity_type": UserActivityTypes.UPVOTE,
+            "properties": lambda: {
+                "content_type": "review",
+                "object_id": _get_object_id_from_response(res),
+            },
+        },
+        "researchhubposts_upvote": {
+            "activity_type": UserActivityTypes.UPVOTE,
+            "properties": lambda: {
+                "content_type": "researchhubpost",
+                "object_id": _get_object_id_from_response(res),
+            },
+        },
+        # Comments (excluding peer review comments)
+        "rhcomments_create_rh_comment": {
+            "activity_type": UserActivityTypes.COMMENT,
+            "condition": lambda: _is_public_comment(res),
+            "properties": lambda: {
+                "comment_id": res.data.get("id"),
+                "comment_type": res.data.get("comment_type"),
+                "thread_id": res.data.get("thread"),
+            },
+        },
+        # Reviews
+        "reviews_create": {
+            "activity_type": UserActivityTypes.PEER_REVIEW,
+            "properties": lambda: {
+                "review_id": res.data.get("id"),
+                "score": res.data.get("score"),
+                "content_type": res.data.get("content_type"),
+                "object_id": res.data.get("object_id"),
+            },
+        },
+        # Paper submissions
+        "papersubmissions_create": {
+            "activity_type": UserActivityTypes.JOURNAL_SUBMISSION,
+            "properties": lambda: {
+                "submission_id": res.data.get("id"),
+                "paper_status": res.data.get("paper_status"),
+                "doi": res.data.get("doi"),
+                "url": res.data.get("url"),
+            },
+        },
+        # ResearchHub paper creation
+        "papers_create_researchhub_paper": {
+            "activity_type": UserActivityTypes.JOURNAL_SUBMISSION,
+            "properties": lambda: {
+                "submission_id": res.data.get("id"),
+                "paper_status": "researchhub_paper",
+                "title": res.data.get("title"),
+            },
+        },
+        # Fundraise contributions
+        "fundraises_create_contribution": {
+            "activity_type": UserActivityTypes.FUND,
+            "properties": lambda: {
+                "purchase_id": _get_purchase_id_from_response(res),
+                "amount": _get_amount_from_response(res),
+                "content_type": "fundraise",
+                "object_id": kwargs.get("pk"),
+            },
+        },
+        # Tips/Boosts (Purchase with BOOST type)
+        "purchases_create": {
+            "activity_type": UserActivityTypes.TIP,
+            "condition": lambda: _is_boost_purchase(res),
+            "properties": lambda: {
+                "purchase_id": res.data.get("id"),
+                "amount": res.data.get("amount"),
+                "purchase_type": res.data.get("purchase_type"),
+                "content_type": res.data.get("content_type"),
+                "object_id": res.data.get("object_id"),
+            },
+        },
+    }
+
+    # Check if this event type should trigger user activity tracking
+    if event_type in event_to_activity_mapping:
+        mapping = event_to_activity_mapping[event_type]
+
+        # Check condition if it exists
+        if "condition" in mapping:
+            if not mapping["condition"]():
+                return
+
+        # Track the user activity
+        _track_activity(user, mapping["activity_type"], mapping["properties"]())
+
+
+def _track_activity(user, activity_type, properties):
+    """Helper to track user activity"""
+    try:
+        track_user_activity(user, activity_type, properties)
+    except Exception as e:
+        log_error(e, message=f"Failed to auto-track {activity_type}")
+
+
+def _is_public_comment(res):
+    """Check if comment is public (not peer review)"""
+    return (
+        res.data.get("is_public", True)
+        and not res.data.get("is_removed", False)
+        and res.data.get("comment_type") != "PEER_REVIEW"
+    )
+
+
+def _is_boost_purchase(res):
+    """Check if purchase is a boost/tip"""
+    return res.data.get("purchase_type") == "BOOST"
+
+
+def _get_object_id_from_response(res):
+    """Extract object ID from response"""
+    return res.data.get("id")
+
+
+def _get_purchase_id_from_response(res):
+    """Extract purchase ID from fundraise contribution response"""
+    # This might need adjustment based on actual response structure
+    return res.data.get("purchase_id") or res.data.get("id")
+
+
+def _get_amount_from_response(res):
+    """Extract amount from response"""
+    return res.data.get("amount")
 
 
 class UserActivityTypes:
