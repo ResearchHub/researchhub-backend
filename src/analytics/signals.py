@@ -4,7 +4,6 @@ from django.dispatch import receiver
 from discussion.models import Vote
 from paper.models import PaperSubmission
 from purchase.related_models.purchase_model import Purchase
-from reputation.related_models.bounty import Bounty
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from review.models.review_model import Review
 
@@ -78,7 +77,7 @@ def track_fund_activity(sender, instance, created, **kwargs):
     Track funding activity when a purchase is created.
     Only track fundraise contributions, not other purchase types.
     """
-    if created and instance.purchase_type == "FUNDRAISE_CONTRIBUTION":
+    if created and instance.purchase_type == Purchase.FUNDRAISE_CONTRIBUTION:
         track_user_activity(
             user=instance.user,
             activity_type=UserActivityTypes.FUND,
@@ -92,22 +91,23 @@ def track_fund_activity(sender, instance, created, **kwargs):
         )
 
 
-@receiver(post_save, sender=Bounty, dispatch_uid="track_tip_activity")
+@receiver(post_save, sender=Purchase, dispatch_uid="track_tip_activity")
 def track_tip_activity(sender, instance, created, **kwargs):
     """
-    Track tip activity when a bounty is created.
-    Only track non-review bounties as tips.
+    Track tip activity when a boost purchase is created.
+    Tips are processed through Purchase with BOOST type.
     """
-    if created and instance.bounty_type != Bounty.Type.REVIEW:
+    if created and instance.purchase_type == Purchase.BOOST:
         track_user_activity(
-            user=instance.created_by,
+            user=instance.user,
             activity_type=UserActivityTypes.TIP,
             additional_properties={
-                "bounty_id": instance.id,
-                "amount": str(instance.amount),
-                "bounty_type": instance.bounty_type,
-                "content_type": instance.item_content_type.model,
-                "object_id": instance.item_object_id,
+                "purchase_id": instance.id,
+                "amount": instance.amount,
+                "purchase_method": instance.purchase_method,
+                "boost_time": instance.boost_time,
+                "content_type": instance.content_type.model,
+                "object_id": instance.object_id,
             },
         )
 

@@ -8,6 +8,7 @@ from django.test import TestCase
 from analytics.amplitude import Amplitude, UserActivityTypes
 from discussion.models import Vote
 from paper.related_models.paper_model import Paper
+from purchase.related_models.purchase_model import Purchase
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
@@ -132,9 +133,17 @@ class AmplitudeTests(TestCase):
         # Import inside the test to ensure proper mocking
         from analytics.amplitude import track_user_activity
 
-        # Skip creating the purchase for now since we don't know the required fields
-        # Just test the tracking function directly
-        # Manually call the tracking function
+        # Create a fundraise contribution purchase
+        Purchase.objects.create(
+            user=self.user,
+            content_type=self.paper_content_type,
+            object_id=self.paper.id,
+            purchase_method=Purchase.OFF_CHAIN,
+            purchase_type=Purchase.FUNDRAISE_CONTRIBUTION,
+            amount="500",
+        )
+
+        # Manually call the tracking function since signals might not work in tests
         track_user_activity(
             user=self.user,
             activity_type=UserActivityTypes.FUND,
@@ -151,9 +160,17 @@ class AmplitudeTests(TestCase):
         # Import inside the test to ensure proper mocking
         from analytics.amplitude import track_user_activity
 
-        # Skip creating the bounty for now since it requires escrow_id
-        # Just test the tracking function directly
-        # Manually call the tracking function
+        # Create a boost purchase (tip)
+        Purchase.objects.create(
+            user=self.user,
+            content_type=self.paper_content_type,
+            object_id=self.paper.id,
+            purchase_method=Purchase.OFF_CHAIN,
+            purchase_type=Purchase.BOOST,
+            amount="100",
+        )
+
+        # Manually call the tracking function since signals might not work in tests
         track_user_activity(
             user=self.user,
             activity_type=UserActivityTypes.TIP,
