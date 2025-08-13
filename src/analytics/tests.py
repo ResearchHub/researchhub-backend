@@ -407,52 +407,6 @@ class TrackEventDecoratorTests(TestCase):
     @patch("analytics.amplitude.DEVELOPMENT", False)
     @patch("analytics.amplitude.Amplitude.build_hit")
     @patch("analytics.amplitude.track_user_activity")
-    def test_track_event_paper_submission_triggers_user_activity(
-        self, mock_track_activity, mock_build_hit
-    ):
-        """Test that @track_event on paper submission method triggers JOURNAL_SUBMISSION user activity."""
-        # Arrange
-        mock_view = MagicMock()
-        mock_view.__class__.__name__ = "PaperSubmissionViewSet"
-        mock_view.basename = "papersubmission"
-        mock_view.action = "create"
-
-        mock_response = Response(
-            {
-                "id": 707,
-                "paper_status": "INITIATED",
-                "doi": "10.1234/test.123",
-                "url": "https://example.com/paper.pdf",
-            },
-            status=status.HTTP_200_OK,
-        )
-
-        mock_build_hit.return_value = None
-
-        @track_event
-        def create_submission_method(self, request, *args, **kwargs):
-            return mock_response
-
-        # Act
-        result = create_submission_method(mock_view, self.mock_request)
-
-        # Assert
-        self.assertEqual(result, mock_response)
-        mock_build_hit.assert_called_once()
-        mock_track_activity.assert_called_once_with(
-            self.user,
-            UserActivityTypes.JOURNAL_SUBMISSION,
-            {
-                "submission_id": 707,
-                "paper_status": "INITIATED",
-                "doi": "10.1234/test.123",
-                "url": "https://example.com/paper.pdf",
-            },
-        )
-
-    @patch("analytics.amplitude.DEVELOPMENT", False)
-    @patch("analytics.amplitude.Amplitude.build_hit")
-    @patch("analytics.amplitude.track_user_activity")
     def test_track_event_anonymous_user_not_tracked(
         self, mock_track_activity, mock_build_hit
     ):
