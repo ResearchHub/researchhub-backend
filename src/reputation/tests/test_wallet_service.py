@@ -46,6 +46,7 @@ class TestWalletService(TestCase):
         self.mock_w3.eth = self.mock_eth
         self.mock_w3.to_checksum_address = Web3.to_checksum_address
 
+        # Mock requests for gas price API calls
         self.requests_get_patcher = patch("reputation.lib.requests.get")
         self.mock_requests_get = self.requests_get_patcher.start()
 
@@ -68,9 +69,17 @@ class TestWalletService(TestCase):
 
         self.mock_requests_get.side_effect = get_mock_response
 
+        # Add RSC_CONTRACT_ADDRESS patcher
+        self.rsc_contract_address_patcher = patch(
+            "reputation.services.wallet.RSC_CONTRACT_ADDRESS",
+            "0xabcdef1234567890abcdef1234567890abcdef12",
+        )
+        self.rsc_contract_address_patcher.start()
+
     def tearDown(self):
         """Clean up mocks."""
         self.requests_get_patcher.stop()
+        self.rsc_contract_address_patcher.stop()
 
     @patch("reputation.services.wallet.User.objects.get_community_revenue_account")
     @patch("reputation.services.wallet.web3_provider")
@@ -298,14 +307,10 @@ class TestWalletService(TestCase):
     @patch("reputation.services.wallet.execute_erc20_transfer")
     @patch("reputation.services.wallet.get_private_key")
     @patch("reputation.services.wallet.logger")
-    @patch(
-        "ethereum.lib.RSC_CONTRACT_ADDRESS",
-        "0xabcdef1234567890abcdef1234567890abcdef12",
-    )  # Patch at the source
     @override_settings(
+        WEB3_BASE_RSC_ADDRESS="0x1234567890123456789012345678901234567890",
         WEB3_WALLET_ADDRESS="0x0987654321098765432109876543210987654321",
         ETHERSCAN_API_KEY="test_api_key",
-        WEB3_RSC_ADDRESS="0xabcdef1234567890abcdef1234567890abcdef12",
     )
     def test_burn_tokens_from_hot_wallet_ethereum_network(
         self,
