@@ -31,19 +31,25 @@ class BaseDocument(Document):
             else:
                 objects_to_index.append(obj)
 
+        # AWS OpenSearch has instance-type based limits for the size of HTTP payloads.
+        # See: https://docs.aws.amazon.com/opensearch-service/latest/developerguide/limits.html#network-limits
+        # Set max_chunk_bytes to 8MB to safely stay under the 10MB limit
+        bulk_kwargs = kwargs.copy()
+        bulk_kwargs.setdefault("max_chunk_bytes", 8 * 1024 * 1024)  # 8MB
+
         index_result = self._bulk(
             self._get_actions(objects_to_index, action="index"),
             *args,
             refresh=refresh,
             using=using,
-            **kwargs,
+            **bulk_kwargs,
         )
         delete_result = self._bulk(
             self._get_actions(objects_to_remove, action="delete"),
             *args,
             refresh=refresh,
             using=using,
-            **kwargs,
+            **bulk_kwargs,
         )
         return (
             index_result[0] + delete_result[0],
