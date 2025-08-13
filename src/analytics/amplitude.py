@@ -245,16 +245,6 @@ def _auto_track_user_activity_by_event_type(res, *args, **kwargs):
                 "object_id": res.data.get("object_id"),
             },
         },
-        # Paper submissions
-        "papersubmission_create": {
-            "activity_type": UserActivityTypes.JOURNAL_SUBMISSION,
-            "properties": lambda: {
-                "submission_id": res.data.get("id"),
-                "paper_status": res.data.get("paper_status"),
-                "doi": res.data.get("doi"),
-                "url": res.data.get("url"),
-            },
-        },
         # ResearchHub paper creation
         "paper_create_researchhub_paper": {
             "activity_type": UserActivityTypes.JOURNAL_SUBMISSION,
