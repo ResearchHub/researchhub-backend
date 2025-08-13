@@ -4,6 +4,7 @@ from decimal import Decimal
 from typing import Optional
 
 from django.conf import settings
+from django.db import transaction
 from web3 import Web3
 
 from ethereum.lib import (
@@ -40,10 +41,8 @@ class WalletService:
         logger.info(f"Starting RSC burning on {network}")
 
         try:
-            # Get the revenue account
+            # Get the revenue account and check balance
             revenue_account = User.objects.get_community_revenue_account()
-
-            # Get current balance (excluding locked funds)
             current_balance = revenue_account.get_balance()
 
             if current_balance <= 0:
@@ -55,7 +54,10 @@ class WalletService:
             logger.info(f"Revenue account balance to burn: {current_balance}")
 
             # Step 1: Create negative balance records to zero out the account
-            WalletService._zero_out_revenue_account(revenue_account, current_balance)
+            with transaction.atomic():
+                WalletService._zero_out_revenue_account(
+                    revenue_account, current_balance
+                )
 
             # Step 2: Burn tokens from hot wallet
             tx_hash = WalletService._burn_tokens_from_hot_wallet(

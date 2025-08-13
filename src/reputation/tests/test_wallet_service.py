@@ -29,10 +29,7 @@ class TestWalletService(TestCase):
         # Set up mock contract methods with proper return values
         self.mock_contract.functions.transfer.return_value.call.return_value = "0x123"
 
-        # Fix the balanceOf mock chain - use a completely different approach
-        # Mock the entire chain: contract.functions.balanceOf().call() -> number
         self.mock_contract.functions = Mock()
-        # Create a mock that returns a number when call() is invoked
         mock_balance_of_result = Mock()
         mock_balance_of_result.call = Mock(return_value=1000000000000000000000)
         self.mock_contract.functions.balanceOf = Mock(
@@ -204,11 +201,8 @@ class TestWalletService(TestCase):
         mock_gas_estimate.return_value = 100000  # 100k gas
         mock_get_private_key.return_value = "mock_private_key"
 
-        # Set very low ETH balance - need to ensure this is less than estimated cost
         estimated_cost_wei = 100000 * 20000000000  # gas * gas_price
-        self.mock_eth.get_balance.return_value = (
-            estimated_cost_wei // 2
-        )  # Half of what's needed
+        self.mock_eth.get_balance.return_value = estimated_cost_wei // 2
 
         amount = Decimal("100.0")
 
