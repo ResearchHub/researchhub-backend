@@ -298,6 +298,10 @@ class TestWalletService(TestCase):
     @patch("reputation.services.wallet.execute_erc20_transfer")
     @patch("reputation.services.wallet.get_private_key")
     @patch("reputation.services.wallet.logger")
+    @patch(
+        "ethereum.lib.RSC_CONTRACT_ADDRESS",
+        "0xabcdef1234567890abcdef1234567890abcdef12",
+    )  # Patch at the source
     @override_settings(
         WEB3_WALLET_ADDRESS="0x0987654321098765432109876543210987654321",
         ETHERSCAN_API_KEY="test_api_key",
