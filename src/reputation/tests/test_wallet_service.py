@@ -301,6 +301,7 @@ class TestWalletService(TestCase):
     @override_settings(
         WEB3_WALLET_ADDRESS="0x0987654321098765432109876543210987654321",
         ETHERSCAN_API_KEY="test_api_key",
+        WEB3_RSC_ADDRESS="0xabcdef1234567890abcdef1234567890abcdef12",
     )
     def test_burn_tokens_from_hot_wallet_ethereum_network(
         self,
