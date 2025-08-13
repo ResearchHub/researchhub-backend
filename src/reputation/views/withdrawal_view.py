@@ -1,12 +1,10 @@
 import decimal
 import logging
-import math
 import os
 from datetime import datetime, timedelta
 
 import humanize
 import pytz
-import requests
 from django.conf import settings
 from django.contrib.admin.models import LogEntry
 from django.contrib.contenttypes.models import ContentType
@@ -21,13 +19,13 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from analytics.tasks import track_revenue_event
-from purchase.models import Balance, RscExchangeRate
+from purchase.models import Balance
 from reputation.exceptions import WithdrawalError
 from reputation.lib import (
     WITHDRAWAL_MINIMUM,
     PendingWithdrawal,
+    calculate_transaction_fee,
     get_hotwallet_rsc_balance,
-    gwei_to_eth,
 )
 from reputation.models import Withdrawal
 from reputation.permissions import AllowWithdrawalIfNotSuspecious
@@ -218,39 +216,7 @@ class WithdrawalViewSet(viewsets.ModelViewSet):
         Calculate the transaction fee based on the network.
         Base network typically has lower fees than Ethereum.
         """
-
-        if network == "BASE":
-            # Get Base gas price from Etherscan API
-            res = requests.get(
-                f"https://api.etherscan.io/v2/api"
-                f"?chainid=8453"
-                f"&module=proxy"
-                f"&action=eth_gasPrice"
-                f"&apikey={settings.ETHERSCAN_API_KEY}",
-                timeout=10,
-            )
-            json = res.json()
-            gas_price_wei = int(json.get("result", "0x0"), 16)  # Convert hex to int
-            gas_price = gas_price_wei / 10**9  # Convert wei to gwei
-        else:
-            # For Ethereum network
-            res = requests.get(
-                f"https://api.etherscan.io/v2/api?chainid=1"
-                f"&module=gastracker"
-                f"&action=gasoracle"
-                f"&apikey={settings.ETHERSCAN_API_KEY}",
-                timeout=10,
-            )
-            json = res.json()
-            gas_price = json.get("result", {}).get("SafeGasPrice", 40)
-
-        gas_limit = (
-            120000.0  # Maximum amount of gas we are willing to consume on a transaction
-        )
-
-        gas_fee_in_eth = gwei_to_eth(float(gas_price) * gas_limit)
-        rsc = RscExchangeRate.eth_to_rsc(gas_fee_in_eth)
-        return decimal.Decimal(str(math.ceil(rsc * 100) / 100))
+        return calculate_transaction_fee(network)
 
     # 5 minute cache
     @method_decorator(cache_page(60 * 5))
