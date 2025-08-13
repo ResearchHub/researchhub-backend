@@ -3,6 +3,7 @@ import time
 from decimal import Decimal
 from typing import Optional
 
+import requests
 from django.conf import settings
 from django.db import transaction
 from web3 import Web3
@@ -106,8 +107,36 @@ class WalletService:
             gas_estimate = get_gas_estimate(
                 contract.functions.transfer(NULL_ADDRESS, int(amount * 10**18))
             )
-            gas_price = w3.eth.generate_gas_price()
-            estimated_cost_wei = gas_estimate * gas_price
+
+            # Use accurate gas price from external API (same as withdrawal view)
+            if network == "BASE":
+                # Get Base gas price from Etherscan API
+                res = requests.get(
+                    f"https://api.etherscan.io/v2/api"
+                    f"?chainid=8453"
+                    f"&module=proxy"
+                    f"&action=eth_gasPrice"
+                    f"&apikey={settings.ETHERSCAN_API_KEY}",
+                    timeout=10,
+                )
+                json = res.json()
+                gas_price_wei = int(json.get("result", "0x0"), 16)  # Convert hex to int
+            else:
+                # For Ethereum network
+                res = requests.get(
+                    f"https://api.etherscan.io/v2/api?chainid=1"
+                    f"&module=gastracker"
+                    f"&action=gasoracle"
+                    f"&apikey={settings.ETHERSCAN_API_KEY}",
+                    timeout=10,
+                )
+                json = res.json()
+                gas_price_gwei = json.get("result", {}).get("SafeGasPrice", 40)
+                gas_price_wei = int(
+                    float(gas_price_gwei) * 10**9
+                )  # Convert gwei to wei
+
+            estimated_cost_wei = gas_estimate * gas_price_wei
             estimated_cost_eth = estimated_cost_wei / 10**18
 
             logger.info(

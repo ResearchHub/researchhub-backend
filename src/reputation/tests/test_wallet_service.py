@@ -40,12 +40,38 @@ class TestWalletService(TestCase):
         self.mock_eth.get_balance.return_value = (
             1000000000000000000000  # 1000 ETH in wei
         )
-        self.mock_eth.generate_gas_price.return_value = 20000000000  # 20 gwei
 
         # Set up mock w3
         self.mock_w3.eth.contract.return_value = self.mock_contract
         self.mock_w3.eth = self.mock_eth
         self.mock_w3.to_checksum_address = Web3.to_checksum_address
+
+        # Mock requests for gas price API calls
+        self.requests_get_patcher = patch("reputation.services.wallet.requests.get")
+        self.mock_requests_get = self.requests_get_patcher.start()
+
+        # Create mock responses for different networks
+        self.eth_mock_response = Mock()
+        self.eth_mock_response.json.return_value = {"result": {"SafeGasPrice": "30"}}
+
+        self.base_mock_response = Mock()
+        self.base_mock_response.json.return_value = {
+            "result": "0x2540be400"  # 10 gwei in hex
+        }
+
+        # Configure mock to return different responses based on the URL
+        def get_mock_response(*args, **kwargs):
+            if "etherscan.io/v2/api?chainid=1" in args[0]:
+                return self.eth_mock_response
+            elif "etherscan.io/v2/api?chainid=8453" in args[0]:
+                return self.base_mock_response
+            return self.eth_mock_response  # Default fallback
+
+        self.mock_requests_get.side_effect = get_mock_response
+
+    def tearDown(self):
+        """Clean up mocks."""
+        self.requests_get_patcher.stop()
 
     @patch("reputation.services.wallet.User.objects.get_community_revenue_account")
     @patch("reputation.services.wallet.web3_provider")
@@ -57,6 +83,7 @@ class TestWalletService(TestCase):
     @override_settings(
         WEB3_BASE_RSC_ADDRESS="0x1234567890123456789012345678901234567890",
         WEB3_WALLET_ADDRESS="0x0987654321098765432109876543210987654321",
+        ETHERSCAN_API_KEY="test_api_key",
     )
     def test_burn_revenue_rsc_success(
         self,
@@ -85,6 +112,16 @@ class TestWalletService(TestCase):
         self.assertEqual(result, "0xabc123")
         mock_logger.info.assert_called()
         mock_execute_transfer.assert_called_once()
+
+        # Verify API calls were made for gas price
+        self.mock_requests_get.assert_called()
+        # Should have called the BASE network API
+        base_api_calls = [
+            call_args
+            for call_args in self.mock_requests_get.call_args_list
+            if "chainid=8453" in str(call_args)
+        ]
+        self.assertTrue(len(base_api_calls) > 0)
 
     @patch("reputation.services.wallet.User.objects.get_community_revenue_account")
     @patch("reputation.services.wallet.logger")
@@ -154,6 +191,7 @@ class TestWalletService(TestCase):
     @override_settings(
         WEB3_BASE_RSC_ADDRESS="0x1234567890123456789012345678901234567890",
         WEB3_WALLET_ADDRESS="0x0987654321098765432109876543210987654321",
+        ETHERSCAN_API_KEY="test_api_key",
     )
     def test_burn_tokens_from_hot_wallet_success(
         self,
@@ -180,6 +218,13 @@ class TestWalletService(TestCase):
         mock_logger.info.assert_called()
         mock_execute_transfer.assert_called_once()
 
+        # Verify API call was made for gas price
+        self.mock_requests_get.assert_called_once()
+        args, kwargs = self.mock_requests_get.call_args
+        self.assertIn("https://api.etherscan.io/v2/api?chainid=8453", args[0])
+        self.assertIn("proxy", args[0])
+        self.assertIn("eth_gasPrice", args[0])
+
     @patch("reputation.services.wallet.web3_provider")
     @patch("reputation.services.wallet.get_gas_estimate")
     @patch("reputation.services.wallet.get_private_key")
@@ -187,6 +232,7 @@ class TestWalletService(TestCase):
     @override_settings(
         WEB3_BASE_RSC_ADDRESS="0x1234567890123456789012345678901234567890",
         WEB3_WALLET_ADDRESS="0x0987654321098765432109876543210987654321",
+        ETHERSCAN_API_KEY="test_api_key",
     )
     def test_burn_tokens_from_hot_wallet_insufficient_eth(
         self,
@@ -201,8 +247,13 @@ class TestWalletService(TestCase):
         mock_gas_estimate.return_value = 100000  # 100k gas
         mock_get_private_key.return_value = "mock_private_key"
 
-        estimated_cost_wei = 100000 * 20000000000  # gas * gas_price
-        self.mock_eth.get_balance.return_value = estimated_cost_wei // 2
+        # Set ETH balance to be insufficient
+        # Gas price from mock API: 0x2540be400 = 10000000000 wei (10 gwei)
+        gas_price_wei = 10000000000
+        estimated_cost_wei = 100000 * gas_price_wei
+        self.mock_eth.get_balance.return_value = (
+            estimated_cost_wei // 2
+        )  # 50% of required
 
         amount = Decimal("100.0")
 
@@ -213,6 +264,9 @@ class TestWalletService(TestCase):
         self.assertIn("Insufficient ETH in hot wallet", str(context.exception))
         mock_log_error.assert_called()
 
+        # Verify API call was made for gas price
+        self.mock_requests_get.assert_called_once()
+
     @patch("reputation.services.wallet.web3_provider")
     @patch("reputation.services.wallet.get_gas_estimate")
     @patch("reputation.services.wallet.get_private_key")
@@ -220,19 +274,23 @@ class TestWalletService(TestCase):
     @override_settings(
         WEB3_BASE_RSC_ADDRESS="0x1234567890123456789012345678901234567890",
         WEB3_WALLET_ADDRESS="0x0987654321098765432109876543210987654321",
+        ETHERSCAN_API_KEY="test_api_key",
     )
-    def test_burn_tokens_from_hot_wallet_exception(
+    def test_burn_tokens_from_hot_wallet_api_failure(
         self,
         mock_log_error,
         mock_get_private_key,
         mock_gas_estimate,
         mock_web3_provider,
     ):
-        """Test token burning fails when an exception occurs."""
+        """Test handling of API failure when getting gas price."""
         # Arrange
         mock_web3_provider.base = self.mock_w3
-        mock_gas_estimate.side_effect = Exception("Gas estimation failed")
+        mock_gas_estimate.return_value = 100000
         mock_get_private_key.return_value = "mock_private_key"
+
+        # Mock API failure
+        self.mock_requests_get.side_effect = Exception("API timeout")
 
         amount = Decimal("100.0")
 
@@ -241,51 +299,52 @@ class TestWalletService(TestCase):
             WalletService._burn_tokens_from_hot_wallet(amount, "BASE")
         mock_log_error.assert_called()
 
-    def test_null_address_constant(self):
-        """Test that NULL_ADDRESS constant is correctly defined."""
-        from reputation.services.wallet import NULL_ADDRESS
-
-        self.assertEqual(NULL_ADDRESS, "0x0000000000000000000000000000000000000000")
-
-    @patch("reputation.services.wallet.User.objects.get_community_revenue_account")
-    @patch("reputation.services.wallet.get_private_key")
     @patch("reputation.services.wallet.web3_provider")
     @patch("reputation.services.wallet.get_gas_estimate")
     @patch("reputation.services.wallet.execute_erc20_transfer")
+    @patch("reputation.services.wallet.get_private_key")
     @patch("reputation.services.wallet.logger")
-    @patch(
-        "reputation.services.wallet.RSC_CONTRACT_ADDRESS",
-        "0xabcdef1234567890abcdef1234567890abcdef12",
-    )
     @override_settings(
         WEB3_WALLET_ADDRESS="0x0987654321098765432109876543210987654321",
+        ETHERSCAN_API_KEY="test_api_key",
     )
-    def test_burn_revenue_rsc_ethereum_network(
+    def test_burn_tokens_from_hot_wallet_ethereum_network(
         self,
         mock_logger,
+        mock_get_private_key,
         mock_execute_transfer,
         mock_gas_estimate,
         mock_web3_provider,
-        mock_get_private_key,
-        mock_get_revenue_account,
     ):
         """Test RSC burning on ETHEREUM network."""
         # Arrange
-        mock_get_revenue_account.return_value = self.revenue_account
-        self.revenue_account.get_balance = Mock(return_value=Decimal("50.0"))
-        mock_get_private_key.return_value = "mock_private_key"
-
         mock_web3_provider.ethereum = self.mock_w3
         mock_gas_estimate.return_value = 150000  # 150k gas
         mock_execute_transfer.return_value = "0x789abc"
+        mock_get_private_key.return_value = "mock_private_key"
+
+        amount = Decimal("50.0")
 
         # Act
-        result = WalletService.burn_revenue_rsc("ETHEREUM")
+        result = WalletService._burn_tokens_from_hot_wallet(amount, "ETHEREUM")
 
         # Assert
         self.assertEqual(result, "0x789abc")
         mock_logger.info.assert_called()
         mock_execute_transfer.assert_called_once()
+
+        # Verify API call was made for gas price
+        self.mock_requests_get.assert_called_once()
+        args, kwargs = self.mock_requests_get.call_args
+        self.assertIn("https://api.etherscan.io/v2/api?chainid=1", args[0])
+        self.assertIn("gastracker", args[0])
+        self.assertIn("gasoracle", args[0])
+
+    def test_null_address_constant(self):
+        """Test that NULL_ADDRESS constant is correctly defined."""
+        from reputation.services.wallet import NULL_ADDRESS
+
+        self.assertEqual(NULL_ADDRESS, "0x0000000000000000000000000000000000000000")
 
     @patch("reputation.services.wallet.web3_provider")
     @patch("reputation.services.wallet.get_gas_estimate")
@@ -295,6 +354,7 @@ class TestWalletService(TestCase):
     @override_settings(
         WEB3_BASE_RSC_ADDRESS="0x1234567890123456789012345678901234567890",
         WEB3_WALLET_ADDRESS="0x0987654321098765432109876543210987654321",
+        ETHERSCAN_API_KEY="test_api_key",
     )
     def test_burn_tokens_from_hot_wallet_gas_estimation(
         self,
@@ -321,3 +381,42 @@ class TestWalletService(TestCase):
         # Verify gas estimation was called with correct parameters
         mock_gas_estimate.assert_called_once()
         mock_execute_transfer.assert_called_once()
+
+        # Verify API call was made for gas price
+        self.mock_requests_get.assert_called_once()
+        args, kwargs = self.mock_requests_get.call_args
+        self.assertIn("chainid=8453", args[0])
+
+    @patch("reputation.services.wallet.web3_provider")
+    @patch("reputation.services.wallet.get_gas_estimate")
+    @patch("reputation.services.wallet.get_private_key")
+    @patch("reputation.services.wallet.log_error")
+    @override_settings(
+        WEB3_BASE_RSC_ADDRESS="0x1234567890123456789012345678901234567890",
+        WEB3_WALLET_ADDRESS="0x0987654321098765432109876543210987654321",
+        ETHERSCAN_API_KEY="test_api_key",
+    )
+    def test_burn_tokens_from_hot_wallet_invalid_api_response(
+        self,
+        mock_log_error,
+        mock_get_private_key,
+        mock_gas_estimate,
+        mock_web3_provider,
+    ):
+        """Test handling of invalid API response when getting gas price."""
+        # Arrange
+        mock_web3_provider.base = self.mock_w3
+        mock_gas_estimate.return_value = 100000
+        mock_get_private_key.return_value = "mock_private_key"
+
+        # Mock invalid API response
+        invalid_response = Mock()
+        invalid_response.json.return_value = {"result": "invalid_hex"}
+        self.mock_requests_get.return_value = invalid_response
+
+        amount = Decimal("100.0")
+
+        # Act & Assert
+        with self.assertRaises(Exception):
+            WalletService._burn_tokens_from_hot_wallet(amount, "BASE")
+        mock_log_error.assert_called()
