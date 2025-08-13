@@ -3,7 +3,6 @@ import time
 from decimal import Decimal
 from typing import Optional
 
-import requests
 from django.conf import settings
 from django.db import transaction
 from web3 import Web3
@@ -16,7 +15,7 @@ from ethereum.lib import (
 )
 from reputation.distributions import Distribution
 from reputation.distributor import Distributor
-from reputation.lib import contract_abi
+from reputation.lib import contract_abi, get_gas_price_wei
 from user.models import User
 from utils.sentry import log_error
 from utils.web3_utils import web3_provider
@@ -108,34 +107,8 @@ class WalletService:
                 contract.functions.transfer(NULL_ADDRESS, int(amount * 10**18))
             )
 
-            # Use accurate gas price from external API (same as withdrawal view)
-            if network == "BASE":
-                # Get Base gas price from Etherscan API
-                res = requests.get(
-                    f"https://api.etherscan.io/v2/api"
-                    f"?chainid=8453"
-                    f"&module=proxy"
-                    f"&action=eth_gasPrice"
-                    f"&apikey={settings.ETHERSCAN_API_KEY}",
-                    timeout=10,
-                )
-                json = res.json()
-                gas_price_wei = int(json.get("result", "0x0"), 16)  # Convert hex to int
-            else:
-                # For Ethereum network
-                res = requests.get(
-                    f"https://api.etherscan.io/v2/api?chainid=1"
-                    f"&module=gastracker"
-                    f"&action=gasoracle"
-                    f"&apikey={settings.ETHERSCAN_API_KEY}",
-                    timeout=10,
-                )
-                json = res.json()
-                gas_price_gwei = json.get("result", {}).get("SafeGasPrice", 40)
-                gas_price_wei = int(
-                    float(gas_price_gwei) * 10**9
-                )  # Convert gwei to wei
-
+            # Use shared gas price calculation
+            gas_price_wei = get_gas_price_wei(network)
             estimated_cost_wei = gas_estimate * gas_price_wei
             estimated_cost_eth = estimated_cost_wei / 10**18
 

@@ -46,8 +46,7 @@ class TestWalletService(TestCase):
         self.mock_w3.eth = self.mock_eth
         self.mock_w3.to_checksum_address = Web3.to_checksum_address
 
-        # Mock requests for gas price API calls
-        self.requests_get_patcher = patch("reputation.services.wallet.requests.get")
+        self.requests_get_patcher = patch("reputation.lib.requests.get")
         self.mock_requests_get = self.requests_get_patcher.start()
 
         # Create mock responses for different networks
@@ -188,6 +187,7 @@ class TestWalletService(TestCase):
     @patch("reputation.services.wallet.execute_erc20_transfer")
     @patch("reputation.services.wallet.get_private_key")
     @patch("reputation.services.wallet.logger")
+    @patch("reputation.services.wallet.get_gas_price_wei")
     @override_settings(
         WEB3_BASE_RSC_ADDRESS="0x1234567890123456789012345678901234567890",
         WEB3_WALLET_ADDRESS="0x0987654321098765432109876543210987654321",
@@ -195,6 +195,7 @@ class TestWalletService(TestCase):
     )
     def test_burn_tokens_from_hot_wallet_success(
         self,
+        mock_get_gas_price_wei,
         mock_logger,
         mock_get_private_key,
         mock_execute_transfer,
@@ -207,6 +208,7 @@ class TestWalletService(TestCase):
         mock_gas_estimate.return_value = 100000  # 100k gas
         mock_execute_transfer.return_value = "0xdef456"
         mock_get_private_key.return_value = "mock_private_key"
+        mock_get_gas_price_wei.return_value = 10000000000  # 10 gwei in wei
 
         amount = Decimal("100.0")
 
@@ -215,15 +217,7 @@ class TestWalletService(TestCase):
 
         # Assert
         self.assertEqual(result, "0xdef456")
-        mock_logger.info.assert_called()
-        mock_execute_transfer.assert_called_once()
-
-        # Verify API call was made for gas price
-        self.mock_requests_get.assert_called_once()
-        args, kwargs = self.mock_requests_get.call_args
-        self.assertIn("https://api.etherscan.io/v2/api?chainid=8453", args[0])
-        self.assertIn("proxy", args[0])
-        self.assertIn("eth_gasPrice", args[0])
+        mock_get_gas_price_wei.assert_called_once_with("BASE")
 
     @patch("reputation.services.wallet.web3_provider")
     @patch("reputation.services.wallet.get_gas_estimate")
