@@ -10,8 +10,10 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RemoveField(
-            model_name="papersubmission",
-            name="citation",
-        ),
+        # No-op: The citation app was been removed.
+        #
+        # migrations.RemoveField(
+        #     model_name="papersubmission",
+        #     name="citation",
+        # ),
     ]
