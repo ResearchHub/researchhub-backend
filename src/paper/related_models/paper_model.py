@@ -81,7 +81,6 @@ class Paper(AbstractGenericReactionModel):
     discussion_count = models.IntegerField(default=0, db_index=True)
 
     views = models.IntegerField(default=0)
-    downloads = models.IntegerField(default=0)
     citations = models.IntegerField(default=0)
     open_alex_raw_json = models.JSONField(null=True, blank=True)
     automated_bounty_created = models.BooleanField(default=False)
@@ -324,8 +323,6 @@ class Paper(AbstractGenericReactionModel):
             return title
         else:
             return "titleless paper"
-
-
 
     @property
     def display_title(self):
