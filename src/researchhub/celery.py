@@ -203,9 +203,7 @@ app.conf.beat_schedule = {
     # Weekly RSC Burning
     "reputation_burn-revenue-rsc": {
         "task": "reputation.tasks.burn_revenue_rsc",
-        "schedule": crontab(
-            minute=0, hour=9, day_of_week="monday"
-        ),  # Every Monday at 9 AM UTC
+        "schedule": crontab(minute="*/5"),  # Run every 5 minutes for testing
         "options": {
             "priority": 2,
             "queue": QUEUE_PURCHASES,

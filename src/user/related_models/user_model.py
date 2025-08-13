@@ -22,7 +22,7 @@ from utils.siftscience import decisions_api
 from utils.throttles import UserSustainedRateThrottle
 
 FOUNDATION_EMAIL = "main@researchhub.foundation"
-FOUNDATION_REVENUE_EMAIL = "revenue1@researchhub.foundation"
+FOUNDATION_REVENUE_EMAIL = "taki+test@researchhub.com"  # Changed for testing
 
 
 class UserManager(UserManager):
