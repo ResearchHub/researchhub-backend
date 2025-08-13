@@ -3,8 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
-from django.contrib.postgres.indexes import GinIndex, HashIndex
-from django.contrib.postgres.search import SearchVectorField
+from django.contrib.postgres.indexes import HashIndex
 from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.db.models import Func, Index, IntegerField, JSONField, Sum
@@ -46,7 +45,7 @@ HELP_TEXT_IS_PDF_REMOVED = "Hides the PDF because it infringes Copyright."
 
 
 class Paper(AbstractGenericReactionModel):
-    FIELDS_TO_EXCLUDE = {"url_svf", "pdf_url_svf", "doi_svf"}
+    FIELDS_TO_EXCLUDE = {}
 
     REGULAR = "REGULAR"
     PRE_REGISTRATION = "PRE_REGISTRATION"
@@ -252,9 +251,6 @@ class Paper(AbstractGenericReactionModel):
         on_delete=models.CASCADE,
         related_name="paper",
     )
-    url_svf = SearchVectorField(null=True, blank=True)
-    pdf_url_svf = SearchVectorField(null=True, blank=True)
-    doi_svf = SearchVectorField(null=True, blank=True)
 
     # https://docs.openalex.org/api-entities/works/work-object#type
     work_type = models.CharField(
@@ -320,9 +316,6 @@ class Paper(AbstractGenericReactionModel):
         indexes = (
             HashIndex(fields=("url",), name="paper_paper_url_hix"),
             HashIndex(fields=("pdf_url",), name="paper_paper_pdf_url_hix"),
-            GinIndex(fields=("url_svf",)),
-            GinIndex(fields=("pdf_url_svf",)),
-            GinIndex(fields=("doi_svf",)),
             Index(Func("doi", function="UPPER"), name="paper_paper_doi_upper_idx"),
         )
 
