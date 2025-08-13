@@ -73,12 +73,6 @@ router.register(
 
 router.register(r"paper", paper_views.PaperViewSet, basename="paper")
 
-router.register(
-    r"paper_submission",
-    paper_views.PaperSubmissionViewSet,
-    basename="paper_submission",
-)
-
 router.register(r"author", author_views.AuthorViewSet, basename="author")
 
 router.register(r"hub", hub.views.HubViewSet, basename="hub")
@@ -310,11 +304,6 @@ urlpatterns = [
         note_views.note_view.ckeditor_webhook_document_removed,
     ),
     path("api/ckeditor/token/", note_views.note_view.ckeditor_token),
-    path(
-        "api/popover/<int:user_id>/get_user/",
-        user.views.get_user_popover,
-        name="popover_user",
-    ),
     path("email_notifications/", mailing_list.views.email_notifications),
     path("", researchhub.views.index, name="index"),
     path(

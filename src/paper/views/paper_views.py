@@ -1,11 +1,8 @@
 import base64
 import json
-from urllib.parse import urlparse
 
-import requests
 from django.conf import settings
 from django.contrib.admin.options import get_content_type_for_model
-from django.contrib.postgres.search import SearchQuery
 from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.db import IntegrityError, transaction
@@ -29,8 +26,7 @@ from discussion.views import ReactionViewActionMixin
 from hub.permissions import IsModerator
 from paper.exceptions import DOINotFoundError, PaperSerializerError
 from paper.filters import PaperFilter
-from paper.models import Figure, Paper, PaperSubmission, PaperVersion
-from paper.paper_upload_tasks import celery_process_paper
+from paper.models import Figure, Paper, PaperVersion
 from paper.permissions import CreatePaper, IsAuthor, UpdatePaper
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_version import PaperSeries, PaperSeriesDeclaration
@@ -50,7 +46,7 @@ from user.views.follow_view_mixins import FollowViewActionMixin
 from utils.doi import DOI
 from utils.http import POST, check_url_contains_pdf
 from utils.openalex import OpenAlex
-from utils.permissions import CreateOrUpdateIfAllowed, HasAPIKey, PostOnly
+from utils.permissions import CreateOrUpdateIfAllowed, HasAPIKey
 from utils.sentry import log_error
 from utils.siftscience import SIFT_PAPER, decisions_api, events_api, sift_track
 from utils.throttles import THROTTLE_CLASSES
@@ -1331,92 +1327,3 @@ def retrieve_vote(user, paper):
         )
     except Vote.DoesNotExist:
         return None
-
-
-class PaperSubmissionViewSet(viewsets.ModelViewSet):
-    queryset = PaperSubmission.objects.all()
-    throttle_classes = THROTTLE_CLASSES
-    permission_classes = [IsAuthenticated | HasAPIKey, PostOnly]
-
-    @track_event
-    def create(self, *args, **kwargs):
-        data = self.request.data
-        url = data.get("url", "")
-
-        # Appends http if protocol does not exist
-        parsed_url = urlparse(url)
-        if not parsed_url.scheme:
-            url = f"http://{parsed_url.geturl()}"
-            data["url"] = url
-
-        duplicate_papers = Paper.objects.filter(
-            Q(url_svf=SearchQuery(url)) | Q(pdf_url_svf=SearchQuery(url))
-        )
-
-        if duplicate_papers:
-            serializer = DynamicPaperSerializer(
-                duplicate_papers,
-                _include_fields=[
-                    "doi",
-                    "id",
-                    "title",
-                    "url",
-                    "uploaded_by",
-                    "created_date",
-                ],
-                context={
-                    "pap_dps_get_uploaded_by": {
-                        "_include_fields": ("id", "first_name", "last_name")
-                    }
-                },
-                many=True,
-            )
-            duplicate_data = {"data": serializer.data}
-            return Response(duplicate_data, status=status.HTTP_403_FORBIDDEN)
-
-        data["uploaded_by"] = self.request.user.id
-        response = super().create(*args, **kwargs)
-        if response.status_code == 201:
-            data = response.data
-            celery_process_paper(data["id"])
-        return response
-
-    @track_event
-    @action(detail=False, methods=["post"])
-    def create_from_doi(self, request):
-        data = request.data
-        # TODO: Sanitize?
-        doi = data.get("doi", None)
-        # DOI validity check
-        doi_url = urlparse(doi)
-        doi_res = requests.post(
-            "https://dx.doi.org/", data={"hdl": doi}, allow_redirects=False, timeout=5
-        )
-        invalid_doi_res = Response(
-            {"data": "Invalid DOI - Ensure it is in the form of '10.1000/abc123'"},
-            status=status.HTTP_404_NOT_FOUND,
-        )
-        if doi_url.scheme or "doi.org" in doi:
-            # Avoiding data that comes in as a url or as a DOI url
-            return invalid_doi_res
-        elif doi_res.status_code == status.HTTP_404_NOT_FOUND:
-            return invalid_doi_res
-
-        # Duplicate DOI check
-        duplicate_papers = Paper.objects.filter(doi_svf=SearchQuery(doi))
-
-        if duplicate_papers:
-            serializer = DynamicPaperSerializer(
-                duplicate_papers,
-                _include_fields=["doi", "id", "title", "url"],
-                many=True,
-            )
-            duplicate_data = {"data": serializer.data}
-            return Response(duplicate_data, status=status.HTTP_403_FORBIDDEN)
-
-        data["uploaded_by"] = request.user.id
-        response = super().create(request)
-        if response.status_code == 201:
-            data = response.data
-            celery_process_paper(data["id"])
-        return response
