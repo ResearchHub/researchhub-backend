@@ -34,12 +34,7 @@ from paper.paper_upload_tasks import celery_process_paper
 from paper.permissions import CreatePaper, IsAuthor, UpdatePaper
 from paper.related_models.authorship_model import Authorship
 from paper.related_models.paper_version import PaperSeries, PaperSeriesDeclaration
-from paper.serializers import (
-    DynamicPaperSerializer,
-    FigureSerializer,
-    PaperSerializer,
-    PaperSubmissionSerializer,
-)
+from paper.serializers import DynamicPaperSerializer, FigureSerializer, PaperSerializer
 from paper.tasks import censored_paper_cleanup
 from paper.utils import get_cache_key
 from reputation.models import Contribution
@@ -1340,7 +1335,6 @@ def retrieve_vote(user, paper):
 
 class PaperSubmissionViewSet(viewsets.ModelViewSet):
     queryset = PaperSubmission.objects.all()
-    serializer_class = PaperSubmissionSerializer
     throttle_classes = THROTTLE_CLASSES
     permission_classes = [IsAuthenticated | HasAPIKey, PostOnly]
 
