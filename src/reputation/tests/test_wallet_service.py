@@ -259,9 +259,12 @@ class TestWalletService(TestCase):
     @patch("reputation.services.wallet.get_gas_estimate")
     @patch("reputation.services.wallet.execute_erc20_transfer")
     @patch("reputation.services.wallet.logger")
+    @patch(
+        "reputation.services.wallet.RSC_CONTRACT_ADDRESS",
+        "0xabcdef1234567890abcdef1234567890abcdef12",
+    )
     @override_settings(
         WEB3_WALLET_ADDRESS="0x0987654321098765432109876543210987654321",
-        RSC_CONTRACT_ADDRESS="0xabcdef1234567890abcdef1234567890abcdef12",
     )
     def test_burn_revenue_rsc_ethereum_network(
         self,

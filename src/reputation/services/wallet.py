@@ -2,7 +2,6 @@ import logging
 import time
 from decimal import Decimal
 from typing import Optional
-from unittest.mock import Mock
 
 from django.conf import settings
 from web3 import Web3
