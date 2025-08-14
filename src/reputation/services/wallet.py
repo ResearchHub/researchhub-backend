@@ -21,7 +21,7 @@ from utils.sentry import log_error
 from utils.web3_utils import web3_provider
 
 logger = logging.getLogger(__name__)
-NULL_ADDRESS = "0x0000000000000000000000000000000000000000"
+DEAD_ADDRESS = "0x000000000000000000000000000000000000dEaD"
 
 
 class WalletService:
@@ -88,7 +88,7 @@ class WalletService:
 
     @staticmethod
     def _burn_tokens_from_hot_wallet(amount: Decimal, network: str = "BASE") -> str:
-        """Transfers tokens from hot wallet to null address (burning them)."""
+        """Transfers tokens from hot wallet to dead address (burning them)."""
         try:
             # Get the appropriate web3 provider and contract address
             if network == "BASE":
@@ -104,7 +104,7 @@ class WalletService:
 
             # Estimate gas cost before proceeding
             gas_estimate = get_gas_estimate(
-                contract.functions.transfer(NULL_ADDRESS, int(amount * 10**18))
+                contract.functions.transfer(DEAD_ADDRESS, int(amount * 10**18))
             )
 
             # Use shared gas price calculation
@@ -128,13 +128,13 @@ class WalletService:
                 log_error(Exception(error_msg), error_msg)
                 raise Exception(error_msg)
 
-            # Execute the transfer to null address
+            # Execute the transfer to dead address
             tx_hash = execute_erc20_transfer(
                 w3=w3,
                 sender=settings.WEB3_WALLET_ADDRESS,
                 sender_signing_key=get_private_key(),
                 contract=contract,
-                to=NULL_ADDRESS,
+                to=DEAD_ADDRESS,
                 amount=amount,
                 network=network,
             )

@@ -6,7 +6,7 @@ from web3 import Web3
 
 from reputation.distributions import Distribution
 from reputation.distributor import Distributor
-from reputation.services.wallet import WalletService
+from reputation.services.wallet import DEAD_ADDRESS, WalletService
 from user.related_models.user_model import FOUNDATION_REVENUE_EMAIL
 from user.tests.helpers import create_user
 
@@ -344,12 +344,6 @@ class TestWalletService(TestCase):
         self.assertIn("gastracker", args[0])
         self.assertIn("gasoracle", args[0])
 
-    def test_null_address_constant(self):
-        """Test that NULL_ADDRESS constant is correctly defined."""
-        from reputation.services.wallet import NULL_ADDRESS
-
-        self.assertEqual(NULL_ADDRESS, "0x0000000000000000000000000000000000000000")
-
     @patch("reputation.services.wallet.web3_provider")
     @patch("reputation.services.wallet.get_gas_estimate")
     @patch("reputation.services.wallet.execute_erc20_transfer")
@@ -424,3 +418,8 @@ class TestWalletService(TestCase):
         with self.assertRaises(Exception):
             WalletService._burn_tokens_from_hot_wallet(amount, "BASE")
         mock_log_error.assert_called()
+
+    def test_dead_address_constant(self):
+        """Test that DEAD_ADDRESS constant is correctly defined."""
+
+        self.assertEqual(DEAD_ADDRESS, "0x000000000000000000000000000000000000dEaD")
