@@ -2,8 +2,8 @@ import json
 
 from rest_framework import serializers
 
-from feed.documents.feed_document import FeedEntryDocument
 from search.base.serializers import ElasticsearchSerializer
+from search.documents.feed import FeedEntryDocument
 
 
 class FeedEntryDocumentSerializer(ElasticsearchSerializer):
