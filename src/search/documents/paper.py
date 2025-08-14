@@ -116,7 +116,7 @@ class PaperDocument(BaseDocument):
             phrases.extend(keywords)
 
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 f"Failed to prepare OpenAlex keywords for paper {instance.id}: {e}"
             )
 
@@ -124,7 +124,7 @@ class PaperDocument(BaseDocument):
             hubs_indexing_flat = instance.hubs_indexing_flat
             phrases.extend(hubs_indexing_flat)
         except Exception as e:
-            logger.warn(f"Failed to prepare hubs for paper {instance.id}: {e}")
+            logger.warning(f"Failed to prepare hubs for paper {instance.id}: {e}")
 
         # Variation of author names which may be searched by users
         try:
@@ -139,7 +139,9 @@ class PaperDocument(BaseDocument):
             phrases.append(all_authors_as_str)
             phrases.extend(author_names_only)
         except Exception as e:
-            logger.warn(f"Failed to prepare author names for paper {instance.id}: {e}")
+            logger.warning(
+                f"Failed to prepare author names for paper {instance.id}: {e}"
+            )
 
         # Assign weight based on how "hot" the paper is
         weight = 1
@@ -160,7 +162,7 @@ class PaperDocument(BaseDocument):
         try:
             return instance.get_paper_completeness()
         except Exception:
-            logger.warn(
+            logger.warning(
                 f"Failed to prepare completeness status for paper {instance.id}"
             )
             return Paper.PARTIAL
@@ -174,7 +176,9 @@ class PaperDocument(BaseDocument):
         try:
             return pdf_copyright_allows_display(instance)
         except Exception as e:
-            logger.warn(f"Failed to prepare pdf license for paper {instance.id}: {e}")
+            logger.warning(
+                f"Failed to prepare pdf license for paper {instance.id}: {e}"
+            )
 
         return False
 
@@ -209,7 +213,9 @@ class PaperDocument(BaseDocument):
         try:
             data["suggestion_phrases"] = self.prepare_suggestion_phrases(instance)
         except Exception as error:
-            logger.warn(f"Failed to prepare suggestion phrases for paper {instance.id}")
+            logger.warning(
+                f"Failed to prepare suggestion phrases for paper {instance.id}"
+            )
             sentry.log_error(error)
             data["suggestion_phrases"] = []
         return data
