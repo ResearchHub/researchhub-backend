@@ -78,7 +78,7 @@ class JournalDocument(BaseDocument):
         try:
             data["name_suggest"] = self.prepare_name_suggest(instance)
         except Exception:
-            logger.warn(f"Failed to prepare name suggest for journal {instance.id}")
+            logger.warning(f"Failed to prepare name suggest for journal {instance.id}")
             data["name_suggest"] = []
 
         return data
