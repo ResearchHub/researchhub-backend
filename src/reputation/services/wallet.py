@@ -53,22 +53,20 @@ class WalletService:
 
             logger.info(f"Revenue account balance to burn: {current_balance}")
 
+            # Phase 1: Try blockchain transaction FIRST
+            tx_hash = WalletService._burn_tokens_from_hot_wallet(
+                current_balance, network
+            )
+
+            # Phase 2: Only update database AFTER successful blockchain transaction
             with transaction.atomic():
-                # Step 1: Create negative balance records to zero out the account
                 WalletService._zero_out_revenue_account(
                     revenue_account, current_balance
                 )
 
-                # Step 2: Burn tokens from hot wallet
-                tx_hash = WalletService._burn_tokens_from_hot_wallet(
-                    current_balance, network
-                )
-
             logger.info(
-                f"Successfully burned {current_balance} RSC from revenue account "
-                f"on {network}"
+                f"Successfully burned {current_balance} RSC from revenue account on {network}"
             )
-
             return tx_hash
 
         except Exception as e:
