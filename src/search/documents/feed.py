@@ -1,13 +1,14 @@
 import json
 
-from django_opensearch_dsl import Document, fields
+from django_opensearch_dsl import fields
 from django_opensearch_dsl.registries import registry
 
 from feed.models import FeedEntry
+from search.documents.base import BaseDocument
 
 
 @registry.register_document
-class FeedEntryDocument(Document):
+class FeedEntryDocument(BaseDocument):
     id = fields.IntegerField(attr="id")
     content_type = fields.ObjectField(
         properties={
