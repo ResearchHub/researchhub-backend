@@ -262,12 +262,6 @@ class Paper(AbstractGenericReactionModel):
         max_length=255,
     )
 
-    # https://docs.openalex.org/api-entities/works/work-object#is_retracted
-    is_retracted = models.BooleanField(
-        blank=True,
-        null=True,
-    )
-
     # https://docs.openalex.org/api-entities/works/work-object#language
     language = models.CharField(
         blank=True,

@@ -32,7 +32,6 @@ PAPER_FIELDS_ALLOWED_TO_UPDATE = [
     "external_source",
     "work_type",
     "openalex_id",
-    "is_retracted",
     "work_type",
     "language",
     "title",

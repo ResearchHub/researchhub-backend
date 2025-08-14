@@ -123,7 +123,6 @@ class OpenAlex:
             "citations": work.get("cited_by_count", 0),
             "open_alex_raw_json": work,
             "openalex_id": work.get("id", None),
-            "is_retracted": work.get("is_retracted", None),
             "work_type": work.get("type", None),
             "language": work.get("language", None),
         }
