@@ -271,14 +271,6 @@ class Paper(AbstractGenericReactionModel):
     )
 
     # https://docs.openalex.org/api-entities/works/work-object#ids
-    pubmed_central_id = models.CharField(
-        blank=True,
-        null=True,
-        unique=True,
-        max_length=255,
-    )
-
-    # https://docs.openalex.org/api-entities/works/work-object#ids
     mag_id = models.CharField(
         blank=True,
         null=True,

@@ -35,7 +35,6 @@ PAPER_FIELDS_ALLOWED_TO_UPDATE = [
     "is_retracted",
     "mag_id",
     "pubmed_id",
-    "pubmed_central_id",
     "work_type",
     "language",
     "title",
