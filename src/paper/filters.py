@@ -23,9 +23,6 @@ class PaperFilter(filters.FilterSet):
             "oa_pdf_location",
             "pdf_file_extract",
             "raw_authors",
-            "url_svf",
-            "pdf_url_svf",
-            "doi_svf",
             "open_alex_raw_json",
         ]
 

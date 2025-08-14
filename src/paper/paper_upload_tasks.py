@@ -200,7 +200,7 @@ def celery_combine_doi(self, celery_data):
             raise DOINotFoundError()
 
         paper_submission.set_processing_doi_status()
-        doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(doi))
+        doi_paper_check = Paper.objects.filter(doi__iexact=doi)
         if doi_paper_check.exists():
             duplicate_ids = doi_paper_check.values_list("id", flat=True)
             paper_submission.set_duplicate_status()
@@ -235,7 +235,7 @@ def celery_manubot(self, celery_data):
 
         # DOI duplicate check
         if doi:
-            doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(doi))
+            doi_paper_check = Paper.objects.filter(doi__iexact=doi)
             if doi_paper_check.exists():
                 duplicate_ids = doi_paper_check.values_list("id", flat=True)
                 raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
@@ -257,8 +257,7 @@ def celery_manubot(self, celery_data):
 
         for url_check in urls:
             url_paper_check = Paper.objects.filter(
-                Q(url_svf=SearchQuery(url_check))
-                | Q(pdf_url_svf=SearchQuery(url_check))
+                Q(url__iexact=url_check) | Q(pdf_url__iexact=url_check)
             )
             if url_paper_check.exists():
                 duplicate_ids = url_paper_check.values_list("id", flat=True)
@@ -318,7 +317,7 @@ def celery_unpaywall(self, celery_data):
 
         if result:
             # Duplicate DOI check
-            doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(doi))
+            doi_paper_check = Paper.objects.filter(doi__iexact=doi)
             if doi_paper_check.exists():
                 duplicate_ids = doi_paper_check.values_list("id", flat=True)
                 raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
@@ -384,7 +383,7 @@ def celery_crossref(self, celery_data):
 
         if results:
             # Duplicate DOI check
-            doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(doi))
+            doi_paper_check = Paper.objects.filter(doi__iexact=doi)
             if doi_paper_check.exists():
                 duplicate_ids = doi_paper_check.values_list("id", flat=True)
                 raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
@@ -433,7 +432,7 @@ def celery_openalex(self, celery_data):
         if result:
             # Duplicate DOI check
             doi = paper_data["doi"]
-            doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(doi))
+            doi_paper_check = Paper.objects.filter(doi__iexact=doi)
             if doi_paper_check.exists():
                 duplicate_ids = doi_paper_check.values_list("id", flat=True)
                 raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
@@ -472,7 +471,7 @@ def celery_semantic_scholar(self, celery_data):
         if result:
             # Duplicate DOI check
             doi = paper_data["doi"]
-            doi_paper_check = Paper.objects.filter(doi_svf=SearchQuery(doi))
+            doi_paper_check = Paper.objects.filter(doi__iexact=doi)
             if doi_paper_check.exists():
                 duplicate_ids = doi_paper_check.values_list("id", flat=True)
                 raise DuplicatePaperError(f"Duplicate DOI: {doi}", duplicate_ids)
