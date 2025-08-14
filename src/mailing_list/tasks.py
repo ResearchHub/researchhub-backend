@@ -1,21 +1,17 @@
 import logging
-from datetime import timedelta
 
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import Q
-from django.http.request import HttpRequest, QueryDict
 from django.utils import timezone
-from rest_framework.request import Request
 
 from hub.models import Hub
 from mailing_list.lib import base_email_context
 from mailing_list.models import EmailRecipient, EmailTaskLog, NotificationFrequencies
 from paper.models import Paper
 from researchhub.celery import app
-from researchhub.settings import EMAIL_DOMAIN, PRODUCTION, STAGING
+from researchhub.settings import EMAIL_DOMAIN
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
-from researchhub_document.views import ResearchhubUnifiedDocumentViewSet
-from user.models import Action, User
+from user.models import Action
 from utils.message import send_email_message
 
 
@@ -146,84 +142,6 @@ def send_editor_hub_digest(frequency):
         etl.save()
 
 
-def send_hub_digest(frequency):
-    etl = EmailTaskLog.objects.create(emails="", notification_frequency=frequency)
-    end_date = timezone.now()
-    start_date = calculate_hub_digest_start_date(end_date, frequency)
-
-    users = Hub.objects.filter(
-        subscribers__isnull=False,
-        is_removed=False,
-    ).values_list("subscribers", flat=True)
-
-    # TODO find best by hub and then in mem sort for each user? more efficient?
-    emails = []
-    papers = []
-
-    request_path = "/api/researchhub_unified_document/get_unified_documents/"
-    if STAGING:
-        http_host = "backend.staging.researchhub.com"
-        protocol = "https"
-    elif PRODUCTION:
-        http_host = "backend.prod.researchhub.com"
-        protocol = "https"
-    else:
-        http_host = "localhost:8000"
-        protocol = "http"
-
-    query_string = "ordering=hot&page=1&subscribed_hubs=false&type=all&time=today&"
-    http_meta = {
-        "QUERY_STRING": query_string,
-        "HTTP_HOST": http_host,
-        "HTTP_X_FORWARDED_PROTO": protocol,
-    }
-
-    query_dict = QueryDict(query_string=query_string)
-    document_view = ResearchhubUnifiedDocumentViewSet()
-    document_view.action = "list"
-    http_req = HttpRequest()
-    http_req.META = http_meta
-    http_req.path = request_path
-    req = Request(http_req)
-    http_req.GET = query_dict
-    document_view.request = req
-
-    documents = document_view.get_filtered_queryset()[0:5]
-
-    for user in User.objects.filter(id__in=users, is_suspended=False):
-        if not check_can_receive_digest(user, frequency):
-            continue
-
-        recipient = [user.email]
-        send_email_message(
-            recipient,
-            "weekly_digest_email.txt",
-            "ResearchHub | Trending Papers",  # subject
-            {
-                # email_context
-                **base_email_context,
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-                "documents": documents,
-                "preview_text": documents[0],
-            },
-            "weekly_digest_email.html",
-            f"ResearchHub Digest <digest@{EMAIL_DOMAIN}>",
-        )
-        emails += recipient
-    etl.emails = ",".join(emails)
-    etl.save()
-
-
-def calculate_hub_digest_start_date(end_date, frequency):
-    if frequency == NotificationFrequencies.DAILY:
-        return end_date - timedelta(days=1)
-    elif frequency == NotificationFrequencies.THREE_HOUR:
-        return end_date - timedelta(hours=3)
-    else:  # weekly
-        return end_date - timedelta(days=7)
-
-
 def actions_notifications(action_ids, notif_interval=NotificationFrequencies.IMMEDIATE):
     # NOTE: This only supports immediate updates for now.
     actions = Action.objects.filter(id__in=action_ids)
@@ -282,20 +200,6 @@ def build_notification_context(actions):
     else:
         context["action"] = actions.email_context()
     return context
-
-
-def check_can_receive_digest(user, frequency):
-    try:
-        email_recipient = user.emailrecipient
-        return (
-            email_recipient.receives_notifications
-            and not email_recipient.digest_subscription.none
-            and (
-                email_recipient.digest_subscription.notification_frequency == frequency
-            )  # noqa: E501
-        )
-    except Exception:
-        return False
 
 
 def check_editor_can_receive_digest(user, frequency):

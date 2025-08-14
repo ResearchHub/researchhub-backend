@@ -1,13 +1,13 @@
 from django.contrib.contenttypes.models import ContentType
 from rest_framework.request import Request
 
+from discussion.models import Vote
 from discussion.serializers import VoteSerializer
 from feed.views.common import FeedPagination
 from hub.models import Hub
 from paper.related_models.paper_model import Paper
 from researchhub_comment.related_models.rh_comment_model import RhCommentModel
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
-from researchhub_document.views.researchhub_unified_document_views import get_user_votes
 
 
 class FeedViewMixin:
@@ -73,7 +73,7 @@ class FeedViewMixin:
 
         # Process paper votes
         if paper_ids:
-            paper_votes = get_user_votes(
+            paper_votes = self._get_user_votes(
                 user,
                 paper_ids,
                 self._paper_content_type,
@@ -91,7 +91,7 @@ class FeedViewMixin:
 
         # Process post votes
         if post_ids:
-            post_votes = get_user_votes(
+            post_votes = self._get_user_votes(
                 user,
                 post_ids,
                 self._post_content_type,
@@ -109,7 +109,7 @@ class FeedViewMixin:
 
         # Process comment votes
         if comment_ids:
-            comment_votes = get_user_votes(
+            comment_votes = self._get_user_votes(
                 user,
                 comment_ids,
                 self._comment_content_type,
@@ -190,4 +190,11 @@ class FeedViewMixin:
             self.request.user.following.filter(
                 content_type=self._hub_content_type
             ).values_list("object_id", flat=True)
+        )
+
+    def _get_user_votes(self, created_by, doc_ids, reaction_content_type):
+        return Vote.objects.filter(
+            content_type=reaction_content_type,
+            object_id__in=doc_ids,
+            created_by=created_by,
         )

@@ -72,14 +72,6 @@ class ResearchhubUnifiedDocumentSerializer(ModelSerializer):
             return PaperSerializer(instance.paper, context=context).data
 
 
-class ContributionUnifiedDocumentSerializer(ResearchhubUnifiedDocumentSerializer):
-    access_group = None
-    hubs = None
-
-    def get_documents(self, instance):
-        return None
-
-
 class DynamicUnifiedDocumentSerializer(DynamicModelFieldSerializer):
     bounties = SerializerMethodField()
     documents = SerializerMethodField()
