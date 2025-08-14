@@ -262,14 +262,6 @@ class Paper(AbstractGenericReactionModel):
         max_length=255,
     )
 
-    # https://docs.openalex.org/api-entities/works/work-object#ids
-    mag_id = models.CharField(
-        blank=True,
-        null=True,
-        unique=True,
-        max_length=255,
-    )
-
     # https://docs.openalex.org/api-entities/works/work-object#is_retracted
     is_retracted = models.BooleanField(
         blank=True,
