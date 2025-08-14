@@ -3,8 +3,7 @@ import requests
 from bs4 import BeautifulSoup
 from django.contrib.contenttypes.fields import GenericRelation
 from django.contrib.contenttypes.models import ContentType
-from django.contrib.postgres.indexes import GinIndex, HashIndex
-from django.contrib.postgres.search import SearchVectorField
+from django.contrib.postgres.indexes import HashIndex
 from django.core.validators import FileExtensionValidator
 from django.db import models
 from django.db.models import Func, Index, IntegerField, JSONField, Sum
@@ -46,8 +45,6 @@ HELP_TEXT_IS_PDF_REMOVED = "Hides the PDF because it infringes Copyright."
 
 
 class Paper(AbstractGenericReactionModel):
-    FIELDS_TO_EXCLUDE = {"url_svf", "pdf_url_svf", "doi_svf"}
-
     REGULAR = "REGULAR"
     PRE_REGISTRATION = "PRE_REGISTRATION"
     COMPLETE = "COMPLETE"
@@ -81,12 +78,9 @@ class Paper(AbstractGenericReactionModel):
     is_pdf_removed_by_moderator = models.BooleanField(
         default=False, help_text=HELP_TEXT_IS_PDF_REMOVED
     )
-    bullet_low_quality = models.BooleanField(default=False)
-    summary_low_quality = models.BooleanField(default=False)
     discussion_count = models.IntegerField(default=0, db_index=True)
 
     views = models.IntegerField(default=0)
-    downloads = models.IntegerField(default=0)
     citations = models.IntegerField(default=0)
     open_alex_raw_json = models.JSONField(null=True, blank=True)
     automated_bounty_created = models.BooleanField(default=False)
@@ -252,9 +246,6 @@ class Paper(AbstractGenericReactionModel):
         on_delete=models.CASCADE,
         related_name="paper",
     )
-    url_svf = SearchVectorField(null=True, blank=True)
-    pdf_url_svf = SearchVectorField(null=True, blank=True)
-    doi_svf = SearchVectorField(null=True, blank=True)
 
     # https://docs.openalex.org/api-entities/works/work-object#type
     work_type = models.CharField(
@@ -320,9 +311,6 @@ class Paper(AbstractGenericReactionModel):
         indexes = (
             HashIndex(fields=("url",), name="paper_paper_url_hix"),
             HashIndex(fields=("pdf_url",), name="paper_paper_pdf_url_hix"),
-            GinIndex(fields=("url_svf",)),
-            GinIndex(fields=("pdf_url_svf",)),
-            GinIndex(fields=("doi_svf",)),
             Index(Func("doi", function="UPPER"), name="paper_paper_doi_upper_idx"),
         )
 
@@ -335,37 +323,6 @@ class Paper(AbstractGenericReactionModel):
             return title
         else:
             return "titleless paper"
-
-    def _do_insert(self, manager, using, fields, update_pk, raw):
-        # The fields in self.FIELDS_TO_EXCLUDE are auto generated columns.
-        # Even if nothing (null) is passed to those specific fields on create or update
-        # Django will still attempt to insert null into those columns, causing an error.
-        # This will exclude those fields, so that nothing will be inserted
-        return super()._do_insert(
-            manager,
-            using,
-            [field for field in fields if field.attname not in self.FIELDS_TO_EXCLUDE],
-            update_pk,
-            raw,
-        )
-
-    def save(self, *args, **kwargs):
-        if self.id is not None and "update_fields" not in kwargs:
-            # If self.id is None (meaning the object has yet to be saved)
-            # then do a normal update with all fields.
-            # Otherwise, make sure `update_fields` is in kwargs.
-            # This is also here for a similar reason to the
-            # _do_insert overwrite
-            default_save_fields = [
-                field.name
-                for field in self._meta.get_fields()
-                if field.name not in self.FIELDS_TO_EXCLUDE
-                and field.concrete
-                and not field.many_to_many
-                and not field.auto_created
-            ]
-            kwargs["update_fields"] = default_save_fields
-        super().save(*args, **kwargs)
 
     @property
     def display_title(self):

@@ -4,6 +4,7 @@ from rest_framework.filters import OrderingFilter
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
+from analytics.amplitude import track_event
 from discussion.views import ReactionViewActionMixin
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
@@ -31,6 +32,7 @@ class ReviewViewSet(viewsets.ModelViewSet, ReactionViewActionMixin):
         "rhcommentmodel",
     ]
 
+    @track_event
     def create(self, request, *args, **kwargs):
         unified_document = ResearchhubUnifiedDocument.objects.get(id=args[0])
         request.data["created_by"] = request.user.id

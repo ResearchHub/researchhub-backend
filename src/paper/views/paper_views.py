@@ -1356,7 +1356,7 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
             data["url"] = url
 
         duplicate_papers = Paper.objects.filter(
-            Q(url_svf=SearchQuery(url)) | Q(pdf_url_svf=SearchQuery(url))
+            Q(url__iexact=url) | Q(pdf_url__iexact=url)
         )
 
         if duplicate_papers:
@@ -1409,7 +1409,7 @@ class PaperSubmissionViewSet(viewsets.ModelViewSet):
             return invalid_doi_res
 
         # Duplicate DOI check
-        duplicate_papers = Paper.objects.filter(doi_svf=SearchQuery(doi))
+        duplicate_papers = Paper.objects.filter(doi__iexact=doi)
 
         if duplicate_papers:
             serializer = DynamicPaperSerializer(

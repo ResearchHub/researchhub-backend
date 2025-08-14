@@ -7,6 +7,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from analytics.amplitude import track_event
 from analytics.tasks import track_revenue_event
 from purchase.models import Balance, Fundraise, Purchase
 from purchase.related_models.constants import (
@@ -129,6 +130,7 @@ class FundraiseViewSet(viewsets.ModelViewSet):
         }
         return context
 
+    @track_event
     @action(
         methods=["POST"],
         detail=True,
