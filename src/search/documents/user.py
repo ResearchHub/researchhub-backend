@@ -60,7 +60,9 @@ class UserDocument(BaseDocument):
                 "headline": instance.author_profile.headline,
             }
         except Exception as e:
-            logger.warn(f"Failed to prepare author profile for user {instance.id}: {e}")
+            logger.warning(
+                f"Failed to prepare author profile for user {instance.id}: {e}"
+            )
             return None
 
         profile["profile_image"] = instance.author_profile.profile_image_indexing
@@ -98,7 +100,7 @@ class UserDocument(BaseDocument):
         try:
             data["full_name_suggest"] = self.prepare_full_name_suggest(instance)
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 f"Failed to prepare full name suggest for user {instance.id}: {e}"
             )
             data["full_name_suggest"] = []

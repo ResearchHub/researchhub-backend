@@ -114,7 +114,7 @@ class PostDocument(BaseDocument):
         try:
             data["suggestion_phrases"] = self.prepare_suggestion_phrases(instance)
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 f"Failed to prepare suggestion phrases for post {instance.id}: {e}"
             )
             sentry.log_error(e)
