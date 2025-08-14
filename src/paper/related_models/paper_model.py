@@ -183,9 +183,6 @@ class Paper(AbstractGenericReactionModel):
         max_length=32,
         null=True,
     )
-    publication_type = models.CharField(
-        max_length=255, default=None, null=True, blank=True
-    )
     references = models.ManyToManyField(
         "self", symmetrical=False, related_name="referenced_by", blank=True
     )

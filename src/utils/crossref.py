@@ -87,7 +87,6 @@ class Crossref:
                         alternate_ids={"arxiv": self.arxiv_id},
                         url=self.url,
                         paper_publish_date=self.paper_publish_date,
-                        publication_type=self.publication_type,
                         external_source="crossref",
                         retrieved_from_external_source=True,
                         is_public=is_public,
