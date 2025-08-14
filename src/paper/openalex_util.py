@@ -34,7 +34,6 @@ PAPER_FIELDS_ALLOWED_TO_UPDATE = [
     "openalex_id",
     "is_retracted",
     "mag_id",
-    "pubmed_id",
     "work_type",
     "language",
     "title",

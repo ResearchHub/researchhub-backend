@@ -125,7 +125,6 @@ class OpenAlex:
             "openalex_id": work.get("id", None),
             "is_retracted": work.get("is_retracted", None),
             "mag_id": work.get("ids", {}).get("mag", None),
-            "pubmed_id": work.get("ids", {}).get("pmid", None),
             "work_type": work.get("type", None),
             "language": work.get("language", None),
         }
