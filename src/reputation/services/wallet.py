@@ -59,7 +59,7 @@ class WalletService:
                     revenue_account, current_balance
                 )
 
-                # Step 2: Burn tokens from hot wallet
+                # Step 2: Burn tokens from hot wallet (with receipt confirmation)
                 tx_hash = WalletService._burn_tokens_from_hot_wallet(
                     current_balance, network
                 )
@@ -140,7 +140,24 @@ class WalletService:
             )
 
             logger.info(f"Burning transaction submitted: {tx_hash}")
-            return tx_hash
+
+            try:
+                receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+
+                if receipt.status == 0:  # Transaction failed
+                    error_msg = f"Transaction {tx_hash} failed on-chain"
+                    log_error(Exception(error_msg), error_msg)
+                    raise Exception(error_msg)
+
+                logger.info(f"Transaction {tx_hash} confirmed successfully")
+                return tx_hash
+
+            except Exception as receipt_error:
+                error_msg = (
+                    f"Failed to get transaction receipt for {tx_hash}: {receipt_error}"
+                )
+                log_error(Exception(error_msg), error_msg)
+                raise Exception(error_msg)
 
         except Exception as e:
             log_error(e, f"Failed to burn {amount} RSC from hot wallet")
