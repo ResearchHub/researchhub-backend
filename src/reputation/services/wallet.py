@@ -53,20 +53,22 @@ class WalletService:
 
             logger.info(f"Revenue account balance to burn: {current_balance}")
 
-            # Phase 1: Try blockchain transaction FIRST
-            tx_hash = WalletService._burn_tokens_from_hot_wallet(
-                current_balance, network
-            )
-
-            # Phase 2: Only update database AFTER successful blockchain transaction
             with transaction.atomic():
+                # Step 1: Create negative balance records to zero out the account
                 WalletService._zero_out_revenue_account(
                     revenue_account, current_balance
                 )
 
+                # Step 2: Burn tokens from hot wallet (with receipt confirmation)
+                tx_hash = WalletService._burn_tokens_from_hot_wallet(
+                    current_balance, network
+                )
+
             logger.info(
-                f"Successfully burned {current_balance} RSC from revenue account on {network}"
+                f"Successfully burned {current_balance} RSC from revenue account "
+                f"on {network}"
             )
+
             return tx_hash
 
         except Exception as e:
@@ -138,7 +140,24 @@ class WalletService:
             )
 
             logger.info(f"Burning transaction submitted: {tx_hash}")
-            return tx_hash
+
+            try:
+                receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=300)
+
+                if receipt.status == 0:  # Transaction failed
+                    error_msg = f"Transaction {tx_hash} failed on-chain"
+                    log_error(Exception(error_msg), error_msg)
+                    raise Exception(error_msg)
+
+                logger.info(f"Transaction {tx_hash} confirmed successfully")
+                return tx_hash
+
+            except Exception as receipt_error:
+                error_msg = (
+                    f"Failed to get transaction receipt for {tx_hash}: {receipt_error}"
+                )
+                log_error(Exception(error_msg), error_msg)
+                raise Exception(error_msg)
 
         except Exception as e:
             log_error(e, f"Failed to burn {amount} RSC from hot wallet")
