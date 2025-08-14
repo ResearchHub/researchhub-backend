@@ -153,10 +153,6 @@ class Paper(AbstractGenericReactionModel):
     doi = models.CharField(
         max_length=255, default=None, null=True, blank=True, unique=True
     )
-    alternate_ids = JSONField(
-        default=dict,
-        blank=True,
-    )
     paper_title = models.CharField(  # Official paper title
         max_length=1024, default=None, null=True, blank=True
     )

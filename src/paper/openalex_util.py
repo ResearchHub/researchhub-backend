@@ -21,7 +21,6 @@ from utils.openalex import OpenAlex
 # paper which matches an existing paper is found
 PAPER_FIELDS_ALLOWED_TO_UPDATE = [
     "paper_publish_date",
-    "alternate_ids",
     "citations",
     "abstract",
     "pdf_license",

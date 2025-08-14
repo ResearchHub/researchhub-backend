@@ -110,7 +110,6 @@ class OpenAlex:
             "raw_authors": format_raw_authors(raw_authors),
             "title": title,
             "paper_title": title,
-            "alternate_ids": work.get("ids", {}),
             "paper_publish_date": work.get("publication_date", None),
             "is_open_access": oa.get("is_oa", None),
             "oa_status": oa.get("oa_status", None),
