@@ -1,7 +1,10 @@
+import decimal
+import math
 import os
 from datetime import datetime
 from decimal import Decimal
 
+import requests
 from django.conf import settings
 from django.db import transaction
 from web3 import Web3
@@ -10,6 +13,7 @@ import ethereum.lib
 import ethereum.utils
 from ethereum.lib import RSC_CONTRACT_ADDRESS, execute_erc20_transfer, get_private_key
 from mailing_list.lib import base_email_context
+from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Withdrawal
 from reputation.related_models.paid_status_mixin import PaidStatusModelMixin
 from utils.message import send_email_message
@@ -508,3 +512,43 @@ def get_hotwallet_rsc_balance(network="ETHEREUM"):
 
 def gwei_to_eth(gwei):
     return gwei * 0.000000001
+
+
+def get_gas_price_wei(network="ETHEREUM"):
+    """Get gas price in wei for the specified network."""
+    if network == "BASE":
+        res = requests.get(
+            f"https://api.etherscan.io/v2/api"
+            f"?chainid=8453"
+            f"&module=proxy"
+            f"&action=eth_gasPrice"
+            f"&apikey={settings.ETHERSCAN_API_KEY}",
+            timeout=10,
+        )
+        json = res.json()
+        gas_price_wei = int(json.get("result", "0x0"), 16)
+    else:
+        res = requests.get(
+            f"https://api.etherscan.io/v2/api?chainid=1"
+            f"&module=gastracker"
+            f"&action=gasoracle"
+            f"&apikey={settings.ETHERSCAN_API_KEY}",
+            timeout=10,
+        )
+        json = res.json()
+        gas_price_gwei = json.get("result", {}).get("SafeGasPrice", 40)
+        gas_price_wei = int(float(gas_price_gwei) * 10**9)
+
+    return gas_price_wei
+
+
+def calculate_transaction_fee(network="ETHEREUM"):
+    """Calculate the transaction fee based on the network."""
+    gas_price_wei = get_gas_price_wei(network)
+    gas_price_gwei = gas_price_wei / 10**9
+
+    gas_limit = 120000.0
+
+    gas_fee_in_eth = gwei_to_eth(float(gas_price_gwei) * gas_limit)
+    rsc = RscExchangeRate.eth_to_rsc(gas_fee_in_eth)
+    return decimal.Decimal(str(math.ceil(rsc * 100) / 100))

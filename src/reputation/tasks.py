@@ -23,7 +23,8 @@ from reputation.lib import check_hotwallet, check_pending_withdrawal, contract_a
 from reputation.models import Bounty, Contribution, Deposit
 from reputation.related_models.bounty import AnnotatedBounty
 from reputation.related_models.score import Score
-from researchhub.celery import QUEUE_CONTRIBUTIONS, app
+from reputation.services.wallet import WalletService
+from researchhub.celery import QUEUE_CONTRIBUTIONS, QUEUE_PURCHASES, app
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_EXPIRED,
@@ -510,3 +511,11 @@ def recalc_hot_score_for_open_bounties():
 
     for bounty in open_bounties:
         bounty.unified_document.calculate_hot_score(should_save=True)
+
+
+@app.task(queue=QUEUE_PURCHASES)
+def burn_revenue_rsc(network="BASE"):
+    """
+    Weekly task to burn ResearchCoin from the revenue account.
+    """
+    return WalletService.burn_revenue_rsc(network)
