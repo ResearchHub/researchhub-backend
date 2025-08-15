@@ -68,20 +68,5 @@ class JournalDocument(BaseDocument):
             "weight": max(weight, 1),
         }
 
-    def prepare(self, instance):
-        try:
-            data = super().prepare(instance)
-        except Exception:
-            logger.error(f"Failed to prepare data for journal {instance.id}")
-            return None
-
-        try:
-            data["name_suggest"] = self.prepare_name_suggest(instance)
-        except Exception:
-            logger.warning(f"Failed to prepare name suggest for journal {instance.id}")
-            data["name_suggest"] = []
-
-        return data
-
     def should_index_object(self, obj):
         return not obj.is_removed

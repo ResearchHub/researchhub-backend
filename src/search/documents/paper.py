@@ -213,20 +213,3 @@ class PaperDocument(BaseDocument):
                 }
             )
         return authors
-
-    def prepare(self, instance):
-        try:
-            data = super().prepare(instance)
-        except Exception:
-            logger.error(f"Failed to prepare data for paper {instance.id}")
-            return None
-
-        try:
-            data["suggestion_phrases"] = self.prepare_suggestion_phrases(instance)
-        except Exception as error:
-            logger.warning(
-                f"Failed to prepare suggestion phrases for paper {instance.id}"
-            )
-            sentry.log_error(error)
-            data["suggestion_phrases"] = []
-        return data

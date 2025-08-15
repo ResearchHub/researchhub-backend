@@ -104,23 +104,5 @@ class PostDocument(BaseDocument):
             "weight": weight,
         }
 
-    def prepare(self, instance):
-        try:
-            data = super().prepare(instance)
-        except Exception as e:
-            logger.error(f"Failed to prepare data for post {instance.id}: {e}")
-            return None
-
-        try:
-            data["suggestion_phrases"] = self.prepare_suggestion_phrases(instance)
-        except Exception as e:
-            logger.warning(
-                f"Failed to prepare suggestion phrases for post {instance.id}: {e}"
-            )
-            sentry.log_error(e)
-            data["suggestion_phrases"] = []
-
-        return data
-
     def should_index_object(self, obj):
         return not obj.is_removed

@@ -68,20 +68,5 @@ class HubDocument(BaseDocument):
             "weight": max(weight, 1),
         }
 
-    def prepare(self, instance):
-        try:
-            data = super().prepare(instance)
-        except Exception as e:
-            logger.error(f"Failed to prepare data for hub {instance.id}: {e}")
-            return None
-
-        try:
-            data["name_suggest"] = self.prepare_name_suggest(instance)
-        except Exception as e:
-            logger.warning(f"Failed to prepare name suggest for hub {instance.id}: {e}")
-            data["name_suggest"] = []
-
-        return data
-
     def should_index_object(self, obj):
         return not obj.is_removed

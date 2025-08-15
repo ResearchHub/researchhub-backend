@@ -89,20 +89,3 @@ class UserDocument(BaseDocument):
         except Exception:
             # Some legacy users don't have an author profile
             return f"{instance.first_name} {instance.last_name}"
-
-    def prepare(self, instance):
-        try:
-            data = super().prepare(instance)
-        except Exception as e:
-            logger.error(f"Failed to prepare data for user {instance.id}: {e}")
-            return None
-
-        try:
-            data["full_name_suggest"] = self.prepare_full_name_suggest(instance)
-        except Exception as e:
-            logger.warning(
-                f"Failed to prepare full name suggest for user {instance.id}: {e}"
-            )
-            data["full_name_suggest"] = []
-
-        return data
