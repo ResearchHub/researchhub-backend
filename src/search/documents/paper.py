@@ -128,16 +128,18 @@ class PaperDocument(BaseDocument):
 
         # Variation of author names which may be searched by users
         try:
-            authors_list = format_raw_authors(instance.raw_authors)
-            author_names_only = [
-                f"{author['first_name']} {author['last_name']}"
-                for author in authors_list
-                if author["first_name"] and author["last_name"]
-            ]
-            all_authors_as_str = ", ".join(author_names_only)
-
-            phrases.append(all_authors_as_str)
-            phrases.extend(author_names_only)
+            if instance.raw_authors:
+                authors_list = format_raw_authors(instance.raw_authors)
+                if authors_list:
+                    author_names_only = [
+                        f"{author['first_name']} {author['last_name']}"
+                        for author in authors_list
+                        if author.get("first_name") and author.get("last_name")
+                    ]
+                    if author_names_only:
+                        all_authors_as_str = ", ".join(author_names_only)
+                        phrases.append(all_authors_as_str)
+                        phrases.extend(author_names_only)
         except Exception as e:
             logger.warning(
                 f"Failed to prepare author names for paper {instance.id}: {e}"
