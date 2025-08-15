@@ -110,7 +110,6 @@ class OpenAlex:
             "raw_authors": format_raw_authors(raw_authors),
             "title": title,
             "paper_title": title,
-            "alternate_ids": work.get("ids", {}),
             "paper_publish_date": work.get("publication_date", None),
             "is_open_access": oa.get("is_oa", None),
             "oa_status": oa.get("oa_status", None),
@@ -123,10 +122,6 @@ class OpenAlex:
             "citations": work.get("cited_by_count", 0),
             "open_alex_raw_json": work,
             "openalex_id": work.get("id", None),
-            "is_retracted": work.get("is_retracted", None),
-            "mag_id": work.get("ids", {}).get("mag", None),
-            "pubmed_id": work.get("ids", {}).get("pmid", None),
-            "pubmed_central_id": work.get("ids", {}).get("pmcid", None),
             "work_type": work.get("type", None),
             "language": work.get("language", None),
         }

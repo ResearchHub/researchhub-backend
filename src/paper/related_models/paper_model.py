@@ -153,10 +153,6 @@ class Paper(AbstractGenericReactionModel):
     doi = models.CharField(
         max_length=255, default=None, null=True, blank=True, unique=True
     )
-    alternate_ids = JSONField(
-        default=dict,
-        blank=True,
-    )
     paper_title = models.CharField(  # Official paper title
         max_length=1024, default=None, null=True, blank=True
     )
@@ -182,9 +178,6 @@ class Paper(AbstractGenericReactionModel):
         help_text="Indicates which text editor was used for abstract section.",
         max_length=32,
         null=True,
-    )
-    publication_type = models.CharField(
-        max_length=255, default=None, null=True, blank=True
     )
     references = models.ManyToManyField(
         "self", symmetrical=False, related_name="referenced_by", blank=True
@@ -260,36 +253,6 @@ class Paper(AbstractGenericReactionModel):
         null=True,
         unique=True,
         max_length=255,
-    )
-
-    # https://docs.openalex.org/api-entities/works/work-object#ids
-    pubmed_id = models.CharField(
-        blank=True,
-        null=True,
-        unique=True,
-        max_length=255,
-    )
-
-    # https://docs.openalex.org/api-entities/works/work-object#ids
-    pubmed_central_id = models.CharField(
-        blank=True,
-        null=True,
-        unique=True,
-        max_length=255,
-    )
-
-    # https://docs.openalex.org/api-entities/works/work-object#ids
-    mag_id = models.CharField(
-        blank=True,
-        null=True,
-        unique=True,
-        max_length=255,
-    )
-
-    # https://docs.openalex.org/api-entities/works/work-object#is_retracted
-    is_retracted = models.BooleanField(
-        blank=True,
-        null=True,
     )
 
     # https://docs.openalex.org/api-entities/works/work-object#language

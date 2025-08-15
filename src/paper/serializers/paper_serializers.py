@@ -390,7 +390,6 @@ class PaperSerializer(BasePaperSerializer):
             "oa_pdf_location",
             "pdf_file_extract",
             "pdf_license_url",
-            "publication_type",
             "retrieved_from_external_source",
             "score",
             "slug",
