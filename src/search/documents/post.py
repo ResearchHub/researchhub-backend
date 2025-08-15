@@ -1,8 +1,8 @@
 import logging
 import math
 
-from django_elasticsearch_dsl import fields as es_fields
-from django_elasticsearch_dsl.registries import registry
+from django_opensearch_dsl import fields as es_fields
+from django_opensearch_dsl.registries import registry
 
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from search.analyzers import content_analyzer, title_analyzer
@@ -44,7 +44,7 @@ class PostDocument(BaseDocument):
             "slug": es_fields.TextField(),
         },
     )
-    suggestion_phrases = es_fields.Completion()
+    suggestion_phrases = es_fields.CompletionField()
     title = es_fields.TextField(
         analyzer=title_analyzer,
     )
@@ -104,26 +104,5 @@ class PostDocument(BaseDocument):
             "weight": weight,
         }
 
-    def prepare(self, instance):
-        try:
-            data = super().prepare(instance)
-        except Exception as e:
-            logger.error(f"Failed to prepare data for post {instance.id}: {e}")
-            return None
-
-        try:
-            data["suggestion_phrases"] = self.prepare_suggestion_phrases(instance)
-        except Exception as e:
-            logger.warn(
-                f"Failed to prepare suggestion phrases for post {instance.id}: {e}"
-            )
-            sentry.log_error(e)
-            data["suggestion_phrases"] = []
-
-        return data
-
-    def should_remove_from_index(self, obj):
-        if obj.is_removed:
-            return True
-
-        return False
+    def should_index_object(self, obj):
+        return not obj.is_removed

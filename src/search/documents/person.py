@@ -1,7 +1,7 @@
 import logging
 
-from django_elasticsearch_dsl import fields as es_fields
-from django_elasticsearch_dsl.registries import registry
+from django_opensearch_dsl import fields as es_fields
+from django_opensearch_dsl.registries import registry
 
 from search.analyzers import content_analyzer
 from user.models import Author
@@ -31,7 +31,7 @@ class PersonDocument(BaseDocument):
             "name": es_fields.TextField(),
         },
     )
-    suggestion_phrases = es_fields.Completion()
+    suggestion_phrases = es_fields.CompletionField()
     user_id = es_fields.IntegerField(attr="user_id")
     reputation_hubs = es_fields.KeywordField()
     education = es_fields.KeywordField()
@@ -47,9 +47,6 @@ class PersonDocument(BaseDocument):
             "first_name",
             "last_name",
         ]
-
-    def should_remove_from_index(self, obj):
-        return False
 
     def prepare_headline(self, instance):
         return instance.build_headline()
@@ -100,19 +97,3 @@ class PersonDocument(BaseDocument):
                 )
 
         return suggestions
-
-    def prepare(self, instance):
-        try:
-            data = super().prepare(instance)
-        except Exception as e:
-            logger.warn(f"Failed to prepare data for person {instance.id}: {e}")
-            return None
-
-        try:
-            data["suggestion_phrases"] = self.prepare_suggestion_phrases(instance)
-        except Exception as e:
-            logger.warn(
-                f"Failed to prepare suggestion phrases for person {instance.id}: {e}"
-            )
-            data["suggestion_phrases"] = []
-        return data

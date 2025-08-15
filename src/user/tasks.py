@@ -1,6 +1,6 @@
 from django.apps import apps
 from django.core.cache import cache
-from django_elasticsearch_dsl.registries import registry
+from django_opensearch_dsl.registries import registry
 
 from discussion.models import Vote
 from paper.models import Paper

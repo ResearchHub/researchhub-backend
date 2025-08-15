@@ -1,7 +1,7 @@
 import logging
 
-from django_elasticsearch_dsl import fields as es_fields
-from django_elasticsearch_dsl.registries import registry
+from django_opensearch_dsl import fields as es_fields
+from django_opensearch_dsl.registries import registry
 
 from institution.models import Institution
 
@@ -26,7 +26,7 @@ class InstitutionDocument(BaseDocument):
     two_year_mean_citedness = es_fields.FloatField()
     i10_index = es_fields.FloatField()
     h_index = es_fields.FloatField()
-    suggestion_phrases = es_fields.Completion()
+    suggestion_phrases = es_fields.CompletionField()
     works_count = es_fields.IntegerField()
 
     class Index:
@@ -35,9 +35,6 @@ class InstitutionDocument(BaseDocument):
 
     class Django:
         model = Institution
-
-    def should_remove_from_index(self, obj):
-        return False
 
     def prepare_suggestion_phrases(self, instance):
         suggestions = []
@@ -63,20 +60,3 @@ class InstitutionDocument(BaseDocument):
             suggestions.append({"input": instance.ror_id, "weight": 100})
 
         return suggestions
-
-    def prepare(self, instance):
-        try:
-            data = super().prepare(instance)
-        except Exception:
-            logger.error(f"Failed to prepare data for institution {instance.id}")
-            return None
-
-        try:
-            data["suggestion_phrases"] = self.prepare_suggestion_phrases(instance)
-        except Exception as e:
-            logger.warn(
-                f"Failed to prepare suggestion phrases for institution {instance.id}: {e}"
-            )
-            data["suggestion_phrases"] = []
-
-        return data

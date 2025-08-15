@@ -1,56 +1,51 @@
 from django.db import models
-from django_elasticsearch_dsl import Document
-
-import utils.sentry as sentry
+from django_opensearch_dsl import Document
 
 
 class BaseDocument(Document):
 
-    """
-    Override and add conditions for when object should be removed
-    from index
-    """
-    def should_remove_from_index(self, obj):
-        return False
+    def update(self, thing, action, *args, refresh=None, using=None, **kwargs):
+        """
+        Override to handle soft deletes by removing documents from index
+        when should_index_object returns False.
 
-    """
-    Overriding parent method to include an additional bulk
-    operation for removing objects from elastic who are removed
-    """
-    def update(self, thing, refresh=None, action='index', parallel=False, **kwargs):
-
-        if refresh is not None:
-            kwargs['refresh'] = refresh
-        elif self.django.auto_refresh:
-            kwargs['refresh'] = self.django.auto_refresh
-
+        See: https://github.com/Codoc-os/django-opensearch-dsl/blob/e6cead9123ff9b67390c438876ca1ee313749cff/django_opensearch_dsl/documents.py#L238C9-L238C80
+        """
         if isinstance(thing, models.Model):
             object_list = [thing]
         else:
             object_list = thing
 
-        objects_to_remove = []
-        objects_to_index = []
-        for obj in object_list:
-            if self.should_remove_from_index(obj):
-                objects_to_remove.append(obj)
-            else:
-                objects_to_index.append(obj)
+        # AWS OpenSearch has instance-type based limits for the size of HTTP payloads.
+        # See: https://docs.aws.amazon.com/opensearch-service/latest/developerguide/limits.html#network-limits
+        # Set max_chunk_bytes to 8MB to safely stay under the 10MB limit
+        kwargs.setdefault("max_chunk_bytes", 8 * 1024 * 1024)  # 8MB
 
-        try:
-            self._bulk(
-                self._get_actions(objects_to_index, action='index'),
-                parallel=parallel,
-                **kwargs
+        # Split objects based on whether they should be indexed
+        to_index = []
+        to_delete = []
+        for obj in object_list:
+            if self.should_index_object(obj):
+                to_index.append(obj)
+            else:
+                to_delete.append(obj)
+
+        # Process both operations and combine results
+        total_success = 0
+        total_errors = []
+
+        if to_index:
+            success, errors = super().update(
+                to_index, "index", *args, refresh=refresh, using=using, **kwargs
             )
-            self._bulk(
-                self._get_actions(objects_to_remove, action='delete'),
-                parallel=parallel,
-                **kwargs
+            total_success += success
+            total_errors.extend(errors)
+
+        if to_delete:
+            success, errors = super().update(
+                to_delete, "delete", *args, refresh=refresh, using=using, **kwargs
             )
-        except ConnectionError as e:
-            sentry.log_info(e)
-        except Exception as e:
-            # The likely scenario is the result of removing objects
-            # that do not exist in elastic search - 404s
-            pass
+            total_success += success
+            total_errors.extend(errors)
+
+        return (total_success, total_errors)

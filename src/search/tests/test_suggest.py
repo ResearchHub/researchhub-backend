@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 from django.test import TestCase
 from django.urls import reverse
-from elasticsearch_dsl import Search
+from opensearchpy import Search
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -28,7 +28,7 @@ class SuggestViewTests(TestCase):
         self.assertEqual(response.data["error"], "Search query is required")
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("elasticsearch_dsl.Search.execute")
+    @patch("opensearchpy.Search.execute")
     def test_empty_results(self, mock_es_execute, mock_openalex):
         """Test handling of empty results from both sources"""
         # Mock OpenAlex response
@@ -49,7 +49,7 @@ class SuggestViewTests(TestCase):
         self.assertEqual(response.data, [])
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("elasticsearch_dsl.Search.execute")
+    @patch("opensearchpy.Search.execute")
     def test_deduplication_prefers_researchhub(self, mock_es_execute, mock_openalex):
         """Test that when same DOI exists in both sources, RH version is preferred"""
         test_doi = "10.1234/test.123"
@@ -111,7 +111,7 @@ class SuggestViewTests(TestCase):
         self.assertEqual(response.data[0]["display_name"], "Test Paper RH")
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("elasticsearch_dsl.Search.execute")
+    @patch("opensearchpy.Search.execute")
     def test_combines_unique_results(self, mock_es_execute, mock_openalex):
         """Test that results with different DOIs from both sources are combined"""
         # Mock OpenAlex response
@@ -165,7 +165,7 @@ class SuggestViewTests(TestCase):
         self.assertEqual(sources, {"researchhub", "openalex"})
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("elasticsearch_dsl.Search.execute")
+    @patch("opensearchpy.Search.execute")
     def test_handles_missing_fields_gracefully(self, mock_es_execute, mock_openalex):
         """Test that missing optional fields don't cause errors"""
         # Mock OpenAlex response with missing fields
@@ -214,7 +214,7 @@ class SuggestViewTests(TestCase):
             self.assertIn("created_date", result)
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("elasticsearch_dsl.Search.execute")
+    @patch("opensearchpy.Search.execute")
     def test_error_handling(self, mock_es_execute, mock_openalex):
         """Test handling of errors from both sources"""
         # Mock OpenAlex error
@@ -228,7 +228,7 @@ class SuggestViewTests(TestCase):
         self.assertIn("error", response.data)
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("elasticsearch_dsl.Search.execute")
+    @patch("opensearchpy.Search.execute")
     def test_invalid_index_parameter(self, mock_es_execute, mock_openalex):
         """Test handling of invalid index parameter"""
         response = self.client.get(self.url + "?q=test&index=invalid_index")
@@ -239,7 +239,7 @@ class SuggestViewTests(TestCase):
         )  # Should list available indexes
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("elasticsearch_dsl.Search.execute")
+    @patch("opensearchpy.Search.execute")
     def test_multiple_indexes(self, mock_es_execute, mock_openalex):
         """Test searching across multiple indexes"""
         # Mock OpenAlex response
@@ -319,7 +319,7 @@ class SuggestViewTests(TestCase):
         self.assertIn("user", entity_types)
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("elasticsearch_dsl.Search.execute")
+    @patch("opensearchpy.Search.execute")
     def test_empty_query_sanitization(self, mock_es_execute, mock_openalex):
         """Test that empty spaces in query are handled properly"""
         # Try with just spaces
@@ -333,7 +333,7 @@ class SuggestViewTests(TestCase):
         self.assertEqual(response.data["error"], "Search query is required")
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("elasticsearch_dsl.Search.execute")
+    @patch("opensearchpy.Search.execute")
     def test_limit_parameter(self, mock_es_execute, mock_openalex):
         """Test that limit parameter restricts the number of results"""
         # Create numerous results
@@ -386,7 +386,7 @@ class SuggestViewTests(TestCase):
         self.assertEqual(len(response.data), 10)  # Should use default of 10
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("elasticsearch_dsl.Search.execute")
+    @patch("opensearchpy.Search.execute")
     def test_hub_index_search(self, mock_es_execute, mock_openalex):
         """Test searching in the hub index"""
         # Mock empty OpenAlex response since we're not using it for hub index
@@ -452,7 +452,7 @@ class SuggestViewTests(TestCase):
         self.assertEqual(response.data[1]["display_name"], "Computational Biology")
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("elasticsearch_dsl.Search.execute")
+    @patch("opensearchpy.Search.execute")
     def test_mixed_entity_representation(self, mock_es_execute, mock_openalex):
         """Test that balanced results include various entity types when requested"""
         # Mock OpenAlex response with papers
@@ -557,7 +557,7 @@ class SuggestViewTests(TestCase):
             )
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("elasticsearch_dsl.Search.execute")
+    @patch("opensearchpy.Search.execute")
     def test_weighted_scoring_with_default_weights(
         self, mock_es_execute, mock_openalex
     ):
@@ -633,7 +633,7 @@ class SuggestViewTests(TestCase):
                 )
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("elasticsearch_dsl.Search.execute")
+    @patch("opensearchpy.Search.execute")
     def test_user_exact_match_boosting(self, mock_es_execute, mock_openalex):
         """Test that exact user name matches are boosted significantly"""
         # Mock OpenAlex response
@@ -719,7 +719,7 @@ class SuggestViewTests(TestCase):
             self.client.get = original_get
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("elasticsearch_dsl.Search.execute")
+    @patch("opensearchpy.Search.execute")
     def test_score_based_sorting(self, mock_es_execute, mock_openalex):
         """Test that results are sorted by score when balanced mode is not requested"""
         # Mock OpenAlex response with papers (lower scores)
@@ -844,7 +844,7 @@ class SuggestViewTests(TestCase):
                     )
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("elasticsearch_dsl.Search.execute")
+    @patch("opensearchpy.Search.execute")
     def test_partial_word_matching(self, mock_es_execute, mock_openalex):
         """Test that partial word queries match appropriately"""
         # Mock OpenAlex response
@@ -903,7 +903,7 @@ class SuggestViewTests(TestCase):
             self.assertIn("neuro", result["display_name"].lower())
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("elasticsearch_dsl.Search.execute")
+    @patch("opensearchpy.Search.execute")
     def test_case_insensitive_matching(self, mock_es_execute, mock_openalex):
         """Test that queries match regardless of case"""
         # Mock OpenAlex response
@@ -954,7 +954,7 @@ class SuggestViewTests(TestCase):
         self.assertEqual(response.data[0]["_boost"], "exact_name_match")
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("elasticsearch_dsl.Search.execute")
+    @patch("opensearchpy.Search.execute")
     def test_single_character_query(self, mock_es_execute, mock_openalex):
         """Test handling of very short (single character) queries"""
         # Mock OpenAlex response
@@ -1007,7 +1007,7 @@ class SuggestViewTests(TestCase):
             )
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("elasticsearch_dsl.Search.execute")
+    @patch("opensearchpy.Search.execute")
     def test_special_character_handling(self, mock_es_execute, mock_openalex):
         """Test that queries with special characters are handled properly"""
         # Mock OpenAlex response
@@ -1051,7 +1051,7 @@ class SuggestViewTests(TestCase):
         self.assertEqual(response.data[0]["display_name"], "C++ Programming")
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("elasticsearch_dsl.Search.execute")
+    @patch("opensearchpy.Search.execute")
     def test_entity_type_ordering_preservation(self, mock_es_execute, mock_openalex):
         """Test that entities of the same type stay grouped when balanced=true"""
         # Mock OpenAlex response
@@ -1138,8 +1138,8 @@ class SuggestViewTests(TestCase):
             self.client.get = original_get
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("elasticsearch_dsl.Search.query")
-    @patch("elasticsearch_dsl.Search.execute")
+    @patch("opensearchpy.Search.query")
+    @patch("opensearchpy.Search.execute")
     def test_doi_search(self, mock_es_execute, mock_es_query, mock_openalex):
         """Test that when a DOI is provided, only relevant results are returned"""
         test_doi = "10.1007/s10237-020-01313-8"
@@ -1219,7 +1219,7 @@ class SuggestViewTests(TestCase):
                 )
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
-    @patch("elasticsearch_dsl.Search.execute")
+    @patch("opensearchpy.Search.execute")
     def test_person_entity_includes_user_id(self, mock_es_execute, mock_openalex):
         """Test that person entities from author index include user_id field"""
         # Mock empty OpenAlex response since we're not using it for author index
