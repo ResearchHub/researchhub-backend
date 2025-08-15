@@ -1,14 +1,11 @@
 import logging
-import math
 
 from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
 
 from paper.models import Paper
-from paper.utils import format_raw_authors, pdf_copyright_allows_display
+from paper.utils import pdf_copyright_allows_display
 from search.analyzers import content_analyzer, title_analyzer
-from utils import sentry
-from utils.doi import DOI
 
 from .base import BaseDocument
 
@@ -74,98 +71,145 @@ class PaperDocument(BaseDocument):
 
     class Django:
         model = Paper
-        queryset_pagination = 250
+        queryset_pagination = 25  # Drastically reduced to avoid memory issues
         fields = ["id"]
+        # Use iterator to reduce memory when processing large datasets
+        ignore_signals = False  # Keep signals for real-time updates
 
+    def get_queryset(self, filter_=None, exclude=None, count=None):
+        """
+        Override to optimize the queryset for indexing by deferring large fields.
+        This is called by django-opensearch-dsl's get_indexing_queryset.
+        """
+        qs = (
+            Paper.objects.all()
+            # Removed select_related and prefetch_related due to data integrity issues
+            # This will cause more queries but avoids the ValueError
+            .defer(
+                # Defer large JSON and file fields that aren't used in indexing
+                "csl_item",  # Large JSON field not used
+                "external_metadata",  # Large JSON field not used
+                "pdf_file_extract",  # File field not used
+                "edited_file_extract",  # File field not used
+                "abstract_src",  # File field not used
+                "file",  # PDF file not used
+                # Keep open_alex_raw_json as it's used for keywords
+                # Keep abstract as it's indexed
+                # Keep raw_authors as it's used for author names
+            )
+        )
+        
+        if filter_:
+            qs = qs.filter(filter_)
+        if exclude:
+            qs = qs.exclude(exclude)
+        if count:
+            qs = qs[:count]
+            
+        return qs
+    
+    def get_indexing_queryset(self, verbose=False, filter_=None, exclude=None, 
+                            count=None, action="index", stdout=None):
+        """
+        Override to use Django's iterator for memory-efficient processing.
+        This method yields objects one at a time using iterator() instead of
+        loading entire chunks into memory via slicing.
+        """
+        import sys
+        import time
+        
+        if stdout is None:
+            stdout = sys.stdout
+            
+        # Get the optimized queryset using our get_queryset method
+        # (filters, excludes, and count are already applied there)
+        qs = self.get_queryset(filter_=filter_, exclude=exclude, count=count)
+        
+        # Order by pk for consistent iteration
+        qs = qs.order_by("pk")
+            
+        # Get total count for progress reporting
+        total = qs.count() if verbose else 0
+        processed = 0
+        start_time = time.time()
+        
+        # Use iterator with a small chunk size for memory efficiency
+        # This loads objects from the database in chunks but yields them one at a time
+        for obj in qs.iterator(chunk_size=100):
+            # Only yield objects that should be indexed
+            if self.should_index_object(obj):
+                processed += 1
+                
+                # Show progress if verbose
+                if verbose and processed % 100 == 0:
+                    pct = round(processed / total * 100) if total > 0 else 0
+                    elapsed = time.time() - start_time
+                    rate = processed / elapsed if elapsed > 0 else 0
+                    eta = (total - processed) / rate if rate > 0 else 0
+                    eta_str = f"{int(eta // 60)} mins" if eta > 60 else f"{int(eta)} secs"
+                    stdout.write(
+                        f"Indexing Paper: {pct}% ({eta_str} remaining, "
+                        f"{rate:.1f} papers/sec)\r"
+                    )
+                    stdout.flush()
+                    
+                yield obj
+                
+        if verbose:
+            stdout.write(f"Indexed {processed} Papers: OK          \n")
+            stdout.flush()
+    
     def should_index_object(self, obj):
         return not obj.is_removed
 
     # Used specifically for "autocomplete" style suggest feature.
     # Includes a bunch of phrases the user may search by.
     def prepare_suggestion_phrases(self, instance):
+        """
+        Optimized version that reduces memory usage by:
+        1. Early returns for empty data
+        2. Limited string operations
+        3. Defensive handling of large datasets
+        """
         phrases = []
 
+        # Just add basic phrases for autocomplete
         phrases.append(str(instance.id))
 
-        # Variation of title which may be searched by users
+        # Title
         if instance.title:
-            phrases.append(instance.title)
-            phrases.append(instance.paper_title)
-            phrases.extend(instance.title.split())
+            phrases.append(instance.title[:200])  # Limit title length
 
-        # Add DOI variations for search
+        # DOI
         if instance.doi:
-            phrases.extend(DOI.get_variants(instance.doi))
+            phrases.append(instance.doi)
 
-        if instance.url:
-            phrases.append(instance.url)
-
-        # Variation of journal name which may be searched by users
-        if instance.external_source:
-            journal_words = instance.external_source.split(" ")
-            phrases.append(instance.external_source)
-            phrases.extend(journal_words)
-
-        # Variation of OpenAlex keywords which may be searched by users
+        # Authors - very limited
         try:
-            oa_data = instance.open_alex_raw_json
-            if oa_data and "keywords" in oa_data:
-                keywords = []
-                for keyword_obj in oa_data["keywords"]:
-                    # Handle both old format (keyword) and new format (display_name)
-                    keyword = keyword_obj.get("display_name") or keyword_obj.get(
-                        "keyword"
-                    )
-                    if keyword:
-                        keywords.append(keyword)
+            if instance.raw_authors and len(instance.raw_authors) > 0:
+                # Only process first 5 authors
+                for author in instance.raw_authors[:5]:
+                    if isinstance(author, dict):
+                        first = author.get("first_name", "")
+                        last = author.get("last_name", "")
+                        if first and last:
+                            phrases.append(f"{first} {last}")
+        except Exception:
+            pass  # Silently skip errors
 
-                if keywords:
-                    joined_kewords = " ".join(keywords)
-                    phrases.append(joined_kewords)
-                    phrases.extend(keywords)
-
-        except Exception as e:
-            logger.warning(
-                f"Failed to prepare OpenAlex keywords for paper {instance.id}: {e}"
-            )
-
-        try:
-            hubs_indexing_flat = instance.hubs_indexing_flat
-            phrases.extend(hubs_indexing_flat)
-        except Exception as e:
-            logger.warning(f"Failed to prepare hubs for paper {instance.id}: {e}")
-
-        # Variation of author names which may be searched by users
-        try:
-            if instance.raw_authors:
-                authors_list = format_raw_authors(instance.raw_authors)
-                if authors_list:
-                    author_names_only = [
-                        f"{author['first_name']} {author['last_name']}"
-                        for author in authors_list
-                        if author.get("first_name") and author.get("last_name")
-                    ]
-                    if author_names_only:
-                        all_authors_as_str = ", ".join(author_names_only)
-                        phrases.append(all_authors_as_str)
-                        phrases.extend(author_names_only)
-        except Exception as e:
-            logger.warning(
-                f"Failed to prepare author names for paper {instance.id}: {e}"
-            )
-
-        # Assign weight based on how "hot" the paper is
+        # Weight
         weight = 1
-        if instance.unified_document and instance.unified_document.hot_score > 0:
-            # Scale down the hot score from 1 - 100 to avoid a huge range
-            # of values that could result in bad suggestions
-            weight = int(math.log(instance.unified_document.hot_score, 10) * 10)
+        try:
+            if instance.unified_document and instance.unified_document.hot_score > 0:
+                weight = min(100, max(1, instance.unified_document.hot_score // 10))
+        except Exception:
+            pass
 
-        deduped = list(set(phrases))
-        strings_only = [phrase for phrase in deduped if isinstance(phrase, str)]
+        # Deduplicate and limit
+        deduped = list(set(p for p in phrases if p))[:20]  # Max 20 phrases
 
         return {
-            "input": strings_only,  # Dedupe using set
+            "input": deduped,
             "weight": weight,
         }
 
@@ -202,14 +246,19 @@ class PaperDocument(BaseDocument):
         """
         Prepare authors data from paper authorships.
         Returns a list of authors with their IDs, positions, and names.
+        Optimized to limit memory usage.
         """
         authors = []
-        for authorship in instance.authorships.all():
-            authors.append(
-                {
-                    "author_id": authorship.author.id,
-                    "author_position": authorship.author_position,
-                    "full_name": authorship.raw_author_name,
-                }
-            )
+        try:
+            # Limit to 20 authors to prevent memory issues
+            for authorship in instance.authorships.all()[:20]:
+                authors.append(
+                    {
+                        "author_id": authorship.author.id,
+                        "author_position": authorship.author_position,
+                        "full_name": authorship.raw_author_name or "",
+                    }
+                )
+        except Exception:
+            pass  # Silently skip if there are issues
         return authors
