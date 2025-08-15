@@ -60,20 +60,3 @@ class InstitutionDocument(BaseDocument):
             suggestions.append({"input": instance.ror_id, "weight": 100})
 
         return suggestions
-
-    def prepare(self, instance):
-        try:
-            data = super().prepare(instance)
-        except Exception:
-            logger.error(f"Failed to prepare data for institution {instance.id}")
-            return None
-
-        try:
-            data["suggestion_phrases"] = self.prepare_suggestion_phrases(instance)
-        except Exception as e:
-            logger.warning(
-                f"Failed to prepare suggestion phrases for institution {instance.id}: {e}"
-            )
-            data["suggestion_phrases"] = []
-
-        return data
