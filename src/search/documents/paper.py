@@ -109,11 +109,20 @@ class PaperDocument(BaseDocument):
         # Variation of OpenAlex keywords which may be searched by users
         try:
             oa_data = instance.open_alex_raw_json
-            keywords = [keyword_obj["keyword"] for keyword_obj in oa_data["keywords"]]
-            joined_kewords = " ".join(keywords)
+            if oa_data and "keywords" in oa_data:
+                keywords = []
+                for keyword_obj in oa_data["keywords"]:
+                    # Handle both old format (keyword) and new format (display_name)
+                    keyword = keyword_obj.get("display_name") or keyword_obj.get(
+                        "keyword"
+                    )
+                    if keyword:
+                        keywords.append(keyword)
 
-            phrases.append(joined_kewords)
-            phrases.extend(keywords)
+                if keywords:
+                    joined_kewords = " ".join(keywords)
+                    phrases.append(joined_kewords)
+                    phrases.extend(keywords)
 
         except Exception as e:
             logger.warning(
