@@ -1,9 +1,9 @@
 import logging
 import re
 
-from django_elasticsearch_dsl import fields as es_fields
-from django_elasticsearch_dsl.registries import registry
-from elasticsearch_dsl import analyzer, token_filter
+from django_opensearch_dsl import fields as es_fields
+from django_opensearch_dsl.registries import registry
+from opensearchpy import analyzer, token_filter
 
 from hub.models import Hub
 from search.analyzers import content_analyzer
@@ -31,7 +31,7 @@ class JournalDocument(BaseDocument):
     auto_refresh = True
     queryset_pagination = 250
     description = es_fields.TextField(attr="description", analyzer=content_analyzer)
-    name_suggest = es_fields.Completion()
+    name_suggest = es_fields.CompletionField()
     name = es_fields.TextField(
         analyzer=edge_ngram_analyzer,
         search_analyzer="standard",

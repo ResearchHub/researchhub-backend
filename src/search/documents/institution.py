@@ -1,7 +1,7 @@
 import logging
 
-from django_elasticsearch_dsl import fields as es_fields
-from django_elasticsearch_dsl.registries import registry
+from django_opensearch_dsl import fields as es_fields
+from django_opensearch_dsl.registries import registry
 
 from institution.models import Institution
 
@@ -26,7 +26,7 @@ class InstitutionDocument(BaseDocument):
     two_year_mean_citedness = es_fields.FloatField()
     i10_index = es_fields.FloatField()
     h_index = es_fields.FloatField()
-    suggestion_phrases = es_fields.Completion()
+    suggestion_phrases = es_fields.CompletionField()
     works_count = es_fields.IntegerField()
 
     class Index:

@@ -1,8 +1,8 @@
 import logging
 import math
 
-from django_elasticsearch_dsl import fields as es_fields
-from django_elasticsearch_dsl.registries import registry
+from django_opensearch_dsl import fields as es_fields
+from django_opensearch_dsl.registries import registry
 
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from search.analyzers import content_analyzer, title_analyzer
@@ -44,7 +44,7 @@ class PostDocument(BaseDocument):
             "slug": es_fields.TextField(),
         },
     )
-    suggestion_phrases = es_fields.Completion()
+    suggestion_phrases = es_fields.CompletionField()
     title = es_fields.TextField(
         analyzer=title_analyzer,
     )
