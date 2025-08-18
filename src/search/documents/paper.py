@@ -59,7 +59,7 @@ class PaperDocument(BaseDocument):
         return super().get_queryset(
             filter_=filter_,
             exclude=exclude,
-            count=100,
+            count=count,
         )
 
     def get_indexing_queryset(
@@ -71,8 +71,8 @@ class PaperDocument(BaseDocument):
         action: OpensearchAction = OpensearchAction.INDEX,
         stdout: FileIO = sys.stdout,
     ) -> Iterable:
-        qs = self.get_queryset()
-        return qs.iterator()
+        qs = self.get_queryset(filter_=filter_, exclude=exclude, count=count)
+        return qs.iterator(chunk_size=1000)
 
     def should_index_object(self, obj):
         return not obj.is_removed
