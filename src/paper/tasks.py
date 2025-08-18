@@ -1,19 +1,13 @@
-import codecs
 import json
-import os
 import re
-import shutil
 from datetime import datetime
 from io import BytesIO
-from subprocess import PIPE, run
 
 import fitz
 import requests
-from bs4 import BeautifulSoup
 from celery.utils.log import get_task_logger
 from django.apps import apps
 from django.core.cache import cache
-from django.core.files import File
 from django.core.files.base import ContentFile
 from PIL import Image
 from pytz import timezone as pytz_tz
@@ -27,7 +21,7 @@ from paper.utils import (
     get_pdf_from_url,
     get_pdf_location_for_csl_item,
 )
-from researchhub.celery import QUEUE_CERMINE, QUEUE_PAPER_MISC, app
+from researchhub.celery import QUEUE_PAPER_MISC, app
 from researchhub.settings import APP_ENV
 from utils import sentry
 from utils.http import check_url_contains_pdf
@@ -79,9 +73,6 @@ def download_pdf(paper_id, retry=0):
             paper.extract_pdf_preview(use_celery=True)
             paper.set_paper_completeness()
             paper.compress_and_linearize_file()
-            celery_extract_pdf_sections.apply_async(
-                (paper_id,), priority=5, countdown=15
-            )
             return True
         except Exception as e:
             sentry.log_info(e)
@@ -219,82 +210,6 @@ def celery_extract_meta_data(paper_id, title, check_title):
         paper.save()
     except Exception as e:
         sentry.log_info(e)
-
-
-@app.task(queue=QUEUE_CERMINE)
-def celery_extract_pdf_sections(paper_id):
-    if paper_id is None:
-        return False, "No Paper Id"
-
-    Paper = apps.get_model("paper.Paper")
-    Figure = apps.get_model("paper.Figure")
-    paper = Paper.objects.get(id=paper_id)
-
-    file = paper.file
-    if not file:
-        return False, "No Paper File"
-
-    path = f"/tmp/pdf_cermine/{paper_id}/"
-    filename = f"{paper_id}.pdf"
-    extract_filename = f"{paper_id}.html"
-    file_path = f"{path}{filename}"
-    extract_file_path = f"{path}{paper_id}.cermxml"
-    images_path = f"{path}{paper_id}.images"
-    file_url = file.url
-    return_code = -1
-
-    if not os.path.isdir(path):
-        os.mkdir(path)
-
-    try:
-        res = requests.get(file_url)
-        with open(file_path, "wb+") as f:
-            f.write(res.content)
-
-        args = [
-            "java",
-            "-cp",
-            "cermine-impl-1.13-jar-with-dependencies.jar",
-            "pl.edu.icm.cermine.ContentExtractor",
-            "-path",
-            path,
-        ]
-        call_res = run(args, stdout=PIPE, stderr=PIPE)
-        return_code = call_res.returncode
-
-        with codecs.open(extract_file_path, "rb") as f:
-            soup = BeautifulSoup(f, "lxml")
-            paper.pdf_file_extract.save(extract_filename, ContentFile(soup.encode()))
-        paper.save()
-
-        figures = os.listdir(images_path)
-        for extracted_figure in figures:
-            extracted_figure_path = f"{images_path}/{extracted_figure}"
-            with open(extracted_figure_path, "rb") as f:
-                extracted_figures = Figure.objects.filter(paper=paper)
-                split_file_name = f.name.split("/")
-                file_name = split_file_name[-1]
-                if not extracted_figures.filter(
-                    file__contains=file_name, figure_type=Figure.FIGURE
-                ):
-                    Figure.objects.create(
-                        file=File(f, name=file_name),
-                        paper=paper,
-                        figure_type=Figure.FIGURE,
-                    )
-    except Exception as e:
-        stdout = call_res.stdout.decode("utf8")
-        message = f"{return_code}; {stdout}; "
-        try:
-            message += str(os.listdir(path))
-        except Exception as e:
-            message += str(os.listdir("/tmp/pdf_cermine")) + str(e)
-
-        sentry.log_error(e, message=message)
-        return False, return_code
-    finally:
-        shutil.rmtree(path)
-        return True, return_code
 
 
 @app.task
