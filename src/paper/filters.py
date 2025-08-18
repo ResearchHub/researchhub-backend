@@ -15,7 +15,6 @@ class PaperFilter(filters.FilterSet):
         # TODO: Handle filtering on raw_authors in another way
         exclude = [
             "abstract_src",
-            "alternate_ids",
             "csl_item",
             "edited_file_extract",
             "external_metadata",
