@@ -5,9 +5,8 @@ from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
 
 from paper.models import Paper
-from paper.utils import format_raw_authors, pdf_copyright_allows_display
-from search.analyzers import content_analyzer, title_analyzer
-from utils import sentry
+from paper.utils import format_raw_authors
+from search.analyzers import title_analyzer
 from utils.doi import DOI
 
 from .base import BaseDocument
@@ -19,17 +18,11 @@ logger = logging.getLogger(__name__)
 class PaperDocument(BaseDocument):
     auto_refresh = True
 
-    hubs_flat = es_fields.TextField(attr="hubs_indexing_flat")
-    score = es_fields.IntegerField(attr="score_indexing")
     citations = es_fields.IntegerField()
-    hot_score = es_fields.IntegerField()
-    discussion_count = es_fields.IntegerField()
     paper_title = es_fields.TextField(analyzer=title_analyzer)
     paper_publish_date = es_fields.DateField(
         attr="paper_publish_date", format="yyyy-MM-dd"
     )
-    paper_publish_year = es_fields.IntegerField()
-    abstract = es_fields.TextField(attr="abstract_indexing", analyzer=content_analyzer)
     doi = es_fields.TextField(attr="doi_indexing", analyzer="keyword")
     openalex_id = es_fields.TextField(attr="openalex_id")
     # TODO: Deprecate this field once we move over to new app. It should not longer be necessary since authors property will replace it.
@@ -41,33 +34,8 @@ class PaperDocument(BaseDocument):
             "full_name": es_fields.TextField(),
         },
     )
-    authors = es_fields.ObjectField(
-        properties={
-            "author_id": es_fields.IntegerField(),
-            "author_position": es_fields.KeywordField(),
-            "full_name": es_fields.TextField(),
-        },
-    )
-    hubs = es_fields.ObjectField(
-        attr="hubs_indexing",
-        properties={
-            "id": es_fields.IntegerField(),
-            "name": es_fields.KeywordField(),
-            "slug": es_fields.TextField(),
-        },
-    )
 
-    slug = es_fields.TextField()
     suggestion_phrases = es_fields.CompletionField()
-    title = es_fields.TextField(
-        analyzer=title_analyzer,
-    )
-    updated_date = es_fields.DateField()
-    oa_status = es_fields.KeywordField()
-    pdf_license = es_fields.KeywordField()
-    external_source = es_fields.KeywordField()
-    completeness_status = es_fields.KeywordField()
-    can_display_pdf_license = es_fields.BooleanField()
 
     class Index:
         name = "paper"
@@ -168,48 +136,3 @@ class PaperDocument(BaseDocument):
             "input": strings_only,  # Dedupe using set
             "weight": weight,
         }
-
-    def prepare_completeness_status(self, instance):
-        try:
-            return instance.get_paper_completeness()
-        except Exception:
-            logger.warning(
-                f"Failed to prepare completeness status for paper {instance.id}"
-            )
-            return Paper.PARTIAL
-
-    def prepare_paper_publish_year(self, instance):
-        if instance.paper_publish_date:
-            return instance.paper_publish_date.year
-        return None
-
-    def prepare_can_display_pdf_license(self, instance):
-        try:
-            return pdf_copyright_allows_display(instance)
-        except Exception as e:
-            logger.warning(
-                f"Failed to prepare pdf license for paper {instance.id}: {e}"
-            )
-
-        return False
-
-    def prepare_hot_score(self, instance):
-        if instance.unified_document:
-            return instance.unified_document.hot_score
-        return 0
-
-    def prepare_authors(self, instance):
-        """
-        Prepare authors data from paper authorships.
-        Returns a list of authors with their IDs, positions, and names.
-        """
-        authors = []
-        for authorship in instance.authorships.all():
-            authors.append(
-                {
-                    "author_id": authorship.author.id,
-                    "author_position": authorship.author_position,
-                    "full_name": authorship.raw_author_name,
-                }
-            )
-        return authors
