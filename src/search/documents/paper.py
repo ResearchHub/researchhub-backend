@@ -1,7 +1,12 @@
 import logging
 import math
+import sys
+from io import FileIO
+from typing import Iterable, Optional
 
+from django.db.models import Q, QuerySet
 from django_opensearch_dsl import fields as es_fields
+from django_opensearch_dsl.management.enums import OpensearchAction
 from django_opensearch_dsl.registries import registry
 
 from paper.models import Paper
@@ -44,6 +49,30 @@ class PaperDocument(BaseDocument):
         model = Paper
         queryset_pagination = 250
         fields = ["id"]
+
+    def get_queryset(
+        self,
+        filter_: Optional[Q] = None,
+        exclude: Optional[Q] = None,
+        count: int = None,
+    ) -> QuerySet:
+        return super().get_queryset(
+            filter_=filter_,
+            exclude=exclude,
+            count=100,
+        )
+
+    def get_indexing_queryset(
+        self,
+        verbose: bool = False,
+        filter_: Q | None = None,
+        exclude: Q | None = None,
+        count: int = None,
+        action: OpensearchAction = OpensearchAction.INDEX,
+        stdout: FileIO = sys.stdout,
+    ) -> Iterable:
+        qs = self.get_queryset()
+        return qs.iterator()
 
     def should_index_object(self, obj):
         return not obj.is_removed
