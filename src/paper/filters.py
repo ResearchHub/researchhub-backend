@@ -19,7 +19,6 @@ class PaperFilter(filters.FilterSet):
             "external_metadata",
             "file",
             "oa_pdf_location",
-            "pdf_file_extract",
             "raw_authors",
             "open_alex_raw_json",
         ]

@@ -1,12 +1,9 @@
-import base64
 from urllib.parse import urlparse
 
 import requests
 from django.conf import settings
 from django.contrib.admin.options import get_content_type_for_model
-from django.contrib.postgres.search import SearchQuery
 from django.core.cache import cache
-from django.core.files.base import ContentFile
 from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django.utils import timezone
@@ -800,7 +797,6 @@ class PaperViewSet(
                 "oa_status",
                 "paper_publish_date",
                 "paper_title",
-                "pdf_file_extract",
                 "pdf_license",
                 "pdf_url",
                 "pdf_copyright_allows_display",
@@ -1112,24 +1108,6 @@ class PaperViewSet(
             filter(lambda work: work["id"] not in claimed_works, openalex_works)
         )
         return unclaimed_works
-
-    @action(
-        detail=True, methods=["get"], permission_classes=[IsAuthenticatedOrReadOnly]
-    )
-    def pdf_extract(self, request, pk=None):
-        paper = Paper.objects.get(id=pk)
-        pdf_file = paper.pdf_file_extract
-
-        external_source = paper.external_source
-        if external_source and external_source.lower() == "arxiv":
-            return Response(status=status.HTTP_404_NOT_FOUND)
-
-        if not pdf_file.name:
-            return Response(status=status.HTTP_404_NOT_FOUND)
-
-        html_bytes = paper.pdf_file_extract.read()
-        b64_string = base64.b64encode(html_bytes)
-        return Response(b64_string, status=status.HTTP_200_OK)
 
     @action(
         detail=False,
