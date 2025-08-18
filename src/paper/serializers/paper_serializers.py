@@ -385,7 +385,6 @@ class PaperSerializer(BasePaperSerializer):
             "file_created_location",
             "id",
             "is_open_access",
-            "is_removed_by_user",
             "is_removed",
             "oa_pdf_location",
             "pdf_file_extract",

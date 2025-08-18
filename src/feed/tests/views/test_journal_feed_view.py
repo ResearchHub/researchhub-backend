@@ -50,7 +50,6 @@ class JournalFeedViewSetTests(TestCase):
             uploaded_by=self.user,
             is_public=True,
             is_removed=False,
-            is_removed_by_user=False,
             unified_document=self.preprint_unified_document,
             created_date=timezone.now(),
         )
@@ -74,7 +73,6 @@ class JournalFeedViewSetTests(TestCase):
             uploaded_by=self.user,
             is_public=True,
             is_removed=False,
-            is_removed_by_user=False,
             unified_document=self.published_unified_document,
             created_date=timezone.now(),
         )
@@ -97,7 +95,6 @@ class JournalFeedViewSetTests(TestCase):
             uploaded_by=self.user,
             is_public=True,
             is_removed=False,
-            is_removed_by_user=False,
             unified_document=self.non_journal_unified_document,
             created_date=timezone.now(),
         )
@@ -120,7 +117,6 @@ class JournalFeedViewSetTests(TestCase):
             uploaded_by=self.user,
             is_public=True,
             is_removed=True,
-            is_removed_by_user=False,
             unified_document=self.removed_unified_document,
             created_date=timezone.now(),
         )
@@ -231,7 +227,6 @@ class JournalFeedViewSetTests(TestCase):
             uploaded_by=self.user,
             is_public=True,
             is_removed=False,
-            is_removed_by_user=False,
             unified_document=published_non_journal_unified_document,
             created_date=timezone.now(),
         )
@@ -428,7 +423,6 @@ class JournalFeedViewSetTests(TestCase):
                 uploaded_by=self.user,
                 is_public=True,
                 is_removed=False,
-                is_removed_by_user=False,
                 unified_document=unified_doc,
                 created_date=timezone.now(),
             )
@@ -476,7 +470,6 @@ class JournalFeedViewSetTests(TestCase):
             uploaded_by=self.user,
             is_public=True,
             is_removed=False,
-            is_removed_by_user=False,
             unified_document=oldest_unified_document,
             created_date=timezone.now() - timedelta(days=2),
         )
@@ -500,7 +493,6 @@ class JournalFeedViewSetTests(TestCase):
             uploaded_by=self.user,
             is_public=True,
             is_removed=False,
-            is_removed_by_user=False,
             unified_document=middle_unified_document,
             created_date=timezone.now() - timedelta(days=1),
         )
@@ -524,7 +516,6 @@ class JournalFeedViewSetTests(TestCase):
             uploaded_by=self.user,
             is_public=True,
             is_removed=False,
-            is_removed_by_user=False,
             unified_document=newest_unified_document,
             created_date=timezone.now(),
         )
