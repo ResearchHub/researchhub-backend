@@ -96,13 +96,6 @@ class Paper(AbstractGenericReactionModel):
         blank=True,
         validators=[FileExtensionValidator(["pdf"])],
     )
-    pdf_file_extract = models.FileField(
-        max_length=512,
-        upload_to="uploads/papers/%Y/%m/%d/pdf_extract",
-        default=None,
-        null=True,
-        blank=True,
-    )
     file_created_location = models.CharField(
         choices=CREATED_LOCATION_CHOICES,
         max_length=255,
