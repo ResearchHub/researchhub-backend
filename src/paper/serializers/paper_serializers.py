@@ -380,7 +380,6 @@ class PaperSerializer(BasePaperSerializer):
             "completeness",
             "csl_item",
             "discussion_count",
-            "edited_file_extract",
             "external_source",
             "file_created_location",
             "id",

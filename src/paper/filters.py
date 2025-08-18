@@ -16,7 +16,6 @@ class PaperFilter(filters.FilterSet):
         exclude = [
             "abstract_src",
             "csl_item",
-            "edited_file_extract",
             "external_metadata",
             "file",
             "oa_pdf_location",

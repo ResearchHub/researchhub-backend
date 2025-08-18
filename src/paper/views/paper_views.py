@@ -1,5 +1,4 @@
 import base64
-import json
 from urllib.parse import urlparse
 
 import requests
@@ -1120,7 +1119,6 @@ class PaperViewSet(
     def pdf_extract(self, request, pk=None):
         paper = Paper.objects.get(id=pk)
         pdf_file = paper.pdf_file_extract
-        edited_file = paper.edited_file_extract
 
         external_source = paper.external_source
         if external_source and external_source.lower() == "arxiv":
@@ -1129,23 +1127,9 @@ class PaperViewSet(
         if not pdf_file.name:
             return Response(status=status.HTTP_404_NOT_FOUND)
 
-        if edited_file.name:
-            edited_json = json.loads(edited_file.read())
-            return Response(edited_json, status=status.HTTP_200_OK)
-
         html_bytes = paper.pdf_file_extract.read()
         b64_string = base64.b64encode(html_bytes)
         return Response(b64_string, status=status.HTTP_200_OK)
-
-    @action(detail=True, methods=["post"], permission_classes=[AllowAny])
-    def edit_file_extract(self, request, pk=None):
-        paper = self.get_object()
-        data = request.data
-        filename = f"{paper.id}.json"
-        paper.edited_file_extract.save(
-            filename, ContentFile(json.dumps(data).encode("utf8"))
-        )
-        return Response(status=status.HTTP_200_OK)
 
     @action(
         detail=False,
