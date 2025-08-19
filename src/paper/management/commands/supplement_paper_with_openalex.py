@@ -53,9 +53,6 @@ class Command(BaseCommand):
                         data.get("paper_publish_date")
                     ).date()
                     needs_update = True
-                if data.get("alternate_ids") and not paper.alternate_ids:
-                    paper.alternate_ids = data.get("alternate_ids")
-                    needs_update = True
 
                 # If this paper needs an update, add it to the list
                 if needs_update:
@@ -72,7 +69,6 @@ class Command(BaseCommand):
                             "is_open_access",
                             "open_alex_raw_json",
                             "paper_publish_date",
-                            "alternate_ids",
                         ],
                     )
                     total_papers_updated += len(updated_papers)
@@ -91,7 +87,6 @@ class Command(BaseCommand):
                     "is_open_access",
                     "open_alex_raw_json",
                     "paper_publish_date",
-                    "alternate_ids",
                 ],
             )
             total_papers_updated += len(updated_papers)
