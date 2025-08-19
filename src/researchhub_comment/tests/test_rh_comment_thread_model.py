@@ -5,7 +5,9 @@ from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
 from paper.models import Paper  # Assuming Paper is a valid target content model
+from reputation.models import Bounty, Escrow
 from researchhub_comment.constants.rh_comment_thread_types import (
+    COMMUNITY_REVIEW,
     GENERIC_COMMENT,
     PEER_REVIEW,
     SUMMARY,
@@ -14,6 +16,7 @@ from researchhub_comment.models import RhCommentModel
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
+from researchhub_document.models import ResearchhubUnifiedDocument
 
 User = get_user_model()
 
@@ -106,3 +109,262 @@ class TestRhCommentThreadModel(TestCase):
         self.assertEqual(
             aggregates["review_count"], 0
         )  # Only the reply in review thread
+
+    def test_get_discussion_aggregates_with_bounty_count(self):
+        """Test that bounty_count correctly counts comments with bounties"""
+        # Create unified document for bounty
+        unified_document = ResearchhubUnifiedDocument.objects.create()
+        self.paper.unified_document = unified_document
+        self.paper.save()
+
+        # Create escrow for bounty (using Paper as the item)
+        escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.BOUNTY,
+            amount_holding=300,
+            object_id=self.paper.id,
+            content_type=self.content_type,
+        )
+
+        # Create comments
+        comment1 = RhCommentModel.objects.create(
+            thread=self.generic_thread,
+            comment_content_json={"ops": [{"insert": "Comment with bounty"}]},
+            comment_type=GENERIC_COMMENT,
+            created_by=self.user,
+        )
+        comment2 = RhCommentModel.objects.create(
+            thread=self.generic_thread,
+            comment_content_json={"ops": [{"insert": "Another comment with bounty"}]},
+            comment_type=GENERIC_COMMENT,
+            created_by=self.user,
+        )
+        RhCommentModel.objects.create(
+            thread=self.generic_thread,
+            comment_content_json={"ops": [{"insert": "Comment without bounty"}]},
+            comment_type=GENERIC_COMMENT,
+            created_by=self.user,
+        )
+
+        # Create bounties for first two comments
+        Bounty.objects.create(
+            created_by=self.user,
+            escrow=escrow,
+            item=comment1,
+            unified_document=unified_document,
+            amount=100,
+        )
+        Bounty.objects.create(
+            created_by=self.user,
+            escrow=escrow,
+            item=comment2,
+            unified_document=unified_document,
+            amount=200,
+        )
+
+        # Get aggregates
+        aggregates = RhCommentThreadModel.objects.get_discussion_aggregates(self.paper)
+
+        # Assert bounty_count is 2
+        self.assertEqual(aggregates["bounty_count"], 2)
+        # Assert conversation_count is 1 (only comment3 without bounty)
+        self.assertEqual(aggregates["conversation_count"], 1)
+
+    def test_get_discussion_aggregates_conversation_count(self):
+        """Test conversation_count correctly counts generic comments without bounties"""
+        # Create various comment types
+        RhCommentModel.objects.create(
+            thread=self.generic_thread,
+            comment_content_json={"ops": [{"insert": "Generic comment 1"}]},
+            comment_type=GENERIC_COMMENT,
+            created_by=self.user,
+        )
+        RhCommentModel.objects.create(
+            thread=self.generic_thread,
+            comment_content_json={"ops": [{"insert": "Generic comment 2"}]},
+            comment_type=GENERIC_COMMENT,
+            created_by=self.user,
+        )
+        # Create a peer review comment (should not be counted as conversation)
+        RhCommentModel.objects.create(
+            thread=self.review_thread,
+            comment_content_json={"ops": [{"insert": "Peer review comment"}]},
+            comment_type=PEER_REVIEW,
+            created_by=self.user,
+        )
+        # Create a community review comment (should not be counted as conversation)
+        RhCommentModel.objects.create(
+            thread=self.review_thread,
+            comment_content_json={"ops": [{"insert": "Community review comment"}]},
+            comment_type=COMMUNITY_REVIEW,
+            created_by=self.user,
+        )
+
+        # Get aggregates
+        aggregates = RhCommentThreadModel.objects.get_discussion_aggregates(self.paper)
+
+        # Assert conversation_count is 2 (only generic comments)
+        self.assertEqual(aggregates["conversation_count"], 2)
+        # Assert review_count is 2 (peer and community review)
+        self.assertEqual(aggregates["review_count"], 2)
+        # Assert bounty_count is 0
+        self.assertEqual(aggregates["bounty_count"], 0)
+
+    def test_get_discussion_aggregates_removed_comments(self):
+        """Test that removed comments are not counted in any aggregate"""
+        # Create unified document for bounty
+        unified_document = ResearchhubUnifiedDocument.objects.create()
+        self.paper.unified_document = unified_document
+        self.paper.save()
+
+        # Create escrow for bounty (using Paper as the item)
+        escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.BOUNTY,
+            amount_holding=300,
+            object_id=self.paper.id,
+            content_type=self.content_type,
+        )
+
+        # Create comments - some removed
+        comment_with_bounty = RhCommentModel.objects.create(
+            thread=self.generic_thread,
+            comment_content_json={"ops": [{"insert": "Comment with bounty"}]},
+            comment_type=GENERIC_COMMENT,
+            created_by=self.user,
+            is_removed=False,
+        )
+        removed_comment_with_bounty = RhCommentModel.objects.create(
+            thread=self.generic_thread,
+            comment_content_json={"ops": [{"insert": "Removed comment with bounty"}]},
+            comment_type=GENERIC_COMMENT,
+            created_by=self.user,
+            is_removed=True,
+        )
+        RhCommentModel.objects.create(
+            thread=self.generic_thread,
+            comment_content_json={"ops": [{"insert": "Generic comment"}]},
+            comment_type=GENERIC_COMMENT,
+            created_by=self.user,
+            is_removed=False,
+        )
+        RhCommentModel.objects.create(
+            thread=self.generic_thread,
+            comment_content_json={"ops": [{"insert": "Removed generic comment"}]},
+            comment_type=GENERIC_COMMENT,
+            created_by=self.user,
+            is_removed=True,
+        )
+        RhCommentModel.objects.create(
+            thread=self.review_thread,
+            comment_content_json={"ops": [{"insert": "Review comment"}]},
+            comment_type=PEER_REVIEW,
+            created_by=self.user,
+            is_removed=False,
+        )
+        RhCommentModel.objects.create(
+            thread=self.review_thread,
+            comment_content_json={"ops": [{"insert": "Removed review comment"}]},
+            comment_type=PEER_REVIEW,
+            created_by=self.user,
+            is_removed=True,
+        )
+
+        # Create bounties
+        Bounty.objects.create(
+            created_by=self.user,
+            escrow=escrow,
+            item=comment_with_bounty,
+            unified_document=unified_document,
+            amount=100,
+        )
+        Bounty.objects.create(
+            created_by=self.user,
+            escrow=escrow,
+            item=removed_comment_with_bounty,
+            unified_document=unified_document,
+            amount=200,
+        )
+
+        # Get aggregates
+        aggregates = RhCommentThreadModel.objects.get_discussion_aggregates(self.paper)
+
+        # Assert only non-removed comments are counted
+        self.assertEqual(
+            aggregates["bounty_count"], 1
+        )  # Only non-removed bounty comment
+        self.assertEqual(
+            aggregates["conversation_count"], 1
+        )  # Only non-removed generic comment
+        self.assertEqual(
+            aggregates["review_count"], 1
+        )  # Only non-removed review comment
+
+    def test_get_discussion_aggregates_mixed_scenario(self):
+        """Test aggregates with a mix of comments, bounties, and reviews"""
+        # Create unified document for bounty
+        unified_document = ResearchhubUnifiedDocument.objects.create()
+        self.paper.unified_document = unified_document
+        self.paper.save()
+
+        # Create escrow for bounty (using Paper as the item)
+        escrow = Escrow.objects.create(
+            created_by=self.user,
+            hold_type=Escrow.BOUNTY,
+            amount_holding=1000,
+            object_id=self.paper.id,
+            content_type=self.content_type,
+        )
+
+        # Create various comments
+        # Generic comments with bounties
+        for i in range(3):
+            comment = RhCommentModel.objects.create(
+                thread=self.generic_thread,
+                comment_content_json={"ops": [{"insert": f"Bounty comment {i}"}]},
+                comment_type=GENERIC_COMMENT,
+                created_by=self.user,
+            )
+            Bounty.objects.create(
+                created_by=self.user,
+                escrow=escrow,
+                item=comment,
+                unified_document=unified_document,
+                amount=100 * (i + 1),
+            )
+
+        # Generic comments without bounties
+        for i in range(5):
+            RhCommentModel.objects.create(
+                thread=self.generic_thread,
+                comment_content_json={"ops": [{"insert": f"Generic comment {i}"}]},
+                comment_type=GENERIC_COMMENT,
+                created_by=self.user,
+            )
+
+        # Review comments (no bounties on these)
+        for i in range(2):
+            RhCommentModel.objects.create(
+                thread=self.review_thread,
+                comment_content_json={"ops": [{"insert": f"Peer review {i}"}]},
+                comment_type=PEER_REVIEW,
+                created_by=self.user,
+            )
+
+        for i in range(3):
+            RhCommentModel.objects.create(
+                thread=self.review_thread,
+                comment_content_json={"ops": [{"insert": f"Community review {i}"}]},
+                comment_type=COMMUNITY_REVIEW,
+                created_by=self.user,
+            )
+
+        # Get aggregates
+        aggregates = RhCommentThreadModel.objects.get_discussion_aggregates(self.paper)
+
+        # Assert counts
+        self.assertEqual(aggregates["bounty_count"], 3)  # 3 comments with bounties
+        self.assertEqual(
+            aggregates["conversation_count"], 5
+        )  # 5 generic comments without bounties
+        self.assertEqual(aggregates["review_count"], 5)  # 2 peer + 3 community reviews

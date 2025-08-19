@@ -39,15 +39,32 @@ class RhCommentThreadQuerySet(models.QuerySet):
         Example aggregator, adapted from your code.
         Note: self.exclude(...) etc. uses the QuerySet instead of Manager.
         """
-        # Review comments should ignore those with bounties. Start from a
-        # queryset that excludes comments carrying bounties.
-        review_qs = self.exclude(rh_comments__bounties__isnull=False)
-
-        aggregator = review_qs.aggregate(
+        # Single aggregate query for all counts
+        aggregator = self.aggregate(
+            # Review count - reviews without bounties
             review_count=Count(
                 "rh_comments",
                 filter=Q(
                     rh_comments__comment_type__in=[PEER_REVIEW, COMMUNITY_REVIEW],
+                    rh_comments__bounties__isnull=True,
+                    rh_comments__is_removed=False,
+                ),
+            ),
+            # Bounty count - count all comments with bounties attached
+            bounty_count=Count(
+                "rh_comments__bounties",
+                distinct=True,
+                filter=Q(
+                    rh_comments__bounties__isnull=False,
+                    rh_comments__is_removed=False,
+                ),
+            ),
+            # Conversation count - generic comments without bounties
+            conversation_count=Count(
+                "rh_comments",
+                filter=Q(
+                    rh_comments__comment_type=GENERIC_COMMENT,
+                    rh_comments__bounties__isnull=True,
                     rh_comments__is_removed=False,
                 ),
             ),
