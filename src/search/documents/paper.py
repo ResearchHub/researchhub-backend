@@ -7,7 +7,6 @@ from django_opensearch_dsl.registries import registry
 from paper.models import Paper
 from paper.utils import format_raw_authors, pdf_copyright_allows_display
 from search.analyzers import content_analyzer, title_analyzer
-from utils import sentry
 from utils.doi import DOI
 
 from .base import BaseDocument

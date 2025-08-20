@@ -6,7 +6,6 @@ from django_opensearch_dsl.registries import registry
 
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from search.analyzers import content_analyzer, title_analyzer
-from utils import sentry
 
 from .base import BaseDocument
 
