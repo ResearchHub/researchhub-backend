@@ -41,31 +41,34 @@ class RhCommentThreadQuerySet(models.QuerySet):
         """
         # Single aggregate query for all counts
         aggregator = self.aggregate(
-            # Review count - reviews without bounties
+            # Review count - reviews without bounties (top-level only)
             review_count=Count(
                 "rh_comments",
                 filter=Q(
                     rh_comments__comment_type__in=[PEER_REVIEW, COMMUNITY_REVIEW],
                     rh_comments__bounties__isnull=True,
                     rh_comments__is_removed=False,
+                    rh_comments__parent__isnull=True,  # Only count top-level comments
                 ),
             ),
-            # Bounty count - count all comments with bounties attached
+            # Bounty count - count all comments with bounties attached (top-level only)
             bounty_count=Count(
                 "rh_comments__bounties",
                 distinct=True,
                 filter=Q(
                     rh_comments__bounties__isnull=False,
                     rh_comments__is_removed=False,
+                    rh_comments__parent__isnull=True,  # Only count top-level comments
                 ),
             ),
-            # Conversation count - generic comments without bounties
+            # Conversation count - generic comments without bounties (top-level only)
             conversation_count=Count(
                 "rh_comments",
                 filter=Q(
                     rh_comments__comment_type=GENERIC_COMMENT,
                     rh_comments__bounties__isnull=True,
                     rh_comments__is_removed=False,
+                    rh_comments__parent__isnull=True,  # Only count top-level comments
                 ),
             ),
         )

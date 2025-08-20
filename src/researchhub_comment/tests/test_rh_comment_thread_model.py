@@ -121,12 +121,12 @@ class TestRhCommentThreadModel(TestCase):
         escrow = Escrow.objects.create(
             created_by=self.user,
             hold_type=Escrow.BOUNTY,
-            amount_holding=300,
+            amount_holding=500,
             object_id=self.paper.id,
             content_type=self.content_type,
         )
 
-        # Create comments
+        # Create top-level comments
         comment1 = RhCommentModel.objects.create(
             thread=self.generic_thread,
             comment_content_json={"ops": [{"insert": "Comment with bounty"}]},
@@ -139,14 +139,23 @@ class TestRhCommentThreadModel(TestCase):
             comment_type=GENERIC_COMMENT,
             created_by=self.user,
         )
-        RhCommentModel.objects.create(
+        comment3 = RhCommentModel.objects.create(
             thread=self.generic_thread,
             comment_content_json={"ops": [{"insert": "Comment without bounty"}]},
             comment_type=GENERIC_COMMENT,
             created_by=self.user,
         )
 
-        # Create bounties for first two comments
+        # Create nested comment with bounty (should NOT be counted)
+        nested_comment = RhCommentModel.objects.create(
+            thread=self.generic_thread,
+            comment_content_json={"ops": [{"insert": "Nested comment with bounty"}]},
+            comment_type=GENERIC_COMMENT,
+            created_by=self.user,
+            parent=comment1,  # This is nested under comment1
+        )
+
+        # Create bounties for first two top-level comments
         Bounty.objects.create(
             created_by=self.user,
             escrow=escrow,
@@ -162,50 +171,90 @@ class TestRhCommentThreadModel(TestCase):
             amount=200,
         )
 
+        # Create bounty for nested comment (should NOT be counted)
+        Bounty.objects.create(
+            created_by=self.user,
+            escrow=escrow,
+            item=nested_comment,
+            unified_document=unified_document,
+            amount=150,
+        )
+
         # Get aggregates
         aggregates = RhCommentThreadModel.objects.get_discussion_aggregates(self.paper)
 
-        # Assert bounty_count is 2
+        # Assert bounty_count is 2 (only top-level comments with bounties)
         self.assertEqual(aggregates["bounty_count"], 2)
-        # Assert conversation_count is 1 (only comment3 without bounty)
+        # Assert conversation_count is 1 (only comment3 without bounty at top-level)
         self.assertEqual(aggregates["conversation_count"], 1)
 
     def test_get_discussion_aggregates_conversation_count(self):
         """Test conversation_count correctly counts generic comments without bounties"""
-        # Create various comment types
-        RhCommentModel.objects.create(
+        # Create various comment types (top-level)
+        generic1 = RhCommentModel.objects.create(
             thread=self.generic_thread,
             comment_content_json={"ops": [{"insert": "Generic comment 1"}]},
             comment_type=GENERIC_COMMENT,
             created_by=self.user,
         )
-        RhCommentModel.objects.create(
+        generic2 = RhCommentModel.objects.create(
             thread=self.generic_thread,
             comment_content_json={"ops": [{"insert": "Generic comment 2"}]},
             comment_type=GENERIC_COMMENT,
             created_by=self.user,
         )
-        # Create a peer review comment (should not be counted as conversation)
+        # Create nested generic comments (should NOT be counted in conversation_count)
         RhCommentModel.objects.create(
+            thread=self.generic_thread,
+            comment_content_json={"ops": [{"insert": "Nested reply to generic 1"}]},
+            comment_type=GENERIC_COMMENT,
+            created_by=self.user,
+            parent=generic1,  # This is nested
+        )
+        RhCommentModel.objects.create(
+            thread=self.generic_thread,
+            comment_content_json={"ops": [{"insert": "Nested reply to generic 2"}]},
+            comment_type=GENERIC_COMMENT,
+            created_by=self.user,
+            parent=generic2,  # This is nested
+        )
+
+        # Create a peer review comment (should not be counted as conversation)
+        peer_review = RhCommentModel.objects.create(
             thread=self.review_thread,
             comment_content_json={"ops": [{"insert": "Peer review comment"}]},
             comment_type=PEER_REVIEW,
             created_by=self.user,
         )
         # Create a community review comment (should not be counted as conversation)
-        RhCommentModel.objects.create(
+        community_review = RhCommentModel.objects.create(
             thread=self.review_thread,
             comment_content_json={"ops": [{"insert": "Community review comment"}]},
             comment_type=COMMUNITY_REVIEW,
             created_by=self.user,
         )
+        # Create nested review comments (should NOT be counted in review_count)
+        RhCommentModel.objects.create(
+            thread=self.review_thread,
+            comment_content_json={"ops": [{"insert": "Reply to peer review"}]},
+            comment_type=PEER_REVIEW,
+            created_by=self.user,
+            parent=peer_review,  # This is nested
+        )
+        RhCommentModel.objects.create(
+            thread=self.review_thread,
+            comment_content_json={"ops": [{"insert": "Reply to community review"}]},
+            comment_type=COMMUNITY_REVIEW,
+            created_by=self.user,
+            parent=community_review,  # This is nested
+        )
 
         # Get aggregates
         aggregates = RhCommentThreadModel.objects.get_discussion_aggregates(self.paper)
 
-        # Assert conversation_count is 2 (only generic comments)
+        # Assert conversation_count is 2 (only top-level generic comments)
         self.assertEqual(aggregates["conversation_count"], 2)
-        # Assert review_count is 2 (peer and community review)
+        # Assert review_count is 2 (only top-level review comments)
         self.assertEqual(aggregates["review_count"], 2)
         # Assert bounty_count is 0
         self.assertEqual(aggregates["bounty_count"], 0)
