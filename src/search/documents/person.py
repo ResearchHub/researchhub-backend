@@ -53,15 +53,17 @@ class PersonDocument(BaseDocument):
 
     def prepare_reputation_hubs(self, instance):
         reputation_hubs = []
-        for rep in instance.reputation_list:
-            reputation_hubs.append(rep["hub"]["name"])
+        if instance.reputation_list:
+            for rep in instance.reputation_list:
+                reputation_hubs.append(rep["hub"]["name"])
 
         return reputation_hubs
 
     def prepare_education(self, instance):
         education = []
-        for edu in instance.education:
-            education.append(edu["name"])
+        if instance.education:
+            for edu in instance.education:
+                education.append(edu["name"])
 
         return education
 
