@@ -385,7 +385,6 @@ class PaperSerializer(BasePaperSerializer):
             "id",
             "is_open_access",
             "is_removed",
-            "oa_pdf_location",
             "pdf_license_url",
             "retrieved_from_external_source",
             "score",

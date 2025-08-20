@@ -18,7 +18,6 @@ class PaperFilter(filters.FilterSet):
             "csl_item",
             "external_metadata",
             "file",
-            "oa_pdf_location",
             "raw_authors",
             "open_alex_raw_json",
         ]
