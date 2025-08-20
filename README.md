@@ -28,7 +28,7 @@ We believe that by empowering scientists to independently fund, create, and publ
 
 # Installation
 
-There are two different methods for running this project: [Dev Containers with VSCode](#dev-containers-and-vscode) and [a native installation](#native-install-slower-recommended-for-development).
+The current recommended way to run this project is with [Dev Containers and VSCode](#dev-containers-and-vscode).
 
 ## Dev Containers and VSCode
 
