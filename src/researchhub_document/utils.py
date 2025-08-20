@@ -1,23 +1,5 @@
 from datetime import datetime, timedelta
 
-from researchhub_document.related_models.constants.document_type import (
-    ALL,
-    BOUNTY,
-    GRANT,
-    PAPER,
-    POSTS,
-    PREREGISTRATION,
-    QUESTION,
-)
-from researchhub_document.related_models.constants.filters import (
-    DISCUSSED,
-    EXPIRING_SOON,
-    HOT,
-    MOST_RSC,
-    NEW,
-    UPVOTED,
-)
-from researchhub_document.tasks import preload_trending_documents
 from utils.sentry import log_error
 
 CACHE_DATE_RANGES = ("today", "week", "month", "year", "all")
@@ -55,50 +37,6 @@ def get_date_ranges_by_time_scope(time_scope):
         start_date = datetime.now() - timedelta(hours=(24 + hours_buffer))
 
     return (start_date, end_date)
-
-
-def _should_cache(doc_type, flt, time_scope):
-    if doc_type != BOUNTY.lower() and (flt == MOST_RSC or flt == EXPIRING_SOON):
-        return False
-    if time_scope != "today" and (
-        flt == HOT or flt == MOST_RSC or flt == EXPIRING_SOON
-    ):
-        return False
-    if time_scope != "all" and flt == NEW:
-        return False
-    return True
-
-
-def reset_unified_document_cache(
-    document_type=[
-        ALL.lower(),
-        POSTS.lower(),
-        PREREGISTRATION.lower(),
-        PAPER.lower(),
-        QUESTION.lower(),
-        BOUNTY.lower(),
-        GRANT.lower(),
-    ],
-    filters=[DISCUSSED, HOT, NEW, UPVOTED, EXPIRING_SOON, MOST_RSC],
-    date_ranges=CACHE_DATE_RANGES,
-    hub_id=0,  # Main feed
-):
-    for doc_type in document_type:
-        for f in filters:
-            for time_scope in date_ranges:
-                if not _should_cache(doc_type, f, time_scope):
-                    continue
-
-                preload_trending_documents.apply_async(
-                    (
-                        doc_type,
-                        hub_id,
-                        f,
-                        time_scope,
-                    ),
-                    priority=1,
-                    countdown=3,
-                )
 
 
 def update_unified_document_to_paper(paper):
