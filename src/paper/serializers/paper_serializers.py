@@ -397,7 +397,6 @@ class PaperSerializer(BasePaperSerializer):
             "unified_document",
             "user_flag",
             "user_vote",
-            "views",
             "version",
             "version_list",
         ]
