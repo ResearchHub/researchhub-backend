@@ -290,24 +290,6 @@ class Paper(AbstractGenericReactionModel):
         return users
 
     @property
-    def raw_authors_indexing(self):
-        authors = []
-        if isinstance(self.raw_authors, list) is False:
-            return authors
-
-        for author in self.raw_authors:
-            if isinstance(author, dict):
-                authors.append(
-                    {
-                        "first_name": author.get("first_name"),
-                        "last_name": author.get("last_name"),
-                        "full_name": f'{author.get("first_name")} {author.get("last_name")}',
-                    }
-                )
-
-        return authors
-
-    @property
     def authors_indexing(self):
         return [parse_author_name(author) for author in self.authors.all()]
 
@@ -338,10 +320,6 @@ class Paper(AbstractGenericReactionModel):
     @property
     def abstract_indexing(self):
         return self.abstract if self.abstract else ""
-
-    @property
-    def doi_indexing(self):
-        return self.doi or ""
 
     @property
     def hot_score(self):

@@ -21,14 +21,11 @@ class PaperDocument(BaseDocument):
 
     citations = es_fields.IntegerField()
     paper_title = es_fields.TextField(analyzer=title_analyzer)
-    paper_publish_date = es_fields.DateField(
-        attr="paper_publish_date", format="yyyy-MM-dd"
-    )
-    doi = es_fields.TextField(attr="doi_indexing", analyzer="keyword")
-    openalex_id = es_fields.TextField(attr="openalex_id")
+    paper_publish_date = es_fields.DateField(format="yyyy-MM-dd")
+    doi = es_fields.TextField(analyzer="keyword")
+    openalex_id = es_fields.TextField()
     # TODO: Deprecate this field once we move over to new app. It should not longer be necessary since authors property will replace it.
     raw_authors = es_fields.ObjectField(
-        attr="raw_authors_indexing",
         properties={
             "first_name": es_fields.TextField(),
             "last_name": es_fields.TextField(),
@@ -136,3 +133,23 @@ class PaperDocument(BaseDocument):
             "input": strings_only,  # Dedupe using set
             "weight": weight,
         }
+
+    def prepare_raw_authors(self, instance):
+        authors = []
+        if isinstance(instance.raw_authors, list) is False:
+            return authors
+
+        for author in instance.raw_authors:
+            if isinstance(author, dict):
+                authors.append(
+                    {
+                        "first_name": author.get("first_name"),
+                        "last_name": author.get("last_name"),
+                        "full_name": f'{author.get("first_name")} {author.get("last_name")}',
+                    }
+                )
+
+        return authors
+
+    def prepare_doi_indexing(self, instance):
+        return instance.doi or ""
