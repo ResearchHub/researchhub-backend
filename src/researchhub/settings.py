@@ -634,6 +634,7 @@ OPENSEARCH_HOST = os.environ.get("OPENSEARCH_HOST", keys.OPENSEARCH_HOST)
 OPENSEARCH_DSL = {
     "default": {
         "hosts": OPENSEARCH_HOST if OPENSEARCH_HOST else "http://localhost:9200",
+        "pool_maxsize": 20,
         "timeout": 30,
     },
 }
@@ -645,6 +646,7 @@ if PRODUCTION:
             "port": 443,
             "use_ssl": True,
             "max_retries": 5,
+            "pool_maxsize": 20,
         },
     }
 
@@ -655,6 +657,7 @@ if STAGING:
             "port": 443,
             "use_ssl": True,
             "max_retries": 5,
+            "pool_maxsize": 20,
         },
     }
 
