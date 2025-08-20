@@ -185,12 +185,6 @@ class Paper(AbstractGenericReactionModel):
         help_text="bibliographic metadata as a single "
         "Citation Styles Language JSON item.",
     )
-    oa_pdf_location = JSONField(
-        default=None,
-        null=True,
-        blank=True,
-        help_text="PDF availability in Unpaywall OA Location format.",
-    )
     external_metadata = JSONField(null=True, blank=True)
 
     purchases = GenericRelation(
