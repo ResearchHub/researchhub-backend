@@ -41,7 +41,7 @@ jobs:
         ports:
           - 6379:6379
       opensearch:
-        image: opensearchproject/opensearch:3.1.0
+        image: opensearchproject/opensearch:2.19.3
         env:
           discovery.type: single-node
           DISABLE_SECURITY_PLUGIN: "true"
