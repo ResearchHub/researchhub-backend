@@ -245,14 +245,6 @@ class Command(BaseCommand):
                     comment.parent = None  # Make it a top-level comment
                     comment.save()
 
-                    # Update the review_review table to point to the new thread
-                    # The review should point to the new thread, not the comment
-                    review.content_type = ContentType.objects.get_for_model(
-                        RhCommentThreadModel
-                    )
-                    review.object_id = new_thread.id
-                    review.save()
-
                     migrated_count += 1
 
                     self.stdout.write(
