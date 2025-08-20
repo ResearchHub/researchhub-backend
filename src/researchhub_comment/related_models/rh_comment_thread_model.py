@@ -66,19 +66,11 @@ class RhCommentThreadQuerySet(models.QuerySet):
                     rh_comments__parent__isnull=True,  # Only count top-level comments
                 ),
             ),
-            # Conversation count - generic comments without bounties (top-level only)
-            conversation_count=Count(
-                "rh_comments",
-                filter=Q(
-                    rh_comments__comment_type=GENERIC_COMMENT,
-                    rh_comments__bounties__isnull=True,
-                    rh_comments__is_removed=False,
-                    rh_comments__parent__isnull=True,  # Only count top-level comments
-                ),
-            ),
         )
 
+        # Keep discussion_count for backwards compatibility
         aggregator["discussion_count"] = item.discussion_count
+        aggregator["conversation_count"] = item.discussion_count
         return aggregator
 
 

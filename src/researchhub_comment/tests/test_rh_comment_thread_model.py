@@ -180,12 +180,18 @@ class TestRhCommentThreadModel(TestCase):
             amount=150,
         )
 
+        # Refresh discussion count to update the stored value
+        comment1.refresh_related_discussion_count()
+        self.paper.refresh_from_db()
+
         # Get aggregates
         aggregates = RhCommentThreadModel.objects.get_discussion_aggregates(self.paper)
 
         # Assert bounty_count is 2 (only top-level comments with bounties)
         self.assertEqual(aggregates["bounty_count"], 2)
-        # Assert conversation_count is 1 (only comment3 without bounty at top-level)
+        # Assert conversation_count now uses discussion_count (only non-bounty GENERIC_COMMENT)
+        # comment1 and comment2 have bounties, comment3 doesn't, nested_comment has bounty
+        # So only comment3 and its non-bounty children count = 1
         self.assertEqual(aggregates["conversation_count"], 1)
 
     def test_get_discussion_aggregates_conversation_count(self):
@@ -249,11 +255,15 @@ class TestRhCommentThreadModel(TestCase):
             parent=community_review,  # This is nested
         )
 
+        # Refresh discussion count to update the stored value
+        generic1.refresh_related_discussion_count()
+        self.paper.refresh_from_db()
+
         # Get aggregates
         aggregates = RhCommentThreadModel.objects.get_discussion_aggregates(self.paper)
 
-        # Assert conversation_count is 2 (only top-level generic comments)
-        self.assertEqual(aggregates["conversation_count"], 2)
+        # Assert conversation_count now uses discussion_count (all GENERIC_COMMENT in generic threads)
+        self.assertEqual(aggregates["conversation_count"], 4)
         # Assert review_count is 2 (only top-level review comments)
         self.assertEqual(aggregates["review_count"], 2)
         # Assert bounty_count is 0
@@ -335,6 +345,10 @@ class TestRhCommentThreadModel(TestCase):
             amount=200,
         )
 
+        # Refresh discussion count to update the stored value
+        comment_with_bounty.refresh_related_discussion_count()
+        self.paper.refresh_from_db()
+
         # Get aggregates
         aggregates = RhCommentThreadModel.objects.get_discussion_aggregates(self.paper)
 
@@ -342,9 +356,12 @@ class TestRhCommentThreadModel(TestCase):
         self.assertEqual(
             aggregates["bounty_count"], 1
         )  # Only non-removed bounty comment
+        # conversation_count uses discussion_count which excludes bounty comments
+        # comment_with_bounty has bounty (excluded), removed_comment_with_bounty (excluded),
+        # 1 generic without bounty (counted), 1 removed generic (excluded)
         self.assertEqual(
             aggregates["conversation_count"], 1
-        )  # Only non-removed generic comment
+        )  # Only non-removed, non-bounty GENERIC_COMMENT
         self.assertEqual(
             aggregates["review_count"], 1
         )  # Only non-removed review comment
@@ -408,12 +425,23 @@ class TestRhCommentThreadModel(TestCase):
                 created_by=self.user,
             )
 
+        # Refresh discussion count to update the stored value
+        # Get the first comment to refresh from
+        first_comment = RhCommentModel.objects.filter(
+            thread=self.generic_thread
+        ).first()
+        if first_comment:
+            first_comment.refresh_related_discussion_count()
+        self.paper.refresh_from_db()
+
         # Get aggregates
         aggregates = RhCommentThreadModel.objects.get_discussion_aggregates(self.paper)
 
         # Assert counts
         self.assertEqual(aggregates["bounty_count"], 3)  # 3 comments with bounties
+        # conversation_count uses discussion_count which excludes bounty comments
+        # 3 comments have bounties (excluded), 5 generic comments without bounties (counted)
         self.assertEqual(
             aggregates["conversation_count"], 5
-        )  # 5 generic comments without bounties
+        )  # Only non-bounty GENERIC_COMMENT in generic thread
         self.assertEqual(aggregates["review_count"], 5)  # 2 peer + 3 community reviews
