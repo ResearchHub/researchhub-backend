@@ -14,6 +14,7 @@
                 "USE_DEBUG_TOOLBAR": "True"
             },
             "django": true,
+            "python": "${workspaceFolder}/.venv/bin/python",
             "autoStartBrowser": false
         },
         {
@@ -28,7 +29,8 @@
                 "${fileDirname}",
                 "--keepdb"
             ],
-            "django": true
+            "django": true,
+            "python": "${workspaceFolder}/.venv/bin/python"
         },
     ]
 }
