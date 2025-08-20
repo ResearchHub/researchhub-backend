@@ -1,5 +1,6 @@
 import logging
 import re
+from typing import override
 
 from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
@@ -49,6 +50,7 @@ class HubDocument(BaseDocument):
             "discussion_count",
         ]
 
+    @override
     def get_queryset(self, filter_=None, exclude=None, count=None):
         return (
             super()
@@ -68,5 +70,6 @@ class HubDocument(BaseDocument):
             "weight": max(weight, 1),
         }
 
-    def should_index_object(self, obj):
+    @override
+    def should_index_object(self, obj):  # type: ignore[override]
         return not obj.is_removed

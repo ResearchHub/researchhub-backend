@@ -1,5 +1,6 @@
 import logging
 import math
+from typing import override
 
 from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
@@ -103,5 +104,6 @@ class PostDocument(BaseDocument):
             "weight": weight,
         }
 
-    def should_index_object(self, obj):
+    @override
+    def should_index_object(self, obj):  # type: ignore[override]
         return not obj.is_removed

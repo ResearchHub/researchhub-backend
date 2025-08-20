@@ -1,8 +1,11 @@
+from typing import override
+
 from django_opensearch_dsl import Document
 
 
 class BaseDocument(Document):
 
+    @override
     def _get_actions(self, object_list, action):
         """
         Override the base `_get_actions` method to support soft-delete behavior.
