@@ -74,6 +74,7 @@ class FeedEntryDocument(BaseDocument):
 
     class Django:
         model = FeedEntry
+        queryset_pagination = 250
 
     def prepare_hubs(self, instance):
         if instance.hubs.exists():
