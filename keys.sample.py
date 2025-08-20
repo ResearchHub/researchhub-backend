@@ -38,9 +38,6 @@ APM_URL = "PLACEHOLDER"
 ELASTICSEARCH_HOST = ""
 
 # Development only
-CERMINE_FUNCTION_ARN = (
-    "arn:aws:lambda:us-west-2:794128250202:function:ResearchHub-Backend-Staging"
-)
 SIFT_WEBHOOK_SECRET_KEY = "PLACEHOLDER"
 
 # Development only
