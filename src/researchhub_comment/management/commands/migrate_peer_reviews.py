@@ -161,8 +161,6 @@ class Command(BaseCommand):
             self.stdout.write("\nMigration plan:")
             self.stdout.write("1. Create new thread for each invalid review")
             self.stdout.write("2. Move review comment to new thread (parent_id = null)")
-            self.stdout.write("3. Update review_review table to point to new thread")
-            self.stdout.write("4. Preserve all review data and relationships")
 
             if not dry_run:
                 self.stdout.write("\n" + "=" * 50)
