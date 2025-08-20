@@ -30,7 +30,6 @@ edge_ngram_analyzer = analyzer(
 @registry.register_document
 class HubDocument(BaseDocument):
     auto_refresh = True
-    queryset_pagination = 250
     description = es_fields.TextField(attr="description", analyzer=content_analyzer)
     name_suggest = es_fields.CompletionField()
     name = es_fields.TextField(

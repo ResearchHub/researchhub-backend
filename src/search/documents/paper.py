@@ -42,7 +42,6 @@ class PaperDocument(BaseDocument):
 
     class Django:
         model = Paper
-        queryset_pagination = 250
         fields = ["id"]
 
     @override

@@ -43,7 +43,6 @@ class UserDocument(BaseDocument):
     # Let ES know which fields we want indexed
     class Django:
         model = User
-        queryset_pagination = 250
         fields = [
             "id",
             "first_name",

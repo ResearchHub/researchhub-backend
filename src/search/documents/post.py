@@ -55,7 +55,6 @@ class PostDocument(BaseDocument):
 
     class Django:
         model = ResearchhubPost
-        queryset_pagination = 250
         fields = [
             "id",
             "document_type",
