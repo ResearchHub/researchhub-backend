@@ -51,9 +51,9 @@ class RhCommentThreadQuerySet(models.QuerySet):
                     rh_comments__parent__isnull=True,  # Only count top-level comments
                 ),
             ),
-            # Bounty count - count all comments with bounties attached (top-level only)
+            # Bounty count - count comments that have at least one bounty attached
             bounty_count=Count(
-                "rh_comments__bounties",
+                "rh_comments",
                 distinct=True,
                 filter=Q(
                     rh_comments__bounties__isnull=False,
