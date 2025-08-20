@@ -647,6 +647,7 @@ if PRODUCTION:
             "use_ssl": True,
             "max_retries": 5,
             "pool_maxsize": 20,
+            "timeout": 30,
         },
     }
 
@@ -658,6 +659,7 @@ if STAGING:
             "use_ssl": True,
             "max_retries": 5,
             "pool_maxsize": 20,
+            "timeout": 30,
         },
     }
 
