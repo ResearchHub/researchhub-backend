@@ -71,9 +71,6 @@ class Paper(AbstractGenericReactionModel):
     # TODO clean this up to use SoftDeleteable mixin in utils
     is_removed = models.BooleanField(default=False, help_text=HELP_TEXT_IS_REMOVED)
 
-    is_removed_by_user = models.BooleanField(
-        default=False, help_text=HELP_TEXT_IS_REMOVED
-    )
     # We assume that is_pdf_removed_by_moderator is only set to True if the PDF was removed for copyright reasons
     is_pdf_removed_by_moderator = models.BooleanField(
         default=False, help_text=HELP_TEXT_IS_PDF_REMOVED
@@ -298,10 +295,6 @@ class Paper(AbstractGenericReactionModel):
     @property
     def created_by(self):
         return self.uploaded_by
-
-    @property
-    def is_hidden(self):
-        return (not self.is_public) or self.is_removed or self.is_removed_by_user
 
     @property
     def users_to_notify(self):
