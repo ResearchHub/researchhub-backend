@@ -49,7 +49,7 @@ class PersonDocument(BaseDocument):
         ]
 
     def prepare_headline(self, instance):
-        return instance.build_headline()
+        return {"title": instance.headline}
 
     def prepare_reputation_hubs(self, instance):
         reputation_hubs = []
