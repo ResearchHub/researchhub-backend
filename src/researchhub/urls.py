@@ -102,6 +102,10 @@ router.register(
 router.register(r"leaderboard", user.views.LeaderboardViewSet, basename="leaderboard")
 
 router.register(
+    r"payment/coinbase", purchase.views.CoinbaseViewSet, basename="coinbase"
+)
+
+router.register(
     r"email_recipient",
     mailing_list.views.EmailRecipientViewSet,
     basename="email_recipient",
