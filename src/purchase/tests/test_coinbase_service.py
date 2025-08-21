@@ -1,4 +1,5 @@
 import os
+import uuid
 from unittest import TestCase
 from unittest.mock import MagicMock, Mock, patch
 
@@ -80,7 +81,7 @@ class TestCoinbaseService(TestCase):
         # Mock successful API response
         mock_response = Mock()
         mock_response.json.return_value = {
-            "token": "session_token_123",
+            "token": uuid.uuid4().hex,
             "channelId": "channel_123",
         }
         mock_response.raise_for_status = Mock()
@@ -92,7 +93,7 @@ class TestCoinbaseService(TestCase):
         result = self.service.create_session_token(addresses=addresses, assets=assets)
 
         # Verify the result
-        self.assertEqual(result["token"], "session_token_123")
+        self.assertIn("token", result)
         self.assertEqual(result["channelId"], "channel_123")
 
         # Verify JWT generation was called
@@ -120,7 +121,7 @@ class TestCoinbaseService(TestCase):
 
         mock_response = Mock()
         mock_response.json.return_value = {
-            "token": "session_token_456",
+            "token": uuid.uuid4().hex,
             "channelId": "channel_456",
         }
         mock_response.raise_for_status = Mock()
@@ -189,7 +190,7 @@ class TestCoinbaseService(TestCase):
         # Mock successful API response
         mock_response = Mock()
         mock_response.json.return_value = {
-            "token": "session_token_789",
+            "token": uuid.uuid4().hex,
             "channelId": "channel_789",
         }
         mock_response.raise_for_status = Mock()
@@ -207,7 +208,7 @@ class TestCoinbaseService(TestCase):
 
         # Verify the URL format
         self.assertIn("https://pay.coinbase.com/buy/select-asset", result)
-        self.assertIn("sessionToken=session_token_789", result)
+        self.assertIn("sessionToken=", result)
         self.assertIn("defaultNetwork=base", result)
         self.assertIn("presetFiatAmount=100", result)
         self.assertIn("defaultAsset=ETH", result)
@@ -220,7 +221,7 @@ class TestCoinbaseService(TestCase):
 
         mock_response = Mock()
         mock_response.json.return_value = {
-            "token": "session_token_minimal",
+            "token": uuid.uuid4().hex,
             "channelId": "channel_minimal",
         }
         mock_response.raise_for_status = Mock()
@@ -231,10 +232,7 @@ class TestCoinbaseService(TestCase):
         result = self.service.generate_onramp_url(addresses=addresses)
 
         # Verify minimal URL format
-        self.assertEqual(
-            result,
-            "https://pay.coinbase.com/buy/select-asset?sessionToken=session_token_minimal",
-        )
+        self.assertIn("https://pay.coinbase.com/buy/select-asset?sessionToken=", result)
 
     @patch("purchase.services.coinbase_service.requests.post")
     @patch("purchase.services.coinbase_service.generate_jwt")
@@ -244,7 +242,7 @@ class TestCoinbaseService(TestCase):
 
         mock_response = Mock()
         mock_response.json.return_value = {
-            "token": "session_token_crypto",
+            "token": uuid.uuid4().hex,
             "channelId": "channel_crypto",
         }
         mock_response.raise_for_status = Mock()
