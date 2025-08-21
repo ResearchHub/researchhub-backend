@@ -724,6 +724,19 @@ wheels = [
 ]
 
 [[package]]
+name = "dateutils"
+version = "0.6.12"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "python-dateutil" },
+    { name = "pytz" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/70/2e/a2d1337ac0ebb32b3b4ad921d9621f8b2f6bb20de0da47ec5d3734f08ce2/dateutils-0.6.12.tar.gz", hash = "sha256:03dd90bcb21541bd4eb4b013637e4f1b5f944881c46cc6e4b67a6059e370e3f1", size = 4954, upload-time = "2020-10-23T07:09:34.998Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1e/23/cbac954194e5132448cfec0148be1318baac99e68ed597b3d7ff4ae5c182/dateutils-0.6.12-py2.py3-none-any.whl", hash = "sha256:f33b6ab430fa4166e7e9cb8b21ee9f6c9843c48df1a964466f52c79b2a8d53b3", size = 5718, upload-time = "2020-10-23T07:09:32.582Z" },
+]
+
+[[package]]
 name = "decorator"
 version = "5.2.1"
 source = { registry = "https://pypi.org/simple" }
@@ -852,25 +865,6 @@ wheels = [
 ]
 
 [[package]]
-name = "django-elasticsearch-debug-toolbar"
-version = "2.0.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/0d/8d/2a0f3b3f52926589594826de6dffc98997fa47ee5f8ac47bba372b40d0d5/django-elasticsearch-debug-toolbar-2.0.0.tar.gz", hash = "sha256:fa9ab66f0c3e48a5877523506e72c1111982ff4bb4643fe260a53737815b797f", size = 4986, upload-time = "2019-08-26T23:29:32.055Z" }
-
-[[package]]
-name = "django-elasticsearch-dsl"
-version = "7.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "elasticsearch-dsl" },
-    { name = "six" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/e9/92/2c166d1a7e1446c5e502bc17e9218b513eb52761d984d03321ffec7296f3/django-elasticsearch-dsl-7.3.tar.gz", hash = "sha256:084a790edf26131a7897d13a3b5c08a6e129ca145b2b3fcbc2b2d4e902a919c1", size = 19932, upload-time = "2023-02-03T12:01:37.772Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/6d/f8/f9fb110c8e9c5dc5341baa7bdd4f490dd042e1a3795b84af8c37ef5ec8d0/django_elasticsearch_dsl-7.3-py2.py3-none-any.whl", hash = "sha256:c1be1c6d25ee6e99dc246282a4f6de8cc0630d0f8d9863ed512c0baa9d21be94", size = 19574, upload-time = "2023-02-03T12:01:35.119Z" },
-]
-
-[[package]]
 name = "django-extensions"
 version = "3.0.9"
 source = { registry = "https://pypi.org/simple" }
@@ -914,6 +908,16 @@ sdist = { url = "https://files.pythonhosted.org/packages/29/bb/681fe51fd595d0058
 wheels = [
     { url = "https://files.pythonhosted.org/packages/bd/71/03c2d5bdeb156a557c14eef35fad799df9cb4fee8a64ac7b02d0ddbbd4b4/django_mjml-1.4-py3-none-any.whl", hash = "sha256:09dc440fcec64f3656b17646439336e6c15c5987103dfb6fe23eb1f1bf734d11", size = 7994, upload-time = "2025-04-05T22:07:32.812Z" },
 ]
+
+[[package]]
+name = "django-opensearch-dsl"
+version = "0.7.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "dateutils" },
+    { name = "opensearch-py" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/dc/c3/83ded5f87faee7a15a2c477c88d6661231232be1aac51840d6fc836ee193/django_opensearch_dsl-0.7.0.tar.gz", hash = "sha256:a7b899e2a8bdf87a983f49928cded23eb8f0012ca95081ab85238f63bab0f8e7", size = 29814, upload-time = "2025-04-11T06:20:25.109Z" }
 
 [[package]]
 name = "django-ses"
@@ -1013,33 +1017,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/8c/bd/774d13fed438cbf90aa8f076acc935d08dd9efca56b6f5146658a54cb798/elastic-apm-6.13.2.tar.gz", hash = "sha256:815ee9838f6db2db3ee83a31b8ff36ff291aac03c6ed24534280ced45a9cb3dc", size = 154025, upload-time = "2022-11-17T19:12:50.384Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/91/d3/00c2177fcc2bcc87185e69207680b68fc9d37a3c58c876fd94a997b6e78d/elastic_apm-6.13.2-py2.py3-none-any.whl", hash = "sha256:d672e51ef2dffa1a08d814e6b47d8d17144256d887dbc1734b2b9ce298f1208b", size = 311998, upload-time = "2022-11-17T19:12:52.817Z" },
-]
-
-[[package]]
-name = "elasticsearch"
-version = "7.13.4"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "certifi" },
-    { name = "urllib3" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/06/50/220b2d903eccaf6065b4d2d546c06d216e3c8eabcb8d9cd56af691cb712b/elasticsearch-7.13.4.tar.gz", hash = "sha256:52dda85f76eeb85ec873bf9ffe0ba6849e544e591f66d4048a5e48016de268e0", size = 218961, upload-time = "2021-07-20T17:09:12.967Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/7f/82/c3ce164af6f1e4f82e747c50e684b3fd74c418b194c2062e0e30ade933f0/elasticsearch-7.13.4-py2.py3-none-any.whl", hash = "sha256:5920df0ab2630778680376d86bea349dc99860977eec9b6d2bd0860f337313f2", size = 356300, upload-time = "2021-07-20T17:09:09.711Z" },
-]
-
-[[package]]
-name = "elasticsearch-dsl"
-version = "7.3.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "elasticsearch" },
-    { name = "python-dateutil" },
-    { name = "six" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/5e/37/a85a95222cda2a2f66ceed27f7aeffe865e127933c857572d273d97a44c0/elasticsearch-dsl-7.3.0.tar.gz", hash = "sha256:0ed75f6ff037e36b2397a8e92cae0ddde79b83adc70a154b8946064cb62f7301", size = 54973, upload-time = "2020-09-17T13:41:39.488Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f4/ad/f194bbbf3b4884794a3863342d95603cbf2d0e9f11129bd9481067f35fe8/elasticsearch_dsl-7.3.0-py2.py3-none-any.whl", hash = "sha256:9390d8e5cf82ebad3505e7f656e407259cf703f5a4035f211cef454127672572", size = 62986, upload-time = "2020-09-17T13:41:36.445Z" },
 ]
 
 [[package]]
@@ -1203,6 +1180,14 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/7b/54/ec65cf194c9b035df5cc00596a9eedcb430eabaf5486207e5ce859fe2aaf/eth_utils-4.1.1.tar.gz", hash = "sha256:71c8d10dec7494aeed20fa7a4d52ec2ce4a2e52fdce80aab4f5c3c19f3648b25", size = 110052, upload-time = "2024-05-06T18:21:53.805Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9e/5a/cfa1ba791233728236ca7cc32bbd18d1c84d4bbc735636cc57a9754a6c4d/eth_utils-4.1.1-py3-none-any.whl", hash = "sha256:ccbbac68a6d65cb6e294c5bcb6c6a5cec79a241c56dc5d9c345ed788c30f8534", size = 96001, upload-time = "2024-05-06T18:21:51.346Z" },
+]
+
+[[package]]
+name = "events"
+version = "0.5"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/25/ed/e47dec0626edd468c84c04d97769e7ab4ea6457b7f54dcb3f72b17fcd876/Events-0.5-py3-none-any.whl", hash = "sha256:a7286af378ba3e46640ac9825156c93bdba7502174dd696090fdfcd4d80a1abd", size = 6758, upload-time = "2023-07-31T08:23:13.645Z" },
 ]
 
 [[package]]
@@ -1933,6 +1918,22 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/0b/5f/19930f824ffeb0ad4372da4812c50edbd1434f678c90c2733e1188edfc63/oauthlib-3.3.1.tar.gz", hash = "sha256:0f0f8aa759826a193cf66c12ea1af1637f87b9b4622d46e866952bb022e538c9", size = 185918, upload-time = "2025-06-19T22:48:08.269Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/be/9c/92789c596b8df838baa98fa71844d84283302f7604ed565dafe5a6b5041a/oauthlib-3.3.1-py3-none-any.whl", hash = "sha256:88119c938d2b8fb88561af5f6ee0eec8cc8d552b7bb1f712743136eb7523b7a1", size = 160065, upload-time = "2025-06-19T22:48:06.508Z" },
+]
+
+[[package]]
+name = "opensearch-py"
+version = "3.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "certifi" },
+    { name = "events" },
+    { name = "python-dateutil" },
+    { name = "requests" },
+    { name = "urllib3" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b8/58/ecec7f855aae7bcfb08f570088c6cb993f68c361a0727abab35dbf021acb/opensearch_py-3.0.0.tar.gz", hash = "sha256:ebb38f303f8a3f794db816196315bcddad880be0dc75094e3334bc271db2ed39", size = 248890, upload-time = "2025-06-17T05:39:48.453Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/71/e0/69fd114c607b0323d3f864ab4a5ecb87d76ec5a172d2e36a739c8baebea1/opensearch_py-3.0.0-py3-none-any.whl", hash = "sha256:842bf5d56a4a0d8290eda9bb921c50f3080e5dc4e5fefb9c9648289da3f6a8bb", size = 371491, upload-time = "2025-06-17T05:39:46.539Z" },
 ]
 
 [[package]]
@@ -2852,12 +2853,11 @@ dependencies = [
     { name = "django-cors-headers" },
     { name = "django-dbbackup" },
     { name = "django-debug-toolbar" },
-    { name = "django-elasticsearch-debug-toolbar" },
-    { name = "django-elasticsearch-dsl" },
     { name = "django-extensions" },
     { name = "django-filter" },
     { name = "django-health-check" },
     { name = "django-mjml" },
+    { name = "django-opensearch-dsl" },
     { name = "django-ses" },
     { name = "django-silk" },
     { name = "django-simple-history" },
@@ -2865,8 +2865,6 @@ dependencies = [
     { name = "djangorestframework" },
     { name = "djangorestframework-api-key" },
     { name = "elastic-apm" },
-    { name = "elasticsearch" },
-    { name = "elasticsearch-dsl" },
     { name = "flake8" },
     { name = "flower" },
     { name = "google-api-python-client" },
@@ -2880,6 +2878,7 @@ dependencies = [
     { name = "mailchimp-marketing" },
     { name = "manubot" },
     { name = "numpy" },
+    { name = "opensearch-py" },
     { name = "pandas" },
     { name = "pdf2doi" },
     { name = "pillow" },
@@ -2924,12 +2923,11 @@ requires-dist = [
     { name = "django-cors-headers", specifier = "==3.5.0" },
     { name = "django-dbbackup", specifier = "==4.0.2" },
     { name = "django-debug-toolbar", specifier = "==4.2" },
-    { name = "django-elasticsearch-debug-toolbar", specifier = "==2.0.0" },
-    { name = "django-elasticsearch-dsl", specifier = "==7.3.0" },
     { name = "django-extensions", specifier = "==3.0.9" },
     { name = "django-filter", specifier = ">=24.3,<25.0" },
     { name = "django-health-check", specifier = ">=3.18.3,<4.0.0" },
     { name = "django-mjml", specifier = ">=1.3,<2.0" },
+    { name = "django-opensearch-dsl", specifier = "==0.7.0" },
     { name = "django-ses", specifier = "==3.5.2" },
     { name = "django-silk", specifier = "==5.0.2" },
     { name = "django-simple-history", specifier = "==3.7.0" },
@@ -2937,8 +2935,6 @@ requires-dist = [
     { name = "djangorestframework", specifier = "==3.16.0" },
     { name = "djangorestframework-api-key", specifier = "==2.2" },
     { name = "elastic-apm", specifier = "==6.13.2" },
-    { name = "elasticsearch", specifier = "==7.13.4" },
-    { name = "elasticsearch-dsl", specifier = "==7.3.0" },
     { name = "flake8", specifier = "==5.0.4" },
     { name = "flower", specifier = ">=2.0.1,<3.0.0" },
     { name = "google-api-python-client", specifier = "==1.12.1" },
@@ -2952,6 +2948,7 @@ requires-dist = [
     { name = "mailchimp-marketing", specifier = ">=3.0.72,<4.0.0" },
     { name = "manubot", specifier = "==0.5.3" },
     { name = "numpy", specifier = "<2.0.0" },
+    { name = "opensearch-py", specifier = "==3.0.0" },
     { name = "pandas", specifier = ">=2.2.3,<3.0.0" },
     { name = "pdf2doi", specifier = "==1.7" },
     { name = "pillow", specifier = "==10.4.0" },
@@ -3458,11 +3455,11 @@ wheels = [
 
 [[package]]
 name = "urllib3"
-version = "1.26.20"
+version = "2.5.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/e4/e8/6ff5e6bc22095cfc59b6ea711b687e2b7ed4bdb373f7eeec370a97d7392f/urllib3-1.26.20.tar.gz", hash = "sha256:40c2dc0c681e47eb8f90e7e27bf6ff7df2e677421fd46756da1161c39ca70d32", size = 307380, upload-time = "2024-08-29T15:43:11.37Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/15/22/9ee70a2574a4f4599c47dd506532914ce044817c7752a79b6a51286319bc/urllib3-2.5.0.tar.gz", hash = "sha256:3fc47733c7e419d4bc3f6b3dc2b4f890bb743906a30d56ba4a5bfa4bbff92760", size = 393185, upload-time = "2025-06-18T14:07:41.644Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/33/cf/8435d5a7159e2a9c83a95896ed596f68cf798005fe107cc655b5c5c14704/urllib3-1.26.20-py2.py3-none-any.whl", hash = "sha256:0ed14ccfbf1c30a9072c7ca157e4319b70d65f623e91e7b32fadb2853431016e", size = 144225, upload-time = "2024-08-29T15:43:08.921Z" },
+    { url = "https://files.pythonhosted.org/packages/a7/c2/fe1e52489ae3122415c51f387e221dd0773709bad6c6cdaa599e8a2c5185/urllib3-2.5.0-py3-none-any.whl", hash = "sha256:e6b01673c0fa6a13e374b50871808eb3bf7046c4b125b216f6bf1cc604cff0dc", size = 129795, upload-time = "2025-06-18T14:07:40.39Z" },
 ]
 
 [[package]]

@@ -1,8 +1,8 @@
 from celery import shared_task
 from django.apps import apps
 from django.core.cache import cache
-from django_elasticsearch_dsl.registries import registry
-from django_elasticsearch_dsl.signals import RealTimeSignalProcessor
+from django_opensearch_dsl.registries import registry
+from django_opensearch_dsl.signals import RealTimeSignalProcessor
 
 import utils.sentry as sentry
 

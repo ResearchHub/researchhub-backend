@@ -1,5 +1,3 @@
-from elasticsearch_dsl import Search
-
 from search.backends.multi_match_filter import MultiMatchSearchFilterBackend
 from search.base.filters import (
     DefaultOrderingFilterBackend,

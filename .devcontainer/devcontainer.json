@@ -13,7 +13,7 @@
 	// This can be used to network with other containers or the host.
 	"forwardPorts": [
 		"app:8000",
-		"elasticsearch:9200",
+		"opensearch:9200",
 		"kibana:5601",
 		"postgres:5432",
 		"redis:6379"

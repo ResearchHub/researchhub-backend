@@ -1,7 +1,9 @@
 import logging
+from typing import override
 
-from django_elasticsearch_dsl import fields as es_fields
-from django_elasticsearch_dsl.registries import registry
+from django.db.models import Q, QuerySet
+from django_opensearch_dsl import fields as es_fields
+from django_opensearch_dsl.registries import registry
 
 from search.analyzers import content_analyzer
 from user.models import Author
@@ -31,7 +33,7 @@ class PersonDocument(BaseDocument):
             "name": es_fields.TextField(),
         },
     )
-    suggestion_phrases = es_fields.Completion()
+    suggestion_phrases = es_fields.CompletionField()
     user_id = es_fields.IntegerField(attr="user_id")
     reputation_hubs = es_fields.KeywordField()
     education = es_fields.KeywordField()
@@ -48,23 +50,32 @@ class PersonDocument(BaseDocument):
             "last_name",
         ]
 
-    def should_remove_from_index(self, obj):
-        return False
+    @override
+    def get_queryset(
+        self, filter_: Q | None = None, exclude: Q | None = None, count: int = None
+    ) -> QuerySet:
+        return (
+            super()
+            .get_queryset(filter_, exclude, count)
+            .prefetch_related("institutions__institution")
+        )
 
     def prepare_headline(self, instance):
-        return instance.build_headline()
+        return {"title": instance.headline}
 
     def prepare_reputation_hubs(self, instance):
         reputation_hubs = []
-        for rep in instance.reputation_list:
-            reputation_hubs.append(rep["hub"]["name"])
+        if instance.reputation_list:
+            for rep in instance.reputation_list:
+                reputation_hubs.append(rep["hub"]["name"])
 
         return reputation_hubs
 
     def prepare_education(self, instance):
         education = []
-        for edu in instance.education:
-            education.append(edu["name"])
+        if instance.education:
+            for edu in instance.education:
+                education.append(edu["name"])
 
         return education
 
@@ -100,19 +111,3 @@ class PersonDocument(BaseDocument):
                 )
 
         return suggestions
-
-    def prepare(self, instance):
-        try:
-            data = super().prepare(instance)
-        except Exception as e:
-            logger.warn(f"Failed to prepare data for person {instance.id}: {e}")
-            return None
-
-        try:
-            data["suggestion_phrases"] = self.prepare_suggestion_phrases(instance)
-        except Exception as e:
-            logger.warn(
-                f"Failed to prepare suggestion phrases for person {instance.id}: {e}"
-            )
-            data["suggestion_phrases"] = []
-        return data

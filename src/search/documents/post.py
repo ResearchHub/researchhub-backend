@@ -1,12 +1,12 @@
 import logging
 import math
+from typing import override
 
-from django_elasticsearch_dsl import fields as es_fields
-from django_elasticsearch_dsl.registries import registry
+from django_opensearch_dsl import fields as es_fields
+from django_opensearch_dsl.registries import registry
 
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from search.analyzers import content_analyzer, title_analyzer
-from utils import sentry
 
 from .base import BaseDocument
 
@@ -29,7 +29,6 @@ class PostDocument(BaseDocument):
     )
     created_by_id = es_fields.IntegerField(attr="created_by_id")
     authors = es_fields.ObjectField(
-        attr="authors_indexing",
         properties={
             "first_name": es_fields.TextField(),
             "last_name": es_fields.TextField(),
@@ -44,18 +43,27 @@ class PostDocument(BaseDocument):
             "slug": es_fields.TextField(),
         },
     )
-    suggestion_phrases = es_fields.Completion()
+    suggestion_phrases = es_fields.CompletionField()
     title = es_fields.TextField(
         analyzer=title_analyzer,
     )
     slug = es_fields.TextField()
+
+    def prepare_authors(self, instance):
+        return [
+            {
+                "first_name": author.first_name,
+                "last_name": author.last_name,
+                "full_name": author.full_name,
+            }
+            for author in instance.authors.all()
+        ]
 
     class Index:
         name = "post"
 
     class Django:
         model = ResearchhubPost
-        queryset_pagination = 250
         fields = [
             "id",
             "document_type",
@@ -77,14 +85,12 @@ class PostDocument(BaseDocument):
         # Variation of author names which may be searched by users
         try:
             author_names_only = [
-                f"{author.first_name} {author.last_name}"
-                for author in instance.unified_document.authors
+                author.full_name
+                for author in instance.authors.all()
                 if author.first_name and author.last_name
             ]
             all_authors_as_str = ", ".join(author_names_only)
-            created_by = (
-                instance.created_by.first_name + " " + instance.created_by.last_name
-            )
+            created_by = instance.created_by.full_name()
 
             phrases.append(all_authors_as_str)
             phrases.append(created_by)
@@ -104,26 +110,6 @@ class PostDocument(BaseDocument):
             "weight": weight,
         }
 
-    def prepare(self, instance):
-        try:
-            data = super().prepare(instance)
-        except Exception as e:
-            logger.error(f"Failed to prepare data for post {instance.id}: {e}")
-            return None
-
-        try:
-            data["suggestion_phrases"] = self.prepare_suggestion_phrases(instance)
-        except Exception as e:
-            logger.warn(
-                f"Failed to prepare suggestion phrases for post {instance.id}: {e}"
-            )
-            sentry.log_error(e)
-            data["suggestion_phrases"] = []
-
-        return data
-
-    def should_remove_from_index(self, obj):
-        if obj.is_removed:
-            return True
-
-        return False
+    @override
+    def should_index_object(self, obj):  # type: ignore[override]
+        return not obj.is_removed

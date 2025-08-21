@@ -59,7 +59,7 @@ Make adjustments to the new configuration files as needed.
 
 When opening the code in VSCode, tt will recognize the Dev Containers configuration and will prompt to _Rebuild and Reopen in Container_.
 Alternatively, select _Rebuild and Reopen in Container_ manually from the command palette.
-This will pull and run all necessary auxiliary services including ElasticSearch, PostgreSQL, and Redis.
+This will pull and run all necessary auxiliary services including OpenSearch, PostgreSQL, and Redis.
 
 During the creation of the dev container, all Python dependencies are downloaded and installed and an initial database migration is also performed. After dev container creation, proceed with [seeding the database](#Seed-the-database) as needed.
 
