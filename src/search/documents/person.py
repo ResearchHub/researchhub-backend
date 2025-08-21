@@ -1,5 +1,7 @@
 import logging
+from typing import override
 
+from django.db.models import Q, QuerySet
 from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
 
@@ -47,6 +49,16 @@ class PersonDocument(BaseDocument):
             "first_name",
             "last_name",
         ]
+
+    @override
+    def get_queryset(
+        self, filter_: Q | None = None, exclude: Q | None = None, count: int = None
+    ) -> QuerySet:
+        return (
+            super()
+            .get_queryset(filter_, exclude, count)
+            .prefetch_related("institutions__institution")
+        )
 
     def prepare_headline(self, instance):
         return {"title": instance.headline}
