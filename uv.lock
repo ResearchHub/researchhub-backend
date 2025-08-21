@@ -997,15 +997,6 @@ wheels = [
 ]
 
 [[package]]
-name = "easygui"
-version = "0.98.3"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/cc/ad/e35f7a30272d322be09dc98592d2f55d27cc933a7fde8baccbbeb2bd9409/easygui-0.98.3.tar.gz", hash = "sha256:d653ff79ee1f42f63b5a090f2f98ce02335d86ad8963b3ce2661805cafe99a04", size = 85583, upload-time = "2022-04-01T13:15:50.752Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/8e/a7/b276ff776533b423710a285c8168b52551cb2ab0855443131fdc7fd8c16f/easygui-0.98.3-py2.py3-none-any.whl", hash = "sha256:33498710c68b5376b459cd3fc48d1d1f33822139eb3ed01defbc0528326da3ba", size = 92655, upload-time = "2022-04-01T13:15:49.568Z" },
-]
-
-[[package]]
 name = "elastic-apm"
 version = "6.13.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1317,18 +1308,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/a7/b2/4140c69c6a66432916b26158687e821ba631a4c9273c474343badf84d3ba/future-1.0.0.tar.gz", hash = "sha256:bd2968309307861edae1458a4f8a4f3598c03be43b97521076aebf5d94c07b05", size = 1228490, upload-time = "2024-02-21T11:52:38.461Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/da/71/ae30dadffc90b9006d77af76b393cb9dfbfc9629f339fc1574a1c52e6806/future-1.0.0-py3-none-any.whl", hash = "sha256:929292d34f5872e70396626ef385ec22355a1fae8ad29e1a734c3e43f9fbc216", size = 491326, upload-time = "2024-02-21T11:52:35.956Z" },
-]
-
-[[package]]
-name = "google"
-version = "3.0.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "beautifulsoup4" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/89/97/b49c69893cddea912c7a660a4b6102c6b02cd268f8c7162dd70b7c16f753/google-3.0.0.tar.gz", hash = "sha256:143530122ee5130509ad5e989f0512f7cb218b2d4eddbafbad40fd10e8d8ccbe", size = 44978, upload-time = "2020-07-11T14:50:45.678Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ac/35/17c9141c4ae21e9a29a43acdfd848e3e468a810517f862cad07977bf8fe9/google-3.0.0-py2.py3-none-any.whl", hash = "sha256:889cf695f84e4ae2c55fbc0cfdaf4c1e729417fa52ab1db0485202ba173e4935", size = 45258, upload-time = "2020-07-11T14:49:58.287Z" },
 ]
 
 [[package]]
@@ -2023,49 +2002,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pdf2doi"
-version = "1.7"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "easygui" },
-    { name = "feedparser" },
-    { name = "google" },
-    { name = "pdfminer-six" },
-    { name = "pdftitle" },
-    { name = "pymupdf" },
-    { name = "pypdf" },
-    { name = "pypdf2" },
-    { name = "pyperclip" },
-    { name = "requests" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/c5/6f/867dd20a2467f5f7a17ef10b514219fcc7e6b2ae872e1f792ca22f2fb1e1/pdf2doi-1.7.tar.gz", hash = "sha256:54d257bce59397ef577c588c8bc8a35930ffd1e7d05e7c3c454423bf5679bf2e", size = 38023, upload-time = "2024-11-10T20:54:44.288Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/44/fe/910803ac0a4948ea3cf2deb2a996bf5ed3954791c77053f044088361bbe5/pdf2doi-1.7-py3-none-any.whl", hash = "sha256:75d1de78acebe3ca004317bf695eb2520d642d41c7c07d56d4eb211a64216551", size = 33950, upload-time = "2024-11-10T20:54:42.705Z" },
-]
-
-[[package]]
-name = "pdfminer-six"
-version = "20221105"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "charset-normalizer" },
-    { name = "cryptography" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/ac/6e/89c532d108e362cbaf76fdb972e7a5e85723c225f08e1646fb86878d4f7f/pdfminer.six-20221105.tar.gz", hash = "sha256:8448ab7b939d18b64820478ecac5394f482d7a79f5f7eaa7703c6c959c175e1d", size = 7361391, upload-time = "2022-11-05T16:33:46.725Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/46/68/b3fb5f073bcd3df9143a3520289c147351bfa3c1b096d44081f38fd1c247/pdfminer.six-20221105-py3-none-any.whl", hash = "sha256:1eaddd712d5b2732f8ac8486824533514f8ba12a0787b3d5fe1e686cd826532d", size = 5613896, upload-time = "2022-11-05T16:33:45.016Z" },
-]
-
-[[package]]
-name = "pdftitle"
-version = "0.11"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "pdfminer-six" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/18/68/fde8449fdd656e23e4d598d7b0821313bd8d7c915babba9dfe375e648421/pdftitle-0.11.tar.gz", hash = "sha256:81ec9d427d9c759be6fb9bc6e074f642f6615747e35f2e260e14b2e8aa0127d0", size = 10396, upload-time = "2021-08-09T13:35:21.719Z" }
-
-[[package]]
 name = "pexpect"
 version = "4.9.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2572,30 +2508,6 @@ wheels = [
 ]
 
 [[package]]
-name = "pypdf"
-version = "5.9.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/89/3a/584b97a228950ed85aec97c811c68473d9b8d149e6a8c155668287cf1a28/pypdf-5.9.0.tar.gz", hash = "sha256:30f67a614d558e495e1fbb157ba58c1de91ffc1718f5e0dfeb82a029233890a1", size = 5035118, upload-time = "2025-07-27T14:04:52.364Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/48/d9/6cff57c80a6963e7dd183bf09e9f21604a77716644b1e580e97b259f7612/pypdf-5.9.0-py3-none-any.whl", hash = "sha256:be10a4c54202f46d9daceaa8788be07aa8cd5ea8c25c529c50dd509206382c35", size = 313193, upload-time = "2025-07-27T14:04:50.53Z" },
-]
-
-[[package]]
-name = "pypdf2"
-version = "2.0.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/40/27/7ac08d83b15c391c3f1e9644bfacaf4e45aef670902af2235eb92b0bf2df/PyPDF2-2.0.0.tar.gz", hash = "sha256:6c2c686cbdad1fa6d42a8cafb5d2f033d1798dd00e13e8d7691b510c567efa34", size = 95128, upload-time = "2022-06-01T05:54:50.843Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/76/23/3cb3218c421a1b9b7b378cafd032869dddbc0e6a7f3a940c296d0c40b304/PyPDF2-2.0.0-py3-none-any.whl", hash = "sha256:eb9eb675d91c0d167abd63fa5f5037486d5b9ef9715c5c8b55b99c3627619402", size = 88473, upload-time = "2022-06-01T05:54:48.714Z" },
-]
-
-[[package]]
-name = "pyperclip"
-version = "1.9.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/30/23/2f0a3efc4d6a32f3b63cdff36cd398d9701d26cda58e3ab97ac79fb5e60d/pyperclip-1.9.0.tar.gz", hash = "sha256:b7de0142ddc81bfc5c7507eea19da920b92252b548b96186caf94a5e2527d310", size = 20961, upload-time = "2024-06-18T20:38:48.401Z" }
-
-[[package]]
 name = "python-dateutil"
 version = "2.9.0.post0"
 source = { registry = "https://pypi.org/simple" }
@@ -2880,7 +2792,6 @@ dependencies = [
     { name = "numpy" },
     { name = "opensearch-py" },
     { name = "pandas" },
-    { name = "pdf2doi" },
     { name = "pillow" },
     { name = "pre-commit" },
     { name = "psycopg", extra = ["binary", "pool"] },
@@ -2950,7 +2861,6 @@ requires-dist = [
     { name = "numpy", specifier = "<2.0.0" },
     { name = "opensearch-py", specifier = "==3.0.0" },
     { name = "pandas", specifier = ">=2.2.3,<3.0.0" },
-    { name = "pdf2doi", specifier = "==1.7" },
     { name = "pillow", specifier = "==10.4.0" },
     { name = "pre-commit", specifier = "==2.17.0" },
     { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.2.3,<4.0.0" },
