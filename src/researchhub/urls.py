@@ -310,11 +310,6 @@ urlpatterns = [
         note_views.note_view.ckeditor_webhook_document_removed,
     ),
     path("api/ckeditor/token/", note_views.note_view.ckeditor_token),
-    path(
-        "api/popover/<int:user_id>/get_user/",
-        user.views.get_user_popover,
-        name="popover_user",
-    ),
     path("email_notifications/", mailing_list.views.email_notifications),
     path("", researchhub.views.index, name="index"),
     path(
