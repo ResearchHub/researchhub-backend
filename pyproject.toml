@@ -62,7 +62,7 @@ dependencies = [
     "web3[tester]==6.17.1",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = [
     "black==24.4.2",
     "coverage>=7.6.1",
