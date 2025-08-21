@@ -29,7 +29,6 @@ class PostDocument(BaseDocument):
     )
     created_by_id = es_fields.IntegerField(attr="created_by_id")
     authors = es_fields.ObjectField(
-        attr="authors_indexing",
         properties={
             "first_name": es_fields.TextField(),
             "last_name": es_fields.TextField(),
@@ -49,6 +48,16 @@ class PostDocument(BaseDocument):
         analyzer=title_analyzer,
     )
     slug = es_fields.TextField()
+
+    def prepare_authors(self, instance):
+        return [
+            {
+                "first_name": author.first_name,
+                "last_name": author.last_name,
+                "full_name": author.full_name,
+            }
+            for author in instance.authors.all()
+        ]
 
     class Index:
         name = "post"
@@ -76,14 +85,12 @@ class PostDocument(BaseDocument):
         # Variation of author names which may be searched by users
         try:
             author_names_only = [
-                f"{author.first_name} {author.last_name}"
-                for author in instance.unified_document.authors
+                author.full_name
+                for author in instance.authors.all()
                 if author.first_name and author.last_name
             ]
             all_authors_as_str = ", ".join(author_names_only)
-            created_by = (
-                instance.created_by.first_name + " " + instance.created_by.last_name
-            )
+            created_by = instance.created_by.full_name()
 
             phrases.append(all_authors_as_str)
             phrases.append(created_by)
