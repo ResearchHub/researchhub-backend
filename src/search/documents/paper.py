@@ -1,7 +1,8 @@
 import logging
 import math
-from typing import override
+from typing import Optional, override
 
+from django.db.models import Q, QuerySet
 from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
 
@@ -40,6 +41,27 @@ class PaperDocument(BaseDocument):
     class Django:
         model = Paper
         fields = ["id"]
+
+    @override
+    def get_queryset(
+        self,
+        filter_: Optional[Q] = None,
+        exclude: Optional[Q] = None,
+        count: int = None,
+    ) -> QuerySet:
+        """
+        Override get_queryset to include prefetching of relationsships.
+        """
+        return (
+            super()
+            .get_queryset(filter_=filter_, exclude=exclude, count=count)
+            .select_related(
+                "unified_document",
+            )
+            .prefetch_related(
+                "unified_document__hubs",
+            )
+        )
 
     @override
     def should_index_object(self, obj):  # type: ignore[override]
