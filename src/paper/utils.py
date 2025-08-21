@@ -1,6 +1,4 @@
 import io
-import math
-from datetime import datetime
 
 import cloudscraper
 import fitz
@@ -14,7 +12,6 @@ from django.core.validators import URLValidator
 from django.db import models
 from django.db.models import Count, Q
 from habanero import Crossref
-from manubot.cite.csl_item import CSL_Item
 
 from discussion.models import Vote
 from paper.exceptions import ManubotProcessingError
@@ -26,57 +23,14 @@ from paper.lib import (
 )
 from paper.manubot import RHCiteKey
 from utils import sentry
-from utils.http import RequestMethods as methods
-from utils.http import check_url_contains_pdf, http_request
+from utils.http import check_url_contains_pdf
 
 DOI_REGEX = r"10.\d{4,9}\/[-._;()\/:a-zA-Z0-9]+?(?=[\";%<>\?#&])"
 PAPER_SCORE_Q_ANNOTATION = Count("id", filter=Q(votes__vote_type=Vote.UPVOTE)) - Count(
     "id", filter=Q(votes__vote_type=Vote.DOWNVOTE)
 )
-
-CACHE_TOP_RATED_DATES = (
-    "-score_today",
-    "-score_week",
-    "-score_month",
-    "-score_year",
-    "-score_all_time",
-)
-CACHE_MOST_DISCUSSED_DATES = (
-    "-discussed_today",
-    "-discussed_week",
-    "-discussed_month",
-    "-discussed_year",
-    "-discussed_all_time",
-)
-CACHE_DOCUMENT_TYPES = (
-    "all",
-    "paper",
-    "posts",
-    "hypothesis",
-)
-MANUBOT_PAPER_TYPES = [
-    "paper-conference",
-    "article-journal",
-]
 SIMILARITY_THRESHOLD = 0.9
 MAX_TITLE_PAGES = 5
-IGNORE_PAPER_TITLES = [
-    "editorial",
-    "editorial board",
-    "contents continued",
-    "table of contents",
-    "calendar",
-    "copyright",
-    "contributors",
-    "contents",
-    "ieee access",
-    "correspondence",
-    "announcements",
-    "editorial advisory board",
-    "issue highlights",
-    "title page",
-    "front cover",
-]
 
 
 def check_file_is_url(file):
@@ -142,14 +96,6 @@ def convert_journal_url_to_pdf_url(journal_url):
     return journal_url, False
 
 
-def populate_metadata_from_manubot_pdf_url(url, metadata):
-    journal_url, converted = convert_pdf_url_to_journal_url(url)
-    if converted:
-        metadata["url"] = journal_url
-        metadata["pdf_url"] = url
-    return populate_metadata_from_manubot_url(journal_url, metadata)
-
-
 def convert_pdf_url_to_journal_url(pdf_url):
     """
     Returns the url and if it was converted as tuple. If not converted the url
@@ -164,116 +110,6 @@ def convert_pdf_url_to_journal_url(pdf_url):
     if journal_url is not None:
         return journal_url, True
     return pdf_url, False
-
-
-def populate_metadata_from_manubot_url(url, metadata):
-    """
-    Returns metadata dictionary populated with manubot csl item data or None
-    if manubot fails to retrieve data,
-    and whether this fills the metadata or not.
-    """
-    try:
-        csl_item = get_csl_item(url)
-        if not isinstance(csl_item, CSL_Item):
-            csl_item = CSL_Item(csl_item)
-
-        # TODO: We can use this if we want to reject uploads that don't match
-        # certain content types
-        #
-        # if csl_item['type'] not in MANUBOT_PAPER_TYPES:
-        #     return None
-
-        doi = None
-        if "DOI" in csl_item:
-            doi = csl_item["DOI"].lower()
-
-        paper_publish_date = csl_item.get_date("issued", fill=True)
-
-        data = {}
-        data["abstract"] = csl_item.get("abstract", None)
-        data["doi"] = doi
-        data["is_public"] = True
-        data["paper_title"] = csl_item.get("title", None)
-        data["csl_item"] = csl_item
-        data["paper_publish_date"] = paper_publish_date
-        data["raw_authors"] = get_raw_authors_from_csl_item(csl_item)
-
-        metadata.update(data)
-        return metadata, True
-    except Exception as e:
-        print(e)
-        return None, False
-
-
-def populate_metadata_from_pdf(file, validated_data):
-    # TODO: Use old pdf metadata method?
-    try:
-        date_format = "D:%Y%m%d%H%M%S"
-        doc = fitz.open(stream=file.read(), filetype="pdf")
-        metadata = doc.metadata
-
-        date = metadata.get("creationDate").split("+")[0].strip("Z")
-        title = metadata.get("title")
-        author = metadata.get("author")
-
-        if author:
-            name = author.split(" ")
-            if len(name) < 1:
-                first_name = name[0]
-                last_name = ""
-            else:
-                first_name = name[0]
-                last_name = name[len(name) - 1]
-            author = [{"first_name": first_name, "last_name": last_name}]
-            validated_data["raw_authors"] = author
-
-        if title:
-            validated_data["paper_title"] = title
-        validated_data["paper_publish_date"] = datetime.strptime(date, date_format)
-
-        return validated_data, True
-    except Exception as e:
-        print(e)
-        return None, False
-
-
-def populate_metadata_from_crossref(url, validated_data):
-    try:
-        doi = validated_data.get("doi")
-        paper_title = validated_data.get("paper_title")
-
-        cr = Crossref()
-        params = {
-            "filters": {"type": "journal-article"},
-        }
-
-        if doi:
-            params["ids"] = [doi]
-        else:
-            params["query_bibliographic"] = paper_title
-            params["limit"] = 1
-            params["order"] = "desc"
-            params["sort"] = "score"
-
-        results = cr.works(**params)["message"]
-
-        if "items" in results:
-            data = results["items"][0]
-        else:
-            data = results["message"]
-
-        validated_data = {}
-        validated_data["doi"] = doi
-        validated_data["abstract"] = clean_abstract(data.get("abstract", ""))
-        validated_data["is_public"] = True
-        validated_data["paper_title"] = data.get("title", [""])[0]
-        validated_data["paper_publish_date"] = data.get("created").get("date-time")
-        validated_data["raw_authors"] = get_raw_authors_from_csl_item(data)
-
-        return validated_data, True
-    except Exception as e:
-        print(e)
-        return None, False
 
 
 def get_raw_authors_from_csl_item(csl_item):
@@ -382,21 +218,6 @@ def get_pdf_from_url(url):
         filename += ".pdf"
     pdf = ContentFile(response.content, name=filename)
     return pdf
-
-
-def get_redirect_url(url):
-    response = http_request(methods.GET, url, allow_redirects=False)
-    status_code = response.status_code
-    if status_code == 301 or status_code == 302 or status_code == 303:
-        headers = response.headers
-        location = headers.get("Location")
-        if location:
-            return location
-        else:
-            return None
-    elif status_code == 200:
-        return url
-    return None
 
 
 def clean_pdf(file):
@@ -516,12 +337,6 @@ def get_crossref_results(query, index=10):
 
 def get_cache_key(obj_type, pk):
     return f"{obj_type}_{pk}"
-
-
-def add_default_hub(hub_ids):
-    if 0 not in hub_ids:
-        return [0] + list(hub_ids)
-    return hub_ids
 
 
 def parse_author_name(author):
