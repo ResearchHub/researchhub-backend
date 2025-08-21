@@ -1,4 +1,3 @@
-import json
 import re
 from datetime import datetime
 from io import BytesIO
@@ -10,7 +9,6 @@ from django.apps import apps
 from django.core.cache import cache
 from django.core.files.base import ContentFile
 from PIL import Image
-from pytz import timezone as pytz_tz
 
 from paper.utils import (
     check_crossref_title,
@@ -22,7 +20,6 @@ from paper.utils import (
     get_pdf_location_for_csl_item,
 )
 from researchhub.celery import QUEUE_PAPER_MISC, app
-from researchhub.settings import APP_ENV
 from utils import sentry
 from utils.http import check_url_contains_pdf
 
@@ -210,35 +207,3 @@ def celery_extract_meta_data(paper_id, title, check_title):
         paper.save()
     except Exception as e:
         sentry.log_info(e)
-
-
-@app.task
-def log_daily_uploads():
-    from analytics.amplitude import Amplitude
-
-    Paper = apps.get_model("paper.Paper")
-    amp = Amplitude()
-    url = amp.api_url
-    key = amp.api_key
-
-    today = datetime.now(tz=pytz_tz("US/Pacific"))
-    start_date = today.replace(hour=0, minute=0, second=0)
-    end_date = today.replace(hour=23, minute=59, second=59)
-    papers = Paper.objects.filter(
-        created_date__gte=start_date,
-        created_date__lte=end_date,
-        uploaded_by__isnull=True,
-    )
-    paper_count = papers.count()
-    data = {
-        "device_id": f"rh_{APP_ENV}",
-        "event_type": "daily_autopull_count",
-        "time": int(today.timestamp()),
-        "insert_id": f"daily_autopull_{today.strftime('%Y-%m-%d')}",
-        "event_properties": {"amount": paper_count},
-    }
-    hit = {"events": [data], "api_key": key}
-    hit = json.dumps(hit)
-    headers = {"Content-Type": "application/json", "Accept": "*/*"}
-    request = requests.post(url, data=hit, headers=headers)
-    return request.status_code, paper_count
