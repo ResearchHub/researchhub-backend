@@ -72,6 +72,7 @@
 	// "remoteUser": "root"
 
 	"remoteEnv": {
+		"UV_LINK_MODE": "copy",
 		"WORKSPACE_PATH": "${containerWorkspaceFolder}"
 	},
 
