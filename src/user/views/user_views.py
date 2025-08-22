@@ -32,7 +32,13 @@ from reputation.serializers import (
 from reputation.views import BountyViewSet
 from user.filters import UserFilter
 from user.models import Author, Major, University, User
-from user.permissions import Censor, DeleteUserPermission, RequestorIsOwnUser, IsModerator
+from user.permissions import (
+    Censor,
+    DeleteUserPermission,
+    IsModerator,
+    RequestorIsOwnUser,
+    UserIsEditor,
+)
 from user.serializers import (
     AuthorSerializer,
     MajorSerializer,
@@ -143,21 +149,29 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
 
         return Response({"message": "User is Censored"}, status=200)
 
-    @action(detail=False, methods=[POST], permission_classes=[IsModerator])
+    @action(
+        detail=False, methods=[POST], permission_classes=[UserIsEditor | IsModerator]
+    )
     def mark_probable_spammer(self, request, pk=None):
         author_id = request.data.get("authorId")
 
         if not author_id:
-            return Response({"message": "authorId is required"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"message": "authorId is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             user_to_flag = User.objects.get(author_profile__id=author_id)
         except User.DoesNotExist:
-            return Response({"message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"message": "User not found"}, status=status.HTTP_404_NOT_FOUND
+            )
 
         user_to_flag.set_probable_spammer()
 
-        return Response({"message": "User flagged as probable spammer"}, status=status.HTTP_200_OK)
+        return Response(
+            {"message": "User flagged as probable spammer"}, status=status.HTTP_200_OK
+        )
 
     @action(
         detail=False,

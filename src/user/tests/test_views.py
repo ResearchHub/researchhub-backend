@@ -15,6 +15,7 @@ from researchhub_document.related_models.researchhub_unified_document_model impo
 from user.models import UserVerification
 from user.related_models.author_model import Author
 from user.tests.helpers import (
+    create_hub_editor,
     create_random_authenticated_user,
     create_random_default_user,
     create_user,
@@ -23,7 +24,6 @@ from utils.openalex import OpenAlex
 from utils.test_helpers import (
     get_authenticated_get_response,
     get_authenticated_patch_response,
-    get_authenticated_post_response,
 )
 
 
@@ -509,11 +509,13 @@ class UserModerationTests(APITestCase):
     def setUp(self):
         self.moderator = create_random_authenticated_user("mod", moderator=True)
         self.target_user = create_random_authenticated_user("target_user")
+        [self.hub_editor, self.hub] = create_hub_editor("hub_editor", "test_hub")
 
     def test_mark_probable_spammer_success(self):
         url = "/api/user/mark_probable_spammer/"
         data = {"authorId": self.target_user.author_profile.id}
-        response = get_authenticated_post_response(self.moderator, url, data)
+        self.client.force_authenticate(user=self.moderator)
+        response = self.client.post(url, data)
 
         self.assertEqual(response.status_code, 200)
         self.target_user.refresh_from_db()
@@ -521,25 +523,42 @@ class UserModerationTests(APITestCase):
         self.assertFalse(self.target_user.is_suspended)
         self.assertTrue(self.target_user.is_active)
 
-    def test_mark_probable_spammer_requires_moderator(self):
-        non_mod = self.target_user
+    def test_mark_probable_spammer_hub_editor_success(self):
+        """Test that hub editors can mark users as probable spammers"""
+        url = "/api/user/mark_probable_spammer/"
+        data = {"authorId": self.target_user.author_profile.id}
+        self.client.force_authenticate(user=self.hub_editor)
+        response = self.client.post(url, data)
+
+        self.assertEqual(response.status_code, 200)
+        self.target_user.refresh_from_db()
+        self.assertTrue(self.target_user.probable_spammer)
+        self.assertFalse(self.target_user.is_suspended)
+        self.assertTrue(self.target_user.is_active)
+
+    def test_mark_probable_spammer_requires_moderator_or_editor(self):
+        """Test that only moderators or hub editors can mark users as probable spammers"""
+        regular_user = create_random_default_user("regular_user")
         another_user = create_random_default_user("another_user")
         url = "/api/user/mark_probable_spammer/"
         data = {"authorId": another_user.author_profile.id}
-        response = get_authenticated_post_response(non_mod, url, data)
+        self.client.force_authenticate(user=regular_user)
+        response = self.client.post(url, data)
 
         self.assertEqual(response.status_code, 403)
 
     def test_mark_probable_spammer_missing_author_id(self):
         url = "/api/user/mark_probable_spammer/"
         data = {}
-        response = get_authenticated_post_response(self.moderator, url, data)
+        self.client.force_authenticate(user=self.moderator)
+        response = self.client.post(url, data)
 
         self.assertEqual(response.status_code, 400)
 
     def test_mark_probable_spammer_user_not_found(self):
         url = "/api/user/mark_probable_spammer/"
         data = {"authorId": -1}
-        response = get_authenticated_post_response(self.moderator, url, data)
+        self.client.force_authenticate(user=self.moderator)
+        response = self.client.post(url, data)
 
         self.assertEqual(response.status_code, 404)
