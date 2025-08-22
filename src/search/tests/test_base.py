@@ -1,5 +1,6 @@
+import logging
 import unittest
-from unittest.mock import Mock, call
+from unittest.mock import Mock, call, patch
 
 from search.documents.base import BaseDocument
 
@@ -129,3 +130,43 @@ class TestBaseDocument(unittest.TestCase):
             call(object_list[2], "update"),
         ]
         self.document._prepare_action.assert_has_calls(expected_calls)
+
+    @patch("search.documents.base.logger")
+    def test_get_actions_with_prepare_error_continues_indexing(self, mock_logger):
+        """
+        Test that _get_actions continues processing when _prepare_action raises an error.
+        """
+        # Arrange
+        object_list = [Mock(id=1), Mock(id=2), Mock(id=3)]
+        action = "index"
+
+        document = BaseDocument()
+        document.should_index_object = Mock(return_value=True)
+
+        # Mock the parent's _prepare_action to raise error for object id=2
+        with patch.object(
+            BaseDocument, "_prepare_action", autospec=True
+        ) as mock_prepare:
+
+            def side_effect(self, obj, action):
+                if obj.id == 2:
+                    raise ValueError("Test error for object 2")
+                return {"object": obj, "action": action}
+
+            mock_prepare.side_effect = side_effect
+
+            # Act
+            results = list(document._get_actions(object_list, action))
+
+            # Assert
+            # should only get results for objects 1 and 3 (object 2 failed)
+            self.assertEqual(len(results), 2)
+            self.assertEqual(results[0]["object"].id, 1)
+            self.assertEqual(results[1]["object"].id, 3)
+
+            # verify error was logged
+            mock_logger.warning.assert_called_once()
+            log_call = mock_logger.warning.call_args[0][0]
+            self.assertIn("Failed to index", log_call)
+            self.assertIn("id=2", log_call)
+            self.assertIn("Test error for object 2", log_call)

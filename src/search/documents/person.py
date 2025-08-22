@@ -52,7 +52,10 @@ class PersonDocument(BaseDocument):
 
     @override
     def get_queryset(
-        self, filter_: Q | None = None, exclude: Q | None = None, count: int = None
+        self,
+        filter_: Q | None = None,
+        exclude: Q | None = None,
+        count: int = None,  # type: ignore[override]
     ) -> QuerySet:
         return (
             super()
@@ -75,7 +78,8 @@ class PersonDocument(BaseDocument):
         education = []
         if instance.education:
             for edu in instance.education:
-                education.append(edu["name"])
+                if edu and isinstance(edu, dict) and "name" in edu:
+                    education.append(edu["name"])
 
         return education
 
