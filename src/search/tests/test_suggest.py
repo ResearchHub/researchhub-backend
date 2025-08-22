@@ -450,6 +450,7 @@ class SuggestViewTests(TestCase):
         self.assertEqual(response.data[0]["slug"], "computer-science")
         self.assertEqual(response.data[0]["paper_count"], 150)
         self.assertEqual(response.data[1]["display_name"], "Computational Biology")
+        self.assertEqual(response.data[1]["slug"], "computational-biology")
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
     @patch("opensearchpy.Search.execute")
@@ -901,6 +902,8 @@ class SuggestViewTests(TestCase):
         # Check that both results contain "neuro" in their name
         for result in response.data:
             self.assertIn("neuro", result["display_name"].lower())
+            self.assertIn("slug", result)
+            self.assertIn("neuro", result["slug"])
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
     @patch("opensearchpy.Search.execute")
@@ -1005,6 +1008,7 @@ class SuggestViewTests(TestCase):
                 result["display_name"].lower().startswith("a"),
                 f"Result '{result['display_name']}' should start with 'a'",
             )
+            self.assertIn("slug", result)
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
     @patch("opensearchpy.Search.execute")
@@ -1049,6 +1053,7 @@ class SuggestViewTests(TestCase):
         # Should still find the result
         self.assertEqual(len(response.data), 1)
         self.assertEqual(response.data[0]["display_name"], "C++ Programming")
+        self.assertEqual(response.data[0]["slug"], "cpp-programming")
 
     @patch("utils.openalex.OpenAlex.autocomplete_works")
     @patch("opensearchpy.Search.execute")
@@ -1065,6 +1070,7 @@ class SuggestViewTests(TestCase):
                 "entity_type": "hub",
                 "id": 1,
                 "display_name": "Hub One",
+                "slug": "hub-one",
                 "created_date": "2023-01-01",
                 "_score": 10.0,
                 "source": "researchhub",
@@ -1074,6 +1080,7 @@ class SuggestViewTests(TestCase):
                 "entity_type": "hub",
                 "id": 2,
                 "display_name": "Hub Two",
+                "slug": "hub-two",
                 "created_date": "2023-01-01",
                 "_score": 8.0,
                 "source": "researchhub",
@@ -1128,7 +1135,9 @@ class SuggestViewTests(TestCase):
             # Check ordering, if results exist
             if len(hub_results) >= 2:
                 self.assertEqual(hub_results[0]["display_name"], "Hub One")
+                self.assertEqual(hub_results[0]["slug"], "hub-one")
                 self.assertEqual(hub_results[1]["display_name"], "Hub Two")
+                self.assertEqual(hub_results[1]["slug"], "hub-two")
 
             if len(user_results) >= 2:
                 self.assertEqual(user_results[0]["display_name"], "User One")

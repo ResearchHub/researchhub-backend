@@ -76,6 +76,7 @@ class SuggestView(APIView):
                 "document_type": result.get("_source", {}).get("document_type"),
                 "created_date": result.get("_source", {}).get("created_date"),
                 "authors": result.get("_source", {}).get("authors", []),
+                "slug": result.get("_source", {}).get("slug"),
                 "source": "researchhub",
                 "_score": result.get("_score", 1.0),
             },
