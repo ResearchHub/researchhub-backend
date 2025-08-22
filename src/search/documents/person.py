@@ -52,7 +52,10 @@ class PersonDocument(BaseDocument):
 
     @override
     def get_queryset(
-        self, filter_: Q | None = None, exclude: Q | None = None, count: int = None
+        self,
+        filter_: Q | None = None,
+        exclude: Q | None = None,
+        count: int = None,  # type: ignore[override]
     ) -> QuerySet:
         return (
             super()

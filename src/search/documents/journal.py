@@ -1,7 +1,8 @@
 import logging
 import re
-from typing import override
+from typing import Optional, override
 
+from django.db.models import Q
 from django_opensearch_dsl import fields as es_fields
 from django_opensearch_dsl.registries import registry
 from opensearchpy import analyzer, token_filter
@@ -50,7 +51,12 @@ class JournalDocument(BaseDocument):
         ]
 
     @override
-    def get_queryset(self, filter_=None, exclude=None, count=None):
+    def get_queryset(
+        self,
+        filter_: Optional[Q] = None,
+        exclude: Optional[Q] = None,
+        count: int = None,  # type: ignore[override]
+    ):
         return (
             super()
             .get_queryset(filter_=filter_, exclude=exclude, count=count)
