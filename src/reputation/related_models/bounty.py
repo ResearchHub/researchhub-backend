@@ -37,16 +37,22 @@ class Bounty(DefaultModel):
     CANCELLED = "CANCELLED"
     EXPIRED = "EXPIRED"
     CLOSED = "CLOSED"
+    REVIEW_PERIOD = "REVIEW_PERIOD"
     status_choices = (
         (OPEN, OPEN),
         (CLOSED, CLOSED),
         (CANCELLED, CANCELLED),
         (EXPIRED, EXPIRED),
+        (REVIEW_PERIOD, REVIEW_PERIOD),
     )
 
     expiration_date = models.DateTimeField(
         null=True,
         default=get_default_expiration_date,  # Can be null for author claim bounties
+    )
+    review_period_days = models.IntegerField(
+        default=10,
+        help_text="Days after expiration to review and award bounty"
     )
     item_content_type = models.ForeignKey(
         ContentType, on_delete=models.CASCADE, related_name="item_bounty"
@@ -121,6 +127,9 @@ class Bounty(DefaultModel):
 
     def set_closed_status(self, should_save=True):
         self.set_status(self.CLOSED, should_save=should_save)
+
+    def set_review_period_status(self, should_save=True):
+        self.set_status(self.REVIEW_PERIOD, should_save=should_save)
 
     def get_bounty_proportions(self):
         children = self.children
