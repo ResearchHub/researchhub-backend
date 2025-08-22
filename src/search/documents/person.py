@@ -75,7 +75,8 @@ class PersonDocument(BaseDocument):
         education = []
         if instance.education:
             for edu in instance.education:
-                education.append(edu["name"])
+                if edu and isinstance(edu, dict) and "name" in edu:
+                    education.append(edu["name"])
 
         return education
 
