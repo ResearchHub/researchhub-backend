@@ -14,6 +14,7 @@ from paper.tests.helpers import create_paper
 from reputation.distributions import Distribution as Dist
 from reputation.distributor import Distributor
 from reputation.models import Bounty, BountyFee, BountySolution, Distribution
+from reputation.tasks import check_open_bounties
 from researchhub_comment.tests.helpers import create_rh_comment
 from user.models import User
 from user.related_models.user_model import FOUNDATION_REVENUE_EMAIL
@@ -1435,3 +1436,57 @@ class BountyViewTests(APITestCase):
             distribution_type="BOUNTY_DAO_FEE"
         ).latest("created_date")
         self.assertEqual(dao_fee_distribution.recipient, community_revenue_user)
+
+    def test_bounty_review_period_transition(self):
+        """Test that expired bounties transition to REVIEW_PERIOD status."""
+        # Create a bounty
+        self.client.force_authenticate(self.user)
+        create_res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 100,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
+            },
+        )
+        self.assertEqual(create_res.status_code, 201)
+
+        # Get the bounty and set expiration to past
+        bounty = Bounty.objects.get(id=create_res.data["id"])
+        bounty.expiration_date = timezone.now() - timedelta(hours=1)
+        bounty.save()
+
+        # Run the task
+        check_open_bounties()
+
+        # Check bounty transitioned to REVIEW_PERIOD
+        bounty.refresh_from_db()
+        self.assertEqual(bounty.status, Bounty.REVIEW_PERIOD)
+        self.assertEqual(bounty.review_period_days, 10)
+
+    def test_bounty_expires_after_review_period(self):
+        """Test that bounties in REVIEW_PERIOD expire after review period."""
+        # Create a bounty already in REVIEW_PERIOD
+        self.client.force_authenticate(self.user)
+        create_res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": 100,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
+            },
+        )
+        self.assertEqual(create_res.status_code, 201)
+
+        # Set it to REVIEW_PERIOD with expired review period
+        bounty = Bounty.objects.get(id=create_res.data["id"])
+        bounty.status = Bounty.REVIEW_PERIOD
+        bounty.expiration_date = timezone.now() - timedelta(days=11)  # Past review period
+        bounty.save()
+
+        # Run the task
+        check_open_bounties()
+
+        # Check bounty is now EXPIRED
+        bounty.refresh_from_db()
+        self.assertEqual(bounty.status, Bounty.EXPIRED)
