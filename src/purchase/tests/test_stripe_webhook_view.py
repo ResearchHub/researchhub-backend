@@ -18,22 +18,23 @@ class StripeWebhookTestCase(TestCase):
 
     @patch("purchase.views.stripe_webhook_view.PaymentService")
     @patch("stripe.Webhook.construct_event")
-    def test_webhook_with_checkout_session_completed(self, mock_construct_event, mock_payment_service_class):
+    def test_webhook_with_checkout_session_completed(
+        self, mock_construct_event, mock_payment_service_class
+    ):
         # Arrange
         paper = Paper.objects.create()
         user = User.objects.create()
-        
+
         mock_payment_service = MagicMock()
         mock_payment_service_class.return_value = mock_payment_service
-        
+
         # Mock the payment creation
         mock_payment = Payment(
-            id=1,
-            amount=1000,
-            currency="USD",
-            external_payment_id="paymentIntentId1"
+            id=1, amount=1000, currency="USD", external_payment_id="paymentIntentId1"
         )
-        mock_payment_service.insert_payment_from_checkout_session.return_value = mock_payment
+        mock_payment_service.insert_payment_from_checkout_session.return_value = (
+            mock_payment
+        )
 
         event_data = {
             "type": "checkout.session.completed",
@@ -63,7 +64,7 @@ class StripeWebhookTestCase(TestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data, {"message": "Webhook successfully processed"})
-        
+
         # Verify the payment service was called
         mock_payment_service.insert_payment_from_checkout_session.assert_called_once_with(
             event_data["data"]["object"]
@@ -71,13 +72,17 @@ class StripeWebhookTestCase(TestCase):
 
     @patch("purchase.views.stripe_webhook_view.PaymentService")
     @patch("stripe.Webhook.construct_event")
-    def test_webhook_with_checkout_session_missing_metadata(self, mock_construct_event, mock_payment_service_class):
+    def test_webhook_with_checkout_session_missing_metadata(
+        self, mock_construct_event, mock_payment_service_class
+    ):
         # Arrange
         user = User.objects.create()
-        
+
         mock_payment_service = MagicMock()
         mock_payment_service_class.return_value = mock_payment_service
-        mock_payment_service.insert_payment_from_checkout_session.side_effect = ValueError("Missing paper_id in Stripe metadata")
+        mock_payment_service.insert_payment_from_checkout_session.side_effect = (
+            ValueError("Missing paper_id in Stripe metadata")
+        )
 
         event_data = {
             "type": "checkout.session.completed",
@@ -106,32 +111,6 @@ class StripeWebhookTestCase(TestCase):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-
-    @patch("stripe.Webhook.construct_event")
-    def test_webhook_with_payment_intent_succeeded(self, mock_construct_event):
-        # Arrange
-        event_data = {
-            "type": "payment_intent.succeeded",
-            "data": {
-                "object": {
-                    "id": "paymentIntentId1",
-                    "amount": 1000,
-                },
-            },
-        }
-        mock_construct_event.return_value = event_data
-
-        # Act
-        response = self.client.post(
-            self.url,
-            data=json.dumps(event_data),
-            content_type="application/json",
-            headers={"Stripe-Signature": self.valid_signature},
-        )
-
-        # Assert
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data, {"message": "Webhook successfully processed"})
 
     @patch("stripe.Webhook.construct_event")
     def test_webhooks_fails_with_invalid_signature(self, mock_construct_event):
@@ -180,3 +159,154 @@ class StripeWebhookTestCase(TestCase):
         # Assert
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data, {"message": "Invalid payload"})
+
+    @patch("purchase.views.stripe_webhook_view.PaymentService")
+    @patch("stripe.Webhook.construct_event")
+    def test_webhook_with_payment_intent_succeeded_success(
+        self, mock_construct_event, mock_payment_service_class
+    ):
+        # Arrange
+        mock_payment_service = MagicMock()
+        mock_payment_service_class.return_value = mock_payment_service
+
+        # Mock the payment creation
+        mock_payment = Payment(
+            id=1,
+            amount=1000,
+            currency="USD",
+            external_payment_id="paymentIntentId1",
+            user_id=1,
+        )
+        mock_payment_service.process_payment_intent_confirmation.return_value = (
+            mock_payment
+        )
+
+        event_data = {
+            "type": "payment_intent.succeeded",
+            "data": {
+                "object": {
+                    "id": "paymentIntentId1",
+                    "amount": 1000,
+                    "currency": "usd",
+                    "metadata": {
+                        "user_id": "1",
+                        "purpose": "RSC_PURCHASE",
+                        "locked_rsc_amount": "100.0",
+                    },
+                },
+            },
+        }
+        mock_construct_event.return_value = event_data
+
+        # Act
+        response = self.client.post(
+            self.url,
+            data=json.dumps(event_data),
+            content_type="application/json",
+            headers={"Stripe-Signature": self.valid_signature},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data, {"message": "Webhook successfully processed"})
+
+        # Verify the payment service was called
+        mock_payment_service.process_payment_intent_confirmation.assert_called_once_with(
+            "paymentIntentId1"
+        )
+
+    @patch("purchase.views.stripe_webhook_view.PaymentService")
+    @patch("stripe.Webhook.construct_event")
+    def test_webhook_with_payment_intent_succeeded_service_error(
+        self, mock_construct_event, mock_payment_service_class
+    ):
+        # Arrange
+        mock_payment_service = MagicMock()
+        mock_payment_service_class.return_value = mock_payment_service
+
+        # Mock the service to raise an exception
+        mock_payment_service.process_payment_intent_confirmation.side_effect = (
+            Exception("Payment processing failed")
+        )
+
+        event_data = {
+            "type": "payment_intent.succeeded",
+            "data": {
+                "object": {
+                    "id": "paymentIntentId1",
+                    "amount": 1000,
+                    "currency": "usd",
+                    "metadata": {
+                        "user_id": "1",
+                        "purpose": "RSC_PURCHASE",
+                    },
+                },
+            },
+        }
+        mock_construct_event.return_value = event_data
+
+        # Act
+        response = self.client.post(
+            self.url,
+            data=json.dumps(event_data),
+            content_type="application/json",
+            headers={"Stripe-Signature": self.valid_signature},
+        )
+
+        # Assert
+        # Even if service fails, webhook should return 200 to avoid Stripe retries
+        self.assertEqual(response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR)
+        self.assertEqual(response.data, {"message": "Error processing event"})
+
+        # Verify the payment service was called
+        mock_payment_service.process_payment_intent_confirmation.assert_called_once_with(
+            "paymentIntentId1"
+        )
+
+    @patch("purchase.views.stripe_webhook_view.PaymentService")
+    @patch("stripe.Webhook.construct_event")
+    def test_webhook_with_payment_intent_succeeded_missing_metadata(
+        self, mock_construct_event, mock_payment_service_class
+    ):
+        # Arrange
+        mock_payment_service = MagicMock()
+        mock_payment_service_class.return_value = mock_payment_service
+
+        # Mock the service to raise a ValueError for missing metadata
+        mock_payment_service.process_payment_intent_confirmation.side_effect = (
+            ValueError("Missing user_id in Stripe metadata")
+        )
+
+        event_data = {
+            "type": "payment_intent.succeeded",
+            "data": {
+                "object": {
+                    "id": "paymentIntentId1",
+                    "amount": 1000,
+                    "currency": "usd",
+                    "metadata": {
+                        # user_id is missing!
+                        "purpose": "RSC_PURCHASE",
+                    },
+                },
+            },
+        }
+        mock_construct_event.return_value = event_data
+
+        # Act
+        response = self.client.post(
+            self.url,
+            data=json.dumps(event_data),
+            content_type="application/json",
+            headers={"Stripe-Signature": self.valid_signature},
+        )
+
+        # Assert
+        # Even if service fails, webhook should return 200 to avoid Stripe retries
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data, {"message": "Invalid event data"})
+
+        # Verify the payment service was called
+        mock_payment_service.process_payment_intent_confirmation.assert_called_once_with(
+            "paymentIntentId1"
+        )
