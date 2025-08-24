@@ -59,7 +59,7 @@ class CommentOrderingTests(APITestCase):
             self.fail(f"Failed to create comment: {response.data}")
 
     def test_comment_ordering_with_parent_filter_ascending(self):
-        """Test that comments maintain created_date ordering when filtering parent__isnull=true with ascending=TRUE."""
+        """Test that comments maintain created_date ordering when filtering parent__isnull=true with ascending=true."""
 
         # Create comments with different timestamps
         now = timezone.now()
@@ -78,12 +78,12 @@ class CommentOrderingTests(APITestCase):
             "Child of first", now - timedelta(hours=1), parent=comment1
         )
 
-        # Get comments with ordering=CREATED_DATE, ascending=TRUE, parent__isnull=true
+        # Get comments with ordering=CREATED_DATE, ascending=true, parent__isnull=true
         response = self.client.get(
             f"/api/researchhubpost/{self.post.id}/comments/",
             {
                 "page_size": 15,
-                "ascending": "TRUE",
+                "ascending": "true",
                 "privacy_type": "PUBLIC",
                 "ordering": "CREATED_DATE",
                 "parent__isnull": "true",
@@ -141,7 +141,7 @@ class CommentOrderingTests(APITestCase):
             f"/api/researchhubpost/{self.post.id}/comments/",
             {
                 "page_size": 15,
-                "ascending": "FALSE",
+                "ascending": "false",
                 "privacy_type": "PUBLIC",
                 "ordering": "CREATED_DATE",
                 "parent__isnull": "true",
@@ -197,7 +197,7 @@ class CommentOrderingTests(APITestCase):
             f"/api/researchhubpost/{self.post.id}/comments/",
             {
                 "page_size": 15,
-                "ascending": "TRUE",
+                "ascending": "true",
                 "privacy_type": "PUBLIC",
                 "ordering": "CREATED_DATE",
                 "parent__isnull": "true",
@@ -245,7 +245,7 @@ class CommentOrderingTests(APITestCase):
             f"/api/researchhubpost/{self.post.id}/comments/",
             {
                 "page_size": 15,
-                "ascending": "TRUE",
+                "ascending": "true",
                 "privacy_type": "PUBLIC",
                 "ordering": "CREATED_DATE",
                 "page": 1,

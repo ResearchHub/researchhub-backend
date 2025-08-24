@@ -25,8 +25,6 @@ PEER_REVIEW = "PEER_REVIEW"
 DISCUSSION = "DISCUSSION"
 REPLICABILITY_COMMENT = "REPLICABILITY_COMMENT"
 CREATED_DATE = "CREATED_DATE"
-ASCENDING_TRUE = "TRUE"
-ASCENDING_FALSE = "FALSE"
 
 ORDER_CHOICES = (
     (BEST, "Best"),
@@ -94,6 +92,9 @@ class RHCommentFilter(filters.FilterSet):
     parent__isnull = filters.BooleanFilter(
         field_name="parent__isnull", method="filtering_parent"
     )
+    ascending = filters.BooleanFilter(
+        method="handle_ascending", label="Sort order ascending"
+    )
 
     class Meta:
         model = RhCommentModel
@@ -110,7 +111,18 @@ class RHCommentFilter(filters.FilterSet):
         super().__init__(*args, request=request, **kwargs)
 
     def _is_ascending(self):
-        return self.data.get("ascending", ASCENDING_FALSE) == ASCENDING_TRUE
+        # BooleanFilter automatically converts "true"/"false" strings to boolean
+        # Default to False (descending) if not provided
+        return (
+            self.form.cleaned_data.get("ascending", False)
+            if hasattr(self, "form") and self.form.is_valid()
+            else False
+        )
+
+    def handle_ascending(self, qs, name, value):
+        # This method is called by the BooleanFilter but we don't need to do anything here
+        # The actual ordering is handled in ordering_filter
+        return qs
 
     def _get_ordering_keys(self, keys):
         if not self._is_ascending():
