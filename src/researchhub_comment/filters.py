@@ -275,14 +275,6 @@ class RHCommentFilter(filters.FilterSet):
         if self._is_on_child_queryset():
             return qs
 
-        # Use the all_objects manager to ensure censored comments are included
-        if name == "parent__isnull" and value is True:
-            from researchhub_comment.models import RhCommentModel
-
-            # Get all IDs from the current queryset
-            ids = qs.values_list("id", flat=True)
-            # Return a queryset with all objects (including censored)
-            # filtered by these IDs and parent=None
-            return RhCommentModel.all_objects.filter(id__in=ids, parent__isnull=True)
-
-        return qs.filter(**{name: value})
+        # Simply filter by parent__isnull without creating a new queryset
+        # This preserves any ordering that was previously applied
+        return qs.filter(parent__isnull=value)
