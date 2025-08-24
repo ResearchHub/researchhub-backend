@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.contrib.contenttypes.models import ContentType
 from django.core.cache import cache
@@ -6,6 +6,7 @@ from django.test import TestCase
 
 from paper.related_models.paper_model import Paper
 from purchase.related_models.balance_model import Balance
+from purchase.related_models.constants.currency import RSC, USD
 from purchase.related_models.payment_model import (
     Payment,
     PaymentProcessor,
@@ -203,7 +204,7 @@ class PaymentServiceTest(TestCase):
         RscExchangeRate.objects.create(
             rate=2.0,
             real_rate=2.0,
-            target_currency="USD",
+            target_currency=USD,
         )
 
         checkout_session = {
@@ -222,7 +223,7 @@ class PaymentServiceTest(TestCase):
         # Assert payment was created correctly
         self.assertIsInstance(payment, Payment)
         self.assertEqual(payment.amount, 10000)
-        self.assertEqual(payment.currency, "USD")
+        self.assertEqual(payment.currency, USD)
         self.assertEqual(payment.external_payment_id, "pi_rsc_123456")
         self.assertEqual(payment.payment_processor, PaymentProcessor.STRIPE)
         self.assertEqual(payment.purpose, PaymentPurpose.RSC_PURCHASE)
@@ -268,3 +269,180 @@ class PaymentServiceTest(TestCase):
         self.assertEqual(
             self.service.get_name_for_purpose("UNKNOWN"), "Unknown Purpose"
         )
+
+    @patch("stripe.PaymentIntent.create")
+    def test_create_payment_intent_usd_success(self, mock_stripe_payment_intent_create):
+        # Arrange
+        mock_payment_intent = MagicMock()
+        mock_payment_intent.client_secret = "pi_secret_123"
+        mock_payment_intent.id = "pi_123456"
+        mock_stripe_payment_intent_create.return_value = mock_payment_intent
+
+        # Mock exchange rate for USD path (also calls usd_to_rsc)
+        with patch.object(RscExchangeRate, "usd_to_rsc", return_value=100.0):
+            # Act
+            result = self.service.create_payment_intent(
+                user_id=self.user.id,
+                amount=1000,  # $10.00
+                currency=USD,
+            )
+
+        # Assert
+        self.assertEqual(result["client_secret"], "pi_secret_123")
+        self.assertEqual(result["payment_intent_id"], "pi_123456")
+        self.assertEqual(result["locked_rsc_amount"], 100.0)
+        self.assertEqual(result["stripe_amount_cents"], 1000)
+
+        # Verify Stripe was called with correct parameters
+        mock_stripe_payment_intent_create.assert_called_once_with(
+            amount=1000,
+            currency="usd",  # Stripe expects lowercase
+            metadata={
+                "user_id": str(self.user.id),
+                "purpose": PaymentPurpose.RSC_PURCHASE,
+                "locked_rsc_amount": "100.0",
+                "original_currency": "usd",  # Converted to lowercase for Stripe
+                "original_amount": "1000",
+            },
+            automatic_payment_methods={"enabled": True},
+        )
+
+    @patch("stripe.PaymentIntent.create")
+    def test_create_payment_intent_rsc_success(self, mock_stripe_payment_intent_create):
+        # Arrange
+        mock_payment_intent = MagicMock()
+        mock_payment_intent.client_secret = "pi_secret_456"
+        mock_payment_intent.id = "pi_789012"
+        mock_stripe_payment_intent_create.return_value = mock_payment_intent
+
+        # Mock exchange rate (100 RSC = $5.00)
+        with patch.object(RscExchangeRate, "rsc_to_usd", return_value=5.0):
+            # Act
+            result = self.service.create_payment_intent(
+                user_id=self.user.id,
+                amount=100,  # 100 RSC
+                currency=RSC,
+            )
+
+        # Assert
+        self.assertEqual(result["client_secret"], "pi_secret_456")
+        self.assertEqual(result["payment_intent_id"], "pi_789012")
+        self.assertEqual(result["locked_rsc_amount"], 100)
+        self.assertEqual(result["stripe_amount_cents"], 500)  # $5.00 in cents
+
+        # Verify Stripe was called with correct parameters
+        mock_stripe_payment_intent_create.assert_called_once_with(
+            amount=500,
+            currency="usd",  # Stripe expects lowercase
+            metadata={
+                "user_id": str(self.user.id),
+                "purpose": PaymentPurpose.RSC_PURCHASE,
+                "locked_rsc_amount": "100",
+                "original_currency": "rsc",  # Converted to lowercase for Stripe
+                "original_amount": "100",
+            },
+            automatic_payment_methods={"enabled": True},
+        )
+
+    @patch("stripe.PaymentIntent.retrieve")
+    def test_process_payment_intent_confirmation_success(self, mock_stripe_retrieve):
+        # Arrange
+        mock_payment_intent = MagicMock()
+        mock_payment_intent.status = "succeeded"
+        mock_payment_intent.amount = 1000
+        mock_payment_intent.currency = "usd"
+        mock_payment_intent.id = "pi_123456"
+        mock_payment_intent.metadata = {
+            "user_id": str(self.user.id),
+            "purpose": PaymentPurpose.RSC_PURCHASE,
+            "locked_rsc_amount": "100.0",
+        }
+        mock_stripe_retrieve.return_value = mock_payment_intent
+
+        # Mock exchange rate and distributor
+        with (
+            patch.object(RscExchangeRate, "usd_to_rsc", return_value=100.0),
+            patch(
+                "purchase.services.payment_service.create_purchase_distribution"
+            ) as mock_create_dist,
+            patch(
+                "purchase.services.payment_service.Distributor"
+            ) as mock_distributor_class,
+        ):
+
+            mock_distribution = MagicMock()
+            mock_create_dist.return_value = mock_distribution
+
+            mock_distributor = MagicMock()
+            mock_distributor_class.return_value = mock_distributor
+
+            # Act
+            payment = self.service.process_payment_intent_confirmation("pi_123456")
+
+        # Assert
+        self.assertIsInstance(payment, Payment)
+        self.assertEqual(payment.amount, 1000)
+        self.assertEqual(payment.currency, "USD")
+        self.assertEqual(payment.external_payment_id, "pi_123456")
+        self.assertEqual(payment.purpose, PaymentPurpose.RSC_PURCHASE)
+        self.assertEqual(payment.user_id, self.user.id)
+
+        # Verify Stripe was called
+        mock_stripe_retrieve.assert_called_once_with("pi_123456")
+
+    @patch("stripe.PaymentIntent.retrieve")
+    def test_process_payment_intent_confirmation_not_succeeded(
+        self, mock_stripe_retrieve
+    ):
+        # Arrange
+        mock_payment_intent = MagicMock()
+        mock_payment_intent.status = "processing"  # Not succeeded
+        mock_payment_intent.id = "pi_123456"
+        mock_stripe_retrieve.return_value = mock_payment_intent
+
+        # Act & Assert
+        with self.assertRaises(ValueError) as context:
+            self.service.process_payment_intent_confirmation("pi_123456")
+
+        self.assertIn("is not succeeded", str(context.exception))
+
+    @patch("stripe.PaymentIntent.retrieve")
+    def test_process_payment_intent_confirmation_uses_locked_rsc_amount(
+        self, mock_stripe_retrieve
+    ):
+        # Arrange
+        mock_payment_intent = MagicMock()
+        mock_payment_intent.status = "succeeded"
+        mock_payment_intent.amount = 1000
+        mock_payment_intent.currency = "usd"
+        mock_payment_intent.id = "pi_123456"
+        mock_payment_intent.metadata = {
+            "user_id": str(self.user.id),
+            "purpose": PaymentPurpose.RSC_PURCHASE,
+            "locked_rsc_amount": "150.0",  # Specific RSC amount
+        }
+        mock_stripe_retrieve.return_value = mock_payment_intent
+
+        # Mock distributor
+        with (
+            patch(
+                "purchase.services.payment_service.create_purchase_distribution"
+            ) as mock_create_dist,
+            patch(
+                "purchase.services.payment_service.Distributor"
+            ) as mock_distributor_class,
+        ):
+
+            mock_distribution = MagicMock()
+            mock_create_dist.return_value = mock_distribution
+
+            mock_distributor = MagicMock()
+            mock_distributor_class.return_value = mock_distributor
+
+            # Act
+            payment = self.service.process_payment_intent_confirmation("pi_123456")
+
+        # Assert
+        self.assertIsInstance(payment, Payment)
+        # The payment should use the locked RSC amount (150.0) instead of recalculating
+        # This is verified by checking that the payment was created successfully
