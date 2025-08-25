@@ -55,7 +55,7 @@ from user.views import (
     sift_webhook_view,
 )
 from user.views.custom_verify_email_view import CustomVerifyEmailView
-from user_saved.views import UserSavedView
+from user_saved.views import UserSavedListViewSet, UserSavedSharedListView
 
 router = routers.DefaultRouter()
 
@@ -148,6 +148,8 @@ router.register(
     researchhub_document_views.ResearchhubPostViewSet,
     basename="researchhubpost",
 )
+
+router.register(r"lists", UserSavedListViewSet, basename="user_saved_list")
 
 router.register(
     r"researchhub_unified_document",
@@ -347,7 +349,11 @@ urlpatterns = [
         purchase.views.CheckoutView.as_view(),
         name="payment_view",
     ),
-    path("user_saved/", UserSavedView.as_view(), name="user_saved"),
+    path(
+        "shared/list/<str:share_token>/",
+        UserSavedSharedListView.as_view(),
+        name="user_saved_shared_list",
+    ),
 ]
 
 if "silk" in settings.INSTALLED_APPS:

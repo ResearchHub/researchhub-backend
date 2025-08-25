@@ -28,39 +28,35 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 ("created_date", models.DateTimeField(auto_now_add=True)),
-                ("updated_date", models.DateTimeField(auto_now_add=True)),
+                ("updated_date", models.DateTimeField(auto_now=True)),
                 ("is_removed", models.BooleanField(default=False)),
-                (
-                    "is_removed_date",
-                    models.DateTimeField(blank=True, default=None, null=True),
-                ),
                 ("list_name", models.CharField(max_length=200)),
                 (
-                    "is_public",
-                    models.BooleanField(
-                        default=False, help_text="This list is publically viewable"
+                    "description",
+                    models.TextField(blank=True, null=True),
+                ),
+                ("is_public", models.BooleanField(default=False)),
+                (
+                    "share_token",
+                    models.CharField(
+                        blank=True,
+                        max_length=50,
+                        null=True,
+                        unique=True,
                     ),
                 ),
+                ("tags", models.JSONField(blank=True, default=list)),
                 (
                     "created_by",
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.CASCADE,
-                        related_name="created_%(app_label)s_%(class)s",
-                        to=settings.AUTH_USER_MODEL,
-                    ),
-                ),
-                (
-                    "updated_by",
-                    models.ForeignKey(
-                        blank=True,
-                        help_text="Last user to update the instance",
-                        null=True,
-                        on_delete=django.db.models.deletion.CASCADE,
-                        related_name="updated_%(app_label)s_%(class)s",
-                        to=settings.AUTH_USER_MODEL,
+                        to="user.user",
                     ),
                 ),
             ],
+            options={
+                "unique_together": {("created_by", "list_name")},
+            },
         ),
         migrations.CreateModel(
             name="UserSavedEntry",
@@ -93,7 +89,9 @@ class Migration(migrations.Migration):
                 (
                     "unified_document",
                     models.ForeignKey(
-                        db_comment="The unified document associated with the saved content entry.",
+                        db_comment=(
+                            "The unified document associated with the saved content entry."
+                        ),
                         on_delete=django.db.models.deletion.CASCADE,
                         to="researchhub_document.researchhubunifieddocument",
                     ),
