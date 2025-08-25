@@ -220,7 +220,7 @@ class UserSavedEntryModelTests(TestCase):
     def test_unique_constraint_with_condition(self):
         """Test unique constraint with null condition"""
         # Create first entry
-        entry1 = UserSavedEntry.objects.create(  # noqa: F841
+        UserSavedEntry.objects.create(
             created_by=self.user, parent_list=self.list_obj, unified_document=self.doc
         )
 
@@ -228,7 +228,7 @@ class UserSavedEntryModelTests(TestCase):
         other_list = UserSavedList.objects.create(
             created_by=self.user, list_name="Other List"
         )
-        entry2 = UserSavedEntry.objects.create(  # noqa: F841
+        UserSavedEntry.objects.create(
             created_by=self.user, parent_list=other_list, unified_document=self.doc
         )
 
@@ -359,7 +359,7 @@ class UserSavedListPermissionModelTests(TestCase):
         # Create a new user for this test to avoid conflicts
         user3 = User.objects.create_user(username="user3")
 
-        permission = UserSavedListPermission.objects.create(  # noqa: F841
+        UserSavedListPermission.objects.create(
             list=list_obj,
             user=user3,
             permission="VIEW",
@@ -427,15 +427,15 @@ class UserSavedListAPITests(APITestCase):
     def test_list_lists(self):
         """Test listing user's lists"""
         # Create lists for user1
-        list1 = UserSavedList.objects.create(  # noqa: F841
+        UserSavedList.objects.create(
             created_by=self.user1, list_name="List 1", is_public=True
         )
-        list2 = UserSavedList.objects.create(  # noqa: F841
+        UserSavedList.objects.create(
             created_by=self.user1, list_name="List 2", is_public=False
         )
 
         # Create a list for user2
-        list3 = UserSavedList.objects.create(  # noqa: F841
+        UserSavedList.objects.create(
             created_by=self.user2, list_name="List 3", is_public=True
         )
 
@@ -468,7 +468,7 @@ class UserSavedListAPITests(APITestCase):
         )
 
         # Add a document to the list
-        entry = UserSavedEntry.objects.create(  # noqa: F841
+        UserSavedEntry.objects.create(
             created_by=self.user1, parent_list=list_obj, unified_document=self.doc1
         )
 
@@ -514,7 +514,7 @@ class UserSavedListAPITests(APITestCase):
         )
 
         # Add a document first
-        entry = UserSavedEntry.objects.create(  # noqa: F841
+        entry = UserSavedEntry.objects.create(
             created_by=self.user1, parent_list=list_obj, unified_document=self.doc1
         )
 
@@ -556,7 +556,7 @@ class UserSavedListAPITests(APITestCase):
         )
 
         # Add permission first
-        permission = UserSavedListPermission.objects.create(  # noqa: F841
+        UserSavedListPermission.objects.create(
             list=list_obj,
             user=self.user2,
             permission="EDIT",
