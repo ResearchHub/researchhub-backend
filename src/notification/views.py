@@ -98,6 +98,8 @@ class NotificationViewSet(viewsets.ModelViewSet):
             },
             "not_dns_get_action_user": {
                 "_include_fields": [
+                    "id",
+                    "email",
                     "author_profile",
                     "first_name",
                     "last_name",
@@ -105,6 +107,8 @@ class NotificationViewSet(viewsets.ModelViewSet):
             },
             "not_dns_get_recipient": {
                 "_include_fields": [
+                    "id",
+                    "email",
                     "author_profile",
                     "first_name",
                     "last_name",

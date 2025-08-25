@@ -311,6 +311,8 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "id",
                     "parent",
                     "expiration_date",
+                    "review_period_days",
+                    "review_period_end_date",
                     "solutions",
                 ]
             },

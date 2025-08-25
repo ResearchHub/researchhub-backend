@@ -1,0 +1,15 @@
+{{ email_title }}
+
+{{ email_message }}
+
+Bounty Details:
+- Title: {{ bounty_title }}
+- Amount: {{ bounty_amount_formatted }} RSC
+- Review Period: {{ review_period_days }} days
+
+View bounty: {{ action_link }}
+
+--
+ResearchHub Foundation
+
+Unsubscribe: {{ opt_out }}
