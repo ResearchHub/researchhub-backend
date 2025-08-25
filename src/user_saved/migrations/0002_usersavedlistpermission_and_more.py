@@ -4,6 +4,9 @@ import django.db.models.deletion
 from django.conf import settings
 from django.db import migrations, models
 
+# Constants to avoid duplicate literals
+USER_MODEL = "user.user"
+
 
 class Migration(migrations.Migration):
 
@@ -67,8 +70,14 @@ class Migration(migrations.Migration):
                 null=True,
                 on_delete=django.db.models.deletion.CASCADE,
                 related_name="updated_%(app_label)s_%(class)s",
-                to="user.user",
+                to=USER_MODEL,
             ),
+        ),
+        # Fix share_token to allow null=True for unique constraint
+        migrations.AlterField(
+            model_name="usersavedlist",
+            name="share_token",
+            field=models.CharField(blank=True, max_length=50, null=True, unique=True),
         ),
         # Remove unused fields from initial migration
         # Note: is_public and is_removed_date kept for SoftDeletableModel
@@ -99,7 +108,7 @@ class Migration(migrations.Migration):
             name="created_by",
             field=models.ForeignKey(
                 on_delete=django.db.models.deletion.CASCADE,
-                to="user.user",
+                to=USER_MODEL,
             ),
         ),
         migrations.AlterField(
@@ -145,7 +154,7 @@ class Migration(migrations.Migration):
             name="created_by",
             field=models.ForeignKey(
                 on_delete=django.db.models.deletion.CASCADE,
-                to="user.user",
+                to=USER_MODEL,
             ),
         ),
         migrations.AddField(
@@ -157,7 +166,7 @@ class Migration(migrations.Migration):
                 null=True,
                 on_delete=django.db.models.deletion.CASCADE,
                 related_name="updated_%(app_label)s_%(class)s",
-                to="user.user",
+                to=USER_MODEL,
             ),
         ),
         migrations.AddField(
@@ -174,7 +183,7 @@ class Migration(migrations.Migration):
             name="user",
             field=models.ForeignKey(
                 on_delete=django.db.models.deletion.CASCADE,
-                to="user.user",
+                to=USER_MODEL,
             ),
         ),
         # Add constraint for UserSavedListPermission

@@ -343,7 +343,7 @@ class UserSavedListAPITests(APITestCase):
         )
 
         # Add a document first
-        entry = UserSavedEntry.objects.create(
+        entry = UserSavedEntry.objects.create(  # noqa: F841
             created_by=self.user1, parent_list=list_obj, unified_document=self.doc1
         )
 

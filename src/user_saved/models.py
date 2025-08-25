@@ -15,7 +15,7 @@ class UserSavedList(DefaultAuthenticatedModel, SoftDeletableModel):
     """
 
     list_name = models.CharField(max_length=200)
-    description = models.TextField(blank=True, null=True)
+    description = models.TextField(blank=True)
     is_public = models.BooleanField(default=False)
     share_token = models.CharField(max_length=50, unique=True, blank=True, null=True)
     tags = models.JSONField(default=list, blank=True)
@@ -68,8 +68,8 @@ class UserSavedEntry(DefaultAuthenticatedModel, SoftDeletableModel):
     )
     document_deleted = models.BooleanField(default=False)
     document_deleted_date = models.DateTimeField(null=True, blank=True)
-    document_title_snapshot = models.CharField(max_length=500, blank=True, null=True)
-    document_type_snapshot = models.CharField(max_length=50, blank=True, null=True)
+    document_title_snapshot = models.CharField(max_length=500, blank=True)
+    document_type_snapshot = models.CharField(max_length=50, blank=True)
 
     class Meta:
         constraints = [
@@ -110,7 +110,7 @@ class UserSavedEntry(DefaultAuthenticatedModel, SoftDeletableModel):
                 return post.title if post else None
             else:
                 return getattr(self.unified_document, "title", None)
-        except Exception:
+        except (AttributeError, TypeError):
             return "Unknown Document"
 
 

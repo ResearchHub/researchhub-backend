@@ -51,7 +51,7 @@ class Command(BaseCommand):
         if dry_run:
             self.stdout.write(
                 self.style.WARNING(
-                    "DRY RUN: Would mark {total_entries} entries as deleted"
+                    f"DRY RUN: Would mark {total_entries} entries as deleted"
                 )
             )
             return

@@ -98,7 +98,7 @@ class UserSavedEntrySerializer(serializers.ModelSerializer):
                 return post.title if post else None
             else:
                 return getattr(unified_doc, "title", None)
-        except Exception:
+        except (AttributeError, TypeError):
             return "Unknown Document"
 
 

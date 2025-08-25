@@ -153,7 +153,7 @@ class UserSavedListViewSet(ModelViewSet):
                 {"success": True, "list_name": list_obj.list_name},
                 status=status.HTTP_200_OK,
             )
-        except Exception as e:
+        except (IntegrityError, ValueError) as e:
             return Response(
                 {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
