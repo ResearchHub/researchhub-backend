@@ -90,7 +90,8 @@ class Migration(migrations.Migration):
                     "unified_document",
                     models.ForeignKey(
                         db_comment=(
-                            "The unified document associated with the saved content entry."
+                            "The unified document associated with the saved content "
+                            "entry."
                         ),
                         on_delete=django.db.models.deletion.CASCADE,
                         to="researchhub_document.researchhubunifieddocument",

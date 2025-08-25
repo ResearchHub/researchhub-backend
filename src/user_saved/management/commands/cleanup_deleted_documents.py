@@ -60,14 +60,17 @@ class Command(BaseCommand):
         processed = 0
         with transaction.atomic():
             for i in range(0, total_entries, batch_size):
-                batch = entries_to_update[i : i + batch_size]
+                # Get IDs for this batch
+                batch_ids = list(
+                    entries_to_update[i : i + batch_size].values_list("id", flat=True)
+                )
 
-                # Update the batch
-                batch.update(
+                # Update the batch by ID
+                UserSavedEntry.objects.filter(id__in=batch_ids).update(
                     document_deleted=True, document_deleted_date=timezone.now()
                 )
 
-                processed += len(batch)
+                processed += len(batch_ids)
                 self.stdout.write(f"Processed {processed}/{total_entries} entries")
 
         self.stdout.write(
