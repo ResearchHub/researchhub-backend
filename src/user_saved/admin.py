@@ -1,3 +1,2 @@
-from django.contrib import admin
-
-# Register your models here.
+# This file is intentionally empty for now
+# Admin configuration can be added here when needed
