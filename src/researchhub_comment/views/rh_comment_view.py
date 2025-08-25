@@ -59,6 +59,7 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from utils.siftscience import SIFT_COMMENT, sift_track
 from utils.throttles import THROTTLE_CLASSES
+from utils.originality_ai import calculate_ai_score
 
 
 def remove_bounties(comment):
@@ -366,7 +367,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
     def _create_rh_comment(self, request, *args, **kwargs):
         data = request.data
         user = request.user
-        model = self._get_model_name()
 
         # Enforce author-only for author updates
         if data.get("thread_type") == AUTHOR_UPDATE:
@@ -382,8 +382,10 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "updated_by": user.id,
                     "thread": rh_thread.id,
                     "parent": parent_id,
+                    "ai_score": calculate_ai_score(rh_comment.plain_text),
                 }
             )
+
             rh_comment, _ = RhCommentModel.create_from_data(data)
 
             unified_document = rh_comment.unified_document
@@ -412,6 +414,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "comment_content_src",
                 ),
             ).data
+
             return Response(serializer_data, status=200)
 
     @track_event
