@@ -5,7 +5,7 @@ BASE_URL = "https://api.originality.ai/api"
 ENDPOINT_SCAN = "/v1/scan/ai"
 
 
-def calculate_ai_score(self, text):
+def calculate_ai_score(text):
     """
     Send text to Originality.ai and return the probability (0.0–1.0) that the text is 
     AI-generated. Return score = -1 if response status is >= 400.

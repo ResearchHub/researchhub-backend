@@ -382,11 +382,14 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "updated_by": user.id,
                     "thread": rh_thread.id,
                     "parent": parent_id,
-                    "ai_score": calculate_ai_score(rh_comment.plain_text),
                 }
             )
 
             rh_comment, _ = RhCommentModel.create_from_data(data)
+            
+            rh_comment.ai_score = calculate_ai_score(rh_comment.plain_text)
+            rh_comment.save(update_fields=["ai_score"])
+            rh_comment.ai_score = -1
 
             unified_document = rh_comment.unified_document
             self.add_upvote(user, rh_comment)
