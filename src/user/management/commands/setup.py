@@ -29,13 +29,13 @@ class Command(BaseCommand):
         site.save()
         social_app.sites.add(site)
 
-        os.system("python manage.py create-categories")
+        os.system("python src/manage.py create-categories")
 
-        hub_df = pd.read_csv("../misc/hub_hub.csv")
+        hub_df = pd.read_csv("misc/hub_hub.csv")
         hub_df = hub_df.drop("slug_index", axis=1)
         hub_df = hub_df.drop("acronym", axis=1)
         hub_df = hub_df.drop("hub_image", axis=1)
         hubs = [Hub(**row.to_dict()) for _, row in hub_df.iterrows()]
         Hub.objects.bulk_create(hubs)
 
-        os.system("python manage.py search_index --rebuild -f")
+        os.system("python src/manage.py search_index --rebuild -f")
