@@ -310,3 +310,58 @@ class StripeWebhookTestCase(TestCase):
         mock_payment_service.process_payment_intent_confirmation.assert_called_once_with(
             "paymentIntentId1"
         )
+
+    @patch("purchase.views.stripe_webhook_view.PaymentService")
+    @patch("stripe.Webhook.construct_event")
+    def test_webhook_with_payment_intent_succeeded_creates_fee_records(
+        self, mock_construct_event, mock_payment_service_class
+    ):
+        # Arrange
+        mock_payment_service = MagicMock()
+        mock_payment_service_class.return_value = mock_payment_service
+
+        # Mock the payment creation with fee processing
+        mock_payment = Payment(
+            id=1,
+            amount=1070,  # Amount with fees
+            currency="USD",
+            external_payment_id="paymentIntentWithFees",
+            user_id=1,
+        )
+        mock_payment_service.process_payment_intent_confirmation.return_value = (
+            mock_payment
+        )
+
+        event_data = {
+            "type": "payment_intent.succeeded",
+            "data": {
+                "object": {
+                    "id": "paymentIntentWithFees",
+                    "amount": 1070,
+                    "currency": "usd",
+                    "metadata": {
+                        "user_id": "1",
+                        "purpose": "RSC_PURCHASE",
+                        "locked_rsc_amount": "100.0",
+                        "platform_fees": "0.70",
+                    },
+                },
+            },
+        }
+        mock_construct_event.return_value = event_data
+
+        # Act
+        response = self.client.post(
+            self.url,
+            data=json.dumps(event_data),
+            content_type="application/json",
+            headers={"Stripe-Signature": self.valid_signature},
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Verify the payment service was called
+        mock_payment_service.process_payment_intent_confirmation.assert_called_once_with(
+            "paymentIntentWithFees"
+        )
