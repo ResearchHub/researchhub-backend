@@ -291,18 +291,20 @@ class PaymentServiceTest(TestCase):
         self.assertEqual(result["client_secret"], "pi_secret_123")
         self.assertEqual(result["payment_intent_id"], "pi_123456")
         self.assertEqual(result["locked_rsc_amount"], 100.0)
-        self.assertEqual(result["stripe_amount_cents"], 1000)
+        # Update this to expect the amount with fees
+        self.assertEqual(result["stripe_amount_cents"], 1070)  # $10.00 + fees
 
         # Verify Stripe was called with correct parameters
         mock_stripe_payment_intent_create.assert_called_once_with(
-            amount=1000,
-            currency="usd",  # Stripe expects lowercase
+            amount=1070,  # Updated: $10.00 + fees
+            currency="usd",
             metadata={
                 "user_id": str(self.user.id),
                 "purpose": PaymentPurpose.RSC_PURCHASE,
                 "locked_rsc_amount": "100.0",
-                "original_currency": "usd",  # Converted to lowercase for Stripe
+                "original_currency": "usd",
                 "original_amount": "1000",
+                "platform_fees": "0.700",  # Added: platform fees
             },
             automatic_payment_methods={"enabled": True},
         )
@@ -328,18 +330,20 @@ class PaymentServiceTest(TestCase):
         self.assertEqual(result["client_secret"], "pi_secret_456")
         self.assertEqual(result["payment_intent_id"], "pi_789012")
         self.assertEqual(result["locked_rsc_amount"], 100)
-        self.assertEqual(result["stripe_amount_cents"], 500)  # $5.00 in cents
+        # Update this to expect the amount with fees
+        self.assertEqual(result["stripe_amount_cents"], 535)  # $5.00 + fees
 
         # Verify Stripe was called with correct parameters
         mock_stripe_payment_intent_create.assert_called_once_with(
-            amount=500,
-            currency="usd",  # Stripe expects lowercase
+            amount=535,  # Updated: $5.00 + fees
+            currency="usd",
             metadata={
                 "user_id": str(self.user.id),
                 "purpose": PaymentPurpose.RSC_PURCHASE,
                 "locked_rsc_amount": "100",
-                "original_currency": "rsc",  # Converted to lowercase for Stripe
+                "original_currency": "rsc",
                 "original_amount": "100",
+                "platform_fees": "0.350",  # Added: platform fees
             },
             automatic_payment_methods={"enabled": True},
         )

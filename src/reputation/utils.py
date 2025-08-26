@@ -1,6 +1,6 @@
 import time
 
-
+from purchase.related_models.rsc_purchase_fee import RscPurchaseFee
 from reputation.distributions import (
     create_bounty_dao_fee_distribution,
     create_bounty_rh_fee_distribution,
@@ -11,23 +11,32 @@ from reputation.distributor import Distributor
 from reputation.models import BountyFee, SupportFee
 from user.models import User
 
+
 def calculate_bounty_fees(gross_amount):
     return _calculate_fees(gross_amount, fee_model=BountyFee)
 
-def calculate_support_fees(gross_amount,):
+
+def calculate_support_fees(
+    gross_amount,
+):
     return _calculate_fees(gross_amount, fee_model=SupportFee)
+
+
+def calculate_rsc_purchase_fees(gross_amount):
+    return _calculate_fees(gross_amount, fee_model=RscPurchaseFee)
+
 
 def _calculate_fees(
     gross_amount,
-    fee_model = BountyFee,
+    fee_model=BountyFee,
 ):
     """
     Calculate fees using the current fee
-    
+
     Args:
         gross_amount: The gross amount of the purchase
         fee_model: The fee model to use (i.e. type of fee)
-        
+
     Returns:
         fee: The total fee
         rh_fee: The RH fee
@@ -45,25 +54,25 @@ def _calculate_fees(
 
 
 def deduct_bounty_fees(user, fee, rh_fee, dao_fee, current_fee_obj):
-    return _deduct_fees(
-        user, fee, rh_fee, dao_fee, current_fee_obj, fee_type="bounty"
-    )
+    return _deduct_fees(user, fee, rh_fee, dao_fee, current_fee_obj, fee_type="bounty")
 
 
 def deduct_support_fees(user, fee, rh_fee, dao_fee, current_fee_obj):
-    return _deduct_fees(
-        user, fee, rh_fee, dao_fee, current_fee_obj, fee_type="support"
-    )
+    return _deduct_fees(user, fee, rh_fee, dao_fee, current_fee_obj, fee_type="support")
 
 
 def _deduct_fees(
-    user, fee, rh_fee, dao_fee, current_fee_obj,
+    user,
+    fee,
+    rh_fee,
+    dao_fee,
+    current_fee_obj,
     fee_type="bounty",
 ):
     """
     Deduct fees from the gross amount of the purchase.
     Creates a Distributor object for each fee and calls the distribute method.
-    
+
     Args:
         user: The user making the purchase
         fee: BountyFee object
@@ -71,7 +80,7 @@ def _deduct_fees(
         dao_fee: The DAO fee
         current_fee_obj: The current fee object
         fee_type: The type of fee (i.e. bounty or support)
-    
+
     Returns:
         True if successful, else raises exception
     """
