@@ -75,6 +75,7 @@ class StripeWebhookView(APIView):
                     payment = self.payment_service.process_payment_intent_confirmation(
                         payment_intent["id"]
                     )
+
                     logger.info(
                         "Payment record created successfully: ID=%s, Amount=%s, User=%s",
                         payment.id,

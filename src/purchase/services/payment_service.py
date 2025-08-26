@@ -1,4 +1,5 @@
 import logging
+from decimal import Decimal
 from typing import Any, Dict, Optional
 
 import stripe
@@ -15,8 +16,10 @@ from purchase.related_models.payment_model import (
     PaymentPurpose,
 )
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from purchase.related_models.rsc_purchase_fee import RscPurchaseFee
 from reputation.distributions import create_purchase_distribution
 from reputation.distributor import Distributor
+from reputation.utils import calculate_rsc_purchase_fees
 
 logger = logging.getLogger(__name__)
 
@@ -222,28 +225,39 @@ class PaymentService:
             if currency == RSC:
                 # Convert RSC amount to USD using current exchange rate
                 usd_amount = RscExchangeRate.rsc_to_usd(amount)
-                stripe_amount = int(usd_amount * 100)  # Convert to cents for Stripe
-                locked_rsc_amount = amount  # Store the original RSC amount
+                # Add platform fees to the Stripe amount
+                fees, rh_fee, dao_fee, current_fee_obj = calculate_rsc_purchase_fees(
+                    Decimal(str(usd_amount))
+                )
+                stripe_amount = int(
+                    (Decimal(str(usd_amount)) + fees) * 100
+                )  # Convert to cents for Stripe
+                locked_rsc_amount = amount  # Store the original RSC amount (no fees)
             else:
                 # USD amount (in cents)
-                stripe_amount = amount
-                # Convert USD to RSC for metadata (will use current rate at confirmation time)
                 usd_amount = amount / 100
+                # Add platform fees to the Stripe amount
+                fees, rh_fee, dao_fee, current_fee_obj = calculate_rsc_purchase_fees(
+                    Decimal(str(usd_amount))
+                )
+                stripe_amount = int(
+                    (Decimal(str(usd_amount)) + fees) * 100
+                )  # Convert to cents for Stripe
+                # Convert USD to RSC for metadata (will use current rate at confirmation time)
                 locked_rsc_amount = RscExchangeRate.usd_to_rsc(usd_amount)
 
             payment_intent = stripe.PaymentIntent.create(
                 amount=stripe_amount,
-                currency="usd",  # Stripe always uses USD
+                currency="usd",
                 metadata={
                     "user_id": str(user_id),
                     "purpose": PaymentPurpose.RSC_PURCHASE,
                     "locked_rsc_amount": str(locked_rsc_amount),
                     "original_currency": currency.lower(),
                     "original_amount": str(amount),
+                    "platform_fees": str(fees),
                 },
-                automatic_payment_methods={
-                    "enabled": True,
-                },
+                automatic_payment_methods={"enabled": True},
             )
 
             return {
@@ -293,11 +307,34 @@ class PaymentService:
                 payment_processor=PaymentProcessor.STRIPE,
                 purpose=purpose,
                 user_id=user_id,
-                object_id=user_id,  # For RSC purchases, reference the user
+                object_id=user_id,
                 content_type=ContentType.objects.get(app_label="user", model="user"),
             )
 
-            # Use the locked RSC amount from metadata instead of recalculating
+            # Create fee records
+            platform_fees = float(payment_intent.metadata.get("platform_fees", 0))
+
+            # Always create balance record for the main payment
+            Balance.objects.create(
+                user=payment.user,
+                content_type=ContentType.objects.get_for_model(Payment),
+                object_id=payment.id,
+                amount=f"-{payment.amount}",
+            )
+
+            # Create balance record for fees only if they exist
+            if platform_fees > 0:
+                current_fee = RscPurchaseFee.objects.last()
+
+                # Create balance record for fees
+                Balance.objects.create(
+                    user=payment.user,
+                    content_type=ContentType.objects.get_for_model(RscPurchaseFee),
+                    object_id=current_fee.id,
+                    amount=f"-{platform_fees}",
+                )
+
+            # Use the locked RSC amount from metadata
             if locked_rsc_amount > 0:
                 rsc_amount = locked_rsc_amount
             else:
@@ -316,7 +353,7 @@ class PaymentService:
                 recipient=payment.user,
                 db_record=payment,
                 timestamp=timezone.now().timestamp(),
-                giver=None,  # Platform gives the RSC
+                giver=None,
             )
             distributor.distribute_locked_balance(
                 lock_type=Balance.LockType.RSC_PURCHASE
