@@ -1,3 +1,4 @@
+from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
 from django.contrib.contenttypes.models import ContentType
@@ -13,6 +14,7 @@ from purchase.related_models.payment_model import (
     PaymentPurpose,
 )
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
+from purchase.related_models.rsc_purchase_fee import RscPurchaseFee
 from purchase.services.payment_service import APC_AMOUNT_CENTS, PaymentService
 from reputation.related_models.distribution import Distribution
 from user.tests.helpers import create_user
@@ -450,3 +452,161 @@ class PaymentServiceTest(TestCase):
         self.assertIsInstance(payment, Payment)
         # The payment should use the locked RSC amount (150.0) instead of recalculating
         # This is verified by checking that the payment was created successfully
+
+    @patch("stripe.PaymentIntent.create")
+    def test_create_payment_intent_includes_fees_in_metadata(
+        self, mock_stripe_payment_intent_create
+    ):
+        # Arrange
+        mock_payment_intent = MagicMock()
+        mock_payment_intent.client_secret = "pi_secret_fees"
+        mock_payment_intent.id = "pi_fees_123"
+        mock_stripe_payment_intent_create.return_value = mock_payment_intent
+
+        # Mock exchange rate and fee calculation
+        with (
+            patch.object(RscExchangeRate, "usd_to_rsc", return_value=100.0),
+            patch(
+                "purchase.services.payment_service.calculate_rsc_purchase_fees",
+                return_value=(Decimal("0.70"), Decimal("0.50"), Decimal("0.20"), None),
+            ),
+        ):
+
+            # Act
+            result = self.service.create_payment_intent(
+                user_id=self.user.id,
+                amount=1000,  # $10.00
+                currency=USD,
+            )
+
+        # Assert
+        self.assertEqual(result["stripe_amount_cents"], 1070)  # $10.00 + $0.70 fees
+
+        # Verify Stripe was called with fees in metadata
+        mock_stripe_payment_intent_create.assert_called_once_with(
+            amount=1070,
+            currency="usd",
+            metadata={
+                "user_id": str(self.user.id),
+                "purpose": PaymentPurpose.RSC_PURCHASE,
+                "locked_rsc_amount": "100.0",
+                "original_currency": "usd",
+                "original_amount": "1000",
+                "platform_fees": "0.70",
+            },
+            automatic_payment_methods={"enabled": True},
+        )
+
+    @patch("stripe.PaymentIntent.retrieve")
+    def test_process_payment_intent_confirmation_creates_balance_records(
+        self, mock_stripe_retrieve
+    ):
+        # Arrange
+        mock_payment_intent = MagicMock()
+        mock_payment_intent.status = "succeeded"
+        mock_payment_intent.amount = 1070  # $10.70 with fees
+        mock_payment_intent.currency = "usd"
+        mock_payment_intent.id = "pi_balance_123"
+        mock_payment_intent.metadata = {
+            "user_id": str(self.user.id),
+            "purpose": PaymentPurpose.RSC_PURCHASE,
+            "locked_rsc_amount": "100.0",
+            "platform_fees": "0.70",
+        }
+        mock_stripe_retrieve.return_value = mock_payment_intent
+
+        # Mock RSC purchase fee
+        mock_fee = MagicMock()
+        mock_fee.id = 1
+        with (
+            patch.object(RscPurchaseFee.objects, "last", return_value=mock_fee),
+            patch(
+                "purchase.services.payment_service.create_purchase_distribution"
+            ) as mock_create_dist,
+            patch(
+                "purchase.services.payment_service.Distributor"
+            ) as mock_distributor_class,
+        ):
+
+            mock_distribution = MagicMock()
+            mock_create_dist.return_value = mock_distribution
+
+            mock_distributor = MagicMock()
+            mock_distributor_class.return_value = mock_distributor
+
+            # Act
+            payment = self.service.process_payment_intent_confirmation("pi_balance_123")
+
+        # Assert
+        self.assertIsInstance(payment, Payment)
+
+        # Verify balance records were created
+        from purchase.related_models.balance_model import Balance
+
+        balance_records = Balance.objects.filter(user=payment.user)
+
+        # Should have 2 balance records: payment amount and fees
+        self.assertEqual(balance_records.count(), 2)
+
+        # Check payment balance record
+        payment_balance = balance_records.filter(content_type__model="payment").first()
+        self.assertIsNotNone(payment_balance)
+        self.assertEqual(payment_balance.amount, "-1070")
+
+        # Check fee balance record
+        fee_balance = balance_records.filter(
+            content_type__model="rscpurchasefee"
+        ).first()
+        self.assertIsNotNone(fee_balance)
+        self.assertEqual(fee_balance.amount, "-0.7")
+
+    @patch("stripe.PaymentIntent.retrieve")
+    def test_process_payment_intent_confirmation_no_fees(self, mock_stripe_retrieve):
+        # Arrange
+        mock_payment_intent = MagicMock()
+        mock_payment_intent.status = "succeeded"
+        mock_payment_intent.amount = 1000  # $10.00 no fees
+        mock_payment_intent.currency = "usd"
+        mock_payment_intent.id = "pi_no_fees_123"
+        mock_payment_intent.metadata = {
+            "user_id": str(self.user.id),
+            "purpose": PaymentPurpose.RSC_PURCHASE,
+            "locked_rsc_amount": "100.0",
+            "platform_fees": "0.00",
+        }
+        mock_stripe_retrieve.return_value = mock_payment_intent
+
+        # Mock distributor
+        with (
+            patch(
+                "purchase.services.payment_service.create_purchase_distribution"
+            ) as mock_create_dist,
+            patch(
+                "purchase.services.payment_service.Distributor"
+            ) as mock_distributor_class,
+        ):
+
+            mock_distribution = MagicMock()
+            mock_create_dist.return_value = mock_distribution
+
+            mock_distributor = MagicMock()
+            mock_distributor_class.return_value = mock_distributor
+
+            # Act
+            payment = self.service.process_payment_intent_confirmation("pi_no_fees_123")
+
+        # Assert
+        self.assertIsInstance(payment, Payment)
+
+        # Verify only payment balance record was created (no fee record)
+        from purchase.related_models.balance_model import Balance
+
+        balance_records = Balance.objects.filter(user=payment.user)
+
+        # Should have only 1 balance record: payment amount
+        self.assertEqual(balance_records.count(), 1)
+
+        # Check payment balance record
+        payment_balance = balance_records.filter(content_type__model="payment").first()
+        self.assertIsNotNone(payment_balance)
+        self.assertEqual(payment_balance.amount, "-1000")
