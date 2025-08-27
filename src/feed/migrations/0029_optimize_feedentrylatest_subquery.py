@@ -12,7 +12,6 @@ class Migration(migrations.Migration):
 
     def get_sql():
         # Limit data to the last 30 days in production
-        # Now applied INSIDE the subquery for better performance
         limit_data = (
             "WHERE created_date >= (NOW() - INTERVAL '30 days')"
             if settings.PRODUCTION
