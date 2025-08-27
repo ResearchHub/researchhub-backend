@@ -334,6 +334,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         top_funders = (
             self.get_queryset()
             .annotate(**self._create_funder_earnings_annotation(start_date=start_date))
+            .filter(total_funding__gt=0)
             .order_by("-total_funding")[:3]
         )
 
