@@ -4,9 +4,6 @@ import django.db.models.deletion
 from django.conf import settings
 from django.db import migrations, models
 
-# Constants to avoid duplicate literals
-USER_MODEL = "user.user"
-
 
 class Migration(migrations.Migration):
 
@@ -17,42 +14,23 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.CreateModel(
-            name="UserSavedListPermission",
-            fields=[
-                (
-                    "id",
-                    models.BigAutoField(
-                        auto_created=True,
-                        primary_key=True,
-                        serialize=False,
-                        verbose_name="ID",
-                    ),
-                ),
-                ("created_date", models.DateTimeField(auto_now_add=True)),
-                ("updated_date", models.DateTimeField(auto_now_add=True)),
-                (
-                    "permission",
-                    models.CharField(
-                        choices=[
-                            ("VIEW", "View"),
-                            ("EDIT", "Edit"),
-                            ("ADMIN", "Admin"),
-                        ],
-                        default="VIEW",
-                        max_length=10,
-                    ),
-                ),
-            ],
+        # Remove old indexes that are no longer needed
+        migrations.RemoveIndex(
+            model_name="usersavedentry",
+            name="idx_list_removed",
+        ),
+        migrations.RemoveIndex(
+            model_name="usersavedlist",
+            name="idx_user_removed",
         ),
         # Remove old constraints that don't match our new approach
         migrations.RemoveConstraint(
-            model_name="usersavedentry",
-            name="unique_active_list_and_doc",
-        ),
-        migrations.RemoveConstraint(
             model_name="usersavedlist",
             name="unique_user_list_name_not_removed",
+        ),
+        migrations.RemoveConstraint(
+            model_name="usersavedentry",
+            name="unique_active_list_and_doc",
         ),
         # Add missing fields that SoftDeletableModel expects
         migrations.AddField(
@@ -70,18 +48,21 @@ class Migration(migrations.Migration):
                 null=True,
                 on_delete=django.db.models.deletion.CASCADE,
                 related_name="updated_%(app_label)s_%(class)s",
-                to=USER_MODEL,
+                to=settings.AUTH_USER_MODEL,
             ),
         ),
-        # Fix share_token to allow null=True for unique constraint
+        # Update unified_document field to allow null values
         migrations.AlterField(
-            model_name="usersavedlist",
-            name="share_token",
-            field=models.CharField(blank=True, max_length=50, null=True, unique=True),
+            model_name="usersavedentry",
+            name="unified_document",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                to="researchhub_document.researchhubunifieddocument",
+            ),
         ),
-        # Remove unused fields from initial migration
-        # Note: is_public and is_removed_date kept for SoftDeletableModel
-        # Add new fields we need
+        # Add new fields we need for UserSavedEntry
         migrations.AddField(
             model_name="usersavedentry",
             name="document_deleted",
@@ -95,38 +76,92 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name="usersavedentry",
             name="document_title_snapshot",
-            field=models.CharField(blank=True, max_length=500, null=True),
+            field=models.CharField(blank=True, max_length=500),
         ),
         migrations.AddField(
             model_name="usersavedentry",
             name="document_type_snapshot",
-            field=models.CharField(blank=True, max_length=50, null=True),
+            field=models.CharField(blank=True, max_length=50),
         ),
-        # Update field definitions to match our models
+        # Update field definitions to match our models exactly
         migrations.AlterField(
             model_name="usersavedentry",
-            name="created_by",
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE,
-                to=USER_MODEL,
-            ),
+            name="updated_date",
+            field=models.DateTimeField(auto_now=True),
         ),
-        migrations.AlterField(
-            model_name="usersavedentry",
-            name="unified_document",
-            field=models.ForeignKey(
-                blank=True,
-                null=True,
-                on_delete=django.db.models.deletion.SET_NULL,
-                to="researchhub_document.researchhubunifieddocument",
-            ),
+        # Create UserSavedListPermission model
+        migrations.CreateModel(
+            name="UserSavedListPermission",
+            fields=[
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("created_date", models.DateTimeField(auto_now_add=True)),
+                ("updated_date", models.DateTimeField(auto_now=True)),
+                ("is_removed", models.BooleanField(default=False)),
+                (
+                    "is_removed_date",
+                    models.DateTimeField(blank=True, default=None, null=True),
+                ),
+                (
+                    "permission",
+                    models.CharField(
+                        choices=[
+                            ("VIEW", "View"),
+                            ("EDIT", "Edit"),
+                            ("ADMIN", "Admin"),
+                        ],
+                        max_length=10,
+                    ),
+                ),
+                (
+                    "created_by",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="created_%(app_label)s_%(class)s",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "list",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="user_saved.usersavedlist",
+                    ),
+                ),
+                (
+                    "updated_by",
+                    models.ForeignKey(
+                        blank=True,
+                        help_text="Last user to update the instance",
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="updated_%(app_label)s_%(class)s",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "user",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+            ],
         ),
         # Add new constraints that match our models
         migrations.AddConstraint(
             model_name="usersavedlist",
             constraint=models.UniqueConstraint(
-                fields=["created_by", "list_name"],
-                name="unique_user_list_name",
+                condition=models.Q(("is_removed", False)),
+                fields=("created_by", "list_name"),
+                name="unique_user_list_name_not_removed",
             ),
         ),
         migrations.AddConstraint(
@@ -137,56 +172,6 @@ class Migration(migrations.Migration):
                 condition=models.Q(unified_document__isnull=False),
             ),
         ),
-        # Add indexes we need
-        migrations.AddIndex(
-            model_name="usersavedentry",
-            index=models.Index(
-                fields=["document_deleted"], name="idx_document_deleted"
-            ),
-        ),
-        migrations.AddIndex(
-            model_name="usersavedlist",
-            index=models.Index(fields=["share_token"], name="idx_share_token"),
-        ),
-        # Add UserSavedListPermission fields
-        migrations.AddField(
-            model_name="usersavedlistpermission",
-            name="created_by",
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE,
-                to=USER_MODEL,
-            ),
-        ),
-        migrations.AddField(
-            model_name="usersavedlistpermission",
-            name="updated_by",
-            field=models.ForeignKey(
-                blank=True,
-                help_text="Last user to update the instance",
-                null=True,
-                on_delete=django.db.models.deletion.CASCADE,
-                related_name="updated_%(app_label)s_%(class)s",
-                to=USER_MODEL,
-            ),
-        ),
-        migrations.AddField(
-            model_name="usersavedlistpermission",
-            name="list",
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE,
-                related_name="permissions",
-                to="user_saved.usersavedlist",
-            ),
-        ),
-        migrations.AddField(
-            model_name="usersavedlistpermission",
-            name="user",
-            field=models.ForeignKey(
-                on_delete=django.db.models.deletion.CASCADE,
-                to=USER_MODEL,
-            ),
-        ),
-        # Add constraint for UserSavedListPermission
         migrations.AddConstraint(
             model_name="usersavedlistpermission",
             constraint=models.UniqueConstraint(
@@ -194,7 +179,21 @@ class Migration(migrations.Migration):
                 name="unique_list_user_permission",
             ),
         ),
-        # Add index for UserSavedListPermission
+        # Add indexes we need
+        migrations.AddIndex(
+            model_name="usersavedlist",
+            index=models.Index(
+                fields=["share_token"],
+                name="idx_share_token",
+            ),
+        ),
+        migrations.AddIndex(
+            model_name="usersavedentry",
+            index=models.Index(
+                fields=["document_deleted"],
+                name="idx_document_deleted",
+            ),
+        ),
         migrations.AddIndex(
             model_name="usersavedlistpermission",
             index=models.Index(

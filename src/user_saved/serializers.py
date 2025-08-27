@@ -7,6 +7,11 @@ class UserSavedListSerializer(serializers.ModelSerializer):
     share_url = serializers.SerializerMethodField()
     document_count = serializers.SerializerMethodField()
     created_by_username = serializers.SerializerMethodField()
+    can_edit = serializers.SerializerMethodField()
+    can_delete = serializers.SerializerMethodField()
+    can_add_documents = serializers.SerializerMethodField()
+    current_user_permission = serializers.SerializerMethodField()
+    is_owner = serializers.SerializerMethodField()
 
     class Meta:
         model = UserSavedList
@@ -20,6 +25,11 @@ class UserSavedListSerializer(serializers.ModelSerializer):
             "document_count",
             "created_by_username",
             "created_date",
+            "can_edit",
+            "can_delete",
+            "can_add_documents",
+            "current_user_permission",
+            "is_owner",
         ]
 
     def get_share_url(self, obj):
@@ -31,21 +41,63 @@ class UserSavedListSerializer(serializers.ModelSerializer):
     def get_created_by_username(self, obj):
         return obj.created_by.username if obj.created_by else None
 
+    def get_can_edit(self, obj):
+        request = self.context.get("request")
+        if request and request.user.is_authenticated:
+            return self._can_edit_list(request.user, obj)
+        return False
+
+    def get_can_delete(self, obj):
+        request = self.context.get("request")
+        if request and request.user.is_authenticated:
+            return self._can_admin_list(request.user, obj)
+        return False
+
+    def get_can_add_documents(self, obj):
+        request = self.context.get("request")
+        if request and request.user.is_authenticated:
+            return self._can_edit_list(request.user, obj)
+        return False
+
+    def get_current_user_permission(self, obj):
+        request = self.context.get("request")
+        if request and request.user.is_authenticated:
+            if obj.created_by == request.user:
+                return "OWNER"
+            permission = obj.permissions.filter(user=request.user).first()
+            return permission.permission if permission else None
+        return None
+
+    def get_is_owner(self, obj):
+        request = self.context.get("request")
+        if request and request.user.is_authenticated:
+            return obj.created_by == request.user
+        return False
+
+    def _can_edit_list(self, user, list_obj):
+        """Check if user can edit the list"""
+        if list_obj.created_by == user:
+            return True
+        permission = list_obj.permissions.filter(user=user).first()
+        return permission and permission.permission in ["EDIT", "ADMIN"]
+
+    def _can_admin_list(self, user, list_obj):
+        """Check if user can admin the list"""
+        if list_obj.created_by == user:
+            return True
+        permission = list_obj.permissions.filter(user=user).first()
+        return permission and permission.permission == "ADMIN"
+
 
 class UserSavedListDetailSerializer(UserSavedListSerializer):
     documents = serializers.SerializerMethodField()
-    permissions = serializers.SerializerMethodField()
 
     class Meta(UserSavedListSerializer.Meta):
-        fields = UserSavedListSerializer.Meta.fields + ["documents", "permissions"]
+        fields = UserSavedListSerializer.Meta.fields + ["documents"]
 
     def get_documents(self, obj):
         entries = obj.usersavedentry_set.filter(is_removed=False)
         return UserSavedEntrySerializer(entries, many=True).data
-
-    def get_permissions(self, obj):
-        permissions = obj.permissions.all()
-        return UserSavedListPermissionSerializer(permissions, many=True).data
 
 
 class UserSavedEntrySerializer(serializers.ModelSerializer):
