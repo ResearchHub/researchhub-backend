@@ -96,7 +96,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         ).data
 
     def get_queryset(self):
-        return self.queryset
+        return self.queryset.select_related("author_profile")
 
     def _get_reviewer_bounty_conditions(self, start_date=None, end_date=None):
         conditions = {
@@ -165,6 +165,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
     def _get_funder_distribution_conditions(self, start_date=None, end_date=None):
         conditions = {
             "giver_id": OuterRef("pk"),
+            "is_removed": False,  # Filter out soft-deleted distributions
             "distribution_type__in": [
                 "BOUNTY_DAO_FEE",
                 "BOUNTY_RH_FEE",
@@ -292,7 +293,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         Returns:
             tuple: (is_valid, error_response)
                 - is_valid: Boolean indicating if the range is valid
-                - error_response: Response object with error details if invalid, None otherwise
+                - error_response: Response with error if invalid, None otherwise
         """
         if not (start_date and end_date):
             return True, None
@@ -405,6 +406,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         top_funders = (
             self.get_queryset()
             .annotate(**self._create_funder_earnings_annotation(start_date, end_date))
+            .filter(total_funding__gt=0)
             .order_by("-total_funding")
         )
 
