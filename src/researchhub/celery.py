@@ -34,6 +34,7 @@ QUEUE_AUTHOR_CLAIM = "author_claim"
 QUEUE_PAPER_METADATA = "paper_metadata"
 QUEUE_BOUNTIES = "bounties"
 QUEUE_HUBS = "hubs"
+QUEUE_AI_SCORING = "ai_scoring"
 
 
 # Scheduled tasks

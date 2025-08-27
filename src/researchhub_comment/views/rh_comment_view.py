@@ -20,7 +20,7 @@ from analytics.amplitude import track_event
 from discussion.permissions import EditorCensorDiscussion
 from discussion.views import ReactionViewActionMixin
 from reputation.models import Bounty, Contribution
-from reputation.tasks import create_contribution, find_qualified_users_and_notify
+from reputation.tasks import create_contribution, find_qualified_users_and_notify, score_comment_ai
 from reputation.utils import deduct_bounty_fees
 from reputation.views.bounty_view import _create_bounty, _create_bounty_checks
 from researchhub.pagination import FasterDjangoPaginator
@@ -386,7 +386,9 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             )
 
             rh_comment, _ = RhCommentModel.create_from_data(data)
-            
+            if not TESTING:
+                score_comment_ai.apply_async((rh_comment.id,), priority=3, countdown=1)
+
             rh_comment.ai_score = calculate_ai_score(rh_comment.plain_text)
             rh_comment.save(update_fields=["ai_score"])
             rh_comment.ai_score = -1
