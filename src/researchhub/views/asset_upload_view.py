@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -8,6 +9,17 @@ from researchhub.services.storage_service import S3StorageService
 from utils.parsers import clean_filename
 
 
+def get_storage_service():
+    """
+    Factory function to get the appropriate storage service based on settings.
+    """
+    if getattr(settings, "USE_LOCAL_STORAGE", False):
+        from researchhub.services.local_storage_service import LocalStorageService
+
+        return LocalStorageService()
+    return S3StorageService()
+
+
 class AssetUploadView(APIView):
     """
     View for uploading assets into ResearchHub storage.
@@ -16,7 +28,7 @@ class AssetUploadView(APIView):
     permission_classes = [IsAuthenticated]
 
     def dispatch(self, request, *args, **kwargs):
-        self.storage_service = kwargs.pop("storage_service", S3StorageService())
+        self.storage_service = kwargs.pop("storage_service", get_storage_service())
         return super().dispatch(request, *args, **kwargs)
 
     def post(self, request: Request, *args, **kwargs) -> Response:

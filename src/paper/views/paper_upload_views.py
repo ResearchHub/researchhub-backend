@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from paper.serializers.paper_upload_serializer import PaperUploadSerializer
-from researchhub.services.storage_service import S3StorageService
+from researchhub.views.asset_upload_view import get_storage_service
 
 
 class PaperUploadView(APIView):
@@ -15,7 +15,7 @@ class PaperUploadView(APIView):
     permission_classes = [IsAuthenticated]
 
     def dispatch(self, request, *args, **kwargs):
-        self.storage_service = kwargs.pop("storage_service", S3StorageService())
+        self.storage_service = kwargs.pop("storage_service", get_storage_service())
         return super().dispatch(request, *args, **kwargs)
 
     def post(self, request: Request, *args, **kwargs) -> Response:

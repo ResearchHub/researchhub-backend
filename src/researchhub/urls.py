@@ -357,3 +357,9 @@ if "silk" in settings.INSTALLED_APPS:
 
 if settings.USE_DEBUG_TOOLBAR:
     urlpatterns += [path("__debug__/", include(debug_toolbar.urls))]
+
+# Serve media files in development when using local storage
+if settings.DEBUG and getattr(settings, "USE_LOCAL_STORAGE", False):
+    from django.conf.urls.static import static
+
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
