@@ -100,14 +100,6 @@ app.conf.beat_schedule = {
             "queue": QUEUE_EXTERNAL_REPORTING,
         },
     },
-    "paper_pull-new-openalex-works": {
-        "task": "paper.openalex_tasks.pull_new_openalex_works",
-        "schedule": crontab(minute=0, hour=6),
-        "options": {
-            "priority": 3,
-            "queue": QUEUE_PULL_PAPERS,
-        },
-    },
     "paper_enrich-altmetric-daily": {
         "task": "paper.altmetric_tasks.enrich_papers_with_altmetric_data",
         "schedule": crontab(minute=0, hour=8),  # Run at 8 AM, 2 hours after OpenAlex
