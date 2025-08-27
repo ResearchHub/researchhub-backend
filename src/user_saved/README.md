@@ -90,10 +90,105 @@ class UserSavedListPermission(DefaultAuthenticatedModel):
 ### Permission Management
 - `POST /api/lists/{id}/add_permission/` - Add user permission
 - `POST /api/lists/{id}/remove_permission/` - Remove user permission
-- `GET /api/lists/{id}/permissions/` - List all permissions
 
 ### Public Sharing
 - `GET /shared/list/{share_token}/` - Access shared list (no authentication required)
+
+## API Request/Response Examples
+
+### Create List
+```bash
+POST /api/lists/
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+    "list_name": "My Research Papers",
+    "description": "Important papers for my thesis",
+    "tags": ["machine-learning", "neuroscience"],
+    "is_public": true
+}
+```
+
+**Response:**
+```json
+{
+    "id": 1,
+    "list_name": "My Research Papers",
+    "description": "Important papers for my thesis",
+    "is_public": true,
+    "share_url": null,
+    "tags": ["machine-learning", "neuroscience"],
+    "document_count": 0,
+    "created_by_username": "researcher",
+    "created_date": "2024-01-15T10:30:00Z",
+    "can_edit": true,
+    "can_delete": true,
+    "can_add_documents": true,
+    "current_user_permission": "OWNER",
+    "is_owner": true
+}
+```
+
+### Add Document to List
+```bash
+POST /api/lists/1/add_document/
+Content-Type: application/json
+Authorization: Bearer <token>
+
+{
+    "u_doc_id": 12345
+}
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "list_name": "My Research Papers",
+    "document_id": 12345,
+    "entry_id": 789
+}
+```
+
+### Get List Details
+```bash
+GET /api/lists/1/
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+    "id": 1,
+    "list_name": "My Research Papers",
+    "description": "Important papers for my thesis",
+    "is_public": true,
+    "share_url": null,
+    "tags": ["machine-learning", "neuroscience"],
+    "document_count": 2,
+    "created_by_username": "researcher",
+    "created_date": "2024-01-15T10:30:00Z",
+    "can_edit": true,
+    "can_delete": true,
+    "can_add_documents": true,
+    "current_user_permission": "OWNER",
+    "is_owner": true,
+    "documents": [
+        {
+            "id": 1,
+            "document_info": {
+                "id": 12345,
+                "title": "Deep Learning Advances",
+                "document_type": "PAPER",
+                "url": "/paper/12345/deep-learning-advances",
+                "score": 85
+            },
+            "is_deleted": false
+        }
+    ]
+}
+```
 
 ## Usage Examples
 
@@ -220,6 +315,8 @@ python manage.py test user_saved.tests.UserSavedSharedListAPITests
 - **Input Validation**: All inputs are validated through Django REST Framework serializers
 - **SQL Injection**: Protected through Django ORM
 - **XSS**: Protected through proper serialization and template rendering
+- **Privacy Protection**: API responses only include current user's permissions, not other users' information
+- **Permission Fields**: New security-focused permission fields (`can_edit`, `can_delete`, `can_add_documents`, `current_user_permission`, `is_owner`) prevent information leakage
 
 ## Performance Considerations
 
@@ -233,7 +330,7 @@ python manage.py test user_saved.tests.UserSavedSharedListAPITests
 
 ## API Response Examples
 
-### List Detail Response
+### List Detail Response (Updated with Security Fields)
 ```json
 {
     "id": 1,
@@ -245,13 +342,20 @@ python manage.py test user_saved.tests.UserSavedSharedListAPITests
     "document_count": 5,
     "created_by_username": "researcher",
     "created_date": "2024-01-15T10:30:00Z",
+    "can_edit": true,
+    "can_delete": true,
+    "can_add_documents": true,
+    "current_user_permission": "OWNER",
+    "is_owner": true,
     "documents": [
         {
             "id": 1,
             "document_info": {
                 "id": 123,
                 "title": "Deep Learning Advances",
-                "type": "PAPER"
+                "document_type": "PAPER",
+                "url": "/paper/123/deep-learning-advances",
+                "score": 85
             },
             "is_deleted": false
         },
@@ -262,17 +366,11 @@ python manage.py test user_saved.tests.UserSavedSharedListAPITests
             "document_title_snapshot": "Deleted Paper Title",
             "document_type_snapshot": "PAPER"
         }
-    ],
-    "permissions": [
-        {
-            "id": 1,
-            "username": "colleague@example.com",
-            "email": "colleague@example.com",
-            "permission": "EDIT"
-        }
     ]
 }
 ```
+
+**Note**: The `permissions` field has been removed from API responses to prevent information leakage. Instead, the API now provides security-focused permission fields that only show the current user's capabilities.
 
 ### Shared List Response (No Auth Required)
 ```json
@@ -295,6 +393,23 @@ python manage.py test user_saved.tests.UserSavedSharedListAPITests
     ]
 }
 ```
+
+## Recent Updates
+
+### Security Improvements (Latest)
+- **Privacy Protection**: Removed `permissions` field from API responses to prevent information leakage
+- **Permission Fields**: Added security-focused fields (`can_edit`, `can_delete`, `can_add_documents`, `current_user_permission`, `is_owner`)
+- **User Privacy**: API now only exposes current user's permissions, not other users' information
+
+### API Enhancements
+- **Enhanced Serializers**: Updated serializers with permission-based fields
+- **Improved Responses**: More detailed document information in responses
+- **Better Error Handling**: Consistent error responses across all endpoints
+
+### Database Improvements
+- **Migration Fixes**: Resolved migration conflicts and database schema issues
+- **Test Database**: Improved test database management and cleanup
+- **Performance**: Optimized queries and database operations
 
 ## Future Enhancements
 

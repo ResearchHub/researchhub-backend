@@ -582,12 +582,12 @@ class UserSavedListAPITests(APITestCase):
         )
 
     def test_list_permissions(self):
-        """Test listing permissions for a list"""
+        """Test that list responses include current user permission fields"""
         list_obj = UserSavedList.objects.create(
             created_by=self.user1, list_name="Test List"
         )
 
-        # Add permissions
+        # Add permissions for user2
         UserSavedListPermission.objects.create(
             list=list_obj,
             user=self.user2,
@@ -595,13 +595,27 @@ class UserSavedListAPITests(APITestCase):
             created_by=self.user1,
         )
 
+        # Test owner's view (user1)
         self.client.force_authenticate(user=self.user1)
-        response = self.client.get(f"/api/lists/{list_obj.id}/permissions/")
+        response = self.client.get(f"/api/lists/{list_obj.id}/")
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 1)
-        self.assertEqual(response.data[0]["username"], "user2@test.com")
-        self.assertEqual(response.data[0]["permission"], "EDIT")
+        self.assertTrue(response.data["can_edit"])
+        self.assertTrue(response.data["can_delete"])
+        self.assertTrue(response.data["can_add_documents"])
+        self.assertEqual(response.data["current_user_permission"], "OWNER")
+        self.assertTrue(response.data["is_owner"])
+
+        # Test shared user's view (user2)
+        self.client.force_authenticate(user=self.user2)
+        response = self.client.get(f"/api/lists/{list_obj.id}/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data["can_edit"])
+        self.assertFalse(response.data["can_delete"])
+        self.assertTrue(response.data["can_add_documents"])
+        self.assertEqual(response.data["current_user_permission"], "EDIT")
+        self.assertFalse(response.data["is_owner"])
 
     def test_update_list(self):
         """Test updating a list"""

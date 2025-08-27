@@ -178,12 +178,49 @@ class UserSavedListViewSet(ModelViewSet):
                 # Get the unified document
                 unified_document = self._get_unified_document(u_doc_id, paper_id)
 
-                # Create the entry
-                entry = UserSavedEntry.objects.create(
-                    created_by=request.user,
+                # Check if document is already in the list (including soft-deleted)
+                existing_entry = UserSavedEntry.objects.filter(
                     parent_list=list_obj,
                     unified_document=unified_document,
-                )
+                ).first()
+
+                if existing_entry:
+                    if existing_entry.is_removed:
+                        # Reactivate the soft-deleted entry
+                        existing_entry.is_removed = False
+                        existing_entry.save()
+                        entry = existing_entry
+                    else:
+                        # Document is already active in the list
+                        return Response(
+                            {"error": "Document already in list"},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                else:
+                    # Create a new entry
+                    try:
+                        entry = UserSavedEntry.objects.create(
+                            created_by=request.user,
+                            parent_list=list_obj,
+                            unified_document=unified_document,
+                        )
+                    except IntegrityError:
+                        # Handle case where entry was created between check and create
+                        existing_entry = UserSavedEntry.objects.get(
+                            parent_list=list_obj,
+                            unified_document=unified_document,
+                        )
+                        if existing_entry.is_removed:
+                            # Reactivate the soft-deleted entry
+                            existing_entry.is_removed = False
+                            existing_entry.save()
+                            entry = existing_entry
+                        else:
+                            # Document is already active in the list
+                            return Response(
+                                {"error": "Document already in list"},
+                                status=status.HTTP_400_BAD_REQUEST,
+                            )
 
                 return Response(
                     {
@@ -203,8 +240,6 @@ class UserSavedListViewSet(ModelViewSet):
                 return Response(
                     {"error": "Document not found"}, status=status.HTTP_404_NOT_FOUND
                 )
-            except IntegrityError:
-                return self._handle_integrity_error("Document already in list")
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=["post"])
