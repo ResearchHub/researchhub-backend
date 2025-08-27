@@ -65,15 +65,6 @@ app.conf.beat_schedule = {
             "queue": QUEUE_CACHES,
         },
     },
-    # Unified Documents
-    "reset_homepage_cache": {
-        "task": "researchhub_document.tasks.reset_homepage_cache",
-        "schedule": crontab(minute=0),
-        "options": {
-            "priority": 2,
-            "queue": QUEUE_CACHES,
-        },
-    },
     # Hub
     "hub_calculate-and-set-hub-counts": {
         "task": "hub.tasks.calculate_and_set_hub_counts",
