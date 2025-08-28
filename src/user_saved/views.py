@@ -87,6 +87,7 @@ class UserSavedListViewSet(ModelViewSet):
                     created_by=request.user,
                     list_name=serializer.validated_data["list_name"],
                     description=serializer.validated_data.get("description", ""),
+                    comment=serializer.validated_data.get("comment", ""),
                     is_public=serializer.validated_data.get("is_public", False),
                     tags=serializer.validated_data.get("tags", []),
                 )

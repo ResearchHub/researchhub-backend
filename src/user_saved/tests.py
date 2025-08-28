@@ -38,12 +38,14 @@ class UserSavedListModelTests(TestCase):
             created_by=self.user,
             list_name="Test List",
             description="A test list",
+            comment="This is my personal research collection",
             is_public=True,
             tags=["test", "example"],
         )
 
         self.assertEqual(list_obj.list_name, "Test List")
         self.assertEqual(list_obj.description, "A test list")
+        self.assertEqual(list_obj.comment, "This is my personal research collection")
         self.assertTrue(list_obj.is_public)
         self.assertEqual(list_obj.tags, ["test", "example"])
         self.assertIsNotNone(list_obj.share_token)
@@ -411,6 +413,7 @@ class UserSavedListAPITests(APITestCase):
         data = {
             "list_name": "My Research List",
             "description": "A collection of important papers",
+            "comment": "This is my curated collection of ML papers",
             "tags": ["machine-learning", "neuroscience"],
             "is_public": True,
         }
@@ -421,6 +424,9 @@ class UserSavedListAPITests(APITestCase):
         self.assertEqual(response.data["list_name"], "My Research List")
         self.assertEqual(
             response.data["description"], "A collection of important papers"
+        )
+        self.assertEqual(
+            response.data["comment"], "This is my curated collection of ML papers"
         )
         self.assertEqual(response.data["tags"], ["machine-learning", "neuroscience"])
         self.assertTrue(response.data["is_public"])
@@ -481,11 +487,12 @@ class UserSavedListAPITests(APITestCase):
         self.assertEqual(response.data["list_name"], "Test List")
         self.assertEqual(len(response.data["documents"]), 1)
 
-        # Check that document info exists, but be flexible about title
+        # Check that document info exists and includes title
         doc_info = response.data["documents"][0]["document_info"]
         self.assertIsNotNone(doc_info)
         self.assertEqual(doc_info["id"], self.doc1.id)
         self.assertEqual(doc_info["document_type"], "PAPER")
+        self.assertEqual(doc_info["title"], "Test Paper 1")
 
     def test_add_document_to_list(self):
         """Test adding a document to a list"""

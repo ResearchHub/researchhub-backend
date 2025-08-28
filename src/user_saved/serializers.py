@@ -19,6 +19,7 @@ class UserSavedListSerializer(serializers.ModelSerializer):
             "id",
             "list_name",
             "description",
+            "comment",
             "is_public",
             "share_url",
             "tags",
@@ -175,6 +176,7 @@ class CreateListSerializer(serializers.Serializer):
     description = serializers.CharField(
         max_length=1000, required=False, allow_blank=True
     )
+    comment = serializers.CharField(max_length=1000, required=False, allow_blank=True)
     is_public = serializers.BooleanField(default=False)
     tags = serializers.ListField(
         child=serializers.CharField(max_length=50), required=False, default=list
@@ -186,6 +188,7 @@ class UpdateListSerializer(serializers.Serializer):
     description = serializers.CharField(
         max_length=1000, required=False, allow_blank=True
     )
+    comment = serializers.CharField(max_length=1000, required=False, allow_blank=True)
     is_public = serializers.BooleanField(required=False)
     tags = serializers.ListField(
         child=serializers.CharField(max_length=50), required=False

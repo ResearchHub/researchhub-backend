@@ -51,6 +51,14 @@ class Migration(migrations.Migration):
                 to=settings.AUTH_USER_MODEL,
             ),
         ),
+        # Add comment field for UserSavedList
+        migrations.AddField(
+            model_name="usersavedlist",
+            name="comment",
+            field=models.TextField(
+                blank=True, help_text="Creator's comment about this list"
+            ),
+        ),
         # Update unified_document field to allow null values
         migrations.AlterField(
             model_name="usersavedentry",

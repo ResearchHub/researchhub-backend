@@ -16,6 +16,9 @@ class UserSavedList(DefaultAuthenticatedModel, SoftDeletableModel):
 
     list_name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
+    comment = models.TextField(
+        blank=True, help_text="Creator's comment about this list"
+    )
     is_public = models.BooleanField(default=False)
     share_token = models.CharField(max_length=50, unique=True, blank=True, null=True)
     tags = models.JSONField(default=list, blank=True)
