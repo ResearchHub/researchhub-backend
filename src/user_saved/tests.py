@@ -494,6 +494,33 @@ class UserSavedListAPITests(APITestCase):
         self.assertEqual(doc_info["document_type"], "PAPER")
         self.assertEqual(doc_info["title"], "Test Paper 1")
 
+    def test_search_papers(self):
+        """Test searching papers for adding to lists"""
+        self.client.force_authenticate(user=self.user1)
+        response = self.client.get("/api/lists/search_papers/?q=Test")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("results", response.data)
+        self.assertIsInstance(response.data["results"], list)
+
+    def test_search_posts(self):
+        """Test searching posts for adding to lists"""
+        self.client.force_authenticate(user=self.user1)
+        response = self.client.get("/api/lists/search_posts/?q=Test")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("results", response.data)
+        self.assertIsInstance(response.data["results"], list)
+
+    def test_search_hubs(self):
+        """Test searching hubs for adding to lists"""
+        self.client.force_authenticate(user=self.user1)
+        response = self.client.get("/api/lists/search_hubs/?q=Test")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("results", response.data)
+        self.assertIsInstance(response.data["results"], list)
+
     def test_add_document_to_list(self):
         """Test adding a document to a list"""
         list_obj = UserSavedList.objects.create(

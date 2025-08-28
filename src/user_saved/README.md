@@ -91,6 +91,11 @@ class UserSavedListPermission(DefaultAuthenticatedModel):
 - `POST /api/lists/{id}/add_permission/` - Add user permission
 - `POST /api/lists/{id}/remove_permission/` - Remove user permission
 
+### Search Endpoints (for adding items to lists)
+- `GET /api/lists/search_papers/?q={query}` - Search papers by title, authors, abstract, DOI
+- `GET /api/lists/search_posts/?q={query}` - Search posts by title and content
+- `GET /api/lists/search_hubs/?q={query}` - Search hubs by name and description
+
 ### Public Sharing
 - `GET /shared/list/{share_token}/` - Access shared list (no authentication required)
 
@@ -372,6 +377,78 @@ python manage.py test user_saved.tests.UserSavedSharedListAPITests
 
 **Note**: The `permissions` field has been removed from API responses to prevent information leakage. Instead, the API now provides security-focused permission fields that only show the current user's capabilities.
 
+### Search Endpoints Examples
+
+#### **Search Papers**
+```bash
+GET /api/lists/search_papers/?q=machine learning
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "results": [
+    {
+      "id": 123,
+      "title": "Deep Learning for Machine Learning",
+      "authors": "John Doe, Jane Smith",
+      "doi": "10.1234/example.doi",
+      "abstract": "This paper explores deep learning techniques...",
+      "citations": 150,
+      "published_date": "2023-01-15",
+      "document_type": "PAPER",
+      "url": "/paper/123/deep-learning-machine-learning"
+    }
+  ]
+}
+```
+
+#### **Search Posts**
+```bash
+GET /api/lists/search_posts/?q=research discussion
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "results": [
+    {
+      "id": 456,
+      "title": "Research Discussion on AI Ethics",
+      "content": "Let's discuss the ethical implications...",
+      "created_at": "2023-02-20T10:30:00Z",
+      "document_type": "DISCUSSION",
+      "url": "/discussion/456/research-discussion-ai-ethics"
+    }
+  ]
+}
+```
+
+#### **Search Hubs**
+```bash
+GET /api/lists/search_hubs/?q=artificial intelligence
+Authorization: Bearer <token>
+```
+
+**Response:**
+```json
+{
+  "results": [
+    {
+      "id": 789,
+      "name": "Artificial Intelligence",
+      "slug": "artificial-intelligence",
+      "description": "Hub for AI research and discussions",
+      "paper_count": 1250,
+      "document_type": "HUB",
+      "url": "/hub/789/artificial-intelligence"
+    }
+  ]
+}
+```
+
 ### Shared List Response (No Auth Required)
 ```json
 {
@@ -405,6 +482,7 @@ python manage.py test user_saved.tests.UserSavedSharedListAPITests
 - **Enhanced Serializers**: Updated serializers with permission-based fields
 - **Improved Responses**: More detailed document information in responses
 - **Better Error Handling**: Consistent error responses across all endpoints
+- **Search Endpoints**: Added search functionality for papers, posts, and hubs for adding items to lists
 
 ### Database Improvements
 - **Migration Fixes**: Resolved migration conflicts and database schema issues

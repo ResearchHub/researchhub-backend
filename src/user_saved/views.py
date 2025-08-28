@@ -1,4 +1,4 @@
-from django.db import IntegrityError
+from django.db import IntegrityError, models
 from rest_framework import status
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -418,6 +418,137 @@ class UserSavedListViewSet(ModelViewSet):
 
         permission = list_obj.permissions.filter(user=user).first()
         return permission and permission.permission == "ADMIN"
+
+    @action(detail=False, methods=["get"])
+    def search_papers(self, request):
+        """Search papers for adding to lists"""
+        query = request.query_params.get("q", "").strip()
+        if not query:
+            return Response({"results": []}, status=status.HTTP_200_OK)
+
+        # Search papers by title, authors, abstract, DOI
+        from paper.models import Paper
+
+        # If query is too short, return empty results
+        if len(query) < 2:
+            return Response({"results": []}, status=status.HTTP_200_OK)
+
+        papers = (
+            Paper.objects.filter(is_removed=False, unified_document__is_removed=False)
+            .filter(
+                models.Q(title__icontains=query)
+                | models.Q(abstract__icontains=query)
+                | models.Q(doi__icontains=query)
+                | models.Q(raw_authors__icontains=query)
+            )
+            .select_related("unified_document")[:20]
+        )
+
+        results = []
+        for paper in papers:
+            results.append(
+                {
+                    "id": paper.unified_document.id,
+                    "title": paper.title or "Untitled Paper",
+                    "authors": paper.raw_authors or [],
+                    "doi": paper.doi,
+                    "abstract": paper.abstract or "",
+                    "citations": getattr(paper, "citations", 0),
+                    "published_date": paper.paper_publish_date,
+                    "document_type": "PAPER",
+                    "url": (
+                        paper.unified_document.get_url()
+                        if paper.unified_document
+                        else None
+                    ),
+                    "paper_id": paper.id,
+                }
+            )
+
+        return Response({"results": results}, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["get"])
+    def search_posts(self, request):
+        """Search posts for adding to lists"""
+        query = request.query_params.get("q", "").strip()
+        if not query:
+            return Response({"results": []}, status=status.HTTP_200_OK)
+
+        # If query is too short, return empty results
+        if len(query) < 2:
+            return Response({"results": []}, status=status.HTTP_200_OK)
+
+        # Search posts by title and content
+        from researchhub_document.related_models.researchhub_post_model import (
+            ResearchhubPost,
+        )
+
+        posts = (
+            ResearchhubPost.objects.filter(unified_document__is_removed=False)
+            .filter(
+                models.Q(title__icontains=query)
+                | models.Q(renderable_text__icontains=query)
+            )
+            .select_related("unified_document")[:20]
+        )
+
+        results = []
+        for post in posts:
+            results.append(
+                {
+                    "id": post.unified_document.id,
+                    "title": post.title or "Untitled Post",
+                    "content": post.renderable_text or "",
+                    "created_at": post.created_date,
+                    "document_type": "DISCUSSION",
+                    "url": (
+                        post.unified_document.get_url()
+                        if post.unified_document
+                        else None
+                    ),
+                    "post_id": post.id,
+                }
+            )
+
+        return Response({"results": results}, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=["get"])
+    def search_hubs(self, request):
+        """Search hubs for adding to lists"""
+        query = request.query_params.get("q", "").strip()
+        if not query:
+            return Response({"results": []}, status=status.HTTP_200_OK)
+
+        # If query is too short, return empty results
+        if len(query) < 2:
+            return Response({"results": []}, status=status.HTTP_200_OK)
+
+        # Search hubs by name and description
+        from hub.models import Hub
+
+        hubs = (
+            Hub.objects.filter(is_removed=False)
+            .filter(
+                models.Q(name__icontains=query) | models.Q(description__icontains=query)
+            )
+            .prefetch_related("related_documents")[:20]
+        )
+
+        results = []
+        for hub in hubs:
+            results.append(
+                {
+                    "id": hub.id,
+                    "name": hub.name,
+                    "slug": hub.slug,
+                    "description": hub.description,
+                    "paper_count": getattr(hub, "paper_count", 0),
+                    "document_type": "HUB",
+                    "url": f"/hub/{hub.slug}/" if hub.slug else None,
+                }
+            )
+
+        return Response({"results": results}, status=status.HTTP_200_OK)
 
 
 class UserSavedSharedListView(APIView):

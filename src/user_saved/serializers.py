@@ -97,7 +97,9 @@ class UserSavedListDetailSerializer(UserSavedListSerializer):
         fields = UserSavedListSerializer.Meta.fields + ["documents"]
 
     def get_documents(self, obj):
-        entries = obj.usersavedentry_set.filter(is_removed=False)
+        entries = obj.usersavedentry_set.filter(is_removed=False).select_related(
+            "unified_document", "unified_document__paper"
+        )
         return UserSavedEntrySerializer(entries, many=True).data
 
 
@@ -125,6 +127,11 @@ class UserSavedEntrySerializer(serializers.ModelSerializer):
                 "document_type": obj.unified_document.document_type,
                 "url": obj.unified_document.get_url(),
                 "score": obj.unified_document.score,
+                "paper_id": (
+                    getattr(obj.unified_document.paper, "id", None)
+                    if obj.unified_document.document_type == "PAPER"
+                    else None
+                ),
             }
         else:
             return {
@@ -143,14 +150,25 @@ class UserSavedEntrySerializer(serializers.ModelSerializer):
         """Get document title safely"""
         try:
             if unified_doc.document_type == "PAPER":
-                return (
-                    unified_doc.paper.title if hasattr(unified_doc, "paper") else None
-                )
+                # Try to get the paper title more robustly
+                if hasattr(unified_doc, "paper") and unified_doc.paper:
+                    return unified_doc.paper.title
+                # Fallback: try to get paper through reverse relationship
+                try:
+                    paper = unified_doc.paper_set.first()
+                    if paper:
+                        return paper.title
+                except (AttributeError, TypeError):
+                    pass
+                # Additional fallback: try paper_title field
+                if hasattr(unified_doc, "paper_title") and unified_doc.paper_title:
+                    return unified_doc.paper_title
+                return "Untitled Paper"
             elif unified_doc.document_type == "DISCUSSION":
                 post = unified_doc.posts.first()
-                return post.title if post else None
+                return post.title if post else "Untitled Discussion"
             else:
-                return getattr(unified_doc, "title", None)
+                return getattr(unified_doc, "title", "Untitled Document")
         except (AttributeError, TypeError):
             return "Unknown Document"
 
