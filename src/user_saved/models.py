@@ -114,7 +114,7 @@ class UserSavedEntry(DefaultAuthenticatedModel, SoftDeletableModel):
             return "Unknown Document"
 
 
-class UserSavedListPermission(DefaultAuthenticatedModel):
+class UserSavedListPermission(DefaultAuthenticatedModel, SoftDeletableModel):
     """
     Model for managing permissions on user saved lists
     """

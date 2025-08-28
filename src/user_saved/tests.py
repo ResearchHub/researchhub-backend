@@ -371,12 +371,14 @@ class UserSavedListPermissionModelTests(TestCase):
             UserSavedListPermission.objects.filter(list=list_obj, user=user3).exists()
         )
 
-        # Delete the list
-        list_obj.delete()
+        # Store the list ID before deletion
+        list_id = list_obj.id
+        # Delete the list with hard delete to trigger CASCADE
+        list_obj.delete(soft=False)
 
         # Permission should be deleted due to CASCADE
         self.assertFalse(
-            UserSavedListPermission.objects.filter(list=list_obj, user=user3).exists()
+            UserSavedListPermission.objects.filter(list_id=list_id, user=user3).exists()
         )
 
 
@@ -891,22 +893,16 @@ class UserSavedSignalTests(TestCase):
         self.assertIsNone(entry.document_deleted_date)
         self.assertEqual(entry.unified_document, self.doc)
 
-        # Delete the document (this should trigger the signal)
-        self.doc.delete()
+        # Delete the document with hard delete to trigger the signal
+        self.doc.delete(soft=False)
 
         # Refresh entry from database
         entry.refresh_from_db()
 
         # Verify signal handled the deletion
-        # Note: The signal might not be triggered in test environment
-        # So we'll check if either the signal worked OR the document was deleted
-        if entry.document_deleted:
-            # Signal worked
-            self.assertIsNotNone(entry.document_deleted_date)
-            self.assertIsNone(entry.unified_document)
-        else:
-            # Signal didn't work, but document should be gone
-            self.assertIsNone(entry.unified_document)
+        self.assertTrue(entry.document_deleted)
+        self.assertIsNotNone(entry.document_deleted_date)
+        self.assertIsNone(entry.unified_document)
 
     def test_signal_preserves_snapshots(self):
         """Test that signal preserves document snapshots"""
@@ -919,8 +915,8 @@ class UserSavedSignalTests(TestCase):
         self.assertEqual(entry.document_title_snapshot, "Test Paper")
         self.assertEqual(entry.document_type_snapshot, "PAPER")
 
-        # Delete the document
-        self.doc.delete()
+        # Delete the document with hard delete to trigger the signal
+        self.doc.delete(soft=False)
 
         # Refresh entry from database
         entry.refresh_from_db()
@@ -928,11 +924,8 @@ class UserSavedSignalTests(TestCase):
         # Verify snapshots are preserved
         self.assertEqual(entry.document_title_snapshot, "Test Paper")
         self.assertEqual(entry.document_type_snapshot, "PAPER")
-        # Note: The signal might not be triggered in test environment
-        # So we'll check if either the signal worked OR the document was deleted
-        if not entry.document_deleted:
-            # Signal didn't work, but document should be gone
-            self.assertIsNone(entry.unified_document)
+        self.assertTrue(entry.document_deleted)
+        self.assertIsNone(entry.unified_document)
 
     def test_signal_basic_functionality(self):
         """Test basic signal functionality"""
@@ -1062,6 +1055,7 @@ class UserSavedManagementCommandTests(TestCase):
 
         # Check output shows batch processing
         output = out.getvalue()
+
         # The command processes in batches, so it might not process all 5 entries
         # Let's check that it processed some entries
         self.assertIn("Successfully cleaned up", output)

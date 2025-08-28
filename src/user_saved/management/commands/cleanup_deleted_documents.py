@@ -59,11 +59,12 @@ class Command(BaseCommand):
         # Process in batches
         processed = 0
         with transaction.atomic():
-            for i in range(0, total_entries, batch_size):
+            # Get all IDs first to avoid queryset evaluation issues
+            all_ids = list(entries_to_update.values_list("id", flat=True))
+
+            for i in range(0, len(all_ids), batch_size):
                 # Get IDs for this batch
-                batch_ids = list(
-                    entries_to_update[i : i + batch_size].values_list("id", flat=True)
-                )
+                batch_ids = all_ids[i : i + batch_size]
 
                 # Update the batch by ID
                 UserSavedEntry.objects.filter(id__in=batch_ids).update(
