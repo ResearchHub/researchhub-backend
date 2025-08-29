@@ -400,9 +400,11 @@ class SuggestView(APIView):
                     suggest_field = "name_suggest"
 
                 try:
+                    # Truncate query to 50 characters for ES completion suggester
+                    truncated_query = query[:50]
                     suggest = search.suggest(
                         "suggestions",
-                        query,
+                        truncated_query,
                         completion={"field": suggest_field, "size": limit_per_index},
                     )
                     response = suggest.execute()
