@@ -9,15 +9,7 @@ This is done for three reasons:
 """
 
 from django.core.cache import cache
-from django.db.models import (
-    BooleanField,
-    Case,
-    DecimalField,
-    F,
-    Sum,
-    Value,
-    When,
-)
+from django.db.models import BooleanField, Case, DecimalField, F, Sum, Value, When
 from django.db.models.functions import Coalesce
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -75,6 +67,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         return context
 
     def list(self, request, *args, **kwargs):
+        print("Fetching funding feed... request:")
         page = request.query_params.get("page", "1")
         page_num = int(page)
         grant_id = request.query_params.get("grant_id", None)
@@ -82,17 +75,24 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         cache_key = self.get_cache_key(request, "funding")
         use_cache = page_num < 4 and grant_id is None and created_by is None
 
-        if use_cache:
-            # try to get cached response
-            cached_response = cache.get(cache_key)
-            if cached_response:
-                if request.user.is_authenticated:
-                    self.add_user_votes_to_response(request.user, cached_response)
-                return Response(cached_response)
+        print("page: ", page)
+        print("page num: ", page_num)
+        print("cache_key: ", cache_key)
+        print("use_cache: ", use_cache)
+
+        # if use_cache:
+        #     # try to get cached response
+        #     cached_response = cache.get(cache_key)
+        #     if cached_response:
+        #         if request.user.is_authenticated:
+        #             self.add_user_votes_to_response(request.user, cached_response)
+        #         return Response(cached_response)
 
         # Get paginated posts
         queryset = self.get_queryset()
         page = self.paginate_queryset(queryset)
+
+        print("queryset: ", queryset)
 
         feed_entries = []
         for post in page:
@@ -127,6 +127,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         Filter to only include posts that are preregistrations.
         Additionally filter by fundraise status, grant applications, and/or created_by if specified.
         """
+        print("funding feed get query set")
         fundraise_status = self.request.query_params.get("fundraise_status", None)
         grant_id = self.request.query_params.get("grant_id", None)
         created_by = self.request.query_params.get("created_by", None)
@@ -145,6 +146,8 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             .filter(document_type=PREREGISTRATION)
             .filter(unified_document__is_removed=False)
         )
+
+        print("query set: ", queryset)
 
         # Filter by created_by if provided
         if created_by:
@@ -167,20 +170,26 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
 
             return queryset
 
+        print("query set: ", queryset)
+
         if fundraise_status:
+            print("filtering by fundraise status: ", fundraise_status)
             if fundraise_status.upper() == "OPEN":
+                print("filtering by OPEN fundraises")
                 queryset = queryset.filter(
                     unified_document__fundraises__status=Fundraise.OPEN
                 )
                 # Order by end_date ascending (closest deadline first)
                 queryset = queryset.order_by("unified_document__fundraises__end_date")
             elif fundraise_status.upper() == "CLOSED":
+                print("filtering by COMPLETED fundraises")
                 queryset = queryset.filter(
                     unified_document__fundraises__status=Fundraise.COMPLETED
                 )
                 # Order by end date descending (most recent deadlines first)
                 queryset = queryset.order_by("-unified_document__fundraises__end_date")
         else:
+            print("no fundraise status filter, applying ALL sorting")
             # For ALL tab: We need different sorting for OPEN vs CLOSED/COMPLETED
             # Sort first by status (OPEN first), then apply different date sorts
             # based on status
@@ -211,8 +220,12 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
                 ).desc(),
             )
 
+            print("query set: ", queryset)
+
         ordering = self.request.query_params.get("ordering")
         if ordering == "amount_raised":
             queryset = self._order_by_amount_raised(queryset)
+
+        print("return query set: ", queryset)
 
         return queryset
