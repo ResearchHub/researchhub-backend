@@ -1,6 +1,9 @@
+import io
 import logging
 import math
-from typing import Optional, override
+import sys
+import time
+from typing import Iterable, Optional, override
 
 from django.db.models import Q, QuerySet
 from django_opensearch_dsl import fields as es_fields
@@ -175,3 +178,52 @@ class PaperDocument(BaseDocument):
 
     def prepare_doi_indexing(self, instance):
         return instance.doi or ""
+
+    def get_indexing_queryset(
+        self,
+        verbose: bool = False,
+        filter_: Optional[Q] = None,
+        exclude: Optional[Q] = None,
+        count: int = None,
+        action: str = "Index",
+        stdout: io.FileIO = sys.stdout,
+    ) -> Iterable:
+        """
+        Divide the queryset into chunks. Overwrite django_opensearch_dsl default because it uses offsets instead of
+        filtering by greater than pk.
+        """
+        chunk_size = self.django.queryset_pagination
+        qs = self.get_queryset(filter_=filter_, exclude=exclude, count=count)
+        qs = qs.order_by("pk") if not qs.query.is_sliced else qs
+        count = qs.count()
+        model = self.django.model.__name__
+        action = action.present_participle.title()
+
+        done = 0
+        start = time.time()
+        last_pk = None
+        if verbose:
+            stdout.write(f"{action} {model}: 0% ({self._eta(start, done, count)})\r")
+        while done < count:
+            if verbose:
+                stdout.write(
+                    f"{action} {model}: {round(done / count * 100)}% ({self._eta(start, done, count)})\r"
+                )
+
+            if last_pk is not None:
+                current_qs = qs.filter(pk__gt=last_pk)[:chunk_size]
+            else:
+                current_qs = qs[:chunk_size]
+
+            # Process current chunk
+            chunk_items = list(current_qs)
+            if not chunk_items:
+                break
+
+            for obj in chunk_items:
+                done += 1
+                last_pk = obj.pk
+                yield obj
+
+        if verbose:
+            stdout.write(f"{action} {count} {model}: OK          \n")
