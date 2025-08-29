@@ -6,12 +6,17 @@ and research grant postings.
 
 from django.core.cache import cache
 from django.db.models import BooleanField, Case, F, Value, When
+from django.db.models.expressions import OrderBy
+from django.utils import timezone
+from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from feed.models import FeedEntry
 from feed.serializers import GrantFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
+from hub.models import Hub
 from purchase.related_models.grant_model import Grant
 from researchhub_document.related_models.constants.document_type import GRANT
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -40,19 +45,23 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     pagination_class = FeedPagination
 
     def get_serializer_context(self):
+        print("Getting serializer context for grant feed...")
         context = super().get_serializer_context()
         context.update(self.get_common_serializer_context())
         return context
 
     def get_cache_key(self, request, feed_type=""):
+        print("get cache keys called...")
         """Override to include grant-specific query parameters in cache key"""
         base_key = super().get_cache_key(request, feed_type)
 
         # Add grant-specific parameters to cache key
         status = request.query_params.get("status", "")
         organization = request.query_params.get("organization", "")
+        order = request.query_params.get("ordering", "")
+        hub = request.query_params.get("hub", "")
 
-        grant_params = f"-status:{status}-org:{organization}"
+        grant_params = f"-status:{status}-org:{organization}-order:{order}-hub:{hub}"
         return base_key + grant_params
 
     def list(self, request, *args, **kwargs):
@@ -104,11 +113,24 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     def get_queryset(self):
         """
         Filter to only include posts that are grants.
-        Additionally filter by grant status or organization if specified.
+        Additionally filter by grant status or organization.
+        Order by user specified order param, default open to top.
         """
-        status = self.request.query_params.get("status", None)
+        status = self.request.query_params.get("fundraise_status", None)
         organization = self.request.query_params.get("organization", None)
+        hub = self.request.query_params.get("hub", None)
+        # -created_date
+        # -unified_document__grants__amoun
+        # unified_document__grants__end_date
+        order = self.request.query_params.get("ordering", "-created_date")
 
+        print("query params: ", self.request.query_params)
+        print("status: ", status)
+        print("order: ", order)
+        print("hub: ", hub)
+        print("organization: ", organization)
+
+        # get all grants.
         queryset = (
             ResearchhubPost.objects.all()
             .select_related(
@@ -125,51 +147,49 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             .filter(unified_document__is_removed=False)
         )
 
-        # Filter by status if specified
-        if status:
-            status_upper = status.upper()
-            if status_upper in [Grant.OPEN, Grant.CLOSED, Grant.COMPLETED]:
-                queryset = queryset.filter(
-                    unified_document__grants__status=status_upper
-                )
-
-                # Order based on status
-                if status_upper == Grant.OPEN:
-                    # Order by end_date ascending (closest deadline first)
-                    queryset = queryset.order_by("unified_document__grants__end_date")
-                else:
-                    # Order by end date descending (most recent deadlines first)
-                    queryset = queryset.order_by("-unified_document__grants__end_date")
-
         # Filter by organization if specified
         if organization:
             queryset = queryset.filter(
                 unified_document__grants__organization__icontains=organization
             )
 
-        if not status:
-            # For ALL tab: Sort by status (OPEN first), then by appropriate date order
-            queryset = queryset.annotate(
-                # Create a flag to identify OPEN grants
-                is_open=Case(
-                    When(
-                        unified_document__grants__status=Grant.OPEN,
-                        then=Value(True),
-                    ),
-                    default=Value(False),
-                    output_field=BooleanField(),
+        # Filter by Hub if specified:
+        if hub:
+            queryset = queryset.filter(unified_document__hubs=hub)
+
+        queryset = queryset.annotate(
+            is_open=Case(
+                When(
+                    unified_document__grants__status=Grant.OPEN,
+                    unified_document__grants__end_date__gte=timezone.now(),
+                    then=Value(True),
                 ),
-            ).order_by(
-                "-is_open",
-                # For OPEN (is_open=True): Sort by closest (earliest) end_date first
-                Case(
-                    When(is_open=True, then=F("unified_document__grants__end_date")),
-                ),
-                # For CLOSED/COMPLETED (is_open=False): Sort by most recent (latest) end_date first
-                Case(
-                    When(is_open=False, then=F("unified_document__grants__end_date")),
-                    default=None,
-                ).desc(),
-            )
+                default=Value(False),
+                output_field=BooleanField(),
+            ),
+        ).order_by(
+            OrderBy(
+                F("is_open"),
+                descending=bool(not status or status.upper() == Grant.OPEN),
+            ),
+            order,
+        )
 
         return queryset
+
+    @action(detail=False, methods=["get"], permission_classes=[AllowAny])
+    def hubs(self, request):
+        """
+        Get list of hubs that have grant posts.
+        """
+
+        # TODO: Cache this response since hubs don't change often
+
+        hub_data = list(
+            Hub.objects.filter(
+                related_documents__document_type=GRANT,
+                is_removed=False,
+            ).distinct()
+        )
+
+        return Response(hub_data, status=200)
