@@ -64,6 +64,7 @@ class SuggestView(APIView):
                 "created_date": result.get("_source", {}).get("created_date"),
                 "source": "researchhub",
                 "author_profile": result.get("_source", {}).get("author_profile", {}),
+                "is_verified": result.get("_source", {}).get("is_verified", False),
                 "_score": result.get("_score", 1.0),
             },
         },
@@ -488,14 +489,19 @@ class SuggestView(APIView):
         for entity_type, results in results_by_type.items():
             weight = self.DEFAULT_WEIGHTS.get(entity_type, 1.0)
 
-            # Special handling for users/persons - boost exact matches
+            # Special handling for users/persons - boost exact matches and verified users
             if entity_type in ["user", "person"] and query:
                 for result in results:
                     display_name = result.get("display_name", "")
                     original_score = result.get("_score", 1.0)
 
+                    # Verified user bonus (highest priority)
+                    if result.get("_source", {}).get("is_verified", False):
+                        verified_bonus = 10.0  # Very high bonus for verified users
+                        result["_score"] = original_score * weight * verified_bonus
+                        result["_boost"] = "verified_user"
                     # Exact match boosting
-                    if display_name.lower() == query.lower():
+                    elif display_name.lower() == query.lower():
                         exact_match_bonus = 5.0
                         result["_score"] = original_score * weight * exact_match_bonus
                         result["_boost"] = "exact_name_match"

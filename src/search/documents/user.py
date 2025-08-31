@@ -34,13 +34,13 @@ class UserDocument(BaseDocument):
         search_analyzer="standard",
     )
     created_date = es_fields.DateField()
+    is_verified = es_fields.BooleanField()
 
     author_profile = es_fields.ObjectField()
 
     class Index:
         name = "user"
 
-    # Let ES know which fields we want indexed
     class Django:
         model = User
         fields = [
@@ -48,6 +48,7 @@ class UserDocument(BaseDocument):
             "first_name",
             "last_name",
             "reputation",
+            # Remove "is_verified" from here
         ]
 
     def prepare_author_profile(self, instance):
@@ -88,3 +89,7 @@ class UserDocument(BaseDocument):
         except Exception:
             # Some legacy users don't have an author profile
             return f"{instance.first_name} {instance.last_name}"
+
+    def prepare_is_verified(self, instance):
+        """Prepare the is_verified field for Elasticsearch indexing"""
+        return instance.is_verified  # This calls the property method
