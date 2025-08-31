@@ -44,7 +44,23 @@ class RhCommentThreadQuerySet(models.QuerySet):
         Example aggregator, adapted from your code.
         Note: self.exclude(...) etc. uses the QuerySet instead of Manager.
         """
-        # Single aggregate query for all counts
+        from researchhub_comment.models import RhCommentModel
+
+        # Find threads that have a GENERIC_COMMENT as their root comment
+        threads_with_generic_root = self.filter(
+            rh_comments__parent__isnull=True,
+            rh_comments__comment_type=GENERIC_COMMENT,
+        ).distinct()
+
+        # Count visible GENERIC_COMMENT type comments in those threads, excluding bounties
+        discussion_count = RhCommentModel.objects.filter(
+            thread__in=threads_with_generic_root,
+            comment_type=GENERIC_COMMENT,
+            bounties__isnull=True,
+            is_removed=False,
+        ).count()
+
+        # Single aggregate query for other counts
         aggregator = self.aggregate(
             # Review count - reviews without bounties (top-level only)
             review_count=Count(
@@ -68,9 +84,9 @@ class RhCommentThreadQuerySet(models.QuerySet):
             ),
         )
 
-        # Keep discussion_count for backwards compatibility
-        aggregator["discussion_count"] = item.discussion_count
-        aggregator["conversation_count"] = item.discussion_count
+        # Add discussion_count and conversation_count
+        aggregator["discussion_count"] = discussion_count
+        aggregator["conversation_count"] = discussion_count
         return aggregator
 
 
