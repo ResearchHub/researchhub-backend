@@ -1,0 +1,43 @@
+{% load inlinecss %}
+{% load l10n %}
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title></title>
+    <link href="https://fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet">
+</head>
+{% inlinecss "notification_email.css" %}
+<body>
+    <div class="email-container" style="max-width: 600px; margin: 0 auto; font-family: 'Roboto', Arial, sans-serif;">
+        <div class="email-header" style="background-color: #ffffff; padding: 20px; text-align: center;">
+            <img class="img-logo" src="{{ assets_base_url }}/email_assets/ResearchHubLogo.png" style="width: 150px;" />
+        </div>
+        
+        <div style="background-color: #ffffff; padding: 0 20px 20px;">
+            <div style="border-top: 1px solid #e8e8e8; margin-bottom: 30px;"></div>
+            
+            <h1 style="font-size: 24px; font-weight: 500; color: #241F3A; margin: 30px 0 20px;">
+                {{ email_title }}
+            </h1>
+            
+            <div style="font-size: 16px; line-height: 24px; color: #4a4a4a; margin-bottom: 30px;">
+                {{ email_message }}
+            </div>
+            
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{{ action_link }}" style="background-color: #3971ff; color: white; padding: 12px 32px; border-radius: 4px; text-decoration: none; font-weight: 500; font-size: 16px; display: inline-block;">
+                    View Bounty
+                </a>
+            </div>
+        </div>
+        
+        <div class="footer" style="text-align: center; padding: 30px 20px; font-size: 12px; color: #999;">
+            <a href="{{ opt_out }}" style="color: #999;">Unsubscribe</a>
+            <div style="margin-top: 10px;">
+                © ResearchHub Foundation
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+{% endinlinecss %}

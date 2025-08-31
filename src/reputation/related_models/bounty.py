@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from typing import List, TypedDict
 
 import pytz
+from django.conf import settings
 from django.contrib.contenttypes.fields import GenericForeignKey, GenericRelation
 from django.contrib.contenttypes.models import ContentType
 from django.db import models
@@ -37,11 +38,13 @@ class Bounty(DefaultModel):
     CANCELLED = "CANCELLED"
     EXPIRED = "EXPIRED"
     CLOSED = "CLOSED"
+    REVIEW_PERIOD = "REVIEW_PERIOD"
     status_choices = (
         (OPEN, OPEN),
         (CLOSED, CLOSED),
         (CANCELLED, CANCELLED),
         (EXPIRED, EXPIRED),
+        (REVIEW_PERIOD, REVIEW_PERIOD),
     )
 
     expiration_date = models.DateTimeField(
@@ -94,6 +97,12 @@ class Bounty(DefaultModel):
     def __str__(self):
         return f"Bounty: {self.id}"
 
+    @property
+    def review_period_end_date(self):
+        if self.status == self.REVIEW_PERIOD and self.expiration_date:
+            return self.expiration_date + timedelta(days=settings.BOUNTY_REVIEW_PERIOD_DAYS)
+        return None
+
     def is_open(self):
         return self.status == Bounty.OPEN
 
@@ -121,6 +130,9 @@ class Bounty(DefaultModel):
 
     def set_closed_status(self, should_save=True):
         self.set_status(self.CLOSED, should_save=should_save)
+
+    def set_review_period_status(self, should_save=True):
+        self.set_status(self.REVIEW_PERIOD, should_save=should_save)
 
     def get_bounty_proportions(self):
         children = self.children

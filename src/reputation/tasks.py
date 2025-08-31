@@ -10,6 +10,7 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 from django.db.models import DurationField, F, Q
 from django.db.models.functions import Cast
+from django.utils import timezone
 from web3 import Web3
 
 import utils.locking as lock
@@ -309,62 +310,200 @@ def check_hotwallet_balance():
         check_hotwallet()
 
 
-@app.task
-def check_open_bounties():
-    open_bounties = Bounty.objects.filter(
-        status=Bounty.OPEN, parent__isnull=True
-    ).annotate(
-        time_left=Cast(
+def _get_bounty_document_title(bounty, default="Untitled"):
+    """Extract document title from bounty safely."""
+    if not bounty.unified_document:
+        return default
+    
+    try:
+        document = bounty.unified_document.get_document()
+        return getattr(document, 'title', default)
+    except (AttributeError, Exception):
+        return default
+
+
+def _send_bounty_notification(bounty, recipient, notification_type, email_subject, email_message):
+    # Cache ContentType lookup
+    bounty_content_type = ContentType.objects.get_for_model(Bounty)
+    
+    if Notification.objects.filter(
+        object_id=bounty.id,
+        content_type=bounty_content_type,
+        notification_type=notification_type,
+        recipient=recipient
+    ).exists():
+        return False
+    
+    # Add extra data for specific notification types
+    extra_data = {}
+    if notification_type in [Notification.BOUNTY_REVIEW_PERIOD_STARTED, Notification.BOUNTY_REVIEW_PERIOD_ENDING_SOON]:
+        bounty_title = _get_bounty_document_title(bounty)
+            
+        if notification_type == Notification.BOUNTY_REVIEW_PERIOD_STARTED:
+            extra_data = {
+                'review_period_days': settings.BOUNTY_REVIEW_PERIOD_DAYS,
+                'title': bounty_title
+            }
+        else:
+            extra_data = {
+                'title': bounty_title
+            }
+    
+    notification = Notification.objects.create(
+        item=bounty,
+        action_user=bounty.created_by,
+        recipient=recipient,
+        unified_document=bounty.unified_document,
+        notification_type=notification_type,
+        extra=extra_data,
+    )
+    notification.send_notification()
+    
+    if email_subject and email_message:
+        bounty_title = _get_bounty_document_title(bounty)
+        
+        # Format amount with proper decimal places
+        amount_formatted = f"{bounty.amount:.0f}".rstrip('0').rstrip('.')
+        
+        bounty_link = f"{bounty.unified_document.frontend_view_link()}/bounties" if bounty.unified_document else ""
+        
+        context = {**base_email_context}
+        context.update({
+            "email_title": email_subject.replace("Your ResearchHub ", "").replace("Urgent: ", ""),
+            "email_message": email_message,
+            "bounty_title": bounty_title,
+            "bounty_amount_formatted": amount_formatted,
+            "review_period_days": settings.BOUNTY_REVIEW_PERIOD_DAYS,
+            "action_link": bounty_link or "https://www.researchhub.com",
+            "recipient_name": recipient.first_name or recipient.username or "there",
+        })
+        
+        send_email_message(
+            [recipient.email],
+            "bounty_notification.txt",
+            email_subject,
+            context,
+            html_template="bounty_notification.html",
+        )
+    
+    return True
+
+
+def _get_bounty_solution_authors(bounty):
+    from researchhub_comment.models import RhCommentModel
+    
+    solution_authors = set()
+    if bounty.item and hasattr(bounty.item, 'thread'):
+        thread_comments = RhCommentModel.objects.filter(
+            thread=bounty.item.thread,
+            is_removed=False
+        ).exclude(
+            created_by=bounty.created_by
+        ).select_related('created_by')
+        
+        for comment in thread_comments:
+            if comment.created_by:
+                solution_authors.add(comment.created_by)
+    
+    return solution_authors
+
+
+def _annotate_bounties_with_time_left(queryset, field_name='time_left'):
+    return queryset.annotate(
+        **{field_name: Cast(
             F("expiration_date") - datetime.now(pytz.UTC),
+            DurationField(),
+        )}
+    )
+
+
+def _annotate_review_bounties_with_time_left(queryset):
+    return queryset.annotate(
+        review_time_left=Cast(
+            F("expiration_date") + timedelta(days=settings.BOUNTY_REVIEW_PERIOD_DAYS) - datetime.now(pytz.UTC),
             DurationField(),
         )
     )
 
-    upcoming_expirations = open_bounties.filter(
-        time_left__gt=timedelta(days=0), time_left__lte=timedelta(days=1)
-    )
-    for bounty in upcoming_expirations.iterator():
-        # Sends a notification if no notification exists for current bounty
-        if not Notification.objects.filter(
-            object_id=bounty.id, content_type=ContentType.objects.get_for_model(Bounty)
-        ).exists():
-            bounty_creator = bounty.created_by
-            unified_doc = bounty.unified_document
-            notification = Notification.objects.create(
-                item=bounty,
-                action_user=bounty_creator,
-                recipient=bounty_creator,
-                unified_document=unified_doc,
-                notification_type=Notification.BOUNTY_EXPIRING_SOON,
-            )
-            notification.send_notification()
 
-            outer_subject = "Your ResearchHub Bounty is Expiring"
-            context = {**base_email_context}
-            context["action"] = {
-                "message": "Your bounty is expiring in one day! \
-                If you have a suitable answer, make sure to pay out \
-                your bounty in order to keep your reputation on ResearchHub high.",
-                "frontend_view_link": unified_doc.frontend_view_link(),
-            }
-            context["subject"] = "Your Bounty is Expiring"
-            send_email_message(
-                [bounty_creator.email],
-                "general_email_message.txt",
-                outer_subject,
-                context,
-                html_template="general_email_message.html",
-            )
-
-    expired_bounties = open_bounties.filter(time_left__lte=timedelta(days=0))
-    for bounty in expired_bounties.iterator():
-        refund_status = bounty.close(Bounty.EXPIRED)
-        bounty.unified_document.update_filters(
-            (FILTER_BOUNTY_EXPIRED, FILTER_BOUNTY_OPEN)
+def _process_expired_bounties(bounties):
+    for bounty in bounties.iterator():
+        bounty.set_review_period_status()
+        bounty.unified_document.update_filters((FILTER_BOUNTY_OPEN,))
+        
+        # Get bounty title
+        bounty_title = _get_bounty_document_title(bounty)
+        
+        _send_bounty_notification(
+            bounty=bounty,
+            recipient=bounty.created_by,
+            notification_type=Notification.BOUNTY_REVIEW_PERIOD_STARTED,
+            email_subject="Your bounty has ended. Please award submissions within 10 days.",
+            email_message=f'Your bounty has ended. You have {settings.BOUNTY_REVIEW_PERIOD_DAYS} days to award submissions for "{bounty_title}"'
         )
+        
+        for author in _get_bounty_solution_authors(bounty):
+            _send_bounty_notification(
+                bounty=bounty,
+                recipient=author,
+                notification_type=Notification.BOUNTY_REVIEW_PERIOD_STARTED,
+                email_subject="Bounty Review Period Has Started",
+                email_message=(
+                    f"The bounty you answered has ended. The creator has up to "
+                    f"{settings.BOUNTY_REVIEW_PERIOD_DAYS} days to award submissions "
+                    f"for \"{bounty_title}\"."
+                )
+            )
+
+
+def _process_review_ending_bounties(bounties):
+    for bounty in bounties.iterator():
+        if not Bounty.objects.filter(parent=bounty).exists():
+            recipient_name = bounty.created_by.first_name or bounty.created_by.username or "there"
+            _send_bounty_notification(
+                bounty=bounty,
+                recipient=bounty.created_by,
+                notification_type=Notification.BOUNTY_REVIEW_PERIOD_ENDING_SOON,
+                email_subject="Award your bounty today",
+                email_message=f"Hi {recipient_name}, your bounty is ending in 24 hours. Please award it today. Failure to do so may hinder your ability to open future bounties on ResearchHub."
+            )
+
+
+def _process_expired_review_bounties(bounties):
+    for bounty in bounties.iterator():
+        refund_status = bounty.close(Bounty.EXPIRED)
+        bounty.unified_document.update_filters((FILTER_BOUNTY_EXPIRED,))
         if refund_status is False:
-            ids = expired_bounties.values_list("id", flat=True)
-            log_info(f"Failed to refund bounties: {ids}")
+            log_info(f"Failed to refund bounty: {bounty.id}")
+
+
+@app.task
+def check_open_bounties():
+    open_bounties = _annotate_bounties_with_time_left(
+        Bounty.objects.filter(status=Bounty.OPEN, parent__isnull=True, expiration_date__isnull=False)
+    )
+    
+    expired_bounties = open_bounties.filter(time_left__lte=timedelta(days=0))
+    _process_expired_bounties(expired_bounties)
+    
+    review_bounties = _annotate_review_bounties_with_time_left(
+        Bounty.objects.filter(
+            status=Bounty.REVIEW_PERIOD, 
+            parent__isnull=True,
+            expiration_date__isnull=False
+        )
+    )
+    
+    upcoming_review_endings = review_bounties.filter(
+        review_time_left__gt=timedelta(days=0),
+        review_time_left__lte=timedelta(days=1)
+    )
+    _process_review_ending_bounties(upcoming_review_endings)
+    
+    expired_review_bounties = review_bounties.filter(
+        review_time_left__lte=timedelta(days=0)
+    )
+    _process_expired_review_bounties(expired_review_bounties)
 
 
 @app.task

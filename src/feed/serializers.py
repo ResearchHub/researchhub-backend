@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core.files.storage import default_storage
@@ -384,6 +386,8 @@ class BountySerializer(serializers.Serializer):
     contributors = serializers.SerializerMethodField()
     document_type = serializers.SerializerMethodField()
     expiration_date = serializers.DateTimeField()
+    review_period_days = serializers.IntegerField()
+    review_period_end_date = serializers.SerializerMethodField()
     hub = serializers.SerializerMethodField()
     id = serializers.IntegerField()
     status = serializers.CharField()
@@ -431,6 +435,12 @@ class BountySerializer(serializers.Serializer):
             hub = obj.unified_document.get_primary_hub(fallback=True)
             return SimpleHubSerializer(hub).data if hub else None
         return None
+    
+    def get_review_period_end_date(self, obj):
+        """Calculate review period end date if bounty is in review period"""
+        if obj.status == 'REVIEW_PERIOD' and obj.expiration_date:
+            return obj.expiration_date + timedelta(days=obj.review_period_days)
+        return None
 
     class Meta:
         fields = [
@@ -439,6 +449,8 @@ class BountySerializer(serializers.Serializer):
             "contributors",
             "document_type",
             "expiration_date",
+            "review_period_days",
+            "review_period_end_date",
             "hub",
             "id",
             "status",
