@@ -41,6 +41,7 @@ class UserDocument(BaseDocument):
     class Index:
         name = "user"
 
+    # Let ES know which fields we want indexed
     class Django:
         model = User
         fields = [
@@ -48,7 +49,6 @@ class UserDocument(BaseDocument):
             "first_name",
             "last_name",
             "reputation",
-            # Remove "is_verified" from here
         ]
 
     def prepare_author_profile(self, instance):
