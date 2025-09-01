@@ -43,7 +43,7 @@ def _create_document_feed_entries(instance, pk_set):
     Create feed entries when documents are added to hubs.
     """
     if isinstance(instance, ResearchhubUnifiedDocument) and (
-        instance.document_type == "PAPER" or instance.document_type == "DISCUSSION"
+        hasattr(instance, "paper") or instance.posts.exists()
     ):
         hub_ids = list(pk_set)
         item = instance.get_document()
@@ -79,7 +79,7 @@ def _delete_document_feed_entries(instance, pk_set):
     Delete feed entries when documents are removed from hubs.
     """
     if isinstance(instance, ResearchhubUnifiedDocument) and (
-        instance.document_type == "PAPER" or instance.document_type == "DISCUSSION"
+        hasattr(instance, "paper") or instance.posts.exists()
     ):
         hub_ids = list(pk_set)
         item = instance.get_document()
