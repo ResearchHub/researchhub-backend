@@ -3,7 +3,10 @@ import logging
 
 from django.apps import apps
 from django.contrib.contenttypes.models import ContentType
+from django.db import transaction
 from django.core.files.base import ContentFile
+from django.db.models import Q
+from django.utils import timezone
 
 from mailing_list.lib import base_email_context
 from researchhub.celery import QUEUE_NOTIFICATION, app
@@ -119,3 +122,100 @@ def send_author_update_email_notifications(comment_id, follower_user_ids):
         logger.error(
             f"Failed to send author update emails for comment {comment_id}: {e}"
         )
+
+
+def _calculate_and_save_score(comment, scorer=None):
+    """Helper function to calculate and save academic score for a comment."""
+    from researchhub_comment.scoring import CommentScorer
+    
+    if scorer is None:
+        scorer = CommentScorer()
+    
+    context = {
+        'tip_amount': comment.tip_amount,
+        'bounty_award_amount': comment.bounty_award_amount,
+        'is_verified_user': comment.is_verified_user
+    }
+    
+    score_data = scorer.calculate_score(comment, context)
+    
+    comment.cached_academic_score = score_data["score"]
+    comment.score_last_calculated = timezone.now()
+    comment.save(update_fields=['cached_academic_score', 'score_last_calculated'])
+    
+    return score_data["score"]
+
+
+def _get_stale_comments(hours_old=1, batch_size=500, user_id=None):
+    """Get comments that need score recalculation."""
+    from datetime import timedelta
+    
+    RhCommentModel = apps.get_model("researchhub_comment.RhCommentModel")
+    
+    threshold = timezone.now() - timedelta(hours=hours_old)
+    queryset = RhCommentModel.objects.filter(
+        Q(score_last_calculated__isnull=True) | 
+        Q(score_last_calculated__lt=threshold)
+    )
+    
+    if user_id:
+        queryset = queryset.filter(created_by_id=user_id)
+    
+    return queryset.with_academic_scores().select_related(
+        'created_by', 'created_by__userverification'
+    )[:batch_size]
+
+
+@app.task(max_retries=3, default_retry_delay=60)
+def update_comment_academic_score(comment_id):
+    """Update academic score for a single comment."""
+    RhCommentModel = apps.get_model("researchhub_comment.RhCommentModel")
+    
+    try:
+        comment = RhCommentModel.objects.with_academic_scores().select_related(
+            'created_by', 'created_by__userverification'
+        ).get(id=comment_id)
+        
+        score = _calculate_and_save_score(comment)
+        logger.info(f"Updated academic score for comment {comment_id}: {score}")
+        return score
+        
+    except RhCommentModel.DoesNotExist:
+        logger.warning(f"Comment {comment_id} not found for score update")
+        return None
+    except Exception as e:
+        logger.error(f"Failed to update score for comment {comment_id}: {e}")
+        raise update_comment_academic_score.retry(exc=e)
+
+
+@app.task()
+def check_stale_comment_scores(hours_old=1, batch_size=500, user_id=None):
+    """
+    Check and update academic scores for stale comments.
+    Pattern matches check_open_bounties - single task with helper functions.
+    """
+    from researchhub_comment.scoring import CommentScorer
+    
+    RhCommentModel = apps.get_model("researchhub_comment.RhCommentModel")
+    
+    # Get stale comments
+    stale_comments = _get_stale_comments(hours_old, batch_size, user_id)
+    
+    # Process them
+    scorer = CommentScorer()
+    updated_count = 0
+    failed_count = 0
+    updates = []
+    
+    with transaction.atomic():
+        for comment in stale_comments.iterator(chunk_size=100):
+            try:
+                _calculate_and_save_score(comment)
+                updated_count += 1
+            except Exception as e:
+                logger.error(f"Failed to update score for comment {comment.id}: {e}")
+                failed_count += 1
+    
+    logger.info(f"Updated {updated_count} comment scores, {failed_count} failures")
+    return f"Updated {updated_count} comments, {failed_count} failures"
+

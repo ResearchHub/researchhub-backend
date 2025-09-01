@@ -6,7 +6,9 @@ from django.db.models import (
     SET_NULL,
     BooleanField,
     CharField,
+    DateTimeField,
     FileField,
+    FloatField,
     ForeignKey,
     JSONField,
     TextField,
@@ -26,6 +28,7 @@ from researchhub_comment.constants.rh_comment_thread_types import (
 from researchhub_comment.related_models.rh_comment_thread_model import (
     RhCommentThreadModel,
 )
+from researchhub_comment.managers import CommentManager
 from researchhub_comment.tasks import celery_create_comment_content_src
 from utils.models import DefaultAuthenticatedModel, SoftDeletableModel
 
@@ -57,6 +60,8 @@ class RhCommentModel(
         max_length=144,
     )
     is_accepted_answer = BooleanField(null=True)
+    cached_academic_score = FloatField(default=0.0, db_index=True)
+    score_last_calculated = DateTimeField(blank=True, null=True)
     parent = ForeignKey(
         "self",
         blank=True,
@@ -100,6 +105,8 @@ class RhCommentModel(
         related_query_name="rh_comment",
     )
     reviews = GenericRelation("review.Review")
+    
+    objects = CommentManager()
 
     """ --- PROPERTIES --- """
 
