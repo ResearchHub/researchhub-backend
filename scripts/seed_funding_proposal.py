@@ -1,6 +1,4 @@
-# Creating a Request for Proposal (RFP) Post in ResearchHub
-
-## Basic Example
+# Creating a Request for Proposal Requests Post in ResearchHub
 
 from datetime import datetime, timedelta
 
@@ -34,14 +32,15 @@ proposals = [
         "status": Fundraise.OPEN,  # OPEN, CLOSED, or COMPLETED
         "bounty_type": Bounty.Type.REVIEW,  # REVIEW, ANSWER, or OTHER
         "bounty_amount": 500,  # Bounty amount in RSC
-        "expiration_date": datetime.now(pytz.UTC) + timedelta(days=30),
+        "expiration_date": datetime.now(pytz.UTC) + timedelta(days=10),
         "bounty_status": Bounty.OPEN,
         "amount_raised": 7000,
+        "fundraise_status": Fundraise.OPEN,
     },
     {
         "title": "Proposal: Real-World Validation of Big Omics-Powered AI Drug Sensitivity Predictor for Acute Myeloid Leukemia Treatment",
         "author": User.objects.get(id=1),
-        "hubs": Hub.objects.filter(id__in=[1, 2]),
+        "hubs": Hub.objects.filter(id__in=[4, 5]),
         "renderable_text": "Real-World Validation of Big Omics-Powered AI Drug Sensitivity Predictor for Acute Myeloid Leukemia Treatment 1. Overview (1) scientific rationale and importance Despite the increasing use of targe...",
         "created_by": User.objects.get(id=1),
         "goal_amount": 99000,  # Goal amount in USD or specified currency
@@ -52,11 +51,12 @@ proposals = [
         "expiration_date": datetime.now(pytz.UTC) + timedelta(days=20),
         "bounty_status": Bounty.OPEN,
         "amount_raised": 6000,
+        "fundraise_status": Fundraise.OPEN,
     },
     {
         "title": "Proposal: Effects of psilocybin and related compounds on neuroprotection in human stroke",
         "author": User.objects.get(id=1),
-        "hubs": Hub.objects.filter(id__in=[1, 2]),
+        "hubs": Hub.objects.filter(id__in=[3]),
         "renderable_text": "Effects of psilocybin and related compounds on neuroprotection in human stroke 1. Principal investigators Ruslan Rust, PhD: RR Google Scholar Link Patrick D. Lyden, MD: PL Google Scholar Link Affil...",
         "created_by": User.objects.get(id=1),
         "goal_amount": 88000,  # Goal amount in USD or specified currency
@@ -64,14 +64,15 @@ proposals = [
         "status": Fundraise.OPEN,  # OPEN, CLOSED, or COMPLETED
         "bounty_type": Bounty.Type.REVIEW,  # REVIEW, ANSWER, or OTHER
         "bounty_amount": 1500,  # Bounty amount in RSC
-        "expiration_date": datetime.now(pytz.UTC) + timedelta(days=10),
+        "expiration_date": datetime.now(pytz.UTC) + timedelta(days=30),
         "bounty_status": Bounty.OPEN,
         "amount_raised": 5000,
+        "fundraise_status": Fundraise.OPEN,
     },
     {
         "title": "Proposal: Untargeted Metabolomics, Antioxidant Capacity, and Total Phenolic Content of Honey produced by Apis mellifera in Guam and Okinawa",
         "author": User.objects.get(id=1),
-        "hubs": Hub.objects.filter(id__in=[1, 2]),
+        "hubs": Hub.objects.filter(id__in=[21]),
         "renderable_text": "Untargeted Metabolomics, Antioxidant Capacity, and Total Phenolic Content of Honey produced by Apis mellifera in Guam and Okinawa 1. Project Overview Scientific rationale and importance: This is...",
         "created_by": User.objects.get(id=1),
         "goal_amount": 88000,  # Goal amount in USD or specified currency
@@ -82,16 +83,16 @@ proposals = [
         "expiration_date": datetime.now(pytz.UTC) - timedelta(days=30),
         "bounty_status": Bounty.EXPIRED,
         "amount_raised": 4000,
+        "fundraise_status": Fundraise.OPEN,
     },
 ]
 
-for proposal in proposals:
+
+def add_entries(fundraise_status=Fundraise.OPEN):
     unified_document = ResearchhubUnifiedDocument.objects.create(
         document_type=PREREGISTRATION
     )
-
-    hubs = Hub.objects.filter(id__in=[1, 2])  # Replace with actual hub IDs
-    unified_document.hubs.add(*hubs)
+    unified_document.hubs.add(*proposal["hubs"])
 
     funding_post = ResearchhubPost.objects.create(
         created_by=proposal["created_by"],
@@ -110,27 +111,33 @@ for proposal in proposals:
     )
 
     # Add authors (many-to-many relationship)
-    authors = Author.objects.filter(id__in=[1, 2])  # Replace with actual author IDs
+    authors = Author.objects.filter(
+        id__in=[proposal["author"].id]
+    )  # Replace with actual author IDs
     funding_post.authors.set(authors)
 
-    # Creating the Associated Fundraise (Required for Funding Feed)
-    # For RFP posts to appear in the funding feed, they need an associated Fundraise object:
-    # Create a fundraise for the RFP to appear in funding feed
+    """
+    Creating the Associated Fundraise (Required for Funding Feed)
+    For proposal posts to appear in the funding feed, they need an associated
+    Fundraise object
+    """
     fundraise_service = FundraiseService()
     fundraise = fundraise_service.create_fundraise_with_escrow(
         user=proposal["created_by"],
         unified_document=unified_document,
         goal_amount=proposal["goal_amount"],  # Goal amount in USD or specified currency
         goal_currency=USD,
-        status=Fundraise.OPEN,  # OPEN, CLOSED, or COMPLETED
+        status=fundraise_status,
     )
 
     fundraise.end_date = proposal["expiration_date"]
     fundraise.save(update_fields=["end_date"])
 
-    # Creating the Associated Bounty (Optional)
-    # RFP posts can also have an associated bounty to incentivize responses:
-    # Create an escrow to hold the bounty funds
+    """
+    Creating the Associated Bounty (Optional)
+    proposal posts can also have an associated bounty to incentivize responses:
+    Create an escrow to hold the bounty funds
+    """
     escrow = Escrow.objects.create(
         created_by=proposal["created_by"],
         hold_type=Escrow.BOUNTY,
@@ -140,8 +147,7 @@ for proposal in proposals:
     )
 
     # Create the bounty
-    expiration_date = proposal["expiration_date"]
-    bounty = Bounty.objects.create(
+    _ = Bounty.objects.create(
         created_by=proposal["created_by"],
         unified_document=unified_document,
         item_content_type=ContentType.objects.get_for_model(funding_post),
@@ -153,6 +159,14 @@ for proposal in proposals:
         status=proposal["bounty_status"],
         parent=None,  # Set if this is a contribution to existing bounty
     )
+
+
+# Seed fundraises proposals for each type.
+for proposal in proposals:
+    add_entries(fundraise_status=Fundraise.OPEN)
+    add_entries(fundraise_status=Fundraise.CLOSED)
+    add_entries(fundraise_status=Fundraise.COMPLETED)
+
 
 # Prerequisites: Exchange Rate Setup
 # Before creating posts with fundraises, ensure an exchange rate exists:

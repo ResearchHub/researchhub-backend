@@ -115,13 +115,16 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         Filter to only include posts that are grants.
         Additionally filter by grant status or organization.
         Order by user specified order param, default open to top.
+            -created_date
+            -unified_document__grants__amoun
+            unified_document__grants__end_date
         """
+
+        # TODO: reject if not allowed filter or order
+
         status = self.request.query_params.get("fundraise_status", None)
         organization = self.request.query_params.get("organization", None)
         hubs = self.request.query_params.get("hub_ids", None)
-        # -created_date
-        # -unified_document__grants__amoun
-        # unified_document__grants__end_date
         order = self.request.query_params.get("ordering", "-created_date")
 
         print("query params: ", self.request.query_params)
@@ -158,8 +161,8 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             try:
                 hub_json = json.loads(hubs)
                 queryset = queryset.filter(unified_document__hubs__id__in=hub_json)
-            except json.JSONDecodeError:
-                print("Invalid JSON for hub_ids")
+            except json.JSONDecodeError as e:
+                print("Invalid JSON for hub_ids: ", e)
                 pass
 
         queryset = queryset.annotate(
@@ -188,7 +191,10 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         Get list of hubs that have grant posts.
         """
 
-        # TODO: Cache this response
+        cache_key = "funding-hubs"
+        cache_hit = cache.get(cache_key)
+        if cache_hit:
+            return Response(cache_hit, status=200)
 
         hub_data = list(
             Hub.objects.filter(
@@ -198,5 +204,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             .values("id", "name", "slug")
             .distinct()
         )
+
+        cache.set(cache_key, hub_data, timeout=60 * 60)
 
         return Response(hub_data, status=200)
