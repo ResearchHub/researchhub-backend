@@ -20,7 +20,7 @@ papers = [
     {
         "title": "Request for Proposal: Research on Climate Change Impact",
         "author": User.objects.get(id=1),
-        "hubs": Hub.objects.filter(id__in=[1, 2]),
+        "hubs": Hub.objects.filter(id__in=[21]),
         "renderable_text": "This is a funding proposal for researching the impact of climate change on coastal ecosystems. We are requesting $100,000 to conduct a comprehensive study...",
         "created_by": User.objects.get(id=1),
         "amount": 100000,
@@ -33,7 +33,7 @@ papers = [
     {
         "title": "Request for Proposals - Cancer Biology Research Project",
         "author": User.objects.get(id=1),
-        "hubs": Hub.objects.filter(id__in=[1, 2]),
+        "hubs": Hub.objects.filter(id__in=[3, 201]),
         "renderable_text": "This is a funding proposal for researching cool stuff",
         "created_by": User.objects.get(id=1),
         "amount": 99000,
@@ -46,7 +46,7 @@ papers = [
     {
         "title": "Request for Proposals - Neuroscience Research Project",
         "author": User.objects.get(id=1),
-        "hubs": Hub.objects.filter(id__in=[1, 2]),
+        "hubs": Hub.objects.filter(id__in=[2]),
         "renderable_text": "our stuff is cooler.",
         "created_by": User.objects.get(id=1),
         "amount": 88000,
@@ -59,7 +59,7 @@ papers = [
     {
         "title": "Request for Proposals - Bioinformatics & Genomics Research",
         "author": User.objects.get(id=1),
-        "hubs": Hub.objects.filter(id__in=[1, 2]),
+        "hubs": Hub.objects.filter(id__in=[17]),
         "renderable_text": "This is a funding proposal for researching the impact of climate change on coastal ecosystems. We are requesting $100,000 to conduct a comprehensive study...",
         "created_by": User.objects.get(id=1),
         "amount": 77000,
@@ -72,7 +72,7 @@ papers = [
     {
         "title": "Request for Proposals - Comprehensive Analysis of Water Quality in Urban U.S.",
         "author": User.objects.get(id=1),
-        "hubs": Hub.objects.filter(id__in=[1, 2]),
+        "hubs": Hub.objects.filter(id__in=[3]),
         "renderable_text": "This is a funding proposal for researching the impact of climate change on coastal ecosystems. We are requesting $100,000 to conduct a comprehensive study...",
         "created_by": User.objects.get(id=1),
         "amount": 66000,
@@ -85,7 +85,7 @@ papers = [
     {
         "title": "Quantum-Safe Blockchain: Building Secure and Future-Ready Decentralized Systems",
         "author": User.objects.get(id=1),
-        "hubs": Hub.objects.filter(id__in=[1, 2]),
+        "hubs": Hub.objects.filter(id__in=[80, 245]),
         "renderable_text": "This is a funding proposal for researching the impact of climate change on coastal ecosystems. We are requesting $100,000 to conduct a comprehensive study...",
         "created_by": User.objects.get(id=1),
         "amount": 55000,
@@ -100,6 +100,8 @@ papers = [
 for paper in papers:
     # Create the unified document first (required)
     unified_document = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+
+    unified_document.hubs.add(*paper["hubs"])
     # Create the funding proposal post
     rfp_post = ResearchhubPost.objects.create(
         created_by=paper["created_by"],
@@ -138,60 +140,3 @@ for paper in papers:
     grant.contacts.set(paper["contacts"])
 
     print("Funding proposal created successfully:", rfp_post.id)
-
-
-# # Create the unified document first (required)
-# unified_document1 = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
-
-# # Optionally add hubs
-# hubs = Hub.objects.filter(id__in=[1, 2])  # Replace with actual hub IDs
-# unified_document1.hubs.add(*hubs)
-
-# # Create the funding proposal post
-# rfp_post = ResearchhubPost.objects.create(
-#     created_by=User.objects.get(id=1),
-#     document_type=PREREGISTRATION,  # This marks it as a Request for Proposal
-#     title="Funding Proposal: Research on Climate Change Impact",
-#     slug=slugify("Funding Proposal: Research on Climate Change Impact"),
-#     renderable_text="This is a funding proposal for researching the impact of climate change on coastal ecosystems. We are requesting $100,000 to conduct a comprehensive study...",
-#     editor_type=CK_EDITOR,
-#     unified_document=unified_document1,
-#     doi=None,  # Optional: Add DOI if assigning one
-#     image=None,  # Optional: Add image URL or file
-#     preview_img=None,  # Optional: Add preview image
-#     bounty_type=None,  # Optional: Add bounty type if applicable
-#     note_id=None,  # Optional: Link to a note if applicable
-#     prev_version=None,  # For versioning
-# )
-
-# # Add authors (many-to-many relationship)
-# from user.related_models.author_model import Author
-
-# authors = Author.objects.filter(id__in=[1, 1])  # Replace with actual author IDs
-# rfp_post.authors.set(authors)
-
-# ## Adding Grant Details
-# # If you want to include specific funding details like amount, organization, and contacts:
-# from purchase.models import Grant
-
-# # Create grant with funding details
-# grant1 = Grant.objects.create(
-#     created_by=User.objects.get(id=1),
-#     unified_document=unified_document1,
-#     amount=100000,
-#     currency="USD",
-#     organization="Climate Research Foundation",
-#     description="Funding for comprehensive climate change impact study on coastal ecosystems",
-#     end_date="2025-12-31",  # Optional end date
-# )
-
-
-# # Add grant contacts if needed
-# contacts = User.objects.filter(id__in=[1])  # Replace with actual contact IDs
-# grant1.contacts.set(contacts)
-
-
-# print("Funding proposal created successfully:", rfp_post.id)
-# grant1.contacts.set(contacts)
-
-# print("Funding proposal created successfully:", rfp_post.id)

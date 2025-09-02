@@ -4,6 +4,8 @@ This view displays grants in a feed format, showing funding opportunities
 and research grant postings.
 """
 
+import json
+
 from django.core.cache import cache
 from django.db.models import BooleanField, Case, F, Value, When
 from django.db.models.expressions import OrderBy
@@ -45,13 +47,11 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     pagination_class = FeedPagination
 
     def get_serializer_context(self):
-        print("Getting serializer context for grant feed...")
         context = super().get_serializer_context()
         context.update(self.get_common_serializer_context())
         return context
 
     def get_cache_key(self, request, feed_type=""):
-        print("get cache keys called...")
         """Override to include grant-specific query parameters in cache key"""
         base_key = super().get_cache_key(request, feed_type)
 
@@ -59,9 +59,9 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         status = request.query_params.get("status", "")
         organization = request.query_params.get("organization", "")
         order = request.query_params.get("ordering", "")
-        hub = request.query_params.get("hub", "")
+        hub = request.query_params.get("hub_ids", "")
 
-        grant_params = f"-status:{status}-org:{organization}-order:{order}-hub:{hub}"
+        grant_params = f"-status:{status}-org:{organization}-order:{order}-hubs:{hub}"
         return base_key + grant_params
 
     def list(self, request, *args, **kwargs):
@@ -118,7 +118,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         """
         status = self.request.query_params.get("fundraise_status", None)
         organization = self.request.query_params.get("organization", None)
-        hub = self.request.query_params.get("hub", None)
+        hubs = self.request.query_params.get("hub_ids", None)
         # -created_date
         # -unified_document__grants__amoun
         # unified_document__grants__end_date
@@ -127,7 +127,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         print("query params: ", self.request.query_params)
         print("status: ", status)
         print("order: ", order)
-        print("hub: ", hub)
+        print("hubs filters: ", hubs)
         print("organization: ", organization)
 
         # get all grants.
@@ -154,8 +154,13 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             )
 
         # Filter by Hub if specified:
-        if hub:
-            queryset = queryset.filter(unified_document__hubs=hub)
+        if hubs:
+            try:
+                hub_json = json.loads(hubs)
+                queryset = queryset.filter(unified_document__hubs__id__in=hub_json)
+            except json.JSONDecodeError:
+                print("Invalid JSON for hub_ids")
+                pass
 
         queryset = queryset.annotate(
             is_open=Case(
@@ -183,13 +188,16 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         Get list of hubs that have grant posts.
         """
 
-        # TODO: Cache this response since hubs don't change often
+        # TODO: Cache this response
 
         hub_data = list(
             Hub.objects.filter(
                 related_documents__document_type=GRANT,
                 is_removed=False,
-            ).distinct()
+            )
+            .values("id", "name", "slug")
+            .distinct()
         )
 
+        return Response(hub_data, status=200)
         return Response(hub_data, status=200)
