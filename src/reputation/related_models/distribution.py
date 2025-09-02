@@ -66,6 +66,14 @@ class Distribution(SoftDeletableModel, PaidStatusModelMixin):
         "reputation.Withdrawal", on_delete=models.CASCADE, default=None, null=True
     )
 
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=["giver", "is_removed", "distribution_type"],
+                name="dist_giver_removed_type_idx",
+            ),
+        ]
+
     def __str__(self):
         return (
             f"Distribution: {self.distribution_type},"
