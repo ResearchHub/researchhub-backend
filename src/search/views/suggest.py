@@ -374,6 +374,9 @@ class SuggestView(APIView):
 
         # Process each index
         for index in indexes:
+            fetch_size = limit_per_index
+            if index == "user":
+                fetch_size = max(fetch_size, 20)
             results = []
             index_config = self.INDEX_MAP[index]
             document = index_config["document"]
@@ -404,7 +407,7 @@ class SuggestView(APIView):
                     suggest = search.suggest(
                         "suggestions",
                         query,
-                        completion={"field": suggest_field, "size": limit_per_index},
+                        completion={"field": suggest_field, "size": fetch_size},
                     )
                     response = suggest.execute()
 
@@ -475,6 +478,22 @@ class SuggestView(APIView):
                         unique_results.append(result)
 
                 results_by_type["paper"] = unique_results
+            elif index == "user":
+                # Sort by verification status first, then by score
+                sorted_results = sorted(
+                    results, key=lambda x: x.get("_score", 0), reverse=True
+                )
+
+                sorted_results = sorted(
+                    sorted_results,
+                    key=lambda x: x.get("is_verified", False),
+                    reverse=True,
+                )[:limit_per_index]
+
+                if sorted_results:
+                    entity_type = sorted_results[0].get("entity_type", index)
+                    results_by_type[entity_type] = sorted_results
+
             else:
                 # For other indexes, store by entity type
                 sorted_results = sorted(
@@ -496,8 +515,8 @@ class SuggestView(APIView):
                     original_score = result.get("_score", 1.0)
 
                     # Verified user bonus (highest priority)
-                    if result.get("_source", {}).get("is_verified", False):
-                        verified_bonus = 10.0  # Very high bonus for verified users
+                    if result.get("is_verified", False):
+                        verified_bonus = 10.0
                         result["_score"] = original_score * weight * verified_bonus
                         result["_boost"] = "verified_user"
                     # Exact match boosting
@@ -517,6 +536,7 @@ class SuggestView(APIView):
                         # Standard weight
                         result["_score"] = original_score * weight
                         result["_original_score"] = original_score
+
             else:
                 # Standard entity weighting
                 for result in results:
