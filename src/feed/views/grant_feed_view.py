@@ -200,4 +200,3 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         )
 
         return Response(hub_data, status=200)
-        return Response(hub_data, status=200)
