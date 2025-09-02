@@ -96,7 +96,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         ).data
 
     def get_queryset(self):
-        return self.queryset
+        return self.queryset.select_related("author_profile")
 
     def _get_reviewer_bounty_conditions(self, start_date=None, end_date=None):
         conditions = {

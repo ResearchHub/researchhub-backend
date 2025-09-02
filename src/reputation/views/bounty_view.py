@@ -436,29 +436,45 @@ class BountyViewSet(viewsets.ModelViewSet):
                 )
                 processed_solutions.append(bounty_solution)
 
-            # Mark remaining SUBMITTED solutions (not in this batch) as REJECTED
-            # Using exclude ensures we don't reject solutions just awarded
-            submitted_solutions = bounty.solutions.filter(
-                status=BountySolution.Status.SUBMITTED
-            )
-            solutions_to_reject = submitted_solutions.exclude(
-                id__in=[s.id for s in processed_solutions]
-            )
-            solutions_to_reject.update(status=BountySolution.Status.REJECTED)
+            # Check if bounty should be closed (escrow fully depleted)
+            # After all payouts, check the remaining escrow amount
+            bounty.escrow.refresh_from_db()
+            amount_remaining = bounty.escrow.amount_holding
 
-            bounty_closed = bounty.close(Bounty.CLOSED)
-            if not bounty_closed:
-                # Exception is raised to rollback database transaction
-                raise Exception("Bounty failed to close")
-
-            unified_document.update_filters(
-                (
-                    FILTER_BOUNTY_OPEN,
-                    FILTER_BOUNTY_CLOSED,
-                    SORT_BOUNTY_EXPIRATION_DATE,
-                    SORT_BOUNTY_TOTAL_AMOUNT,
+            if amount_remaining == 0:
+                # Only reject solutions and close bounty when fully awarded
+                # Mark remaining SUBMITTED solutions (not in this batch) as REJECTED
+                submitted_solutions = bounty.solutions.filter(
+                    status=BountySolution.Status.SUBMITTED
                 )
-            )
+                solutions_to_reject = submitted_solutions.exclude(
+                    id__in=[s.id for s in processed_solutions]
+                )
+                solutions_to_reject.update(status=BountySolution.Status.REJECTED)
+
+                bounty_closed = bounty.close(Bounty.CLOSED)
+                if not bounty_closed:
+                    # Exception is raised to rollback database transaction
+                    raise Exception("Bounty failed to close")
+
+                unified_document.update_filters(
+                    (
+                        FILTER_BOUNTY_OPEN,
+                        FILTER_BOUNTY_CLOSED,
+                        SORT_BOUNTY_EXPIRATION_DATE,
+                        SORT_BOUNTY_TOTAL_AMOUNT,
+                    )
+                )
+            else:
+                # Bounty remains open for future partial awards
+                # Update filters but don't close the bounty
+                unified_document.update_filters(
+                    (
+                        FILTER_BOUNTY_OPEN,
+                        SORT_BOUNTY_EXPIRATION_DATE,
+                        SORT_BOUNTY_TOTAL_AMOUNT,
+                    )
+                )
 
             # Build response using the successfully processed solutions
             awarded_solutions = []
@@ -478,9 +494,16 @@ class BountyViewSet(viewsets.ModelViewSet):
                     }
                 )
 
+            # Determine message based on whether bounty is fully or partially awarded
+            if amount_remaining == 0:
+                message = "Bounty successfully closed and solutions awarded"
+            else:
+                message = "Bounty partially awarded, remaining open for future awards"
+
             response_data = {
                 "id": bounty.id,
                 "amount": str(bounty.amount),
+                "amount_remaining": str(amount_remaining),
                 "status": bounty.status,
                 "created_date": bounty.created_date.isoformat(),
                 "expiration_date": (
@@ -489,7 +512,7 @@ class BountyViewSet(viewsets.ModelViewSet):
                     else None
                 ),
                 "awarded_solutions": awarded_solutions,
-                "message": "Bounty successfully closed and solutions awarded",
+                "message": message,
             }
 
             return Response(response_data, status=200)
