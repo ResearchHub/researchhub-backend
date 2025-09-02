@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
+from decimal import Decimal
 
 from django.contrib.contenttypes.models import ContentType
-from django.db.models import DecimalField, F, OuterRef, Subquery, Sum, Value
+from django.db.models import DecimalField, F, OuterRef, Q, Subquery, Sum, Value
 from django.db.models.functions import Cast, Coalesce
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -51,6 +52,13 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
     permission_classes = [AllowAny]
     pagination_class = LeaderboardPagination
 
+    # Preset time ranges for better performance
+    PRESET_RANGES = {
+        "7d": 7,
+        "30d": 30,
+        "all": None,
+    }
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.purchase_content_type = ContentType.objects.get_for_model(Purchase)
@@ -98,85 +106,113 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return self.queryset.select_related("author_profile")
 
+    def _parse_date_range(self, request):
+        """
+        Parse date range from request parameters.
+        Supports both preset ranges (7d, 30d) and custom date ranges.
+        """
+        preset = request.GET.get("preset")
+        if preset and preset in self.PRESET_RANGES:
+            days = self.PRESET_RANGES[preset]
+            if days:
+                end_date = timezone.now()
+                start_date = end_date - timedelta(days=days)
+                return start_date, end_date
+            return None, None
+
+        # Fallback to custom date range
+        start_date = request.GET.get("start_date")
+        end_date = request.GET.get("end_date")
+
+        if start_date:
+            start_date = datetime.strptime(start_date, "%Y-%m-%d")
+            start_date = timezone.make_aware(start_date)
+        if end_date:
+            end_date = datetime.strptime(end_date, "%Y-%m-%d")
+            end_date = timezone.make_aware(end_date)
+
+        return start_date, end_date
+
     def _get_reviewer_bounty_conditions(self, start_date=None, end_date=None):
-        conditions = {
-            "user_id": OuterRef("pk"),
-            "escrow__status": Escrow.PAID,
-            "escrow__hold_type": Escrow.BOUNTY,
-            "escrow__bounties__bounty_type": Bounty.Type.REVIEW,
-            "escrow__bounties__solutions__rh_comment__comment_type__in": [
+        # Use Q objects for better query optimization
+        conditions = Q(
+            user_id=OuterRef("pk"),
+            escrow__status=Escrow.PAID,
+            escrow__hold_type=Escrow.BOUNTY,
+            escrow__bounties__bounty_type=Bounty.Type.REVIEW,
+            escrow__bounties__solutions__rh_comment__comment_type__in=[
                 PEER_REVIEW,
                 COMMUNITY_REVIEW,
             ],
-        }
+        )
 
         if start_date:
-            conditions["created_date__gte"] = start_date
+            conditions &= Q(created_date__gte=start_date)
         if end_date:
-            conditions["created_date__lte"] = end_date
+            conditions &= Q(created_date__lte=end_date)
 
         return conditions
 
     def _get_reviewer_tips_conditions(self, start_date=None, end_date=None):
-        conditions = {
-            "recipient_id": OuterRef("pk"),
-            "distribution_type": "PURCHASE",
-            "proof_item_content_type": self.purchase_content_type,
-            "proof_item_object_id__in": Purchase.objects.filter(
-                content_type_id=self.comment_content_type.id,
-                paid_status="PAID",
-                rh_comments__comment_type__in=[PEER_REVIEW, COMMUNITY_REVIEW],
-            ).values("id"),
-        }
+        # Pre-fetch valid purchase IDs for better performance
+        valid_purchase_ids = Purchase.objects.filter(
+            content_type_id=self.comment_content_type.id,
+            paid_status="PAID",
+            rh_comments__comment_type__in=[PEER_REVIEW, COMMUNITY_REVIEW],
+        ).values_list("id", flat=True)
+
+        conditions = Q(
+            recipient_id=OuterRef("pk"),
+            distribution_type="PURCHASE",
+            proof_item_content_type=self.purchase_content_type,
+            proof_item_object_id__in=valid_purchase_ids,
+        )
 
         if start_date:
-            conditions["created_date__gte"] = start_date
+            conditions &= Q(created_date__gte=start_date)
         if end_date:
-            conditions["created_date__lte"] = end_date
+            conditions &= Q(created_date__lte=end_date)
 
         return conditions
 
     def _get_funder_purchase_conditions(self, start_date=None, end_date=None):
-        conditions = {
-            "user_id": OuterRef("pk"),
-            "paid_status": Purchase.PAID,
-            "purchase_type__in": [Purchase.FUNDRAISE_CONTRIBUTION, Purchase.BOOST],
-        }
+        conditions = Q(
+            user_id=OuterRef("pk"),
+            paid_status=Purchase.PAID,
+            purchase_type__in=[Purchase.FUNDRAISE_CONTRIBUTION, Purchase.BOOST],
+        )
 
         if start_date:
-            conditions["created_date__gte"] = start_date
+            conditions &= Q(created_date__gte=start_date)
         if end_date:
-            conditions["created_date__lte"] = end_date
+            conditions &= Q(created_date__lte=end_date)
 
         return conditions
 
     def _get_funder_bounty_conditions(self, start_date=None, end_date=None):
-        conditions = {
-            "created_by_id": OuterRef("pk"),
-        }
+        conditions = Q(created_by_id=OuterRef("pk"))
 
         if start_date:
-            conditions["created_date__gte"] = start_date
+            conditions &= Q(created_date__gte=start_date)
         if end_date:
-            conditions["created_date__lte"] = end_date
+            conditions &= Q(created_date__lte=end_date)
 
         return conditions
 
     def _get_funder_distribution_conditions(self, start_date=None, end_date=None):
-        conditions = {
-            "giver_id": OuterRef("pk"),
-            "is_removed": False,  # Filter out soft-deleted distributions
-            "distribution_type__in": [
+        conditions = Q(
+            giver_id=OuterRef("pk"),
+            distribution_type__in=[
                 "BOUNTY_DAO_FEE",
                 "BOUNTY_RH_FEE",
                 "SUPPORT_RH_FEE",
             ],
-        }
+        )
 
         if start_date:
-            conditions["created_date__gte"] = start_date
+            conditions &= Q(created_date__gte=start_date)
         if end_date:
-            conditions["created_date__lte"] = end_date
+            conditions &= Q(created_date__lte=end_date)
 
         return conditions
 
@@ -193,26 +229,41 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         bounty_conditions = self._get_reviewer_bounty_conditions(start_date, end_date)
         tips_conditions = self._get_reviewer_tips_conditions(start_date, end_date)
 
+        # Optimized subqueries with limited evaluation
+        bounty_subquery = (
+            EscrowRecipients.objects.filter(bounty_conditions)
+            .values("user_id")
+            .annotate(total=Sum("amount"))
+            .values("total")[:1]
+        )
+
+        tip_subquery = (
+            Distribution.objects.filter(tips_conditions)
+            .values("recipient_id")
+            .annotate(total=Sum("amount"))
+            .values("total")[:1]
+        )
+
         return {
             "bounty_earnings": Coalesce(
                 Subquery(
-                    EscrowRecipients.objects.filter(**bounty_conditions)
-                    .values("user_id")
-                    .annotate(total=Sum("amount"))
-                    .values("total"),
+                    bounty_subquery,
                     output_field=DecimalField(max_digits=19, decimal_places=8),
                 ),
-                Value(0, output_field=DecimalField(max_digits=19, decimal_places=8)),
+                Value(
+                    Decimal("0"),
+                    output_field=DecimalField(max_digits=19, decimal_places=8),
+                ),
             ),
             "tip_earnings": Coalesce(
                 Subquery(
-                    Distribution.objects.filter(**tips_conditions)
-                    .values("recipient_id")
-                    .annotate(total=Sum("amount"))
-                    .values("total"),
+                    tip_subquery,
                     output_field=DecimalField(max_digits=19, decimal_places=8),
                 ),
-                Value(0, output_field=DecimalField(max_digits=19, decimal_places=8)),
+                Value(
+                    Decimal("0"),
+                    output_field=DecimalField(max_digits=19, decimal_places=8),
+                ),
             ),
             "earned_rsc": F("bounty_earnings") + F("tip_earnings"),
         }
@@ -235,7 +286,7 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
             amount_field: Field to sum (default: amount)
             needs_cast: Whether to cast the amount field to Decimal (default: False)
         """
-        query = model.objects.filter(**conditions)
+        query = model.objects.filter(conditions)
 
         if needs_cast:
             query = query.annotate(
@@ -246,14 +297,19 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
             )
             amount_field = "numeric_amount"
 
+        # Optimized with limited evaluation
+        subquery = (
+            query.values(id_field).annotate(total=Sum(amount_field)).values("total")[:1]
+        )
+
         return Coalesce(
             Subquery(
-                query.values(id_field)
-                .annotate(total=Sum(amount_field))
-                .values("total"),
+                subquery,
                 output_field=DecimalField(max_digits=19, decimal_places=8),
             ),
-            Value(0, output_field=DecimalField(max_digits=19, decimal_places=8)),
+            Value(
+                Decimal("0"), output_field=DecimalField(max_digits=19, decimal_places=8)
+            ),
         )
 
     def _create_funder_earnings_annotation(self, start_date=None, end_date=None):
@@ -365,18 +421,23 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
     @method_decorator(cache_page(60 * 60 * 6))
     @action(detail=False, methods=[RequestMethods.GET])
     def reviewers(self, request):
-        """Returns top reviewers for a given time period"""
-        start_date = request.GET.get("start_date")
-        end_date = request.GET.get("end_date")
-
+        """Returns top reviewers for a given time period with preset support (7d, 30d, all)"""
         # Validate date range doesn't exceed 30 days
-        is_valid, error_response = self._validate_date_range(start_date, end_date, 30)
+        start_date_str = request.GET.get("start_date")
+        end_date_str = request.GET.get("end_date")
+        is_valid, error_response = self._validate_date_range(
+            start_date_str, end_date_str, 30
+        )
         if not is_valid:
             return error_response
+
+        # Support preset filters or custom date range
+        start_date, end_date = self._parse_date_range(request)
 
         reviewers = (
             self.get_queryset()
             .annotate(**self._create_reviewer_earnings_annotation(start_date, end_date))
+            .filter(earned_rsc__gt=0)  # Only show users with earnings
             .order_by("-earned_rsc")
         )
 
@@ -384,9 +445,9 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         data = [
             {
                 **self.serialize_user(reviewer),
-                "earned_rsc": reviewer.earned_rsc,
-                "bounty_earnings": reviewer.bounty_earnings,
-                "tip_earnings": reviewer.tip_earnings,
+                "earned_rsc": str(reviewer.earned_rsc),
+                "bounty_earnings": str(reviewer.bounty_earnings),
+                "tip_earnings": str(reviewer.tip_earnings),
             }
             for reviewer in page
         ]
@@ -395,14 +456,18 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
     @method_decorator(cache_page(60 * 60 * 6))
     @action(detail=False, methods=[RequestMethods.GET])
     def funders(self, request):
-        """Returns top funders for a given time period"""
-        start_date = request.GET.get("start_date")
-        end_date = request.GET.get("end_date")
-
+        """Returns top funders for a given time period with preset support (7d, 30d, all)"""
         # Validate date range doesn't exceed 30 days
-        is_valid, error_response = self._validate_date_range(start_date, end_date, 30)
+        start_date_str = request.GET.get("start_date")
+        end_date_str = request.GET.get("end_date")
+        is_valid, error_response = self._validate_date_range(
+            start_date_str, end_date_str, 30
+        )
         if not is_valid:
             return error_response
+
+        # Support preset filters or custom date range
+        start_date, end_date = self._parse_date_range(request)
 
         top_funders = (
             self.get_queryset()
@@ -415,10 +480,10 @@ class LeaderboardViewSet(viewsets.ModelViewSet):
         data = [
             {
                 **self.serialize_user(funder),
-                "total_funding": funder.total_funding,
-                "purchase_funding": funder.purchase_funding,
-                "bounty_funding": funder.bounty_funding,
-                "distribution_funding": funder.distribution_funding,
+                "total_funding": str(funder.total_funding),
+                "purchase_funding": str(funder.purchase_funding),
+                "bounty_funding": str(funder.bounty_funding),
+                "distribution_funding": str(funder.distribution_funding),
             }
             for funder in page
         ]

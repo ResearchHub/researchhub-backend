@@ -58,6 +58,14 @@ class Purchase(PaidStatusModelMixin):
     created_date = models.DateTimeField(auto_now_add=True)
     updated_date = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=["user", "paid_status", "purchase_type"],
+                name="purchase_usr_status_type_idx",
+            ),
+        ]
+
     def hash(self):
         md5 = hashlib.md5(self.get_serialized_representation().encode())
         hexdigest = md5.hexdigest()

@@ -89,6 +89,7 @@ class Bounty(DefaultModel):
                     "item_object_id",
                 )
             ),
+            models.Index(fields=["created_by"], name="bounty_creator_idx"),
         )
 
     def __str__(self):
