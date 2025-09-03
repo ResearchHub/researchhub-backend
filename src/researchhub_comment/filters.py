@@ -1,6 +1,7 @@
 from functools import reduce
 
-from django.db.models import DecimalField, IntegerField, Q, Sum
+from django.contrib.contenttypes.models import ContentType
+from django.db.models import DecimalField, Exists, IntegerField, OuterRef, Q, Sum
 from django.db.models.functions import Cast, Coalesce
 from django_filters import DateTimeFilter
 from django_filters import rest_framework as filters
@@ -138,10 +139,82 @@ class RHCommentFilter(filters.FilterSet):
             bounty_sum=Coalesce(
                 Sum("bounties__amount", filter=annotation_filters_query),
                 0,
-                output_field=DecimalField(),
+                output_field=DecimalField(max_digits=19, decimal_places=10),
             )
         )
         return queryset
+
+    def _order_by_scores(self, qs, sort_key):
+        from researchhub_comment.scoring import CommentScorer
+        from django.db.models import Case, When, Value
+        from purchase.models import Purchase
+        from reputation.models import BountySolution
+        
+        annotated_qs = qs.select_related('created_by').annotate(
+            tip_amount=Sum(
+                Case(
+                    When(
+                        purchases__purchase_type=Purchase.BOOST,
+                        purchases__paid_status=Purchase.PAID,
+                        then=Cast('purchases__amount', DecimalField(max_digits=19, decimal_places=10))
+                    ),
+                    default=Value(0),
+                    output_field=DecimalField(max_digits=19, decimal_places=10)
+                )
+            ),
+            bounty_award_amount=Sum(
+                Case(
+                    When(
+                        bounty_solution__status=BountySolution.Status.AWARDED,
+                        then='bounty_solution__awarded_amount'
+                    ),
+                    default=Value(0),
+                    output_field=DecimalField(max_digits=19, decimal_places=10)
+                )
+            )
+        )
+        
+        scored_items = []
+        for comment in annotated_qs:
+            is_verified = comment.created_by.is_verified if comment.created_by else False
+            
+            score_data = CommentScorer.calculate_score(comment, {
+                'tip_amount': float(getattr(comment, 'tip_amount', 0) or 0),
+                'bounty_award_amount': float(getattr(comment, 'bounty_award_amount', 0) or 0),
+                'is_verified_user': is_verified
+            })
+            scored_items.append((comment.id, sort_key(comment, score_data['score'])))
+        
+        if not scored_items:
+            return qs
+        
+        scored_items.sort(key=lambda x: x[1], reverse=True)
+        
+        ordering = Case(
+            *[When(pk=item_id, then=Value(pos)) for pos, (item_id, _) in enumerate(scored_items)],
+            output_field=IntegerField()
+        )
+        
+        sorted_ids = [item_id for item_id, _ in scored_items]
+        return qs.filter(pk__in=sorted_ids).order_by(ordering)
+
+    def _apply_academic_ordering(self, qs):
+        return self._order_by_scores(qs, lambda c, score: score)
+
+    def _apply_bounty_ordering(self, qs):
+        comment_ct = ContentType.objects.get_for_model(RhCommentModel)
+        qs = qs.annotate(
+            has_open_bounty=Exists(
+                Bounty.objects.filter(
+                    item_content_type=comment_ct,
+                    item_object_id=OuterRef("id"),
+                    status=Bounty.OPEN,
+                )
+            )
+        )
+        return self._order_by_scores(qs, 
+            lambda c, score: (getattr(c, 'has_open_bounty', False), score)
+        )
 
     def _is_on_child_queryset(self):
         # This checks whether we are filtering on the comment's children
@@ -190,33 +263,13 @@ class RHCommentFilter(filters.FilterSet):
 
     def ordering_filter(self, qs, name, value):
         if value == BEST:
-            qs = self._annotate_bounty_sum(
-                qs, annotation_filters=[{"bounties__status": Bounty.OPEN}]
-            )
-            qs = qs.annotate(
-                accepted_answer=Cast("is_accepted_answer", output_field=IntegerField())
-            )
-            keys = self._get_ordering_keys(
-                [
-                    "bounty_sum",
-                    "accepted_answer",
-                    "score",
-                    "created_date",
-                ]
-            )
-            qs = qs.order_by(*keys)
+            return self._apply_academic_ordering(qs)
         elif value == TOP:
             keys = self._get_ordering_keys(["score"])
             qs = qs.order_by(*keys)
         elif value == BOUNTY:
             qs = self._annotate_bounty_sum(qs).filter(bounty_sum__gt=0)
-            keys = self._get_ordering_keys(
-                [
-                    "bounty_sum",
-                    "score",
-                    "created_date",
-                ]
-            )
+            return self._apply_bounty_ordering(qs)
         elif value == CREATED_DATE:
             keys = self._get_ordering_keys(["created_date"])
             qs = qs.order_by(*keys)
