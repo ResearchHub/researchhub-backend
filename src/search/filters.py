@@ -1,4 +1,5 @@
-from elasticsearch_dsl import Q, query
+from opensearchpy import Q
+from opensearchpy.helpers import function
 from rest_framework import filters
 
 
@@ -23,7 +24,7 @@ class ElasticsearchFuzzyFilter(filters.SearchFilter):
                 }
             },
             functions=[
-                query.SF(
+                function.SF(
                     "script_score",
                     script={
                         "lang": "painless",

@@ -1,4 +1,4 @@
-from elasticsearch_dsl import A, Q
+from opensearchpy import Q
 from rest_framework.filters import BaseFilterBackend
 
 
@@ -345,8 +345,10 @@ class SuggesterFilterBackend(BaseSearchFilterBackend):
                     suggester_name, query_value, term={"field": field}
                 )
             elif suggester_type == "completion":
+                # Truncate query to 50 characters for ES completion suggester
+                truncated_query = query_value[:50]
                 queryset = queryset.suggest(
-                    suggester_name, query_value, completion={"field": field}
+                    suggester_name, truncated_query, completion={"field": field}
                 )
 
             suggestions_added = True

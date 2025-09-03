@@ -1,56 +1,32 @@
-from django.db import models
-from django_elasticsearch_dsl import Document
+import logging
+from typing import override
 
-import utils.sentry as sentry
+from django_opensearch_dsl import Document
+
+logger = logging.getLogger(__name__)
 
 
 class BaseDocument(Document):
 
-    """
-    Override and add conditions for when object should be removed
-    from index
-    """
-    def should_remove_from_index(self, obj):
-        return False
-
-    """
-    Overriding parent method to include an additional bulk
-    operation for removing objects from elastic who are removed
-    """
-    def update(self, thing, refresh=None, action='index', parallel=False, **kwargs):
-
-        if refresh is not None:
-            kwargs['refresh'] = refresh
-        elif self.django.auto_refresh:
-            kwargs['refresh'] = self.django.auto_refresh
-
-        if isinstance(thing, models.Model):
-            object_list = [thing]
-        else:
-            object_list = thing
-
-        objects_to_remove = []
-        objects_to_index = []
-        for obj in object_list:
-            if self.should_remove_from_index(obj):
-                objects_to_remove.append(obj)
+    @override
+    def _get_actions(self, object_list, action):
+        """
+        Override the base `_get_actions` method to support soft-delete behavior.
+        Additionally, any exceptions from the prepare_[field] methods will be
+        logged without aborting the indexing process.
+        """
+        for object_instance in object_list:
+            if action == "delete" or self.should_index_object(object_instance):
+                # Execute `prepare` methods with graceful error handling to avoid
+                # aborting the indexing process:
+                try:
+                    yield self._prepare_action(object_instance, action)
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to index {self.__class__.__name__} "
+                        f"id={object_instance.id}: {e}"
+                    )
+                    continue
             else:
-                objects_to_index.append(obj)
-
-        try:
-            self._bulk(
-                self._get_actions(objects_to_index, action='index'),
-                parallel=parallel,
-                **kwargs
-            )
-            self._bulk(
-                self._get_actions(objects_to_remove, action='delete'),
-                parallel=parallel,
-                **kwargs
-            )
-        except ConnectionError as e:
-            sentry.log_info(e)
-        except Exception as e:
-            # The likely scenario is the result of removing objects
-            # that do not exist in elastic search - 404s
-            pass
+                # delete soft-deleted objects (`should_index_object` is False)
+                yield self._prepare_action(object_instance, "delete")

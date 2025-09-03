@@ -1,4 +1,3 @@
-from django.contrib.contenttypes.models import ContentType
 from django.core.files.base import ContentFile
 from django.db import transaction
 from django.utils.text import slugify
@@ -8,45 +7,30 @@ from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 
 from analytics.amplitude import track_event
-from analytics.tasks import track_revenue_event
 from discussion.views import ReactionViewActionMixin
 from hub.models import Hub
 from note.related_models.note_model import Note
-from purchase.models import Balance, Grant, Purchase
+from purchase.models import Grant
 from purchase.related_models.constants.currency import USD
 from purchase.serializers.fundraise_create_serializer import FundraiseCreateSerializer
 from purchase.serializers.fundraise_serializer import DynamicFundraiseSerializer
 from purchase.serializers.grant_create_serializer import GrantCreateSerializer
 from purchase.serializers.grant_serializer import DynamicGrantSerializer
 from purchase.services.fundraise_service import FundraiseService
-from researchhub.settings import CROSSREF_DOI_RSC_FEE, TESTING
+from researchhub.settings import TESTING
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
 from researchhub_document.permissions import HasDocumentEditingPermission
 from researchhub_document.related_models.constants.document_type import (
-    ALL,
-    BOUNTY,
     FILTER_BOUNTY_OPEN,
     FILTER_HAS_BOUNTY,
-    GRANT,
-    POSTS,
-    PREREGISTRATION,
-    QUESTION,
     RESEARCHHUB_POST_DOCUMENT_TYPES,
     SORT_BOUNTY_EXPIRATION_DATE,
     SORT_BOUNTY_TOTAL_AMOUNT,
 )
 from researchhub_document.related_models.constants.editor_type import CK_EDITOR
-from researchhub_document.related_models.constants.filters import (
-    DISCUSSED,
-    HOT,
-    MOST_RSC,
-    NEW,
-    UPVOTED,
-)
 from researchhub_document.serializers.researchhub_post_serializer import (
     ResearchhubPostSerializer,
 )
-from researchhub_document.utils import reset_unified_document_cache
 from user.models import User
 from user.related_models.author_model import Author
 from utils.doi import DOI
@@ -261,18 +245,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                     if crossref_response.status_code != 200:
                         return Response("Crossref API Failure", status=400)
 
-                reset_unified_document_cache(
-                    document_type=[
-                        ALL.lower(),
-                        POSTS.lower(),
-                        PREREGISTRATION.lower(),
-                        GRANT.lower(),
-                        QUESTION.lower(),
-                        BOUNTY.lower(),
-                    ],
-                    filters=[NEW, MOST_RSC],
-                )
-
                 unified_document.update_filters(
                     (
                         FILTER_BOUNTY_OPEN,
@@ -418,17 +390,6 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
                 unified_doc = post.unified_document
                 unified_doc.hubs.set(hubs)
 
-            reset_unified_document_cache(
-                document_type=[
-                    ALL.lower(),
-                    POSTS.lower(),
-                    PREREGISTRATION.lower(),
-                    GRANT.lower(),
-                    QUESTION.lower(),
-                ],
-                filters=[NEW, DISCUSSED, UPVOTED, HOT],
-            )
-
             if assign_doi:
                 crossref_response = doi.register_doi_for_post(
                     [created_by_author], title, rh_post
@@ -565,33 +526,3 @@ class ResearchhubPostViewSet(ReactionViewActionMixin, ModelViewSet):
             return uni_doc
         except (KeyError, TypeError) as exception:
             print("create_unified_doc: ", exception)
-
-
-def charge_doi_fee(created_by, rh_post):
-    purchase = Purchase.objects.create(
-        user=created_by,
-        content_type=ContentType.objects.get(model="researchhubpost"),
-        object_id=rh_post.id,
-        purchase_method=Purchase.OFF_CHAIN,
-        purchase_type=Purchase.DOI,
-        amount=CROSSREF_DOI_RSC_FEE,
-        paid_status=Purchase.PAID,
-    )
-    Balance.objects.create(
-        user=created_by,
-        content_type=ContentType.objects.get_for_model(purchase),
-        object_id=purchase.id,
-        amount=-CROSSREF_DOI_RSC_FEE,
-    )
-
-    # Track in Amplitude
-    track_revenue_event.apply_async(
-        (
-            created_by.id,
-            "DOI_FEE",
-            str(CROSSREF_DOI_RSC_FEE),
-            None,
-            "OFF_CHAIN",
-        ),
-        priority=1,
-    )

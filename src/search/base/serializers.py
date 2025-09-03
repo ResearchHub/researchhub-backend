@@ -1,4 +1,4 @@
-from elasticsearch_dsl import Document
+from opensearchpy import Document
 from rest_framework import serializers
 
 

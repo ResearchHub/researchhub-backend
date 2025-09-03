@@ -112,6 +112,13 @@ class User(AbstractUser):
 
     class Meta:
         ordering = ["-created_date"]
+        indexes = [
+            models.Index(
+                fields=["is_active", "is_suspended", "probable_spammer"],
+                name="user_active_spam_idx",
+                condition=Q(is_active=True, is_suspended=False, probable_spammer=False),
+            ),
+        ]
 
     def save(self, *args, **kwargs):
         # A unique constraint is enforced on the username on the database

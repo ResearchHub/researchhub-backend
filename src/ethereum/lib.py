@@ -171,7 +171,7 @@ def _transact(
 
     signing_key = sender_signing_key
     signed = w3.eth.account.sign_transaction(tx, signing_key)
-    tx_hash = w3.eth.send_raw_transaction(signed.rawTransaction)
+    tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
     return tx_hash.hex()
 
 

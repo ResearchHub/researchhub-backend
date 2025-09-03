@@ -28,7 +28,7 @@ from paper.models import (
     PaperVersion,
 )
 from paper.related_models.authorship_model import Authorship
-from paper.tasks import celery_extract_pdf_sections, download_pdf
+from paper.tasks import download_pdf
 from paper.utils import (
     check_file_is_url,
     check_pdf_title,
@@ -380,15 +380,11 @@ class PaperSerializer(BasePaperSerializer):
             "completeness",
             "csl_item",
             "discussion_count",
-            "edited_file_extract",
             "external_source",
             "file_created_location",
             "id",
             "is_open_access",
-            "is_removed_by_user",
             "is_removed",
-            "oa_pdf_location",
-            "pdf_file_extract",
             "pdf_license_url",
             "retrieved_from_external_source",
             "score",
@@ -398,7 +394,6 @@ class PaperSerializer(BasePaperSerializer):
             "unified_document",
             "user_flag",
             "user_vote",
-            "views",
             "version",
             "version_list",
         ]
@@ -585,9 +580,6 @@ class PaperSerializer(BasePaperSerializer):
             paper.save(update_fields=["file"])
             paper.compress_and_linearize_file()
             paper.extract_pdf_preview()
-            celery_extract_pdf_sections.apply_async(
-                (paper_id,), priority=3, countdown=15
-            )
             return
 
         if paper.url is not None:

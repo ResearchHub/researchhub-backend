@@ -1,9 +1,11 @@
 import logging
 import re
+from typing import Optional, override
 
-from django_elasticsearch_dsl import fields as es_fields
-from django_elasticsearch_dsl.registries import registry
-from elasticsearch_dsl import analyzer, token_filter
+from django.db.models import Q
+from django_opensearch_dsl import fields as es_fields
+from django_opensearch_dsl.registries import registry
+from opensearchpy import analyzer, token_filter
 
 from hub.models import Hub
 from search.analyzers import content_analyzer
@@ -29,9 +31,8 @@ edge_ngram_analyzer = analyzer(
 @registry.register_document
 class JournalDocument(BaseDocument):
     auto_refresh = True
-    queryset_pagination = 250
     description = es_fields.TextField(attr="description", analyzer=content_analyzer)
-    name_suggest = es_fields.Completion()
+    name_suggest = es_fields.CompletionField()
     name = es_fields.TextField(
         analyzer=edge_ngram_analyzer,
         search_analyzer="standard",
@@ -49,8 +50,18 @@ class JournalDocument(BaseDocument):
             "discussion_count",
         ]
 
-    def get_queryset(self):
-        return super().get_queryset().filter(namespace="journal")
+    @override
+    def get_queryset(
+        self,
+        filter_: Optional[Q] = None,
+        exclude: Optional[Q] = None,
+        count: int = None,  # type: ignore[override]
+    ):
+        return (
+            super()
+            .get_queryset(filter_=filter_, exclude=exclude, count=count)
+            .filter(namespace="journal")
+        )
 
     # Used specifically for "autocomplete" style suggest feature
     def prepare_name_suggest(self, instance):
@@ -64,23 +75,6 @@ class JournalDocument(BaseDocument):
             "weight": max(weight, 1),
         }
 
-    def prepare(self, instance):
-        try:
-            data = super().prepare(instance)
-        except Exception:
-            logger.error(f"Failed to prepare data for journal {instance.id}")
-            return None
-
-        try:
-            data["name_suggest"] = self.prepare_name_suggest(instance)
-        except Exception:
-            logger.warn(f"Failed to prepare name suggest for journal {instance.id}")
-            data["name_suggest"] = []
-
-        return data
-
-    def should_remove_from_index(self, obj):
-        if obj.is_removed:
-            return True
-
-        return False
+    @override
+    def should_index_object(self, obj):  # type: ignore[override]
+        return not obj.is_removed

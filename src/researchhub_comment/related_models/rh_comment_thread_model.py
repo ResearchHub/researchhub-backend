@@ -15,18 +15,23 @@ from utils.models import AbstractGenericRelationModel
 class RhCommentThreadQuerySet(models.QuerySet):
     def get_discussion_count(self):
         """
-        Counts top-level generic comments without bounties across all threads
-        in this QuerySet, plus all their nested children comments.
+        Counts GENERIC_COMMENT type comments without bounties, but only in threads
+        where the root (top-level) comment is also GENERIC_COMMENT (regardless of
+        whether the root is removed or not).
         """
         from researchhub_comment.models import RhCommentModel
 
-        # Count *all* generic, non-removed comments that do **not** have a
-        # bounty attached – hierarchy (parent/child) no longer matters since a
-        # censored parent should **not** hide its visible children from the
-        # discussion count.
+        # Find threads that have a GENERIC_COMMENT as their root comment
+        # Don't filter by is_removed for the root - we want to include threads
+        # even if the root is censored, as long as it was originally GENERIC_COMMENT
+        threads_with_generic_root = self.filter(
+            rh_comments__parent__isnull=True,
+            rh_comments__comment_type=GENERIC_COMMENT,
+        ).distinct()
 
+        # Count all visible GENERIC_COMMENT type comments in those threads
         visible_comments = RhCommentModel.objects.filter(
-            thread__in=self,
+            thread__in=threads_with_generic_root,
             comment_type=GENERIC_COMMENT,
             bounties__isnull=True,
             is_removed=False,
@@ -39,21 +44,49 @@ class RhCommentThreadQuerySet(models.QuerySet):
         Example aggregator, adapted from your code.
         Note: self.exclude(...) etc. uses the QuerySet instead of Manager.
         """
-        # Review comments should ignore those with bounties. Start from a
-        # queryset that excludes comments carrying bounties.
-        review_qs = self.exclude(rh_comments__bounties__isnull=False)
+        from researchhub_comment.models import RhCommentModel
 
-        aggregator = review_qs.aggregate(
+        # Find threads that have a GENERIC_COMMENT as their root comment
+        threads_with_generic_root = self.filter(
+            rh_comments__parent__isnull=True,
+            rh_comments__comment_type=GENERIC_COMMENT,
+        ).distinct()
+
+        # Count visible GENERIC_COMMENT type comments in those threads, excluding bounties
+        discussion_count = RhCommentModel.objects.filter(
+            thread__in=threads_with_generic_root,
+            comment_type=GENERIC_COMMENT,
+            bounties__isnull=True,
+            is_removed=False,
+        ).count()
+
+        # Single aggregate query for other counts
+        aggregator = self.aggregate(
+            # Review count - reviews without bounties (top-level only)
             review_count=Count(
                 "rh_comments",
                 filter=Q(
                     rh_comments__comment_type__in=[PEER_REVIEW, COMMUNITY_REVIEW],
+                    rh_comments__bounties__isnull=True,
                     rh_comments__is_removed=False,
+                    rh_comments__parent__isnull=True,  # Only count top-level comments
+                ),
+            ),
+            # Bounty count - count comments that have at least one bounty attached
+            bounty_count=Count(
+                "rh_comments",
+                distinct=True,
+                filter=Q(
+                    rh_comments__bounties__isnull=False,
+                    rh_comments__is_removed=False,
+                    rh_comments__parent__isnull=True,  # Only count top-level comments
                 ),
             ),
         )
 
-        aggregator["discussion_count"] = item.discussion_count
+        # Add discussion_count and conversation_count
+        aggregator["discussion_count"] = discussion_count
+        aggregator["conversation_count"] = discussion_count
         return aggregator
 
 

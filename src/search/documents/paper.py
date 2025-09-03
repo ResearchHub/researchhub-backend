@@ -1,13 +1,17 @@
+import io
 import logging
 import math
+import sys
+import time
+from typing import Iterable, Optional, override
 
-from django_elasticsearch_dsl import fields as es_fields
-from django_elasticsearch_dsl.registries import registry
+from django.db.models import Q, QuerySet
+from django_opensearch_dsl import fields as es_fields
+from django_opensearch_dsl.registries import registry
 
 from paper.models import Paper
-from paper.utils import format_raw_authors, pdf_copyright_allows_display
-from search.analyzers import content_analyzer, title_analyzer
-from utils import sentry
+from paper.utils import format_raw_authors
+from search.analyzers import title_analyzer
 from utils.doi import DOI
 
 from .base import BaseDocument
@@ -19,69 +23,52 @@ logger = logging.getLogger(__name__)
 class PaperDocument(BaseDocument):
     auto_refresh = True
 
-    hubs_flat = es_fields.TextField(attr="hubs_indexing_flat")
-    score = es_fields.IntegerField(attr="score_indexing")
     citations = es_fields.IntegerField()
-    hot_score = es_fields.IntegerField()
-    discussion_count = es_fields.IntegerField()
     paper_title = es_fields.TextField(analyzer=title_analyzer)
-    paper_publish_date = es_fields.DateField(
-        attr="paper_publish_date", format="yyyy-MM-dd"
-    )
-    paper_publish_year = es_fields.IntegerField()
-    abstract = es_fields.TextField(attr="abstract_indexing", analyzer=content_analyzer)
-    doi = es_fields.TextField(attr="doi_indexing", analyzer="keyword")
-    openalex_id = es_fields.TextField(attr="openalex_id")
+    paper_publish_date = es_fields.DateField(format="yyyy-MM-dd")
+    doi = es_fields.TextField(analyzer="keyword")
+    openalex_id = es_fields.TextField()
     # TODO: Deprecate this field once we move over to new app. It should not longer be necessary since authors property will replace it.
     raw_authors = es_fields.ObjectField(
-        attr="raw_authors_indexing",
         properties={
             "first_name": es_fields.TextField(),
             "last_name": es_fields.TextField(),
             "full_name": es_fields.TextField(),
         },
     )
-    authors = es_fields.ObjectField(
-        properties={
-            "author_id": es_fields.IntegerField(),
-            "author_position": es_fields.KeywordField(),
-            "full_name": es_fields.TextField(),
-        },
-    )
-    hubs = es_fields.ObjectField(
-        attr="hubs_indexing",
-        properties={
-            "id": es_fields.IntegerField(),
-            "name": es_fields.KeywordField(),
-            "slug": es_fields.TextField(),
-        },
-    )
-
-    slug = es_fields.TextField()
-    suggestion_phrases = es_fields.Completion()
-    title = es_fields.TextField(
-        analyzer=title_analyzer,
-    )
-    updated_date = es_fields.DateField()
-    oa_status = es_fields.KeywordField()
-    pdf_license = es_fields.KeywordField()
-    external_source = es_fields.KeywordField()
-    completeness_status = es_fields.KeywordField()
-    can_display_pdf_license = es_fields.BooleanField()
+    suggestion_phrases = es_fields.CompletionField()
 
     class Index:
         name = "paper"
 
     class Django:
         model = Paper
-        queryset_pagination = 250
         fields = ["id"]
 
-    def should_remove_from_index(self, obj):
-        if obj.is_removed:
-            return True
+    @override
+    def get_queryset(
+        self,
+        filter_: Optional[Q] = None,
+        exclude: Optional[Q] = None,
+        count: int = None,  # type: ignore[override]
+    ) -> QuerySet:
+        """
+        Override get_queryset to include prefetching of relationsships.
+        """
+        return (
+            super()
+            .get_queryset(filter_=filter_, exclude=exclude, count=count)
+            .select_related(
+                "unified_document",
+            )
+            .prefetch_related(
+                "unified_document__hubs",
+            )
+        )
 
-        return False
+    @override
+    def should_index_object(self, obj):  # type: ignore[override]
+        return not obj.is_removed
 
     # Used specifically for "autocomplete" style suggest feature.
     # Includes a bunch of phrases the user may search by.
@@ -112,14 +99,23 @@ class PaperDocument(BaseDocument):
         # Variation of OpenAlex keywords which may be searched by users
         try:
             oa_data = instance.open_alex_raw_json
-            keywords = [keyword_obj["keyword"] for keyword_obj in oa_data["keywords"]]
-            joined_kewords = " ".join(keywords)
+            if oa_data and "keywords" in oa_data:
+                keywords = []
+                for keyword_obj in oa_data["keywords"]:
+                    # Handle both old format (keyword) and new format (display_name)
+                    keyword = keyword_obj.get("display_name") or keyword_obj.get(
+                        "keyword"
+                    )
+                    if keyword:
+                        keywords.append(keyword)
 
-            phrases.append(joined_kewords)
-            phrases.extend(keywords)
+                if keywords:
+                    joined_kewords = " ".join(keywords)
+                    phrases.append(joined_kewords)
+                    phrases.extend(keywords)
 
         except Exception as e:
-            logger.warn(
+            logger.warning(
                 f"Failed to prepare OpenAlex keywords for paper {instance.id}: {e}"
             )
 
@@ -127,22 +123,26 @@ class PaperDocument(BaseDocument):
             hubs_indexing_flat = instance.hubs_indexing_flat
             phrases.extend(hubs_indexing_flat)
         except Exception as e:
-            logger.warn(f"Failed to prepare hubs for paper {instance.id}: {e}")
+            logger.warning(f"Failed to prepare hubs for paper {instance.id}: {e}")
 
         # Variation of author names which may be searched by users
         try:
-            authors_list = format_raw_authors(instance.raw_authors)
-            author_names_only = [
-                f"{author['first_name']} {author['last_name']}"
-                for author in authors_list
-                if author["first_name"] and author["last_name"]
-            ]
-            all_authors_as_str = ", ".join(author_names_only)
-
-            phrases.append(all_authors_as_str)
-            phrases.extend(author_names_only)
+            if instance.raw_authors:
+                authors_list = format_raw_authors(instance.raw_authors)
+                if authors_list:
+                    author_names_only = [
+                        f"{author['first_name']} {author['last_name']}"
+                        for author in authors_list
+                        if author.get("first_name") and author.get("last_name")
+                    ]
+                    if author_names_only:
+                        all_authors_as_str = ", ".join(author_names_only)
+                        phrases.append(all_authors_as_str)
+                        phrases.extend(author_names_only)
         except Exception as e:
-            logger.warn(f"Failed to prepare author names for paper {instance.id}: {e}")
+            logger.warning(
+                f"Failed to prepare author names for paper {instance.id}: {e}"
+            )
 
         # Assign weight based on how "hot" the paper is
         weight = 1
@@ -159,60 +159,71 @@ class PaperDocument(BaseDocument):
             "weight": weight,
         }
 
-    def prepare_completeness_status(self, instance):
-        try:
-            return instance.get_paper_completeness()
-        except Exception:
-            logger.warn(
-                f"Failed to prepare completeness status for paper {instance.id}"
-            )
-            return Paper.PARTIAL
-
-    def prepare_paper_publish_year(self, instance):
-        if instance.paper_publish_date:
-            return instance.paper_publish_date.year
-        return None
-
-    def prepare_can_display_pdf_license(self, instance):
-        try:
-            return pdf_copyright_allows_display(instance)
-        except Exception as e:
-            logger.warn(f"Failed to prepare pdf license for paper {instance.id}: {e}")
-
-        return False
-
-    def prepare_hot_score(self, instance):
-        if instance.unified_document:
-            return instance.unified_document.hot_score
-        return 0
-
-    def prepare_authors(self, instance):
-        """
-        Prepare authors data from paper authorships.
-        Returns a list of authors with their IDs, positions, and names.
-        """
+    def prepare_raw_authors(self, instance):
         authors = []
-        for authorship in instance.authorships.all():
-            authors.append(
-                {
-                    "author_id": authorship.author.id,
-                    "author_position": authorship.author_position,
-                    "full_name": authorship.raw_author_name,
-                }
-            )
+        if isinstance(instance.raw_authors, list) is False:
+            return authors
+
+        for author in instance.raw_authors:
+            if isinstance(author, dict):
+                authors.append(
+                    {
+                        "first_name": author.get("first_name"),
+                        "last_name": author.get("last_name"),
+                        "full_name": f'{author.get("first_name")} {author.get("last_name")}',
+                    }
+                )
+
         return authors
 
-    def prepare(self, instance):
-        try:
-            data = super().prepare(instance)
-        except Exception:
-            logger.error(f"Failed to prepare data for paper {instance.id}")
-            return None
+    def prepare_doi_indexing(self, instance):
+        return instance.doi or ""
 
-        try:
-            data["suggestion_phrases"] = self.prepare_suggestion_phrases(instance)
-        except Exception as error:
-            logger.warn(f"Failed to prepare suggestion phrases for paper {instance.id}")
-            sentry.log_error(error)
-            data["suggestion_phrases"] = []
-        return data
+    def get_indexing_queryset(
+        self,
+        verbose: bool = False,
+        filter_: Optional[Q] = None,
+        exclude: Optional[Q] = None,
+        count: int = None,
+        action: str = "Index",
+        stdout: io.FileIO = sys.stdout,
+    ) -> Iterable:
+        """
+        Divide the queryset into chunks. Overwrite django_opensearch_dsl default because it uses offsets instead of
+        filtering by greater than pk.
+        """
+        chunk_size = self.django.queryset_pagination
+        qs = self.get_queryset(filter_=filter_, exclude=exclude, count=count)
+        qs = qs.order_by("pk") if not qs.query.is_sliced else qs
+        count = qs.count()
+        model = self.django.model.__name__
+        action = action.present_participle.title()
+
+        done = 0
+        start = time.time()
+        last_pk = None
+        if verbose:
+            stdout.write(f"{action} {model}: 0% ({self._eta(start, done, count)})\r")
+        while done < count:
+            if verbose:
+                stdout.write(
+                    f"{action} {model}: {round(done / count * 100)}% ({self._eta(start, done, count)})\r"
+                )
+
+            if last_pk is not None:
+                current_qs = qs.filter(pk__gt=last_pk)[:chunk_size]
+            else:
+                current_qs = qs[:chunk_size]
+
+            # Process current chunk
+            chunk_items = list(current_qs)
+            if not chunk_items:
+                break
+
+            for obj in chunk_items:
+                done += 1
+                last_pk = obj.pk
+                yield obj
+
+        if verbose:
+            stdout.write(f"{action} {count} {model}: OK          \n")

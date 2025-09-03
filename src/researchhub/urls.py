@@ -102,6 +102,10 @@ router.register(
 router.register(r"leaderboard", user.views.LeaderboardViewSet, basename="leaderboard")
 
 router.register(
+    r"payment/coinbase", purchase.views.CoinbaseViewSet, basename="coinbase"
+)
+
+router.register(
     r"email_recipient",
     mailing_list.views.EmailRecipientViewSet,
     basename="email_recipient",
@@ -310,11 +314,6 @@ urlpatterns = [
         note_views.note_view.ckeditor_webhook_document_removed,
     ),
     path("api/ckeditor/token/", note_views.note_view.ckeditor_token),
-    path(
-        "api/popover/<int:user_id>/get_user/",
-        user.views.get_user_popover,
-        name="popover_user",
-    ),
     path("email_notifications/", mailing_list.views.email_notifications),
     path("", researchhub.views.index, name="index"),
     path(

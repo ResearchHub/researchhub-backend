@@ -112,7 +112,7 @@ BEGIN
           pdf_license, raw_authors, discussion_count, alternate_ids, slug,
           paper_type, completeness, open_alex_raw_json, citations, downloads,
           views, is_open_access, oa_status, created_date, updated_date,
-          is_removed_by_user, bullet_low_quality, summary_low_quality,
+           bullet_low_quality, summary_low_quality,
           automated_bounty_created, is_pdf_removed_by_moderator, score
         )
         SELECT 
@@ -120,7 +120,7 @@ BEGIN
           retrieved_from_external_source, is_public, is_removed, external_source,
           pdf_license, raw_authors, discussion_count, alternate_ids, slug,
           paper_type, completeness, open_alex_raw_json, citations, downloads,
-          views, is_open_access, oa_status, NOW(), NOW(), false,
+          views, is_open_access, oa_status, NOW(), NOW(),
           false, false, false, false, 0
         FROM backfill_paper_paper b
         WHERE NOT EXISTS (
@@ -167,7 +167,7 @@ BEGIN
           pdf_license, raw_authors, discussion_count, alternate_ids, slug,
           paper_type, completeness, open_alex_raw_json, citations, downloads,
           views, is_open_access, oa_status, created_date, updated_date,
-          is_removed_by_user, bullet_low_quality, summary_low_quality,
+          bullet_low_quality, summary_low_quality,
           automated_bounty_created, is_pdf_removed_by_moderator, score
         )
         SELECT 
@@ -175,7 +175,7 @@ BEGIN
           retrieved_from_external_source, is_public, is_removed, external_source,
           pdf_license, raw_authors, discussion_count, alternate_ids, slug,
           paper_type, completeness, open_alex_raw_json, citations, downloads,
-          views, is_open_access, oa_status, NOW(), NOW(), false,
+          views, is_open_access, oa_status, NOW(), NOW(),
           false, false, false, false, 0
         FROM backfill_paper_paper b
         WHERE NOT EXISTS (

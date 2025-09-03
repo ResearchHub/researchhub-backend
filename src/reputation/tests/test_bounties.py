@@ -419,15 +419,17 @@ class BountyViewTests(APITestCase):
         recipient_3_balance = self.child_comment_3.created_by.get_balance()
 
         self.assertEqual(approve_bounty_res.status_code, 200)
-        self.assertEqual(user_balance, initial_user_balance + 300)
+        self.assertEqual(user_balance, initial_user_balance)
         self.assertEqual(initial_recipient_1_balance + 100, recipient_1_balance)
         self.assertEqual(initial_recipient_2_balance + 100, recipient_2_balance)
         self.assertEqual(initial_recipient_3_balance + 100, recipient_3_balance)
+        self.assertEqual(
+            decimal.Decimal(approve_bounty_res.data["amount_remaining"]), 300.00
+        )
 
     def test_user_can_approve_partial_multi_bounties(self):
         amount_1 = 600
         amount_2 = 400
-        total_amount = amount_1 + amount_2
         amount_paid = 100
 
         # User, User_2
@@ -483,25 +485,13 @@ class BountyViewTests(APITestCase):
             initial_recipient_3_balance + decimal.Decimal(amount_paid),
         )
 
-        # Check contributor balances (Should only increase by refund amount)
-        refund_amount = decimal.Decimal(
-            total_amount - 3 * amount_paid
-        )  # 1000 - 300 = 700
-        refund_user_1 = refund_amount * (
-            decimal.Decimal(amount_1) / decimal.Decimal(total_amount)
-        )  # 700 * (600/1000) = 420
-        refund_user_2 = refund_amount * (
-            decimal.Decimal(amount_2) / decimal.Decimal(total_amount)
-        )  # 700 * (400/1000) = 280
-
-        expected_balance_user_1 = initial_bounty_1_created_by_balance + refund_user_1
-        expected_balance_user_2 = initial_bounty_2_created_by_balance + refund_user_2
-
-        self.assertAlmostEqual(
-            bounty_1_created_by_balance, expected_balance_user_1, places=5
+        # Check contributor balances (Should not change since bounty remains open)
+        # No refund happens when bounty is partially awarded and remains open
+        self.assertEqual(
+            bounty_1_created_by_balance, initial_bounty_1_created_by_balance
         )
-        self.assertAlmostEqual(
-            bounty_2_created_by_balance, expected_balance_user_2, places=5
+        self.assertEqual(
+            bounty_2_created_by_balance, initial_bounty_2_created_by_balance
         )
 
     def test_user_cant_approve_approved_bounty(self):
@@ -1174,10 +1164,13 @@ class BountyViewTests(APITestCase):
 
         self.assertEqual(approve_bounty_res.status_code, 200)
         self.assertEqual(
-            bounty.status, Bounty.CLOSED
-        )  # Should close if partially awarded? Check logic. Assuming yes for now.
-        # Assuming the remaining amount is refunded
-        refund_amount = decimal.Decimal(amount - 2 * partial_award_amount)
+            bounty.status, Bounty.OPEN
+        )  # Bounty should remain OPEN after partial award
+        # Check that amount_remaining is correct
+        self.assertEqual(
+            decimal.Decimal(approve_bounty_res.data["amount_remaining"]),
+            decimal.Decimal(amount - 2 * partial_award_amount),
+        )
         total_awarded = (
             bounty.solutions.filter(status=BountySolution.Status.AWARDED).aggregate(
                 total=Sum("awarded_amount")
@@ -1186,9 +1179,9 @@ class BountyViewTests(APITestCase):
         )
         self.assertEqual(total_awarded, decimal.Decimal(2 * partial_award_amount))
 
-        # Check balances (consider fee and refund)
-        # User balance should increase by the refunded amount
-        self.assertEqual(user_balance, initial_user_balance + refund_amount)
+        # Check balances (no refund since bounty is still open)
+        # User balance should not change
+        self.assertEqual(user_balance, initial_user_balance)
 
         self.assertEqual(
             recipient_1_balance,
@@ -1292,7 +1285,6 @@ class BountyViewTests(APITestCase):
     def test_approve_multiple_solutions_for_multi_contributor_bounty(self):
         amount_1 = 600
         amount_2 = 400
-        total_amount = amount_1 + amount_2
         award_amount_1 = 200
         award_amount_2 = 300
         total_award = award_amount_1 + award_amount_2
@@ -1339,7 +1331,9 @@ class BountyViewTests(APITestCase):
         bounty.refresh_from_db()
 
         self.assertEqual(approve_bounty_res.status_code, 200)
-        self.assertEqual(bounty.status, Bounty.CLOSED)  # Assuming partial award closes
+        self.assertEqual(
+            bounty.status, Bounty.OPEN
+        )  # Bounty remains open after partial award
         total_awarded = (
             bounty.solutions.filter(status=BountySolution.Status.AWARDED).aggregate(
                 total=Sum("awarded_amount")
@@ -1358,23 +1352,10 @@ class BountyViewTests(APITestCase):
             initial_recipient_2_balance + decimal.Decimal(award_amount_2),
         )
 
-        # Check contributor balances (refunds)
-        refund_amount = decimal.Decimal(total_amount - total_award)
-        refund_user_1 = refund_amount * (
-            decimal.Decimal(amount_1) / decimal.Decimal(total_amount)
-        )
-        refund_user_2 = refund_amount * (
-            decimal.Decimal(amount_2) / decimal.Decimal(total_amount)
-        )
-
-        # Use assertAlmostEqual for potential floating point inaccuracies
-        # in refund calculation
-        self.assertAlmostEqual(
-            user_1_balance, initial_user_1_balance + refund_user_1, places=3
-        )
-        self.assertAlmostEqual(
-            user_2_balance, initial_user_2_balance + refund_user_2, places=3
-        )
+        # Check contributor balances (no refunds since bounty remains open)
+        # Balances should not change when bounty is partially awarded
+        self.assertEqual(user_1_balance, initial_user_1_balance)
+        self.assertEqual(user_2_balance, initial_user_2_balance)
 
     def test_hubs_endpoint_returns_hubs_with_bounties(self):
         """Ensure /api/bounty/hubs/ returns hubs linked to open bounties."""
@@ -1416,6 +1397,119 @@ class BountyViewTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         hub_ids = [hub["id"] for hub in response.data]
         self.assertNotIn(unused_hub.id, hub_ids)
+
+    def test_bounty_remains_open_after_partial_award(self):
+        """Test that bounty remains open when partially awarded"""
+        self.client.force_authenticate(self.user)
+        amount = 1000
+        partial_amount = 300
+
+        # Create bounty
+        bounty_res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": amount,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
+            },
+        )
+        self.assertEqual(bounty_res.status_code, 201)
+        bounty_id = bounty_res.data["id"]
+
+        # Partially award the bounty
+        approve_res = self.client.post(
+            f"/api/bounty/{bounty_id}/approve_bounty/",
+            [
+                {
+                    "amount": partial_amount,
+                    "object_id": self.child_comment_1.id,
+                    "content_type": self.child_comment_1._meta.model_name,
+                }
+            ],
+        )
+
+        self.assertEqual(approve_res.status_code, 200)
+        self.assertEqual(approve_res.data["status"], Bounty.OPEN)
+        self.assertEqual(
+            decimal.Decimal(approve_res.data["amount_remaining"]),
+            decimal.Decimal(amount - partial_amount),
+        )
+        self.assertIn("remaining open for future awards", approve_res.data["message"])
+
+        # Verify bounty is still open in database
+        bounty = Bounty.objects.get(id=bounty_id)
+        self.assertEqual(bounty.status, Bounty.OPEN)
+        self.assertEqual(
+            bounty.escrow.amount_holding, decimal.Decimal(amount - partial_amount)
+        )
+
+    def test_bounty_closes_when_fully_depleted(self):
+        """Test that bounty closes only when escrow is fully depleted"""
+        self.client.force_authenticate(self.user)
+        amount = 1000
+
+        # Create bounty
+        bounty_res = self.client.post(
+            "/api/bounty/",
+            {
+                "amount": amount,
+                "item_content_type": self.comment._meta.model_name,
+                "item_object_id": self.comment.id,
+            },
+        )
+        self.assertEqual(bounty_res.status_code, 201)
+        bounty_id = bounty_res.data["id"]
+
+        # First partial award
+        approve_res_1 = self.client.post(
+            f"/api/bounty/{bounty_id}/approve_bounty/",
+            [
+                {
+                    "amount": 400,
+                    "object_id": self.child_comment_1.id,
+                    "content_type": self.child_comment_1._meta.model_name,
+                }
+            ],
+        )
+        self.assertEqual(approve_res_1.status_code, 200)
+        self.assertEqual(approve_res_1.data["status"], Bounty.OPEN)
+        self.assertEqual(decimal.Decimal(approve_res_1.data["amount_remaining"]), 600)
+
+        # Second partial award
+        approve_res_2 = self.client.post(
+            f"/api/bounty/{bounty_id}/approve_bounty/",
+            [
+                {
+                    "amount": 300,
+                    "object_id": self.child_comment_2.id,
+                    "content_type": self.child_comment_2._meta.model_name,
+                }
+            ],
+        )
+        self.assertEqual(approve_res_2.status_code, 200)
+        self.assertEqual(approve_res_2.data["status"], Bounty.OPEN)
+        self.assertEqual(decimal.Decimal(approve_res_2.data["amount_remaining"]), 300)
+
+        # Final award that depletes the bounty
+        approve_res_3 = self.client.post(
+            f"/api/bounty/{bounty_id}/approve_bounty/",
+            [
+                {
+                    "amount": 300,
+                    "object_id": self.child_comment_3.id,
+                    "content_type": self.child_comment_3._meta.model_name,
+                }
+            ],
+        )
+        self.assertEqual(approve_res_3.status_code, 200)
+        self.assertEqual(approve_res_3.data["status"], Bounty.CLOSED)
+        self.assertEqual(decimal.Decimal(approve_res_3.data["amount_remaining"]), 0)
+        self.assertIn("successfully closed", approve_res_3.data["message"])
+
+        # Verify bounty is closed in database
+        bounty = Bounty.objects.get(id=bounty_id)
+        self.assertEqual(bounty.status, Bounty.CLOSED)
+        self.assertEqual(bounty.escrow.amount_holding, 0)
 
     def test_bounty_dao_fee_goes_to_community_revenue_account(self):
         community_revenue_user, _ = User.objects.get_or_create(

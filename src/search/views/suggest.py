@@ -1,7 +1,7 @@
 import logging
 import math
 
-from elasticsearch_dsl import Search
+from opensearchpy import Search
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.renderers import JSONRenderer
@@ -76,6 +76,7 @@ class SuggestView(APIView):
                 "document_type": result.get("_source", {}).get("document_type"),
                 "created_date": result.get("_source", {}).get("created_date"),
                 "authors": result.get("_source", {}).get("authors", []),
+                "slug": result.get("_source", {}).get("slug"),
                 "source": "researchhub",
                 "_score": result.get("_score", 1.0),
             },
@@ -399,9 +400,11 @@ class SuggestView(APIView):
                     suggest_field = "name_suggest"
 
                 try:
+                    # Truncate query to 50 characters for ES completion suggester
+                    truncated_query = query[:50]
                     suggest = search.suggest(
                         "suggestions",
-                        query,
+                        truncated_query,
                         completion={"field": suggest_field, "size": limit_per_index},
                     )
                     response = suggest.execute()

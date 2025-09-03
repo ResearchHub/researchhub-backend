@@ -71,16 +71,12 @@ class Paper(AbstractGenericReactionModel):
     # TODO clean this up to use SoftDeleteable mixin in utils
     is_removed = models.BooleanField(default=False, help_text=HELP_TEXT_IS_REMOVED)
 
-    is_removed_by_user = models.BooleanField(
-        default=False, help_text=HELP_TEXT_IS_REMOVED
-    )
     # We assume that is_pdf_removed_by_moderator is only set to True if the PDF was removed for copyright reasons
     is_pdf_removed_by_moderator = models.BooleanField(
         default=False, help_text=HELP_TEXT_IS_PDF_REMOVED
     )
     discussion_count = models.IntegerField(default=0, db_index=True)
 
-    views = models.IntegerField(default=0)
     citations = models.IntegerField(default=0)
     open_alex_raw_json = models.JSONField(null=True, blank=True)
     automated_bounty_created = models.BooleanField(default=False)
@@ -99,20 +95,6 @@ class Paper(AbstractGenericReactionModel):
         null=True,
         blank=True,
         validators=[FileExtensionValidator(["pdf"])],
-    )
-    pdf_file_extract = models.FileField(
-        max_length=512,
-        upload_to="uploads/papers/%Y/%m/%d/pdf_extract",
-        default=None,
-        null=True,
-        blank=True,
-    )
-    edited_file_extract = models.FileField(
-        max_length=512,
-        upload_to="uploads/papers/%Y/%m/%d/edited_extract",
-        default=None,
-        null=True,
-        blank=True,
     )
     file_created_location = models.CharField(
         choices=CREATED_LOCATION_CHOICES,
@@ -202,12 +184,6 @@ class Paper(AbstractGenericReactionModel):
         blank=True,
         help_text="bibliographic metadata as a single "
         "Citation Styles Language JSON item.",
-    )
-    oa_pdf_location = JSONField(
-        default=None,
-        null=True,
-        blank=True,
-        help_text="PDF availability in Unpaywall OA Location format.",
     )
     external_metadata = JSONField(null=True, blank=True)
 
@@ -300,10 +276,6 @@ class Paper(AbstractGenericReactionModel):
         return self.uploaded_by
 
     @property
-    def is_hidden(self):
-        return (not self.is_public) or self.is_removed or self.is_removed_by_user
-
-    @property
     def users_to_notify(self):
         users = []
         paper_authors = self.authors.all()
@@ -316,24 +288,6 @@ class Paper(AbstractGenericReactionModel):
                 users.append(author.user)
 
         return users
-
-    @property
-    def raw_authors_indexing(self):
-        authors = []
-        if isinstance(self.raw_authors, list) is False:
-            return authors
-
-        for author in self.raw_authors:
-            if isinstance(author, dict):
-                authors.append(
-                    {
-                        "first_name": author.get("first_name"),
-                        "last_name": author.get("last_name"),
-                        "full_name": f'{author.get("first_name")} {author.get("last_name")}',
-                    }
-                )
-
-        return authors
 
     @property
     def authors_indexing(self):
@@ -366,10 +320,6 @@ class Paper(AbstractGenericReactionModel):
     @property
     def abstract_indexing(self):
         return self.abstract if self.abstract else ""
-
-    @property
-    def doi_indexing(self):
-        return self.doi or ""
 
     @property
     def hot_score(self):

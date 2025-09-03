@@ -7,13 +7,12 @@ from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.db.models import F, Q, Sum
 from django.db.models.functions import Coalesce
-from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
-from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter, SearchFilter
 from rest_framework.permissions import (
     AllowAny,
@@ -33,10 +32,15 @@ from reputation.serializers import (
 from reputation.views import BountyViewSet
 from user.filters import UserFilter
 from user.models import Author, Major, University, User
-from user.permissions import Censor, DeleteUserPermission, RequestorIsOwnUser, IsModerator
+from user.permissions import (
+    Censor,
+    DeleteUserPermission,
+    IsModerator,
+    RequestorIsOwnUser,
+    UserIsEditor,
+)
 from user.serializers import (
     AuthorSerializer,
-    DynamicUserSerializer,
     MajorSerializer,
     UniversitySerializer,
     UserActions,
@@ -145,21 +149,29 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
 
         return Response({"message": "User is Censored"}, status=200)
 
-    @action(detail=False, methods=[POST], permission_classes=[IsModerator])
+    @action(
+        detail=False, methods=[POST], permission_classes=[UserIsEditor | IsModerator]
+    )
     def mark_probable_spammer(self, request, pk=None):
         author_id = request.data.get("authorId")
 
         if not author_id:
-            return Response({"message": "authorId is required"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"message": "authorId is required"}, status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             user_to_flag = User.objects.get(author_profile__id=author_id)
         except User.DoesNotExist:
-            return Response({"message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response(
+                {"message": "User not found"}, status=status.HTTP_404_NOT_FOUND
+            )
 
         user_to_flag.set_probable_spammer()
 
-        return Response({"message": "User flagged as probable spammer"}, status=status.HTTP_200_OK)
+        return Response(
+            {"message": "User flagged as probable spammer"}, status=status.HTTP_200_OK
+        )
 
     @action(
         detail=False,
@@ -568,47 +580,6 @@ class UserViewSet(FollowViewActionMixin, viewsets.ModelViewSet):
                 user.save(update_fields=["is_active"])
 
         return Response({"message:": "Webhook successfully processed"}, status=200)
-
-
-@api_view([RequestMethods.GET])
-@permission_classes([AllowAny])
-def get_user_popover(request, user_id=None):
-    user = get_object_or_404(User, pk=user_id)
-    user = User.objects.get(id=user_id)
-    context = {
-        "usr_dus_get_author_profile": {
-            "_include_fields": (
-                "id",
-                "first_name",
-                "last_name",
-                "university",
-                "facebook",
-                "linkedin",
-                "twitter",
-                "google_scholar",
-                "description",
-                "education",
-                "headline",
-                "profile_image",
-            )
-        },
-        "usr_dus_get_editor_of": {"_include_fields": ("source",)},
-        "rag_dps_get_source": {"_include_fields": ("id", "name", "slug")},
-    }
-    serializer = DynamicUserSerializer(
-        user,
-        context=context,
-        _include_fields=(
-            "id",
-            "author_profile",
-            "editor_of",
-            "first_name",
-            "last_name",
-            "reputation",
-            "created_date",
-        ),
-    )
-    return Response(serializer.data, status=200)
 
 
 class UniversityViewSet(viewsets.ReadOnlyModelViewSet):

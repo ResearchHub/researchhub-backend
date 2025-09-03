@@ -119,7 +119,6 @@ class JournalFeedViewSet(FeedViewMixin, ModelViewSet):
             )
             .filter(
                 is_removed=False,
-                is_removed_by_user=False,
                 is_public=True,
             )
         )

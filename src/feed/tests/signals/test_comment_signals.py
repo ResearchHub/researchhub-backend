@@ -136,6 +136,9 @@ class CommentSignalsTests(TestCase):
         )
 
         # Assert
+        # The paper metrics should show 0 replies because:
+        # 1. The thread has a PEER_REVIEW root comment, not GENERIC_COMMENT
+        # 2. Only GENERIC_COMMENT threads with GENERIC_COMMENT roots are counted in discussions
         mock_update_feed_metrics.apply_async.assert_has_calls(
             [
                 call(
@@ -144,7 +147,7 @@ class CommentSignalsTests(TestCase):
                         ContentType.objects.get_for_model(Paper).id,
                         {
                             "votes": 0,
-                            "replies": 1,
+                            "replies": 0,
                             "review_metrics": {"avg": 0, "count": 0},
                             "citations": 0,
                         },
@@ -153,6 +156,7 @@ class CommentSignalsTests(TestCase):
                 ),
             ]
         )
+        # The parent comment should still show its direct children count
         mock_update_feed_metrics.apply_async.assert_has_calls(
             [
                 call(
@@ -160,6 +164,19 @@ class CommentSignalsTests(TestCase):
                         self.comment.id,
                         ContentType.objects.get_for_model(self.comment).id,
                         {"votes": 0, "replies": 1},
+                    ),
+                    priority=1,
+                ),
+            ]
+        )
+        # Check that metrics were also called for the second reply
+        mock_update_feed_metrics.apply_async.assert_has_calls(
+            [
+                call(
+                    args=(
+                        self.comment.id,
+                        ContentType.objects.get_for_model(self.comment).id,
+                        {"votes": 0, "replies": 2},
                     ),
                     priority=1,
                 ),

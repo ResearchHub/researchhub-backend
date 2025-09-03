@@ -40,10 +40,11 @@ jobs:
           --health-retries 5
         ports:
           - 6379:6379
-      elasticsearch:
-        image: elasticsearch:7.10.1
+      opensearch:
+        image: opensearchproject/opensearch:2.19.3
         env:
           discovery.type: single-node
+          DISABLE_SECURITY_PLUGIN: "true"
         ports:
           - 9200:9200
 
@@ -69,7 +70,7 @@ jobs:
           cp config/ci/* config
           uv run python manage.py migrate
           uv run python manage.py collectstatic --noinput
-          uv run python manage.py search_index --rebuild -f
+          uv run python manage.py opensearch index rebuild --force
           uv run coverage run manage.py test --verbosity=2
           uv run coverage xml -o coverage.xml
 

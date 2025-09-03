@@ -13,7 +13,7 @@
 	// This can be used to network with other containers or the host.
 	"forwardPorts": [
 		"app:8000",
-		"elasticsearch:9200",
+		"opensearch:9200",
 		"kibana:5601",
 		"postgres:5432",
 		"redis:6379"
@@ -60,6 +60,7 @@
 				"isort.args":["--profile", "black"],
 				"python.analysis.autoImportCompletions": true,
 				"python.analysis.indexing": true,
+				"python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
 				"python.terminal.activateEnvironment": true,
 				"python.useEnvironmentsExtension": true,
 				"remote.autoForwardPorts": false
@@ -71,6 +72,7 @@
 	// "remoteUser": "root"
 
 	"remoteEnv": {
+		"UV_LINK_MODE": "copy",
 		"WORKSPACE_PATH": "${containerWorkspaceFolder}"
 	},
 
