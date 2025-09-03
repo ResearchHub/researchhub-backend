@@ -197,7 +197,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
                 )
             else:
                 queryset = queryset.filter(
-                    unified_document__fundraises__status=Fundraise.CLOSED
+                    unified_document__fundraises__status=Fundraise.COMPLETED
                 )
 
         return queryset
