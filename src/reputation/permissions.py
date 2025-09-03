@@ -48,10 +48,10 @@ class UserCanApproveBounty(BasePermission):
     def has_object_permission(self, request, view, obj):
         self.message = "Invalid Bounty user"
 
-        if obj.status != Bounty.OPEN:
+        if obj.status not in [Bounty.OPEN, Bounty.REVIEW_PERIOD]:
             self.message = "Bounty is closed."
             return False
-        elif obj.expiration_date <= datetime.now(pytz.UTC):
+        elif obj.status == Bounty.OPEN and obj.expiration_date <= datetime.now(pytz.UTC):
             self.message = "Bounty is expired"
             return False
         if obj.item_content_type == ContentType.objects.get_for_model(

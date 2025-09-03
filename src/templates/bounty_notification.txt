@@ -1,0 +1,10 @@
+{{ email_title }}
+
+{{ email_message }}
+
+View bounty: {{ action_link }}
+
+--
+ResearchHub Foundation
+
+Unsubscribe: {{ opt_out }}
