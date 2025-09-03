@@ -40,6 +40,12 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         - CLOSED: Only show posts with closed grants
         - COMPLETED: Only show posts with completed grants
     - organization: Filter by granting organization name (partial match)
+    - hub: Filter by associated hubs
+    - ordering: Set order of response.
+      Options:
+        - created_date: Sort by creation date (newest first)
+        - unified_document__grants__amount: Sort by grant amount (highest first)
+        - unified_document__grants__end_date: Sort by grant end date (soonest first)
     """
 
     serializer_class = PostSerializer
@@ -80,6 +86,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
 
         # Get paginated posts
         queryset = self.get_queryset()
+        queryset = self.ordering(queryset)
         page = self.paginate_queryset(queryset)
 
         feed_entries = []
@@ -113,25 +120,12 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
     def get_queryset(self):
         """
         Filter to only include posts that are grants.
-        Additionally filter by grant status or organization.
-        Order by user specified order param, default open to top.
-            -created_date
-            -unified_document__grants__amoun
-            unified_document__grants__end_date
+        Additionally filter by grant status, organization, or hub.
         """
-
-        # TODO: reject if not allowed filter or order
 
         status = self.request.query_params.get("fundraise_status", None)
         organization = self.request.query_params.get("organization", None)
         hubs = self.request.query_params.get("hub_ids", None)
-        order = self.request.query_params.get("ordering", "-created_date")
-
-        print("query params: ", self.request.query_params)
-        print("status: ", status)
-        print("order: ", order)
-        print("hubs filters: ", hubs)
-        print("organization: ", organization)
 
         # get all grants.
         queryset = (
@@ -156,7 +150,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
                 unified_document__grants__organization__icontains=organization
             )
 
-        # Filter by Hub if specified:
+        # Filter by Hub if specified.
         if hubs:
             try:
                 hub_json = json.loads(hubs)
@@ -164,6 +158,29 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             except json.JSONDecodeError as e:
                 print("Invalid JSON for hub_ids: ", e)
                 pass
+
+        # Filter by Status if specified.
+        if status:
+            queryset = queryset.filter(unified_document__grants__status=status)
+
+        return queryset
+
+    def ordering(self, queryset):
+        """
+        Order by user specified order param, default open to top.
+        """
+
+        ordering = self.request.query_params.get("ordering", "-created_date")
+        status = self.request.query_params.get("fundraise_status", None)
+
+        ordering_options = [
+            "-created_date",
+            "-unified_document__grants__amount",
+            "unified_document__grants__end_date",
+        ]
+
+        if ordering not in ordering_options:
+            ordering = "-created_date"
 
         queryset = queryset.annotate(
             is_open=Case(
@@ -180,7 +197,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
                 F("is_open"),
                 descending=bool(not status or status.upper() == Grant.OPEN),
             ),
-            order,
+            ordering,
         )
 
         return queryset

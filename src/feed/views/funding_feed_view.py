@@ -46,12 +46,15 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
     - grant_id: Filter by grant applications
       (show only posts that applied to specific grant)
     - created_by: Filter by user ID who created the funding post
+    - hub: Filter by associated hubs
     - ordering: Sort order when grant_id is provided
       Options:
         - newest (default): Sort by creation date (newest first)
         - hot_score: Sort by hot score (most popular first)
         - upvotes: Sort by score (most upvoted first)
         - amount_raised: Sort by amount raised (highest first)
+        - created_date: Sort by creation date (newest first)
+        - unified_document__fundraises__end_date: Sort by fundraise end date (soonest first)
     """
 
     serializer_class = PostSerializer
@@ -143,19 +146,12 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         """
         Filter to only include posts that are preregistrations.
         Additionally filter by fundraise status, grant applications,
-        and/or created_by if specified.
+        hub, and/or created_by if specified.
         """
         fundraise_status = self.request.query_params.get("fundraise_status", None)
         grant_id = self.request.query_params.get("grant_id", None)
         created_by = self.request.query_params.get("created_by", None)
         hubs = self.request.query_params.get("hub_ids", None)
-
-        # TODO: rejet if not allowed order
-
-        print("fundraise_status: ", fundraise_status)
-        print("grant_id: ", grant_id)
-        print("created_by: ", created_by)
-        print("hubs filters: ", hubs)
 
         queryset = (
             ResearchhubPost.objects.all()
@@ -204,18 +200,23 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
 
     def ordering(self, queryset):
         """
-        Order according to user preferences:
-            -unified_document__fundraises__goal_amount
-            amount_raised'
-            -created_date'
-            unified_document__fundraises__end_date
-            unified_document__fundraises__hot_score
+        Order according to user preferences.
         """
-
-        # TODO: rejet if not allowed order
 
         fundraise_status = self.request.query_params.get("fundraise_status", None)
         ordering = self.request.query_params.get("ordering", "-created_date")
+
+        ordering_options = [
+            "-unified_document__fundraises__goal_amount",
+            "amount_raised",
+            "-created_date",
+            "unified_document__fundraises__end_date",
+            "-unified_document__fundraises__hot_score",
+            "-score",
+        ]
+
+        if ordering not in ordering_options:
+            ordering = "-created_date"
 
         # Create a flag to identify OPEN fundraises for sorting
         queryset = queryset.annotate(
