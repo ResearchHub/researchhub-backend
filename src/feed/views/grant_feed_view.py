@@ -154,7 +154,9 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         if hubs:
             try:
                 hub_json = json.loads(hubs)
-                queryset = queryset.filter(unified_document__hubs__id__in=hub_json)
+                queryset = queryset.filter(
+                    unified_document__hubs__id__in=hub_json
+                ).distinct()
             except json.JSONDecodeError as e:
                 print("Invalid JSON for hub_ids: ", e)
 

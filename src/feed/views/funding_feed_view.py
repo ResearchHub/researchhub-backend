@@ -167,7 +167,9 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         if hubs:
             try:
                 hubs_json = json.loads(hubs)
-                queryset = queryset.filter(unified_document__hubs__id__in=hubs_json)
+                queryset = queryset.filter(
+                    unified_document__hubs__id__in=hubs_json
+                ).distinct()
             except json.JSONDecodeError as e:
                 print("Error serializing hubs: ", e)
 

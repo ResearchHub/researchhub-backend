@@ -21,7 +21,7 @@ papers = [
         "created_by": user,
         "amount": 100000,
         "currency": "USD",
-        "organization": "Climate Research Foundation",
+        "organization": "org 1",
         "description": "Description of rfp 1",
         "end_date": "2025-12-31",  # Optional end date
         "contacts": User.objects.filter(id__in=[1]),
@@ -34,7 +34,7 @@ papers = [
         "created_by": user,
         "amount": 99000,
         "currency": "USD",
-        "organization": "Climate Research Foundation",
+        "organization": "org 2",
         "description": "Description of rfp 2",
         "end_date": "2025-11-21",  # Optional end date
         "contacts": User.objects.filter(id__in=[1]),
@@ -47,7 +47,7 @@ papers = [
         "created_by": user,
         "amount": 88000,
         "currency": "USD",
-        "organization": "Climate Research Foundation",
+        "organization": "org 3",
         "description": "Description for rfp 3",
         "end_date": "2025-10-20",  # Optional end date
         "contacts": User.objects.filter(id__in=[1]),
@@ -60,7 +60,7 @@ papers = [
         "created_by": user,
         "amount": 77000,
         "currency": "USD",
-        "organization": "Climate Research Foundation",
+        "organization": "org 4",
         "description": "Description of rfp 4",
         "end_date": "2025-09-20",  # Optional end date
         "contacts": User.objects.filter(id__in=[1]),
@@ -73,7 +73,7 @@ papers = [
         "created_by": user,
         "amount": 66000,
         "currency": "USD",
-        "organization": "Climate Research Foundation",
+        "organization": "org 5",
         "description": "Description of rfp 5",
         "end_date": "2025-08-10",  # Optional end date
         "contacts": User.objects.filter(id__in=[1]),
@@ -86,7 +86,7 @@ papers = [
         "created_by": user,
         "amount": 55000,
         "currency": "USD",
-        "organization": "Climate Research Foundation",
+        "organization": "org 6",
         "description": "Description of rfp 6",
         "end_date": "2024-07-20",  # Optional end date
         "contacts": User.objects.filter(id__in=[1]),
