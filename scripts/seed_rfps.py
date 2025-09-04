@@ -1,9 +1,5 @@
 # Creating a Funding Proposal in ResearchHub
 
-# This document creates a Funding proposal using `ResearchhubPost.objects.create`.
-
-# Basic Example
-
 from django.utils.text import slugify
 
 from hub.models import Hub
@@ -14,15 +10,33 @@ from researchhub_document.related_models.constants.editor_type import CK_EDITOR
 from user.models import User
 from user.related_models.author_model import Author
 
-print("Creating a Request for Proposals...")
+users = User.objects.all()
+if not users.exists():
+    User.objects.create_superuser(
+        username="admin", email="admin@example.com", password="admin"
+    )
+
+user = User.objects.first()
+
+hubs = Hub.objects.all()
+if not hubs.exists():
+    Hub.objects.create(id=2, name="Neuroscience", slug="neuroscience")
+    Hub.objects.create(id=3, name="Biology", slug="biology")
+    Hub.objects.create(
+        id=17, name="Bioinformatics & Genomics", slug="bioinformatics-genomics"
+    )
+    Hub.objects.create(id=21, name="Climate Change", slug="climate-change")
+    Hub.objects.create(id=80, name="Cryptocurrency", slug="cryptocurrency")
+    Hub.objects.create(id=201, name="Cancer Biology", slug="cancer-biology")
+    Hub.objects.create(id=245, name="Blockchain", slug="blockchain")
 
 papers = [
     {
         "title": "Request for Proposal: Research on Climate Change Impact",
-        "author": User.objects.get(id=1),
+        "author": user,
         "hubs": Hub.objects.filter(id__in=[21]),
         "renderable_text": "This is a funding proposal for researching the impact of climate change on coastal ecosystems. We are requesting $100,000 to conduct a comprehensive study...",
-        "created_by": User.objects.get(id=1),
+        "created_by": user,
         "amount": 100000,
         "currency": "USD",
         "organization": "Climate Research Foundation",
@@ -32,10 +46,10 @@ papers = [
     },
     {
         "title": "Request for Proposals - Cancer Biology Research Project",
-        "author": User.objects.get(id=1),
+        "author": user,
         "hubs": Hub.objects.filter(id__in=[3, 201]),
         "renderable_text": "This is a funding proposal for researching cool stuff",
-        "created_by": User.objects.get(id=1),
+        "created_by": user,
         "amount": 99000,
         "currency": "USD",
         "organization": "Climate Research Foundation",
@@ -45,10 +59,10 @@ papers = [
     },
     {
         "title": "Request for Proposals - Neuroscience Research Project",
-        "author": User.objects.get(id=1),
+        "author": user,
         "hubs": Hub.objects.filter(id__in=[2]),
         "renderable_text": "our stuff is cooler.",
-        "created_by": User.objects.get(id=1),
+        "created_by": user,
         "amount": 88000,
         "currency": "USD",
         "organization": "Climate Research Foundation",
@@ -58,10 +72,10 @@ papers = [
     },
     {
         "title": "Request for Proposals - Bioinformatics & Genomics Research",
-        "author": User.objects.get(id=1),
+        "author": user,
         "hubs": Hub.objects.filter(id__in=[17]),
         "renderable_text": "This is a funding proposal for researching the impact of climate change on coastal ecosystems. We are requesting $100,000 to conduct a comprehensive study...",
-        "created_by": User.objects.get(id=1),
+        "created_by": user,
         "amount": 77000,
         "currency": "USD",
         "organization": "Climate Research Foundation",
@@ -71,10 +85,10 @@ papers = [
     },
     {
         "title": "Request for Proposals - Comprehensive Analysis of Water Quality in Urban U.S.",
-        "author": User.objects.get(id=1),
+        "author": user,
         "hubs": Hub.objects.filter(id__in=[3]),
         "renderable_text": "This is a funding proposal for researching the impact of climate change on coastal ecosystems. We are requesting $100,000 to conduct a comprehensive study...",
-        "created_by": User.objects.get(id=1),
+        "created_by": user,
         "amount": 66000,
         "currency": "USD",
         "organization": "Climate Research Foundation",
@@ -84,10 +98,10 @@ papers = [
     },
     {
         "title": "Quantum-Safe Blockchain: Building Secure and Future-Ready Decentralized Systems",
-        "author": User.objects.get(id=1),
+        "author": user,
         "hubs": Hub.objects.filter(id__in=[80, 245]),
         "renderable_text": "This is a funding proposal for researching the impact of climate change on coastal ecosystems. We are requesting $100,000 to conduct a comprehensive study...",
-        "created_by": User.objects.get(id=1),
+        "created_by": user,
         "amount": 55000,
         "currency": "USD",
         "organization": "Climate Research Foundation",
@@ -138,5 +152,3 @@ for paper in papers:
 
     # Add grant contacts if needed
     grant.contacts.set(paper["contacts"])
-
-    print("Funding proposal created successfully:", rfp_post.id)

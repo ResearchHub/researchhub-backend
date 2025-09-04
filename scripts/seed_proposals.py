@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta
 
 import pytz
+from django.contrib.contenttypes.models import ContentType
 from django.utils.text import slugify
 
 from hub.models import Hub
@@ -18,15 +19,34 @@ from researchhub_document.related_models.constants.editor_type import CK_EDITOR
 from user.models import User
 from user.related_models.author_model import Author
 
-print("seeding funding proposal ... ")
+users = User.objects.all()
+if not users.exists():
+    User.objects.create_superuser(
+        username="admin", email="admin@example.com", password="admin"
+    )
+
+user = User.objects.first()
+
+hubs = Hub.objects.all()
+if not hubs.exists():
+    Hub.objects.create(id=2, name="Neuroscience", slug="neuroscience")
+    Hub.objects.create(id=3, name="Biology", slug="biology")
+    Hub.objects.create(
+        id=17, name="Bioinformatics & Genomics", slug="bioinformatics-genomics"
+    )
+    Hub.objects.create(id=21, name="Climate Change", slug="climate-change")
+    Hub.objects.create(id=80, name="Cryptocurrency", slug="cryptocurrency")
+    Hub.objects.create(id=201, name="Cancer Biology", slug="cancer-biology")
+    Hub.objects.create(id=245, name="Blockchain", slug="blockchain")
+
 
 proposals = [
     {
-        "title": "Proposal: Accelerating What We Know About OCD: From Genes to Mice to Better Treatments",
-        "author": User.objects.get(id=1),
+        "title": f"Proposal: Accelerating What We Know About OCD: From Genes to Mice to Better Treatments",
+        "author": user,
         "hubs": Hub.objects.filter(id__in=[1, 2]),
         "renderable_text": "Accelerating What We Know About OCD: From Genes to Mice to Better Treatments We’re racing to turn human genetic discovery into a biological model to test new treatments. The challenge Obsess...",
-        "created_by": User.objects.get(id=1),
+        "created_by": user,
         "goal_amount": 100000,  # Goal amount in USD or specified currency
         "goal_currency": USD,
         "status": Fundraise.OPEN,  # OPEN, CLOSED, or COMPLETED
@@ -39,10 +59,10 @@ proposals = [
     },
     {
         "title": "Proposal: Real-World Validation of Big Omics-Powered AI Drug Sensitivity Predictor for Acute Myeloid Leukemia Treatment",
-        "author": User.objects.get(id=1),
+        "author": user,
         "hubs": Hub.objects.filter(id__in=[4, 5]),
         "renderable_text": "Real-World Validation of Big Omics-Powered AI Drug Sensitivity Predictor for Acute Myeloid Leukemia Treatment 1. Overview (1) scientific rationale and importance Despite the increasing use of targe...",
-        "created_by": User.objects.get(id=1),
+        "created_by": user,
         "goal_amount": 99000,  # Goal amount in USD or specified currency
         "goal_currency": USD,
         "status": Fundraise.OPEN,  # OPEN, CLOSED, or COMPLETED
@@ -55,10 +75,10 @@ proposals = [
     },
     {
         "title": "Proposal: Effects of psilocybin and related compounds on neuroprotection in human stroke",
-        "author": User.objects.get(id=1),
+        "author": user,
         "hubs": Hub.objects.filter(id__in=[3]),
         "renderable_text": "Effects of psilocybin and related compounds on neuroprotection in human stroke 1. Principal investigators Ruslan Rust, PhD: RR Google Scholar Link Patrick D. Lyden, MD: PL Google Scholar Link Affil...",
-        "created_by": User.objects.get(id=1),
+        "created_by": user,
         "goal_amount": 88000,  # Goal amount in USD or specified currency
         "goal_currency": USD,
         "status": Fundraise.OPEN,  # OPEN, CLOSED, or COMPLETED
@@ -71,10 +91,10 @@ proposals = [
     },
     {
         "title": "Proposal: Untargeted Metabolomics, Antioxidant Capacity, and Total Phenolic Content of Honey produced by Apis mellifera in Guam and Okinawa",
-        "author": User.objects.get(id=1),
+        "author": user,
         "hubs": Hub.objects.filter(id__in=[21]),
         "renderable_text": "Untargeted Metabolomics, Antioxidant Capacity, and Total Phenolic Content of Honey produced by Apis mellifera in Guam and Okinawa 1. Project Overview Scientific rationale and importance: This is...",
-        "created_by": User.objects.get(id=1),
+        "created_by": user,
         "goal_amount": 88000,  # Goal amount in USD or specified currency
         "goal_currency": USD,
         "status": Fundraise.OPEN,  # OPEN, CLOSED, or COMPLETED
@@ -176,5 +196,3 @@ if not RscExchangeRate.objects.exists():
         price_source=MORALIS,
         rate=0.01,  # 1 RSC = $0.01 USD (adjust as needed)
     )
-
-print("funding seeded")
