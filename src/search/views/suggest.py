@@ -376,6 +376,8 @@ class SuggestView(APIView):
         for index in indexes:
             fetch_size = limit_per_index
             if index == "user":
+                # Fetch more users initially to ensure verified users can be prioritized
+                # This allows us to sort by verification status before limiting results
                 fetch_size = max(fetch_size, 20)
             results = []
             index_config = self.INDEX_MAP[index]
