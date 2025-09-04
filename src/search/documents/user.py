@@ -78,9 +78,14 @@ class UserDocument(BaseDocument):
             # Some legacy users don't have an author profile
             full_name_suggest = f"{instance.first_name} {instance.last_name}"
 
+        weight = instance.reputation
+
+        if instance.is_verified:
+            weight += 500
+
         return {
             "input": full_name_suggest.split() + [full_name_suggest],
-            "weight": instance.reputation,
+            "weight": weight,
         }
 
     def prepare_full_name(self, instance):

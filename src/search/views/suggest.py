@@ -374,11 +374,6 @@ class SuggestView(APIView):
 
         # Process each index
         for index in indexes:
-            fetch_size = limit_per_index
-            if index == "user":
-                # Fetch more users initially to ensure verified users can be prioritized
-                # This allows us to sort by verification status before limiting results
-                fetch_size = max(fetch_size, 20)
             results = []
             index_config = self.INDEX_MAP[index]
             document = index_config["document"]
@@ -411,7 +406,7 @@ class SuggestView(APIView):
                     suggest = search.suggest(
                         "suggestions",
                         truncated_query,
-                        completion={"field": suggest_field, "size": fetch_size},
+                        completion={"field": suggest_field, "size": limit_per_index},
                     )
                     response = suggest.execute()
 
@@ -482,22 +477,6 @@ class SuggestView(APIView):
                         unique_results.append(result)
 
                 results_by_type["paper"] = unique_results
-            elif index == "user":
-                # Sort by verification status first, then by score
-                sorted_results = sorted(
-                    results, key=lambda x: x.get("_score", 0), reverse=True
-                )
-
-                sorted_results = sorted(
-                    sorted_results,
-                    key=lambda x: x.get("is_verified", False),
-                    reverse=True,
-                )[:limit_per_index]
-
-                if sorted_results:
-                    entity_type = sorted_results[0].get("entity_type", index)
-                    results_by_type[entity_type] = sorted_results
-
             else:
                 # For other indexes, store by entity type
                 sorted_results = sorted(
@@ -512,19 +491,14 @@ class SuggestView(APIView):
         for entity_type, results in results_by_type.items():
             weight = self.DEFAULT_WEIGHTS.get(entity_type, 1.0)
 
-            # Special handling for users/persons - boost exact matches and verified users
+            # Special handling for users/persons - boost exact matches
             if entity_type in ["user", "person"] and query:
                 for result in results:
                     display_name = result.get("display_name", "")
                     original_score = result.get("_score", 1.0)
 
-                    # Verified user bonus (highest priority)
-                    if result.get("is_verified", False):
-                        verified_bonus = 10.0
-                        result["_score"] = original_score * weight * verified_bonus
-                        result["_boost"] = "verified_user"
                     # Exact match boosting
-                    elif display_name.lower() == query.lower():
+                    if display_name.lower() == query.lower():
                         exact_match_bonus = 5.0
                         result["_score"] = original_score * weight * exact_match_bonus
                         result["_boost"] = "exact_name_match"
