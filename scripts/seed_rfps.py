@@ -10,25 +10,7 @@ from researchhub_document.related_models.constants.editor_type import CK_EDITOR
 from user.models import User
 from user.related_models.author_model import Author
 
-users = User.objects.all()
-if not users.exists():
-    User.objects.create_superuser(
-        username="admin", email="admin@example.com", password="admin"
-    )
-
 user = User.objects.first()
-
-hubs = Hub.objects.all()
-if not hubs.exists():
-    Hub.objects.create(id=2, name="Neuroscience", slug="neuroscience")
-    Hub.objects.create(id=3, name="Biology", slug="biology")
-    Hub.objects.create(
-        id=17, name="Bioinformatics & Genomics", slug="bioinformatics-genomics"
-    )
-    Hub.objects.create(id=21, name="Climate Change", slug="climate-change")
-    Hub.objects.create(id=80, name="Cryptocurrency", slug="cryptocurrency")
-    Hub.objects.create(id=201, name="Cancer Biology", slug="cancer-biology")
-    Hub.objects.create(id=245, name="Blockchain", slug="blockchain")
 
 papers = [
     {
