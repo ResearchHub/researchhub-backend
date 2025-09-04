@@ -170,7 +170,6 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
                 queryset = queryset.filter(unified_document__hubs__id__in=hubs_json)
             except json.JSONDecodeError as e:
                 print("Error serializing hubs: ", e)
-                pass
 
         # Filter by created_by if provided
         if created_by:
@@ -234,7 +233,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             ),
         )
 
-        if not ordering == "amount_raised":
+        if ordering != "amount_raised":
             queryset = queryset.order_by(
                 status_order,
                 ordering,

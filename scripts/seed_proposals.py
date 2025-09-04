@@ -23,10 +23,10 @@ user = User.objects.first()
 
 proposals = [
     {
-        "title": f"Proposal: Accelerating What We Know About OCD: From Genes to Mice to Better Treatments",
+        "title": "Proposal: 1",
         "author": user,
         "hubs": Hub.objects.filter(id__in=[1, 2]),
-        "renderable_text": "Accelerating What We Know About OCD: From Genes to Mice to Better Treatments We’re racing to turn human genetic discovery into a biological model to test new treatments. The challenge Obsess...",
+        "renderable_text": "text about proposal 1",
         "created_by": user,
         "goal_amount": 100000,  # Goal amount in USD or specified currency
         "goal_currency": USD,
@@ -39,10 +39,10 @@ proposals = [
         "fundraise_status": Fundraise.OPEN,
     },
     {
-        "title": "Proposal: Real-World Validation of Big Omics-Powered AI Drug Sensitivity Predictor for Acute Myeloid Leukemia Treatment",
+        "title": "Proposal: 2",
         "author": user,
         "hubs": Hub.objects.filter(id__in=[4, 5]),
-        "renderable_text": "Real-World Validation of Big Omics-Powered AI Drug Sensitivity Predictor for Acute Myeloid Leukemia Treatment 1. Overview (1) scientific rationale and importance Despite the increasing use of targe...",
+        "renderable_text": "text about proposal 2",
         "created_by": user,
         "goal_amount": 99000,  # Goal amount in USD or specified currency
         "goal_currency": USD,
@@ -55,10 +55,10 @@ proposals = [
         "fundraise_status": Fundraise.OPEN,
     },
     {
-        "title": "Proposal: Effects of psilocybin and related compounds on neuroprotection in human stroke",
+        "title": "Proposal: 3",
         "author": user,
         "hubs": Hub.objects.filter(id__in=[3]),
-        "renderable_text": "Effects of psilocybin and related compounds on neuroprotection in human stroke 1. Principal investigators Ruslan Rust, PhD: RR Google Scholar Link Patrick D. Lyden, MD: PL Google Scholar Link Affil...",
+        "renderable_text": "text about proposal 3",
         "created_by": user,
         "goal_amount": 88000,  # Goal amount in USD or specified currency
         "goal_currency": USD,
@@ -71,10 +71,10 @@ proposals = [
         "fundraise_status": Fundraise.OPEN,
     },
     {
-        "title": "Proposal: Untargeted Metabolomics, Antioxidant Capacity, and Total Phenolic Content of Honey produced by Apis mellifera in Guam and Okinawa",
+        "title": "Proposal 4",
         "author": user,
         "hubs": Hub.objects.filter(id__in=[21]),
-        "renderable_text": "Untargeted Metabolomics, Antioxidant Capacity, and Total Phenolic Content of Honey produced by Apis mellifera in Guam and Okinawa 1. Project Overview Scientific rationale and importance: This is...",
+        "renderable_text": "text about proposal 4",
         "created_by": user,
         "goal_amount": 88000,  # Goal amount in USD or specified currency
         "goal_currency": USD,
@@ -98,7 +98,7 @@ def add_entries(fundraise_status=Fundraise.OPEN):
     funding_post = ResearchhubPost.objects.create(
         created_by=proposal["created_by"],
         document_type=PREREGISTRATION,  # Use PREREGISTRATION to appear in funding feed
-        title=proposal["title"],
+        title=proposal["title"] + " - " + fundraise_status,
         slug=slugify(proposal["title"]),
         renderable_text=proposal["renderable_text"],
         editor_type=CK_EDITOR,

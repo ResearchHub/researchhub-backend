@@ -14,80 +14,80 @@ user = User.objects.first()
 
 papers = [
     {
-        "title": "Request for Proposal: Research on Climate Change Impact",
+        "title": "Request for rfp: 1",
         "author": user,
         "hubs": Hub.objects.filter(id__in=[21]),
-        "renderable_text": "This is a funding proposal for researching the impact of climate change on coastal ecosystems. We are requesting $100,000 to conduct a comprehensive study...",
+        "renderable_text": "Text for rfp 1",
         "created_by": user,
         "amount": 100000,
         "currency": "USD",
         "organization": "Climate Research Foundation",
-        "description": "Funding for comprehensive climate change impact study on coastal ecosystems",
+        "description": "Description of rfp 1",
         "end_date": "2025-12-31",  # Optional end date
         "contacts": User.objects.filter(id__in=[1]),
     },
     {
-        "title": "Request for Proposals - Cancer Biology Research Project",
+        "title": "Request for rfps: 2",
         "author": user,
         "hubs": Hub.objects.filter(id__in=[3, 201]),
-        "renderable_text": "This is a funding proposal for researching cool stuff",
+        "renderable_text": "Text for rfp 2",
         "created_by": user,
         "amount": 99000,
         "currency": "USD",
         "organization": "Climate Research Foundation",
-        "description": "Funding for comprehensive climate change impact study on coastal ecosystems",
+        "description": "Description of rfp 2",
         "end_date": "2025-11-21",  # Optional end date
         "contacts": User.objects.filter(id__in=[1]),
     },
     {
-        "title": "Request for Proposals - Neuroscience Research Project",
+        "title": "Request for rfps: 3",
         "author": user,
         "hubs": Hub.objects.filter(id__in=[2]),
-        "renderable_text": "our stuff is cooler.",
+        "renderable_text": "Text for rfp 3",
         "created_by": user,
         "amount": 88000,
         "currency": "USD",
         "organization": "Climate Research Foundation",
-        "description": "even cooler stuff",
+        "description": "Description for rfp 3",
         "end_date": "2025-10-20",  # Optional end date
         "contacts": User.objects.filter(id__in=[1]),
     },
     {
-        "title": "Request for Proposals - Bioinformatics & Genomics Research",
+        "title": "Request for rfps: 4",
         "author": user,
         "hubs": Hub.objects.filter(id__in=[17]),
-        "renderable_text": "This is a funding proposal for researching the impact of climate change on coastal ecosystems. We are requesting $100,000 to conduct a comprehensive study...",
+        "renderable_text": "Text for rfp 4",
         "created_by": user,
         "amount": 77000,
         "currency": "USD",
         "organization": "Climate Research Foundation",
-        "description": "Funding for comprehensive climate change impact study on coastal ecosystems",
+        "description": "Description of rfp 4",
         "end_date": "2025-09-20",  # Optional end date
         "contacts": User.objects.filter(id__in=[1]),
     },
     {
-        "title": "Request for Proposals - Comprehensive Analysis of Water Quality in Urban U.S.",
+        "title": "Request for rfps: 5",
         "author": user,
         "hubs": Hub.objects.filter(id__in=[3]),
-        "renderable_text": "This is a funding proposal for researching the impact of climate change on coastal ecosystems. We are requesting $100,000 to conduct a comprehensive study...",
+        "renderable_text": "Text for rfp 5",
         "created_by": user,
         "amount": 66000,
         "currency": "USD",
         "organization": "Climate Research Foundation",
-        "description": "Funding for comprehensive climate change impact study on coastal ecosystems",
+        "description": "Description of rfp 5",
         "end_date": "2025-08-10",  # Optional end date
         "contacts": User.objects.filter(id__in=[1]),
     },
     {
-        "title": "Quantum-Safe Blockchain: Building Secure and Future-Ready Decentralized Systems",
+        "title": "Request for rfps: 6",
         "author": user,
         "hubs": Hub.objects.filter(id__in=[80, 245]),
-        "renderable_text": "This is a funding proposal for researching the impact of climate change on coastal ecosystems. We are requesting $100,000 to conduct a comprehensive study...",
+        "renderable_text": "Text for rfp 6",
         "created_by": user,
         "amount": 55000,
         "currency": "USD",
         "organization": "Climate Research Foundation",
-        "description": "Funding for comprehensive climate change impact study on coastal ecosystems",
+        "description": "Description of rfp 6",
         "end_date": "2024-07-20",  # Optional end date
         "contacts": User.objects.filter(id__in=[1]),
     },
@@ -120,7 +120,7 @@ for paper in papers:
     rfp_post.authors.set(authors)
 
     # Adding Grant Details
-    # If you want to include specific funding details like amount, organization, and contacts.
+    # Include specific funding details like amount, organization, and contacts.
     # Create grant with funding details
     grant = Grant.objects.create(
         created_by=paper["created_by"],
