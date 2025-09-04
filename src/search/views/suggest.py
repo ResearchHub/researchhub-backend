@@ -408,13 +408,8 @@ class SuggestView(APIView):
                     truncated_query = query[:50]
                     suggest = search.suggest(
                         "suggestions",
-<<<<<<< HEAD
-                        query,
-                        completion={"field": suggest_field, "size": fetch_size},
-=======
                         truncated_query,
-                        completion={"field": suggest_field, "size": limit_per_index},
->>>>>>> 966caa5cc93535a4e23881cb7d187859a2352a6b
+                        completion={"field": suggest_field, "size": fetch_size},
                     )
                     response = suggest.execute()
 
