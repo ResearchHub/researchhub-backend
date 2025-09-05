@@ -34,6 +34,7 @@ class UserDocument(BaseDocument):
         search_analyzer="standard",
     )
     created_date = es_fields.DateField()
+    is_verified = es_fields.BooleanField()
 
     author_profile = es_fields.ObjectField()
 
@@ -77,9 +78,14 @@ class UserDocument(BaseDocument):
             # Some legacy users don't have an author profile
             full_name_suggest = f"{instance.first_name} {instance.last_name}"
 
+        weight = instance.reputation
+
+        if instance.is_verified:
+            weight += 500
+
         return {
             "input": full_name_suggest.split() + [full_name_suggest],
-            "weight": instance.reputation,
+            "weight": weight,
         }
 
     def prepare_full_name(self, instance):
@@ -88,3 +94,7 @@ class UserDocument(BaseDocument):
         except Exception:
             # Some legacy users don't have an author profile
             return f"{instance.first_name} {instance.last_name}"
+
+    def prepare_is_verified(self, instance):
+        """Prepare the is_verified field for Elasticsearch indexing"""
+        return instance.is_verified

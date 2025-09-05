@@ -64,6 +64,7 @@ class SuggestView(APIView):
                 "created_date": result.get("_source", {}).get("created_date"),
                 "source": "researchhub",
                 "author_profile": result.get("_source", {}).get("author_profile", {}),
+                "is_verified": result.get("_source", {}).get("is_verified", False),
                 "_score": result.get("_score", 1.0),
             },
         },
@@ -513,6 +514,7 @@ class SuggestView(APIView):
                         # Standard weight
                         result["_score"] = original_score * weight
                         result["_original_score"] = original_score
+
             else:
                 # Standard entity weighting
                 for result in results:
