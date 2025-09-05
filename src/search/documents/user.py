@@ -97,4 +97,4 @@ class UserDocument(BaseDocument):
 
     def prepare_is_verified(self, instance):
         """Prepare the is_verified field for Elasticsearch indexing"""
-        return instance.is_verified  # This calls the property method
+        return instance.is_verified
