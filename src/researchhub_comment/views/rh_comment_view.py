@@ -20,7 +20,7 @@ from analytics.amplitude import track_event
 from discussion.permissions import EditorCensorDiscussion
 from discussion.views import ReactionViewActionMixin
 from reputation.models import Bounty, Contribution
-from reputation.tasks import create_contribution, find_qualified_users_and_notify
+from reputation.tasks import create_contribution, find_qualified_users_and_notify, score_comment_ai
 from reputation.utils import deduct_bounty_fees
 from reputation.views.bounty_view import _create_bounty, _create_bounty_checks
 from researchhub.pagination import FasterDjangoPaginator
@@ -59,6 +59,7 @@ from researchhub_document.related_models.constants.document_type import (
 )
 from utils.siftscience import SIFT_COMMENT, sift_track
 from utils.throttles import THROTTLE_CLASSES
+from utils.originality_ai import calculate_ai_score
 
 
 def remove_bounties(comment):
@@ -366,7 +367,6 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
     def _create_rh_comment(self, request, *args, **kwargs):
         data = request.data
         user = request.user
-        model = self._get_model_name()
 
         # Enforce author-only for author updates
         if data.get("thread_type") == AUTHOR_UPDATE:
@@ -384,7 +384,10 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "parent": parent_id,
                 }
             )
+
             rh_comment, _ = RhCommentModel.create_from_data(data)
+            if not TESTING:
+                score_comment_ai.apply_async((rh_comment.id,), priority=3, countdown=1)
 
             unified_document = rh_comment.unified_document
             self.add_upvote(user, rh_comment)
@@ -412,6 +415,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
                     "comment_content_src",
                 ),
             ).data
+
             return Response(serializer_data, status=200)
 
     @track_event
