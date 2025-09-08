@@ -6,8 +6,8 @@ from django_filters import utils
 from discussion.constants.flag_reasons import (
     VERDICT_FILTER_CHOICES,
     VERDICT_REMOVED,
-    VERIDCT_APPROVED,
-    VERIDCT_OPEN,
+    VERDICT_APPROVED,
+    VERDICT_OPEN,
 )
 from discussion.models import Flag
 from user.models import Action, User
@@ -53,10 +53,10 @@ class FlagDashboardFilter(filters.FilterSet):
     def filter_by_verdict(self, qs, name, value):
         filters = {}
         value = value.upper()
-        if value == VERIDCT_OPEN:
+        if value == VERDICT_OPEN:
             expr = f"{name}__isnull"
             filters[expr] = True
-        elif value == VERIDCT_APPROVED:
+        elif value == VERDICT_APPROVED:
             expr = f"{name}__is_content_removed"
             filters[expr] = False
         elif value == VERDICT_REMOVED:
