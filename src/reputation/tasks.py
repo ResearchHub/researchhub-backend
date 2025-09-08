@@ -7,7 +7,6 @@ from typing import List, Optional
 import pytz
 from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
-from researchhub_comment.models import RhCommentModel
 from django.db import transaction
 from django.db.models import DurationField, F, Q
 from django.db.models.functions import Cast
@@ -25,7 +24,13 @@ from reputation.models import Bounty, Contribution, Deposit
 from reputation.related_models.bounty import AnnotatedBounty
 from reputation.related_models.score import Score
 from reputation.services.wallet import WalletService
-from researchhub.celery import QUEUE_AI_SCORING, QUEUE_CONTRIBUTIONS, QUEUE_PURCHASES, app
+from researchhub.celery import (
+    QUEUE_AI_SCORING,
+    QUEUE_CONTRIBUTIONS,
+    QUEUE_PURCHASES,
+    app,
+)
+from researchhub_comment.models import RhCommentModel
 from researchhub_document.models import ResearchhubUnifiedDocument
 from researchhub_document.related_models.constants.document_type import (
     FILTER_BOUNTY_EXPIRED,
@@ -34,9 +39,9 @@ from researchhub_document.related_models.constants.document_type import (
 from user.models import User
 from user.related_models.author_model import Author
 from utils.message import send_email_message
+from utils.originality_ai import calculate_ai_score
 from utils.sentry import log_error, log_info
 from utils.web3_utils import web3_provider
-from utils.originality_ai import calculate_ai_score
 
 DEFAULT_REWARD = 1000000
 
@@ -531,5 +536,4 @@ def score_comment_ai(comment_id: int):
         comment.ai_score = score
         comment.save(update_fields=["ai_score"])
     except Exception as error:
-        logger.info(f"Failed to score a comment '{comment_id}'", error)
-
+        logger.exception(f"Failed to score a comment '{comment_id}'. Error: {error}")

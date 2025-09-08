@@ -20,7 +20,11 @@ from analytics.amplitude import track_event
 from discussion.permissions import EditorCensorDiscussion
 from discussion.views import ReactionViewActionMixin
 from reputation.models import Bounty, Contribution
-from reputation.tasks import create_contribution, find_qualified_users_and_notify, score_comment_ai
+from reputation.tasks import (
+    create_contribution,
+    find_qualified_users_and_notify,
+    score_comment_ai,
+)
 from reputation.utils import deduct_bounty_fees
 from reputation.views.bounty_view import _create_bounty, _create_bounty_checks
 from researchhub.pagination import FasterDjangoPaginator
@@ -57,9 +61,9 @@ from researchhub_document.related_models.constants.document_type import (
     SORT_BOUNTY_TOTAL_AMOUNT,
     SORT_DISCUSSED,
 )
+from utils.originality_ai import calculate_ai_score
 from utils.siftscience import SIFT_COMMENT, sift_track
 from utils.throttles import THROTTLE_CLASSES
-from utils.originality_ai import calculate_ai_score
 
 
 def remove_bounties(comment):
@@ -386,8 +390,7 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             )
 
             rh_comment, _ = RhCommentModel.create_from_data(data)
-            if not TESTING:
-                score_comment_ai.apply_async((rh_comment.id,), priority=3, countdown=1)
+            score_comment_ai.apply_async((rh_comment.id,), priority=3, countdown=1)
 
             unified_document = rh_comment.unified_document
             self.add_upvote(user, rh_comment)
@@ -796,8 +799,16 @@ class RhCommentViewSet(ReactionViewActionMixin, ModelViewSet):
             return res
 
     def perform_update(self, serializer):
-        instance = serializer.save()
+        """
+        Update the comment and run AI scoring on the content.
+        """
+        # Was any relevant field present AND different?
+        instance = serializer.instance
+        serializer.save()
+        # TODO: Don't score content if it hasn't changed since the last score
         instance.update_comment_content()
+        transaction.on_commit(lambda: score_comment_ai.delay(instance.id))
+        score_comment_ai.delay(instance.id)
 
     @action(
         detail=True,
