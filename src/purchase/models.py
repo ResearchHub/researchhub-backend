@@ -6,6 +6,7 @@ from .related_models.grant_model import Grant
 from .related_models.payment_model import Payment
 from .related_models.purchase_model import Purchase
 from .related_models.rsc_exchange_rate_model import RscExchangeRate
+from .related_models.rsc_purchase_fee import RscPurchaseFee
 from .related_models.support_model import Support
 from .related_models.wallet_model import Wallet
 
@@ -18,6 +19,7 @@ migratables = (
     Payment,
     Purchase,
     RscExchangeRate,
+    RscPurchaseFee,
     Support,
     Wallet,
 )
