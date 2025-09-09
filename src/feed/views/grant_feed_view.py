@@ -7,7 +7,7 @@ and research grant postings.
 import json
 
 from django.core.cache import cache
-from django.db.models import BooleanField, Case, F, Value, When
+from django.db.models import BooleanField, Case, Count, F, Value, When
 from django.db.models.expressions import OrderBy
 from django.utils import timezone
 from rest_framework.decorators import action
@@ -178,6 +178,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
             "-created_date",
             "-unified_document__grants__amount",
             "unified_document__grants__end_date",
+            "application_count",
         ]
 
         if ordering not in ordering_options:
@@ -193,6 +194,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
                 default=Value(False),
                 output_field=BooleanField(),
             ),
+            application_count=-Count("unified_document__grants__applications"),
         ).order_by(
             OrderBy(
                 F("is_open"),

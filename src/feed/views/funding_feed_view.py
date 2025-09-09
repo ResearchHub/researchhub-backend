@@ -11,7 +11,16 @@ This is done for three reasons:
 import json
 
 from django.core.cache import cache
-from django.db.models import BooleanField, Case, DecimalField, F, Sum, Value, When
+from django.db.models import (
+    BooleanField,
+    Case,
+    Count,
+    DecimalField,
+    F,
+    Sum,
+    Value,
+    When,
+)
 from django.db.models.expressions import OrderBy
 from django.db.models.functions import Coalesce
 from django.utils import timezone
@@ -209,6 +218,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             "unified_document__fundraises__end_date",
             "-unified_document__fundraises__hot_score",
             "-score",
+            "review_count",
         ]
 
         if ordering not in ordering_options:
@@ -225,6 +235,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
                 default=Value(False),
                 output_field=BooleanField(),
             ),
+            review_count=-Count("unified_document__reviews"),
         )
 
         # Make reusable sort by status, move closed/completed items to bottom

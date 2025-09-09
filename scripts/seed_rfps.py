@@ -4,8 +4,12 @@ from django.utils.text import slugify
 
 from hub.models import Hub
 from purchase.models import Grant
+from purchase.related_models.grant_application_model import GrantApplication
 from researchhub_document.models import ResearchhubPost, ResearchhubUnifiedDocument
-from researchhub_document.related_models.constants.document_type import GRANT
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 from researchhub_document.related_models.constants.editor_type import CK_EDITOR
 from user.models import User
 from user.related_models.author_model import Author
@@ -23,8 +27,9 @@ papers = [
         "currency": "USD",
         "organization": "org 1",
         "description": "Description of rfp 1",
-        "end_date": "2025-12-31",  # Optional end date
+        "end_date": "2025-12-31",
         "contacts": User.objects.filter(id__in=[1]),
+        "number_of_applications": 5,
     },
     {
         "title": "Request for rfps: 2",
@@ -36,8 +41,9 @@ papers = [
         "currency": "USD",
         "organization": "org 2",
         "description": "Description of rfp 2",
-        "end_date": "2025-11-21",  # Optional end date
+        "end_date": "2025-11-21",
         "contacts": User.objects.filter(id__in=[1]),
+        "number_of_applications": 2,
     },
     {
         "title": "Request for rfps: 3",
@@ -49,8 +55,9 @@ papers = [
         "currency": "USD",
         "organization": "org 3",
         "description": "Description for rfp 3",
-        "end_date": "2025-10-20",  # Optional end date
+        "end_date": "2025-10-20",
         "contacts": User.objects.filter(id__in=[1]),
+        "number_of_applications": 3,
     },
     {
         "title": "Request for rfps: 4",
@@ -62,8 +69,9 @@ papers = [
         "currency": "USD",
         "organization": "org 4",
         "description": "Description of rfp 4",
-        "end_date": "2025-09-20",  # Optional end date
+        "end_date": "2025-09-20",
         "contacts": User.objects.filter(id__in=[1]),
+        "number_of_applications": 1,
     },
     {
         "title": "Request for rfps: 5",
@@ -75,8 +83,9 @@ papers = [
         "currency": "USD",
         "organization": "org 5",
         "description": "Description of rfp 5",
-        "end_date": "2025-08-10",  # Optional end date
+        "end_date": "2025-08-10",
         "contacts": User.objects.filter(id__in=[1]),
+        "number_of_applications": 12,
     },
     {
         "title": "Request for rfps: 6",
@@ -88,8 +97,9 @@ papers = [
         "currency": "USD",
         "organization": "org 6",
         "description": "Description of rfp 6",
-        "end_date": "2024-07-20",  # Optional end date
+        "end_date": "2024-07-20",
         "contacts": User.objects.filter(id__in=[1]),
+        "number_of_applications": 2,
     },
 ]
 
@@ -129,8 +139,27 @@ for paper in papers:
         currency=paper["currency"],
         organization=paper["organization"],
         description=paper["description"],
-        end_date=paper["end_date"],  # Optional end date
+        end_date=paper["end_date"],
     )
+
+    # Create some applications for the grant
+    for _ in range(paper.get("number_of_applications", 0)):
+
+        ud = ResearchhubUnifiedDocument.objects.create(document_type=PREREGISTRATION)
+
+        post = ResearchhubPost.objects.create(
+            title="Test Preregistration",
+            created_by=paper["author"],
+            document_type=PREREGISTRATION,
+            renderable_text="This is a test preregistration post",
+            slug="test-preregistration",
+            unified_document=ud,
+            score=11,
+        )
+
+        GrantApplication.objects.create(
+            grant=grant, preregistration_post=post, applicant=paper["author"]
+        )
 
     # Add grant contacts if needed
     grant.contacts.set(paper["contacts"])
