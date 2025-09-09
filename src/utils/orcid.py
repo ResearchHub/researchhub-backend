@@ -35,7 +35,9 @@ def _ensure_orcid_social_app() -> SocialApp:
     client_id = getattr(settings, "ORCID_CLIENT_ID", None)
     client_secret = getattr(settings, "ORCID_CLIENT_SECRET", None)
     if not client_id or not client_secret:
-        raise RuntimeError("ORCID client id/secret not configured")
+        raise RuntimeError(
+            "ORCID service is not properly configured. Please contact support."
+        )
 
     app, _ = SocialApp.objects.get_or_create(
         provider=ORCID_PROVIDER,
@@ -144,7 +146,18 @@ def upsert_orcid_token(user, payload: Dict) -> Tuple[SocialAccount, SocialToken]
     """
     orcid_id = payload.get("orcid")
     if not orcid_id:
-        raise ValueError("ORCID token payload missing 'orcid'")
+        raise ValueError("ORCID authorization is incomplete. Please try again.")
+
+    # Check if this ORCID ID is already linked to a different user
+    existing_account = SocialAccount.objects.filter(
+        provider=ORCID_PROVIDER, uid=orcid_id
+    ).first()
+
+    if existing_account and existing_account.user != user:
+        raise ValueError(
+            f"ORCID ID {orcid_id} is already linked to another user account. "
+            f"Each ORCID can only be linked to one ResearchHub account."
+        )
 
     account, _ = SocialAccount.objects.get_or_create(
         user=user,
@@ -220,7 +233,9 @@ def fetch_works_summary(access_token: str, orcid_id: str) -> Dict:
     """
     # Validate inputs
     if not access_token or len(access_token) < 10:
-        raise ValueError("Invalid access token")
+        raise ValueError(
+            "ORCID access token is invalid. Please reconnect your ORCID account."
+        )
 
     url = f"{ORCID_API_BASE_URL}/v3.0/{orcid_id}/works"
     headers = {
@@ -236,7 +251,8 @@ def fetch_works_summary(access_token: str, orcid_id: str) -> Dict:
         )
         if test_r.status_code != 200:
             raise ValueError(
-                f"Invalid ORCID access token - cannot access record {orcid_id}"
+                "Your ORCID access token has expired. "
+                "Please reconnect your ORCID account."
             )
 
         # Fetch works
@@ -252,7 +268,7 @@ def fetch_works_summary(access_token: str, orcid_id: str) -> Dict:
                 f"in ORCID response"
             )
         return response_data
-    except ValueError as e:
+    except ValueError:
         # Handle empty or invalid JSON response
         import re
 
@@ -280,7 +296,7 @@ def fetch_works_summary(access_token: str, orcid_id: str) -> Dict:
         logger.error(f"Content: {content_preview}")
 
         raise ValueError(
-            f"Invalid JSON response from ORCID works API: {e}. Status: {r.status_code}"
+            "ORCID service returned an invalid response. Please try again later."
         )
 
 
@@ -306,7 +322,7 @@ def fetch_work_detail(access_token: str, orcid_id: str, put_code: int) -> Dict:
     try:
         work_detail = r.json()
         return work_detail
-    except ValueError as e:
+    except ValueError:
         # Handle empty or invalid JSON response
         import re
 
@@ -333,8 +349,7 @@ def fetch_work_detail(access_token: str, orcid_id: str, put_code: int) -> Dict:
         logger.error(f"Content: {content_preview}")
 
         raise ValueError(
-            f"Invalid JSON response from ORCID work detail API: {e}. "
-            f"Status: {r.status_code}"
+            "ORCID service returned an invalid response. Please try again later."
         )
 
 

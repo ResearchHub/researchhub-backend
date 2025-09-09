@@ -71,7 +71,10 @@ class OrcidFlowTests(APITestCase):
         self.assertFalse(resp.data["authenticated"])
         self.assertTrue(resp.data["needs_reauth"])
         self.assertIsNone(resp.data["orcid_id"])
-        self.assertEqual(resp.data["error"], "No ORCID token found")
+        self.assertEqual(
+            resp.data["error"],
+            "No ORCID account connected. Please connect your ORCID account.",
+        )
 
     @patch("utils.retryable_requests.retryable_requests_session")
     def test_check_validates_token_with_orcid_api(self, mock_session):
@@ -121,7 +124,10 @@ class OrcidFlowTests(APITestCase):
         self.assertFalse(resp.data["authenticated"])
         self.assertTrue(resp.data["needs_reauth"])
         self.assertEqual(resp.data["orcid_id"], "0000-0002-1825-0097")
-        self.assertIn("invalid", resp.data["error"].lower())
+        self.assertEqual(
+            resp.data["error"],
+            "Your ORCID access has expired. Please reconnect your ORCID account.",
+        )
 
     @patch("oauth.tasks.sync_orcid_for_user_task.delay")
     def test_sync_enqueues_celery_task(self, mock_task):
@@ -316,7 +322,9 @@ class OrcidFlowTests(APITestCase):
         self.assertEqual(resp.status_code, 302)
         self.assertTrue(resp.url.startswith("http://127.0.0.1:3000/author/1"))
         self.assertIn("orcid_sync=fail", resp.url)
-        self.assertIn("error=Invalid%20authorization%20code", resp.url)
+        self.assertIn(
+            "error=ORCID%20connection%20failed.%20Please%20try%20again.", resp.url
+        )
         mock_task.assert_not_called()
 
     def test_create_orcid_authorships_function(self):
@@ -392,7 +400,10 @@ class OrcidFlowTests(APITestCase):
 
         self.assertEqual(resp.status_code, 302)
         self.assertIn("orcid_sync=fail", resp.url)
-        self.assertIn("error=No%20state%20parameter%20provided", resp.url)
+        self.assertIn(
+            "error=ORCID%20authorization%20session%20expired.%20Please%20try%20again.",
+            resp.url,
+        )
 
     def test_callback_invalid_user_id(self):
         """Test callback with invalid user ID in state."""
@@ -403,4 +414,54 @@ class OrcidFlowTests(APITestCase):
 
         self.assertEqual(resp.status_code, 302)
         self.assertIn("orcid_sync=fail", resp.url)
-        self.assertIn("error=User%20with%20ID%2099999%20not%20found", resp.url)
+        self.assertIn(
+            "error=Your%20account%20session%20has%20expired.%20"
+            "Please%20log%20in%20and%20try%20again.",
+            resp.url,
+        )
+
+    @patch("oauth.tasks.sync_orcid_for_user_task.delay")
+    @patch(
+        "oauth.orcid_views.exchange_code_for_token",
+        return_value={
+            "access_token": "duplicate-access",
+            "refresh_token": "duplicate-refresh",
+            "expires_in": 3600,
+            "orcid": "0000-0002-1825-0097",  # Same ORCID as other tests
+            "name": "Duplicate User",
+            "scope": "/read-limited",
+        },
+    )
+    def test_callback_prevents_duplicate_orcid_linking(self, mock_exchange, mock_task):
+        """Test that linking the same ORCID to different users is prevented."""
+        from allauth.socialaccount.models import SocialAccount
+
+        from user.tests.helpers import create_random_authenticated_user
+
+        # Create a second user
+        second_user = create_random_authenticated_user("second_orcid_user")
+
+        # First, link the ORCID to the original user
+        self._ensure_app()
+        SocialAccount.objects.get_or_create(
+            user=self.user, provider="orcid", uid="0000-0002-1825-0097"
+        )
+
+        # Now try to link the same ORCID to the second user
+        state_data = {
+            "user_id": second_user.id,
+            "return_to": "http://testserver/some/page",
+        }
+        state = b64encode(json.dumps(state_data).encode("utf-8")).decode("utf-8")
+
+        # Call callback for second user with same ORCID
+        resp = self.client.get(f"{self.callback_url}?code=abc&state={state}")
+
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn("orcid_sync=fail", resp.url)
+        self.assertIn(
+            "This%20ORCID%20account%20has%20already%20been%20linked%20"
+            "to%20another%20user.",
+            resp.url,
+        )
+        mock_task.assert_not_called()  # Sync should not be triggered

@@ -54,6 +54,8 @@ def generate_orcid_auth_url(
     """
     from urllib.parse import urlencode
 
+    from django.conf import settings
+
     # Prepare state data efficiently
     state_data = {"user_id": user_id}
     if return_to:
@@ -65,16 +67,27 @@ def generate_orcid_auth_url(
     state_json = json.dumps(state_data, separators=(",", ":"))
     state_encoded = base64.b64encode(state_json.encode("utf-8")).decode("utf-8")
 
-    # Build authorization URL using cached settings
+    # Use cached settings for production, but allow dynamic settings in tests
+    # This ensures @override_settings works properly in tests
+    base_url = getattr(settings, "ORCID_BASE_URL", _ORCID_SETTINGS["base_url"])
+    client_id = getattr(settings, "ORCID_CLIENT_ID", _ORCID_SETTINGS["client_id"])
+    redirect_uri = getattr(
+        settings,
+        "ORCID_REDIRECT_URI",
+        getattr(settings, "ORCID_REDIRECT_URL", _ORCID_SETTINGS["redirect_uri"]),
+    )
+    auth_scope = getattr(settings, "ORCID_AUTH_SCOPE", _ORCID_SETTINGS["auth_scope"])
+
+    # Build authorization URL
     params = {
-        "client_id": _ORCID_SETTINGS["client_id"],
+        "client_id": client_id,
         "response_type": "code",
-        "scope": _ORCID_SETTINGS["auth_scope"],
-        "redirect_uri": _ORCID_SETTINGS["redirect_uri"],
+        "scope": auth_scope,
+        "redirect_uri": redirect_uri,
         "state": state_encoded,
     }
 
-    return f"{_ORCID_SETTINGS['base_url']}/oauth/authorize?{urlencode(params)}"
+    return f"{base_url}/oauth/authorize?{urlencode(params)}"
 
 
 class OrcidAuthUrlView(APIView):
@@ -112,7 +125,22 @@ class OrcidAuthUrlView(APIView):
                 user_id=request.user.id, return_to=return_to, csrf_token=csrf_token
             )
 
-            return Response({"auth_url": auth_url, "user_id": request.user.id})
+            # Check if user already has ORCID linked
+            from allauth.socialaccount.models import SocialAccount
+
+            existing_orcid = SocialAccount.objects.filter(
+                user=request.user, provider="orcid"
+            ).first()
+
+            response_data = {"auth_url": auth_url, "user_id": request.user.id}
+
+            if existing_orcid:
+                response_data["warning"] = (
+                    f"You already have ORCID {existing_orcid.uid} linked. "
+                    f"Linking a new ORCID will replace the existing one."
+                )
+
+            return Response(response_data)
         except Exception as e:
             logger = logging.getLogger(__name__)
             logger.error(f"Error generating ORCID auth URL: {e}")
@@ -144,7 +172,8 @@ class OrcidCheckView(APIView):
                     "authenticated": False,
                     "orcid_id": None,
                     "needs_reauth": True,
-                    "error": "No ORCID token found",
+                    "error": "No ORCID account connected. "
+                    "Please connect your ORCID account.",
                 }
             )
 
@@ -167,14 +196,23 @@ class OrcidCheckView(APIView):
 
                 if r.status_code != 200:
                     needs_reauth = True
-                    error = f"ORCID API returned status {r.status_code}"
+                    error = (
+                        "Your ORCID access has expired. "
+                        "Please reconnect your ORCID account."
+                    )
                 elif "html" in r.headers.get("content-type", "").lower():
                     needs_reauth = True
-                    error = "Token appears to be invalid - ORCID returning login page"
+                    error = (
+                        "Your ORCID access has expired. "
+                        "Please reconnect your ORCID account."
+                    )
 
-        except Exception as e:
+        except Exception:
             needs_reauth = True
-            error = f"Failed to validate token: {str(e)}"
+            error = (
+                "Unable to verify ORCID connection. "
+                "Please reconnect your ORCID account."
+            )
 
         return Response(
             {
@@ -211,11 +249,15 @@ class OrcidCallbackView(APIView):
 
         if not code:
             return _redirect_with_error(
-                None, None, "No authorization code received from ORCID"
+                None,
+                None,
+                "ORCID authorization was cancelled or failed. Please try again.",
             )
 
         if not state:
-            return _redirect_with_error(None, None, "No state parameter provided")
+            return _redirect_with_error(
+                None, None, "ORCID authorization session expired. Please try again."
+            )
 
         # Decode state to get user identification and return URL
         try:
@@ -223,14 +265,16 @@ class OrcidCallbackView(APIView):
             user_id = state_data.get("user_id")
             return_to = state_data.get("return_to")
             # csrf_token = state_data.get("csrf_token")  # Future: CSRF validation
-        except Exception as e:
+        except Exception:
             return _redirect_with_error(
-                None, None, f"Invalid state parameter: {str(e)}"
+                None, None, "ORCID authorization session is invalid. Please try again."
             )
 
         if not user_id:
             return _redirect_with_error(
-                return_to, None, "Missing user identification in state"
+                return_to,
+                None,
+                "ORCID authorization session is incomplete. Please try again.",
             )
 
         # Get the user for token association
@@ -242,7 +286,9 @@ class OrcidCallbackView(APIView):
             user = User.objects.get(id=user_id)
         except User.DoesNotExist:
             return _redirect_with_error(
-                return_to, None, f"User with ID {user_id} not found"
+                return_to,
+                None,
+                "Your account session has expired. Please log in and try again.",
             )
 
         try:
@@ -261,19 +307,42 @@ class OrcidCallbackView(APIView):
             # Add success parameter and user context
             success_params = f"orcid_sync=ok&user_id={user.id}"
             return HttpResponseRedirect(f"{redirect_url}{sep}{success_params}")
+        except ValueError as e:
+            # Handle business logic errors (like duplicate ORCID linking)
+            if "already linked to another user" in str(e):
+                return _redirect_with_error(
+                    return_to,
+                    None,
+                    "This ORCID account has already been linked to another user.",
+                )
+            else:
+                return _redirect_with_error(
+                    return_to, None, "ORCID authorization failed. Please try again."
+                )
         except Exception as e:
             # Log the error and redirect with failure
             logger = logging.getLogger(__name__)
             logger.error(f"ORCID callback error for user {user.id}: {e}")
 
-            # Prepare error message for frontend
-            error_msg = str(e)
+            # Prepare user-friendly error message for frontend
             if hasattr(e, "response") and e.response is not None:
-                try:
-                    error_detail = e.response.json().get("error_description", str(e))
-                except Exception:
-                    error_detail = f"HTTP {e.response.status_code}: {e.response.reason}"
-                error_msg = error_detail
+                status_code = e.response.status_code
+                if status_code == 401:
+                    error_msg = "ORCID authorization failed. Please try again."
+                elif status_code == 403:
+                    error_msg = (
+                        "Access to ORCID was denied. "
+                        "Please check your ORCID permissions."
+                    )
+                elif status_code == 500:
+                    error_msg = (
+                        "ORCID service is temporarily unavailable. "
+                        "Please try again later."
+                    )
+                else:
+                    error_msg = "ORCID connection failed. Please try again."
+            else:
+                error_msg = "ORCID connection failed. Please try again."
 
             return _redirect_with_error(return_to, None, error_msg)
 
