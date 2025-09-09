@@ -3,7 +3,7 @@ Client modules for fetching papers from various sources.
 """
 
 from .base import BaseClient, ClientConfig
-from .biorxiv_client import BioRxivClient, BioRxivConfig
+from .biorxiv import BioRxivClient, BioRxivConfig
 
 __all__ = [
     "ClientConfig",

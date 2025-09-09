@@ -4,7 +4,7 @@ Tests for BioRxiv mapper.
 
 import unittest
 
-from src.paper.ingestion.mappers.biorxiv_mapper import BioRxivMapper
+from src.paper.ingestion.mappers.biorxiv import BioRxivMapper
 
 
 class TestBioRxivMapper(unittest.TestCase):
