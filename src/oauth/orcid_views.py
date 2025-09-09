@@ -5,6 +5,7 @@ import logging
 from urllib.parse import quote
 
 from django.conf import settings
+from django.db import transaction
 from django.http import HttpResponseRedirect
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -18,13 +19,6 @@ from utils.orcid import (
 )
 
 
-def _normalize_doi(doi: str) -> str:
-    """Deprecated: moved to `oauth.services`. Kept for backward compat."""
-    if not doi:
-        return doi
-    return doi.replace("https://doi.org/", "").strip().lower()
-
-
 def _redirect_with_error(return_to, session_return_to, error_msg):
     """Helper to redirect to frontend with error message."""
     rt = return_to or session_return_to or settings.BASE_FRONTEND_URL
@@ -33,11 +27,22 @@ def _redirect_with_error(return_to, session_return_to, error_msg):
     return HttpResponseRedirect(f"{rt}{sep}orcid_sync=fail&error={encoded_error}")
 
 
+# Cache ORCID settings to avoid repeated getattr calls
+_ORCID_SETTINGS = {
+    "base_url": getattr(settings, "ORCID_BASE_URL", "https://orcid.org"),
+    "client_id": getattr(settings, "ORCID_CLIENT_ID"),
+    "redirect_uri": getattr(
+        settings, "ORCID_REDIRECT_URI", getattr(settings, "ORCID_REDIRECT_URL", None)
+    ),
+    "auth_scope": getattr(settings, "ORCID_AUTH_SCOPE", "/authenticate"),
+}
+
+
 def generate_orcid_auth_url(
     user_id: int, return_to: str = None, csrf_token: str = None
 ) -> str:
     """
-    Generate ORCID authorization URL with state parameter containing user ID.
+    Generate ORCID authorization URL with state parameter - OPTIMIZED.
 
     Args:
         user_id: ID of the user requesting ORCID authentication
@@ -49,35 +54,27 @@ def generate_orcid_auth_url(
     """
     from urllib.parse import urlencode
 
-    # Prepare state data
+    # Prepare state data efficiently
     state_data = {"user_id": user_id}
     if return_to:
         state_data["return_to"] = return_to
     if csrf_token:
         state_data["csrf_token"] = csrf_token
 
-    # Encode state as base64 JSON
-    state_json = json.dumps(state_data)
+    # Encode state as base64 JSON (more efficient with cached separators)
+    state_json = json.dumps(state_data, separators=(",", ":"))
     state_encoded = base64.b64encode(state_json.encode("utf-8")).decode("utf-8")
 
-    # Build authorization URL
-    orcid_base = getattr(settings, "ORCID_BASE_URL", "https://orcid.org")
-    redirect_uri = getattr(
-        settings, "ORCID_REDIRECT_URI", getattr(settings, "ORCID_REDIRECT_URL", None)
-    )
-    client_id = getattr(settings, "ORCID_CLIENT_ID")
-    # Use authenticate scope for OAuth login, or configured scope
-    scope = getattr(settings, "ORCID_AUTH_SCOPE", "/authenticate")
-
+    # Build authorization URL using cached settings
     params = {
-        "client_id": client_id,
+        "client_id": _ORCID_SETTINGS["client_id"],
         "response_type": "code",
-        "scope": scope,
-        "redirect_uri": redirect_uri,
+        "scope": _ORCID_SETTINGS["auth_scope"],
+        "redirect_uri": _ORCID_SETTINGS["redirect_uri"],
         "state": state_encoded,
     }
 
-    return f"{orcid_base}/oauth/authorize?{urlencode(params)}"
+    return f"{_ORCID_SETTINGS['base_url']}/oauth/authorize?{urlencode(params)}"
 
 
 class OrcidAuthUrlView(APIView):
@@ -249,9 +246,10 @@ class OrcidCallbackView(APIView):
             )
 
         try:
-            # Exchange code for tokens using the identified user
-            payload = exchange_code_for_token(code)
-            upsert_orcid_token(user, payload)
+            # Exchange code for tokens and upsert - wrapped in transaction
+            with transaction.atomic():
+                payload = exchange_code_for_token(code)
+                upsert_orcid_token(user, payload)
 
             # Enqueue background sync for the identified user
             sync_orcid_for_user_task.delay(user.id)

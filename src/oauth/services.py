@@ -1,7 +1,9 @@
 import logging
+import re
 from typing import List
 
 from django.core.cache import cache
+from django.db import transaction
 
 from paper.models import Paper
 from paper.openalex_util import process_openalex_works
@@ -12,9 +14,12 @@ from utils.openalex import OpenAlex
 from utils.orcid import get_orcid_account_and_token, list_user_dois
 
 
+@transaction.atomic
 def sync_orcid_for_user(user) -> None:
     """
     Pull ORCID works for the given user and merge into our Paper records.
+
+    All database operations are wrapped in a transaction for data integrity.
 
     Steps:
     1) Read DOIs (plus optional title/abstract) from ORCID.
@@ -22,6 +27,10 @@ def sync_orcid_for_user(user) -> None:
     3) Pass works through our OpenAlex ingestion pipeline.
     4) Overlay missing title/abstract from ORCID values when OpenAlex lacks them,
        recompute completeness, and enqueue a PDF download if needed.
+    5) Create authorship relationships.
+
+    Note: All database operations are atomic - if any step fails,
+    all changes will be rolled back.
     """
     account, token = get_orcid_account_and_token(user, auto_refresh=True)
     if not (account and token and token.token):
@@ -30,7 +39,7 @@ def sync_orcid_for_user(user) -> None:
     orcid_id = account.uid
     logger = logging.getLogger(__name__)
 
-    logger.info(f"Starting ORCID sync for user {user.id}")
+    logger.info(f"Starting ORCID sync for user {user.id} (with transaction)")
 
     # Validate token scope
     if not token.token:
@@ -49,40 +58,78 @@ def sync_orcid_for_user(user) -> None:
             f"Limited data access may be restricted. Current scope: {scope}"
         )
 
-    # 1) Pull DOIs from ORCID
+    # 1) Pull DOIs from ORCID - OPTIMIZED
     try:
         orcid_items = list_user_dois(token.token, orcid_id)
-        by_doi = {}
-        dois = []
-        for item in orcid_items:
-            doi = _normalize_doi(item.get("doi"))
-            if doi:
-                dois.append(doi)
-                by_doi[doi] = {
-                    "title": item.get("title"),
-                    "abstract": item.get("abstract"),
-                }
-
-        if not dois:
+        if not orcid_items:
             return
+
+        # Process DOIs more efficiently with dict comprehension and filtering
+        valid_items = [
+            (item, _normalize_doi(item.get("doi")))
+            for item in orcid_items
+            if item.get("doi") and _normalize_doi(item.get("doi"))
+        ]
+
+        if not valid_items:
+            return
+
+        # Use sets for faster lookups and list comprehension for performance
+        dois = [doi for _, doi in valid_items]
+        by_doi = {
+            doi: {
+                "title": item.get("title"),
+                "abstract": item.get("abstract"),
+            }
+            for item, doi in valid_items
+        }
     except Exception as e:
         logger.error(f"Failed to fetch ORCID works for user {user.id}: {e}")
         return
 
-    # 2) Fetch OpenAlex works and process them
-    works = []
-    for doi in dois:
+    # 2) Fetch OpenAlex works and process them - OPTIMIZED
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    def fetch_openalex_work(doi):
+        """Fetch single work from OpenAlex with error handling."""
         try:
-            works.append(OpenAlex().get_data_from_doi(doi))
+            return OpenAlex().get_data_from_doi(doi)
         except Exception:
-            pass  # Ignore DOIs OpenAlex can't resolve
+            return None  # Ignore DOIs OpenAlex can't resolve
+
+    # Process OpenAlex API calls concurrently for better performance
+    works = []
+    if dois:
+        # Limit concurrent requests to avoid overwhelming the API
+        max_workers = min(len(dois), 10)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Submit all requests
+            future_to_doi = {
+                executor.submit(fetch_openalex_work, doi): doi for doi in dois
+            }
+
+            # Collect results as they complete
+            for future in as_completed(future_to_doi):
+                work = future.result()
+                if work:
+                    works.append(work)
 
     if works:
         process_openalex_works(works)
 
-    # 3) Overlay missing data and create authorships
+    # 3) Overlay missing data and trigger PDF downloads - OPTIMIZED
+    # Bulk fetch all papers by DOI to reduce database queries
+    # Use case-insensitive matching for each DOI individually
+    papers_qs = Paper.objects.filter(
+        doi__iregex=r"^(" + "|".join(re.escape(doi) for doi in dois) + ")$"
+    ).only("id", "doi", "title", "abstract", "completeness", "file", "pdf_url", "url")
+
+    papers_by_doi = {paper.doi.lower(): paper for paper in papers_qs}
+
+    papers_to_update = []
+    pdf_download_ids = []
     for doi in dois:
-        paper = Paper.objects.filter(doi__iexact=doi).first()
+        paper = papers_by_doi.get(doi.lower())
         if not paper:
             continue
 
@@ -101,20 +148,30 @@ def sync_orcid_for_user(user) -> None:
         if dirty_fields:
             paper.set_paper_completeness()
             dirty_fields.append("completeness")
-            paper.save(update_fields=dirty_fields)
+            papers_to_update.append((paper, dirty_fields))
 
-        # Trigger PDF download if needed
+        # Collect PDF download IDs for batch processing
         if not paper.file and (paper.pdf_url or paper.url):
-            download_pdf.delay(paper.id)
+            pdf_download_ids.append(paper.id)
+    # Bulk update papers that need changes
+    for paper, dirty_fields in papers_to_update:
+        paper.save(update_fields=dirty_fields)
+
+    # Batch trigger PDF downloads
+    for paper_id in pdf_download_ids:
+        download_pdf.delay(paper_id)
 
     # Create authorship relationships
     _create_orcid_authorships(user, dois)
 
-    logger.info(f"Successfully completed ORCID sync for user {user.id}")
+    logger.info(
+        f"Successfully completed ORCID sync for user {user.id} "
+        f"(transaction committed)"
+    )
 
 
 def _create_orcid_authorships(user, dois: List[str]) -> None:
-    """Create authorship relationships between the ORCID user and imported papers."""
+    """Create authorship relationships for ORCID user and papers - OPTIMIZED."""
     try:
         author = Author.objects.get(user=user)
     except Author.DoesNotExist:
@@ -123,23 +180,45 @@ def _create_orcid_authorships(user, dois: List[str]) -> None:
         )
         return
 
-    created_count = 0
-    for doi in dois:
-        paper = Paper.objects.filter(doi__iexact=doi).first()
-        if paper and not Authorship.objects.filter(author=author, paper=paper).exists():
-            Authorship.objects.create(
-                author=author,
-                paper=paper,
-                author_position="middle",
-                is_corresponding=False,
-                raw_author_name=f"{author.first_name} {author.last_name}".strip(),
-            )
-            created_count += 1
+    # Bulk fetch papers and existing authorships to minimize queries
+    # Use case-insensitive matching for DOIs
+    papers_qs = Paper.objects.filter(
+        doi__iregex=r"^(" + "|".join(re.escape(doi) for doi in dois) + ")$"
+    ).only("id", "doi")
 
-    if created_count > 0:
+    papers_by_doi = {paper.doi.lower(): paper for paper in papers_qs}
+
+    # Get existing authorship paper IDs to avoid duplicates
+    existing_paper_ids = set(
+        Authorship.objects.filter(
+            author=author,
+            paper__doi__iregex=r"^(" + "|".join(re.escape(doi) for doi in dois) + ")$",
+        ).values_list("paper_id", flat=True)
+    )
+
+    # Prepare bulk create list
+    authorships_to_create = []
+    raw_author_name = f"{author.first_name} {author.last_name}".strip()
+    for doi in dois:
+        paper = papers_by_doi.get(doi.lower())
+        if paper and paper.id not in existing_paper_ids:
+            authorships_to_create.append(
+                Authorship(
+                    author=author,
+                    paper=paper,
+                    author_position="middle",
+                    is_corresponding=False,
+                    raw_author_name=raw_author_name,
+                )
+            )
+
+    # Bulk create authorships
+    if authorships_to_create:
+        Authorship.objects.bulk_create(authorships_to_create, ignore_conflicts=True)
         cache.delete(f"author-{author.id}-publications")
         logging.getLogger(__name__).info(
-            f"Created {created_count} authorship relationships for user {user.id}"
+            f"Created {len(authorships_to_create)} authorship "
+            f"relationships for user {user.id}"
         )
 
 

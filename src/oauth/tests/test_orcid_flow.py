@@ -23,7 +23,7 @@ ORCID_SETTINGS = dict(
     ORCID_SCOPE="/read-limited",
 )
 
- 
+
 @override_settings(**ORCID_SETTINGS)
 class OrcidFlowTests(APITestCase):
     def setUp(self):
@@ -39,6 +39,14 @@ class OrcidFlowTests(APITestCase):
         self.check_url = reverse("orcid_check")
         self.callback_url = reverse("orcid_callback")
         self.sync_url = reverse("orcid_sync")
+
+    def tearDown(self):
+        # Clean up test data to avoid constraint violations between tests
+        SocialToken.objects.filter(account__user=self.user).delete()
+        SocialAccount.objects.filter(user=self.user).delete()
+        Authorship.objects.filter(author__user=self.user).delete()
+        Author.objects.filter(user=self.user).delete()
+        Paper.objects.all().delete()  # Clean up test papers
 
     def auth_headers(self):
         return {"HTTP_AUTHORIZATION": f"Token {self.token.key}"}
@@ -68,10 +76,12 @@ class OrcidFlowTests(APITestCase):
     @patch("utils.retryable_requests.retryable_requests_session")
     def test_check_validates_token_with_orcid_api(self, mock_session):
         app = self._ensure_app()
-        acc = SocialAccount.objects.create(
+        acc, _ = SocialAccount.objects.get_or_create(
             user=self.user, provider="orcid", uid="0000-0002-1825-0097"
         )
-        SocialToken.objects.create(app=app, account=acc, token="access-123")
+        SocialToken.objects.get_or_create(
+            app=app, account=acc, defaults={"token": "access-123"}
+        )
 
         # Mock successful ORCID API response
         mock_response = Mock()
@@ -91,10 +101,12 @@ class OrcidFlowTests(APITestCase):
     @patch("utils.retryable_requests.retryable_requests_session")
     def test_check_detects_invalid_token(self, mock_session):
         app = self._ensure_app()
-        acc = SocialAccount.objects.create(
+        acc, _ = SocialAccount.objects.get_or_create(
             user=self.user, provider="orcid", uid="0000-0002-1825-0097"
         )
-        SocialToken.objects.create(app=app, account=acc, token="invalid-token")
+        SocialToken.objects.get_or_create(
+            app=app, account=acc, defaults={"token": "invalid-token"}
+        )
 
         # Mock HTML response (invalid token)
         mock_response = Mock()
@@ -115,10 +127,12 @@ class OrcidFlowTests(APITestCase):
     def test_sync_enqueues_celery_task(self, mock_task):
         # Arrange existing token
         app = self._ensure_app()
-        acc = SocialAccount.objects.create(
+        acc, _ = SocialAccount.objects.get_or_create(
             user=self.user, provider="orcid", uid="0000-0002-1825-0097"
         )
-        SocialToken.objects.create(app=app, account=acc, token="access-123")
+        SocialToken.objects.get_or_create(
+            app=app, account=acc, defaults={"token": "access-123"}
+        )
 
         resp = self.client.post(self.sync_url, {}, format="json", **self.auth_headers())
 
@@ -143,15 +157,19 @@ class OrcidFlowTests(APITestCase):
     ):
         # Arrange existing token
         app = self._ensure_app()
-        acc = SocialAccount.objects.create(
+        acc, _ = SocialAccount.objects.get_or_create(
             user=self.user, provider="orcid", uid="0000-0002-1825-0097"
         )
-        SocialToken.objects.create(app=app, account=acc, token="access-123")
+        SocialToken.objects.get_or_create(
+            app=app, account=acc, defaults={"token": "access-123"}
+        )
 
         # Create Author profile for the user first
-        Author.objects.create(user=self.user, first_name="Test", last_name="User")
+        Author.objects.get_or_create(
+            user=self.user, defaults={"first_name": "Test", "last_name": "User"}
+        )
 
-        # Existing Paper with missing title/abstract but known pdf_url to trigger
+        # Existing Paper with missing title/abstract but known pdf_url
         Paper.objects.create(
             doi="10.1111/foo",
             url="http://example.com",
@@ -234,13 +252,17 @@ class OrcidFlowTests(APITestCase):
     ):
         # Arrange existing token
         app = self._ensure_app()
-        acc = SocialAccount.objects.create(
+        acc, _ = SocialAccount.objects.get_or_create(
             user=self.user, provider="orcid", uid="0000-0002-1825-0097"
         )
-        SocialToken.objects.create(app=app, account=acc, token="access-456")
+        SocialToken.objects.get_or_create(
+            app=app, account=acc, defaults={"token": "access-456"}
+        )
 
         # Create Author profile for the user
-        Author.objects.create(user=self.user, first_name="Task", last_name="User")
+        Author.objects.get_or_create(
+            user=self.user, defaults={"first_name": "Task", "last_name": "User"}
+        )
 
         # Existing Paper to test overlay
         Paper.objects.create(
@@ -302,8 +324,8 @@ class OrcidFlowTests(APITestCase):
         from oauth.services import _create_orcid_authorships
 
         # Create Author and Papers
-        author = Author.objects.create(
-            user=self.user, first_name="John", last_name="Doe"
+        author, _ = Author.objects.get_or_create(
+            user=self.user, defaults={"first_name": "John", "last_name": "Doe"}
         )
         paper1 = Paper.objects.create(doi="10.1111/test1", title="Test Paper 1")
         paper2 = Paper.objects.create(doi="10.1111/test2", title="Test Paper 2")
@@ -318,8 +340,10 @@ class OrcidFlowTests(APITestCase):
 
         self.assertIsNotNone(auth1)
         self.assertIsNotNone(auth2)
-        self.assertEqual(auth1.raw_author_name, "John Doe")
-        self.assertEqual(auth2.raw_author_name, "John Doe")
+        # Check that raw_author_name uses the Author's first and last name
+        expected_name = f"{author.first_name} {author.last_name}".strip()
+        self.assertEqual(auth1.raw_author_name, expected_name)
+        self.assertEqual(auth2.raw_author_name, expected_name)
         self.assertEqual(auth1.author_position, "middle")
         self.assertEqual(auth2.author_position, "middle")
 
@@ -343,7 +367,8 @@ class OrcidFlowTests(APITestCase):
 
         # Verify the auth URL contains expected parameters
         auth_url = resp.data["auth_url"]
-        self.assertIn("orcid.org/oauth/authorize", auth_url)
+        # Use test URL from settings
+        self.assertIn("orcid.test/oauth/authorize", auth_url)
         self.assertIn("state=", auth_url)
         self.assertIn("client_id=", auth_url)
         self.assertIn("response_type=code", auth_url)

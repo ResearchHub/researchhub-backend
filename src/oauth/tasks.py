@@ -1,5 +1,6 @@
 from celery import shared_task
 from django.contrib.auth import get_user_model
+from django.db import DatabaseError
 
 from oauth.services import sync_orcid_for_user
 
@@ -22,6 +23,10 @@ def sync_orcid_for_user_task(self, user_id: int) -> None:
     try:
         sync_orcid_for_user(user)
         logger.info(f"Successfully completed ORCID sync for user {user_id}")
+    except DatabaseError as exc:
+        # Database errors should be retried as they might be transient
+        logger.error(f"ORCID sync database error for user {user_id}: {exc}")
+        raise self.retry(exc=exc)
     except Exception as exc:  # pragma: no cover - retry path
         logger.error(f"ORCID sync failed for user {user_id}: {exc}")
         raise self.retry(exc=exc)
