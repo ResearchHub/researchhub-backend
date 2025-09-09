@@ -326,7 +326,8 @@ def create_flag(user, item, reason, reason_choice, reason_memo=None):
             "content_type": get_content_type_for_model(item).id,
             "reason": reason or reason_choice,
             "reason_choice": reason_choice or reason,
-            "reason_memo": reason_memo,
+            # Default to empty string to match model default and avoid nulls
+            "reason_memo": reason_memo or "",
         }
         serializer = FlagSerializer(data=data)
         serializer.is_valid(raise_exception=True)

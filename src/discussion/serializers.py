@@ -105,7 +105,7 @@ class EndorsementSerializer(ModelSerializer):
 class FlagSerializer(ModelSerializer):
     item = PrimaryKeyRelatedField(many=False, read_only=True)
     reason_memo = serializers.CharField(
-        max_length=1000, allow_blank=True, allow_null=True, required=False
+        max_length=1000, allow_blank=True, allow_null=False, required=False
     )
 
     class Meta:
