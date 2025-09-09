@@ -123,7 +123,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         Additionally filter by grant status, organization, or hub.
         """
 
-        status = self.request.query_params.get("fundraise_status", None)
+        status = self.request.query_params.get("status", None)
         organization = self.request.query_params.get("organization", None)
         hubs = self.request.query_params.get("hub_ids", None)
 
@@ -171,18 +171,18 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         Order by user specified order param, default open to top.
         """
 
+        ordering_options_map = {
+            "newest": "-created_date",
+            "grants__amount": "-unified_document__grants__amount",
+            "end_date": "unified_document__grants__end_date",
+            "application_count": "application_count",
+        }
+
         ordering = self.request.query_params.get("ordering", "-created_date")
         status = self.request.query_params.get("fundraise_status", None)
 
-        ordering_options = [
-            "-created_date",
-            "-unified_document__grants__amount",
-            "unified_document__grants__end_date",
-            "application_count",
-        ]
-
-        if ordering not in ordering_options:
-            ordering = "-created_date"
+        if ordering not in ordering_options_map:
+            ordering = "end_date"
 
         queryset = queryset.annotate(
             is_open=Case(
@@ -200,7 +200,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
                 F("is_open"),
                 descending=bool(not status or status.upper() == Grant.OPEN),
             ),
-            ordering,
+            ordering_options_map[ordering],
         )
 
         return queryset

@@ -20,7 +20,10 @@ from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Escrow
-from researchhub_document.related_models.constants.document_type import GRANT, PREREGISTRATION
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -299,7 +302,10 @@ class FundingFeedViewSetTests(TestCase):
         request.user = anon_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20")
+        self.assertEqual(
+            cache_key,
+            "funding_feed:latest:all:all:none:1-20-order:-hubs:",
+        )
 
         # Authenticated user
         request = request_factory.get("/api/funding_feed/")
@@ -312,7 +318,9 @@ class FundingFeedViewSetTests(TestCase):
         request.user = mock_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20")
+        self.assertEqual(
+            cache_key, "funding_feed:latest:all:all:none:1-20-order:-hubs:"
+        )
 
         # Custom page and page size
         request = request_factory.get("/api/funding_feed/?page=3&page_size=10")
@@ -320,7 +328,23 @@ class FundingFeedViewSetTests(TestCase):
         request.user = mock_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:3-10")
+        self.assertEqual(
+            cache_key, "funding_feed:latest:all:all:none:3-10-order:-hubs:"
+        )
+
+        # Custom filters and ordering
+        request = request_factory.get(
+            "/api/funding_feed/?ordering=-created_date&hub_ids=%5B%223%22%2C%2221%22%5D"
+        )
+        request = Request(request)
+        request.user = mock_user
+
+        cache_key = viewset.get_cache_key(request, "funding")
+
+        self.assertEqual(
+            cache_key,
+            'funding_feed:latest:all:all:none:1-20-order:-created_date-hubs:["3","21"]',
+        )
 
     def test_preregistration_post_only(self):
         """Test that funding feed only returns preregistration posts"""
@@ -1387,6 +1411,9 @@ class FundingFeedViewSetTests(TestCase):
         # There are more than 2 posts, but we only care about the order of these two
         self.assertGreater(len(results), 1)
 
+        # The post with the higher amount raised should be first
+        first_post_id = results[0]["content_object"]["id"]
+        self.assertEqual(first_post_id, high_amount_post.id)
         # The post with the higher amount raised should be first
         first_post_id = results[0]["content_object"]["id"]
         self.assertEqual(first_post_id, high_amount_post.id)

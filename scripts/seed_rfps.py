@@ -154,7 +154,7 @@ for paper in papers:
             renderable_text="This is a test preregistration post",
             slug="test-preregistration",
             unified_document=ud,
-            score=11,
+            score=2.5,
         )
 
         GrantApplication.objects.create(

@@ -16,14 +16,15 @@ from django.db.models import (
     Case,
     Count,
     DecimalField,
+    DurationField,
+    ExpressionWrapper,
     F,
     Sum,
     Value,
     When,
 )
 from django.db.models.expressions import OrderBy
-from django.db.models.functions import Coalesce
-from django.utils import timezone
+from django.db.models.functions import Coalesce, Now
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -63,33 +64,22 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         - upvotes: Sort by score (most upvoted first)
         - amount_raised: Sort by amount raised (highest first)
         - created_date: Sort by creation date (newest first)
-        - unified_document__fundraises__end_date: Sort by fundraise end date (soonest first)
+        - end_date: Sort by fundraise end date (closest to today)
     """
 
     serializer_class = PostSerializer
     permission_classes = []
     pagination_class = FeedPagination
 
-    def _order_by_amount_raised(self, queryset, primary_ordering):
-        return queryset.annotate(
-            amount_raised=Coalesce(
-                Sum("unified_document__fundraises__escrow__amount_holding")
-                + Sum("unified_document__fundraises__escrow__amount_paid"),
-                0,
-                output_field=DecimalField(),
-            )
-        ).order_by(primary_ordering, "-amount_raised")
-
     def get_cache_key(self, request, feed_type=""):
         """Override to include funding query parameters in cache key"""
         base_key = super().get_cache_key(request, feed_type)
 
         # Add funding-specific parameters to cache key
-        status = request.query_params.get("status", "")
         order = request.query_params.get("ordering", "")
         hub = request.query_params.get("hub_ids", "")
 
-        funding_params = f"-status:{status}-order:{order}-hubs:{hub}"
+        funding_params = f"-order:{order}-hubs:{hub}"
         return base_key + funding_params
 
     def get_serializer_context(self):
@@ -207,35 +197,34 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         """
         Order according to user preferences.
         """
+        ordering_options_map = {
+            "newest": "-created_date",
+            "hot_score": "-unified_document__hot_score",
+            "upvotes": "-score",
+            "amount_raised": "-amount_raised",
+            "end_date": "deadline_distance",
+            "goal_amount": "-unified_document__fundraises__goal_amount",
+            "review_count": "-review_count",
+        }
 
         fundraise_status = self.request.query_params.get("fundraise_status", None)
-        ordering = self.request.query_params.get("ordering", "-created_date")
+        ordering = self.request.query_params.get("ordering", "end_date")
 
-        ordering_options = [
-            "-unified_document__fundraises__goal_amount",
-            "amount_raised",
-            "-created_date",
-            "unified_document__fundraises__end_date",
-            "-unified_document__fundraises__hot_score",
-            "-score",
-            "review_count",
-        ]
+        # If ordering not a designated option, default to end_date
+        if ordering not in ordering_options_map:
+            ordering = "end_date"
 
-        if ordering not in ordering_options:
-            ordering = "-created_date"
-
-        # Create a flag to identify OPEN fundraises for sorting
+        # Create flag for open status
         queryset = queryset.annotate(
             is_open=Case(
                 When(
                     unified_document__fundraises__status=Fundraise.OPEN,
-                    unified_document__fundraises__end_date__gte=timezone.now(),
+                    unified_document__fundraises__end_date__gte=Now(),
                     then=Value(True),
                 ),
                 default=Value(False),
                 output_field=BooleanField(),
             ),
-            review_count=-Count("unified_document__reviews"),
         )
 
         # Make reusable sort by status, move closed/completed items to bottom
@@ -246,13 +235,45 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
             ),
         )
 
-        if ordering != "amount_raised":
+        if ordering == "end_date":
+            queryset = queryset.annotate(
+                deadline_delta=ExpressionWrapper(
+                    F("unified_document__fundraises__end_date") - Now(),
+                    output_field=DurationField(),
+                ),
+                deadline_distance=Case(
+                    When(
+                        is_open=True,
+                        then=F("deadline_delta"),
+                    ),
+                    default=-F("deadline_delta"),
+                    output_field=DurationField(),
+                ),
+            ).order_by(
+                status_order,
+                ordering_options_map[ordering],
+            )
+        elif ordering == "review_count":
+            queryset = queryset.annotate(
+                review_count=Count("unified_document__reviews", distinct=True)
+            ).order_by(
+                status_order,
+                ordering_options_map[ordering],
+            )
+        elif ordering == "amount_raised":
+            queryset = queryset.annotate(
+                amount_raised=Coalesce(
+                    Sum("unified_document__fundraises__escrow__amount_holding")
+                    + Sum("unified_document__fundraises__escrow__amount_paid"),
+                    0,
+                    output_field=DecimalField(),
+                )
+            ).order_by(status_order, ordering_options_map[ordering])
+        else:
             queryset = queryset.order_by(
                 status_order,
-                ordering,
+                ordering_options_map[ordering],
             )
-        else:
-            queryset = self._order_by_amount_raised(queryset, status_order)
 
         return queryset
 
