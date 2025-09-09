@@ -9,8 +9,6 @@ from .clients import BaseClient, BioRxivClient, BioRxivConfig, ClientConfig
 from .exceptions import *
 from .mappers import BaseMapper, BioRxivMapper
 
-__version__ = "0.1.0"
-
 __all__ = [
     # Base classes
     "ClientConfig",

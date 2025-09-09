@@ -2,15 +2,18 @@
 Tests for BioRxiv client.
 """
 
-import unittest
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
+from django.test import TestCase
+
+from paper.models import Paper
 from src.paper.ingestion.clients.biorxiv import BioRxivClient, BioRxivConfig
+from user.related_models.author_model import Author
 
 
-class TestBioRxivClient(unittest.TestCase):
-    """Test cases for BioRxiv client."""
+class TestBioRxivClient(TestCase):
+    """Test cases for BioRxiv client using Django TestCase."""
 
     def setUp(self):
         """Set up test fixtures."""
@@ -43,7 +46,10 @@ class TestBioRxivClient(unittest.TestCase):
                     "type": "new results",
                     "license": "cc_no",
                     "category": "neuroscience",
-                    "jatsxml": "https://www.biorxiv.org/content/early/2025/01/01/2024.12.31.630767.source.xml",
+                    "jatsxml": (
+                        "https://www.biorxiv.org/content/early/2025/01/01/"
+                        "2024.12.31.630767.source.xml"
+                    ),
                     "abstract": "Epilepsy is a debilitating neurological disorder...",
                     "funder": "NA",
                     "published": "NA",
@@ -60,7 +66,10 @@ class TestBioRxivClient(unittest.TestCase):
                     "type": "new results",
                     "license": "cc_no",
                     "category": "cancer biology",
-                    "jatsxml": "https://www.biorxiv.org/content/early/2025/01/01/2024.12.31.629756.source.xml",
+                    "jatsxml": (
+                        "https://www.biorxiv.org/content/early/2025/01/01/"
+                        "2024.12.31.629756.source.xml"
+                    ),
                     "abstract": "Non-genetic transcription evolution...",
                     "funder": "NA",
                     "published": "10.1182/bloodadvances.2025016511",
@@ -194,7 +203,3 @@ class TestBioRxivClient(unittest.TestCase):
         self.assertIsNotNone(paper)
         self.assertEqual(paper["doi"], "10.1101/2024.12.31.630767")
         mock_fetch.assert_called_once_with("/details/biorxiv/10.1101/2024.12.31.630767")
-
-
-if __name__ == "__main__":
-    unittest.main()

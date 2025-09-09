@@ -8,6 +8,12 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from django.db import transaction
+
+from paper.models import Paper
+from paper.related_models.authorship_model import Authorship
+from user.related_models.author_model import Author
+
 from .base import BaseMapper
 
 logger = logging.getLogger(__name__)
@@ -31,9 +37,8 @@ class BioRxivMapper(BaseMapper):
 
         for field in required_fields:
             if not record.get(field):
-                logger.warning(
-                    f"Missing required field '{field}' in record {record.get('doi', 'unknown')}"
-                )
+                doi_str = record.get("doi", "unknown")
+                logger.warning(f"Missing required field '{field}' in record {doi_str}")
                 return False
 
         # Validate date format
@@ -62,41 +67,42 @@ class BioRxivMapper(BaseMapper):
 
         return True
 
-    def map_to_paper(self, record: Dict[str, Any]) -> Dict[str, Any]:
+    def map_to_paper(self, record: Dict[str, Any]) -> Paper:
         """
-        Map BioRxiv record to Paper model fields.
+        Map BioRxiv record to Paper model instance.
 
         Args:
             record: BioRxiv paper record
 
         Returns:
-            Dictionary with Paper model fields
+            Paper model instance (not saved to database)
         """
         # Extract basic fields
         doi = record.get("doi", "")
         version = record.get("version")
 
-        # Build Paper model fields
-        paper_data = {
+        # Extract and process authors first
+        raw_authors = self._extract_authors(record.get("authors", ""))
+
+        # Create Paper instance
+        paper = Paper(
             # Core identifiers
-            "doi": doi,
-            "external_source": record.get("server", "biorxiv").lower(),
+            doi=doi,
+            external_source=record.get("server", "biorxiv").lower(),
             # Title and content
-            "title": record.get("title", ""),
-            "paper_title": record.get("title", ""),
-            "abstract": record.get("abstract"),
+            title=record.get("title", ""),
+            paper_title=record.get("title", ""),
+            abstract=record.get("abstract"),
             # Dates
-            "paper_publish_date": self._parse_date(record.get("date")),
-            # Authors
-            "raw_authors": self._extract_authors(record.get("authors", "")),
-            # Categories/subjects
-            "categories": self._extract_categories(record.get("category")),
+            paper_publish_date=self._parse_date(record.get("date")),
+            # Authors (JSON field)
+            raw_authors=raw_authors,
             # License and access
-            "pdf_license": record.get("license"),
-            "is_open_access": True,  # BioRxiv is open access
-            "oa_status": "gold",  # Gold open access for preprints
+            pdf_license=record.get("license"),
+            is_open_access=True,  # BioRxiv is open access
+            oa_status="gold",  # Gold open access for preprints
             # External metadata
-            "external_metadata": {
+            external_metadata={
                 "biorxiv_doi": doi,
                 "version": version,
                 "server": record.get("server", "biorxiv"),
@@ -105,19 +111,24 @@ class BioRxivMapper(BaseMapper):
                 "jatsxml": record.get("jatsxml"),
             },
             # Status flags
-            "retrieved_from_external_source": True,
-        }
+            retrieved_from_external_source=True,
+        )
 
         # Add computed URLs if DOI and version exist
         if doi and version:
-            paper_data["pdf_url"] = self._compute_pdf_url(doi, version)
-            paper_data["url"] = self._compute_html_url(doi, version)
+            paper.pdf_url = self._compute_pdf_url(doi, version)
+            paper.url = self._compute_html_url(doi, version)
 
         # Add any additional metadata fields
         if record.get("published"):
-            paper_data["external_metadata"]["published_date"] = record["published"]
+            paper.external_metadata["published_date"] = record["published"]
 
-        return paper_data
+        # Store categories for later processing (not a direct field on Paper)
+        paper._categories = self._extract_categories(record.get("category"))
+        # Store raw authors for later Author creation
+        paper._raw_author_data = raw_authors
+
+        return paper
 
     def _parse_date(self, date_str: Optional[str]) -> Optional[str]:
         """
@@ -270,20 +281,28 @@ class BioRxivMapper(BaseMapper):
         """
         return f"https://www.biorxiv.org/content/{doi}v{version}"
 
-    def map_to_author(self, author_data: Dict[str, Any]) -> Dict[str, Any]:
+    def map_to_author(self, author_data: Dict[str, Any]) -> Author:
         """
-        Map author data to ResearchHub Author model fields.
+        Map author data to ResearchHub Author model instance.
 
         Args:
             author_data: Author data from BioRxiv
 
         Returns:
-            Dictionary with Author model fields
+            Author model instance (not saved to database)
         """
-        return {
-            "first_name": author_data.get("first_name", ""),
-            "last_name": author_data.get("last_name", ""),
-            "middle_name": author_data.get("middle_name", ""),
-            "raw_name": author_data.get("raw_name", ""),
-            "affiliations": author_data.get("affiliations", []),
-        }
+        # Create Author instance with available fields
+        author = Author(
+            first_name=author_data.get("first_name", ""),
+            last_name=author_data.get("last_name", ""),
+            # Source indicates this came from external ingestion
+            created_source=Author.SOURCE_RESEARCHHUB,
+        )
+
+        # Store additional data as attributes for optional processing
+        # These aren't direct fields on the Author model
+        author._middle_name = author_data.get("middle_name", "")
+        author._raw_name = author_data.get("raw_name", "")
+        author._affiliations = author_data.get("affiliations", [])
+
+        return author
