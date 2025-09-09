@@ -117,14 +117,11 @@ class BaseClient(ABC):
                         attempts=self.config.max_retries + 1,
                     )
 
-                # Add small random variation to prevent synchronized retries
-                sleep_time = backoff * (0.5 + random.random())
-
                 logger.warning(
                     f"Attempt {attempt + 1}/{self.config.max_retries + 1} failed. "
-                    f"Retrying in {sleep_time:.1f}s..."
+                    f"Retrying in {backoff:.1f}s..."
                 )
-                time.sleep(sleep_time)
+                time.sleep(backoff)
 
                 # Double the backoff time for next retry, up to max
                 backoff = min(backoff * 2, self.config.max_backoff)
