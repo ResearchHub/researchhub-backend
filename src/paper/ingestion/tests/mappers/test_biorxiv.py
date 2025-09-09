@@ -6,9 +6,9 @@ from unittest.mock import patch
 
 from django.test import TestCase
 
+from paper.ingestion.mappers.biorxiv import BioRxivMapper
 from paper.models import Paper
 from paper.related_models.authorship_model import Authorship
-from src.paper.ingestion.mappers.biorxiv import BioRxivMapper
 from user.related_models.author_model import Author
 
 
@@ -75,15 +75,6 @@ class TestBioRxivMapper(TestCase):
         }
         self.assertFalse(self.mapper.validate(record_bad_date))
 
-        # Title too short
-        record_short_title = {
-            "doi": "10.1101/2024.12.31.630767",
-            "title": "Short",
-            "authors": "Author1",
-            "date": "2025-01-01",
-        }
-        self.assertFalse(self.mapper.validate(record_short_title))
-
     def test_map_to_paper(self):
         """Test mapping BioRxiv record to Paper model instance."""
         paper = self.mapper.map_to_paper(self.sample_record)
@@ -120,11 +111,6 @@ class TestBioRxivMapper(TestCase):
         self.assertEqual(paper.external_metadata["server"], "bioRxiv")
         self.assertEqual(paper.external_metadata["category"], "neuroscience")
 
-        # Check that paper has the expected attributes for further processing
-        self.assertTrue(hasattr(paper, "_categories"))
-        self.assertTrue(hasattr(paper, "_raw_author_data"))
-        self.assertEqual(paper._categories, ["neuroscience"])
-
     def test_parse_author_names(self):
         """Test author name parsing stored in Paper instance."""
         paper = self.mapper.map_to_paper(self.sample_record)
@@ -154,9 +140,6 @@ class TestBioRxivMapper(TestCase):
         self.assertEqual(third_author["last_name"], "Villarreal")
         self.assertEqual(third_author["first_name"], "A.")
         self.assertEqual(third_author["middle_name"], "")
-
-        # Also check the _raw_author_data attribute for further processing
-        self.assertEqual(paper._raw_author_data, raw_authors)
 
     def test_map_batch(self):
         """Test batch mapping of multiple records."""
@@ -201,17 +184,6 @@ class TestBioRxivMapper(TestCase):
 
         self.assertEqual(paper.pdf_url, expected_pdf)
         self.assertEqual(paper.url, expected_html)
-
-    def test_extract_categories(self):
-        """Test category extraction."""
-        paper = self.mapper.map_to_paper(self.sample_record)
-
-        # Categories are stored as an attribute for later processing
-        categories = paper._categories
-
-        self.assertIsInstance(categories, list)
-        self.assertEqual(len(categories), 1)
-        self.assertEqual(categories[0], "neuroscience")
 
     def test_map_to_author(self):
         """Test mapping author data to Author model instance."""

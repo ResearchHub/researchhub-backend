@@ -50,21 +50,6 @@ class BioRxivMapper(BaseMapper):
             )
             return False
 
-        # Validate DOI format (basic check)
-        doi = record["doi"]
-        if not doi.startswith("10.1101/"):
-            logger.warning(f"Unexpected DOI format: {doi}")
-            # Don't skip, but log warning
-
-        # Check for minimum content
-        if len(record.get("title", "")) < 10:
-            logger.warning(f"Title too short for record {doi}")
-            return False
-
-        if len(record.get("abstract", "")) < 50:
-            logger.warning(f"Abstract too short or missing for record {doi}")
-            # Don't skip abstracts that are missing, some papers may not have them
-
         return True
 
     def map_to_paper(self, record: Dict[str, Any]) -> Paper:
@@ -122,11 +107,6 @@ class BioRxivMapper(BaseMapper):
         # Add any additional metadata fields
         if record.get("published"):
             paper.external_metadata["published_date"] = record["published"]
-
-        # Store categories for later processing (not a direct field on Paper)
-        paper._categories = self._extract_categories(record.get("category"))
-        # Store raw authors for later Author creation
-        paper._raw_author_data = raw_authors
 
         return paper
 

@@ -7,9 +7,7 @@ from unittest.mock import MagicMock, patch
 
 from django.test import TestCase
 
-from paper.models import Paper
-from src.paper.ingestion.clients.biorxiv import BioRxivClient, BioRxivConfig
-from user.related_models.author_model import Author
+from paper.ingestion.clients.biorxiv import BioRxivClient, BioRxivConfig
 
 
 class TestBioRxivClient(TestCase):
