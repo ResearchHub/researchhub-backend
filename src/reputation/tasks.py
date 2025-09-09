@@ -38,7 +38,7 @@ from utils.web3_utils import web3_provider
 
 DEFAULT_REWARD = 1000000
 
-PENDING_TRANSACTION_TTL = 60 * 60 * 1  # 1 hour
+PENDING_TRANSACTION_MAX_AGE = 60 * 60 * 1  # 1 hour
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +138,7 @@ def get_contract(w3, token_address):
     )
 
 
-def evaluate_transaction(transaction_hash, w3, token_address, ttl=None):
+def evaluate_transaction(transaction_hash, w3, token_address, max_age=None):
     """
     Evaluate transaction details using provided Web3 instance.
 
@@ -156,15 +156,15 @@ def evaluate_transaction(transaction_hash, w3, token_address, ttl=None):
         transaction_hash: The hash of the transaction to evaluate
         w3: Web3 instance connected to the blockchain
         token_address: Address of the ERC20 token contract
-        ttl: Optional TTL in seconds. Defaults to PENDING_TRANSACTION_TTL if not provided
+        max_age: Optional max age in seconds. Defaults to PENDING_TRANSACTION_MAX_AGE if not provided
 
     Returns:
         tuple: (is_valid_and_recent, deposit_amount)
             - is_valid_and_recent: Boolean indicating if transaction is valid and recent
             - deposit_amount: Amount transferred in human-readable format (not wei)
     """
-    if ttl is None:
-        ttl = PENDING_TRANSACTION_TTL
+    if max_age is None:
+        max_age = PENDING_TRANSACTION_MAX_AGE
 
     tx = get_transaction(transaction_hash, w3)
     block = get_block(tx["blockNumber"], w3)
@@ -173,7 +173,9 @@ def evaluate_transaction(transaction_hash, w3, token_address, ttl=None):
     contract = get_contract(w3, token_address)
 
     block_timestamp = datetime.fromtimestamp(block["timestamp"])
-    is_recent_transaction = block_timestamp > datetime.now() - timedelta(seconds=ttl)
+    is_recent_transaction = block_timestamp > datetime.now() - timedelta(
+        seconds=max_age
+    )
 
     # Look for Transfer events in the transaction logs
     # This approach supports both direct calls and smart wallet transactions
@@ -211,22 +213,22 @@ def evaluate_transaction(transaction_hash, w3, token_address, ttl=None):
 
 
 @app.task
-def check_deposits(ttl=None):
+def check_deposits(max_age=None):
     key = lock.name("check_deposits")
     if not lock.acquire(key):
         logger.warning(f"Already locked {key}, skipping task")
         return False
 
     try:
-        _check_deposits(ttl=ttl)
+        _check_deposits(max_age=max_age)
     finally:
         lock.release(key)
         logger.info(f"Released lock {key}")
 
 
-def _check_deposits(ttl=None):
-    if ttl is None:
-        ttl = PENDING_TRANSACTION_TTL
+def _check_deposits(max_age=None):
+    if max_age is None:
+        max_age = PENDING_TRANSACTION_MAX_AGE
 
     logger.info("Starting check deposits task")
     # Sort by created date to ensure a malicious user doesn't attempt to take
@@ -242,7 +244,9 @@ def _check_deposits(ttl=None):
             deposit = Deposit.objects.select_for_update().get(id=deposit.id)
 
             # If a deposit is not resolved after our set TTL, mark it as failed
-            if deposit.created_date < datetime.now(pytz.UTC) - timedelta(seconds=ttl):
+            if deposit.created_date < datetime.now(pytz.UTC) - timedelta(
+                seconds=max_age
+            ):
                 deposit.set_paid_failed()
                 continue
 
@@ -274,7 +278,7 @@ def _check_deposits(ttl=None):
                     continue
 
                 valid_deposit, deposit_amount = evaluate_transaction(
-                    deposit.transaction_hash, w3_instance, token_address, ttl
+                    deposit.transaction_hash, w3_instance, token_address, max_age
                 )
                 if not valid_deposit:
                     deposit.set_paid_failed()

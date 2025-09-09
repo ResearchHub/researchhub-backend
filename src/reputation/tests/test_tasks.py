@@ -6,7 +6,7 @@ from django.conf import settings
 from rest_framework.test import APITestCase
 from web3.types import BlockData, TxData
 
-from reputation.tasks import PENDING_TRANSACTION_TTL, check_deposits
+from reputation.tasks import PENDING_TRANSACTION_MAX_AGE, check_deposits
 from reputation.tests.helpers import create_deposit
 from user.tests.helpers import create_random_authenticated_user
 
@@ -146,7 +146,7 @@ class TaskTests(APITestCase):
 
         deposit = create_deposit(user, "2000.0", "from_address_4", "transaction_hash_4")
         deposit.created_date = deposit.created_date - timedelta(
-            seconds=PENDING_TRANSACTION_TTL + 1
+            seconds=PENDING_TRANSACTION_MAX_AGE + 1
         )
         deposit.save()
 
@@ -159,7 +159,7 @@ class TaskTests(APITestCase):
     def test_old_transaction_hash(self):
         # Reset the mock for get_block_data to return a block with an old timestamp.
         self.mock_get_block.side_effect = self.mock_get_block_data(
-            time.time() - PENDING_TRANSACTION_TTL - 1
+            time.time() - PENDING_TRANSACTION_MAX_AGE - 1
         )
 
         user = create_random_authenticated_user("deposit_user")

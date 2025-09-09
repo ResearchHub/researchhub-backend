@@ -57,8 +57,7 @@ class Command(BaseCommand):
         from_address = options.get("from_address")
         amount = options.get("amount")
         network = options.get("network")
-        ttl_hours = options.get("ttl_hours")
-        ttl_seconds = int(ttl_hours * 60 * 60)
+        max_age_seconds = int(10 * 365 * 24 * 60 * 60)  # 10 years in seconds
 
         user = User.objects.get(id=user_id)
 
@@ -70,4 +69,4 @@ class Command(BaseCommand):
             network=network,
         )
 
-        tasks.check_deposits(ttl=ttl_seconds)
+        tasks.check_deposits(max_age=max_age_seconds)
