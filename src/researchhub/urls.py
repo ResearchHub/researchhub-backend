@@ -40,6 +40,7 @@ from feed.views import (
     GrantFeedViewSet,
     JournalFeedViewSet,
 )
+from oauth import orcid_views as orcid_api_views
 from organizations.views import NonprofitFundraiseLinkViewSet, NonprofitOrgViewSet
 from paper.views import paper_upload_views
 from purchase.views import stripe_webhook_view
@@ -303,7 +304,8 @@ urlpatterns = [
         name="password-change",
     ),
     re_path(
-        r"^password-reset/confirm/(?P<uidb64>[0-9A-Za-z_\-]+)/(?P<token>[0-9A-Za-z]{1,13}-[0-9A-Za-z]{1,32})/$",
+        r"^password-reset/confirm/(?P<uidb64>[0-9A-Za-z_\-]+)/"
+        r"(?P<token>[0-9A-Za-z]{1,13}-[0-9A-Za-z]{1,32})/$",
         PasswordResetConfirmView.as_view(),
         name="password_reset_confirm",
     ),
@@ -348,6 +350,26 @@ urlpatterns = [
         name="payment_view",
     ),
     path("user_saved/", UserSavedView.as_view(), name="user_saved"),
+    path(
+        "api/orcid/auth-url",
+        orcid_api_views.OrcidAuthUrlView.as_view(),
+        name="orcid_auth_url",
+    ),
+    path(
+        "api/orcid/check",
+        orcid_api_views.OrcidCheckView.as_view(),
+        name="orcid_check",
+    ),
+    path(
+        "api/orcid/callback",
+        orcid_api_views.OrcidCallbackView.as_view(),
+        name="orcid_callback",
+    ),
+    path(
+        "api/orcid/sync",
+        orcid_api_views.OrcidSyncView.as_view(),
+        name="orcid_sync",
+    ),
 ]
 
 if "silk" in settings.INSTALLED_APPS:

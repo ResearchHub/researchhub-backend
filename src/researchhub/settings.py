@@ -223,6 +223,7 @@ INSTALLED_APPS = [
     "allauth.account",
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
+    "allauth.socialaccount.providers.orcid",
     "rest_framework.authtoken",
     "dj_rest_auth",
     "dj_rest_auth.registration",
@@ -290,6 +291,7 @@ if USE_DEBUG_TOOLBAR:
     print("Using Debug Toolbar")
     DEBUG_TOOLBAR_CONFIG = {
         "SHOW_TOOLBAR_CALLBACK": lambda request: True,
+        "INTERCEPT_REDIRECTS": False,  # Don't intercept redirects (fixes ORCID flow)
     }
 
     INSTALLED_APPS += ["debug_toolbar"]
@@ -419,6 +421,14 @@ SOCIALACCOUNT_ADAPTER = "oauth.adapters.SocialAccountAdapter"
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_EMAIL_REQUIRED = False
 SOCIALACCOUNT_QUERY_EMAIL = True
+
+# Configure ORCID provider with correct scope
+SOCIALACCOUNT_PROVIDERS = {
+    "orcid": {
+        "SCOPE": ["/read-limited"],
+        "VERIFIED_EMAIL": False,
+    }
+}
 
 
 GOOGLE_REDIRECT_URL = "http://localhost:8000/auth/google/login/callback/"
@@ -870,3 +880,17 @@ ENDAOMENT_ACCOUNT_ID = os.environ.get("ENDAOMENT_ACCOUNT_ID", keys.ENDAOMENT_ACC
 RESEARCHHUB_JOURNAL_ID = os.environ.get(
     "RESEARCHHUB_JOURNAL_ID", keys.RESEARCHHUB_JOURNAL_ID
 )
+
+# ORCID OAuth
+ORCID_CLIENT_ID = os.environ.get("ORCID_CLIENT_ID", keys.ORCID_CLIENT_ID)
+ORCID_CLIENT_SECRET = os.environ.get("ORCID_CLIENT_SECRET", keys.ORCID_CLIENT_SECRET)
+# accept either *_URI or *_URL env/keys naming
+ORCID_REDIRECT_URI = os.environ.get(
+    "ORCID_REDIRECT_URI",
+    os.environ.get("ORCID_REDIRECT_URL", getattr(keys, "ORCID_REDIRECT_URL", None)),
+)
+# Base URL: use sandbox by overriding with env var if needed
+ORCID_BASE_URL = os.environ.get("ORCID_BASE_URL", "https://orcid.org")
+# Scope for reading private works (needed for full bibliography)
+ORCID_SCOPE = os.environ.get("ORCID_SCOPE", "/read-limited")
+ORCID_AUTH_SCOPE = os.environ.get("ORCID_AUTH_SCOPE", "/authenticate")
