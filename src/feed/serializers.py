@@ -462,6 +462,7 @@ class CommentSerializer(serializers.Serializer):
     thread_id = serializers.IntegerField()
     bounties = serializers.SerializerMethodField()
     purchases = serializers.SerializerMethodField()
+    awarded_bounty_solution = serializers.SerializerMethodField()
 
     def get_author(self, obj):
         return SimpleAuthorSerializer(obj.created_by.author_profile).data
@@ -532,6 +533,25 @@ class CommentSerializer(serializers.Serializer):
             )
             return serializer.data
         return []
+    
+    def get_awarded_bounty_solution(self, obj):
+        """Return awarded bounty solution info for this comment"""
+        from reputation.models import BountySolution
+        
+        solution = BountySolution.objects.filter(
+            object_id=obj.id,
+            content_type__model='rhcommentmodel',
+            status=BountySolution.Status.AWARDED
+        ).select_related('awarded_by').first()
+        
+        if not solution:
+            return None
+            
+        return {
+            'id': solution.id,
+            'awarded_amount': solution.awarded_amount,
+            'is_foundation_awarded': solution.awarded_by and solution.awarded_by.is_official_account
+        }
 
     class Meta:
         fields = [
@@ -547,6 +567,7 @@ class CommentSerializer(serializers.Serializer):
             "thread_id",
             "review",
             "purchases",
+            "awarded_bounty_solution",
         ]
 
 
