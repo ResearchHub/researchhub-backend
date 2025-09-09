@@ -1,0 +1,37 @@
+from typing import Dict, Optional, Tuple
+
+BIORXIV_MAPPINGS: Dict[str, Tuple[str, Optional[str]]] = {
+    # Biology mappings
+    "animal behavior and cognition": ("Biology", "Neuroscience"),  # Closest match
+    "biochemistry": ("Biology", "Biochemistry"),
+    "bioengineering": ("Engineering", "Bioengineering"),  # Could also be Biology
+    "bioinformatics": ("Biology", "Bioinformatics"),
+    "biophysics": ("Biology", "Biophysics"),
+    "cancer biology": ("Biology", "Cancer Biology"),
+    "cell biology": ("Biology", "Cell Biology"),
+    "developmental biology": ("Biology", "Developmental Biology"),
+    "ecology": ("Biology", "Ecology"),
+    "evolutionary biology": ("Biology", "Evolutionary Biology"),
+    "genetics": ("Biology", "Genetics"),
+    "genomics": ("Biology", "Genomics"),
+    "immunology": ("Biology", "Immunology"),
+    "microbiology": ("Biology", "Microbiology"),
+    "molecular biology": ("Biology", "Molecular Biology"),
+    "neuroscience": ("Biology", "Neuroscience"),
+    "paleontology": ("Biology", "Paleontology"),
+    "pathology": ("Biology", "Pathology"),
+    "physiology": ("Biology", "Physiology"),
+    "plant biology": ("Biology", "Plant Biology"),
+    "synthetic biology": ("Biology", "Synthetic Biology"),
+    "systems biology": ("Biology", "Systems Biology"),
+    "zoology": ("Biology", "Zoology"),
+    # Medicine mappings
+    "clinical trials": ("Medicine", "Clinical Trials"),
+    "epidemiology": ("Medicine", "Epidemiology"),
+    "pharmacology and toxicology": ("Biology", "Pharmacology"),  # Biology as main
+    # Social Sciences / Other mappings
+    "scientific communication and education": (
+        "Social Sciences",
+        "Scientific Communication and Education",
+    ),
+}
