@@ -107,6 +107,8 @@ def sync_user_publications_from_orcid(user) -> None:
 
     if not dois:
         return
+
+    _ensure_papers_have_unified_documents(dois, logger)
     papers_qs = Paper.objects.filter(
         doi__iregex=r"^(" + "|".join(re.escape(doi) for doi in dois) + ")$"
     ).only("id", "doi", "title", "abstract", "completeness", "file", "pdf_url", "url")
@@ -164,13 +166,15 @@ def sync_user_publications_from_orcid(user) -> None:
 
 
 def create_author_paper_relationships(user, dois: List[str]) -> None:
-    try:
-        author = Author.objects.get(user=user)
-    except Author.DoesNotExist:
-        logging.getLogger(__name__).warning(
-            f"No Author profile found for user {user.id}"
-        )
-        return
+    author, created = Author.objects.get_or_create(
+        user=user,
+        defaults={
+            "first_name": user.first_name or "Unknown",
+            "last_name": user.last_name or "User",
+        },
+    )
+    if created:
+        logging.getLogger(__name__).info(f"Created Author profile for user {user.id}")
 
     doi_regex = r"^(" + "|".join(re.escape(doi) for doi in dois) + ")$"
     papers_by_doi = {
@@ -201,3 +205,40 @@ def create_author_paper_relationships(user, dois: List[str]) -> None:
         logging.getLogger(__name__).info(
             f"Created {len(authorships_to_create)} authorships for user {user.id}"
         )
+
+
+def _ensure_papers_have_unified_documents(dois: List[str], logger) -> None:
+    from researchhub_document.models import ResearchhubUnifiedDocument
+    from researchhub_document.related_models.constants.document_type import (
+        PAPER as PAPER_DOC_TYPE,
+    )
+
+    doi_regex = r"^(" + "|".join(re.escape(doi) for doi in dois) + ")$"
+    papers_without_unified_doc = Paper.objects.filter(
+        doi__iregex=doi_regex, unified_document__isnull=True
+    ).select_related()
+
+    unified_docs_to_create = []
+    papers_to_update = []
+
+    for paper in papers_without_unified_doc:
+        unified_doc = ResearchhubUnifiedDocument(
+            document_type=PAPER_DOC_TYPE,
+            score=paper.score,
+        )
+        unified_docs_to_create.append(unified_doc)
+        papers_to_update.append((paper, unified_doc))
+
+    if unified_docs_to_create:
+        ResearchhubUnifiedDocument.objects.bulk_create(unified_docs_to_create)
+        logger.info(f"Created {len(unified_docs_to_create)} unified documents")
+
+        for i, (paper, _) in enumerate(papers_to_update):
+            paper.unified_document = unified_docs_to_create[i]
+
+        Paper.objects.bulk_update(
+            [paper for paper, _ in papers_to_update],
+            ["unified_document"],
+            batch_size=500,
+        )
+        logger.info(f"Linked {len(papers_to_update)} papers to unified documents")

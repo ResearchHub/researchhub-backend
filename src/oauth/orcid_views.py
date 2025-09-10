@@ -75,7 +75,7 @@ class OrcidCheckView(APIView):
         account, token = get_user_orcid_credentials(request.user, auto_refresh=True)
 
         if not (account and token and token.token):
-            return Response({"connected": False, "error": "No ORCID account connected. Please connect your ORCID account."})
+            return Response({"connected": False, "needs_reauth": True})
 
         try:
             from utils.retryable_requests import retryable_requests_session
@@ -92,12 +92,12 @@ class OrcidCheckView(APIView):
                     r.status_code != 200
                     or "html" in r.headers.get("content-type", "").lower()
                 ):
-                    return Response({"connected": False, "error": "Your ORCID access has expired. Please reconnect your ORCID account."})
+                    return Response({"connected": False, "needs_reauth": True})
 
         except Exception:
-            return Response({"connected": False, "error": "Unable to verify ORCID connection. Please reconnect your ORCID account."})
+            return Response({"connected": False, "needs_reauth": True})
 
-        return Response({"connected": True, "error": None})
+        return Response({"connected": True, "needs_reauth": False})
 
 
 class OrcidCallbackView(APIView):

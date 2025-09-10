@@ -1,4 +1,3 @@
-import base64
 import json
 from base64 import b64encode
 from unittest.mock import Mock, patch
@@ -88,9 +87,8 @@ class OrcidTests(TransactionTestCase):
             self.check_url, {}, format="json", **self.auth_headers()
         )
         self.assertEqual(resp.status_code, 200)
-        self.assertIn("connected", resp.data)
         self.assertFalse(resp.data["connected"])
-        self.assertIn("error", resp.data)
+        self.assertTrue(resp.data["needs_reauth"])
 
     @patch("utils.retryable_requests.retryable_requests_session")
     def test_check_with_valid_connection(self, mock_session):
@@ -106,12 +104,8 @@ class OrcidTests(TransactionTestCase):
             self.check_url, {}, format="json", **self.auth_headers()
         )
         self.assertEqual(resp.status_code, 200)
-        # Debug: Print response to understand why connected is False
-        print(f"Valid connection test response: {resp.data}")
-        self.assertIn("connected", resp.data)
         self.assertTrue(resp.data["connected"])
-        self.assertIn("error", resp.data)
-        self.assertIsNone(resp.data["error"])
+        self.assertFalse(resp.data["needs_reauth"])
 
     @patch("utils.retryable_requests.retryable_requests_session")
     def test_check_with_expired_token(self, mock_session):
@@ -127,10 +121,8 @@ class OrcidTests(TransactionTestCase):
             self.check_url, {}, format="json", **self.auth_headers()
         )
         self.assertEqual(resp.status_code, 200)
-        self.assertIn("connected", resp.data)
         self.assertFalse(resp.data["connected"])
-        self.assertIn("error", resp.data)
-        self.assertIsNotNone(resp.data["error"])
+        self.assertTrue(resp.data["needs_reauth"])
 
     @patch("oauth.tasks.sync_orcid_for_user_task.delay")
     def test_sync_triggers_task(self, mock_task):
@@ -156,6 +148,7 @@ class OrcidTests(TransactionTestCase):
         self.assertIn("state=", auth_url)
         parsed = urlparse(auth_url)
         params = parse_qs(parsed.query)
+        import base64
         state_decoded = json.loads(base64.b64decode(params["state"][0]).decode())
         self.assertEqual(state_decoded["user_id"], self.user.id)
 
