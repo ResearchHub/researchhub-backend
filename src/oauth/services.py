@@ -1,5 +1,4 @@
 import logging
-import math
 import re
 from typing import List
 
@@ -9,7 +8,12 @@ from paper.models import Paper
 from paper.openalex_util import process_openalex_works
 from paper.related_models.authorship_model import Authorship
 from paper.tasks import download_pdf
+from researchhub_document.models import ResearchhubUnifiedDocument
+from researchhub_document.related_models.constants.document_type import (
+    PAPER as PAPER_DOC_TYPE,
+)
 from user.models import Author
+from user.tasks import invalidate_author_profile_caches
 from utils.doi import DOI
 from utils.openalex import OpenAlex
 from utils.orcid import get_user_orcid_credentials, get_user_publication_dois
@@ -21,161 +25,92 @@ def sync_user_publications_from_orcid(user) -> None:
     if not (account and token and token.token):
         return
 
-    logger = logging.getLogger(__name__)
-    logger.info(f"Starting ORCID sync for user {user.id}")
-
-    scope = (account.extra_data or {}).get("scope")
-    if scope and "/read-limited" not in scope and "/authenticate" not in scope:
-        logger.warning(f"Token may not have required scope: {scope}")
-
     try:
         orcid_items = get_user_publication_dois(token.token, account.uid)
-        if not orcid_items:
-            return
-
         valid_items = [
             (item, DOI.get_bare_doi(item["doi"]))
-            for item in orcid_items
+            for item in orcid_items or []
             if item.get("doi") and DOI.get_bare_doi(item["doi"])
         ]
-
         if not valid_items:
             return
-
         dois = [doi for _, doi in valid_items]
         by_doi = {
             doi: {"title": item.get("title"), "abstract": item.get("abstract")}
             for item, doi in valid_items
         }
     except Exception as e:
-        logger.error(f"Failed to fetch ORCID works for user {user.id}: {e}")
+        logging.getLogger(__name__).error(
+            f"Failed to fetch ORCID works for user {user.id}: {e}"
+        )
         return
 
     works = []
     if dois:
         open_alex = OpenAlex()
         try:
-            max_batch_size = 200
-
-            for i in range(0, len(dois), max_batch_size):
-                doi_batch = dois[i : i + max_batch_size]
-                doi_filter = "|".join(doi_batch)
-
+            for i in range(0, len(dois), 200):
                 batch_response = open_alex._get(
                     "works",
-                    filters={"filter": f"doi:{doi_filter}", "per-page": len(doi_batch)},
+                    filters={
+                        "filter": f"doi:{'|'.join(dois[i:i + 200])}",
+                        "per-page": min(200, len(dois) - i),
+                    },
                 )
-                batch_works = batch_response.get("results", [])
-                works.extend(batch_works)
-
-            api_calls_used = math.ceil(len(dois) / max_batch_size)
-            logger.info(
-                f"Bulk fetched {len(works)} OpenAlex works from {len(dois)} DOIs "
-                f"for user {user.id} using {api_calls_used} API calls"
-            )
-        except Exception as e:
-            logger.warning(f"Bulk OpenAlex fetch failed, using optimized fallback: {e}")
-            fallback_batch_size = 25
-
-            for i in range(0, len(dois), fallback_batch_size):
-                doi_batch = dois[i : i + fallback_batch_size]
+                works.extend(batch_response.get("results", []))
+        except Exception:
+            for doi in dois:
                 try:
-                    doi_filter = "|".join(doi_batch)
-                    batch_response = open_alex._get(
-                        "works",
-                        filters={
-                            "filter": f"doi:{doi_filter}",
-                            "per-page": len(doi_batch),
-                        },
-                    )
-                    works.extend(batch_response.get("results", []))
+                    works.append(open_alex.get_data_from_doi(doi))
                 except Exception:
-                    for doi in doi_batch:
-                        try:
-                            work = open_alex.get_data_from_doi(doi)
-                            works.append(work)
-                        except Exception:
-                            continue
+                    continue
 
     if works:
-        logger.info(
-            f"Processing {len(works)} OpenAlex works in bulk for user {user.id}"
-        )
         process_openalex_works(works)
-    else:
-        logger.info(f"No OpenAlex works found for user {user.id} DOIs")
 
     if not dois:
         return
 
-    _ensure_papers_have_unified_documents(dois, logger)
+    _ensure_papers_have_unified_documents(dois)
     papers_qs = Paper.objects.filter(
         doi__iregex=r"^(" + "|".join(re.escape(doi) for doi in dois) + ")$"
     ).only("id", "doi", "title", "abstract", "completeness", "file", "pdf_url", "url")
-
     papers_by_doi = {paper.doi.lower(): paper for paper in papers_qs}
-    papers_to_bulk_update = []
-    pdf_download_tasks = []
+    papers_to_update, pdf_tasks = [], []
 
     for doi in dois:
-        if not (paper := papers_by_doi.get(doi.lower())):
-            continue
+        if paper := papers_by_doi.get(doi.lower()):
+            overlay = by_doi.get(doi, {})
+            updated = False
+            if not paper.title and overlay.get("title"):
+                paper.title, updated = overlay["title"], True
+            if not paper.abstract and overlay.get("abstract"):
+                paper.abstract, updated = overlay["abstract"], True
+            if updated:
+                paper.set_paper_completeness()
+                papers_to_update.append(paper)
+            if not paper.file and (paper.pdf_url or paper.url):
+                pdf_tasks.append(paper.id)
 
-        overlay = by_doi.get(doi, {})
-        has_updates = False
-
-        if not paper.title and overlay.get("title"):
-            paper.title = overlay["title"]
-            has_updates = True
-        if not paper.abstract and overlay.get("abstract"):
-            paper.abstract = overlay["abstract"]
-            has_updates = True
-
-        if has_updates:
-            paper.set_paper_completeness()
-            papers_to_bulk_update.append(paper)
-
-        if not paper.file and (paper.pdf_url or paper.url):
-            pdf_download_tasks.append(paper.id)
-
-    if papers_to_bulk_update:
+    if papers_to_update:
         Paper.objects.bulk_update(
-            papers_to_bulk_update, ["title", "abstract", "completeness"], batch_size=500
+            papers_to_update, ["title", "abstract", "completeness"], batch_size=500
         )
-        logger.info(
-            f"Bulk updated {len(papers_to_bulk_update)} papers for user {user.id}"
-        )
-
-    if pdf_download_tasks:
-        for paper_id in pdf_download_tasks:
+        for paper_id in pdf_tasks:
             download_pdf.delay(paper_id)
-        logger.info(
-            f"Queued {len(pdf_download_tasks)} PDF downloads for user {user.id}"
-        )
 
     create_author_paper_relationships(user, dois)
-
-    papers_updated = (
-        len(papers_to_bulk_update) if "papers_to_bulk_update" in locals() else 0
-    )
-    logger.info(
-        f"Completed ORCID sync for user {user.id}: "
-        f"processed {len(dois)} DOIs, found {len(works)} OpenAlex works, "
-        f"updated {papers_updated} papers"
-    )
+    _invalidate_author_caches(user)
 
 
 def create_author_paper_relationships(user, dois: List[str]) -> None:
-    author, created = Author.objects.get_or_create(
+    author, _ = Author.objects.get_or_create(
         user=user,
         defaults={
             "first_name": user.first_name or "Unknown",
             "last_name": user.last_name or "User",
         },
     )
-    if created:
-        logging.getLogger(__name__).info(f"Created Author profile for user {user.id}")
-
     doi_regex = r"^(" + "|".join(re.escape(doi) for doi in dois) + ")$"
     papers_by_doi = {
         p.doi.lower(): p
@@ -187,7 +122,7 @@ def create_author_paper_relationships(user, dois: List[str]) -> None:
         ).values_list("paper_id", flat=True)
     )
 
-    authorships_to_create = [
+    authorships = [
         Authorship(
             author=author,
             paper=papers_by_doi[doi.lower()],
@@ -199,46 +134,31 @@ def create_author_paper_relationships(user, dois: List[str]) -> None:
         if doi.lower() in papers_by_doi
         and papers_by_doi[doi.lower()].id not in existing_paper_ids
     ]
-
-    if authorships_to_create:
-        Authorship.objects.bulk_create(authorships_to_create, ignore_conflicts=True)
-        logging.getLogger(__name__).info(
-            f"Created {len(authorships_to_create)} authorships for user {user.id}"
-        )
+    if authorships:
+        Authorship.objects.bulk_create(authorships, ignore_conflicts=True)
 
 
-def _ensure_papers_have_unified_documents(dois: List[str], logger) -> None:
-    from researchhub_document.models import ResearchhubUnifiedDocument
-    from researchhub_document.related_models.constants.document_type import (
-        PAPER as PAPER_DOC_TYPE,
+def _ensure_papers_have_unified_documents(dois: List[str]) -> None:
+    if not dois:
+        return
+    papers = Paper.objects.filter(
+        doi__iregex=r"^(" + "|".join(re.escape(doi) for doi in dois) + ")$",
+        unified_document__isnull=True,
     )
+    if papers:
+        unified_docs = [
+            ResearchhubUnifiedDocument(document_type=PAPER_DOC_TYPE, score=paper.score)
+            for paper in papers
+        ]
+        ResearchhubUnifiedDocument.objects.bulk_create(unified_docs)
+        for i, paper in enumerate(papers):
+            paper.unified_document = unified_docs[i]
+        Paper.objects.bulk_update(papers, ["unified_document"], batch_size=500)
 
-    doi_regex = r"^(" + "|".join(re.escape(doi) for doi in dois) + ")$"
-    papers_without_unified_doc = Paper.objects.filter(
-        doi__iregex=doi_regex, unified_document__isnull=True
-    ).select_related()
 
-    unified_docs_to_create = []
-    papers_to_update = []
-
-    for paper in papers_without_unified_doc:
-        unified_doc = ResearchhubUnifiedDocument(
-            document_type=PAPER_DOC_TYPE,
-            score=paper.score,
-        )
-        unified_docs_to_create.append(unified_doc)
-        papers_to_update.append((paper, unified_doc))
-
-    if unified_docs_to_create:
-        ResearchhubUnifiedDocument.objects.bulk_create(unified_docs_to_create)
-        logger.info(f"Created {len(unified_docs_to_create)} unified documents")
-
-        for i, (paper, _) in enumerate(papers_to_update):
-            paper.unified_document = unified_docs_to_create[i]
-
-        Paper.objects.bulk_update(
-            [paper for paper, _ in papers_to_update],
-            ["unified_document"],
-            batch_size=500,
-        )
-        logger.info(f"Linked {len(papers_to_update)} papers to unified documents")
+def _invalidate_author_caches(user) -> None:
+    try:
+        if hasattr(user, "author_profile") and user.author_profile:
+            invalidate_author_profile_caches(None, user.author_profile.id)
+    except Exception:
+        pass
