@@ -875,5 +875,7 @@ RESEARCHHUB_JOURNAL_ID = os.environ.get(
 # ORCID OAuth
 ORCID_CLIENT_ID = os.environ.get("ORCID_CLIENT_ID", keys.ORCID_CLIENT_ID)
 ORCID_CLIENT_SECRET = os.environ.get("ORCID_CLIENT_SECRET", keys.ORCID_CLIENT_SECRET)
-ORCID_REDIRECT_URL = os.environ.get("ORCID_REDIRECT_URL", getattr(keys, "ORCID_REDIRECT_URL", None))
+ORCID_REDIRECT_URL = os.environ.get(
+    "ORCID_REDIRECT_URL", getattr(keys, "ORCID_REDIRECT_URL", None)
+)
 ORCID_BASE_URL = os.environ.get("ORCID_BASE_URL", "https://orcid.org")

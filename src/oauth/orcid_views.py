@@ -1,9 +1,10 @@
 import base64
 import json
 import logging
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.http import HttpResponseRedirect
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -16,6 +17,7 @@ from utils.orcid import (
     exchange_orcid_code_for_tokens,
     get_user_orcid_credentials,
 )
+from utils.retryable_requests import retryable_requests_session
 
 
 def redirect_with_error(return_to, session_return_to, error_msg):
@@ -26,7 +28,6 @@ def redirect_with_error(return_to, session_return_to, error_msg):
 
 
 def build_orcid_auth_url(user_id: int, return_to: str = None) -> str:
-    from urllib.parse import urlencode
 
     state_data = {"user_id": user_id}
     if return_to:
@@ -74,11 +75,10 @@ class OrcidCheckView(APIView):
         account, token = get_user_orcid_credentials(request.user, auto_refresh=True)
 
         if not (account and token and token.token):
-            return Response({"authenticated": False, "needs_reauth": True})
+            return Response({"connected": False, "error": "No ORCID account connected. Please connect your ORCID account."})
 
         try:
             from utils.retryable_requests import retryable_requests_session
-
             test_url = f"https://pub.orcid.org/v3.0/{account.uid}"
             headers = {
                 "Authorization": f"Bearer {token.token}",
@@ -92,12 +92,12 @@ class OrcidCheckView(APIView):
                     r.status_code != 200
                     or "html" in r.headers.get("content-type", "").lower()
                 ):
-                    return Response({"authenticated": False, "needs_reauth": True})
+                    return Response({"connected": False, "error": "Your ORCID access has expired. Please reconnect your ORCID account."})
 
         except Exception:
-            return Response({"authenticated": False, "needs_reauth": True})
+            return Response({"connected": False, "error": "Unable to verify ORCID connection. Please reconnect your ORCID account."})
 
-        return Response({"authenticated": True, "needs_reauth": False})
+        return Response({"connected": True, "error": None})
 
 
 class OrcidCallbackView(APIView):
@@ -134,8 +134,6 @@ class OrcidCallbackView(APIView):
                 None,
                 "ORCID authorization session is incomplete. Please try again.",
             )
-
-        from django.contrib.auth import get_user_model
 
         User = get_user_model()
 
