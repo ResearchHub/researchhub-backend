@@ -43,7 +43,7 @@ dependencies = [
     "html5lib==1.1",
     "iso8601==1.0.2",
     "jellyfish==0.8.9",
-    "lxml==4.9.4",
+    "lxml>=6.0.1",
     "mailchimp-marketing>=3.0.72,<4.0.0",
     "manubot==0.5.3",
     "numpy<2.0.0",
