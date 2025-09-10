@@ -11,7 +11,6 @@ from typing import Any, Dict, List, Optional
 from django.db import transaction
 
 from paper.models import Paper
-from paper.related_models.authorship_model import Authorship
 from user.related_models.author_model import Author
 
 from .base import BaseMapper
@@ -217,23 +216,6 @@ class BioRxivMapper(BaseMapper):
             "middle_name": " ".join(parts[1:-1]),
             "last_name": parts[-1],
         }
-
-    def _extract_categories(self, category: Optional[str]) -> List[str]:
-        """
-        Extract categories from BioRxiv category field.
-
-        Args:
-            category: Category string from BioRxiv
-
-        Returns:
-            List of category strings
-        """
-        if not category:
-            return []
-
-        # BioRxiv categories are single strings
-        # Could be expanded to map to ResearchHub hubs
-        return [category]
 
     def _compute_pdf_url(self, doi: str, version: str) -> str:
         """

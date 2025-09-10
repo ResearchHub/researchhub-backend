@@ -37,10 +37,6 @@ class ClientConfig:
     # Pagination
     page_size: int = 100
 
-    # Authentication
-    api_key: Optional[str] = None
-    auth_token: Optional[str] = None
-
 
 class RateLimiter:
     """Simple rate limiter - ensures minimum time between requests."""
