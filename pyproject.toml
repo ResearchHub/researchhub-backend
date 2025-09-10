@@ -46,7 +46,6 @@ dependencies = [
     "lxml>=6.0.1",
     "mailchimp-marketing>=3.0.72,<4.0.0",
     "manubot==0.5.3",
-    "numpy<2.0.0",
     "opensearch-py==3.0.0",
     "pandas>=2.2.3,<3.0.0",
     "Pillow==10.4.0",
