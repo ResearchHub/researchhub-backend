@@ -10,6 +10,7 @@ from django.db.models import (
     ManyToManyField,
     PositiveIntegerField,
     Q,
+    TextField,
     UniqueConstraint,
 )
 
@@ -88,6 +89,7 @@ class Flag(DefaultModel):
         choices=FLAG_REASON_CHOICES,
         max_length=255,
     )
+    reason_memo = TextField(blank=True, default="")
     hubs = ManyToManyField("hub.Hub", related_name="flags")
 
     class Meta:

@@ -104,6 +104,9 @@ class EndorsementSerializer(ModelSerializer):
 
 class FlagSerializer(ModelSerializer):
     item = PrimaryKeyRelatedField(many=False, read_only=True)
+    reason_memo = serializers.CharField(
+        max_length=1000, allow_blank=True, allow_null=False, required=False
+    )
 
     class Meta:
         fields = [
@@ -114,6 +117,7 @@ class FlagSerializer(ModelSerializer):
             "item",
             "reason",
             "reason_choice",
+            "reason_memo",
             "object_id",
         ]
         model = Flag
