@@ -18,7 +18,7 @@ from user.tests.helpers import create_random_authenticated_user
 ORCID_SETTINGS = dict(
     ORCID_CLIENT_ID="test-client",
     ORCID_CLIENT_SECRET="test-secret",
-    ORCID_REDIRECT_URI="http://testserver/orcid/callback",
+    ORCID_REDIRECT_URL="http://testserver/orcid/callback",
     ORCID_BASE_URL="http://orcid.test",
     ORCID_SCOPE="/read-limited",
 )
@@ -35,7 +35,7 @@ class OrcidFlowTests(APITestCase):
         )
 
         # Resolve named routes (matches urls.py)
-        self.auth_url_endpoint = reverse("orcid_auth_url")
+        self.auth_url_endpoint = reverse("orcid_connect")
         self.check_url = reverse("orcid_check")
         self.callback_url = reverse("orcid_callback")
         self.sync_url = reverse("orcid_sync")

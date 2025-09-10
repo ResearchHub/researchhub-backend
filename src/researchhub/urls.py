@@ -351,9 +351,9 @@ urlpatterns = [
     ),
     path("user_saved/", UserSavedView.as_view(), name="user_saved"),
     path(
-        "api/orcid/auth-url",
-        orcid_api_views.OrcidAuthUrlView.as_view(),
-        name="orcid_auth_url",
+        "api/orcid/connect",
+        orcid_api_views.OrcidConnectView.as_view(),
+        name="orcid_connect",
     ),
     path(
         "api/orcid/check",
