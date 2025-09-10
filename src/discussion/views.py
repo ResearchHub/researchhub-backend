@@ -122,9 +122,10 @@ class ReactionViewActionMixin:
         user = request.user
         reason = request.data.get("reason")
         reason_choice = request.data.get("reason_choice")
+        reason_memo = request.data.get("reason_memo")
 
         try:
-            _, flag_data = create_flag(user, item, reason, reason_choice)
+            _, flag_data = create_flag(user, item, reason, reason_choice, reason_memo)
 
             content_id = f"{type(item).__name__}_{item.id}"
             events_api.track_flag_content(item.created_by, content_id, user.id)
@@ -317,7 +318,7 @@ def create_endorsement(user, item):
     return endorsement
 
 
-def create_flag(user, item, reason, reason_choice):
+def create_flag(user, item, reason, reason_choice, reason_memo=None):
     with transaction.atomic():
         data = {
             "created_by": user.id,
@@ -325,6 +326,8 @@ def create_flag(user, item, reason, reason_choice):
             "content_type": get_content_type_for_model(item).id,
             "reason": reason or reason_choice,
             "reason_choice": reason_choice or reason,
+            # Default to empty string to match model default and avoid nulls
+            "reason_memo": reason_memo or "",
         }
         serializer = FlagSerializer(data=data)
         serializer.is_valid(raise_exception=True)

@@ -44,6 +44,30 @@ class AuditViewTests(APITestCase):
         )
         self.assertContains(http_response, "id", status_code=201)
 
+    def test_can_flag_paper_with_reason_memo(self):
+        target_paper = create_paper(uploaded_by=self.random_content_creator)
+
+        self.client.force_authenticate(self.reg_user)
+        memo = "Please review for spammy content."
+        http_response = self.client.post(
+            f"/api/paper/{target_paper.id}/flag/",
+            {"reason_choice": SPAM, "reason_memo": memo},
+        )
+        self.assertContains(http_response, "id", status_code=201)
+        self.assertEqual(http_response.data.get("reason_memo"), memo)
+
+    def test_can_flag_rh_post_with_reason_memo(self):
+        target_post = create_post(created_by=self.random_content_creator)
+
+        self.client.force_authenticate(self.reg_user)
+        memo = "Low quality and repetitive."
+        http_response = self.client.post(
+            f"/api/researchhubpost/{target_post.id}/flag/",
+            {"reason_choice": SPAM, "reason_memo": memo},
+        )
+        self.assertContains(http_response, "id", status_code=201)
+        self.assertEqual(http_response.data.get("reason_memo"), memo)
+
     def test_editor_can_bulk_flag_and_remove(self):
         target_paper = create_paper(uploaded_by=self.random_content_creator)
 
@@ -55,6 +79,8 @@ class AuditViewTests(APITestCase):
                     {
                         "content_type": get_content_type_for_model(target_paper).id,
                         "object_id": target_paper.id,
+                        "reason_choice": SPAM,
+                        "reason_memo": "Coordinated spam network evidence.",
                     },
                 ],
                 "verdict": {
@@ -66,6 +92,10 @@ class AuditViewTests(APITestCase):
         )
         self.assertContains(http_response, "flag", status_code=200)
         self.assertContains(http_response, "verdict")
+        self.assertEqual(
+            http_response.data["flag"][0].get("reason_memo"),
+            "Coordinated spam network evidence.",
+        )
 
     def test_reg_user_cannot_bulk_flag_and_remove(self):
         target_paper = create_paper(uploaded_by=self.random_content_creator)

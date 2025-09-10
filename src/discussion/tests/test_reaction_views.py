@@ -64,3 +64,35 @@ class ReactionViewTests(TestCase):
 
         # Assert
         self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+
+    def test_flag_with_reason_memo(self):
+        # Arrange
+        url = reverse("dummy-flag", kwargs={"pk": self.paper.id})
+        memo = "More context on why this is flagged."
+
+        # Act
+        response = self.client.post(
+            url,
+            {
+                "reason": "Inappropriate",
+                "reason_choice": NOT_SPECIFIED,
+                "reason_memo": memo,
+            },
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data.get("reason_memo"), memo)
+
+    def test_flag_without_reason_memo_defaults_empty(self):
+        # Arrange
+        url = reverse("dummy-flag", kwargs={"pk": self.paper.id})
+
+        # Act
+        response = self.client.post(
+            url, {"reason": "Inappropriate", "reason_choice": NOT_SPECIFIED}
+        )
+
+        # Assert
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data.get("reason_memo"), "")

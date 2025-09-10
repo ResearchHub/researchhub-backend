@@ -202,6 +202,7 @@ class AuditViewSet(viewsets.GenericViewSet):
             "item",
             "reason",
             "reason_choice",
+            "reason_memo",
             "hubs",
             "id",
         ]
