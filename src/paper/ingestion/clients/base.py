@@ -3,7 +3,6 @@ Base client class for paper source API clients.
 """
 
 import logging
-import random
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass

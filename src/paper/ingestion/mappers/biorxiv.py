@@ -8,10 +8,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from django.db import transaction
-
 from paper.models import Paper
-from paper.related_models.authorship_model import Authorship
 from user.related_models.author_model import Author
 
 from .base import BaseMapper
