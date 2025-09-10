@@ -16,7 +16,6 @@ class Migration(migrations.Migration):
             field=models.TextField(
                 choices=[
                     ("journal", "Journal"),
-                    ("category", "Category"),
                     ("subcategory", "Subcategory"),
                 ],
                 default=None,

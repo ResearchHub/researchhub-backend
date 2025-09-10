@@ -6,7 +6,7 @@ import logging
 from functools import lru_cache
 from typing import Dict, Optional
 
-from hub.models import Hub
+from hub.models import Hub, HubCategory
 
 from .arxiv_mappings import ARXIV_MAPPINGS
 from .biorxiv_mappings import BIORXIV_MAPPINGS
@@ -18,50 +18,64 @@ logger = logging.getLogger(__name__)
 class ExternalCategoryMapper:
     """Maps external categories from arXiv and bioRxiv to Hub entities."""
 
-    # Cache for hub lookups (populated on first use)
+    # Cache for lookups (populated on first use)
     _hub_cache: Optional[Dict[str, Hub]] = None
+    _hub_category_cache: Optional[Dict[str, HubCategory]] = None
     _mapping_cache: Dict[str, HubMapping] = {}
 
     @classmethod
     def initialize_hub_cache(cls, force_refresh: bool = False) -> None:
         """
-        Load all hubs from database into memory cache.
+        Load all hubs and hub categories from database into memory cache.
         """
-        if cls._hub_cache is not None and not force_refresh:
+        cache_already_initialized = (
+            cls._hub_cache is not None and cls._hub_category_cache is not None
+        )
+
+        if cache_already_initialized and not force_refresh:
             return
 
         cls._hub_cache = {}
+        cls._hub_category_cache = {}
 
-        # Load all hubs
-        hubs = Hub.objects.all().select_related("category_id")
+        # Load all HubCategories
+        hub_categories = HubCategory.objects.all()
+        for hub_cat in hub_categories:
+            cls._hub_category_cache[hub_cat.category_name.lower()] = hub_cat
+
+        # Load all subcategory hubs
+        hubs = Hub.objects.filter(namespace="subcategory").select_related("category")
 
         for hub in hubs:
-            # Cache by name and namespace
-            if hub.namespace == "category":
-                cls._hub_cache[f"category:{hub.name.lower()}"] = hub
-            elif hub.namespace == "subcategory" and hub.category_id:
-                # Cache subcategory with parent category name
-                key = f"subcategory:{hub.category_id.name.lower()}:{hub.name.lower()}"
+            # Cache subcategory with parent category name
+            if hub.category:
+                key = (
+                    f"subcategory:{hub.category.category_name.lower()}:"
+                    f"{hub.name.lower()}"
+                )
                 cls._hub_cache[key] = hub
 
-        logger.info(f"Initialized hub cache with {len(cls._hub_cache)} entries")
+        logger.info(
+            f"Initialized cache with {len(cls._hub_category_cache)} categories "
+            f"and {len(cls._hub_cache)} subcategory hubs"
+        )
 
     @classmethod
     @lru_cache(maxsize=1024)
     def map(cls, external_category: str, source: str = "arxiv") -> HubMapping:
         """
-        Map an external category to Hub entities.
+        Map an external category to HubCategory and Hub entities.
 
         Args:
-            external_category: The external category string (e.g., "cs.AI", "neuroscience")
+            external_category: The external category string (e.g., "cs.AI")
             source: The source - "arxiv" or "biorxiv"
 
         Returns:
-            HubMapping containing the category and/or subcategory hubs.
-            May return partial mapping if some hubs are not found.
+            HubMapping containing the HubCategory and/or subcategory hub.
+            May return partial mapping if some entities are not found.
         """
         # Ensure cache is initialized
-        if cls._hub_cache is None:
+        if cls._hub_cache is None or cls._hub_category_cache is None:
             cls.initialize_hub_cache()
 
         # Check mapping cache first
@@ -90,18 +104,18 @@ class ExternalCategoryMapper:
 
         category_name, subcategory_name = mappings[normalized]
 
-        # Get category hub
-        category_hub = cls._hub_cache.get(f"category:{category_name.lower()}")
-        if not category_hub:
+        # Get HubCategory
+        hub_category = cls._hub_category_cache.get(category_name.lower())
+        if not hub_category:
             logger.warning(
-                "Category hub not found in database: %s (for %s)",
+                "HubCategory not found in database: %s (for %s)",
                 category_name,
                 external_category,
             )
 
         # Get subcategory hub if specified
         subcategory_hub = None
-        if subcategory_name and category_hub:
+        if subcategory_name and hub_category:
             subcategory_key = (
                 f"subcategory:{category_name.lower()}:{subcategory_name.lower()}"
             )
@@ -115,13 +129,17 @@ class ExternalCategoryMapper:
                 )
 
         # Create the mapping
-        mapping = HubMapping(category_hub, subcategory_hub)
+        mapping = HubMapping(hub_category, subcategory_hub)
 
         # Cache the result
         cls._mapping_cache[cache_key] = mapping
 
         return mapping
 
-
-# Backward compatibility alias
-HubToCategoryMapper = ExternalCategoryMapper
+    @classmethod
+    def clear_cache(cls):
+        """Clear all caches."""
+        cls._hub_cache = None
+        cls._hub_category_cache = None
+        cls._mapping_cache = {}
+        cls.map.cache_clear()
