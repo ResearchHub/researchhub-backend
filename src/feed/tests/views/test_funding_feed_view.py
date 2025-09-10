@@ -20,7 +20,10 @@ from purchase.related_models.grant_application_model import GrantApplication
 from purchase.related_models.grant_model import Grant
 from purchase.related_models.rsc_exchange_rate_model import RscExchangeRate
 from reputation.models import Escrow
-from researchhub_document.related_models.constants.document_type import GRANT, PREREGISTRATION
+from researchhub_document.related_models.constants.document_type import (
+    GRANT,
+    PREREGISTRATION,
+)
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
 from researchhub_document.related_models.researchhub_unified_document_model import (
     ResearchhubUnifiedDocument,
@@ -299,7 +302,7 @@ class FundingFeedViewSetTests(TestCase):
         request.user = anon_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20")
+        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20:all")
 
         # Authenticated user
         request = request_factory.get("/api/funding_feed/")
@@ -312,7 +315,7 @@ class FundingFeedViewSetTests(TestCase):
         request.user = mock_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20")
+        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:1-20:all")
 
         # Custom page and page size
         request = request_factory.get("/api/funding_feed/?page=3&page_size=10")
@@ -320,7 +323,7 @@ class FundingFeedViewSetTests(TestCase):
         request.user = mock_user
 
         cache_key = viewset.get_cache_key(request, "funding")
-        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:3-10")
+        self.assertEqual(cache_key, "funding_feed:latest:all:all:none:3-10:all")
 
     def test_preregistration_post_only(self):
         """Test that funding feed only returns preregistration posts"""
@@ -1156,7 +1159,7 @@ class FundingFeedViewSetTests(TestCase):
 
         # Verify that cache was not used for this request
         # The view should not cache responses when grant_id is provided
-        cache_key = "funding_feed:latest:all:all:none:1-20"
+        cache_key = "funding_feed:latest:all:all:none:1-20:all"
         cached_response = cache.get(cache_key)
 
         # Cache should be None since grant_id disables caching
@@ -1236,7 +1239,7 @@ class FundingFeedViewSetTests(TestCase):
 
         # Verify that cache was not used for this request
         # The view should not cache responses when created_by is provided
-        cache_key = "funding_feed:latest:all:all:none:1-20"
+        cache_key = "funding_feed:latest:all:all:none:1-20:all"
         cached_response = cache.get(cache_key)
 
         # Cache should be None since created_by disables caching
@@ -1387,6 +1390,9 @@ class FundingFeedViewSetTests(TestCase):
         # There are more than 2 posts, but we only care about the order of these two
         self.assertGreater(len(results), 1)
 
+        # The post with the higher amount raised should be first
+        first_post_id = results[0]["content_object"]["id"]
+        self.assertEqual(first_post_id, high_amount_post.id)
         # The post with the higher amount raised should be first
         first_post_id = results[0]["content_object"]["id"]
         self.assertEqual(first_post_id, high_amount_post.id)
