@@ -75,19 +75,6 @@ class BaseClient(ABC):
         """
         pass
 
-    @abstractmethod
-    def parse(
-        self,
-        raw_data: Union[str, bytes, Dict[str, Any]],
-    ) -> List[Dict[str, Any]]:
-        """
-        Parse raw response into list of paper records.
-
-        Must be implemented by each source client.
-        This should return minimally processed data.
-        """
-        pass
-
     def fetch_with_rate_limit(
         self, endpoint: str, params: Optional[Dict[str, Any]] = None, **kwargs
     ) -> Union[str, bytes, Dict[str, Any]]:
@@ -126,12 +113,6 @@ class BaseClient(ABC):
             f"Failed after {self.config.max_retries + 1} attempts",
             attempts=self.config.max_retries + 1,
         )
-
-    def process_page(
-        self, page_data: Union[str, bytes, Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        """Process a page of results."""
-        return self.parse(page_data)
 
     @abstractmethod
     def fetch_recent(

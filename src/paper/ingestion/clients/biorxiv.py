@@ -4,10 +4,12 @@ BioRxiv API client for fetching papers.
 Handles communication with BioRxiv/MedRxiv API endpoints.
 """
 
+import base64
 import json
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import requests
 
@@ -15,6 +17,47 @@ from ..exceptions import FetchError, TimeoutError
 from .base import BaseClient, ClientConfig
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class BioRxivCursor:
+    """Cursor for BioRxiv API pagination that encodes date range and position."""
+
+    position: int
+    since_date: str  # YYYY-MM-DD format
+    until_date: str  # YYYY-MM-DD format
+    server: str = "biorxiv"
+
+    def encode(self) -> str:
+        """Encode cursor to a base64 string for safe storage/transmission."""
+        data = {
+            "pos": self.position,
+            "since": self.since_date,
+            "until": self.until_date,
+            "server": self.server,
+        }
+        json_str = json.dumps(data, separators=(",", ":"))
+        encoded = base64.urlsafe_b64encode(json_str.encode()).decode()
+        return encoded
+
+    @classmethod
+    def decode(cls, encoded_cursor: str) -> "BioRxivCursor":
+        """Decode cursor from base64 string."""
+        try:
+            json_str = base64.urlsafe_b64decode(encoded_cursor.encode()).decode()
+            data = json.loads(json_str)
+            return cls(
+                position=data["pos"],
+                since_date=data["since"],
+                until_date=data["until"],
+                server=data.get("server", "biorxiv"),
+            )
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            raise ValueError(f"Invalid cursor format: {e}")
+
+    def __str__(self) -> str:
+        """String representation for debugging."""
+        return f"BioRxivCursor(pos={self.position}, {self.since_date}→{self.until_date}, {self.server})"
 
 
 class BioRxivConfig(ClientConfig):
@@ -103,28 +146,33 @@ class BioRxivClient(BaseClient):
         # {"messages": [...], "collection": [...]}
         return raw_data.get("collection", [])
 
-    def fetch_recent(
+    def create_recent_papers_fetcher(
         self,
         since: Optional[datetime] = None,
         until: Optional[datetime] = None,
         server: str = "biorxiv",
-        cursor: int = 0,
+        start_cursor: Optional[str] = None,
         format: str = "json",
         **kwargs,
-    ) -> List[Dict[str, Any]]:
+    ) -> Callable[[], Tuple[Dict[str, Any], str, bool]]:
         """
-        Fetch recent papers from BioRxiv within date range.
+        Create a callback function for fetching papers page by page.
 
         Args:
             since: Start date (defaults to 7 days ago)
             until: End date (defaults to today)
             server: "biorxiv" or "medrxiv" (default: "biorxiv")
-            cursor: Pagination cursor (default: 0)
+            start_cursor: Initial encoded cursor string for resumption (default: None)
             format: Response format (default: "json")
             **kwargs: Additional parameters
 
         Returns:
-            List of raw paper records
+            Callable that returns (response, encoded_cursor, has_more)
+            - response is the raw API response (unparsed)
+            - encoded_cursor is a string that can be stored/transmitted safely
+
+        Raises:
+            ValueError: If start_cursor is malformed or has mismatched date range/server
         """
         # Default date range: last 7 days
         if until is None:
@@ -136,80 +184,85 @@ class BioRxivClient(BaseClient):
         since_str = since.strftime("%Y-%m-%d")
         until_str = until.strftime("%Y-%m-%d")
 
-        all_papers = []
-        current_cursor = cursor
+        # Initialize internal cursor
+        if start_cursor is None:
+            initial_cursor = BioRxivCursor(0, since_str, until_str, server)
+        else:
+            # Decode the cursor string
+            decoded = BioRxivCursor.decode(start_cursor)
 
-        while True:
-            # BioRxiv API endpoint format:
-            # /details/{server}/{interval}/{cursor}/{format}
-            # interval is a date range like "2025-01-01/2025-01-31"
+            # Validate that cursor matches current date range and server
+            if (
+                decoded.since_date != since_str
+                or decoded.until_date != until_str
+                or decoded.server != server
+            ):
+                raise ValueError(
+                    f"Cursor date range mismatch: cursor has {decoded.since_date}→{decoded.until_date} "
+                    f"on {decoded.server}, but fetcher expects {since_str}→{until_str} on {server}"
+                )
+            initial_cursor = decoded
+
+        def fetch_page() -> Tuple[Dict[str, Any], str, bool]:
+            """
+            Fetch a single page with automatic cursor tracking.
+
+            Returns:
+                Tuple of (response, encoded_cursor, has_more)
+                - response: Raw API response (unparsed)
+                - encoded_cursor: Base64 encoded cursor string for next page
+                - has_more: Whether there are more pages available
+
+            Raises:
+                FetchError: If request fails
+                TimeoutError: If request times out
+            """
+            current_cursor_obj = fetch_page._current_cursor
+            if not fetch_page._has_more:
+                # No more pages available - return current cursor
+                return {}, current_cursor_obj.encode(), False
+
+            # Use cursor's date range and server (may differ from fetcher defaults if cursor was provided)
             endpoint = (
-                f"/details/{server}/{since_str}/{until_str}/{current_cursor}/{format}"
+                f"/details/{current_cursor_obj.server}/{current_cursor_obj.since_date}/"
+                f"{current_cursor_obj.until_date}/{current_cursor_obj.position}/{format}"
             )
 
-            logger.info(f"Fetching from {endpoint}")
-
-            try:
-                response = self.fetch_with_retry(endpoint)
-                papers = self.process_page(response)
-
-                if not papers:
-                    # No more results
-                    break
-
-                all_papers.extend(papers)
-
-                # Check for pagination
-                # BioRxiv returns "messages" with info about total results
-                messages = response.get("messages", [])
-                if messages:
-                    msg = messages[0]
-                    # total and count are returned as strings
-                    total = int(msg.get("total", "0"))
-                    count = int(msg.get("count", "0"))
-
-                    # If we've fetched all results, stop
-                    if current_cursor + count >= total:
-                        break
-
-                # Move cursor forward
-                current_cursor += self.config.page_size
-
-            except Exception as e:
-                logger.error(f"Failed to fetch page at cursor {current_cursor}: {e}")
-                # Continue with what we have
-                break
-
-        logger.info(
-            f"Fetched {len(all_papers)} papers from {server} "
-            f"between {since_str} and {until_str}"
-        )
-        return all_papers
-
-    def fetch_by_doi(
-        self, doi: str, server: str = "biorxiv"
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Fetch a specific paper by DOI.
-
-        Args:
-            doi: DOI identifier (e.g., "10.1101/2024.01.01.123456")
-            server: "biorxiv" or "medrxiv" (default: "biorxiv")
-
-        Returns:
-            Paper record if found, None otherwise
-        """
-        # BioRxiv API endpoint for DOI lookup: /details/{server}/{doi}
-        endpoint = f"/details/{server}/{doi}"
-
-        try:
             response = self.fetch_with_retry(endpoint)
-            papers = self.process_page(response)
 
-            if papers:
-                return papers[0]  # Return first (should be only) result
-            return None
+            # Calculate next cursor
+            next_position = current_cursor_obj.position
+            has_more = False
 
-        except Exception as e:
-            logger.error(f"Failed to fetch paper with DOI {doi}: {e}")
-            return None
+            messages = response.get("messages", [])
+            collection = response.get("collection", [])
+            if messages and collection:
+                msg = messages[0]
+                total = int(msg.get("total", "0"))
+
+                # Calculate next cursor position
+                next_position = current_cursor_obj.position + self.config.page_size
+                has_more = next_position < total
+            else:
+                # No pagination info, assume no more pages
+                next_position = current_cursor_obj.position + len(collection)
+                has_more = False
+
+            # Create next cursor object
+            next_cursor_obj = BioRxivCursor(
+                position=next_position,
+                since_date=current_cursor_obj.since_date,
+                until_date=current_cursor_obj.until_date,
+                server=current_cursor_obj.server,
+            )
+
+            # Update internal state for next automatic call
+            fetch_page._current_cursor = next_cursor_obj
+            fetch_page._has_more = has_more
+
+            return response, next_cursor_obj.encode(), has_more
+
+        # Internal state for automatic cursor tracking
+        fetch_page._current_cursor = initial_cursor
+        fetch_page._has_more = True
+        return fetch_page

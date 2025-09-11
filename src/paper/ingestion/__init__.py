@@ -8,6 +8,7 @@ preprint servers and academic repositories.
 from .clients import BaseClient, BioRxivClient, BioRxivConfig, ClientConfig
 from .exceptions import *
 from .mappers import BaseMapper, BioRxivMapper
+from .service import PaperIngestionService
 
 __all__ = [
     # Base classes
@@ -19,5 +20,7 @@ __all__ = [
     "BioRxivClient",
     "BioRxivConfig",
     "BioRxivMapper",
+    # Service
+    "PaperIngestionService",
     # Exceptions (from .exceptions import *)
 ]
