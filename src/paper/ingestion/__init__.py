@@ -5,16 +5,25 @@ This module provides a unified interface for ingesting papers from multiple
 preprint servers and academic repositories.
 """
 
-from .clients import BaseClient, BioRxivClient, BioRxivConfig, ClientConfig
+from .clients import (
+    ArXivClient,
+    ArXivConfig,
+    BaseClient,
+    BioRxivClient,
+    BioRxivConfig,
+    ClientConfig,
+)
 from .exceptions import *
 from .mappers import BaseMapper, BioRxivMapper
 
 __all__ = [
     # Base classes
-    "ClientConfig",
     "BaseClient",
     "BaseMapper",
-    "Base",  # Legacy compatibility
+    "ClientConfig",
+    # ArXiv implementation
+    "ArXivClient",
+    "ArXivConfig",
     # BioRxiv implementation
     "BioRxivClient",
     "BioRxivConfig",
