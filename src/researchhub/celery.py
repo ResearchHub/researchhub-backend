@@ -83,14 +83,6 @@ app.conf.beat_schedule = {
             "queue": QUEUE_NOTIFICATION,
         },
     },
-    "paper_log-daily-uploads": {
-        "task": "paper.tasks.log_daily_uploads",
-        "schedule": crontab(minute=50, hour=23),
-        "options": {
-            "priority": 2,
-            "queue": QUEUE_EXTERNAL_REPORTING,
-        },
-    },
     # Purchase
     "purchase_update-purchases": {
         "task": "purchase.tasks.update_purchases",
