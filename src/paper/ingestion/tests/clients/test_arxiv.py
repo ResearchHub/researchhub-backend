@@ -2,6 +2,7 @@
 Tests for ArXiv client.
 """
 
+import os
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
@@ -18,84 +19,23 @@ class TestArXivClient(TestCase):
         self.config = ArXivConfig()
         self.client = ArXivClient(self.config)
 
-        # Real ArXiv API response from Sept 2025
-        self.sample_xml_response = """<?xml version="1.0" encoding="UTF-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom">
-  <link href="http://arxiv.org/api/query?search_query%3Dcat%3Acs.AI%26id_list%3D%26start%3D0%26max_results%3D2" rel="self" type="application/atom+xml"/>
-  <title type="html">ArXiv Query: search_query=cat:cs.AI&amp;id_list=&amp;start=0&amp;max_results=2</title>
-  <id>http://arxiv.org/api/sLG0txIUz7g/GKW7ibPhDY0NNSQ</id>
-  <updated>2025-09-11T00:00:00-04:00</updated>
-  <opensearch:totalResults xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/">141182</opensearch:totalResults>
-  <opensearch:startIndex xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/">0</opensearch:startIndex>
-  <opensearch:itemsPerPage xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/">2</opensearch:itemsPerPage>
-  <entry>
-    <id>http://arxiv.org/abs/2509.08827v1</id>
-    <updated>2025-09-10T17:59:43Z</updated>
-    <published>2025-09-10T17:59:43Z</published>
-    <title>A Survey of Reinforcement Learning for Large Reasoning Models</title>
-    <summary>  In this paper, we survey recent advances in Reinforcement Learning (RL) for
-reasoning with Large Language Models (LLMs). RL has achieved remarkable success
-in advancing the frontier of LLM capabilities, particularly in addressing
-complex logical tasks such as mathematics and coding.</summary>
-    <author>
-      <name>Kaiyan Zhang</name>
-    </author>
-    <author>
-      <name>Yuxin Zuo</name>
-    </author>
-    <author>
-      <name>Bingxiang He</name>
-    </author>
-    <link href="http://arxiv.org/abs/2509.08827v1" rel="alternate" type="text/html"/>
-    <link title="pdf" href="http://arxiv.org/pdf/2509.08827v1" rel="related" type="application/pdf"/>
-    <arxiv:primary_category xmlns:arxiv="http://arxiv.org/schemas/atom" term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
-    <category term="cs.CL" scheme="http://arxiv.org/schemas/atom"/>
-    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
-    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
-  </entry>
-  <entry>
-    <id>http://arxiv.org/abs/2509.08817v1</id>
-    <updated>2025-09-10T17:49:06Z</updated>
-    <published>2025-09-10T17:49:06Z</published>
-    <title>QCardEst/QCardCorr: Quantum Cardinality Estimation and Correction</title>
-    <summary>  Cardinality estimation is an important part of query optimization in DBMS. We
-develop a Quantum Cardinality Estimation (QCardEst) approach using Quantum
-Machine Learning with a Hybrid Quantum-Classical Network.</summary>
-    <author>
-      <name>Tobias Winker</name>
-    </author>
-    <author>
-      <name>Jinghua Groppe</name>
-    </author>
-    <author>
-      <name>Sven Groppe</name>
-    </author>
-    <arxiv:comment xmlns:arxiv="http://arxiv.org/schemas/atom">7 pages</arxiv:comment>
-    <link href="http://arxiv.org/abs/2509.08817v1" rel="alternate" type="text/html"/>
-    <link title="pdf" href="http://arxiv.org/pdf/2509.08817v1" rel="related" type="application/pdf"/>
-    <arxiv:primary_category xmlns:arxiv="http://arxiv.org/schemas/atom" term="quant-ph" scheme="http://arxiv.org/schemas/atom"/>
-    <category term="quant-ph" scheme="http://arxiv.org/schemas/atom"/>
-    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
-    <category term="cs.DB" scheme="http://arxiv.org/schemas/atom"/>
-    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
-  </entry>
-</feed>"""
+        # Load fixture files
+        fixtures_dir = os.path.join(os.path.dirname(__file__), "fixtures")
 
-        # Empty XML response (no results)
-        self.empty_xml_response = """<?xml version="1.0" encoding="UTF-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom">
-  <title>ArXiv Query</title>
-  <id>http://arxiv.org/api/query</id>
-  <opensearch:totalResults xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/">0</opensearch:totalResults>
-</feed>"""
+        with open(os.path.join(fixtures_dir, "arxiv_sample_response.xml"), "r") as f:
+            self.sample_xml_response = f.read()
+
+        with open(os.path.join(fixtures_dir, "arxiv_empty_response.xml"), "r") as f:
+            self.empty_xml_response = f.read()
 
     def test_config_defaults(self):
         """Test ArXiv config has correct defaults."""
         config = ArXivConfig()
         self.assertEqual(config.source_name, "arxiv")
         self.assertEqual(
-            config.base_url, "http://export.arxiv.org/api"
-        )  # NOSONAR - ArXiv API uses HTTP
+            config.base_url,
+            "http://export.arxiv.org/api",  # NOSONAR - ArXiv API uses HTTP
+        )
         self.assertEqual(config.rate_limit, 0.33)  # 3 second delay
         self.assertEqual(config.page_size, 100)
         self.assertEqual(config.request_timeout, 30.0)
@@ -180,46 +120,40 @@ Machine Learning with a Hybrid Quantum-Classical Network.</summary>
         params = first_call_args[0][1]  # Get params from first call
         self.assertEqual(params["search_query"], "submittedDate:[20250101 TO 20250107]")
 
+    def _create_test_response(self, start_idx, count, total=None):
+        """Helper to create test XML responses."""
+        response = '<?xml version="1.0" encoding="UTF-8"?>\n'
+        response += '<feed xmlns="http://www.w3.org/2005/Atom">\n'
+        if total:
+            response += (
+                f"  <opensearch:totalResults "
+                f'xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/">'
+                f"{total}</opensearch:totalResults>\n"
+            )
+
+        for i in range(start_idx, start_idx + count):
+            response += f"""  <entry>
+    <id>http://arxiv.org/abs/2401.{i:05d}</id>
+    <title>Paper {i}</title>
+    <summary>Summary {i}</summary>
+    <published>2025-01-01T00:00:00Z</published>
+    <updated>2025-01-01T00:00:00Z</updated>
+    <author><name>Author {i}</name></author>
+    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
+  </entry>
+"""
+        response += "</feed>"
+        return response
+
     @patch.object(ArXivClient, "fetch_with_retry")
     def test_fetch_recent_pagination(self, mock_fetch):
         """Test pagination handling in fetch_recent."""
-        # Create response with 100 results
-        large_response = """<?xml version="1.0" encoding="UTF-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom">
-  <opensearch:totalResults xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/">150</opensearch:totalResults>"""
-
-        # Add 100 entries
-        for i in range(100):
-            large_response += f"""
-  <entry>
-    <id>http://arxiv.org/abs/2401.{i:05d}</id>
-    <title>Paper {i}</title>
-    <summary>Summary {i}</summary>
-    <published>2025-01-01T00:00:00Z</published>
-    <updated>2025-01-01T00:00:00Z</updated>
-    <author><name>Author {i}</name></author>
-    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
-  </entry>"""
-        large_response += "\n</feed>"
-
-        # Second page with 50 results
-        second_response = """<?xml version="1.0" encoding="UTF-8"?>
-<feed xmlns="http://www.w3.org/2005/Atom">"""
-        for i in range(100, 150):
-            second_response += f"""
-  <entry>
-    <id>http://arxiv.org/abs/2401.{i:05d}</id>
-    <title>Paper {i}</title>
-    <summary>Summary {i}</summary>
-    <published>2025-01-01T00:00:00Z</published>
-    <updated>2025-01-01T00:00:00Z</updated>
-    <author><name>Author {i}</name></author>
-    <category term="cs.AI" scheme="http://arxiv.org/schemas/atom"/>
-  </entry>"""
-        second_response += "\n</feed>"
+        # Create responses for pagination test
+        first_page = self._create_test_response(0, 100, total=150)
+        second_page = self._create_test_response(100, 50)
 
         # Mock to return different responses
-        mock_fetch.side_effect = [large_response, second_response]
+        mock_fetch.side_effect = [first_page, second_page]
 
         papers = self.client.fetch_recent(
             since=datetime(2025, 1, 1), until=datetime(2025, 1, 2)

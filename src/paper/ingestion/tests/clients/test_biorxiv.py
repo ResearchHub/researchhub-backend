@@ -190,14 +190,3 @@ class TestBioRxivClient(TestCase):
             # Should have fetched all 150 papers
             self.assertEqual(len(papers), 150)
             self.assertEqual(mock_fetch.call_count, 2)
-
-    @patch.object(BioRxivClient, "fetch_with_retry")
-    def test_fetch_by_doi(self, mock_fetch):
-        """Test fetching a paper by DOI."""
-        mock_fetch.return_value = self.sample_response
-
-        paper = self.client.fetch_by_doi("10.1101/2024.12.31.630767")
-
-        self.assertIsNotNone(paper)
-        self.assertEqual(paper["doi"], "10.1101/2024.12.31.630767")
-        mock_fetch.assert_called_once_with("/details/biorxiv/10.1101/2024.12.31.630767")

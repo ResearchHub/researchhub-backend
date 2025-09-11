@@ -7,10 +7,10 @@ from .base import BaseClient, ClientConfig
 from .biorxiv import BioRxivClient, BioRxivConfig
 
 __all__ = [
-    "ClientConfig",
+    "ArXivClient",
+    "ArXivConfig",
     "BaseClient",
     "BioRxivClient",
     "BioRxivConfig",
-    "ArXivClient",
-    "ArXivConfig",
+    "ClientConfig",
 ]
