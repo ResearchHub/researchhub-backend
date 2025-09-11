@@ -3,12 +3,10 @@ Base client class for paper source API clients.
 """
 
 import logging
-import random
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 from ..exceptions import FetchError, RetryExhaustedError, TimeoutError
 
@@ -113,13 +111,3 @@ class BaseClient(ABC):
             f"Failed after {self.config.max_retries + 1} attempts",
             attempts=self.config.max_retries + 1,
         )
-
-    @abstractmethod
-    def fetch_recent(
-        self,
-        since: Optional[datetime] = None,
-        until: Optional[datetime] = None,
-        **kwargs,
-    ) -> List[Dict[str, Any]]:
-        """Fetch recent papers within date range."""
-        pass

@@ -86,28 +86,6 @@ class TestBioRxivClient(TestCase):
         self.assertEqual(config.page_size, 100)
         self.assertEqual(config.request_timeout, 45.0)
 
-    def test_parse(self):
-        """Test parsing of BioRxiv API response."""
-        papers = self.client.parse(self.sample_response)
-
-        self.assertEqual(len(papers), 2)
-
-        # Check first paper
-        paper1 = papers[0]
-        self.assertEqual(paper1["doi"], "10.1101/2024.12.31.630767")
-        self.assertEqual(paper1["version"], "1")
-        self.assertEqual(paper1["title"], "Persistent DNA methylation paper")
-        self.assertEqual(paper1["category"], "neuroscience")
-        self.assertEqual(paper1["server"], "bioRxiv")
-        self.assertEqual(paper1["date"], "2025-01-01")
-        self.assertEqual(paper1["license"], "cc_no")
-
-        # Check second paper (has published info)
-        paper2 = papers[1]
-        self.assertEqual(paper2["doi"], "10.1101/2024.12.31.629756")
-        self.assertEqual(paper2["published"], "10.1182/bloodadvances.2025016511")
-        self.assertEqual(paper2["category"], "cancer biology")
-
     @patch("requests.Session.get")
     def test_fetch_with_retry(self, mock_get):
         """Test fetch with retry logic."""
@@ -123,71 +101,6 @@ class TestBioRxivClient(TestCase):
 
         self.assertEqual(result, self.sample_response)
         mock_get.assert_called_once()
-
-    @patch.object(BioRxivClient, "fetch_with_retry")
-    def test_fetch_recent(self, mock_fetch):
-        """Test fetching recent papers."""
-        # Mock response - return empty list after first call to stop pagination
-        mock_fetch.side_effect = [
-            self.sample_response,
-            {"messages": [], "collection": []},
-        ]
-
-        # Fetch responses
-        responses = self.client.fetch_recent(
-            since=datetime(2025, 1, 1), until=datetime(2025, 1, 1)
-        )
-
-        # Check results - should have 1 response page
-        self.assertEqual(len(responses), 1)
-        self.assertEqual(
-            responses[0]["collection"][0]["doi"], "10.1101/2024.12.31.630767"
-        )
-
-        # Verify endpoint was called correctly
-        mock_fetch.assert_any_call("/details/biorxiv/2025-01-01/2025-01-01/0/json")
-
-    @patch.object(BioRxivClient, "fetch_with_retry")
-    def test_fetch_recent_pagination(self, mock_fetch):
-        """Test pagination handling in fetch_recent."""
-        # First page response
-        response1 = {
-            "messages": [
-                {
-                    "status": "ok",
-                    "cursor": 0,
-                    "count": 100,
-                    "total": "150",
-                }
-            ],
-            "collection": [{"doi": f"10.1101/paper{i}"} for i in range(100)],
-        }
-
-        # Second page response
-        response2 = {
-            "messages": [
-                {
-                    "status": "ok",
-                    "cursor": 100,
-                    "count": 50,
-                    "total": "150",
-                }
-            ],
-            "collection": [{"doi": f"10.1101/paper{i}"} for i in range(100, 150)],
-        }
-
-        # Mock to return different responses
-        mock_fetch.side_effect = [response1, response2]
-
-        responses = self.client.fetch_recent(
-            since=datetime(2025, 1, 1), until=datetime(2025, 1, 2)
-        )
-
-        # Should have fetched 2 response pages
-        self.assertEqual(len(responses), 2)
-        self.assertEqual(len(responses[0]["collection"]), 100)
-        self.assertEqual(len(responses[1]["collection"]), 50)
-        self.assertEqual(mock_fetch.call_count, 2)
 
     @patch.object(BioRxivClient, "fetch_with_retry")
     def test_create_recent_papers_fetcher_basic(self, mock_fetch):

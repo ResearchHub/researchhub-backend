@@ -9,7 +9,7 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, Optional, Tuple, Union
 
 import requests
 
@@ -123,28 +123,6 @@ class BioRxivClient(BaseClient):
             )
         except requests.RequestException as e:
             raise FetchError(f"Failed to fetch from {url}: {str(e)}")
-
-    def parse(
-        self, raw_data: Union[str, bytes, Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
-        """
-        Extract collection from BioRxiv API response.
-
-        Minimal processing - just extracts the collection array.
-        Full mapping is handled by the mapper.
-
-        Args:
-            raw_data: JSON response from API
-
-        Returns:
-            List of raw paper records from collection
-        """
-        if isinstance(raw_data, (str, bytes)):
-            raw_data = json.loads(raw_data)
-
-        # BioRxiv response structure:
-        # {"messages": [...], "collection": [...]}
-        return raw_data.get("collection", [])
 
     def create_recent_papers_fetcher(
         self,
