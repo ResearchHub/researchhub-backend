@@ -16,8 +16,6 @@ class ExternalCategoryMapperTestCase(TestCase):
 
     def setUp(self):
         """Set up test environment."""
-        # Clear the mapper cache before each test
-        ExternalCategoryMapper.clear_cache()
 
         # Create some test HubCategories
         self.cs_category = HubCategory.objects.create(category_name="Computer Science")
@@ -100,84 +98,32 @@ class ExternalCategoryMapperTestCase(TestCase):
         self.assertEqual(result4.hub_category, result5.hub_category)
         self.assertEqual(result4.subcategory_hub, result5.subcategory_hub)
 
-    def test_hub_caching_mechanism(self):
-        """Test that hub caching works correctly."""
-        # Test that cache initialization only happens once
-        ExternalCategoryMapper.clear_cache()
+        # Test with ChemRxiv
+        result6 = ExternalCategoryMapper.map("ORGANIC CHEMISTRY", source="chemrxiv")
+        result7 = ExternalCategoryMapper.map("organic chemistry", source="chemrxiv")
+        self.assertEqual(result6.hub_category, result7.hub_category)
+        self.assertEqual(result6.subcategory_hub, result7.subcategory_hub)
 
-        # Track database calls
-        with patch.object(Hub.objects, "filter") as mock_filter:
-            with patch.object(HubCategory.objects, "all") as mock_cat_all:
+    def test_database_queries(self):
+        """Test that mapper queries the database correctly."""
+        # Test that mapper queries database for each mapping
+        with patch.object(HubCategory.objects, "get") as mock_cat_get:
+            with patch.object(Hub.objects, "get") as mock_hub_get:
                 # Set up return values
-                mock_filter.return_value.select_related.return_value = []
-                mock_cat_all.return_value = []
+                mock_cat = HubCategory(category_name="Computer Science")
+                mock_hub = Hub(name="Machine Learning", namespace="subcategory")
+                mock_cat_get.return_value = mock_cat
+                mock_hub_get.return_value = mock_hub
 
-                # Cache should be None initially
-                self.assertIsNone(ExternalCategoryMapper._hub_cache)
-                self.assertIsNone(ExternalCategoryMapper._hub_category_cache)
-
-                # First map call should initialize cache
+                # First map call
                 ExternalCategoryMapper.map("cs.LG", source="arxiv")
+                self.assertEqual(mock_cat_get.call_count, 1)
+                self.assertEqual(mock_hub_get.call_count, 1)
 
-                # Cache should now be initialized
-                self.assertIsNotNone(ExternalCategoryMapper._hub_cache)
-                self.assertIsNotNone(ExternalCategoryMapper._hub_category_cache)
-                self.assertEqual(mock_filter.call_count, 1)
-                self.assertEqual(mock_cat_all.call_count, 1)
-
-                # Second call should use existing cache
-                ExternalCategoryMapper.map("cs.AI", source="arxiv")
-
-                # Database should not be called again
-                self.assertEqual(mock_filter.call_count, 1)
-                self.assertEqual(mock_cat_all.call_count, 1)
-
-    def test_cache_contains_all_hubs(self):
-        """Test that all hubs are loaded into memory cache."""
-        # Initialize cache
-        ExternalCategoryMapper.initialize_hub_cache()
-
-        # Check that our test hubs are in cache
-        self.assertIn(
-            (
-                f"subcategory:{self.cs_category.category_name.lower()}:"
-                f"{self.ml_hub.name.lower()}"
-            ),
-            ExternalCategoryMapper._hub_cache,
-        )
-        self.assertIn(
-            (
-                f"subcategory:{self.bio_category.category_name.lower()}:"
-                f"{self.neuro_hub.name.lower()}"
-            ),
-            ExternalCategoryMapper._hub_cache,
-        )
-
-        # Check that HubCategories are in cache
-        self.assertIn(
-            self.cs_category.category_name.lower(),
-            ExternalCategoryMapper._hub_category_cache,
-        )
-        self.assertIn(
-            self.bio_category.category_name.lower(),
-            ExternalCategoryMapper._hub_category_cache,
-        )
-
-    def test_mapping_cache_works(self):
-        """Test that mapping results are cached."""
-        # Clear cache
-        ExternalCategoryMapper.clear_cache()
-
-        # Map same category twice
-        result1 = ExternalCategoryMapper.map("cs.LG", source="arxiv")
-        result2 = ExternalCategoryMapper.map("cs.LG", source="arxiv")
-
-        # Should return same object from cache
-        self.assertEqual(result1, result2)
-
-        # Check cache key exists
-        cache_key = "arxiv:cs.lg"
-        self.assertIn(cache_key, ExternalCategoryMapper._mapping_cache)
+                # Second call should also query database
+                ExternalCategoryMapper.map("cs.LG", source="arxiv")
+                self.assertEqual(mock_cat_get.call_count, 2)
+                self.assertEqual(mock_hub_get.call_count, 2)
 
     def test_unknown_source_defaults_to_arxiv(self):
         """Test that unknown source defaults to arxiv with warning."""
@@ -209,6 +155,15 @@ class ExternalCategoryMapperTestCase(TestCase):
             ("cardiovascular medicine", "medrxiv", "Medicine", "Cardiology"),
             ("surgery", "medrxiv", "Medicine", "Surgery"),
             ("public and global health", "medrxiv", "Medicine", "Public Health"),
+            # ChemRxiv mappings
+            ("organic chemistry", "chemrxiv", "Chemistry", "Organic Chemistry"),
+            ("catalysis", "chemrxiv", "Chemistry", "Catalysis"),
+            (
+                "computational chemistry and modeling",
+                "chemrxiv",
+                "Chemistry",
+                "Computational Chemistry",
+            ),
         ]
 
         # Create the necessary hubs for testing
@@ -229,9 +184,6 @@ class ExternalCategoryMapperTestCase(TestCase):
                         "description": f"{subcat_name} subcategory",
                     },
                 )
-
-        # Clear cache to pick up new hubs
-        ExternalCategoryMapper.clear_cache()
 
         # Test each mapping
         for category, source, expected_cat, expected_subcat in test_cases:
@@ -285,6 +237,14 @@ class ExternalCategoryMapperTestCase(TestCase):
         self.assertEqual(result5.hub_category, result6.hub_category)
         self.assertEqual(result5.subcategory_hub, result6.subcategory_hub)
 
+        # Test ChemRxiv with extra whitespace
+        result7 = ExternalCategoryMapper.map("  catalysis  ", source="chemrxiv")
+        result8 = ExternalCategoryMapper.map("catalysis", source="chemrxiv")
+
+        # Should produce same result
+        self.assertEqual(result7.hub_category, result8.hub_category)
+        self.assertEqual(result7.subcategory_hub, result8.subcategory_hub)
+
     def test_medrxiv_mapping(self):
         """Test MedRxiv category mapping."""
         # Create necessary categories (get_or_create to avoid duplicates)
@@ -307,9 +267,6 @@ class ExternalCategoryMapperTestCase(TestCase):
                 namespace="subcategory",
                 category=category,
             )
-
-        # Clear cache to pick up new hubs
-        ExternalCategoryMapper.clear_cache()
 
         # Test various MedRxiv mappings
         test_cases = [
@@ -343,3 +300,77 @@ class ExternalCategoryMapperTestCase(TestCase):
         self.assertIsNotNone(result.hub_category)
         self.assertEqual(result.hub_category.category_name, "Medicine")
         self.assertEqual(result.subcategory_hub.name, "Internal Medicine")
+
+    def test_chemrxiv_mapping(self):
+        """Test ChemRxiv category mapping."""
+        # Create necessary category
+        chemistry_cat, _ = HubCategory.objects.get_or_create(category_name="Chemistry")
+
+        # Create necessary subcategories
+        subcategories_to_create = [
+            "Organic Chemistry",
+            "Catalysis",
+            "Polymer Chemistry",
+            "Computational Chemistry",
+        ]
+
+        for subcat_name in subcategories_to_create:
+            Hub.objects.create(
+                name=subcat_name,
+                namespace="subcategory",
+                category=chemistry_cat,
+            )
+
+        # Test various ChemRxiv mappings
+        test_cases = [
+            ("organic chemistry", "Chemistry", "Organic Chemistry"),
+            ("catalysis", "Chemistry", "Catalysis"),
+            ("polymer science", "Chemistry", "Polymer Chemistry"),
+            (
+                "theoretical and computational chemistry",
+                "Chemistry",
+                "Computational Chemistry",
+            ),
+        ]
+
+        for chemrxiv_cat, expected_cat, expected_subcat in test_cases:
+            with self.subTest(category=chemrxiv_cat):
+                result = ExternalCategoryMapper.map(chemrxiv_cat, source="chemrxiv")
+                self.assertIsNotNone(result.hub_category)
+                self.assertEqual(result.hub_category.category_name, expected_cat)
+                self.assertIsNotNone(result.subcategory_hub)
+                self.assertEqual(result.subcategory_hub.name, expected_subcat)
+
+        # Test unmapped ChemRxiv category
+        result = ExternalCategoryMapper.map("nonexistent chemistry", source="chemrxiv")
+        self.assertIsNone(result.hub_category)
+        self.assertIsNone(result.subcategory_hub)
+
+        # Test ChemRxiv categories that map to other fields
+        biology_cat, _ = HubCategory.objects.get_or_create(category_name="Biology")
+        engineering_cat, _ = HubCategory.objects.get_or_create(
+            category_name="Engineering"
+        )
+
+        # Create subcategories for cross-field mappings
+        Hub.objects.get_or_create(
+            name="Biochemistry",
+            namespace="subcategory",
+            defaults={"category": biology_cat},
+        )
+        Hub.objects.get_or_create(
+            name="Chemical Engineering",
+            namespace="subcategory",
+            defaults={"category": engineering_cat},
+        )
+
+        # Test cross-field mappings
+        result = ExternalCategoryMapper.map("biochemistry", source="chemrxiv")
+        self.assertEqual(result.hub_category.category_name, "Biology")
+        self.assertEqual(result.subcategory_hub.name, "Biochemistry")
+
+        result = ExternalCategoryMapper.map(
+            "chemical engineering and industrial chemistry", source="chemrxiv"
+        )
+        self.assertEqual(result.hub_category.category_name, "Engineering")
+        self.assertEqual(result.subcategory_hub.name, "Chemical Engineering")
