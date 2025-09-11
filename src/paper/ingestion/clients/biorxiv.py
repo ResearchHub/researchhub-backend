@@ -152,34 +152,16 @@ class BioRxivClient(BaseClient):
         Raises:
             ValueError: If start_cursor is malformed or has mismatched date range/server
         """
-        # Default date range: last 7 days
-        if until is None:
-            until = datetime.now()
-        if since is None:
-            since = until - timedelta(days=7)
-
-        # Format dates as YYYY-MM-DD
-        since_str = since.strftime("%Y-%m-%d")
-        until_str = until.strftime("%Y-%m-%d")
 
         # Initialize internal cursor
-        if start_cursor is None:
-            initial_cursor = BioRxivCursor(0, since_str, until_str, server)
+        if start_cursor:
+            initial_cursor = BioRxivCursor.decode(start_cursor)
         else:
-            # Decode the cursor string
-            decoded = BioRxivCursor.decode(start_cursor)
-
-            # Validate that cursor matches current date range and server
-            if (
-                decoded.since_date != since_str
-                or decoded.until_date != until_str
-                or decoded.server != server
-            ):
-                raise ValueError(
-                    f"Cursor date range mismatch: cursor has {decoded.since_date}→{decoded.until_date} "
-                    f"on {decoded.server}, but fetcher expects {since_str}→{until_str} on {server}"
-                )
-            initial_cursor = decoded
+            if until is None or since is None:
+                raise ValueError("since and until dates must be provided if no cursor")
+            since_str = since.strftime("%Y-%m-%d")
+            until_str = until.strftime("%Y-%m-%d")
+            initial_cursor = BioRxivCursor(0, since_str, until_str, server)
 
         def fetch_page() -> Tuple[Dict[str, Any], str, bool]:
             """
