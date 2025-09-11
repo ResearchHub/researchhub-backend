@@ -215,23 +215,6 @@ class BioRxivMapper(BaseMapper):
             "last_name": parts[-1],
         }
 
-    def _extract_categories(self, category: Optional[str]) -> List[str]:
-        """
-        Extract categories from BioRxiv category field.
-
-        Args:
-            category: Category string from BioRxiv
-
-        Returns:
-            List of category strings
-        """
-        if not category:
-            return []
-
-        # BioRxiv categories are single strings
-        # Could be expanded to map to ResearchHub hubs
-        return [category]
-
     def _compute_pdf_url(self, doi: str, version: str) -> str:
         """
         Compute PDF URL from DOI and version.
