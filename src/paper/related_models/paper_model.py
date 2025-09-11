@@ -17,7 +17,6 @@ from hub.models import Hub
 from hub.serializers import DynamicHubSerializer
 from paper.lib import journal_hosts
 from paper.related_models.citation_model import Citation
-from paper.tasks import celery_extract_meta_data, celery_extract_pdf_preview
 from paper.utils import (
     get_csl_item,
     parse_author_name,
@@ -380,6 +379,8 @@ class Paper(AbstractGenericReactionModel):
         if TESTING:
             return
 
+        from paper.tasks import celery_extract_pdf_preview
+
         if use_celery:
             celery_extract_pdf_preview.apply_async(
                 (self.id,),
@@ -430,6 +431,8 @@ class Paper(AbstractGenericReactionModel):
     def extract_meta_data(self, title=None, check_title=False, use_celery=True):
         if TESTING:
             return
+
+        from paper.tasks import celery_extract_meta_data
 
         if title is None and self.paper_title:
             title = self.paper_title

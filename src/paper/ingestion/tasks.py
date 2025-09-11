@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 @app.task
-def pull_bioarxiv_papers():
+def pull_biorxiv_papers():
     """
     Temporary task for testing the bioRxiv client for pulling papers.
     """
