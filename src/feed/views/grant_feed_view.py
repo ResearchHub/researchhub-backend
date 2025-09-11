@@ -86,7 +86,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
 
         # Get paginated posts
         queryset = self.get_queryset()
-        queryset = self.ordering(queryset)
+        queryset = self.order_queryset(queryset)
         page = self.paginate_queryset(queryset)
 
         feed_entries = []
@@ -157,7 +157,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
                 queryset = queryset.filter(
                     unified_document__hubs__id__in=hub_json
                 ).distinct()
-            except json.JSONDecodeError as e:
+            except Exception as e:
                 print("Invalid JSON for hub_ids: ", e)
 
         # Filter by Status if specified.
@@ -166,7 +166,7 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
 
         return queryset
 
-    def ordering(self, queryset):
+    def order_queryset(self, queryset):
         """
         Order by user specified order param, default open to top.
         """
@@ -211,20 +211,13 @@ class GrantFeedViewSet(FeedViewMixin, ModelViewSet):
         Get list of hubs that have grant posts.
         """
 
-        cache_key = "funding-hubs"
-        cache_hit = cache.get(cache_key)
+        CACHE_KEY = "funding-hubs"
+        cache_hit = cache.get(CACHE_KEY)
         if cache_hit:
             return Response(cache_hit, status=200)
 
-        hub_data = list(
-            Hub.objects.filter(
-                related_documents__document_type=GRANT,
-                is_removed=False,
-            )
-            .values("id", "name", "slug")
-            .distinct()
-        )
+        hub_data = super().get_hubs(GRANT)
 
-        cache.set(cache_key, hub_data, timeout=60 * 60)
+        cache.set(CACHE_KEY, hub_data, timeout=super().DEFAULT_CACHE_TIMEOUT)
 
         return Response(hub_data, status=200)

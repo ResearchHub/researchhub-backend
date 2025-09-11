@@ -33,7 +33,6 @@ from rest_framework.viewsets import ModelViewSet
 from feed.models import FeedEntry
 from feed.serializers import FundingFeedEntrySerializer
 from feed.views.feed_view_mixin import FeedViewMixin
-from hub.models import Hub
 from purchase.related_models.fundraise_model import Fundraise
 from researchhub_document.related_models.constants.document_type import PREREGISTRATION
 from researchhub_document.related_models.researchhub_post_model import ResearchhubPost
@@ -71,7 +70,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
     permission_classes = []
     pagination_class = FeedPagination
 
-    def get_cache_key(self, request, feed_type=""):
+    def get_CACHE_KEY(self, request, feed_type=""):
         """Override to include funding query parameters in cache key"""
         base_key = super().get_cache_key(request, feed_type)
 
@@ -169,7 +168,7 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
                 queryset = queryset.filter(
                     unified_document__hubs__id__in=hubs_json
                 ).distinct()
-            except json.JSONDecodeError as e:
+            except Exception as e:
                 print("Error serializing hubs: ", e)
 
         # Filter by created_by if provided
@@ -283,20 +282,13 @@ class FundingFeedViewSet(FeedViewMixin, ModelViewSet):
         Get list of hubs that have funding proposal posts.
         """
 
-        cache_key = "funding-hubs"
-        cache_hit = cache.get(cache_key)
+        CACHE_KEY = "funding-hubs"
+        cache_hit = cache.get(CACHE_KEY)
         if cache_hit:
             return Response(cache_hit, status=200)
 
-        hub_data = list(
-            Hub.objects.filter(
-                related_documents__document_type=PREREGISTRATION,
-                is_removed=False,
-            )
-            .values("id", "name", "slug")
-            .distinct()
-        )
+        hub_data = super().get_hubs(PREREGISTRATION)
 
-        cache.set(cache_key, hub_data, timeout=60 * 60)
+        cache.set(CACHE_KEY, hub_data, timeout=super().DEFAULT_CACHE_TIMEOUT)
 
         return Response(hub_data, status=200)

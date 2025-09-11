@@ -44,6 +44,8 @@ class FundingFeedViewSetTests(TestCase):
             name="Test Hub",
         )
 
+        self.unified_document.hubs.add(self.hub)
+
         # Create a preregistration post
         self.post = ResearchhubPost.objects.create(
             title="Test Preregistration",
@@ -1417,3 +1419,61 @@ class FundingFeedViewSetTests(TestCase):
         # The post with the higher amount raised should be first
         first_post_id = results[0]["content_object"]["id"]
         self.assertEqual(first_post_id, high_amount_post.id)
+
+    def test_hubs_filter(self):
+        """Test filtering funding feed by hubs parameter"""
+
+        # Test filtering by self.hub
+        url = reverse("funding_feed-list") + f"?hub_ids=[{self.hub.id}]"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should only return posts associated with self.hub
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(
+            response.data["results"][0]["content_object"]["id"], self.post.id
+        )
+
+        # Test filtering by other_hub
+        url = reverse("funding_feed-list") + f"?hub_ids=[{self.other_hub.id}]"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should only return posts associated with other_hub
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(
+            response.data["results"][0]["content_object"]["id"], self.other_post.id
+        )
+
+        # Test filtering with bad format (no brackets)
+        url = reverse("funding_feed-list") + f"?hub_ids={self.hub.id}"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should ignore the malformed hub_ids and return all posts
+        self.assertEqual(len(response.data["results"]), 2)
+
+    def test_get_hubs(self):
+        """Test the get_hubs action to retrieve hubs with preregistration posts"""
+        url = reverse("funding_feed-hubs")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsInstance(response.data, list)
+        # Should include the hub associated with self.post
+        hub_ids = [hub["id"] for hub in response.data]
+        self.assertIn(self.hub.id, hub_ids)
+        self.assertIn(self.other_hub.id, hub_ids)
+
+        new_hub = Hub.objects.create(name="New Hub", slug="new-hub")
+        new_doc = ResearchhubUnifiedDocument.objects.create(
+            document_type=PREREGISTRATION
+        )
+        new_doc.hubs.add(new_hub)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        hub_ids = [hub["id"] for hub in response.data]
+
+        # if key working new hub should not be in list yet.
+        self.assertNotIn(new_hub.id, hub_ids)

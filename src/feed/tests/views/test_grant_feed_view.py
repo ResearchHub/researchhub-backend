@@ -3,9 +3,11 @@ from decimal import Decimal
 
 import pytz
 from django.core.cache import cache
-from django.utils import timezone
+from django.urls import reverse
+from rest_framework import status
 from rest_framework.test import APITestCase
 
+from hub.models import Hub
 from purchase.models import Grant, GrantApplication
 from researchhub_document.helpers import create_post
 from researchhub_document.related_models.constants.document_type import (
@@ -411,6 +413,30 @@ class GrantFeedViewTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.data["results"]), 0)
 
+    def test_hubs_filter(self):
+        """Test filtering funding feed by hubs parameter"""
+        new_hub = Hub.objects.create(name="New Hub", slug="new-hub")
+        self.open_post.unified_document.hubs.add(new_hub)
+
+        # Test filtering by self.hub
+        url = reverse("grant_feed-list") + f"?hub_ids=[{new_hub.id}]"
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        # Should only return posts associated with self.hub
+        self.assertEqual(len(response.data["results"]), 1)
+        self.assertEqual(
+            response.data["results"][0]["content_object"]["id"], self.open_post.id
+        )
+
+        # Test filtering with bad format (no brackets)
+        url = reverse("grant_feed-list") + f"?hub_ids={new_hub.id}"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # Should ignore the malformed hub_ids and return all posts
+        self.assertEqual(len(response.data["results"]), 3)
+
     def test_grant_feed_order_by_newest(self):
         """Test grant feed ordering by newest"""
         new_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
@@ -644,3 +670,28 @@ class GrantFeedViewTests(APITestCase):
         self.assertEqual(
             second_result["content_object"]["title"], "Grant with 1 Application"
         )
+
+    def test_get_hubs(self):
+        """Test the get_hubs action to retrieve hubs with preregistration posts"""
+        new_hub = Hub.objects.create(name="New Hub", slug="new-hub")
+        self.open_post.unified_document.hubs.add(new_hub)
+
+        url = reverse("grant_feed-hubs")
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsInstance(response.data, list)
+
+        hub_ids = [hub["id"] for hub in response.data]
+        self.assertIn(new_hub.id, hub_ids)
+
+        newest_hub = Hub.objects.create(name="Newest Hub", slug="newest-hub")
+        newest_doc = ResearchhubUnifiedDocument.objects.create(document_type=GRANT)
+        newest_doc.hubs.add(new_hub)
+
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        hub_ids = [hub["id"] for hub in response.data]
+
+        # if key working new hub should not be in list yet.
+        self.assertNotIn(newest_hub.id, hub_ids)
