@@ -17,7 +17,7 @@ from hub.models import Hub
 from hub.serializers import DynamicHubSerializer
 from paper.lib import journal_hosts
 from paper.related_models.citation_model import Citation
-from paper.tasks import celery_extract_meta_data, celery_extract_pdf_preview
+from paper.tasks import celery_extract_pdf_preview
 from paper.utils import (
     get_csl_item,
     parse_author_name,
@@ -426,26 +426,6 @@ class Paper(AbstractGenericReactionModel):
         # self.save(update_fields['is_removed'])
         self.save()
         return self.is_removed
-
-    def extract_meta_data(self, title=None, check_title=False, use_celery=True):
-        if TESTING:
-            return
-
-        if title is None and self.paper_title:
-            title = self.paper_title
-        elif title is None and self.title:
-            title = self.title
-        elif title is None:
-            return
-
-        if use_celery:
-            celery_extract_meta_data.apply_async(
-                (self.id, title, check_title),
-                priority=1,
-                countdown=10,
-            )
-        else:
-            celery_extract_meta_data(self.id, title, check_title)
 
     def get_boost_amount(self):
         purchases = self.purchases.filter(

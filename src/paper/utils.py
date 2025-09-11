@@ -2,7 +2,6 @@ import io
 
 import cloudscraper
 import fitz
-import jellyfish
 import regex as re
 import requests
 from bs4 import BeautifulSoup
@@ -253,69 +252,11 @@ def clean_pdf(file):
         file.seek(0)
 
 
-def check_pdf_title(input_title, file):
-    if not input_title or not file:
-        return False
-
-    try:
-        clean_pdf(file)
-        doc = fitz.open(stream=file.read(), filetype="pdf")
-        doc_metadata = doc.metadata
-        doc_title = doc_metadata.get("title") or ""
-
-        # Lowercasing titles for simple normalization
-        normalized_input_title = input_title.lower()
-        normalized_pdf_title = doc_title.lower()
-
-        # Checks if the title matches the pdf's metadata first
-        similar = check_similarity(normalized_pdf_title, normalized_input_title)
-
-        if similar:
-            return True
-        else:
-            n_length = len(normalized_input_title.split())
-            for i, page in enumerate(doc):
-                if i > MAX_TITLE_PAGES:
-                    return False
-
-                page_text = page.getText().lower()
-                if normalized_input_title in page_text:
-                    return True
-                ngrams = _ngrams(page_text.split(), n_length)
-                for ngram in ngrams:
-                    ngram_string = " ".join(ngram)
-                    similar = check_similarity(ngram_string, normalized_input_title)
-                    if similar:
-                        return True
-        return False
-    except Exception as e:
-        print(e)
-
-
 def _ngrams(words: list, n: int) -> list:
     """
     Returns a list of ngrams of size n from the given list of words.
     """
     return zip(*[words[i:] for i in range(n)])
-
-
-def check_crossref_title(original_title, crossref_title):
-    # Lowercasing titles for simple normalization
-    normalized_original_title = original_title.lower()
-    normalized_crossref_title = crossref_title.lower()
-
-    similar = check_similarity(normalized_original_title, normalized_crossref_title)
-
-    if similar:
-        return True
-    return False
-
-
-def check_similarity(str1, str2, threshold=SIMILARITY_THRESHOLD):
-    r = jellyfish.jaro_distance(str1, str2)
-    if r >= threshold:
-        return True
-    return False
 
 
 def get_crossref_results(query, index=10):
