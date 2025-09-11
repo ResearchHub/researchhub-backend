@@ -83,14 +83,6 @@ app.conf.beat_schedule = {
             "queue": QUEUE_NOTIFICATION,
         },
     },
-    "paper_log-daily-uploads": {
-        "task": "paper.tasks.log_daily_uploads",
-        "schedule": crontab(minute=50, hour=23),
-        "options": {
-            "priority": 2,
-            "queue": QUEUE_EXTERNAL_REPORTING,
-        },
-    },
     # Purchase
     "purchase_update-purchases": {
         "task": "purchase.tasks.update_purchases",
@@ -187,7 +179,7 @@ app.conf.beat_schedule = {
     },
     # Testing tasks for paper ingestion
     "test_biorxiv-paper-pull": {
-        "task": "paper.ingestion.tasks.pull_bioarxiv_papers",
+        "task": "paper.ingestion.tasks.pull_biorxiv_papers",
         "schedule": crontab(hour="*/2", minute=0),
         "options": {
             "priority": 3,

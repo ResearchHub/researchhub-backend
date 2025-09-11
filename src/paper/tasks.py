@@ -10,6 +10,8 @@ from django.core.cache import cache
 from django.core.files.base import ContentFile
 from PIL import Image
 
+# Import paper ingestion tasks for auto-discovery by Celery:
+from paper.ingestion.tasks import pull_biorxiv_papers  # noqa: F401
 from paper.utils import (
     check_crossref_title,
     check_pdf_title,
