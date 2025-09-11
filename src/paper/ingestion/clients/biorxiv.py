@@ -185,31 +185,3 @@ class BioRxivClient(BaseClient):
             f"between {since_str} and {until_str}"
         )
         return all_papers
-
-    def fetch_by_doi(
-        self, doi: str, server: str = "biorxiv"
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Fetch a specific paper by DOI.
-
-        Args:
-            doi: DOI identifier (e.g., "10.1101/2024.01.01.123456")
-            server: "biorxiv" or "medrxiv" (default: "biorxiv")
-
-        Returns:
-            Paper record if found, None otherwise
-        """
-        # BioRxiv API endpoint for DOI lookup: /details/{server}/{doi}
-        endpoint = f"/details/{server}/{doi}"
-
-        try:
-            response = self.fetch_with_retry(endpoint)
-            papers = self.process_page(response)
-
-            if papers:
-                return papers[0]  # Return first (should be only) result
-            return None
-
-        except Exception as e:
-            logger.error(f"Failed to fetch paper with DOI {doi}: {e}")
-            return None
