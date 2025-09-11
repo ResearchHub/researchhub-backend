@@ -3,7 +3,7 @@ Paper ingestion service for processing raw responses and saving papers with auth
 """
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 from django.db import transaction
 
